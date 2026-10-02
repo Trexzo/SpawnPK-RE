@@ -18,6 +18,7 @@ public final class RemotePetMirrorMaskRetryTest {
         assertDeferredMasksPreserveFifoOrder();
         assertDeferredMaskBlocksLaterProjection();
         assertDirectTransportFailureFailsClosed();
+        assertTerminalUnregisterCleanupRetainsSentinel();
         assertTerminalQueueIsNotRetryable();
         assertMirrorAddMoveRemoveRetractable();
         assertRelayRemovalTrackSurvivesRetraction();
@@ -43,6 +44,7 @@ public final class RemotePetMirrorMaskRetryTest {
             "terminalMirrorWriterLatchedBeforeRuntimeRetire=true "+
             "terminalMirrorWriterNoRetouchBeforeRuntimeRetire=true "+
             "terminalMirrorSentinelRetained=true "+
+            "terminalUnregisterCleanupSentinelRetained=true "+
             "terminalQueueNotRetryable=true "+
             "mirrorAddRetryRetracted=true "+
             "mirrorMoveRetryRetracted=true "+
@@ -861,6 +863,254 @@ public final class RemotePetMirrorMaskRetryTest {
         }
     }
 
+    private static void assertTerminalUnregisterCleanupRetainsSentinel()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                601L
+            );
+        WorldPlayer source=
+            new WorldPlayer();
+        WorldPlayer viewer=
+            new WorldPlayer();
+
+        long sourceGeneration=
+            world.registerPlayer(
+                source,
+                "mirror-unregister-terminal-source"
+            );
+        long viewerGeneration=
+            world.registerPlayer(
+                viewer,
+                "mirror-unregister-terminal-viewer"
+            );
+
+        ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                new OutboundPacketQueue(),
+                new IsaacCipher(
+                    SOURCE_SEED.clone()
+                )
+            );
+
+        SwitchableFailureOutputStream viewerOut=
+            new SwitchableFailureOutputStream();
+
+        ServerPacketWriter viewerWriter=
+            new ServerPacketWriter(
+                viewerOut,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+
+        Player81WorldSync.register(
+            sourceWriter,
+            world,
+            source,
+            new DevAuthorityWorkbench()
+        );
+
+        Player81WorldSync.Context viewerSync=
+            Player81WorldSync.register(
+                viewerWriter,
+                world,
+                viewer,
+                new DevAuthorityWorkbench()
+            );
+
+        NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry viewerNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            world,
+            source,
+            sourceNpcs,
+            source.movement()
+        );
+        SharedNpcWorldRelay.register(
+            viewerWriter,
+            world,
+            viewer,
+            viewerNpcs,
+            viewer.movement()
+        );
+
+        try{
+            PetDefinitionRepository.Def pet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(pet==null)
+                throw new AssertionError(
+                    "missing pet 24019"
+                );
+
+            String spawn=
+                sourceNpcs.spawnPet(
+                    pet,
+                    source.movement(),
+                    sourceWriter
+                );
+
+            if(spawn==null||
+               !spawn.startsWith(
+                    "PET_SPAWN_OK"
+               ))
+                throw new AssertionError(
+                    "unregister terminal fixture pet setup failed: "+
+                    spawn
+                );
+
+            Player81WorldSync.transformForTest(
+                viewerSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            if(Player81WorldSync.clientIndexFor(
+                    viewerWriter,
+                    source
+                )<0)
+                throw new AssertionError(
+                    "unregister terminal viewer did not establish source visibility"
+                );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                viewerWriter
+            );
+
+            if(viewerNpcs.snapshot().isEmpty())
+                throw new AssertionError(
+                    "unregister terminal fixture did not create remote mirror"
+                );
+
+            int attemptsBeforeFailure=
+                viewerOut.attempts();
+
+            viewerOut.enableFailure();
+
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+
+            if(!viewerWriter.terminal())
+                throw new AssertionError(
+                    "unregister cleanup failure did not latch exact writer terminal"
+                );
+
+            if(viewerOut.attempts()!=
+                    attemptsBeforeFailure+1)
+                throw new AssertionError(
+                    "unregister cleanup did not stop after one failing transport attempt before="+
+                    attemptsBeforeFailure+
+                    " after="+
+                    viewerOut.attempts()
+                );
+
+            if(!viewerNpcs.snapshot().isEmpty())
+                throw new AssertionError(
+                    "terminal unregister cleanup retained local mirror bookkeeping"
+                );
+
+            int attemptsAfterFailure=
+                viewerOut.attempts();
+
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+
+            boolean rejected=false;
+
+            try{
+                SharedNpcWorldRelay.preflightRegistration(
+                    viewerWriter,
+                    world,
+                    viewer
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                rejected=
+                    expected.owner==viewer&&
+                    expected.writer==viewerWriter;
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "terminal unregister cleanup discarded exact SharedNpc sentinel"
+                );
+
+            if(viewerOut.attempts()!=
+                    attemptsAfterFailure)
+                throw new AssertionError(
+                    "terminal unregister retry/preflight retouched broken transport before="+
+                    attemptsAfterFailure+
+                    " after="+
+                    viewerOut.attempts()
+                );
+
+            viewerOut.disableFailure();
+
+            boolean publicationRejected=false;
+
+            try{
+                viewerWriter.fixed(
+                    97,
+                    new byte[0]
+                );
+            }catch(IOException expected){
+                publicationRejected=true;
+            }
+
+            if(!publicationRejected)
+                throw new AssertionError(
+                    "terminal unregister writer accepted later publication"
+                );
+
+            if(viewerOut.attempts()!=
+                    attemptsAfterFailure)
+                throw new AssertionError(
+                    "terminal unregister writer rejection touched transport"
+                );
+        }finally{
+            viewerOut.disableFailure();
+
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
+                viewerWriter
+            );
+
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
+                );
+            if(viewer.registered())
+                world.unregisterPlayer(
+                    viewer,
+                    viewerGeneration
+                );
+
+            world.close();
+        }
+    }
+
     private static void assertMirrorAddMoveRemoveRetractable()
         throws Exception
     {
@@ -1565,6 +1815,57 @@ public final class RemotePetMirrorMaskRetryTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static final class SwitchableFailureOutputStream
+        extends OutputStream {
+
+        private final ByteArrayOutputStream delegate=
+            new ByteArrayOutputStream();
+        private final AtomicBoolean failureEnabled=
+            new AtomicBoolean(false);
+        private int attempts;
+
+        synchronized int attempts(){
+            return attempts;
+        }
+
+        void enableFailure(){
+            failureEnabled.set(true);
+        }
+
+        void disableFailure(){
+            failureEnabled.set(false);
+        }
+
+        @Override public void write(
+            int value
+        )throws IOException{
+            write(
+                new byte[]{(byte)value},
+                0,
+                1
+            );
+        }
+
+        @Override public synchronized void write(
+            byte[] bytes,
+            int offset,
+            int length
+        )throws IOException{
+            attempts++;
+
+            if(failureEnabled.get())
+                throw new IOException(
+                    "EXPECTED_UNREGISTER_TERMINAL_FAILURE"
+                );
+
+            delegate.write(
+                bytes,
+                offset,
+                length
+            );
         }
     }
 
