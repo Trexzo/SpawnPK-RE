@@ -352,8 +352,13 @@ public final class Player81GenerationOwnershipFenceTest {
             new OutboundPacketQueue(
                 1024
             );
+        /*
+         * S2C134 is fixed-6, so the framed queue publication is 7 bytes:
+         * one ISAAC-encoded opcode plus the six-byte body. Leave only six
+         * bytes free so admission must retract rather than commit.
+         */
         queue.offerBatch(
-            new byte[1016]
+            new byte[1018]
         );
 
         ServerPacketWriter writer=
