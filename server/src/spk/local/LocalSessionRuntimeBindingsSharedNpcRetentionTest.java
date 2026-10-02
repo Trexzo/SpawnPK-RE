@@ -26,6 +26,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         assertTerminalTradeCancellationWriterRetiresOnlyFailedParticipant();
         assertTerminalConfirmPublicationWriterIsNotRetouched();
         assertTerminalStartRootWriterIsNotRetouched();
+        assertTerminalTradeXPromptWriterIsNotRetouched();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
         System.out.println(
@@ -52,6 +53,9 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalConfirmHealthyPeerClosed=true "+
             "terminalStartWriterNotRetouched=true "+
             "terminalStartHealthyPeerClosed=true "+
+            "terminalTradeOfferXWriterRetired=true "+
+            "terminalTradeRemoveXWriterRetired=true "+
+            "terminalTradeXHealthyPeerClosed=true "+
             "terminalOldOwnerWriterExact=true "+
             "attemptedNewWriterNotRetired=true"
         );
@@ -2595,6 +2599,388 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 world.unregisterPlayer(
                     failed,
                     failedGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertTerminalTradeXPromptWriterIsNotRetouched()
+        throws Exception
+    {
+        assertTerminalTradeXPromptWriterIsNotRetouched(
+            false,
+            709L
+        );
+        assertTerminalTradeXPromptWriterIsNotRetouched(
+            true,
+            710L
+        );
+    }
+
+    private static void assertTerminalTradeXPromptWriterIsNotRetouched(
+        boolean remove,
+        long seed
+    )throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                seed
+            );
+        WorldPlayer failed=
+            new WorldPlayer();
+        WorldPlayer healthy=
+            new WorldPlayer();
+
+        long failedGeneration=
+            world.registerPlayer(
+                failed,
+                remove
+                    ?"binding-x-remove-failed"
+                    :"binding-x-offer-failed"
+            );
+        long healthyGeneration=
+            world.registerPlayer(
+                healthy,
+                remove
+                    ?"binding-x-remove-healthy"
+                    :"binding-x-offer-healthy"
+            );
+
+        DevAuthorityWorkbench failedDev=
+            new DevAuthorityWorkbench();
+        DevAuthorityWorkbench healthyDev=
+            new DevAuthorityWorkbench();
+        NpcRegistry failedNpcs=
+            new NpcRegistry(
+                failedDev
+            );
+        NpcRegistry healthyNpcs=
+            new NpcRegistry(
+                healthyDev
+            );
+
+        SwitchablePrefixFailOutputStream failedOut=
+            new SwitchablePrefixFailOutputStream();
+        SwitchablePrefixFailOutputStream healthyOut=
+            new SwitchablePrefixFailOutputStream();
+
+        ServerPacketWriter failedWriter=
+            new ServerPacketWriter(
+                failedOut,
+                new IsaacCipher(
+                    remove
+                        ?new int[]{1191,1192,1193,1194}
+                        :new int[]{1201,1202,1203,1204}
+                )
+            );
+        ServerPacketWriter healthyWriter=
+            new ServerPacketWriter(
+                healthyOut,
+                new IsaacCipher(
+                    remove
+                        ?new int[]{1195,1196,1197,1198}
+                        :new int[]{1205,1206,1207,1208}
+                )
+            );
+
+        Player81WorldSync.register(
+            failedWriter,
+            world,
+            failed,
+            failedDev
+        );
+        Player81WorldSync.Context healthySync=
+            Player81WorldSync.register(
+                healthyWriter,
+                world,
+                healthy,
+                healthyDev
+            );
+
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
+        SharedNpcWorldRelay.register(
+            failedWriter,
+            world,
+            failed,
+            failedNpcs,
+            failed.movement()
+        );
+        SharedNpcWorldRelay.register(
+            healthyWriter,
+            world,
+            healthy,
+            healthyNpcs,
+            healthy.movement()
+        );
+
+        failed.bank().spawnItem(
+            995,
+            1000,
+            failedWriter
+        );
+
+        TradeService.register(
+            world,
+            failed,
+            failedGeneration,
+            failed.bank(),
+            failedWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            healthy,
+            healthyGeneration,
+            healthy.bank(),
+            healthyWriter,
+            ()->{}
+        );
+
+        try{
+            String tradeOpen=
+                TradeService.start(
+                    world,
+                    failed,
+                    healthy
+                );
+
+            if(tradeOpen==null||
+               !tradeOpen.contains(
+                    "TRADE_UI_OPEN"
+               ))
+                throw new AssertionError(
+                    "terminal X-prompt Trade fixture failed remove="+
+                    remove+
+                    " result="+
+                    tradeOpen
+                );
+
+            int coinSlot=-1;
+            for(int slot=0;
+                slot<failed.bank().inventoryCapacity();
+                slot++){
+                BankState.Stack stack=
+                    failed.bank().inventoryAt(
+                        slot
+                    );
+
+                if(stack!=null&&
+                   stack.itemId==995){
+                    coinSlot=slot;
+                    break;
+                }
+            }
+
+            if(coinSlot<0)
+                throw new AssertionError(
+                    "terminal X-prompt fixture missing coins"
+                );
+
+            if(remove){
+                String offered=
+                    TradeService.handleItemAction(
+                        failed,
+                        new ItemContainerAction(
+                            145,
+                            3322,
+                            coinSlot,
+                            995,
+                            0,
+                            "ITEM_ACTION_1"
+                        )
+                    );
+
+                if(offered==null||
+                   !offered.contains(
+                        "TRADE_OFFER_OK"
+                   ))
+                    throw new AssertionError(
+                        "terminal Remove-X fixture offer failed: "+
+                        offered
+                    );
+            }
+
+            Object failedRelay=
+                relayContextFor(
+                    failedWriter
+                );
+            Object healthyRelay=
+                relayContextFor(
+                    healthyWriter
+                );
+            int failedAttemptsBefore=
+                failedOut.attempts();
+            int healthyAttemptsBefore=
+                healthyOut.attempts();
+
+            failedOut.enableFailure();
+
+            boolean failedAsExpected=false;
+
+            try{
+                TradeService.handleItemAction(
+                    failed,
+                    new ItemContainerAction(
+                        135,
+                        remove
+                            ?3415
+                            :3322,
+                        remove
+                            ?0
+                            :coinSlot,
+                        995,
+                        0,
+                        "ITEM_ACTION_X"
+                    )
+                );
+            }catch(IOException expected){
+                failedAsExpected=
+                    "EXPECTED_RUNTIME_BINDING_TERMINAL_PREFIX_FAILURE"
+                        .equals(
+                            expected.getMessage()
+                        );
+            }
+
+            if(!failedAsExpected)
+                throw new AssertionError(
+                    "terminal X-prompt publication failure was not propagated remove="+
+                    remove
+                );
+
+            if(failedOut.attempts()!=
+                    failedAttemptsBefore+1)
+                throw new AssertionError(
+                    "terminal X-prompt writer was retouched remove="+
+                    remove+
+                    " before="+
+                    failedAttemptsBefore+
+                    " after="+
+                    failedOut.attempts()
+                );
+
+            if(healthyOut.attempts()!=
+                    healthyAttemptsBefore+1)
+                throw new AssertionError(
+                    "healthy X-prompt peer did not receive exactly one close remove="+
+                    remove+
+                    " before="+
+                    healthyAttemptsBefore+
+                    " after="+
+                    healthyOut.attempts()
+                );
+
+            if(TradeService.active(
+                    failed
+                )||
+               TradeService.active(
+                    healthy
+               ))
+                throw new AssertionError(
+                    "terminal X-prompt failure retained live Trade remove="+
+                    remove
+                );
+
+            if(TradeService.handleAmount(
+                    failed,
+                    1
+                )!=null)
+                throw new AssertionError(
+                    "terminal X-prompt failure retained hidden amount authority remove="+
+                    remove
+                );
+
+            if(player81ContextFor(
+                    failedWriter
+                )!=null)
+                throw new AssertionError(
+                    "terminal X-prompt writer retained Player81 authority remove="+
+                    remove
+                );
+
+            if(relayContextFor(
+                    failedWriter
+                )!=failedRelay)
+                throw new AssertionError(
+                    "terminal X-prompt SharedNpc sentinel changed remove="+
+                    remove
+                );
+
+            if(player81ContextFor(
+                    healthyWriter
+                )!=healthySync||
+               relayContextFor(
+                    healthyWriter
+                )!=healthyRelay)
+                throw new AssertionError(
+                    "terminal X-prompt failure retired healthy peer runtime remove="+
+                    remove
+                );
+
+            int failedAttemptsAfter=
+                failedOut.attempts();
+            boolean rejected=false;
+
+            try{
+                SharedNpcWorldRelay
+                    .preflightRegistration(
+                        failedWriter,
+                        world,
+                        failed
+                    );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                rejected=
+                    expected.owner==failed&&
+                    expected.writer==failedWriter;
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "terminal X-prompt writer was resurrectable remove="+
+                    remove
+                );
+
+            if(failedOut.attempts()!=
+                    failedAttemptsAfter)
+                throw new AssertionError(
+                    "terminal X-prompt preflight retouched writer remove="+
+                    remove
+                );
+        }finally{
+            failedOut.disableFailure();
+
+            TradeService.unregister(
+                failed
+            );
+            TradeService.unregister(
+                healthy
+            );
+            SharedNpcWorldRelay.unregister(
+                failedWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                healthyWriter
+            );
+            Player81WorldSync.unregister(
+                failedWriter
+            );
+            Player81WorldSync.unregister(
+                healthyWriter
+            );
+
+            if(failed.registered())
+                world.unregisterPlayer(
+                    failed,
+                    failedGeneration
+                );
+            if(healthy.registered())
+                world.unregisterPlayer(
+                    healthy,
+                    healthyGeneration
                 );
 
             world.close();
