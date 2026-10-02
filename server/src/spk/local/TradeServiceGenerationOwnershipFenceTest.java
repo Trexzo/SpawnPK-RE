@@ -65,26 +65,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 generationB,
                 b.bank(),
                 bWriter,
-                ()->{
-                    if(Thread.holdsLock(
-                            TradeService.class
-                        )||
-                       Thread.holdsLock(
-                            world.players()
-                        ))
-                        throw new AssertionError(
-                            "Trade B save callback retained Trade/registry lock"
-                        );
-
-                    if(saveOrder[0]!=1)
-                        throw new AssertionError(
-                            "Trade B save callback order="+
-                            saveOrder[0]
-                        );
-
-                    saveOrder[0]=2;
-                    saveOutsideTradeLocks[1]=true;
-                }
+                ()->{}
             );
 
             String initial=
@@ -501,7 +482,26 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 generationB,
                 b.bank(),
                 bWriter,
-                ()->{}
+                ()->{
+                    if(Thread.holdsLock(
+                            TradeService.class
+                        )||
+                       Thread.holdsLock(
+                            world.players()
+                        ))
+                        throw new AssertionError(
+                            "Trade B save callback retained Trade/registry lock"
+                        );
+
+                    if(saveOrder[0]!=1)
+                        throw new AssertionError(
+                            "Trade B save callback order="+
+                            saveOrder[0]
+                        );
+
+                    saveOrder[0]=2;
+                    saveOutsideTradeLocks[1]=true;
+                }
             );
 
             requireContains(
