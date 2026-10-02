@@ -41,6 +41,7 @@ public final class RemotePetMirrorMaskRetryTest {
             "terminalMirrorRuntimeRetired=true "+
             "terminalMirrorWriterLatched=true "+
             "terminalMirrorSentinelRetained=true "+
+            "failCloseWriterTerminalImmediate=true "+
             "terminalQueueNotRetryable=true "+
             "mirrorAddRetryRetracted=true "+
             "mirrorMoveRetryRetracted=true "+
@@ -660,9 +661,154 @@ public final class RemotePetMirrorMaskRetryTest {
                     "direct viewer did not establish source visibility"
                 );
 
-            SharedNpcWorldRelay.syncRemotePets(
-                viewerWriter
-            );
+            final java.util.concurrent.CountDownLatch
+                tradeMonitorHeld=
+                    new java.util.concurrent.CountDownLatch(
+                        1
+                    );
+            final java.util.concurrent.CountDownLatch
+                releaseTradeMonitor=
+                    new java.util.concurrent.CountDownLatch(
+                        1
+                    );
+            final Throwable[] syncFailure={
+                null
+            };
+            Thread tradeHolder=
+                new Thread(
+                    ()->{
+                        synchronized(TradeService.class){
+                            tradeMonitorHeld.countDown();
+
+                            try{
+                                if(!releaseTradeMonitor.await(
+                                        5L,
+                                        java.util.concurrent.TimeUnit.SECONDS
+                                    ))
+                                    throw new AssertionError(
+                                        "mirror terminal Trade monitor release timed out"
+                                    );
+                            }catch(InterruptedException interrupted){
+                                Thread.currentThread().interrupt();
+                                syncFailure[0]=interrupted;
+                            }
+                        }
+                    },
+                    "mirror-terminal-trade-holder"
+                );
+            Thread syncThread=null;
+
+            tradeHolder.start();
+
+            if(!tradeMonitorHeld.await(
+                    5L,
+                    java.util.concurrent.TimeUnit.SECONDS
+                ))
+                throw new AssertionError(
+                    "mirror terminal Trade monitor holder did not start"
+                );
+
+            try{
+                syncThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                SharedNpcWorldRelay.syncRemotePets(
+                                    viewerWriter
+                                );
+                            }catch(Throwable failure){
+                                syncFailure[0]=failure;
+                            }
+                        },
+                        "mirror-terminal-sync"
+                    );
+                syncThread.start();
+
+                long blockDeadline=
+                    System.nanoTime()+
+                    java.util.concurrent.TimeUnit.SECONDS
+                        .toNanos(
+                            5L
+                        );
+
+                while(syncThread.isAlive()&&
+                      syncThread.getState()!=
+                        Thread.State.BLOCKED&&
+                      System.nanoTime()<
+                        blockDeadline)
+                    Thread.yield();
+
+                if(syncThread.getState()!=
+                        Thread.State.BLOCKED)
+                    throw new AssertionError(
+                        "mirror terminal retirement did not block on TradeService state="+
+                        syncThread.getState()
+                    );
+
+                if(!viewerWriter.terminal())
+                    throw new AssertionError(
+                        "SharedNpc fail-close did not terminal-latch writer before runtime retirement"
+                    );
+
+                int attemptsBeforeProbe=
+                    viewerOut.attempts();
+
+                viewerOut.disableFailure();
+
+                boolean probeRejected=false;
+
+                try{
+                    viewerWriter.fixed(
+                        97,
+                        new byte[0]
+                    );
+                }catch(IOException expected){
+                    probeRejected=true;
+                }
+
+                if(!probeRejected)
+                    throw new AssertionError(
+                        "terminal mirror writer accepted probe publication before runtime retirement"
+                    );
+
+                if(viewerOut.attempts()!=
+                        attemptsBeforeProbe)
+                    throw new AssertionError(
+                        "terminal mirror writer retouched transport before runtime retirement before="+
+                        attemptsBeforeProbe+
+                        " after="+
+                        viewerOut.attempts()
+                    );
+
+                releaseTradeMonitor.countDown();
+
+                syncThread.join(
+                    5000L
+                );
+                tradeHolder.join(
+                    5000L
+                );
+
+                if(syncThread.isAlive()||
+                   tradeHolder.isAlive())
+                    throw new AssertionError(
+                        "mirror terminal retirement threads did not terminate"
+                    );
+
+                if(syncFailure[0]!=null)
+                    throw new AssertionError(
+                        "mirror terminal retirement thread failed",
+                        syncFailure[0]
+                    );
+            }finally{
+                releaseTradeMonitor.countDown();
+
+                if(syncThread!=null&&
+                   syncThread.isAlive())
+                    syncThread.interrupt();
+                if(tradeHolder.isAlive())
+                    tradeHolder.interrupt();
+            }
 
             if(viewerOut.attempts()!=2||
                viewerNpcs.snapshot().size()!=1)
