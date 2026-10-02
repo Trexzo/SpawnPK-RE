@@ -2,6 +2,7 @@ package spk.local;
 
 public final class TradeServiceGenerationOwnershipFenceTest {
     public static void main(String[] args)throws Exception{
+        assertFinalCommitDoesNotAcquireParticipantMutationLock();
         assertCancellationCloseSkipsStaleGeneration();
         assertTerminalPeerCloseSkipsStaleGeneration();
         assertCompetingRootPeerCloseSkipsStaleGeneration();
@@ -358,6 +359,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "staleCompetingRootPeerCloseFenced=true "+
                 "staleReplacementOldPeerCloseFenced=true "+
                 "cleanupGenerationFenceUsesRegistry=true "+
+                "finalCommitMutationLockFree=true "+
                 "staleFinalCommitRejected=true "+
                 "inventoryUnchanged=true"
             );
@@ -375,6 +377,228 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 world.unregisterPlayer(
                     b,
                     b.generation()
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertFinalCommitDoesNotAcquireParticipantMutationLock()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                605L
+            );
+        WorldPlayer a=
+            new WorldPlayer();
+        WorldPlayer b=
+            new WorldPlayer();
+
+        long generationA=
+            world.registerPlayer(
+                a,
+                "trade-final-lock-a"
+            );
+        long generationB=
+            world.registerPlayer(
+                b,
+                "trade-final-lock-b"
+            );
+
+        OutboundPacketQueue aOut=
+            new OutboundPacketQueue();
+        OutboundPacketQueue bOut=
+            new OutboundPacketQueue();
+        ServerPacketWriter aWriter=
+            writer(
+                aOut,
+                61
+            );
+        ServerPacketWriter bWriter=
+            writer(
+                bOut,
+                65
+            );
+
+        final Throwable[] threadFailure={
+            null
+        };
+        final String[] commitResult={
+            null
+        };
+        Thread commitThread=null;
+
+        try{
+            a.bank().spawnItem(
+                995,
+                100,
+                aWriter
+            );
+            b.bank().spawnItem(
+                385,
+                2,
+                bWriter
+            );
+
+            TradeService.register(
+                world,
+                a,
+                generationA,
+                a.bank(),
+                aWriter,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                b,
+                generationB,
+                b.bank(),
+                bWriter,
+                ()->{}
+            );
+
+            requireContains(
+                TradeService.start(
+                    world,
+                    a,
+                    b
+                ),
+                "TRADE_UI_OPEN",
+                "final lock trade open"
+            );
+
+            requireContains(
+                TradeService.handleItemAction(
+                    a,
+                    new ItemContainerAction(
+                        145,
+                        TradeService.INVENTORY_GRID,
+                        find(a.bank(),995),
+                        995,
+                        0,
+                        "ITEM_ACTION_1"
+                    )
+                ),
+                "TRADE_OFFER_OK",
+                "final lock A offer"
+            );
+
+            requireContains(
+                TradeService.handleItemAction(
+                    b,
+                    new ItemContainerAction(
+                        145,
+                        TradeService.INVENTORY_GRID,
+                        find(b.bank(),385),
+                        385,
+                        0,
+                        "ITEM_ACTION_1"
+                    )
+                ),
+                "TRADE_OFFER_OK",
+                "final lock B offer"
+            );
+
+            requireContains(
+                TradeService.handleWidget(
+                    a,
+                    TradeService.FIRST_ACCEPT
+                ),
+                "WAITING_OTHER",
+                "final lock first accept A"
+            );
+            requireContains(
+                TradeService.handleWidget(
+                    b,
+                    TradeService.FIRST_ACCEPT
+                ),
+                "CONFIRM_OPEN",
+                "final lock first accept B"
+            );
+            requireContains(
+                TradeService.handleWidget(
+                    a,
+                    TradeService.FINAL_ACCEPT
+                ),
+                "WAITING_OTHER",
+                "final lock final accept A"
+            );
+
+            synchronized(b.mutationLock()){
+                commitThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                commitResult[0]=
+                                    TradeService.handleWidget(
+                                        b,
+                                        TradeService.FINAL_ACCEPT
+                                    );
+                            }catch(Throwable failure){
+                                threadFailure[0]=failure;
+                            }
+                        },
+                        "trade-final-commit-lock-order"
+                    );
+
+                commitThread.start();
+                commitThread.join(
+                    5000L
+                );
+
+                if(commitThread.isAlive())
+                    throw new AssertionError(
+                        "final Trade commit waited on participant mutation lock"
+                    );
+            }
+
+            if(threadFailure[0]!=null)
+                throw new AssertionError(
+                    "final Trade commit thread failed",
+                    threadFailure[0]
+                );
+
+            requireContains(
+                commitResult[0],
+                "TRADE_COMMITTED",
+                "final Trade commit result"
+            );
+
+            if(TradeService.active(a)||
+               TradeService.active(b))
+                throw new AssertionError(
+                    "final Trade commit remained active"
+                );
+
+            if(a.bank().inventoryCount(385)!=1||
+               b.bank().inventoryCount(995)!=1)
+                throw new AssertionError(
+                    "final Trade commit inventory transfer missing"
+                );
+        }finally{
+            if(commitThread!=null&&
+               commitThread.isAlive())
+                commitThread.interrupt();
+
+            TradeService.unregister(
+                a,
+                aWriter
+            );
+            TradeService.unregister(
+                b,
+                bWriter
+            );
+
+            if(a.registered())
+                world.unregisterPlayer(
+                    a,
+                    generationA
+                );
+            if(b.registered())
+                world.unregisterPlayer(
+                    b,
+                    generationB
                 );
 
             world.close();
