@@ -382,7 +382,7 @@ final class Player81WorldSync {
                 try{
                     result=
                         context.writer
-                            .publishRecoverablePacket(
+                            .publishRecoverablePacketIfIdle(
                                 ()->sendPlayerOptions(
                                     context.writer
                                 )
@@ -423,7 +423,7 @@ final class Player81WorldSync {
 
         try{
             targetResult=
-                targetWriter.publishRecoverablePacket(
+                targetWriter.publishRecoverablePacketIfIdle(
                     ()->sendPlayerOptions(
                         targetWriter
                     )
