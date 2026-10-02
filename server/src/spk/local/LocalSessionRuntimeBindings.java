@@ -83,6 +83,22 @@ final class LocalSessionRuntimeBindings {
                 ()->{
                     bindingStarted[0]=true;
 
+                    /*
+                     * SharedNpc live replacement may reject retryably while
+                     * intentionally retaining the exact old relay Context.
+                     * Player81 registration is destructive (it retires the old
+                     * writer/owner Context immediately), so do not replace it
+                     * until SharedNpc admission has committed.
+                     */
+                    SharedNpcWorldRelay.register(
+                        serverPackets,
+                        world,
+                        worldPlayer,
+                        npcs,
+                        movement
+                    );
+                    sharedNpcInstalled[0]=true;
+
                     player81Sync=
                         Player81WorldSync.register(
                             serverPackets,
@@ -93,15 +109,6 @@ final class LocalSessionRuntimeBindings {
 
                     registeredPackets=
                         serverPackets;
-
-                    SharedNpcWorldRelay.register(
-                        serverPackets,
-                        world,
-                        worldPlayer,
-                        npcs,
-                        movement
-                    );
-                    sharedNpcInstalled[0]=true;
 
                     TradeService.register(
                         world,
