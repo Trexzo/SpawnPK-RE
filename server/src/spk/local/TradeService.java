@@ -126,6 +126,78 @@ final class TradeService {
             true
         );
     }
+
+    /**
+     * Retires runtime Trade authority after the supplied writer has already
+     * been classified terminal/non-retractable. Never publishes to that
+     * writer again; only a distinct healthy current peer may receive S2C219.
+     */
+    static synchronized void retireBrokenWriter(
+        WorldPlayer player,
+        ServerPacketWriter writer
+    )throws IOException{
+        if(player==null||writer==null)
+            return;
+
+        IOException peerFailure=null;
+
+        for(
+            Iterator<Map.Entry<World,State>> it=
+                STATES.entrySet().iterator();
+            it.hasNext();
+        ){
+            State s=it.next().getValue();
+            Context c=s.contexts.get(
+                player.id()
+            );
+
+            if(c==null||
+               c.player!=player||
+               c.writer!=writer)
+                continue;
+
+            Trade trade=c.trade;
+
+            if(trade!=null&&
+               trade.stage!=Stage.CANCELLED&&
+               trade.stage!=Stage.COMMITTED){
+                Context peer=trade.other(c);
+
+                trade.stage=Stage.CANCELLED;
+                detach(s,trade);
+
+                if(peer!=null&&
+                   peer.writer!=writer&&
+                   !peer.world.closed()&&
+                   peer.ownerCurrent())
+                    try{
+                        peer.writer.fixed(
+                            219,
+                            new byte[0]
+                        );
+                    }catch(IOException failure){
+                        peerFailure=failure;
+                    }
+            }else{
+                c.trade=null;
+                c.pendingX=null;
+            }
+
+            if(s.contexts.get(
+                    player.id()
+                )==c)
+                s.contexts.remove(
+                    player.id()
+                );
+
+            if(s.contexts.isEmpty()&&
+               s.trades.isEmpty())
+                it.remove();
+        }
+
+        if(peerFailure!=null)
+            throw peerFailure;
+    }
     static synchronized void closeWorld(
         World world
     ){
