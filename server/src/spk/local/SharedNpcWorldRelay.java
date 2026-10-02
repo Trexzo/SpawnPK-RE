@@ -57,19 +57,6 @@ final class SharedNpcWorldRelay {
         Context oldWriter=
             BY_WRITER.get(writer);
 
-        if(oldWriter!=null){
-            requireReplacementCleanupCommitted(
-                oldWriter
-            );
-            BY_WRITER.remove(
-                writer
-            );
-            cleanupContext(
-                oldWriter,
-                true
-            );
-        }
-
         WorldState existingState=
             BY_WORLD.get(world);
         Context oldOwner=
@@ -79,10 +66,35 @@ final class SharedNpcWorldRelay {
                     owner.id()
                 );
 
-        if(oldOwner!=null){
+        /*
+         * A live rebind can replace two distinct authorities at once:
+         * the Context currently owning this writer and the Context currently
+         * owning the target player.  Do not detach either map entry until every
+         * required projection cleanup has reached a commit-safe point.
+         */
+        if(oldWriter!=null)
+            requireReplacementCleanupCommitted(
+                oldWriter
+            );
+
+        if(oldOwner!=null&&
+           oldOwner!=oldWriter)
             requireReplacementCleanupCommitted(
                 oldOwner
             );
+
+        if(oldWriter!=null){
+            BY_WRITER.remove(
+                oldWriter.writer
+            );
+            cleanupContext(
+                oldWriter,
+                true
+            );
+        }
+
+        if(oldOwner!=null&&
+           oldOwner!=oldWriter){
             BY_WRITER.remove(
                 oldOwner.writer
             );
