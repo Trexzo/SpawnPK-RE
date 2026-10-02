@@ -477,10 +477,11 @@ final class ServerPacketWriter {
                 "recoverable packet publication requires idle writer"
             );
 
-        if(queue==null)
-            throw new IOException(
-                "recoverable packet publication requires queue-backed writer"
-            );
+        if(queue==null){
+            publication.publish();
+            return RecoverablePacketResult
+                .COMMITTED;
+        }
 
         beginBatchLocked();
         boolean completed=false;
