@@ -835,36 +835,59 @@ final class TradeService {
         trade.stage=Stage.CANCELLED;
         detach(state(current.world),trade);
 
-        if(!peer.world.closed()&&
-           peer.ownerCurrent())
+        IOException terminalFailure=null;
+
+        /*
+         * The replacement root is already committed, but the stored peer
+         * Context may become stale before its close is published. Fence the
+         * exact Context + generation under the peer mutation lock. Avoid
+         * World.lifecycleLock here because runtime binding registration already
+         * orders World lifecycle -> TradeService.
+         */
+        synchronized(peer.player.mutationLock()){
+            State peerState=
+                STATES.get(
+                    peer.world
+                );
+
+            if(peerState==null||
+               peerState.contexts.get(
+                    peer.player.id()
+               )!=peer||
+               !peer.ownerCurrent())
+                return;
+
             try{
                 peer.writer.fixed(
                     219,
                     new byte[0]
                 );
             }catch(IOException failure){
-                /*
-                 * The initiating competing root already committed and this
-                 * Trade is already detached. Do not report that committed root
-                 * as failed. The ordinary peer close is not transport-
-                 * retractable, so a peer IOException makes that exact writer
-                 * terminal: retire its remaining runtime authority locally
-                 * without touching the writer again.
-                 */
-                LocalSessionRuntimeBindings
-                    .retireTerminalRuntimeBundle(
-                        peer.player,
-                        peer.writer,
-                        true,
-                        failure
-                    );
-
-                System.err.println(
-                    "[ENGINE-R4] terminal Trade competing-root peer close failed; "+
-                    "peer runtime retired: "+
-                    failure
-                );
+                terminalFailure=failure;
             }
+        }
+
+        if(terminalFailure==null)
+            return;
+
+        /*
+         * The initiating competing root already committed and this Trade is
+         * already detached. Retire the terminal peer only after releasing its
+         * mutation lock; never report the committed replacement root as failed.
+         */
+        LocalSessionRuntimeBindings
+            .retireTerminalRuntimeBundle(
+                peer.player,
+                peer.writer,
+                true,
+                terminalFailure
+            );
+
+        System.err.println(
+            "[ENGINE-R4] terminal Trade competing-root peer close failed; "+
+            "peer runtime retired: "+
+            terminalFailure
+        );
     }
 
     static synchronized boolean active(WorldPlayer p){
