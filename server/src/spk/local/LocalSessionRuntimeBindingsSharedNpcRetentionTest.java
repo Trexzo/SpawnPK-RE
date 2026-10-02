@@ -2226,10 +2226,10 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 );
             }catch(IOException expected){
                 failedAsExpected=
-                    expected.getMessage()!=null&&
-                    expected.getMessage().contains(
-                        "outbound queue overflow"
-                    );
+                    "EXPECTED_RUNTIME_BINDING_TERMINAL_PREFIX_FAILURE"
+                        .equals(
+                            expected.getMessage()
+                        );
             }
 
             if(!failedAsExpected)
@@ -2868,10 +2868,10 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 );
             }catch(IOException expected){
                 failedAsExpected=
-                    "EXPECTED_RUNTIME_BINDING_TERMINAL_PREFIX_FAILURE"
-                        .equals(
-                            expected.getMessage()
-                        );
+                    expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "outbound queue overflow"
+                    );
             }
 
             if(!failedAsExpected)
