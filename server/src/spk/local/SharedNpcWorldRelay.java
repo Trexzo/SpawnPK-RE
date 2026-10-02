@@ -24,17 +24,27 @@ final class SharedNpcWorldRelay {
 
     private SharedNpcWorldRelay(){}
 
-    static synchronized void register(ServerPacketWriter writer,World world,WorldPlayer owner,NpcRegistry npcs,MovementState movement){
-        if(writer==null||world==null||owner==null||npcs==null||movement==null)return;
+    static synchronized boolean register(
+        ServerPacketWriter writer,
+        World world,
+        WorldPlayer owner,
+        NpcRegistry npcs,
+        MovementState movement
+    ){
+        if(writer==null||
+           world==null||
+           owner==null||
+           npcs==null||
+           movement==null)
+            return false;
 
         if(world.closed())
             throw new IllegalStateException(
                 "cannot register SharedNpcWorldRelay on closed World"
             );
 
-        Context oldWriter=BY_WRITER.remove(writer);
-        if(oldWriter!=null)
-            cleanupContext(oldWriter);
+        Context oldWriter=
+            BY_WRITER.get(writer);
 
         WorldState existingState=
             BY_WORLD.get(world);
@@ -45,25 +55,124 @@ final class SharedNpcWorldRelay {
                     owner.id()
                 );
 
-        if(oldOwner!=null){
-            BY_WRITER.remove(
-                oldOwner.writer
-            );
-            cleanupContext(oldOwner);
-        }
+        ArrayList<Context> replacing=
+            new ArrayList<>(2);
 
-        WorldState ws=BY_WORLD.get(world);
+        if(oldWriter!=null)
+            replacing.add(oldWriter);
+
+        if(oldOwner!=null&&
+           oldOwner!=oldWriter)
+            replacing.add(oldOwner);
+
+        /*
+         * Live replacement cleanup is part of the old Context's authority.
+         * Do not detach BY_WRITER / owner-context maps until every retractable
+         * mirror removal reaches a commit-safe point. A queue retraction leaves
+         * the old Context installed with its partially-cleaned track state, so
+         * retry can continue deterministically.
+         */
+        for(Context previous:replacing)
+            if(!prepareReplacementCleanup(previous))
+                return false;
+
+        for(Context previous:replacing)
+            detachAfterReplacementCleanup(previous);
+
+        WorldState ws=
+            BY_WORLD.get(world);
+
         if(ws==null){
             ws=new WorldState(world);
-            BY_WORLD.put(world,ws);
+            BY_WORLD.put(
+                world,
+                ws
+            );
         }
 
-        Context c=new Context(writer,ws,owner,npcs,movement);BY_WRITER.put(writer,c);ws.contexts.put(owner.id(),c);
+        Context next=
+            new Context(
+                writer,
+                ws,
+                owner,
+                npcs,
+                movement
+            );
+
+        BY_WRITER.put(
+            writer,
+            next
+        );
+        ws.contexts.put(
+            owner.id(),
+            next
+        );
+        return true;
     }
 
     static synchronized void unregister(ServerPacketWriter writer){
         Context c=BY_WRITER.remove(writer);if(c==null)return;
         cleanupContext(c);
+    }
+
+    private static boolean prepareReplacementCleanup(
+        Context context
+    ){
+        if(context.state.world.closed()){
+            context.remote.clear();
+            context.remoteIndexes.clear();
+            context.genericNpcs.clear();
+            context.genericIndexes.clear();
+            return true;
+        }
+
+        try{
+            if(!context.removeAllRemotePets())
+                return false;
+
+            if(!context.removeAllGenericNpcs())
+                return false;
+
+            return true;
+        }catch(IOException terminal){
+            /*
+             * Unknown/partial transport progress is not retryable. Keep the old
+             * Context installed but fail-closed so a replacement cannot orphan
+             * its still-authoritative viewer-local projection state.
+             */
+            context.failCloseProjection();
+            return false;
+        }
+    }
+
+    private static void detachAfterReplacementCleanup(
+        Context context
+    ){
+        if(BY_WRITER.get(context.writer)==context)
+            BY_WRITER.remove(context.writer);
+
+        if(context.state.contexts.get(
+                context.owner.id()
+            )==context)
+            context.state.contexts.remove(
+                context.owner.id()
+            );
+
+        if(!context.state.world.closed())
+            context.state.world
+                .npcPresentationEvents()
+                .removeSource(
+                    context.owner.id(),
+                    System.currentTimeMillis()
+                );
+
+        context.state.pruneDeadRecipients();
+
+        if(context.state.contexts.isEmpty()&&
+           context.state.genericNpcIds.isEmpty())
+            BY_WORLD.remove(
+                context.state.world
+            );
     }
 
     private static void cleanupContext(Context c){
@@ -1302,14 +1411,16 @@ final class SharedNpcWorldRelay {
             return true;
         }
 
-        void removeAllGenericNpcs()
+        boolean removeAllGenericNpcs()
             throws IOException{
             for(EntityId id:
                     new ArrayList<>(
                         genericNpcs.keySet()
                     ))
                 if(!removeGeneric(id))
-                    return;
+                    return false;
+
+            return true;
         }
 
         private void sendMirrorMaskOrDefer(
@@ -1708,13 +1819,15 @@ final class SharedNpcWorldRelay {
             return true;
         }
 
-        void removeAllRemotePets()throws IOException{
+        boolean removeAllRemotePets()throws IOException{
             for(EntityId id:
                     new ArrayList<>(
                         remote.keySet()
                     ))
                 if(!removeRemote(id))
-                    return;
+                    return false;
+
+            return true;
         }
     }
 }
