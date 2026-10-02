@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Field;
+import java.util.IdentityHashMap;
 
 public final class SharedNpcRebindCleanupRetractabilityTest {
     private static final int QUEUE_CAPACITY=1024;
@@ -144,6 +146,16 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                 viewerNpcs.snapshot().get(0)
                     .sceneIndex;
 
+            Object oldContext=
+                contextFor(
+                    viewerWriter
+                );
+
+            if(oldContext==null)
+                throw new AssertionError(
+                    "initial relay context missing"
+                );
+
             drain(
                 viewerQueue
             );
@@ -166,6 +178,13 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
             if(replacedUnderPressure)
                 throw new AssertionError(
                     "rebind committed despite retracted old-context cleanup"
+                );
+
+            if(contextFor(
+                    viewerWriter
+                )!=oldContext)
+                throw new AssertionError(
+                    "failed rebind detached exact old relay context"
                 );
 
             if(viewerQueue.queuedBytes()!=0||
@@ -207,6 +226,17 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
             if(!replaced)
                 throw new AssertionError(
                     "rebind retry did not commit after capacity returned"
+                );
+
+            Object newContext=
+                contextFor(
+                    viewerWriter
+                );
+
+            if(newContext==null||
+               newContext==oldContext)
+                throw new AssertionError(
+                    "successful rebind did not install a fresh relay context"
                 );
 
             if(!viewerNpcs.snapshot().isEmpty()||
@@ -291,6 +321,27 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static Object contextFor(
+        ServerPacketWriter writer
+    )throws Exception{
+        Field field=
+            SharedNpcWorldRelay.class
+                .getDeclaredField(
+                    "BY_WRITER"
+                );
+        field.setAccessible(true);
+
+        synchronized(SharedNpcWorldRelay.class){
+            @SuppressWarnings("unchecked")
+            IdentityHashMap<ServerPacketWriter,Object>
+                contexts=
+                    (IdentityHashMap<ServerPacketWriter,Object>)
+                    field.get(null);
+
+            return contexts.get(writer);
         }
     }
 
