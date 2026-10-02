@@ -337,6 +337,7 @@ final class SharedNpcWorldRelay {
                     for(Context context:
                             src.state.contexts.values())
                         if(context!=src&&
+                           !context.projectionTransportFailedClosed&&
                            context.ownerCurrent()&&
                            !context.owner.id().equals(
                                src.owner.id()
@@ -411,7 +412,8 @@ final class SharedNpcWorldRelay {
                     viewer||
                viewer.state.contexts.get(
                     viewer.owner.id()
-                )!=viewer)
+                )!=viewer||
+               viewer.projectionTransportFailedClosed)
                 return;
 
             long now=System.currentTimeMillis();
