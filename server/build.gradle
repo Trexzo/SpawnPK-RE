@@ -6304,6 +6304,21 @@ tasks.named('check') {
     dependsOn tasks.named('player81NoContextLinearizationRegression')
 }
 
+
+tasks.register('player81PreparedTransformFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves prepared packet81 transform failures are terminal and cannot fall back to local-only bytes.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81PreparedTransformFailureTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81PreparedTransformFailureRegression')
+}
+
 tasks.register('player81ContextRetirementLinearizationRegression', JavaExec) {
     group = 'verification'
     description = 'Proves prepared packet81 commit authority cannot be retired or rebound inside its semantic+transport commit critical section.'
