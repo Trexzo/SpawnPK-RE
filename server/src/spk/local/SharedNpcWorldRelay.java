@@ -260,7 +260,8 @@ final class SharedNpcWorldRelay {
                                 return;
 
                             candidate.syncRemotePets();
-                            candidate.syncCanonicalNpcs();
+                            if(candidate.pendingMirrorMasks.isEmpty())
+                                candidate.syncCanonicalNpcs();
                         }
                     }
                 );
@@ -795,6 +796,9 @@ final class SharedNpcWorldRelay {
                 t.mainCanonicalId=petCanonicalId;
                 t.mainParticleSelector=selector;
 
+                if(!pendingMirrorMasks.isEmpty())
+                    return;
+
                 boolean mainRespawned=
                     mainWasAbsent||
                     mainIdentityChanged||
@@ -824,6 +828,9 @@ final class SharedNpcWorldRelay {
                                 )
                             );
                     }
+
+                    if(!pendingMirrorMasks.isEmpty())
+                        return;
                 }
 
                 if(miniPresent&&
@@ -873,6 +880,9 @@ final class SharedNpcWorldRelay {
                     t.miniY=miniY;
                     t.miniCanonicalId=miniCanonicalId;
 
+                    if(!pendingMirrorMasks.isEmpty())
+                        return;
+
                     if(t.miniScene>=0&&
                        (mainRespawned||
                         miniIdentityChanged||
@@ -888,7 +898,9 @@ final class SharedNpcWorldRelay {
                                     t.mainScene
                                 )
                             );
-                    }
+
+                    if(!pendingMirrorMasks.isEmpty())
+                        return;
                 }else if(t.miniScene>=0){
                     npcs.devRemoveNpc(
                         t.miniScene,
@@ -1201,6 +1213,21 @@ final class SharedNpcWorldRelay {
             NpcEntity npc,
             NpcSyncEncoder.Mask mask
         ){
+            PendingMirrorMask pending=
+                new PendingMirrorMask(
+                    sourceId,
+                    sourceGeneration,
+                    npc,
+                    mask
+                );
+
+            if(!pendingMirrorMasks.isEmpty()){
+                pendingMirrorMasks.addLast(
+                    pending
+                );
+                return;
+            }
+
             try{
                 npcs.sendMaskLocal(
                     npc,
@@ -1209,12 +1236,7 @@ final class SharedNpcWorldRelay {
                 );
             }catch(IOException failure){
                 pendingMirrorMasks.addLast(
-                    new PendingMirrorMask(
-                        sourceId,
-                        sourceGeneration,
-                        npc,
-                        mask
-                    )
+                    pending
                 );
 
                 System.err.println(
