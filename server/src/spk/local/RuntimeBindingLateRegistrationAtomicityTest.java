@@ -267,6 +267,8 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                     "successful runtime replacement did not retire old live Trade"
                 );
 
+            assertTerminalDirectOptionFailureRetiresBundle();
+
             System.out.println(
                 "RUNTIME_BINDING_LATE_REGISTRATION_ATOMICITY_PASS "+
                 "recoverableOptionsPrepublishedBeforeReplacement=true "+
@@ -274,7 +276,8 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                 "failedPreparationPreservesOldSharedNpc=true "+
                 "failedPreparationPreservesOldTrade=true "+
                 "rollbackOnlyOwnsNewLayers=true "+
-                "successfulRetryInstallsFreshBundle=true"
+                "successfulRetryInstallsFreshBundle=true "+
+                "terminalDirectOptionFailureRetiresBundle=true"
             );
         }finally{
             if(pressure!=null)
@@ -301,6 +304,261 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static void assertTerminalDirectOptionFailureRetiresBundle()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                612L
+            );
+        WorldPlayer a=
+            new WorldPlayer();
+        WorldPlayer b=
+            new WorldPlayer();
+
+        long generationA=
+            world.registerPlayer(
+                a,
+                "terminal-options-a"
+            );
+        long generationB=
+            world.registerPlayer(
+                b,
+                "terminal-options-b"
+            );
+
+        SwitchFailOutputStream directA=
+            new SwitchFailOutputStream();
+        ServerPacketWriter writerA=
+            new ServerPacketWriter(
+                directA,
+                new IsaacCipher(
+                    new int[]{2101,2102,2103,2104}
+                )
+            );
+
+        OutboundPacketQueue queueB=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+        ServerPacketWriter writerB=
+            new ServerPacketWriter(
+                queueB,
+                new IsaacCipher(
+                    new int[]{2105,2106,2107,2108}
+                )
+            );
+
+        NpcRegistry npcsA=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry npcsB=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        Player81WorldSync.Context contextA=
+            Player81WorldSync.register(
+                writerA,
+                world,
+                a,
+                new DevAuthorityWorkbench()
+            );
+        Player81WorldSync.Context contextB=
+            Player81WorldSync.register(
+                writerB,
+                world,
+                b,
+                new DevAuthorityWorkbench()
+            );
+
+        /*
+         * Keep the peer out of the option-prepublication path so the direct
+         * target writer is the deterministic failing publication.
+         */
+        contextB.playerOptionsSent=true;
+
+        SharedNpcWorldRelay.register(
+            writerA,
+            world,
+            a,
+            npcsA,
+            a.movement()
+        );
+        SharedNpcWorldRelay.register(
+            writerB,
+            world,
+            b,
+            npcsB,
+            b.movement()
+        );
+
+        TradeService.register(
+            world,
+            a,
+            generationA,
+            a.bank(),
+            writerA,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            b,
+            generationB,
+            b.bank(),
+            writerB,
+            ()->{}
+        );
+
+        LocalSessionRuntimeBindings bindings=
+            new LocalSessionRuntimeBindings(
+                world,
+                a,
+                new DevAuthorityWorkbench(),
+                npcsA,
+                a.movement(),
+                a.bank(),
+                new Bridge()
+            );
+
+        try{
+            String opened=
+                TradeService.start(
+                    world,
+                    a,
+                    b
+                );
+
+            if(opened==null||
+               !opened.contains(
+                    "TRADE_UI_OPEN"
+               ))
+                throw new AssertionError(
+                    "terminal direct Trade fixture failed: "+
+                    opened
+                );
+
+            drain(queueB);
+
+            if(player81ContextFor(
+                    writerA
+                )!=contextA)
+                throw new AssertionError(
+                    "terminal direct fixture lost old Player81 context before failure"
+                );
+
+            directA.fail=true;
+
+            boolean terminal=false;
+
+            try{
+                bindings.register(
+                    writerA,
+                    "[terminal-options] ",
+                    generationA
+                );
+            }catch(Player81WorldSync
+                    .TerminalPlayerOptionsException expected){
+                terminal=
+                    expected.owner==a&&
+                    expected.writer==writerA;
+            }
+
+            directA.fail=false;
+
+            if(!terminal)
+                throw new AssertionError(
+                    "direct option publication failure was not classified terminal"
+                );
+
+            if(bindings.context()!=null)
+                throw new AssertionError(
+                    "terminal direct registration retained tentative runtime context"
+                );
+
+            if(player81ContextFor(
+                    writerA
+                )!=null)
+                throw new AssertionError(
+                    "terminal direct failure retained old Player81 authority"
+                );
+
+            if(relayContextFor(
+                    writerA
+                )!=null)
+                throw new AssertionError(
+                    "terminal direct failure retained old SharedNpc authority"
+                );
+
+            if(TradeService.active(a)||
+               TradeService.active(b))
+                throw new AssertionError(
+                    "terminal direct failure retained old live Trade"
+                );
+        }finally{
+            directA.fail=false;
+
+            bindings.unregister();
+
+            TradeService.unregister(a);
+            TradeService.unregister(b);
+            SharedNpcWorldRelay.unregister(writerA);
+            SharedNpcWorldRelay.unregister(writerB);
+            Player81WorldSync.unregister(writerA);
+            Player81WorldSync.unregister(writerB);
+
+            if(a.registered())
+                world.unregisterPlayer(
+                    a,
+                    generationA
+                );
+            if(b.registered())
+                world.unregisterPlayer(
+                    b,
+                    generationB
+                );
+
+            world.close();
+        }
+    }
+
+    private static final class SwitchFailOutputStream
+        extends java.io.OutputStream
+    {
+        final ByteArrayOutputStream bytes=
+            new ByteArrayOutputStream();
+        boolean fail;
+
+        @Override public void write(
+            int value
+        )throws java.io.IOException{
+            if(fail)
+                throw new java.io.IOException(
+                    "TERMINAL_DIRECT_OPTION_FAIL"
+                );
+
+            bytes.write(value);
+        }
+
+        @Override public void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws java.io.IOException{
+            if(fail)
+                throw new java.io.IOException(
+                    "TERMINAL_DIRECT_OPTION_FAIL"
+                );
+
+            bytes.write(
+                data,
+                offset,
+                length
+            );
         }
     }
 
