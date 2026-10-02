@@ -8,6 +8,20 @@ import java.io.*;
  * synchronizer the byte stream is identical to R2.14.
  */
 final class ServerPacketWriter {
+    static final class NonRetractablePublicationException
+        extends IOException {
+
+        NonRetractablePublicationException(
+            String message,
+            Throwable cause
+        ){
+            super(
+                message,
+                cause
+            );
+        }
+    }
+
     private static final Object ATOMIC_PAIR_LOCK=
         new Object();
 
@@ -447,6 +461,108 @@ final class ServerPacketWriter {
         pending.write(body.length&255);
         pending.write(body);
         autoFlush();
+    }
+
+    synchronized boolean tryVarShortRetractable(
+        int opcode,
+        byte[] body
+    )throws IOException{
+        byte[] checkedBody=
+            body==null
+                ?new byte[0]
+                :body;
+
+        if(checkedBody.length>65535)
+            throw new IllegalArgumentException(
+                "varShort payload too large: "+
+                checkedBody.length
+            );
+
+        awaitPacket81IdleLocked();
+
+        if(batchDepth!=0)
+            throw new IllegalStateException(
+                "retractable single publication cannot nest inside packet batch"
+            );
+
+        if(pending.size()!=0)
+            throw new IllegalStateException(
+                "retractable single publication requires idle pending buffer"
+            );
+
+        if(queue==null){
+            try{
+                writeOpcode(opcode);
+                pending.write(
+                    (checkedBody.length>>>8)&255
+                );
+                pending.write(
+                    checkedBody.length&255
+                );
+                pending.write(checkedBody);
+                flush();
+                return true;
+            }catch(IOException failure){
+                throw new NonRetractablePublicationException(
+                    "direct stream publication failed with unknown transport progress",
+                    failure
+                );
+            }
+        }
+
+        int framedBytes=
+            checkedBody.length+3;
+        final OutboundPacketQueue.BatchReservation
+            reservation;
+
+        try{
+            reservation=
+                OutboundPacketQueue.reserveBatch(
+                    queue,
+                    framedBytes
+                );
+        }catch(IOException admissionFailure){
+            return false;
+        }
+
+        IsaacCipher.Snapshot checkpoint=
+            cipher.snapshot();
+
+        try{
+            writeOpcode(opcode);
+            pending.write(
+                (checkedBody.length>>>8)&255
+            );
+            pending.write(
+                checkedBody.length&255
+            );
+            pending.write(checkedBody);
+
+            byte[] bytes=
+                pending.toByteArray();
+
+            if(bytes.length!=framedBytes)
+                throw new IllegalStateException(
+                    "retractable varShort framed length mismatch expected="+
+                    framedBytes+
+                    " actual="+
+                    bytes.length
+                );
+
+            reservation.commit(bytes);
+            pending.reset();
+            return true;
+        }catch(RuntimeException failure){
+            reservation.release();
+            pending.reset();
+            cipher.restore(checkpoint);
+            throw failure;
+        }catch(Error failure){
+            reservation.release();
+            pending.reset();
+            cipher.restore(checkpoint);
+            throw failure;
+        }
     }
 
     synchronized void beginBatch(){
