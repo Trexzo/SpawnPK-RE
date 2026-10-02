@@ -1207,7 +1207,7 @@ final class SharedNpcWorldRelay {
             long sourceGeneration,
             NpcEntity npc,
             NpcSyncEncoder.Mask mask
-        ){
+        )throws IOException{
             PendingMirrorMask pending=
                 new PendingMirrorMask(
                     sourceId,
@@ -1223,21 +1223,27 @@ final class SharedNpcWorldRelay {
                 return;
             }
 
-            try{
-                npcs.sendMaskLocal(
-                    npc,
-                    mask,
-                    writer
-                );
-            }catch(IOException failure){
+            ServerPacketWriter.RecoverablePacketResult
+                publication=
+                    writer.publishRecoverablePacket(
+                        ()->npcs.sendMaskLocal(
+                            npc,
+                            mask,
+                            writer
+                        )
+                    );
+
+            if(publication==
+                    ServerPacketWriter
+                        .RecoverablePacketResult
+                        .RETRACTED_RETRYABLE){
                 pendingMirrorMasks.addLast(
                     pending
                 );
 
                 System.err.println(
-                    "[ENGINE-R3.2] deferred remote mirror mask scene="+
-                    npc.sceneIndex+
-                    " error="+failure
+                    "[ENGINE-R3.2] deferred retractable remote mirror mask scene="+
+                    npc.sceneIndex
                 );
             }
         }
