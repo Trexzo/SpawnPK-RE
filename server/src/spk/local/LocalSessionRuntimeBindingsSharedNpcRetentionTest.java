@@ -23,6 +23,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         assertRetractedTradePeerClosePreservesPeerRuntime();
         assertTerminalTradePeerCloseFailureRetiresPeerBundle();
         assertTerminalCompetingRootPeerCloseRetiresPeerBundle();
+        assertTerminalTradeCancellationWriterRetiresOnlyFailedParticipant();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
         System.out.println(
@@ -43,6 +44,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalTradeCancelledOnce=true "+
             "terminalCompetingRootPeerRetired=true "+
             "terminalCompetingRootCommitted=true "+
+            "terminalTradeCancelWriterRetired=true "+
+            "terminalTradeCancelHealthyPeerClosed=true "+
             "terminalOldOwnerWriterExact=true "+
             "attemptedNewWriterNotRetired=true"
         );
@@ -1766,6 +1769,276 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 world.unregisterPlayer(
                     peer,
                     peerGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertTerminalTradeCancellationWriterRetiresOnlyFailedParticipant()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                706L
+            );
+        WorldPlayer failed=
+            new WorldPlayer();
+        WorldPlayer healthy=
+            new WorldPlayer();
+
+        long failedGeneration=
+            world.registerPlayer(
+                failed,
+                "binding-cancel-terminal-failed"
+            );
+        long healthyGeneration=
+            world.registerPlayer(
+                healthy,
+                "binding-cancel-terminal-healthy"
+            );
+
+        DevAuthorityWorkbench failedDev=
+            new DevAuthorityWorkbench();
+        DevAuthorityWorkbench healthyDev=
+            new DevAuthorityWorkbench();
+        NpcRegistry failedNpcs=
+            new NpcRegistry(
+                failedDev
+            );
+        NpcRegistry healthyNpcs=
+            new NpcRegistry(
+                healthyDev
+            );
+
+        SwitchablePrefixFailOutputStream failedOut=
+            new SwitchablePrefixFailOutputStream();
+        SwitchablePrefixFailOutputStream healthyOut=
+            new SwitchablePrefixFailOutputStream();
+
+        ServerPacketWriter failedWriter=
+            new ServerPacketWriter(
+                failedOut,
+                new IsaacCipher(
+                    new int[]{1161,1162,1163,1164}
+                )
+            );
+        ServerPacketWriter healthyWriter=
+            new ServerPacketWriter(
+                healthyOut,
+                new IsaacCipher(
+                    new int[]{1165,1166,1167,1168}
+                )
+            );
+
+        Player81WorldSync.register(
+            failedWriter,
+            world,
+            failed,
+            failedDev
+        );
+        Player81WorldSync.Context healthySync=
+            Player81WorldSync.register(
+                healthyWriter,
+                world,
+                healthy,
+                healthyDev
+            );
+
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
+        SharedNpcWorldRelay.register(
+            failedWriter,
+            world,
+            failed,
+            failedNpcs,
+            failed.movement()
+        );
+        SharedNpcWorldRelay.register(
+            healthyWriter,
+            world,
+            healthy,
+            healthyNpcs,
+            healthy.movement()
+        );
+
+        TradeService.register(
+            world,
+            failed,
+            failedGeneration,
+            failed.bank(),
+            failedWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            healthy,
+            healthyGeneration,
+            healthy.bank(),
+            healthyWriter,
+            ()->{}
+        );
+
+        try{
+            String tradeOpen=
+                TradeService.start(
+                    world,
+                    failed,
+                    healthy
+                );
+
+            if(tradeOpen==null||
+               !tradeOpen.contains(
+                    "TRADE_UI_OPEN"
+               ))
+                throw new AssertionError(
+                    "terminal cancel Trade fixture failed: "+
+                    tradeOpen
+                );
+
+            Object failedRelay=
+                relayContextFor(
+                    failedWriter
+                );
+            Object healthyRelay=
+                relayContextFor(
+                    healthyWriter
+                );
+            int failedAttemptsBefore=
+                failedOut.attempts();
+            int healthyAttemptsBefore=
+                healthyOut.attempts();
+
+            failedOut.enableFailure();
+
+            String result=
+                TradeService.handleWidget(
+                    failed,
+                    TradeService.FIRST_DECLINE
+                );
+
+            if(result==null||
+               !result.contains(
+                    "TRADE_CANCELLED_DECLINE"
+               ))
+                throw new AssertionError(
+                    "terminal close changed committed cancel result: "+
+                    result
+                );
+
+            if(failedOut.attempts()!=
+                    failedAttemptsBefore+1)
+                throw new AssertionError(
+                    "failed cancellation writer was duplicated/retouched before="+
+                    failedAttemptsBefore+
+                    " after="+
+                    failedOut.attempts()
+                );
+
+            if(healthyOut.attempts()!=
+                    healthyAttemptsBefore+1)
+                throw new AssertionError(
+                    "healthy cancellation participant did not receive exactly one close before="+
+                    healthyAttemptsBefore+
+                    " after="+
+                    healthyOut.attempts()
+                );
+
+            if(TradeService.active(
+                    failed
+                )||
+               TradeService.active(
+                    healthy
+               ))
+                throw new AssertionError(
+                    "terminal cancellation close retained live Trade"
+                );
+
+            if(player81ContextFor(
+                    failedWriter
+                )!=null)
+                throw new AssertionError(
+                    "terminal cancellation writer retained Player81 authority"
+                );
+
+            if(relayContextFor(
+                    failedWriter
+                )!=failedRelay)
+                throw new AssertionError(
+                    "terminal cancellation SharedNpc sentinel changed"
+                );
+
+            if(player81ContextFor(
+                    healthyWriter
+                )!=healthySync||
+               relayContextFor(
+                    healthyWriter
+                )!=healthyRelay)
+                throw new AssertionError(
+                    "terminal cancellation retired healthy participant runtime"
+                );
+
+            int failedAttemptsAfter=
+                failedOut.attempts();
+            boolean rejected=false;
+
+            try{
+                SharedNpcWorldRelay
+                    .preflightRegistration(
+                        failedWriter,
+                        world,
+                        failed
+                    );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                rejected=
+                    expected.owner==failed&&
+                    expected.writer==failedWriter;
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "terminal cancellation writer was resurrectable"
+                );
+
+            if(failedOut.attempts()!=
+                    failedAttemptsAfter)
+                throw new AssertionError(
+                    "terminal cancellation preflight retouched failed writer"
+                );
+        }finally{
+            failedOut.disableFailure();
+
+            TradeService.unregister(
+                failed
+            );
+            TradeService.unregister(
+                healthy
+            );
+            SharedNpcWorldRelay.unregister(
+                failedWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                healthyWriter
+            );
+            Player81WorldSync.unregister(
+                failedWriter
+            );
+            Player81WorldSync.unregister(
+                healthyWriter
+            );
+
+            if(failed.registered())
+                world.unregisterPlayer(
+                    failed,
+                    failedGeneration
+                );
+            if(healthy.registered())
+                world.unregisterPlayer(
+                    healthy,
+                    healthyGeneration
                 );
 
             world.close();
