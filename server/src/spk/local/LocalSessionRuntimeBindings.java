@@ -263,6 +263,12 @@ final class LocalSessionRuntimeBindings {
            failedWriter==null)
             return;
 
+        /*
+         * Terminal classification is one-way and must become visible to the
+         * owning LocalSession before any cross-service cleanup begins.
+         */
+        failedWriter.markTerminal();
+
         try{
             TradeService.BrokenWriterRetirement tradeRetirement=
                 TradeService.retireBrokenWriter(
