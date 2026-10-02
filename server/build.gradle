@@ -2055,13 +2055,13 @@ tasks.register('currentTrainFocusedRegression') {
 
 tasks.register('diagRelayOwnerWriterRebindCleanup') {
     group = 'verification'
-    description = 'TEMPORARY Chat 1 diagnostic: runs focused tests 52 through 80 only.'
+    description = 'TEMPORARY Chat 1 diagnostic: runs focused tests 81 through 120 only.'
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
 
     doLast {
-        currentTrainFocusedTests.subList(51, 80).eachWithIndex { className, index ->
+        currentTrainFocusedTests.subList(80, 120).eachWithIndex { className, index ->
             logger.lifecycle(
-                "[CURRENT-TRAIN-FOCUSED-DIAG] ${index + 52}/${currentTrainFocusedTests.size()} ${className}"
+                "[CURRENT-TRAIN-FOCUSED-DIAG] ${index + 81}/${currentTrainFocusedTests.size()} ${className}"
             )
             project.javaexec {
                 workingDir repoRoot
