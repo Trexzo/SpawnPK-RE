@@ -851,7 +851,6 @@ final class SharedNpcWorldRelay {
                      * Full Trade/Player81/runtime retirement remains outside
                      * SharedNpcWorldRelay.class below.
                      */
-                    viewer.writer.markTerminal();
                     viewer.failCloseProjection();
                     terminalFailure=
                         nonRetryable;
@@ -1026,6 +1025,7 @@ final class SharedNpcWorldRelay {
             Integer.MIN_VALUE;
 
         private void failCloseProjection(){
+            writer.markTerminal();
             projectionTransportFailedClosed=true;
             pendingMirrorMasks.clear();
         }
@@ -1724,8 +1724,7 @@ final class SharedNpcWorldRelay {
                         )
                     );
             }catch(IOException nonRetryable){
-                projectionTransportFailedClosed=true;
-                pendingMirrorMasks.clear();
+                failCloseProjection();
                 throw nonRetryable;
             }
 
@@ -1792,8 +1791,7 @@ final class SharedNpcWorldRelay {
                             )
                         );
                 }catch(IOException nonRetryable){
-                    projectionTransportFailedClosed=true;
-                    pendingMirrorMasks.clear();
+                    failCloseProjection();
                     throw nonRetryable;
                 }
 

@@ -40,6 +40,8 @@ public final class RemotePetMirrorMaskRetryTest {
             "directTransportFailClosed=true "+
             "terminalMirrorRuntimeRetired=true "+
             "terminalMirrorWriterLatched=true "+
+            "terminalMirrorWriterLatchedBeforeRuntimeRetire=true "+
+            "terminalMirrorWriterNoRetouchBeforeRuntimeRetire=true "+
             "terminalMirrorSentinelRetained=true "+
             "terminalQueueNotRetryable=true "+
             "mirrorAddRetryRetracted=true "+
@@ -660,9 +662,94 @@ public final class RemotePetMirrorMaskRetryTest {
                     "direct viewer did not establish source visibility"
                 );
 
-            SharedNpcWorldRelay.syncRemotePets(
-                viewerWriter
+            final Throwable[] syncFailure={
+                null
+            };
+            Thread syncThread;
+
+            synchronized(TradeService.class){
+                syncThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                SharedNpcWorldRelay.syncRemotePets(
+                                    viewerWriter
+                                );
+                            }catch(Throwable failure){
+                                syncFailure[0]=failure;
+                            }
+                        },
+                        "sharednpc-mirror-terminal-latch"
+                    );
+                syncThread.start();
+
+                long deadline=
+                    System.nanoTime()+
+                    5_000_000_000L;
+
+                while(syncThread.isAlive()&&
+                      syncThread.getState()!=
+                          Thread.State.BLOCKED&&
+                      System.nanoTime()<deadline)
+                    Thread.yield();
+
+                if(syncThread.getState()!=
+                        Thread.State.BLOCKED)
+                    throw new AssertionError(
+                        "terminal mirror runtime retirement did not block on TradeService state="+
+                        syncThread.getState()
+                    );
+
+                if(!viewerWriter.terminal())
+                    throw new AssertionError(
+                        "terminal mirror failure did not latch exact writer before outer runtime retirement"
+                    );
+
+                int attemptsBeforeProbe=
+                    viewerOut.attempts();
+
+                viewerOut.disableFailure();
+
+                boolean probeRejected=false;
+
+                try{
+                    viewerWriter.fixed(
+                        97,
+                        new byte[0]
+                    );
+                }catch(IOException expected){
+                    probeRejected=true;
+                }
+
+                if(!probeRejected)
+                    throw new AssertionError(
+                        "terminal mirror writer accepted probe publication before runtime retirement"
+                    );
+
+                if(viewerOut.attempts()!=
+                        attemptsBeforeProbe)
+                    throw new AssertionError(
+                        "terminal mirror writer retouched transport before runtime retirement before="+
+                        attemptsBeforeProbe+
+                        " after="+
+                        viewerOut.attempts()
+                    );
+            }
+
+            syncThread.join(
+                5000L
             );
+
+            if(syncThread.isAlive())
+                throw new AssertionError(
+                    "terminal mirror runtime retirement thread did not terminate"
+                );
+
+            if(syncFailure[0]!=null)
+                throw new AssertionError(
+                    "terminal mirror sync thread failed",
+                    syncFailure[0]
+                );
 
             if(viewerOut.attempts()!=2||
                viewerNpcs.snapshot().size()!=1)
