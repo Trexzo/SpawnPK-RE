@@ -19,12 +19,18 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
 
     public static void main(String[] args)throws Exception{
         assertRetryableSharedNpcContextSurvivesBindingRollback();
+        assertTerminalSharedNpcFailureRetiresBrokenWriterBundle();
 
         System.out.println(
             "LOCAL_SESSION_RUNTIME_BINDINGS_SHARED_NPC_RETENTION_PASS "+
             "retryableOldContextPreserved=true "+
             "retryableOldPlayer81Preserved=true "+
-            "retryableBindingRetrySucceeds=true"
+            "retryableBindingRetrySucceeds=true "+
+            "terminalRelaySentinelRetained=true "+
+            "terminalPlayer81Retired=true "+
+            "terminalTradeRetired=true "+
+            "terminalPeerOnlyClose=true "+
+            "terminalBrokenWriterNotRetouched=true"
         );
     }
 
@@ -303,6 +309,304 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         }
     }
 
+    private static void assertTerminalSharedNpcFailureRetiresBrokenWriterBundle()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                701L
+            );
+        WorldPlayer source=
+            new WorldPlayer();
+        WorldPlayer viewer=
+            new WorldPlayer();
+
+        long sourceGeneration=
+            world.registerPlayer(
+                source,
+                "binding-terminal-source"
+            );
+        long viewerGeneration=
+            world.registerPlayer(
+                viewer,
+                "binding-terminal-viewer"
+            );
+
+        DevAuthorityWorkbench viewerDev=
+            new DevAuthorityWorkbench();
+        NpcRegistry viewerNpcs=
+            new NpcRegistry(
+                viewerDev
+            );
+        NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        SwitchablePrefixFailOutputStream viewerOut=
+            new SwitchablePrefixFailOutputStream();
+        OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+
+        ServerPacketWriter viewerWriter=
+            new ServerPacketWriter(
+                viewerOut,
+                new IsaacCipher(
+                    new int[]{1111,1112,1113,1114}
+                )
+            );
+        ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                sourceQueue,
+                new IsaacCipher(
+                    new int[]{1115,1116,1117,1118}
+                )
+            );
+
+        Player81WorldSync.register(
+            sourceWriter,
+            world,
+            source,
+            new DevAuthorityWorkbench()
+        );
+        Player81WorldSync.Context oldViewerSync=
+            Player81WorldSync.register(
+                viewerWriter,
+                world,
+                viewer,
+                viewerDev
+            );
+
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            world,
+            source,
+            sourceNpcs,
+            source.movement()
+        );
+        SharedNpcWorldRelay.register(
+            viewerWriter,
+            world,
+            viewer,
+            viewerNpcs,
+            viewer.movement()
+        );
+
+        TradeService.register(
+            world,
+            source,
+            sourceGeneration,
+            source.bank(),
+            sourceWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            viewer,
+            viewerGeneration,
+            viewer.bank(),
+            viewerWriter,
+            ()->{}
+        );
+
+        LocalSessionRuntimeBindings bindings=
+            new LocalSessionRuntimeBindings(
+                world,
+                viewer,
+                viewerDev,
+                viewerNpcs,
+                viewer.movement(),
+                viewer.bank(),
+                new Bridge()
+            );
+
+        try{
+            PetDefinitionRepository.Def pet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(pet==null)
+                throw new AssertionError(
+                    "missing pet 24019"
+                );
+
+            sourceNpcs.spawnPet(
+                pet,
+                source.movement(),
+                sourceWriter
+            );
+
+            Player81WorldSync.transformForTest(
+                oldViewerSync,
+                BootstrapPackets.player81Idle()
+            );
+            SharedNpcWorldRelay.syncRemotePets(
+                viewerWriter
+            );
+
+            if(viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "terminal wrapper fixture mirror count="+
+                    viewerNpcs.snapshot().size()
+                );
+
+            String tradeOpen=
+                TradeService.start(
+                    world,
+                    source,
+                    viewer
+                );
+
+            if(tradeOpen==null||
+               !tradeOpen.contains(
+                    "TRADE_UI_OPEN"
+                ))
+                throw new AssertionError(
+                    "terminal SharedNpc Trade fixture failed: "+
+                    tradeOpen
+                );
+
+            drain(sourceQueue);
+
+            Object oldRelayContext=
+                relayContextFor(
+                    viewerWriter
+                );
+
+            int attemptsBeforeFailure=
+                viewerOut.attempts();
+            viewerOut.enableFailure();
+
+            boolean terminal=false;
+
+            try{
+                bindings.register(
+                    viewerWriter,
+                    "[binding-sharednpc-terminal] ",
+                    viewerGeneration
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                terminal=
+                    expected.owner==viewer&&
+                    expected.writer==viewerWriter;
+            }
+
+            if(!terminal)
+                throw new AssertionError(
+                    "terminal SharedNpc failure did not carry exact owner/writer"
+                );
+
+            if(viewerOut.attempts()!=
+                    attemptsBeforeFailure+1)
+                throw new AssertionError(
+                    "terminal cleanup retouched broken writer before="+
+                    attemptsBeforeFailure+
+                    " after="+
+                    viewerOut.attempts()
+                );
+
+            if(relayContextFor(
+                    viewerWriter
+                )!=oldRelayContext)
+                throw new AssertionError(
+                    "terminal SharedNpc sentinel identity was removed/replaced"
+                );
+
+            if(player81ContextFor(
+                    viewerWriter
+                )!=null)
+                throw new AssertionError(
+                    "terminal SharedNpc failure retained Player81 authority"
+                );
+
+            if(TradeService.active(viewer)||
+               TradeService.active(source))
+                throw new AssertionError(
+                    "terminal SharedNpc failure retained live Trade"
+                );
+
+            if(sourceQueue.queuedBytes()==0)
+                throw new AssertionError(
+                    "healthy Trade peer did not receive terminal close"
+                );
+
+            int attemptsAfterFailure=
+                viewerOut.attempts();
+
+            boolean retryRejected=false;
+            try{
+                bindings.register(
+                    viewerWriter,
+                    "[binding-sharednpc-terminal] ",
+                    viewerGeneration
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                retryRejected=
+                    expected.owner==viewer&&
+                    expected.writer==viewerWriter;
+            }
+
+            if(!retryRejected)
+                throw new AssertionError(
+                    "terminal SharedNpc writer was resurrected"
+                );
+
+            if(viewerOut.attempts()!=
+                    attemptsAfterFailure)
+                throw new AssertionError(
+                    "terminal retry touched broken writer"
+                );
+        }finally{
+            viewerOut.disableFailure();
+
+            bindings.unregister();
+            TradeService.unregister(
+                source
+            );
+            TradeService.unregister(
+                viewer
+            );
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
+
+            /*
+             * The viewer relay is intentionally a retained fail-closed
+             * sentinel. Final fixture teardown may remove it after transport
+             * failure injection is disabled.
+             */
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
+                viewerWriter
+            );
+
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
+                );
+            if(viewer.registered())
+                world.unregisterPlayer(
+                    viewer,
+                    viewerGeneration
+                );
+
+            world.close();
+        }
+    }
+
     private static Object relayContextFor(
         ServerPacketWriter writer
     )throws Exception{
@@ -358,6 +662,66 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 sink,
                 Integer.MAX_VALUE
             );
+    }
+
+    private static final class SwitchablePrefixFailOutputStream
+        extends OutputStream {
+
+        private final ByteArrayOutputStream bytes=
+            new ByteArrayOutputStream();
+        private boolean fail;
+        private int attempts;
+
+        synchronized void enableFailure(){
+            fail=true;
+        }
+
+        synchronized void disableFailure(){
+            fail=false;
+        }
+
+        synchronized int attempts(){
+            return attempts;
+        }
+
+        @Override public synchronized void write(
+            int value
+        )throws IOException{
+            attempts++;
+
+            if(fail){
+                bytes.write(value);
+                throw new IOException(
+                    "EXPECTED_RUNTIME_BINDING_TERMINAL_PREFIX_FAILURE"
+                );
+            }
+
+            bytes.write(value);
+        }
+
+        @Override public synchronized void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws IOException{
+            attempts++;
+
+            if(fail){
+                if(length>0)
+                    bytes.write(
+                        data[offset]
+                    );
+                throw new IOException(
+                    "EXPECTED_RUNTIME_BINDING_TERMINAL_PREFIX_FAILURE"
+                );
+            }
+
+            bytes.write(
+                data,
+                offset,
+                length
+            );
+        }
     }
 
     private LocalSessionRuntimeBindingsSharedNpcRetentionTest(){}
