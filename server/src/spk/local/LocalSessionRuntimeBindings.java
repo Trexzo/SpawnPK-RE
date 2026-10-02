@@ -88,6 +88,20 @@ final class LocalSessionRuntimeBindings {
                     bindingStarted[0]=true;
 
                     /*
+                     * Publish any required exact S2C104 option state while the
+                     * old runtime bundle is still authoritative. Queue-backed
+                     * rejection is retractable and therefore cannot destroy an
+                     * old Trade/Player81/SharedNpc binding.
+                     */
+                    boolean playerOptionsPrepared=
+                        Player81WorldSync
+                            .preparePlayerOptionsForRegistration(
+                                world,
+                                worldPlayer,
+                                serverPackets
+                            );
+
+                    /*
                      * SharedNpc live replacement may reject retryably while
                      * intentionally retaining the exact old relay Context.
                      * Player81 registration is destructive (it retires the old
@@ -108,7 +122,8 @@ final class LocalSessionRuntimeBindings {
                             serverPackets,
                             world,
                             worldPlayer,
-                            dev
+                            dev,
+                            playerOptionsPrepared
                         );
                     player81Installed[0]=true;
 
@@ -132,6 +147,11 @@ final class LocalSessionRuntimeBindings {
                     );
                     tradeInstalled[0]=true;
 
+                    /*
+                     * Normally a no-op because the prepublication phase seeded
+                     * all multiplayer contexts as already-sent. Retain this as
+                     * a compatibility safety net for the single-player path.
+                     */
                     Player81WorldSync
                         .sendPlayerOptionsIfMultiplayer(
                             world
