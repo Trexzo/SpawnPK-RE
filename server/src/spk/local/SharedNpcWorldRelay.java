@@ -606,6 +606,7 @@ final class SharedNpcWorldRelay {
         final ArrayDeque<PendingMirrorMask>
             pendingMirrorMasks=
                 new ArrayDeque<>();
+        boolean projectionTransportFailedClosed;
         Context(ServerPacketWriter w,WorldState s,WorldPlayer o,NpcRegistry n,MovementState m){
             writer=w;
             state=s;
@@ -623,7 +624,8 @@ final class SharedNpcWorldRelay {
         }
 
         void syncRemotePets()throws IOException{
-            if(!ownerCurrent())
+            if(projectionTransportFailedClosed||
+               !ownerCurrent())
                 return;
 
             flushPendingMirrorMasks();
@@ -921,7 +923,8 @@ final class SharedNpcWorldRelay {
         }
 
         void syncCanonicalNpcs()throws IOException{
-            if(!ownerCurrent())
+            if(projectionTransportFailedClosed||
+               !ownerCurrent())
                 return;
 
             ArrayList<EntityId> tracked;
@@ -1223,7 +1226,10 @@ final class SharedNpcWorldRelay {
                 return;
             }
 
-            ServerPacketWriter.RecoverablePacketResult
+            final ServerPacketWriter.RecoverablePacketResult
+                publication;
+
+            try{
                 publication=
                     writer.publishRecoverablePacket(
                         ()->npcs.sendMaskLocal(
@@ -1232,6 +1238,11 @@ final class SharedNpcWorldRelay {
                             writer
                         )
                     );
+            }catch(IOException nonRetryable){
+                projectionTransportFailedClosed=true;
+                pendingMirrorMasks.clear();
+                throw nonRetryable;
+            }
 
             if(publication==
                     ServerPacketWriter
@@ -1251,6 +1262,11 @@ final class SharedNpcWorldRelay {
         private void flushPendingMirrorMasks()
             throws IOException
         {
+            if(projectionTransportFailedClosed){
+                pendingMirrorMasks.clear();
+                return;
+            }
+
             while(!pendingMirrorMasks.isEmpty()){
                 PendingMirrorMask pending=
                     pendingMirrorMasks.peekFirst();
