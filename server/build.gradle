@@ -6303,3 +6303,17 @@ tasks.register('player81NoContextLinearizationRegression', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('player81NoContextLinearizationRegression')
 }
+
+tasks.register('player81ContextRetirementLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves prepared packet81 commit authority cannot be retired or rebound inside its semantic+transport commit critical section.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81ContextRetirementLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81ContextRetirementLinearizationRegression')
+}
