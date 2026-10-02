@@ -241,6 +241,34 @@ final class SharedNpcWorldRelay {
                 context.owner.id()
             );
 
+        LinkedHashSet<Integer> retiredScenes=
+            new LinkedHashSet<>();
+
+        for(RemotePetTrack track:
+                context.remote.values()){
+            if(track.mainScene>=0)
+                retiredScenes.add(
+                    track.mainScene
+                );
+            if(track.miniScene>=0)
+                retiredScenes.add(
+                    track.miniScene
+                );
+        }
+
+        for(GenericNpcTrack track:
+                context.genericNpcs.values())
+            if(track.scene>=0)
+                retiredScenes.add(
+                    track.scene
+                );
+
+        for(Integer scene:
+                retiredScenes)
+            context.npcs.retireMirroredNpcLocal(
+                scene.intValue()
+            );
+
         context.remote.clear();
         context.remoteIndexes.clear();
         context.genericNpcs.clear();
