@@ -978,46 +978,14 @@ final class TradeService {
                     }
                 }else{
                     /*
-                     * Direct OutputStream writers exist only in focused legacy
-                     * tests/tooling. They cannot provide cross-stream atomic
-                     * admission. Still publish before mutating canonical state.
+                     * Direct/non-queue writers have no cross-stream atomic
+                     * commit boundary. Reject before either participant sees
+                     * the final inventory projection or interface close. This
+                     * mirrors the direct prospective-offer rule: canonical
+                     * state stays untouched and the live Trade may retry only
+                     * through a transport that can prove pair atomicity.
                      */
-                    a.writer.beginBatch();
-                    b.writer.beginBatch();
-                    boolean endedA=false;
-                    boolean endedB=false;
-
-                    try{
-                        a.writer.varShort(
-                            53,
-                            inventoryA
-                        );
-                        a.writer.fixed(
-                            219,
-                            new byte[0]
-                        );
-                        b.writer.varShort(
-                            53,
-                            inventoryB
-                        );
-                        b.writer.fixed(
-                            219,
-                            new byte[0]
-                        );
-                        a.writer.endBatch();
-                        endedA=true;
-                        b.writer.endBatch();
-                        endedB=true;
-                    }finally{
-                        if(!endedA)
-                            try{
-                                a.writer.abortBatch();
-                            }catch(Throwable ignored){}
-                        if(!endedB)
-                            try{
-                                b.writer.abortBatch();
-                            }catch(Throwable ignored){}
-                    }
+                    return "TRADE_COMMIT_REJECTED_DIRECT_NONATOMIC";
                 }
 
                 a.bank.replaceInventorySemantic(
