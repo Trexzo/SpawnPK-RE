@@ -10,6 +10,7 @@ public final class SharedNpcRebindCleanupRetryTest {
 
     public static void main(String[] args)throws Exception{
         assertRetractedCleanupKeepsOldContextAuthoritative();
+        assertTerminalCleanupCannotResurrectWriter();
 
         System.out.println(
             "SHARED_NPC_REBIND_CLEANUP_RETRY_PASS "+
@@ -18,7 +19,10 @@ public final class SharedNpcRebindCleanupRetryTest {
             "mirrorPreservedOnRetraction=true "+
             "retryCleanupCommitsOnce=true "+
             "freshContextInstalledAfterCleanup=true "+
-            "noDuplicateMirrorAfterRebind=true"
+            "noDuplicateMirrorAfterRebind=true "+
+            "terminalCleanupRejectsReplacement=true "+
+            "terminalContextRemainsFailClosed=true "+
+            "terminalWriterNotResurrected=true"
         );
     }
 
@@ -320,6 +324,294 @@ public final class SharedNpcRebindCleanupRetryTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static void assertTerminalCleanupCannotResurrectWriter()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                601L
+            );
+        WorldPlayer source=
+            new WorldPlayer();
+        WorldPlayer viewer=
+            new WorldPlayer();
+
+        long sourceGeneration=
+            world.registerPlayer(
+                source,
+                "rebind-terminal-source"
+            );
+        long viewerGeneration=
+            world.registerPlayer(
+                viewer,
+                "rebind-terminal-viewer"
+            );
+
+        OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                sourceQueue,
+                new IsaacCipher(
+                    new int[]{1011,1012,1013,1014}
+                )
+            );
+
+        SwitchablePrefixFailOutputStream viewerOut=
+            new SwitchablePrefixFailOutputStream();
+        ServerPacketWriter viewerWriter=
+            new ServerPacketWriter(
+                viewerOut,
+                new IsaacCipher(
+                    new int[]{1015,1016,1017,1018}
+                )
+            );
+
+        NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry viewerNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        Player81WorldSync.register(
+            sourceWriter,
+            world,
+            source,
+            new DevAuthorityWorkbench()
+        );
+
+        Player81WorldSync.Context viewerSync=
+            Player81WorldSync.register(
+                viewerWriter,
+                world,
+                viewer,
+                new DevAuthorityWorkbench()
+            );
+
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            world,
+            source,
+            sourceNpcs,
+            source.movement()
+        );
+        SharedNpcWorldRelay.register(
+            viewerWriter,
+            world,
+            viewer,
+            viewerNpcs,
+            viewer.movement()
+        );
+
+        try{
+            PetDefinitionRepository.Def pet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(pet==null)
+                throw new AssertionError(
+                    "missing pet 24019"
+                );
+
+            sourceNpcs.spawnPet(
+                pet,
+                source.movement(),
+                sourceWriter
+            );
+
+            Player81WorldSync.transformForTest(
+                viewerSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                viewerWriter
+            );
+
+            if(viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "terminal rebind fixture did not create one mirror"
+                );
+
+            Object oldContext=
+                contextFor(
+                    viewerWriter
+                );
+
+            if(oldContext==null)
+                throw new AssertionError(
+                    "terminal rebind old context missing"
+                );
+
+            viewerOut.enableFailure();
+
+            int attemptsBefore=
+                viewerOut.attempts();
+
+            boolean terminalRejected=false;
+
+            try{
+                SharedNpcWorldRelay.register(
+                    viewerWriter,
+                    world,
+                    viewer,
+                    viewerNpcs,
+                    viewer.movement()
+                );
+            }catch(SharedNpcWorldRelay.TerminalRegistrationException expected){
+                terminalRejected=true;
+            }
+
+            if(!terminalRejected)
+                throw new AssertionError(
+                    "terminal cleanup did not reject replacement"
+                );
+
+            if(contextFor(
+                    viewerWriter
+                )!=oldContext)
+                throw new AssertionError(
+                    "terminal cleanup detached old fail-closed Context"
+                );
+
+            if(viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "terminal cleanup lost mirror authority"
+                );
+
+            if(viewerOut.attempts()<=attemptsBefore)
+                throw new AssertionError(
+                    "terminal cleanup fixture did not reach failing transport"
+                );
+
+            int attemptsAfterFailure=
+                viewerOut.attempts();
+
+            boolean secondRejected=false;
+
+            try{
+                SharedNpcWorldRelay.register(
+                    viewerWriter,
+                    world,
+                    viewer,
+                    viewerNpcs,
+                    viewer.movement()
+                );
+            }catch(SharedNpcWorldRelay.TerminalRegistrationException expected){
+                secondRejected=true;
+            }
+
+            if(!secondRejected)
+                throw new AssertionError(
+                    "fail-closed writer was resurrected by later registration"
+                );
+
+            if(contextFor(
+                    viewerWriter
+                )!=oldContext)
+                throw new AssertionError(
+                    "later terminal registration replaced fail-closed Context"
+                );
+
+            if(viewerOut.attempts()!=
+                    attemptsAfterFailure)
+                throw new AssertionError(
+                    "later registration retried terminal transport attemptsBefore="+
+                    attemptsAfterFailure+
+                    " after="+
+                    viewerOut.attempts()
+                );
+        }finally{
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
+                viewerWriter
+            );
+
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
+                );
+
+            if(viewer.registered())
+                world.unregisterPlayer(
+                    viewer,
+                    viewerGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static final class SwitchablePrefixFailOutputStream
+        extends java.io.OutputStream {
+
+        private final ByteArrayOutputStream bytes=
+            new ByteArrayOutputStream();
+        private boolean fail;
+        private int attempts;
+
+        synchronized void enableFailure(){
+            fail=true;
+        }
+
+        synchronized int attempts(){
+            return attempts;
+        }
+
+        @Override public synchronized void write(
+            int value
+        )throws java.io.IOException{
+            attempts++;
+
+            if(fail){
+                bytes.write(value);
+                throw new java.io.IOException(
+                    "EXPECTED_TERMINAL_REBIND_PREFIX_FAILURE"
+                );
+            }
+
+            bytes.write(value);
+        }
+
+        @Override public synchronized void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws java.io.IOException{
+            attempts++;
+
+            if(fail){
+                if(length>0)
+                    bytes.write(
+                        data[offset]
+                    );
+                throw new java.io.IOException(
+                    "EXPECTED_TERMINAL_REBIND_PREFIX_FAILURE"
+                );
+            }
+
+            bytes.write(
+                data,
+                offset,
+                length
+            );
         }
     }
 
