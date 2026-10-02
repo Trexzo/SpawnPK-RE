@@ -1999,8 +1999,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     "terminal cancellation retired healthy participant runtime"
                 );
 
-            int failedAttemptsAfter=
-                failedOut.attempts();
+            int failedBytesAfter=
+                failedQueue.queuedBytes();
             boolean rejected=false;
 
             try{
@@ -2226,10 +2226,10 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 );
             }catch(IOException expected){
                 failedAsExpected=
-                    "EXPECTED_RUNTIME_BINDING_TERMINAL_PREFIX_FAILURE"
-                        .equals(
-                            expected.getMessage()
-                        );
+                    expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "outbound queue overflow"
+                    );
             }
 
             if(!failedAsExpected)
@@ -2669,14 +2669,18 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 healthyDev
             );
 
-        SwitchablePrefixFailOutputStream failedOut=
-            new SwitchablePrefixFailOutputStream();
-        SwitchablePrefixFailOutputStream healthyOut=
-            new SwitchablePrefixFailOutputStream();
+        OutboundPacketQueue failedQueue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+        OutboundPacketQueue healthyQueue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
 
         ServerPacketWriter failedWriter=
             new ServerPacketWriter(
-                failedOut,
+                failedQueue,
                 new IsaacCipher(
                     remove
                         ?new int[]{1191,1192,1193,1194}
@@ -2685,13 +2689,16 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             );
         ServerPacketWriter healthyWriter=
             new ServerPacketWriter(
-                healthyOut,
+                healthyQueue,
                 new IsaacCipher(
                     remove
                         ?new int[]{1195,1196,1197,1198}
                         :new int[]{1205,1206,1207,1208}
                 )
             );
+
+        OutboundPacketQueue.BatchReservation pressure=
+            null;
 
         Player81WorldSync.register(
             failedWriter,
@@ -2813,6 +2820,19 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     );
             }
 
+            /*
+             * #1668 requires queue-backed cross-participant offer postimages.
+             * Drain all successful setup presentation, then reserve the full
+             * failed participant queue so the ordinary S2C27 prompt uses the
+             * non-retractable queue.offer(...) failure path.
+             */
+            drain(
+                failedQueue
+            );
+            drain(
+                healthyQueue
+            );
+
             Object failedRelay=
                 relayContextFor(
                     failedWriter
@@ -2821,12 +2841,12 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 relayContextFor(
                     healthyWriter
                 );
-            int failedAttemptsBefore=
-                failedOut.attempts();
-            int healthyAttemptsBefore=
-                healthyOut.attempts();
 
-            failedOut.enableFailure();
+            pressure=
+                OutboundPacketQueue.reserveBatch(
+                    failedQueue,
+                    QUEUE_CAPACITY
+                );
 
             boolean failedAsExpected=false;
 
@@ -2860,26 +2880,23 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     remove
                 );
 
-            if(failedOut.attempts()!=
-                    failedAttemptsBefore+1)
+            if(!failedQueue.overflowed()||
+               failedQueue.queuedBytes()!=0)
                 throw new AssertionError(
-                    "terminal X-prompt writer was retouched remove="+
+                    "terminal X-prompt queue did not fail exactly at prompt boundary remove="+
                     remove+
-                    " before="+
-                    failedAttemptsBefore+
-                    " after="+
-                    failedOut.attempts()
+                    " overflowed="+
+                    failedQueue.overflowed()+
+                    " queued="+
+                    failedQueue.queuedBytes()
                 );
 
-            if(healthyOut.attempts()!=
-                    healthyAttemptsBefore+1)
+            if(healthyQueue.queuedBytes()!=1)
                 throw new AssertionError(
                     "healthy X-prompt peer did not receive exactly one close remove="+
                     remove+
-                    " before="+
-                    healthyAttemptsBefore+
-                    " after="+
-                    healthyOut.attempts()
+                    " queued="+
+                    healthyQueue.queuedBytes()
                 );
 
             if(TradeService.active(
@@ -2953,14 +2970,15 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     remove
                 );
 
-            if(failedOut.attempts()!=
-                    failedAttemptsAfter)
+            if(failedQueue.queuedBytes()!=
+                    failedBytesAfter)
                 throw new AssertionError(
-                    "terminal X-prompt preflight retouched writer remove="+
+                    "terminal X-prompt preflight changed failed transport remove="+
                     remove
                 );
         }finally{
-            failedOut.disableFailure();
+            if(pressure!=null)
+                pressure.release();
 
             TradeService.unregister(
                 failed
