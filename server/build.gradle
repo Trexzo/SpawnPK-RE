@@ -2030,6 +2030,15 @@ if (currentTrainFocusedTests.size() != 175 ||
     )
 }
 
+tasks.register('diagCurrentTradeEngineR4', JavaExec) {
+    group = 'verification'
+    description = 'TEMPORARY Chat 2+3 diagnostic for the current stacked Trade source.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.EngineR4TradeFlowTest')
+}
+
 tasks.register('currentTrainFocusedRegression') {
     group = 'verification'
     description = 'Runs the frozen #431 focused release-safety regression manifest separately from the inherited 179-test R8.5 suite.'
