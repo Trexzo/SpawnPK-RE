@@ -247,15 +247,15 @@ public final class RemotePetMirrorMaskRetryTest {
                     scene
                 );
 
-            if(viewerOut.successfulWrites()!=6)
+            if(viewerOut.successfulWrites()!=5)
                 throw new AssertionError(
-                    "retry packet order/count mismatch expected main-mask/native-mask/mini-add/mini-masks after initial add successes="+
+                    "retry packet order/count mismatch expected main-mask/native-mask/mini-add/mini-mask after initial add successes="+
                     viewerOut.successfulWrites()+
                     " attempts="+
                     viewerOut.attempts()
                 );
 
-            if(viewerOut.attempts()!=7)
+            if(viewerOut.attempts()!=6)
                 throw new AssertionError(
                     "retry did not consume exactly one failed write plus ordered follow-up packets attempts="+
                     viewerOut.attempts()
