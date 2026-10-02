@@ -3,11 +3,21 @@ package spk.local;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class RemotePetMirrorMaskRetryTest {
+    private static final int QUEUE_CAPACITY=1024;
+    private static final int[] SOURCE_SEED=
+        new int[]{701,702,703,704};
+    private static final int[] VIEWER_SEED=
+        new int[]{705,706,707,708};
+
     public static void main(String[] args)throws Exception{
         assertPostAddMaskFailureDoesNotDuplicateMirror();
+        assertDeferredMasksPreserveFifoOrder();
+        assertDeferredMaskBlocksLaterProjection();
+        assertDirectTransportFailureFailsClosed();
 
         System.out.println(
             "REMOTE_PET_MIRROR_MASK_RETRY_PASS "+
@@ -16,20 +26,476 @@ public final class RemotePetMirrorMaskRetryTest {
             "stableSceneOnRetry=true "+
             "noDuplicateMirror=true "+
             "deferredMaskRetried=true "+
+            "laterMaskQueuedBehindFailure=true "+
+            "deferredMaskFifo=true "+
+            "retryCipherRewound=true "+
+            "queueBackedRetry=true "+
             "deferredMaskBlocksLaterProjection=true "+
-            "fifoDrainsBeforeMiniProjection=true "+
-            "nativeMaskOrderedAfterDeferredInteraction=true"
+            "nativeMaskPreserved=true "+
+            "miniProjectionWaitsForDrain=true "+
+            "directTransportFailClosed=true"
         );
     }
 
     private static void assertPostAddMaskFailureDoesNotDuplicateMirror()
         throws Exception
     {
+        Fixture fixture=
+            new Fixture(
+                "mirror-mask"
+            );
+
+        try{
+            PetDefinitionRepository.Def pet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(pet==null)
+                throw new AssertionError(
+                    "missing pet 24019"
+                );
+
+            fixture.spawnSourcePet(
+                pet
+            );
+
+            int playerIndex=
+                fixture.establishVisibility();
+
+            PacketSizes sizes=
+                measurePacketSizes(
+                    pet.npcId,
+                    fixture.viewer.movement(),
+                    32768+playerIndex,
+                    false
+                );
+
+            OutboundPacketQueue.BatchReservation
+                pressure=
+                    reserveFirstMaskFailure(
+                        fixture.viewerQueue,
+                        sizes
+                    );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerQueue.queuedPackets()!=1)
+                throw new AssertionError(
+                    "failing sync should queue only mirrored add packets="+
+                    fixture.viewerQueue.queuedPackets()
+                );
+
+            if(fixture.viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "post-add mask failure did not leave exactly one authoritative mirror size="+
+                    fixture.viewerNpcs.snapshot().size()
+                );
+
+            NpcEntity first=
+                fixture.viewerNpcs.snapshot().get(0);
+            int scene=
+                first.sceneIndex;
+
+            pressure.release();
+
+            ByteArrayOutputStream actual=
+                new ByteArrayOutputStream();
+
+            fixture.viewerQueue.drainTo(
+                actual,
+                Integer.MAX_VALUE
+            );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "mask retry spawned duplicate mirror size="+
+                    fixture.viewerNpcs.snapshot().size()
+                );
+
+            if(fixture.viewerNpcs.snapshot().get(0)
+                    .sceneIndex!=scene)
+                throw new AssertionError(
+                    "mask retry changed mirror scene"
+                );
+
+            if(fixture.viewerQueue.queuedPackets()!=1)
+                throw new AssertionError(
+                    "deferred interaction mask was not retried exactly once queued="+
+                    fixture.viewerQueue.queuedPackets()
+                );
+
+            fixture.viewerQueue.drainTo(
+                actual,
+                Integer.MAX_VALUE
+            );
+
+            byte[] expected=
+                referenceMirrorBytes(
+                    pet.npcId,
+                    fixture.viewer.movement(),
+                    32768+playerIndex,
+                    false
+                );
+
+            if(!Arrays.equals(
+                    actual.toByteArray(),
+                    expected))
+                throw new AssertionError(
+                    "retried mirror wire bytes/cipher diverged from clean publication actual="+
+                    actual.size()+
+                    " expected="+
+                    expected.length
+                );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerQueue.queuedPackets()!=0)
+                throw new AssertionError(
+                    "completed deferred mask emitted again"
+                );
+        }finally{
+            fixture.close();
+        }
+    }
+
+    private static void assertDeferredMasksPreserveFifoOrder()
+        throws Exception
+    {
+        Fixture fixture=
+            new Fixture(
+                "mirror-mask-fifo"
+            );
+
+        try{
+            PetDefinitionRepository.Def base=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(base==null)
+                throw new AssertionError(
+                    "missing pet 24019 template"
+                );
+
+            PetDefinitionRepository.Def nativePet=
+                new PetDefinitionRepository.Def(
+                    base.itemId,
+                    6650,
+                    base.itemName,
+                    "FIFO native-state fixture",
+                    base.standAnim,
+                    base.walkAnim,
+                    base.turn180Anim,
+                    base.turn90CWAnim,
+                    base.turn90CCWAnim,
+                    base.size,
+                    base.models,
+                    "TEST_NATIVE_STATE_FIFO"
+                );
+
+            fixture.spawnSourcePet(
+                nativePet
+            );
+
+            String nativeState=
+                fixture.sourceNpcs.setPetNativeState(
+                    2,
+                    fixture.sourceWriter
+                );
+
+            if(nativeState==null||
+               !nativeState.startsWith(
+                    "PET_NATIVE_STATE_OK"
+               ))
+                throw new AssertionError(
+                    "native-state fixture setup failed: "+
+                    nativeState
+                );
+
+            int playerIndex=
+                fixture.establishVisibility();
+
+            PacketSizes sizes=
+                measurePacketSizes(
+                    nativePet.npcId,
+                    fixture.viewer.movement(),
+                    32768+playerIndex,
+                    true
+                );
+
+            OutboundPacketQueue.BatchReservation
+                pressure=
+                    reserveFirstMaskFailure(
+                        fixture.viewerQueue,
+                        sizes
+                    );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            /*
+             * Only the add may enter the queue. The first interaction mask
+             * fails transactionally; the later native-state mask must enqueue
+             * semantically behind it rather than touching transport.
+             */
+            if(fixture.viewerQueue.queuedPackets()!=1)
+                throw new AssertionError(
+                    "later mirror mask overtook deferred FIFO queuedPackets="+
+                    fixture.viewerQueue.queuedPackets()
+                );
+
+            if(fixture.viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "FIFO failure did not preserve exactly one mirror size="+
+                    fixture.viewerNpcs.snapshot().size()
+                );
+
+            int scene=
+                fixture.viewerNpcs.snapshot().get(0)
+                    .sceneIndex;
+
+            pressure.release();
+
+            ByteArrayOutputStream actual=
+                new ByteArrayOutputStream();
+
+            fixture.viewerQueue.drainTo(
+                actual,
+                Integer.MAX_VALUE
+            );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerQueue.queuedPackets()!=2)
+                throw new AssertionError(
+                    "retry did not drain both deferred masks FIFO packets="+
+                    fixture.viewerQueue.queuedPackets()
+                );
+
+            fixture.viewerQueue.drainTo(
+                actual,
+                Integer.MAX_VALUE
+            );
+
+            if(fixture.viewerNpcs.snapshot().size()!=1||
+               fixture.viewerNpcs.snapshot().get(0)
+                    .sceneIndex!=scene)
+                throw new AssertionError(
+                    "FIFO retry changed authoritative mirror scene"
+                );
+
+            byte[] expected=
+                referenceMirrorBytes(
+                    nativePet.npcId,
+                    fixture.viewer.movement(),
+                    32768+playerIndex,
+                    true
+                );
+
+            if(!Arrays.equals(
+                    actual.toByteArray(),
+                    expected))
+                throw new AssertionError(
+                    "FIFO retry wire order/cipher differs from clean publication actual="+
+                    actual.size()+
+                    " expected="+
+                    expected.length
+                );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerQueue.queuedPackets()!=0)
+                throw new AssertionError(
+                    "drained FIFO emitted duplicate mask work"
+                );
+        }finally{
+            fixture.close();
+        }
+    }
+
+    private static void assertDeferredMaskBlocksLaterProjection()
+        throws Exception
+    {
+        Fixture fixture=
+            new Fixture(
+                "mirror-projection-barrier"
+            );
+
+        try{
+            PetDefinitionRepository.Def pet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(pet==null)
+                throw new AssertionError(
+                    "missing pet 24019"
+                );
+
+            fixture.spawnSourcePet(
+                pet
+            );
+
+            String nativeState=
+                fixture.sourceNpcs.setPetNativeState(
+                    1,
+                    fixture.sourceWriter
+                );
+
+            if(nativeState==null||
+               !nativeState.startsWith(
+                    "PET_NATIVE_STATE_OK"
+               ))
+                throw new AssertionError(
+                    "source native-state setup failed: "+
+                    nativeState
+                );
+
+            MiniPetDefinitionRepository.Def mini=
+                MiniPetDefinitionRepository.get(
+                    22088
+                );
+
+            if(mini==null)
+                throw new AssertionError(
+                    "missing mini pet 22088"
+                );
+
+            String miniSpawn=
+                fixture.sourceNpcs.spawnOrReplaceMiniPet(
+                    mini,
+                    fixture.source.movement(),
+                    fixture.sourceWriter
+                );
+
+            if(miniSpawn==null||
+               !miniSpawn.startsWith(
+                    "MINIPET_SPAWN_OK"
+               ))
+                throw new AssertionError(
+                    "source mini-pet setup failed: "+
+                    miniSpawn
+                );
+
+            int playerIndex=
+                fixture.establishVisibility();
+
+            PacketSizes sizes=
+                measurePacketSizes(
+                    pet.npcId,
+                    fixture.viewer.movement(),
+                    32768+playerIndex,
+                    true
+                );
+
+            OutboundPacketQueue.BatchReservation
+                pressure=
+                    reserveFirstMaskFailure(
+                        fixture.viewerQueue,
+                        sizes
+                    );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerQueue.queuedPackets()!=1)
+                throw new AssertionError(
+                    "deferred main mask allowed later packet65 projection queued="+
+                    fixture.viewerQueue.queuedPackets()
+                );
+
+            if(fixture.viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "deferred main mask allowed mini projection size="+
+                    fixture.viewerNpcs.snapshot().size()
+                );
+
+            int mainScene=
+                fixture.viewerNpcs.snapshot().get(0)
+                    .sceneIndex;
+
+            pressure.release();
+
+            ByteArrayOutputStream drained=
+                new ByteArrayOutputStream();
+
+            fixture.viewerQueue.drainTo(
+                drained,
+                Integer.MAX_VALUE
+            );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerNpcs.snapshot().size()!=2)
+                throw new AssertionError(
+                    "projection did not resume with main+mini after FIFO drain size="+
+                    fixture.viewerNpcs.snapshot().size()
+                );
+
+            boolean retainedMain=false;
+
+            for(NpcEntity npc:
+                    fixture.viewerNpcs.snapshot())
+                if(npc.sceneIndex==mainScene)
+                    retainedMain=true;
+
+            if(!retainedMain)
+                throw new AssertionError(
+                    "projection barrier changed authoritative main mirror scene"
+                );
+
+            if(fixture.viewerQueue.queuedPackets()!=5)
+                throw new AssertionError(
+                    "ordered retry did not preserve main interaction/native then mini projection packets="+
+                    fixture.viewerQueue.queuedPackets()
+                );
+
+            fixture.viewerQueue.drainTo(
+                drained,
+                Integer.MAX_VALUE
+            );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerQueue.queuedPackets()!=0||
+               fixture.viewerNpcs.snapshot().size()!=2)
+                throw new AssertionError(
+                    "steady projection repeated work after FIFO drain packets="+
+                    fixture.viewerQueue.queuedPackets()+
+                    " size="+
+                    fixture.viewerNpcs.snapshot().size()
+                );
+        }finally{
+            fixture.close();
+        }
+    }
+
+    private static void assertDirectTransportFailureFailsClosed()
+        throws Exception
+    {
         World world=
             World.isolatedForTest(
                 600L
             );
-
         WorldPlayer source=
             new WorldPlayer();
         WorldPlayer viewer=
@@ -38,22 +504,19 @@ public final class RemotePetMirrorMaskRetryTest {
         long sourceGeneration=
             world.registerPlayer(
                 source,
-                "mirror-mask-source"
+                "mirror-direct-source"
             );
         long viewerGeneration=
             world.registerPlayer(
                 viewer,
-                "mirror-mask-viewer"
+                "mirror-direct-viewer"
             );
-
-        OutboundPacketQueue sourceQueue=
-            new OutboundPacketQueue();
 
         ServerPacketWriter sourceWriter=
             new ServerPacketWriter(
-                sourceQueue,
+                new OutboundPacketQueue(),
                 new IsaacCipher(
-                    new int[]{701,702,703,704}
+                    SOURCE_SEED.clone()
                 )
             );
 
@@ -66,7 +529,7 @@ public final class RemotePetMirrorMaskRetryTest {
             new ServerPacketWriter(
                 viewerOut,
                 new IsaacCipher(
-                    new int[]{705,706,707,708}
+                    VIEWER_SEED.clone()
                 )
             );
 
@@ -89,7 +552,6 @@ public final class RemotePetMirrorMaskRetryTest {
             new NpcRegistry(
                 new DevAuthorityWorkbench()
             );
-
         NpcRegistry viewerNpcs=
             new NpcRegistry(
                 new DevAuthorityWorkbench()
@@ -102,7 +564,6 @@ public final class RemotePetMirrorMaskRetryTest {
             sourceNpcs,
             source.movement()
         );
-
         SharedNpcWorldRelay.register(
             viewerWriter,
             world,
@@ -134,49 +595,8 @@ public final class RemotePetMirrorMaskRetryTest {
                     "PET_SPAWN_OK"
                ))
                 throw new AssertionError(
-                    "source pet setup failed: "+
+                    "direct fixture pet setup failed: "+
                     spawn
-                );
-
-            String nativeState=
-                sourceNpcs.setPetNativeState(
-                    1,
-                    sourceWriter
-                );
-
-            if(nativeState==null||
-               !nativeState.startsWith(
-                    "PET_NATIVE_STATE_OK"
-               ))
-                throw new AssertionError(
-                    "source native-state setup failed: "+
-                    nativeState
-                );
-
-            MiniPetDefinitionRepository.Def mini=
-                MiniPetDefinitionRepository.get(
-                    22088
-                );
-
-            if(mini==null)
-                throw new AssertionError(
-                    "missing mini pet 22088"
-                );
-
-            String miniSpawn=
-                sourceNpcs.spawnOrReplaceMiniPet(
-                    mini,
-                    source.movement(),
-                    sourceWriter
-                );
-
-            if(miniSpawn==null||
-               !miniSpawn.startsWith(
-                    "MINIPET_SPAWN_OK"
-               ))
-                throw new AssertionError(
-                    "source mini-pet setup failed: "+
-                    miniSpawn
                 );
 
             Player81WorldSync.transformForTest(
@@ -189,35 +609,21 @@ public final class RemotePetMirrorMaskRetryTest {
                     source
                 )<0)
                 throw new AssertionError(
-                    "viewer did not establish source visibility"
+                    "direct viewer did not establish source visibility"
                 );
 
             SharedNpcWorldRelay.syncRemotePets(
                 viewerWriter
             );
 
-            if(viewerOut.attempts()!=2)
+            if(viewerOut.attempts()!=2||
+               viewerNpcs.snapshot().size()!=1)
                 throw new AssertionError(
-                    "fixture did not fail on required post-add mask attempts="+
-                    viewerOut.attempts()
-                );
-
-            if(viewerOut.successfulWrites()!=1)
-                throw new AssertionError(
-                    "expected only mirror add write to succeed before mask failure successes="+
-                    viewerOut.successfulWrites()
-                );
-
-            if(viewerNpcs.snapshot().size()!=1)
-                throw new AssertionError(
-                    "deferred main mask allowed later mini/canonical projection size="+
+                    "direct failure fixture did not stop after add+failed mask attempts="+
+                    viewerOut.attempts()+
+                    " size="+
                     viewerNpcs.snapshot().size()
                 );
-
-            NpcEntity first=
-                viewerNpcs.snapshot().get(0);
-            int scene=
-                first.sceneIndex;
 
             viewerOut.disableFailure();
 
@@ -225,63 +631,335 @@ public final class RemotePetMirrorMaskRetryTest {
                 viewerWriter
             );
 
-            if(viewerNpcs.snapshot().size()!=2)
+            if(viewerOut.attempts()!=2||
+               viewerNpcs.snapshot().size()!=1)
                 throw new AssertionError(
-                    "retry did not drain deferred main mask before resuming mini projection size="+
+                    "non-retractable direct failure created retry debt or duplicate mirror attempts="+
+                    viewerOut.attempts()+
+                    " size="+
                     viewerNpcs.snapshot().size()
                 );
-
-            NpcEntity after=
-                null;
-
-            for(NpcEntity npc:
-                    viewerNpcs.snapshot())
-                if(npc.sceneIndex==scene){
-                    after=npc;
-                    break;
-                }
-
-            if(after==null)
-                throw new AssertionError(
-                    "mask retry changed or lost stable main mirror scene="+
-                    scene
-                );
-
-            if(viewerOut.successfulWrites()!=6)
-                throw new AssertionError(
-                    "retry packet order/count mismatch expected queued-main-mask/queued-native-mask/mini-add/mini-masks after initial add successes="+
-                    viewerOut.successfulWrites()+
-                    " attempts="+
-                    viewerOut.attempts()
-                );
-
-            if(viewerOut.attempts()!=7)
-                throw new AssertionError(
-                    "retry did not consume exactly one failed write plus ordered follow-up packets attempts="+
-                    viewerOut.attempts()
-                );
-
-            int attemptsAfterRetry=
-                viewerOut.attempts();
-
-            SharedNpcWorldRelay.syncRemotePets(
+        }finally{
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
                 viewerWriter
             );
 
-            if(viewerNpcs.snapshot().size()!=2)
-                throw new AssertionError(
-                    "steady-state sync changed main+mini mirror cardinality"
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
+                );
+            if(viewer.registered())
+                world.unregisterPlayer(
+                    viewer,
+                    viewerGeneration
                 );
 
-            if(viewerOut.attempts()!=
-                    attemptsAfterRetry)
-                throw new AssertionError(
-                    "completed deferred mask was emitted again attemptsBefore="+
-                    attemptsAfterRetry+
-                    " after="+
-                    viewerOut.attempts()
+            world.close();
+        }
+    }
+
+    private static OutboundPacketQueue.BatchReservation
+        reserveFirstMaskFailure(
+            OutboundPacketQueue queue,
+            PacketSizes sizes
+        )throws Exception
+    {
+        int reserve=
+            QUEUE_CAPACITY-
+            sizes.addBytes-
+            sizes.interactionMaskBytes+
+            1;
+
+        if(reserve<0)
+            throw new AssertionError(
+                "fixture packets exceed queue capacity add="+
+                sizes.addBytes+
+                " mask="+
+                sizes.interactionMaskBytes
+            );
+
+        return OutboundPacketQueue.reserveBatch(
+            queue,
+            reserve
+        );
+    }
+
+    private static PacketSizes measurePacketSizes(
+        int npcId,
+        MovementState movement,
+        int interactionTarget,
+        boolean nativeState
+    )throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue();
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        NpcEntity mirror=
+            npcs.spawnMirroredNpc(
+                npcId,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                writer
+            );
+
+        int addBytes=
+            queue.queuedBytes();
+
+        npcs.sendMaskLocal(
+            mirror,
+            NpcSyncEncoder.Mask.interactionTarget(
+                interactionTarget
+            ),
+            writer
+        );
+
+        int interactionBytes=
+            queue.queuedBytes()-
+            addBytes;
+
+        if(nativeState)
+            npcs.sendMaskLocal(
+                mirror,
+                NpcSyncEncoder.Mask.forceText(
+                    "2"
+                ),
+                writer
+            );
+
+        return new PacketSizes(
+            addBytes,
+            interactionBytes
+        );
+    }
+
+    private static byte[] referenceMirrorBytes(
+        int npcId,
+        MovementState movement,
+        int interactionTarget,
+        boolean nativeState
+    )throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue();
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        NpcEntity mirror=
+            npcs.spawnMirroredNpc(
+                npcId,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                writer
+            );
+
+        npcs.sendMaskLocal(
+            mirror,
+            NpcSyncEncoder.Mask.interactionTarget(
+                interactionTarget
+            ),
+            writer
+        );
+
+        if(nativeState)
+            npcs.sendMaskLocal(
+                mirror,
+                NpcSyncEncoder.Mask.forceText(
+                    "2"
+                ),
+                writer
+            );
+
+        ByteArrayOutputStream out=
+            new ByteArrayOutputStream();
+
+        queue.drainTo(
+            out,
+            Integer.MAX_VALUE
+        );
+
+        return out.toByteArray();
+    }
+
+    private static final class PacketSizes {
+        final int addBytes;
+        final int interactionMaskBytes;
+
+        PacketSizes(
+            int addBytes,
+            int interactionMaskBytes
+        ){
+            this.addBytes=addBytes;
+            this.interactionMaskBytes=
+                interactionMaskBytes;
+        }
+    }
+
+    private static final class Fixture {
+        final World world;
+        final WorldPlayer source=
+            new WorldPlayer();
+        final WorldPlayer viewer=
+            new WorldPlayer();
+        final long sourceGeneration;
+        final long viewerGeneration;
+        final OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+        final OutboundPacketQueue viewerQueue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+        final ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                sourceQueue,
+                new IsaacCipher(
+                    SOURCE_SEED.clone()
+                )
+            );
+        final ServerPacketWriter viewerWriter=
+            new ServerPacketWriter(
+                viewerQueue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        final Player81WorldSync.Context viewerSync;
+        final NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        final NpcRegistry viewerNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        Fixture(
+            String prefix
+        )throws Exception{
+            world=
+                World.isolatedForTest(
+                    600L
                 );
-        }finally{
+
+            sourceGeneration=
+                world.registerPlayer(
+                    source,
+                    prefix+"-source"
+                );
+            viewerGeneration=
+                world.registerPlayer(
+                    viewer,
+                    prefix+"-viewer"
+                );
+
+            Player81WorldSync.register(
+                sourceWriter,
+                world,
+                source,
+                new DevAuthorityWorkbench()
+            );
+
+            viewerSync=
+                Player81WorldSync.register(
+                    viewerWriter,
+                    world,
+                    viewer,
+                    new DevAuthorityWorkbench()
+                );
+
+            SharedNpcWorldRelay.register(
+                sourceWriter,
+                world,
+                source,
+                sourceNpcs,
+                source.movement()
+            );
+
+            SharedNpcWorldRelay.register(
+                viewerWriter,
+                world,
+                viewer,
+                viewerNpcs,
+                viewer.movement()
+            );
+        }
+
+        void spawnSourcePet(
+            PetDefinitionRepository.Def pet
+        )throws Exception{
+            String spawn=
+                sourceNpcs.spawnPet(
+                    pet,
+                    source.movement(),
+                    sourceWriter
+                );
+
+            if(spawn==null||
+               !spawn.startsWith(
+                    "PET_SPAWN_OK"
+               ))
+                throw new AssertionError(
+                    "source pet setup failed: "+
+                    spawn
+                );
+        }
+
+        int establishVisibility()
+            throws Exception
+        {
+            Player81WorldSync.transformForTest(
+                viewerSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            int playerIndex=
+                Player81WorldSync.clientIndexFor(
+                    viewerWriter,
+                    source
+                );
+
+            if(playerIndex<0)
+                throw new AssertionError(
+                    "viewer did not establish source visibility"
+                );
+
+            return playerIndex;
+        }
+
+        void close(){
             SharedNpcWorldRelay.unregister(
                 sourceWriter
             );
@@ -319,7 +997,6 @@ public final class RemotePetMirrorMaskRetryTest {
             new ByteArrayOutputStream();
         private final int failAt;
         private int attempts;
-        private int successfulWrites;
         private final AtomicBoolean failureEnabled=
             new AtomicBoolean(true);
 
@@ -333,10 +1010,6 @@ public final class RemotePetMirrorMaskRetryTest {
             return attempts;
         }
 
-        synchronized int successfulWrites(){
-            return successfulWrites;
-        }
-
         void disableFailure(){
             failureEnabled.set(false);
         }
@@ -344,10 +1017,8 @@ public final class RemotePetMirrorMaskRetryTest {
         @Override public void write(
             int value
         )throws IOException{
-            byte[] one=
-                new byte[]{(byte)value};
             write(
-                one,
+                new byte[]{(byte)value},
                 0,
                 1
             );
@@ -363,7 +1034,7 @@ public final class RemotePetMirrorMaskRetryTest {
             if(failureEnabled.get()&&
                attempts==failAt)
                 throw new IOException(
-                    "EXPECTED_POST_ADD_MASK_FAILURE"
+                    "EXPECTED_NON_RETRACTABLE_DIRECT_FAILURE"
                 );
 
             delegate.write(
@@ -371,7 +1042,6 @@ public final class RemotePetMirrorMaskRetryTest {
                 offset,
                 length
             );
-            successfulWrites++;
         }
     }
 
