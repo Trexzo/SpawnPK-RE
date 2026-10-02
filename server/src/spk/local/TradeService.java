@@ -215,7 +215,7 @@ final class TradeService {
                     /*
                      * The peer generation can change independently of the
                      * TradeService monitor. Fence the recoverable close under
-                     * the peer mutation lock and revalidate exact Context
+                     * the peer PlayerRegistry monitor and revalidate exact Context
                      * identity + generation at the publication boundary.
                      *
                      * Do not acquire World.lifecycleLock here: runtime binding
@@ -841,7 +841,7 @@ final class TradeService {
         /*
          * The replacement root is already committed, but the stored peer
          * Context may become stale before its close is published. Fence the
-         * exact Context + generation under the peer mutation lock. Avoid
+         * exact Context + generation under the peer PlayerRegistry monitor. Avoid
          * World.lifecycleLock here because runtime binding registration already
          * orders World lifecycle -> TradeService.
          */
@@ -1656,7 +1656,7 @@ final class TradeService {
         /*
          * The new replacement Trade is already committed. Fence this old
          * peer's close to the exact stored Context + World generation under
-         * only the player mutation lock. Do not acquire World.lifecycleLock
+         * the PlayerRegistry monitor. Do not acquire World.lifecycleLock
          * from under TradeService; runtime registration already owns the
          * opposite World lifecycle -> TradeService order.
          */
@@ -1692,7 +1692,7 @@ final class TradeService {
         /*
          * The replacement Trade is already committed and the prior Trade is
          * already detached. Retire only this terminal old peer after releasing
-         * its mutation lock; never disturb the new replacement Trade.
+         * the PlayerRegistry monitor; never disturb the new replacement Trade.
          */
         LocalSessionRuntimeBindings
             .retireTerminalRuntimeBundle(
