@@ -686,15 +686,21 @@ public final class RemotePetMirrorMaskRetryTest {
                     "terminal mirror failure retained Player81 authority"
                 );
 
-            requireContains(
+            String terminalTradeStart=
                 TradeService.start(
                     world,
                     source,
                     viewer
-                ),
-                "TRADE_UI_REJECTED_CONTEXT_MISSING",
-                "terminal mirror Trade authority"
-            );
+                );
+
+            if(terminalTradeStart==null||
+               !terminalTradeStart.contains(
+                    "TRADE_UI_REJECTED_CONTEXT_MISSING"
+                ))
+                throw new AssertionError(
+                    "terminal mirror failure retained Trade context authority result="+
+                    terminalTradeStart
+                );
 
             SharedNpcWorldRelay.unregister(
                 viewerWriter
