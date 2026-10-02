@@ -439,7 +439,7 @@ final class Player81WorldSync {
     static byte[] transformPrepared(
         PreparedBatch prepared,
         byte[] body
-    ){
+    )throws IOException{
         if(body==null)
             return null;
 
@@ -468,13 +468,26 @@ final class Player81WorldSync {
             return accepted
                 ?transformed[0]
                 :body;
-        }catch(Throwable t){
-            System.err.println(
-                "[ENGINE-R3] prepared player81 merge failed for "+
-                candidate.owner.id()+": "+t+
-                "; using certified local-only body"
+        }catch(Throwable failure){
+            abortPreparedBatch(
+                prepared
             );
-            return body;
+
+            if(failure instanceof IOException)
+                throw (IOException)failure;
+
+            String owner=
+                candidate==null||candidate.owner==null
+                    ?"<missing-context>"
+                    :String.valueOf(
+                        candidate.owner.id()
+                    );
+
+            throw new IOException(
+                "prepared player81 transform failed owner="+
+                owner,
+                failure
+            );
         }
     }
 
