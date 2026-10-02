@@ -2058,7 +2058,7 @@ tasks.register('diagRelayOwnerWriterRebindCleanup', JavaExec) {
     description = 'TEMPORARY Chat 1 diagnostic: runs only RelayOwnerWriterRebindCleanupTest.'
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass.set('spk.local.RelayOwnerWriterRebindCleanupTest')
+    mainClass.set('spk.local.RelayWriterReplacementCleanupTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
