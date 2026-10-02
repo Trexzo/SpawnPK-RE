@@ -1294,11 +1294,29 @@ final class SharedNpcWorldRelay {
                     continue;
                 }
 
-                npcs.sendMaskLocal(
-                    pending.npc,
-                    pending.mask,
-                    writer
-                );
+                final ServerPacketWriter.RecoverablePacketResult
+                    publication;
+
+                try{
+                    publication=
+                        writer.publishRecoverablePacket(
+                            ()->npcs.sendMaskLocal(
+                                pending.npc,
+                                pending.mask,
+                                writer
+                            )
+                        );
+                }catch(IOException nonRetryable){
+                    projectionTransportFailedClosed=true;
+                    pendingMirrorMasks.clear();
+                    throw nonRetryable;
+                }
+
+                if(publication==
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .RETRACTED_RETRYABLE)
+                    return;
 
                 pendingMirrorMasks.removeFirst();
             }
