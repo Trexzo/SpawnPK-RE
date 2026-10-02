@@ -457,7 +457,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             int peerBytesBefore=
                 peerOut.queuedBytes();
 
-            synchronized(stale.mutationLock()){
+            synchronized(world.players()){
                 cancelThread=
                     new Thread(
                         ()->{
@@ -498,7 +498,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 if(cancelThread.getState()!=
                         Thread.State.BLOCKED)
                     throw new AssertionError(
-                        "cancellation did not block at participant ownership fence state="+
+                        "cancellation did not block at participant registry fence state="+
                         cancelThread.getState()
                     );
 
@@ -675,7 +675,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             int peerBytesBefore=
                 peerOut.queuedBytes();
 
-            synchronized(peer.mutationLock()){
+            synchronized(world.players()){
                 retireThread=
                     new Thread(
                         ()->{
@@ -891,7 +891,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             int peerBytesBefore=
                 peerOut.queuedBytes();
 
-            synchronized(peer.mutationLock()){
+            synchronized(world.players()){
                 replacementThread=
                     new Thread(
                         ()->{
@@ -931,7 +931,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 if(replacementThread.getState()!=
                         Thread.State.BLOCKED)
                     throw new AssertionError(
-                        "competing-root retirement did not block at peer ownership fence state="+
+                        "competing-root retirement did not block at peer registry fence state="+
                         replacementThread.getState()
                     );
 
@@ -1136,7 +1136,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             int cBytesBefore=
                 cOut.queuedBytes();
 
-            synchronized(c.mutationLock()){
+            synchronized(world.players()){
                 replacementThread=
                     new Thread(
                         ()->{
@@ -1169,7 +1169,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 if(replacementThread.getState()!=
                         Thread.State.BLOCKED)
                     throw new AssertionError(
-                        "replacement cleanup did not block at old-peer ownership fence state="+
+                        "replacement cleanup did not block at old-peer registry fence state="+
                         replacementThread.getState()
                     );
 
