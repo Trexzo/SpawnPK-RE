@@ -625,6 +625,75 @@ final class SharedNpcWorldRelay {
             );
         }
 
+        private static final int RETRY_SCENE=
+            Integer.MIN_VALUE;
+
+        private void failCloseProjection(){
+            projectionTransportFailedClosed=true;
+            pendingMirrorMasks.clear();
+        }
+
+        private NpcEntity spawnMirror(
+            int definition,
+            int x,
+            int y,
+            Integer particleSelector
+        )throws IOException{
+            try{
+                return npcs.spawnMirroredNpc(
+                    definition,
+                    x,
+                    y,
+                    particleSelector,
+                    movement,
+                    writer
+                );
+            }catch(IOException terminal){
+                failCloseProjection();
+                throw terminal;
+            }
+        }
+
+        private ServerPacketWriter.RecoverablePacketResult
+            moveMirror(
+                NpcEntity target,
+                int direction1,
+                int direction2,
+                int x,
+                int y
+            )throws IOException
+        {
+            try{
+                return npcs.moveMirroredNpcRetractable(
+                    target,
+                    direction1,
+                    direction2,
+                    x,
+                    y,
+                    writer
+                );
+            }catch(IOException terminal){
+                failCloseProjection();
+                throw terminal;
+            }
+        }
+
+        private ServerPacketWriter.RecoverablePacketResult
+            removeMirror(
+                int scene
+            )throws IOException
+        {
+            try{
+                return npcs.removeMirroredNpcRetractable(
+                    scene,
+                    writer
+                );
+            }catch(IOException terminal){
+                failCloseProjection();
+                throw terminal;
+            }
+        }
+
         void syncRemotePets()throws IOException{
             if(projectionTransportFailedClosed||
                !ownerCurrent())
@@ -653,7 +722,8 @@ final class SharedNpcWorldRelay {
                     );
 
                 if(playerIndex<0){
-                    removeRemote(src.owner.id());
+                    if(!removeRemote(src.owner.id()))
+                        return;
                     continue;
                 }
 
@@ -674,7 +744,8 @@ final class SharedNpcWorldRelay {
 
                 if(canonicalPet==null&&
                    fallbackPet==null){
-                    removeRemote(src.owner.id());
+                    if(!removeRemote(src.owner.id()))
+                        return;
                     continue;
                 }
 
@@ -725,9 +796,10 @@ final class SharedNpcWorldRelay {
                 if(t!=null&&
                    t.sourceGeneration!=
                         src.ownerGeneration){
-                    removeRemote(
-                        src.owner.id()
-                    );
+                    if(!removeRemote(
+                            src.owner.id()
+                        ))
+                        return;
                     t=null;
                 }
 
@@ -764,11 +836,13 @@ final class SharedNpcWorldRelay {
 
                 if(mainIdentityChanged||
                    selectorChanged){
-                    if(t.mainScene>=0)
-                        npcs.devRemoveNpc(
-                            t.mainScene,
-                            writer
-                        );
+                    if(t.mainScene>=0&&
+                       removeMirror(t.mainScene)!=
+                            ServerPacketWriter
+                                .RecoverablePacketResult
+                                .COMMITTED)
+                        return;
+
                     if(t.mainCanonicalId!=null)
                         remoteIndexes.unbind(
                             t.mainCanonicalId
@@ -779,7 +853,7 @@ final class SharedNpcWorldRelay {
 
                 boolean mainWasAbsent=t.mainScene<0;
 
-                t.mainScene=syncOne(
+                int nextMainScene=syncOne(
                     src.owner.id(),
                     src.ownerGeneration,
                     t.mainScene,
@@ -794,6 +868,10 @@ final class SharedNpcWorldRelay {
                     petCanonicalId
                 );
 
+                if(nextMainScene==RETRY_SCENE)
+                    return;
+
+                t.mainScene=nextMainScene;
                 t.mainDef=petDef;
                 t.mainX=petX;
                 t.mainY=petY;
@@ -846,11 +924,13 @@ final class SharedNpcWorldRelay {
                          miniCanonicalId!=null);
 
                     if(miniIdentityChanged){
-                        if(t.miniScene>=0)
-                            npcs.devRemoveNpc(
-                                t.miniScene,
-                                writer
-                            );
+                        if(t.miniScene>=0&&
+                           removeMirror(t.miniScene)!=
+                                ServerPacketWriter
+                                    .RecoverablePacketResult
+                                    .COMMITTED)
+                            return;
+
                         if(t.miniCanonicalId!=null)
                             remoteIndexes.unbind(
                                 t.miniCanonicalId
@@ -861,7 +941,7 @@ final class SharedNpcWorldRelay {
 
                     int oldMiniScene=t.miniScene;
 
-                    t.miniScene=syncOne(
+                    int nextMiniScene=syncOne(
                         src.owner.id(),
                         src.ownerGeneration,
                         t.miniScene,
@@ -876,6 +956,10 @@ final class SharedNpcWorldRelay {
                         miniCanonicalId
                     );
 
+                    if(nextMiniScene==RETRY_SCENE)
+                        return;
+
+                    t.miniScene=nextMiniScene;
                     t.miniDef=miniDef;
                     t.miniX=miniX;
                     t.miniY=miniY;
@@ -901,10 +985,12 @@ final class SharedNpcWorldRelay {
                             return;
                     }
                 }else if(t.miniScene>=0){
-                    npcs.devRemoveNpc(
-                        t.miniScene,
-                        writer
-                    );
+                    if(removeMirror(t.miniScene)!=
+                            ServerPacketWriter
+                                .RecoverablePacketResult
+                                .COMMITTED)
+                        return;
+
                     if(t.miniCanonicalId!=null)
                         remoteIndexes.unbind(
                             t.miniCanonicalId
@@ -921,7 +1007,8 @@ final class SharedNpcWorldRelay {
                 if(!live.contains(id))
                     stale.add(id);
             for(EntityId id:stale)
-                removeRemote(id);
+                if(!removeRemote(id))
+                    return;
         }
 
         void syncCanonicalNpcs()throws IOException{
