@@ -155,6 +155,36 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
             drain(queueA);
             drain(queueB);
 
+            /*
+             * A writer-local batch is transient busy state, not terminal
+             * transport failure. Registration must reject without waiting while
+             * old runtime authority remains intact.
+             */
+            writerA.beginBatch();
+            boolean busyRetryable=false;
+
+            try{
+                bindings.register(
+                    writerA,
+                    "[late-bind-busy] ",
+                    generationA
+                );
+            }catch(Player81WorldSync
+                    .RetryablePlayerOptionsException expected){
+                busyRetryable=true;
+            }finally{
+                writerA.abortBatch();
+            }
+
+            if(!busyRetryable||
+               player81ContextFor(writerA)!=oldPlayer81A||
+               relayContextFor(writerA)!=oldRelayA||
+               !TradeService.active(a)||
+               !TradeService.active(b))
+                throw new AssertionError(
+                    "busy writer admission did not preserve exact old runtime bundle"
+                );
+
             pressure=
                 OutboundPacketQueue.reserveBatch(
                     queueA,
@@ -272,6 +302,7 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
             System.out.println(
                 "RUNTIME_BINDING_LATE_REGISTRATION_ATOMICITY_PASS "+
                 "recoverableOptionsPrepublishedBeforeReplacement=true "+
+                "busyWriterAdmissionRetryable=true "+
                 "failedPreparationPreservesOldPlayer81=true "+
                 "failedPreparationPreservesOldSharedNpc=true "+
                 "failedPreparationPreservesOldTrade=true "+
