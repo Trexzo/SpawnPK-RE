@@ -1645,6 +1645,26 @@ final class TradeService {
                 219,
                 new byte[0]
             );
+        }catch(IOException failure){
+            /*
+             * The replacement Trade is already committed and the prior Trade
+             * is already detached. A close IOException therefore terminally
+             * poisons only this old peer writer; retire its remaining runtime
+             * authority locally without disturbing the new replacement Trade.
+             */
+            LocalSessionRuntimeBindings
+                .retireTerminalRuntimeBundle(
+                    context.player,
+                    context.writer,
+                    true,
+                    failure
+                );
+
+            System.err.println(
+                "[ENGINE-R4] terminal replaced Trade peer close failed; "+
+                "old peer runtime retired: "+
+                failure
+            );
         }catch(Throwable ignored){}
     }
 
