@@ -512,15 +512,23 @@ final class Player81WorldSync {
                         synchronized(Player81WorldSync.class){
                             if(BY_WRITER.get(
                                     candidate.writer
-                                )!=candidate)
+                                )!=candidate||
+                               prepared.completed)
                                 return;
+
+                            /*
+                             * Keep writer-context identity authoritative for
+                             * the complete prepared commit. register() and
+                             * unregister() use this same monitor, so retirement
+                             * can linearize only before this check or after the
+                             * semantic+transport callback has completed.
+                             *
+                             * ServerPacketWriter never acquires this registry
+                             * monitor while retaining its writer monitor.
+                             */
+                            commit.commit();
+                            completed[0]=true;
                         }
-
-                        if(prepared.completed)
-                            return;
-
-                        commit.commit();
-                        completed[0]=true;
                     }
                 );
 
@@ -566,18 +574,16 @@ final class Player81WorldSync {
                         synchronized(Player81WorldSync.class){
                             if(BY_WRITER.get(
                                     candidate.writer
-                                )!=candidate)
+                                )!=candidate||
+                               prepared.completed)
                                 return;
+
+                            transport.commit();
+                            candidate.commitPreparedBatch(
+                                prepared
+                            );
+                            committed[0]=true;
                         }
-
-                        if(prepared.completed)
-                            return;
-
-                        transport.commit();
-                        candidate.commitPreparedBatch(
-                            prepared
-                        );
-                        committed[0]=true;
                     }
                 );
 
