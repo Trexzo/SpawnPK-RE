@@ -899,18 +899,21 @@ final class TradeService {
 
     private static String commit(Trade t)throws IOException{
         Context a=t.a,b=t.b;
-        Object first=
-            a.player.id().value<
-                b.player.id().value
-                ?a.player.mutationLock()
-                :b.player.mutationLock();
-        Object second=
-            first==a.player.mutationLock()
-                ?b.player.mutationLock()
-                :a.player.mutationLock();
 
-        synchronized(first){
-            synchronized(second){
+        /*
+         * handleWidget(...) already owns TradeService.class. Do not acquire
+         * player mutation locks from here: decoded session work owns those
+         * locks before entering TradeService, so TradeService -> mutation
+         * would invert the normal order. Both participants belong to this
+         * Trade's single World; its PlayerRegistry monitor fences generation
+         * changes for both while preserving the #1691 lock order.
+         */
+        synchronized(a.world.players()){
+            if(a.world!=b.world)
+                throw new IllegalStateException(
+                    "cross-world Trade commit"
+                );
+
                 if(!a.ownerCurrent()||
                    !b.ownerCurrent()){
                     cancel0(
@@ -1059,7 +1062,6 @@ final class TradeService {
                     " gives="+t.offerA+
                     " b="+b.player.username()+
                     " gives="+t.offerB;
-            }
         }
     }
 
