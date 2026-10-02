@@ -1522,7 +1522,60 @@ final class TradeService {
     }
 
     private static void cancel0(State s,Context c,String reason,boolean notify){
-        Trade t=c.trade;if(t==null)return;t.stage=Stage.CANCELLED;detach(s,t);if(notify){try{t.a.writer.fixed(219,new byte[0]);}catch(Throwable ignored){}try{t.b.writer.fixed(219,new byte[0]);}catch(Throwable ignored){}}
+        Trade t=c.trade;
+        if(t==null)
+            return;
+
+        t.stage=Stage.CANCELLED;
+        detach(s,t);
+
+        if(!notify)
+            return;
+
+        closeCancelledParticipant(
+            t.a
+        );
+        closeCancelledParticipant(
+            t.b
+        );
+    }
+
+    private static void closeCancelledParticipant(
+        Context context
+    ){
+        try{
+            context.writer.fixed(
+                219,
+                new byte[0]
+            );
+        }catch(IOException failure){
+            /*
+             * Cancellation is already semantically committed. An ordinary
+             * unbatched close IOException is not provably retractable, so the
+             * exact participant writer is terminal. Retire remaining runtime
+             * authority locally without turning the completed cancellation
+             * into a false rollback signal.
+             */
+            LocalSessionRuntimeBindings
+                .retireTerminalRuntimeBundle(
+                    context.player,
+                    context.writer,
+                    true,
+                    failure
+                );
+
+            System.err.println(
+                "[ENGINE-R4] terminal Trade cancellation close failed; "+
+                "participant runtime retired: "+
+                failure
+            );
+        }catch(Throwable ignored){
+            /*
+             * Preserve the historical cleanup behavior for non-I/O throwables.
+             * Transport-terminal classification in this path is intentionally
+             * limited to checked I/O publication failure.
+             */
+        }
     }
     private static void detach(State s,Trade t){s.trades.remove(t.a.player.id());s.trades.remove(t.b.player.id());t.a.trade=null;t.b.trade=null;t.a.pendingX=t.b.pendingX=null;}
 
