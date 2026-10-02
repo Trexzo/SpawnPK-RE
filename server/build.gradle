@@ -6317,3 +6317,18 @@ tasks.register('player81ContextRetirementLinearizationRegression', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('player81ContextRetirementLinearizationRegression')
 }
+
+
+tasks.register('player81PostCommitRelayFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves unbatched packet81 relay failure is post-commit work and does not reclassify the committed packet as failed.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81PostCommitRelayFailureTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81PostCommitRelayFailureRegression')
+}
