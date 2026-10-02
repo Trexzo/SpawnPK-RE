@@ -12,6 +12,7 @@ public final class RemotePetMirrorMaskRetryTest {
 
     public static void main(String[] args)throws Exception{
         assertPostAddMaskFailureDoesNotDuplicateMirror();
+        assertDirectWriterIsNotRetryable();
 
         System.out.println(
             "REMOTE_PET_MIRROR_MASK_RETRY_PASS "+
@@ -25,7 +26,9 @@ public final class RemotePetMirrorMaskRetryTest {
             "nativeMaskOrderedAfterDeferredInteraction=true "+
             "queueBackedRetry=true "+
             "retryCipherRewound=true "+
-            "eventualWireMatchesCleanReference=true"
+            "eventualWireMatchesCleanReference=true "+
+            "directWriterNotRetryable=true "+
+            "directRetryCallbackNotEntered=true"
         );
     }
 
@@ -347,6 +350,53 @@ public final class RemotePetMirrorMaskRetryTest {
 
             world.close();
         }
+    }
+
+    private static void assertDirectWriterIsNotRetryable()
+        throws Exception
+    {
+        ByteArrayOutputStream out=
+            new ByteArrayOutputStream();
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                out,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        final boolean[] entered={false};
+
+        boolean classified=false;
+
+        try{
+            writer.publishRecoverablePacket(
+                ()->{
+                    entered[0]=true;
+                    writer.varShort(
+                        65,
+                        new byte[]{1,2,3}
+                    );
+                }
+            );
+        }catch(ServerPacketWriter.NonRetractablePublicationException expected){
+            classified=true;
+        }
+
+        if(!classified)
+            throw new AssertionError(
+                "direct writer was classified retryable"
+            );
+
+        if(entered[0])
+            throw new AssertionError(
+                "direct writer retry callback was entered before fail-closed classification"
+            );
+
+        if(out.size()!=0)
+            throw new AssertionError(
+                "direct writer retry classification emitted bytes="+
+                out.size()
+            );
     }
 
     private static OutboundPacketQueue.BatchReservation
