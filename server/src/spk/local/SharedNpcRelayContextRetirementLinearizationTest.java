@@ -1,7 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
-import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -96,23 +96,14 @@ public final class SharedNpcRelayContextRetirementLinearizationTest {
                 npcs.snapshot().get(0);
             drain(queue);
 
-            LinkedHashMap<EntityId,Long>
-                recipients=
-                    new LinkedHashMap<>();
-            recipients.put(
-                viewer.id(),
-                generation
-            );
-
             long now=
                 System.currentTimeMillis();
 
             boolean queued=
                 world.npcPresentationEvents()
-                    .enqueueOwned(
+                    .enqueue(
                         now,
-                        viewer.id(),
-                        generation,
+                        EntityId.next(),
                         WorldNpcPresentationEvents
                             .Target.scene(
                                 target.sceneIndex,
@@ -123,7 +114,9 @@ public final class SharedNpcRelayContextRetirementLinearizationTest {
                                 "relay-retirement-linearization"
                             ),
                         0L,
-                        recipients
+                        Collections.singleton(
+                            viewer.id()
+                        )
                     );
 
             if(!queued)
