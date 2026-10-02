@@ -228,38 +228,37 @@ final class TradeService {
                                 peer.world
                             );
 
-                        if(peerState==null||
+                        if(peerState!=null&&
                            peerState.contexts.get(
                                 peer.player.id()
-                           )!=peer||
-                           !peer.ownerCurrent())
-                            continue;
+                           )==peer&&
+                           peer.ownerCurrent()){
+                            peerOwner=peer.player;
+                            peerWriter=peer.writer;
 
-                        peerOwner=peer.player;
-                        peerWriter=peer.writer;
+                            try{
+                                ServerPacketWriter.RecoverablePacketResult result=
+                                    peer.writer
+                                        .publishRecoverablePacketIfIdle(
+                                            ()->peer.writer.fixed(
+                                                219,
+                                                new byte[0]
+                                            )
+                                        );
 
-                        try{
-                            ServerPacketWriter.RecoverablePacketResult result=
-                                peer.writer
-                                    .publishRecoverablePacketIfIdle(
-                                        ()->peer.writer.fixed(
-                                            219,
-                                            new byte[0]
-                                        )
-                                    );
-
-                            peerClose=
-                                result==
-                                    ServerPacketWriter
-                                        .RecoverablePacketResult
-                                        .COMMITTED
-                                    ?BrokenWriterPeerClose.COMMITTED
-                                    :BrokenWriterPeerClose
-                                        .RETRACTED_RETRYABLE;
-                        }catch(IOException failure){
-                            peerClose=
-                                BrokenWriterPeerClose.TERMINAL;
-                            peerFailure=failure;
+                                peerClose=
+                                    result==
+                                        ServerPacketWriter
+                                            .RecoverablePacketResult
+                                            .COMMITTED
+                                        ?BrokenWriterPeerClose.COMMITTED
+                                        :BrokenWriterPeerClose
+                                            .RETRACTED_RETRYABLE;
+                            }catch(IOException failure){
+                                peerClose=
+                                    BrokenWriterPeerClose.TERMINAL;
+                                peerFailure=failure;
+                            }
                         }
                     }
                 }
