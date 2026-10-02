@@ -676,7 +676,33 @@ final class TradeService {
         return "TRADE_REMOVE_X_OK item="+p.item+" qty="+rem;
     }
 
-    static synchronized String handleWidget(WorldPlayer player,int widget)throws IOException{
+    static String handleWidget(
+        WorldPlayer player,
+        int widget
+    )throws IOException{
+        Runnable[] postCommitSaves=
+            new Runnable[2];
+        String result;
+
+        synchronized(TradeService.class){
+            result=handleWidgetLocked(
+                player,
+                widget,
+                postCommitSaves
+            );
+        }
+
+        runPostCommitSaves(
+            postCommitSaves
+        );
+        return result;
+    }
+
+    private static String handleWidgetLocked(
+        WorldPlayer player,
+        int widget,
+        Runnable[] postCommitSaves
+    )throws IOException{
         Context c=context(player);Trade t=liveTrade(c);if(t==null)return null;
         if(widget==FIRST_DECLINE || widget==FINAL_DECLINE){
             cancel0(state(c.world),c,widget==FIRST_DECLINE?"FIRST_STAGE_DECLINE":"FINAL_STAGE_DECLINE",true);
@@ -767,7 +793,10 @@ final class TradeService {
             }
 
             t.setFinalAccepted(c,true);
-            return commit(t);
+            return commit(
+                t,
+                postCommitSaves
+            );
         }
         return null;
     }
@@ -897,7 +926,10 @@ final class TradeService {
         return liveTrade(c)!=null;
     }
 
-    private static String commit(Trade t)throws IOException{
+    private static String commit(
+        Trade t,
+        Runnable[] postCommitSaves
+    )throws IOException{
         Context a=t.a,b=t.b;
 
         /*
@@ -1052,10 +1084,10 @@ final class TradeService {
                     t
                 );
 
-                if(a.save!=null)
-                    a.save.run();
-                if(b.save!=null)
-                    b.save.run();
+                postCommitSaves[0]=
+                    a.save;
+                postCommitSaves[1]=
+                    b.save;
 
                 return "TRADE_COMMITTED a="+
                     a.player.username()+
@@ -1063,6 +1095,20 @@ final class TradeService {
                     " b="+b.player.username()+
                     " gives="+t.offerB;
         }
+    }
+
+    private static void runPostCommitSaves(
+        Runnable[] postCommitSaves
+    ){
+        Runnable saveA=
+            postCommitSaves[0];
+        Runnable saveB=
+            postCommitSaves[1];
+
+        if(saveA!=null)
+            saveA.run();
+        if(saveB!=null)
+            saveB.run();
     }
 
     private static String changeOffer(
