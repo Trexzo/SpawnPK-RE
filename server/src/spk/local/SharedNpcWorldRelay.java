@@ -295,8 +295,9 @@ final class SharedNpcWorldRelay {
         if(!context.state.world.closed())
             context.state.world
                 .npcPresentationEvents()
-                .removeSource(
+                .removeSourceGeneration(
                     context.owner.id(),
+                    context.ownerGeneration,
                     System.currentTimeMillis()
                 );
 
