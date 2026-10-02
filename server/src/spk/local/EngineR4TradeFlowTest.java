@@ -91,7 +91,7 @@ public final class EngineR4TradeFlowTest{
    testOneSidedAcceptStatusAtomicity();
    testOfferRefreshAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptReplacementPreservesPrior=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptReplacementPreservesPrior=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -104,6 +104,7 @@ public final class EngineR4TradeFlowTest{
    new ServerPacketWriter(q1,new IsaacCipher(new int[]{9,10,11,12}));
   ServerPacketWriter s2=
    new ServerPacketWriter(q2,new IsaacCipher(new int[]{13,14,15,16}));
+  int[] ownerFailures={1};
   try{
    TradeService.register(
     w,p1,p1.generation(),p1.bank(),s1,()->{},
@@ -113,7 +114,10 @@ public final class EngineR4TradeFlowTest{
     w,p2,p2.generation(),p2.bank(),s2,()->{},
     action->{
      action.publish();
-     throw new IOException("EXPECTED_SECOND_ROOT_FAILURE");
+     if(ownerFailures[0]>0){
+      ownerFailures[0]--;
+      throw new IOException("EXPECTED_SECOND_ROOT_FAILURE");
+     }
     }
    );
 
@@ -136,6 +140,20 @@ public final class EngineR4TradeFlowTest{
    if(TradeService.handleWidget(p1,3420)!=null||
       TradeService.handleWidget(p2,3420)!=null)
     throw new AssertionError("failed partial Trade start accepted hidden widgets");
+
+   drain(q1);drain(q2);
+   need(
+    TradeService.start(w,p1,p2),
+    "TRADE_UI_OPEN"
+   );
+   if(!TradeService.active(p1)||!TradeService.active(p2))
+    throw new AssertionError(
+     "post-publish RootOwner IOException incorrectly terminal-retired healthy writer"
+    );
+   TradeService.cancelIfActive(
+    p1,
+    "OWNER_FAILURE_PROVENANCE_CLEANUP"
+   );
   }finally{
    TradeService.unregister(p1);
    TradeService.unregister(p2);
