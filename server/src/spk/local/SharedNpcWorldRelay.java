@@ -813,8 +813,20 @@ final class SharedNpcWorldRelay {
                                     )
                             );
                 }catch(IOException nonRetryable){
-                    viewer.failCloseProjection();
-                    viewer.state.pruneDeadRecipients();
+                    /*
+                     * Queue-backed admission is handled above as retractable.
+                     * Reaching this catch means ordinary/direct publication made
+                     * transport/cipher progress that cannot be rewound. Retire
+                     * the exact viewer runtime bundle through the shared
+                     * terminal-writer seam before propagating the relay error.
+                     */
+                    LocalSessionRuntimeBindings
+                        .retireTerminalRuntimeBundle(
+                            viewer.owner,
+                            viewer.writer,
+                            true,
+                            nonRetryable
+                        );
                     throw nonRetryable;
                 }
 
