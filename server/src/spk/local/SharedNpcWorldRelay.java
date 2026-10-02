@@ -24,6 +24,17 @@ final class SharedNpcWorldRelay {
 
     private SharedNpcWorldRelay(){}
 
+    static final class RetryableRegistrationException
+        extends IllegalStateException {
+
+        RetryableRegistrationException(
+            String message,
+            Throwable cause
+        ){
+            super(message,cause);
+        }
+    }
+
     static synchronized void register(ServerPacketWriter writer,World world,WorldPlayer owner,NpcRegistry npcs,MovementState movement){
         if(writer==null||world==null||owner==null||npcs==null||movement==null)return;
 
@@ -32,9 +43,21 @@ final class SharedNpcWorldRelay {
                 "cannot register SharedNpcWorldRelay on closed World"
             );
 
-        Context oldWriter=BY_WRITER.remove(writer);
-        if(oldWriter!=null)
-            cleanupContext(oldWriter);
+        Context oldWriter=
+            BY_WRITER.get(writer);
+
+        if(oldWriter!=null){
+            requireReplacementCleanupCommitted(
+                oldWriter
+            );
+            BY_WRITER.remove(
+                writer
+            );
+            cleanupContext(
+                oldWriter,
+                true
+            );
+        }
 
         WorldState existingState=
             BY_WORLD.get(world);
@@ -46,10 +69,16 @@ final class SharedNpcWorldRelay {
                 );
 
         if(oldOwner!=null){
+            requireReplacementCleanupCommitted(
+                oldOwner
+            );
             BY_WRITER.remove(
                 oldOwner.writer
             );
-            cleanupContext(oldOwner);
+            cleanupContext(
+                oldOwner,
+                true
+            );
         }
 
         WorldState ws=BY_WORLD.get(world);
@@ -63,10 +92,43 @@ final class SharedNpcWorldRelay {
 
     static synchronized void unregister(ServerPacketWriter writer){
         Context c=BY_WRITER.remove(writer);if(c==null)return;
-        cleanupContext(c);
+        cleanupContext(
+            c,
+            false
+        );
     }
 
-    private static void cleanupContext(Context c){
+    private static void requireReplacementCleanupCommitted(
+        Context context
+    ){
+        if(context==null||
+           context.state.world.closed())
+            return;
+
+        try{
+            context.removeAllRemotePets();
+            context.removeAllGenericNpcs();
+        }catch(NpcRegistry.RetractedMirrorPublicationException retryable){
+            throw new RetryableRegistrationException(
+                "SharedNpc replacement cleanup retracted; retry registration",
+                retryable
+            );
+        }catch(Throwable terminal){
+            /*
+             * Preserve the pre-existing terminal replacement policy: a
+             * non-retractable transport failure cannot be safely retried on
+             * the old context, so detach/fail closed instead of inventing
+             * retry authority.
+             */
+            context.projectionTransportFailedClosed=true;
+            context.pendingMirrorMasks.clear();
+        }
+    }
+
+    private static void cleanupContext(
+        Context c,
+        boolean projectionCleanupAlreadyAttempted
+    ){
         c.state.contexts.remove(c.owner.id());
 
         if(c.state.world.closed()){
@@ -94,8 +156,11 @@ final class SharedNpcWorldRelay {
                 System.currentTimeMillis()
             );
 
-        try{c.removeAllRemotePets();}catch(Throwable ignored){}
-        try{c.removeAllGenericNpcs();}catch(Throwable ignored){}
+        if(!projectionCleanupAlreadyAttempted){
+            try{c.removeAllRemotePets();}catch(Throwable ignored){}
+            try{c.removeAllGenericNpcs();}catch(Throwable ignored){}
+        }
+
         c.state.pruneDeadRecipients();
         if(c.state.contexts.isEmpty()&&
            c.state.genericNpcIds.isEmpty())
