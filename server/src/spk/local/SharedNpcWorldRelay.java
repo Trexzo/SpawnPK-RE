@@ -1053,11 +1053,12 @@ final class SharedNpcWorldRelay {
                     );
                 }
 
-                syncGenericOne(
-                    id,
-                    canonical,
-                    track
-                );
+                if(!syncGenericOne(
+                        id,
+                        canonical,
+                        track
+                    ))
+                    return;
             }
 
             ArrayList<EntityId> stale=
@@ -1069,10 +1070,11 @@ final class SharedNpcWorldRelay {
                     stale.add(id);
 
             for(EntityId id:stale)
-                removeGeneric(id);
+                if(!removeGeneric(id))
+                    return;
         }
 
-        private void syncGenericOne(
+        private boolean syncGenericOne(
             EntityId id,
             WorldNpc canonical,
             GenericNpcTrack track
@@ -1088,41 +1090,45 @@ final class SharedNpcWorldRelay {
                 )||
                Math.abs(x-movement.x())>15||
                Math.abs(y-movement.y())>15){
-                if(track.scene>=0)
-                    npcs.devRemoveNpc(
-                        track.scene,
-                        writer
-                    );
+                if(track.scene>=0&&
+                   removeMirror(track.scene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return false;
+
                 genericIndexes.unbind(id);
                 track.scene=-1;
                 track.definition=
                     canonical.definitionId;
                 track.x=x;
                 track.y=y;
-                return;
+                return true;
             }
 
             if(track.scene<0||
                track.definition!=
                     canonical.definitionId||
                npcs.scene(track.scene)==null){
-                if(track.scene>=0)
-                    npcs.devRemoveNpc(
-                        track.scene,
-                        writer
-                    );
+                if(track.scene>=0&&
+                   removeMirror(track.scene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return false;
 
                 genericIndexes.unbind(id);
 
                 NpcEntity projected=
-                    npcs.spawnMirroredNpc(
+                    spawnMirror(
                         canonical.definitionId,
                         x,
                         y,
-                        null,
-                        movement,
-                        writer
+                        null
                     );
+
+                if(projected==null)
+                    return false;
 
                 projected.bindCanonicalId(
                     id
@@ -1138,7 +1144,7 @@ final class SharedNpcWorldRelay {
                     canonical.definitionId;
                 track.x=x;
                 track.y=y;
-                return;
+                return true;
             }
 
             NpcEntity projected=
@@ -1148,12 +1154,11 @@ final class SharedNpcWorldRelay {
 
             if(projected==null){
                 track.scene=-1;
-                syncGenericOne(
+                return syncGenericOne(
                     id,
                     canonical,
                     track
                 );
-                return;
             }
 
             projected.bindCanonicalId(
@@ -1168,7 +1173,7 @@ final class SharedNpcWorldRelay {
             int dy=y-track.y;
 
             if(dx==0&&dy==0)
-                return;
+                return true;
 
             int d1=-1;
             int d2=-1;
@@ -1213,76 +1218,62 @@ final class SharedNpcWorldRelay {
                     Math.abs(dy)
                 )>1&&
                 d2<0)){
-                npcs.devRemoveNpc(
-                    track.scene,
-                    writer
-                );
+                if(removeMirror(track.scene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return false;
+
                 genericIndexes.unbind(id);
                 track.scene=-1;
                 track.x=x;
                 track.y=y;
-                syncGenericOne(
+                return syncGenericOne(
                     id,
                     canonical,
                     track
                 );
-                return;
             }
 
-            ArrayList<NpcSyncEncoder.Update> updates=
-                new ArrayList<>();
+            if(moveMirror(
+                    projected,
+                    d1,
+                    d2,
+                    x,
+                    y
+                )!=
+                    ServerPacketWriter
+                        .RecoverablePacketResult
+                        .COMMITTED)
+                return false;
 
-            for(NpcEntity npc:
-                    npcs.snapshot())
-                updates.add(
-                    npc==projected
-                        ?(d2>=0
-                            ?NpcSyncEncoder.Update.run(
-                                npc,
-                                d1,
-                                d2
-                            )
-                            :NpcSyncEncoder.Update.walk(
-                                npc,
-                                d1
-                            ))
-                        :NpcSyncEncoder.Update
-                            .retain(npc)
-                );
-
-            writer.varShort(
-                65,
-                NpcSyncEncoder.encode(
-                    updates,
-                    Collections.<NpcEntity>
-                        emptyList(),
-                    0,
-                    0
-                )
-            );
-
-            projected.x=x;
-            projected.y=y;
             track.x=x;
             track.y=y;
+            return true;
         }
 
-        void removeGeneric(
+        boolean removeGeneric(
             EntityId id
         )throws IOException{
             GenericNpcTrack track=
-                genericNpcs.remove(id);
+                genericNpcs.get(id);
 
             if(track==null)
-                return;
+                return true;
 
-            if(track.scene>=0)
-                npcs.devRemoveNpc(
-                    track.scene,
-                    writer
-                );
+            if(track.scene>=0){
+                if(removeMirror(track.scene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return false;
+
+                track.scene=-1;
+            }
 
             genericIndexes.unbind(id);
+            genericNpcs.remove(id);
+            return true;
         }
 
         void removeAllGenericNpcs()
@@ -1291,7 +1282,8 @@ final class SharedNpcWorldRelay {
                     new ArrayList<>(
                         genericNpcs.keySet()
                     ))
-                removeGeneric(id);
+                if(!removeGeneric(id))
+                    return;
         }
 
         private void sendMirrorMaskOrDefer(
