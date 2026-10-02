@@ -90,6 +90,7 @@ public final class EngineR4TradeFlowTest{
    testReplacementTradeStartFailureAtomicity();
    testSuccessfulReplacementTerminalOldPeerRetirement();
    testFinalCommitPairAdmissionAtomicity();
+   testDirectFinalCommitRejectsBeforeBytes();
    testTradeXPromptFailureAtomicity();
    testOneSidedAcceptStatusAtomicity();
    testDirectOneSidedAcceptStatusTerminalFailure(false);
@@ -97,7 +98,7 @@ public final class EngineR4TradeFlowTest{
    testDirectOfferPostimageRejectsBeforeBytes();
    testOfferRefreshAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true replacementTerminalOldPeerRetired=true replacementHealthyTradePreserved=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptTerminalRetirement=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true directFirstAcceptTerminalRetired=true directFinalAcceptTerminalRetired=true directOfferNonAtomicRejected=true directOfferZeroBytes=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true replacementTerminalOldPeerRetired=true replacementHealthyTradePreserved=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true directFinalCommitNonAtomicRejected=true directFinalCommitZeroBytes=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptTerminalRetirement=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true directFirstAcceptTerminalRetired=true directFinalAcceptTerminalRetired=true directOfferNonAtomicRejected=true directOfferZeroBytes=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -1436,6 +1437,107 @@ public final class EngineR4TradeFlowTest{
       outB.attempts!=bAttemptsBefore)
     throw new AssertionError(
      "direct rejected offer canonical-empty probe emitted bytes"
+    );
+  }finally{
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   if(a.registered())w.unregisterPlayer(a,ga);
+   if(b.registered())w.unregisterPlayer(b,gb);
+   w.close();
+  }
+ }
+
+ static void testDirectFinalCommitRejectsBeforeBytes()throws Exception{
+  World w=World.isolatedForTest(612L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
+  long ga=w.registerPlayer(a,"direct-final-commit-a");
+  long gb=w.registerPlayer(b,"direct-final-commit-b");
+
+  SwitchFailOutputStream outA=new SwitchFailOutputStream();
+  SwitchFailOutputStream outB=new SwitchFailOutputStream();
+  ServerPacketWriter wa=
+   new ServerPacketWriter(
+    outA,
+    new IsaacCipher(new int[]{117,118,119,120})
+   );
+  ServerPacketWriter wb=
+   new ServerPacketWriter(
+    outB,
+    new IsaacCipher(new int[]{121,122,123,124})
+   );
+
+  try{
+   a.bank().spawnItem(995,100,wa);
+   b.bank().spawnItem(385,2,wb);
+
+   TradeService.register(w,a,ga,a.bank(),wa,()->{});
+   TradeService.register(w,b,gb,b.bank(),wb,()->{});
+
+   need(TradeService.start(w,a,b),"TRADE_UI_OPEN");
+   need(TradeService.handleWidget(a,3420),"WAITING_OTHER");
+   need(TradeService.handleWidget(b,3420),"CONFIRM_OPEN");
+   need(TradeService.handleWidget(a,3546),"WAITING_OTHER");
+
+   int aCoinsBefore=a.bank().inventoryCount(995);
+   int aSharksBefore=a.bank().inventoryCount(385);
+   int bCoinsBefore=b.bank().inventoryCount(995);
+   int bSharksBefore=b.bank().inventoryCount(385);
+   int aAttemptsBefore=outA.attempts;
+   int bAttemptsBefore=outB.attempts;
+
+   String rejected=
+    TradeService.handleWidget(
+     b,
+     3546
+    );
+
+   need(
+    rejected,
+    "TRADE_COMMIT_REJECTED_DIRECT_NONATOMIC"
+   );
+
+   if(outA.attempts!=aAttemptsBefore||
+      outB.attempts!=bAttemptsBefore)
+    throw new AssertionError(
+     "direct final commit rejection emitted final bytes A="+
+     (outA.attempts-aAttemptsBefore)+
+     " B="+
+     (outB.attempts-bAttemptsBefore)
+    );
+
+   if(a.bank().inventoryCount(995)!=aCoinsBefore||
+      a.bank().inventoryCount(385)!=aSharksBefore||
+      b.bank().inventoryCount(995)!=bCoinsBefore||
+      b.bank().inventoryCount(385)!=bSharksBefore)
+    throw new AssertionError(
+     "direct final commit rejection mutated canonical inventories"
+    );
+
+   if(!TradeService.active(a)||!TradeService.active(b))
+    throw new AssertionError(
+     "direct final commit rejection retired retryable Trade"
+    );
+
+   if(wa.terminal()||wb.terminal())
+    throw new AssertionError(
+     "zero-byte direct final commit rejection terminal-latched writer"
+    );
+
+   String retry=
+    TradeService.handleWidget(
+     b,
+     3546
+    );
+
+   need(
+    retry,
+    "TRADE_COMMIT_REJECTED_DIRECT_NONATOMIC"
+   );
+
+   if(outA.attempts!=aAttemptsBefore||
+      outB.attempts!=bAttemptsBefore)
+    throw new AssertionError(
+     "direct final commit retry emitted final bytes"
     );
   }finally{
    TradeService.unregister(a);
