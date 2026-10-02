@@ -126,6 +126,9 @@ final class SharedNpcWorldRelay {
             return true;
         }
 
+        if(context.projectionTransportFailedClosed)
+            return false;
+
         try{
             if(!context.removeAllRemotePets())
                 return false;
