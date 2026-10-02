@@ -308,7 +308,8 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                 "failedPreparationPreservesOldTrade=true "+
                 "rollbackOnlyOwnsNewLayers=true "+
                 "successfulRetryInstallsFreshBundle=true "+
-                "terminalDirectOptionFailureRetiresBundle=true"
+                "terminalDirectOptionFailureRetiresBundle=true "+
+                "terminalDirectCleanupNoBrokenWriterRetouch=true"
             );
         }finally{
             if(pressure!=null)
@@ -482,6 +483,8 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                     "terminal direct fixture lost old Player81 context before failure"
                 );
 
+            int attemptsBeforeTerminal=
+                directA.attempts();
             directA.fail=true;
 
             boolean terminal=false;
@@ -504,6 +507,15 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
             if(!terminal)
                 throw new AssertionError(
                     "direct option publication failure was not classified terminal"
+                );
+
+            if(directA.attempts()!=
+                    attemptsBeforeTerminal+1)
+                throw new AssertionError(
+                    "terminal runtime cleanup touched broken writer attemptsBefore="+
+                    attemptsBeforeTerminal+
+                    " attemptsAfter="+
+                    directA.attempts()
                 );
 
             if(bindings.context()!=null)
@@ -563,10 +575,16 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
         final ByteArrayOutputStream bytes=
             new ByteArrayOutputStream();
         boolean fail;
+        int attempts;
+
+        int attempts(){
+            return attempts;
+        }
 
         @Override public void write(
             int value
         )throws java.io.IOException{
+            attempts++;
             if(fail)
                 throw new java.io.IOException(
                     "TERMINAL_DIRECT_OPTION_FAIL"
@@ -580,6 +598,7 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
             int offset,
             int length
         )throws java.io.IOException{
+            attempts++;
             if(fail)
                 throw new java.io.IOException(
                     "TERMINAL_DIRECT_OPTION_FAIL"
