@@ -6332,3 +6332,18 @@ tasks.register('player81PostCommitRelayFailureRegression', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('player81PostCommitRelayFailureRegression')
 }
+
+
+tasks.register('player81PreparedTransformFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves prepared packet81 transform failures are terminal and cannot fall back to local-only bytes.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81PreparedTransformFailureTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81PreparedTransformFailureRegression')
+}
