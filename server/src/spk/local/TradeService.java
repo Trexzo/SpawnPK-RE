@@ -676,7 +676,35 @@ final class TradeService {
         return "TRADE_REMOVE_X_OK item="+p.item+" qty="+rem;
     }
 
-    static synchronized String handleWidget(WorldPlayer player,int widget)throws IOException{
+    static String handleWidget(WorldPlayer player,int widget)throws IOException{
+        Runnable[] postCommitSaves={
+            null,
+            null
+        };
+        String result;
+
+        synchronized(TradeService.class){
+            result=
+                handleWidgetLocked(
+                    player,
+                    widget,
+                    postCommitSaves
+                );
+        }
+
+        if(postCommitSaves[0]!=null)
+            postCommitSaves[0].run();
+        if(postCommitSaves[1]!=null)
+            postCommitSaves[1].run();
+
+        return result;
+    }
+
+    private static String handleWidgetLocked(
+        WorldPlayer player,
+        int widget,
+        Runnable[] postCommitSaves
+    )throws IOException{
         Context c=context(player);Trade t=liveTrade(c);if(t==null)return null;
         if(widget==FIRST_DECLINE || widget==FINAL_DECLINE){
             cancel0(state(c.world),c,widget==FIRST_DECLINE?"FIRST_STAGE_DECLINE":"FINAL_STAGE_DECLINE",true);
@@ -767,7 +795,10 @@ final class TradeService {
             }
 
             t.setFinalAccepted(c,true);
-            return commit(t);
+            return commit(
+                t,
+                postCommitSaves
+            );
         }
         return null;
     }
@@ -897,11 +928,14 @@ final class TradeService {
         return liveTrade(c)!=null;
     }
 
-    private static String commit(Trade t)throws IOException{
+    private static String commit(
+        Trade t,
+        Runnable[] postCommitSaves
+    )throws IOException{
         Context a=t.a,b=t.b;
 
         /*
-         * handleWidget(...) already owns TradeService.class. Do not acquire
+         * handleWidgetLocked(...) already owns TradeService.class. Do not acquire
          * player mutation locks from here: decoded session work owns those
          * locks before entering TradeService, so TradeService -> mutation
          * would invert the normal order. Both participants belong to this
@@ -1052,10 +1086,16 @@ final class TradeService {
                     t
                 );
 
-                if(a.save!=null)
-                    a.save.run();
-                if(b.save!=null)
-                    b.save.run();
+                /*
+                 * Canonical Trade state is committed and detached while both
+                 * TradeService.class and the PlayerRegistry monitor are still
+                 * held. Persistence capture takes player mutation -> registry,
+                 * so defer callbacks until handleWidget(...) has released both
+                 * monitors. Preserve historical A-then-B propagation by
+                 * executing these slots sequentially in the outer wrapper.
+                 */
+                postCommitSaves[0]=a.save;
+                postCommitSaves[1]=b.save;
 
                 return "TRADE_COMMITTED a="+
                     a.player.username()+
