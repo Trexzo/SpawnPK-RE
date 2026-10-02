@@ -24,7 +24,31 @@ final class SharedNpcWorldRelay {
 
     private SharedNpcWorldRelay(){}
 
-    static synchronized boolean register(
+    static final class RetryableRegistrationException
+        extends IllegalStateException {
+
+        RetryableRegistrationException(
+            String message
+        ){
+            super(message);
+        }
+    }
+
+    static final class TerminalRegistrationException
+        extends IllegalStateException {
+
+        TerminalRegistrationException(
+            String message,
+            Throwable cause
+        ){
+            super(
+                message,
+                cause
+            );
+        }
+    }
+
+    static synchronized void register(
         ServerPacketWriter writer,
         World world,
         WorldPlayer owner,
@@ -36,7 +60,7 @@ final class SharedNpcWorldRelay {
            owner==null||
            npcs==null||
            movement==null)
-            return false;
+            return;
 
         if(world.closed())
             throw new IllegalStateException(
@@ -72,9 +96,27 @@ final class SharedNpcWorldRelay {
          * the old Context installed with its partially-cleaned track state, so
          * retry can continue deterministically.
          */
-        for(Context previous:replacing)
-            if(!prepareReplacementCleanup(previous))
-                return false;
+        for(Context previous:replacing){
+            ReplacementCleanupResult result=
+                prepareReplacementCleanup(
+                    previous
+                );
+
+            if(result==
+                    ReplacementCleanupResult
+                        .RETRACTED_RETRYABLE)
+                throw new RetryableRegistrationException(
+                    "SharedNpc replacement cleanup retracted; retry registration"
+                );
+
+            if(result==
+                    ReplacementCleanupResult
+                        .TERMINAL_FAIL_CLOSED)
+                throw new TerminalRegistrationException(
+                    "SharedNpc replacement cleanup failed terminally; existing relay remains fail-closed",
+                    null
+                );
+        }
 
         for(Context previous:replacing)
             detachAfterReplacementCleanup(previous);
@@ -107,7 +149,6 @@ final class SharedNpcWorldRelay {
             owner.id(),
             next
         );
-        return true;
     }
 
     static synchronized void unregister(ServerPacketWriter writer){
@@ -115,36 +156,49 @@ final class SharedNpcWorldRelay {
         cleanupContext(c);
     }
 
-    private static boolean prepareReplacementCleanup(
-        Context context
-    ){
+    private enum ReplacementCleanupResult {
+        COMMITTED,
+        RETRACTED_RETRYABLE,
+        TERMINAL_FAIL_CLOSED
+    }
+
+    private static ReplacementCleanupResult
+        prepareReplacementCleanup(
+            Context context
+        )
+    {
         if(context.state.world.closed()){
             context.remote.clear();
             context.remoteIndexes.clear();
             context.genericNpcs.clear();
             context.genericIndexes.clear();
-            return true;
+            return ReplacementCleanupResult.COMMITTED;
         }
 
         if(context.projectionTransportFailedClosed)
-            return false;
+            return ReplacementCleanupResult
+                .TERMINAL_FAIL_CLOSED;
 
         try{
             if(!context.removeAllRemotePets())
-                return false;
+                return ReplacementCleanupResult
+                    .RETRACTED_RETRYABLE;
 
             if(!context.removeAllGenericNpcs())
-                return false;
+                return ReplacementCleanupResult
+                    .RETRACTED_RETRYABLE;
 
-            return true;
+            return ReplacementCleanupResult.COMMITTED;
         }catch(IOException terminal){
             /*
              * Unknown/partial transport progress is not retryable. Keep the old
-             * Context installed but fail-closed so a replacement cannot orphan
-             * its still-authoritative viewer-local projection state.
+             * Context installed and permanently fail-closed so callers cannot
+             * accidentally install a fresh healthy relay Context over unknowable
+             * stream progress.
              */
             context.failCloseProjection();
-            return false;
+            return ReplacementCleanupResult
+                .TERMINAL_FAIL_CLOSED;
         }
     }
 
