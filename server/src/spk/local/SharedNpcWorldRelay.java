@@ -768,7 +768,7 @@ final class SharedNpcWorldRelay {
                 if(mainIdentityChanged||
                    selectorChanged){
                     if(t.mainScene>=0)
-                        npcs.devRemoveNpc(
+                        npcs.removeMirroredNpcRetractable(
                             t.mainScene,
                             writer
                         );
@@ -850,7 +850,7 @@ final class SharedNpcWorldRelay {
 
                     if(miniIdentityChanged){
                         if(t.miniScene>=0)
-                            npcs.devRemoveNpc(
+                            npcs.removeMirroredNpcRetractable(
                                 t.miniScene,
                                 writer
                             );
@@ -904,7 +904,7 @@ final class SharedNpcWorldRelay {
                             return;
                     }
                 }else if(t.miniScene>=0){
-                    npcs.devRemoveNpc(
+                    npcs.removeMirroredNpcRetractable(
                         t.miniScene,
                         writer
                     );
@@ -1004,7 +1004,7 @@ final class SharedNpcWorldRelay {
                Math.abs(x-movement.x())>15||
                Math.abs(y-movement.y())>15){
                 if(track.scene>=0)
-                    npcs.devRemoveNpc(
+                    npcs.removeMirroredNpcRetractable(
                         track.scene,
                         writer
                     );
@@ -1022,7 +1022,7 @@ final class SharedNpcWorldRelay {
                     canonical.definitionId||
                npcs.scene(track.scene)==null){
                 if(track.scene>=0)
-                    npcs.devRemoveNpc(
+                    npcs.removeMirroredNpcRetractable(
                         track.scene,
                         writer
                     );
@@ -1128,7 +1128,7 @@ final class SharedNpcWorldRelay {
                     Math.abs(dy)
                 )>1&&
                 d2<0)){
-                npcs.devRemoveNpc(
+                npcs.removeMirroredNpcRetractable(
                     track.scene,
                     writer
                 );
@@ -1192,7 +1192,7 @@ final class SharedNpcWorldRelay {
                 return;
 
             if(track.scene>=0)
-                npcs.devRemoveNpc(
+                npcs.removeMirroredNpcRetractable(
                     track.scene,
                     writer
                 );
@@ -1317,7 +1317,7 @@ final class SharedNpcWorldRelay {
             if(Math.abs(x-movement.x())>15||
                Math.abs(y-movement.y())>15){
                 if(scene>=0)
-                    npcs.devRemoveNpc(
+                    npcs.removeMirroredNpcRetractable(
                         scene,
                         writer
                     );
@@ -1332,7 +1332,7 @@ final class SharedNpcWorldRelay {
                oldDef!=def||
                npcs.scene(scene)==null){
                 if(scene>=0)
-                    npcs.devRemoveNpc(
+                    npcs.removeMirroredNpcRetractable(
                         scene,
                         writer
                     );
@@ -1422,7 +1422,7 @@ final class SharedNpcWorldRelay {
                     Math.abs(dx),
                     Math.abs(dy)
                 )>1&&d2<0)){
-                npcs.devRemoveNpc(
+                npcs.removeMirroredNpcRetractable(
                     scene,
                     writer
                 );
@@ -1559,12 +1559,12 @@ final class SharedNpcWorldRelay {
             if(t==null)return;
 
             if(t.miniScene>=0)
-                npcs.devRemoveNpc(
+                npcs.removeMirroredNpcRetractable(
                     t.miniScene,
                     writer
                 );
             if(t.mainScene>=0)
-                npcs.devRemoveNpc(
+                npcs.removeMirroredNpcRetractable(
                     t.mainScene,
                     writer
                 );
