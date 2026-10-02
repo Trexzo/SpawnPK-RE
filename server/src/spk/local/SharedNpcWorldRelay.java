@@ -567,6 +567,19 @@ final class SharedNpcWorldRelay {
         }
     }
 
+    private static final class PendingMirrorMask{
+        final int scene;
+        final NpcSyncEncoder.Mask mask;
+
+        PendingMirrorMask(
+            int scene,
+            NpcSyncEncoder.Mask mask
+        ){
+            this.scene=scene;
+            this.mask=mask;
+        }
+    }
+
     private static final class GenericNpcTrack{
         int scene=-1;
         int definition=-1;
@@ -583,6 +596,9 @@ final class SharedNpcWorldRelay {
             new HashMap<>();
         final NpcViewIndexMap genericIndexes=
             new NpcViewIndexMap();
+        final ArrayDeque<PendingMirrorMask>
+            pendingMirrorMasks=
+                new ArrayDeque<>();
         Context(ServerPacketWriter w,WorldState s,WorldPlayer o,NpcRegistry n,MovementState m){
             writer=w;
             state=s;
@@ -602,6 +618,9 @@ final class SharedNpcWorldRelay {
         void syncRemotePets()throws IOException{
             if(!ownerCurrent())
                 return;
+
+            flushPendingMirrorMasks();
+
             ArrayList<Context> sources;
             synchronized(SharedNpcWorldRelay.class){
                 sources=new ArrayList<>(
@@ -786,14 +805,13 @@ final class SharedNpcWorldRelay {
                         NpcEntity mirrored=
                             npcs.scene(t.mainScene);
                         if(mirrored!=null)
-                            npcs.sendMaskLocal(
+                            sendMirrorMaskOrDefer(
                                 mirrored,
                                 NpcSyncEncoder.Mask.forceText(
                                     Integer.toString(
                                         nativeState
                                     )
-                                ),
-                                writer
+                                )
                             );
                     }
                 }
@@ -850,12 +868,11 @@ final class SharedNpcWorldRelay {
                         NpcEntity mirroredMini=
                             npcs.scene(t.miniScene);
                         if(mirroredMini!=null)
-                            npcs.sendMaskLocal(
+                            sendMirrorMaskOrDefer(
                                 mirroredMini,
                                 NpcSyncEncoder.Mask.interactionTarget(
                                     t.mainScene
-                                ),
-                                writer
+                                )
                             );
                     }
                 }else if(t.miniScene>=0){
@@ -1164,6 +1181,59 @@ final class SharedNpcWorldRelay {
                 removeGeneric(id);
         }
 
+        private void sendMirrorMaskOrDefer(
+            NpcEntity npc,
+            NpcSyncEncoder.Mask mask
+        ){
+            try{
+                npcs.sendMaskLocal(
+                    npc,
+                    mask,
+                    writer
+                );
+            }catch(IOException failure){
+                pendingMirrorMasks.addLast(
+                    new PendingMirrorMask(
+                        npc.sceneIndex,
+                        mask
+                    )
+                );
+
+                System.err.println(
+                    "[ENGINE-R3.2] deferred remote mirror mask scene="+
+                    npc.sceneIndex+
+                    " error="+failure
+                );
+            }
+        }
+
+        private void flushPendingMirrorMasks()
+            throws IOException
+        {
+            while(!pendingMirrorMasks.isEmpty()){
+                PendingMirrorMask pending=
+                    pendingMirrorMasks.peekFirst();
+
+                NpcEntity npc=
+                    npcs.scene(
+                        pending.scene
+                    );
+
+                if(npc==null){
+                    pendingMirrorMasks.removeFirst();
+                    continue;
+                }
+
+                npcs.sendMaskLocal(
+                    npc,
+                    pending.mask,
+                    writer
+                );
+
+                pendingMirrorMasks.removeFirst();
+            }
+        }
+
         int syncOne(
             int scene,
             int oldDef,
@@ -1222,12 +1292,11 @@ final class SharedNpcWorldRelay {
                 }
 
                 if(e!=null)
-                    npcs.sendMaskLocal(
+                    sendMirrorMaskOrDefer(
                         e,
                         NpcSyncEncoder.Mask.interactionTarget(
                             interactionTarget
-                        ),
-                        writer
+                        )
                     );
 
                 return e==null
