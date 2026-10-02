@@ -1395,14 +1395,34 @@ final class TradeService {
             return null;
         }
 
-        accepting.writer.varShort(
-            126,
-            acceptingBody
-        );
-        other.writer.varShort(
-            126,
-            peerBody
-        );
+        try{
+            accepting.writer.varShort(
+                126,
+                acceptingBody
+            );
+        }catch(IOException failure){
+            retireTerminalParticipantPublicationFailure(
+                trade,
+                accepting,
+                failure
+            );
+            throw failure;
+        }
+
+        try{
+            other.writer.varShort(
+                126,
+                peerBody
+            );
+        }catch(IOException failure){
+            retireTerminalParticipantPublicationFailure(
+                trade,
+                other,
+                failure
+            );
+            throw failure;
+        }
+
         return null;
     }
 
