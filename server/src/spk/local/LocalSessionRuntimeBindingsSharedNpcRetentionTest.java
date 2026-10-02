@@ -63,6 +63,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalWriterLatched=true "+
             "terminalSessionIngressRejected=true "+
             "terminalReplacementWriterHealthy=true "+
+            "terminalSentinelSurvivesUnregister=true "+
+            "terminalUnregisterPreservesReplacement=true "+
             "terminalOldOwnerWriterExact=true "+
             "attemptedNewWriterNotRetired=true"
         );
@@ -3467,6 +3469,70 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 ()->{}
             );
 
+            Object replacementRelay=
+                relayContextFor(
+                    replacementWriter
+                );
+
+            if(replacementRelay==null||
+               relayOwnerContextFor(
+                    world,
+                    owner
+                )!=replacementRelay)
+                throw new AssertionError(
+                    "replacement SharedNpc context was not active before stale unregister"
+                );
+
+            int oldAttemptsBeforeUnregister=
+                oldOut.attempts();
+
+            SharedNpcWorldRelay.unregister(
+                oldWriter
+            );
+
+            if(relayContextFor(
+                    oldWriter
+                )!=oldRelay)
+                throw new AssertionError(
+                    "terminal SharedNpc unregister removed fail-closed sentinel"
+                );
+
+            if(relayContextFor(
+                    replacementWriter
+                )!=replacementRelay||
+               relayOwnerContextFor(
+                    world,
+                    owner
+                )!=replacementRelay)
+                throw new AssertionError(
+                    "terminal SharedNpc unregister corrupted healthy replacement context"
+                );
+
+            boolean oldRejected=false;
+            try{
+                SharedNpcWorldRelay.preflightRegistration(
+                    oldWriter,
+                    world,
+                    owner
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                oldRejected=
+                    expected.owner==owner&&
+                    expected.writer==oldWriter;
+            }
+
+            if(!oldRejected)
+                throw new AssertionError(
+                    "terminal SharedNpc writer became resurrectable after unregister"
+                );
+
+            if(oldOut.attempts()!=
+                    oldAttemptsBeforeUnregister)
+                throw new AssertionError(
+                    "terminal SharedNpc unregister/preflight touched broken transport"
+                );
+
             LocalSession.requireLiveSessionWriter(
                 replacementWriter
             );
@@ -3524,6 +3590,51 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
 
             return contexts.get(
                 writer
+            );
+        }
+    }
+
+    private static Object relayOwnerContextFor(
+        World world,
+        WorldPlayer owner
+    )throws Exception{
+        Field worldField=
+            SharedNpcWorldRelay.class
+                .getDeclaredField(
+                    "BY_WORLD"
+                );
+        worldField.setAccessible(true);
+
+        synchronized(SharedNpcWorldRelay.class){
+            @SuppressWarnings("unchecked")
+            IdentityHashMap<World,Object> worlds=
+                (IdentityHashMap<World,Object>)
+                worldField.get(null);
+
+            Object state=
+                worlds.get(
+                    world
+                );
+
+            if(state==null)
+                return null;
+
+            Field contextsField=
+                state.getClass()
+                    .getDeclaredField(
+                        "contexts"
+                    );
+            contextsField.setAccessible(true);
+
+            @SuppressWarnings("unchecked")
+            java.util.Map<EntityId,Object> contexts=
+                (java.util.Map<EntityId,Object>)
+                contextsField.get(
+                    state
+                );
+
+            return contexts.get(
+                owner.id()
             );
         }
     }
