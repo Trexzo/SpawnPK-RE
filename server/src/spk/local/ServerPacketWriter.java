@@ -449,6 +449,52 @@ final class ServerPacketWriter {
         autoFlush();
     }
 
+    @FunctionalInterface
+    interface RecoverablePacketPublication {
+        void publish()throws IOException;
+    }
+
+    synchronized void publishRecoverablePacket(
+        RecoverablePacketPublication publication
+    )throws IOException{
+        if(publication==null)
+            throw new NullPointerException(
+                "publication"
+            );
+
+        awaitPacket81IdleLocked();
+
+        if(batchDepth!=0)
+            throw new IOException(
+                "recoverable packet publication requires idle writer"
+            );
+
+        if(queue==null)
+            throw new IOException(
+                "recoverable packet publication requires queue-backed writer"
+            );
+
+        beginBatchLocked();
+        boolean committed=false;
+
+        try{
+            publication.publish();
+
+            if(batchDepth!=1)
+                throw new IllegalStateException(
+                    "recoverable packet publication changed batch depth"
+                );
+
+            flush();
+            completeBatchLocked();
+            committed=true;
+        }finally{
+            if(!committed&&
+               batchDepth>0)
+                abortBatchLocked();
+        }
+    }
+
     synchronized void beginBatch(){
         awaitPacket81IdleLocked();
         beginBatchLocked();
