@@ -148,14 +148,9 @@ final class LocalSessionRuntimeBindings {
                     tradeInstalled[0]=true;
 
                     /*
-                     * Normally a no-op because the prepublication phase seeded
-                     * all multiplayer contexts as already-sent. Retain this as
-                     * a compatibility safety net for the single-player path.
+                     * No packet publication is allowed after Trade replacement.
+                     * The prepublication phase above is the sole S2C104 owner.
                      */
-                    Player81WorldSync
-                        .sendPlayerOptionsIfMultiplayer(
-                            world
-                        );
                 }
             );
         }catch(Throwable failure){
