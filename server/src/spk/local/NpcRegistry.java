@@ -260,9 +260,154 @@ final class NpcRegistry {
         Map<Integer,NpcSpawnPresentation> presentation=particleSelector==null
             ? Collections.<Integer,NpcSpawnPresentation>emptyMap()
             : Collections.singletonMap(scene,NpcSpawnPresentation.particle(particleSelector.intValue()));
-        w.varShort(65,NpcSyncEncoder.encode(retains(),Collections.singletonList(e),movement.x(),movement.y(),presentation));
-        visible.add(e);devOwnedSceneIndexes.add(scene);
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                retains(),
+                Collections.singletonList(e),
+                movement.x(),
+                movement.y(),
+                presentation
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .RETRACTED_RETRYABLE)
+            return null;
+
+        visible.add(e);
+        devOwnedSceneIndexes.add(scene);
         return e;
+    }
+
+    ServerPacketWriter.RecoverablePacketResult
+        moveMirroredNpcRetractable(
+            NpcEntity target,
+            int direction1,
+            int direction2,
+            int worldX,
+            int worldY,
+            ServerPacketWriter w
+        )throws IOException
+    {
+        if(target==null||
+           findScene(target.sceneIndex)!=target||
+           !devOwnedSceneIndexes.contains(target.sceneIndex))
+            throw new IllegalArgumentException(
+                "mirror target not visible/dev-owned"
+            );
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?(direction2>=0
+                        ?NpcSyncEncoder.Update.run(
+                            npc,
+                            direction1,
+                            direction2
+                        )
+                        :NpcSyncEncoder.Update.walk(
+                            npc,
+                            direction1
+                        ))
+                    :NpcSyncEncoder.Update.retain(npc)
+            );
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED){
+            target.x=worldX;
+            target.y=worldY;
+        }
+
+        return publication;
+    }
+
+    ServerPacketWriter.RecoverablePacketResult
+        removeMirroredNpcRetractable(
+            int sceneIndex,
+            ServerPacketWriter w
+        )throws IOException
+    {
+        if(!devOwnedSceneIndexes.contains(sceneIndex))
+            return ServerPacketWriter
+                .RecoverablePacketResult
+                .COMMITTED;
+
+        NpcEntity target=
+            findScene(sceneIndex);
+
+        if(target==null){
+            devOwnedSceneIndexes.remove(sceneIndex);
+            return ServerPacketWriter
+                .RecoverablePacketResult
+                .COMMITTED;
+        }
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?NpcSyncEncoder.Update.remove(npc)
+                    :NpcSyncEncoder.Update.retain(npc)
+            );
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED){
+            visible.remove(target);
+            devOwnedSceneIndexes.remove(sceneIndex);
+        }
+
+        return publication;
     }
 
     /** Exact NPC forced-text mask path. NPC 8330 consumes literal SNIPE in the
