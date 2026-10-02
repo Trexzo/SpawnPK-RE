@@ -899,8 +899,9 @@ final class SharedNpcWorldRelay {
                                 )
                             );
 
-                    if(!pendingMirrorMasks.isEmpty())
-                        return;
+                        if(!pendingMirrorMasks.isEmpty())
+                            return;
+                    }
                 }else if(t.miniScene>=0){
                     npcs.devRemoveNpc(
                         t.miniScene,
