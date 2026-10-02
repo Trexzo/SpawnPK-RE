@@ -9,6 +9,15 @@ import java.util.*;
  * while preserving MAINLINE follower publication through packet 65.
  */
 final class NpcRegistry {
+    static final class RetractedMirrorPublicationException
+        extends IOException {
+        RetractedMirrorPublicationException(
+            String message
+        ){
+            super(message);
+        }
+    }
+
     static final int LOCAL_PLAYER_INDEX = 1;
     static final int BLOOD_FOUNTAIN_INDEX=1;
     static final int PLAYER_DUMMY_INDEX=2;
@@ -260,9 +269,158 @@ final class NpcRegistry {
         Map<Integer,NpcSpawnPresentation> presentation=particleSelector==null
             ? Collections.<Integer,NpcSpawnPresentation>emptyMap()
             : Collections.singletonMap(scene,NpcSpawnPresentation.particle(particleSelector.intValue()));
-        w.varShort(65,NpcSyncEncoder.encode(retains(),Collections.singletonList(e),movement.x(),movement.y(),presentation));
-        visible.add(e);devOwnedSceneIndexes.add(scene);
+        byte[] body=
+            NpcSyncEncoder.encode(
+                retains(),
+                Collections.singletonList(e),
+                movement.x(),
+                movement.y(),
+                presentation
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .RETRACTED_RETRYABLE)
+            throw new RetractedMirrorPublicationException(
+                "mirror add publication retracted before commit"
+            );
+
+        visible.add(e);
+        devOwnedSceneIndexes.add(scene);
         return e;
+    }
+
+    /**
+     * SharedNpc-only movement publication. The visible mirror coordinates move
+     * only after the exact packet65 walk/run postimage commits.
+     */
+    void moveMirroredNpcRetractable(
+        NpcEntity target,
+        int direction1,
+        int direction2,
+        int worldX,
+        int worldY,
+        ServerPacketWriter w
+    )throws IOException{
+        if(target==null||
+           findScene(target.sceneIndex)!=target||
+           !devOwnedSceneIndexes.contains(target.sceneIndex))
+            throw new IllegalArgumentException(
+                "mirror target not visible/dev-owned"
+            );
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?(direction2>=0
+                        ?NpcSyncEncoder.Update.run(
+                            npc,
+                            direction1,
+                            direction2
+                        )
+                        :NpcSyncEncoder.Update.walk(
+                            npc,
+                            direction1
+                        ))
+                    :NpcSyncEncoder.Update.retain(npc)
+            );
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .RETRACTED_RETRYABLE)
+            throw new RetractedMirrorPublicationException(
+                "mirror movement publication retracted before commit"
+            );
+
+        target.x=worldX;
+        target.y=worldY;
+    }
+
+    /**
+     * SharedNpc-only removal publication. Viewer-local registry ownership is
+     * retired only after the exact packet65 remove postimage commits.
+     */
+    boolean removeMirroredNpcRetractable(
+        int sceneIndex,
+        ServerPacketWriter w
+    )throws IOException{
+        if(!devOwnedSceneIndexes.contains(sceneIndex))
+            return false;
+
+        NpcEntity target=
+            findScene(sceneIndex);
+
+        if(target==null){
+            devOwnedSceneIndexes.remove(sceneIndex);
+            return true;
+        }
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?NpcSyncEncoder.Update.remove(npc)
+                    :NpcSyncEncoder.Update.retain(npc)
+            );
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .RETRACTED_RETRYABLE)
+            throw new RetractedMirrorPublicationException(
+                "mirror removal publication retracted before commit"
+            );
+
+        visible.remove(target);
+        devOwnedSceneIndexes.remove(sceneIndex);
+        return true;
     }
 
     /** Exact NPC forced-text mask path. NPC 8330 consumes literal SNIPE in the
