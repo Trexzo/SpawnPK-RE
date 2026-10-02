@@ -248,6 +248,12 @@ final class SharedNpcWorldRelay {
                     candidate.owner,
                     candidate.ownerGeneration,
                     ()->{
+                        /*
+                         * World ownership alone does not protect relay registry
+                         * identity. Hold the registry monitor through the full
+                         * accepted mirror sync so unregister/rebind linearizes
+                         * wholly before this sync or after it.
+                         */
                         synchronized(
                             SharedNpcWorldRelay.class
                         ){
@@ -255,10 +261,10 @@ final class SharedNpcWorldRelay {
                                     viewerWriter
                                 )!=candidate)
                                 return;
-                        }
 
-                        candidate.syncRemotePets();
-                        candidate.syncCanonicalNpcs();
+                            candidate.syncRemotePets();
+                            candidate.syncCanonicalNpcs();
+                        }
                     }
                 );
         }catch(Throwable t){
