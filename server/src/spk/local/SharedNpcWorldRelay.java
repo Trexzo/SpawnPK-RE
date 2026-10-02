@@ -845,6 +845,14 @@ final class SharedNpcWorldRelay {
                      * retire through this relay too, so SharedNpc -> Trade here
                      * would invert Trade -> SharedNpc and permit deadlock.
                      */
+                    /*
+                     * Latch only writer-local / relay-local terminal state while
+                     * the exact Context is still linearized under this monitor.
+                     * Full Trade/Player81/runtime retirement remains outside
+                     * SharedNpcWorldRelay.class below.
+                     */
+                    viewer.writer.markTerminal();
+                    viewer.failCloseProjection();
                     terminalFailure=
                         nonRetryable;
                     break;
