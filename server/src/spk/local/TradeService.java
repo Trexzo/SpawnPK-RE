@@ -692,6 +692,12 @@ final class TradeService {
             );
         }
 
+        /*
+         * Deliberately outside TradeService.class and the final-commit
+         * PlayerRegistry fence. Real LocalSession persistence captures under
+         * player mutation -> PlayerRegistry ownership; moving these callbacks
+         * back inside the Trade locks would recreate that inverse edge.
+         */
         runPostCommitSaves(
             postCommitSaves
         );
