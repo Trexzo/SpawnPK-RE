@@ -260,8 +260,22 @@ final class NpcRegistry {
         Map<Integer,NpcSpawnPresentation> presentation=particleSelector==null
             ? Collections.<Integer,NpcSpawnPresentation>emptyMap()
             : Collections.singletonMap(scene,NpcSpawnPresentation.particle(particleSelector.intValue()));
-        w.varShort(65,NpcSyncEncoder.encode(retains(),Collections.singletonList(e),movement.x(),movement.y(),presentation));
-        visible.add(e);devOwnedSceneIndexes.add(scene);
+        byte[] body=
+            NpcSyncEncoder.encode(
+                retains(),
+                Collections.singletonList(e),
+                movement.x(),
+                movement.y(),
+                presentation
+            );
+        w.publishRecoverablePacket(
+            ()->w.varShort(
+                65,
+                body
+            )
+        );
+        visible.add(e);
+        devOwnedSceneIndexes.add(scene);
         return e;
     }
 
