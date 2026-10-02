@@ -253,7 +253,7 @@ final class LocalSessionRuntimeBindings {
         );
     }
 
-    private static void retireTerminalRuntimeBundle(
+    static void retireTerminalRuntimeBundle(
         WorldPlayer failedOwner,
         ServerPacketWriter failedWriter,
         boolean retireSharedNpc,
