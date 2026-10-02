@@ -219,12 +219,20 @@ final class SharedNpcWorldRelay {
             return;
 
         Context context=
-            BY_WRITER.remove(
+            BY_WRITER.get(
                 writer
             );
 
         if(context==null)
             return;
+
+        /*
+         * Keep only writer-local terminal identity. Removing BY_WRITER would
+         * allow the exact transport whose byte/cipher progress is unknowable
+         * to be registered again. It is no longer an active World recipient
+         * or source after this point.
+         */
+        context.failCloseProjection();
 
         if(context.state.contexts.get(
                 context.owner.id()
@@ -237,8 +245,6 @@ final class SharedNpcWorldRelay {
         context.remoteIndexes.clear();
         context.genericNpcs.clear();
         context.genericIndexes.clear();
-        context.pendingMirrorMasks.clear();
-        context.projectionTransportFailedClosed=true;
 
         if(!context.state.world.closed())
             context.state.world
