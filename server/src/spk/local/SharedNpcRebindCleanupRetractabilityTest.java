@@ -83,6 +83,16 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                 new DevAuthorityWorkbench()
             );
 
+        /*
+         * RuntimeBindings now prepublishes S2C104 before SharedNpc admission.
+         * Seed the existing Player81 contexts while transport is healthy so
+         * later queue pressure reaches the intended SharedNpc rebind cleanup
+         * boundary instead of rejecting earlier in player-option preparation.
+         */
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
         SharedNpcWorldRelay.register(
             sourceWriter,
             world,
