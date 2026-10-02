@@ -37,14 +37,26 @@ final class SharedNpcWorldRelay {
     static final class TerminalRegistrationException
         extends IllegalStateException {
 
+        final WorldPlayer owner;
+        final ServerPacketWriter writer;
+
         TerminalRegistrationException(
             String message,
+            Context failedContext,
             Throwable cause
         ){
             super(
                 message,
                 cause
             );
+            this.owner=
+                failedContext==null
+                    ?null
+                    :failedContext.owner;
+            this.writer=
+                failedContext==null
+                    ?null
+                    :failedContext.writer;
         }
     }
 
@@ -149,6 +161,56 @@ final class SharedNpcWorldRelay {
         cleanupContext(c);
     }
 
+    /**
+     * Retires relay authority after this exact writer has already suffered a
+     * terminal/non-retractable failure. This is deliberately publication-free:
+     * no packet65 cleanup may touch the broken transport again.
+     */
+    static synchronized void retireTerminalWriter(
+        ServerPacketWriter writer
+    ){
+        if(writer==null)
+            return;
+
+        Context context=
+            BY_WRITER.remove(
+                writer
+            );
+
+        if(context==null)
+            return;
+
+        if(context.state.contexts.get(
+                context.owner.id()
+            )==context)
+            context.state.contexts.remove(
+                context.owner.id()
+            );
+
+        context.remote.clear();
+        context.remoteIndexes.clear();
+        context.genericNpcs.clear();
+        context.genericIndexes.clear();
+        context.pendingMirrorMasks.clear();
+        context.projectionTransportFailedClosed=true;
+
+        if(!context.state.world.closed())
+            context.state.world
+                .npcPresentationEvents()
+                .removeSource(
+                    context.owner.id(),
+                    System.currentTimeMillis()
+                );
+
+        context.state.pruneDeadRecipients();
+
+        if(context.state.contexts.isEmpty()&&
+           context.state.genericNpcIds.isEmpty())
+            BY_WORLD.remove(
+                context.state.world
+            );
+    }
+
     private enum ReplacementCleanupResult {
         COMMITTED,
         RETRACTED_RETRYABLE
@@ -170,6 +232,7 @@ final class SharedNpcWorldRelay {
         if(context.projectionTransportFailedClosed)
             throw new TerminalRegistrationException(
                 "SharedNpc replacement rejected: existing relay transport is fail-closed",
+                context,
                 null
             );
 
@@ -193,6 +256,7 @@ final class SharedNpcWorldRelay {
             context.failCloseProjection();
             throw new TerminalRegistrationException(
                 "SharedNpc replacement cleanup failed terminally; existing relay remains fail-closed",
+                context,
                 terminal
             );
         }
