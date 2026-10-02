@@ -28,6 +28,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         assertTerminalStartRootWriterIsNotRetouched();
         assertTerminalTradeXPromptWriterIsNotRetouched();
         assertTerminalStartRollbackWriterIsRetired();
+        assertTerminalWriterLatchStopsSessionReuse();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
         System.out.println(
@@ -59,6 +60,9 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalTradeXHealthyPeerClosed=true "+
             "terminalStartRollbackWriterRetired=true "+
             "terminalStartRollbackPrimaryPreserved=true "+
+            "terminalWriterLatched=true "+
+            "terminalSessionIngressRejected=true "+
+            "terminalReplacementWriterHealthy=true "+
             "terminalOldOwnerWriterExact=true "+
             "attemptedNewWriterNotRetired=true"
         );
@@ -3265,6 +3269,237 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 world.unregisterPlayer(
                     ownerFailed,
                     ownerGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertTerminalWriterLatchStopsSessionReuse()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                712L
+            );
+        WorldPlayer owner=
+            new WorldPlayer();
+
+        long generation=
+            world.registerPlayer(
+                owner,
+                "binding-terminal-latch-owner"
+            );
+
+        DevAuthorityWorkbench dev=
+            new DevAuthorityWorkbench();
+        NpcRegistry oldNpcs=
+            new NpcRegistry(
+                dev
+            );
+        NpcRegistry replacementNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        SwitchablePrefixFailOutputStream oldOut=
+            new SwitchablePrefixFailOutputStream();
+        SwitchablePrefixFailOutputStream replacementOut=
+            new SwitchablePrefixFailOutputStream();
+
+        ServerPacketWriter oldWriter=
+            new ServerPacketWriter(
+                oldOut,
+                new IsaacCipher(
+                    new int[]{1221,1222,1223,1224}
+                )
+            );
+        ServerPacketWriter replacementWriter=
+            new ServerPacketWriter(
+                replacementOut,
+                new IsaacCipher(
+                    new int[]{1225,1226,1227,1228}
+                )
+            );
+
+        Player81WorldSync.register(
+            oldWriter,
+            world,
+            owner,
+            dev
+        );
+        SharedNpcWorldRelay.register(
+            oldWriter,
+            world,
+            owner,
+            oldNpcs,
+            owner.movement()
+        );
+        TradeService.register(
+            world,
+            owner,
+            generation,
+            owner.bank(),
+            oldWriter,
+            ()->{}
+        );
+
+        Object oldRelay=
+            relayContextFor(
+                oldWriter
+            );
+
+        try{
+            IOException terminalCause=
+                new IOException(
+                    "EXPECTED_TERMINAL_LATCH"
+                );
+
+            LocalSessionRuntimeBindings
+                .retireTerminalRuntimeBundle(
+                    owner,
+                    oldWriter,
+                    true,
+                    terminalCause
+                );
+
+            if(!oldWriter.terminal())
+                throw new AssertionError(
+                    "terminal retirement did not latch exact writer"
+                );
+
+            if(player81ContextFor(
+                    oldWriter
+                )!=null)
+                throw new AssertionError(
+                    "terminal latch fixture retained Player81 authority"
+                );
+
+            if(relayContextFor(
+                    oldWriter
+                )!=oldRelay)
+                throw new AssertionError(
+                    "terminal latch fixture lost SharedNpc sentinel"
+                );
+
+            int attemptsBefore=
+                oldOut.attempts();
+            boolean publicationRejected=false;
+
+            try{
+                oldWriter.fixed(
+                    219,
+                    new byte[0]
+                );
+            }catch(IOException expected){
+                publicationRejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage()
+                        .contains(
+                            "server packet writer terminal"
+                        );
+            }
+
+            if(!publicationRejected)
+                throw new AssertionError(
+                    "terminal writer allowed later publication"
+                );
+
+            if(oldOut.attempts()!=
+                    attemptsBefore)
+                throw new AssertionError(
+                    "terminal writer rejection touched transport before="+
+                    attemptsBefore+
+                    " after="+
+                    oldOut.attempts()
+                );
+
+            boolean ingressRejected=false;
+
+            try{
+                LocalSession
+                    .requireLiveSessionWriter(
+                        oldWriter
+                    );
+            }catch(IOException expected){
+                ingressRejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage()
+                        .contains(
+                            "terminal session packet writer"
+                        );
+            }
+
+            if(!ingressRejected)
+                throw new AssertionError(
+                    "LocalSession ingress guard accepted terminal writer"
+                );
+
+            if(replacementWriter.terminal())
+                throw new AssertionError(
+                    "terminal latch leaked to replacement writer"
+                );
+
+            SharedNpcWorldRelay.preflightRegistration(
+                replacementWriter,
+                world,
+                owner
+            );
+            SharedNpcWorldRelay.register(
+                replacementWriter,
+                world,
+                owner,
+                replacementNpcs,
+                owner.movement()
+            );
+            Player81WorldSync.register(
+                replacementWriter,
+                world,
+                owner,
+                new DevAuthorityWorkbench()
+            );
+            TradeService.register(
+                world,
+                owner,
+                generation,
+                owner.bank(),
+                replacementWriter,
+                ()->{}
+            );
+
+            LocalSession.requireLiveSessionWriter(
+                replacementWriter
+            );
+
+            int replacementAttemptsBefore=
+                replacementOut.attempts();
+
+            replacementWriter.fixed(
+                219,
+                new byte[0]
+            );
+
+            if(replacementOut.attempts()!=
+                    replacementAttemptsBefore+1)
+                throw new AssertionError(
+                    "replacement writer publication failed"
+                );
+        }finally{
+            TradeService.unregister(
+                owner,
+                replacementWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                replacementWriter
+            );
+            Player81WorldSync.unregister(
+                replacementWriter
+            );
+
+            if(owner.registered())
+                world.unregisterPlayer(
+                    owner,
+                    generation
                 );
 
             world.close();
