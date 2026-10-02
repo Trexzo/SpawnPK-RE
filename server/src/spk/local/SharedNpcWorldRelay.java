@@ -521,9 +521,13 @@ final class SharedNpcWorldRelay {
                 world
             );
 
-        if(state==null)
-            return;
-
+        /*
+         * Terminal writer sentinels may deliberately outlive active
+         * state.contexts and retireTerminalWriter() may already have detached
+         * their old WorldState from BY_WORLD. World close is the final
+         * authority for those sentinels, so purge by exact World identity
+         * rather than only by the current BY_WORLD state object.
+         */
         Iterator<Map.Entry<ServerPacketWriter,Context>>
             writers=
                 BY_WRITER.entrySet()
@@ -534,9 +538,12 @@ final class SharedNpcWorldRelay {
                 entry=
                     writers.next();
 
-            if(entry.getValue().state==state)
+            if(entry.getValue().state.world==world)
                 writers.remove();
         }
+
+        if(state==null)
+            return;
 
         state.contexts.clear();
         state.genericNpcIds.clear();
