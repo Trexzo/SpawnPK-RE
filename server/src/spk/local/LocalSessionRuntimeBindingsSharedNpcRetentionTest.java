@@ -20,6 +20,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
     public static void main(String[] args)throws Exception{
         assertRetryableSharedNpcContextSurvivesBindingRollback();
         assertTerminalSharedNpcFailureRetiresBrokenWriterBundle();
+        assertRetractedTradePeerClosePreservesPeerRuntime();
         assertTerminalTradePeerCloseFailureRetiresPeerBundle();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
@@ -33,6 +34,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalTradeRetired=true "+
             "terminalPeerOnlyClose=true "+
             "terminalBrokenWriterNotRetouched=true "+
+            "retractedPeerRuntimePreserved=true "+
+            "retractedPeerWriterRetrySucceeds=true "+
             "terminalPeerWriterRetired=true "+
             "terminalPeerSentinelRetained=true "+
             "terminalPeerWriterNotRetouched=true "+
@@ -609,6 +612,233 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 world.unregisterPlayer(
                     viewer,
                     viewerGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertRetractedTradePeerClosePreservesPeerRuntime()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                704L
+            );
+        WorldPlayer broken=
+            new WorldPlayer();
+        WorldPlayer peer=
+            new WorldPlayer();
+
+        long brokenGeneration=
+            world.registerPlayer(
+                broken,
+                "binding-retracted-peer-broken"
+            );
+        long peerGeneration=
+            world.registerPlayer(
+                peer,
+                "binding-retracted-peer-healthy"
+            );
+
+        NpcRegistry brokenNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry peerNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        ServerPacketWriter brokenWriter=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{1141,1142,1143,1144}
+                )
+            );
+        OutboundPacketQueue peerQueue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+        ServerPacketWriter peerWriter=
+            new ServerPacketWriter(
+                peerQueue,
+                new IsaacCipher(
+                    new int[]{1145,1146,1147,1148}
+                )
+            );
+
+        OutboundPacketQueue.BatchReservation pressure=null;
+
+        Player81WorldSync.Context peerSync=
+            Player81WorldSync.register(
+                peerWriter,
+                world,
+                peer,
+                new DevAuthorityWorkbench()
+            );
+        Player81WorldSync.register(
+            brokenWriter,
+            world,
+            broken,
+            new DevAuthorityWorkbench()
+        );
+
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
+        SharedNpcWorldRelay.register(
+            brokenWriter,
+            world,
+            broken,
+            brokenNpcs,
+            broken.movement()
+        );
+        SharedNpcWorldRelay.register(
+            peerWriter,
+            world,
+            peer,
+            peerNpcs,
+            peer.movement()
+        );
+
+        TradeService.register(
+            world,
+            broken,
+            brokenGeneration,
+            broken.bank(),
+            brokenWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            peer,
+            peerGeneration,
+            peer.bank(),
+            peerWriter,
+            ()->{}
+        );
+
+        try{
+            String tradeOpen=
+                TradeService.start(
+                    world,
+                    broken,
+                    peer
+                );
+
+            if(tradeOpen==null||
+               !tradeOpen.contains(
+                    "TRADE_UI_OPEN"
+                ))
+                throw new AssertionError(
+                    "retracted peer Trade fixture failed: "+
+                    tradeOpen
+                );
+
+            drain(peerQueue);
+
+            Object peerRelay=
+                relayContextFor(
+                    peerWriter
+                );
+
+            pressure=
+                OutboundPacketQueue.reserveBatch(
+                    peerQueue,
+                    QUEUE_CAPACITY
+                );
+
+            TradeService.BrokenWriterRetirement retirement=
+                TradeService.retireBrokenWriter(
+                    broken,
+                    brokenWriter
+                );
+
+            if(retirement.peerClose!=
+                    TradeService.BrokenWriterPeerClose
+                        .RETRACTED_RETRYABLE||
+               retirement.peerOwner!=peer||
+               retirement.peerWriter!=peerWriter||
+               retirement.terminalPeer())
+                throw new AssertionError(
+                    "peer close was not classified retractable"
+                );
+
+            if(TradeService.active(broken)||
+               TradeService.active(peer))
+                throw new AssertionError(
+                    "retracted peer close retained live Trade"
+                );
+
+            if(player81ContextFor(
+                    peerWriter
+                )!=peerSync||
+               relayContextFor(
+                    peerWriter
+                )!=peerRelay)
+                throw new AssertionError(
+                    "retracted peer close changed healthy peer runtime authority"
+                );
+
+            if(peerQueue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "retracted peer close admitted bytes"
+                );
+
+            pressure.release();
+            pressure=null;
+
+            ServerPacketWriter.RecoverablePacketResult retry=
+                peerWriter.publishRecoverablePacketIfIdle(
+                    ()->peerWriter.fixed(
+                        219,
+                        new byte[0]
+                    )
+                );
+
+            if(retry!=
+                    ServerPacketWriter
+                        .RecoverablePacketResult
+                        .COMMITTED||
+               peerQueue.queuedBytes()==0)
+                throw new AssertionError(
+                    "healthy peer writer did not recover after retractable close"
+                );
+        }finally{
+            if(pressure!=null)
+                pressure.release();
+
+            TradeService.unregister(
+                broken
+            );
+            TradeService.unregister(
+                peer
+            );
+            SharedNpcWorldRelay.unregister(
+                brokenWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                peerWriter
+            );
+            Player81WorldSync.unregister(
+                brokenWriter
+            );
+            Player81WorldSync.unregister(
+                peerWriter
+            );
+
+            if(broken.registered())
+                world.unregisterPlayer(
+                    broken,
+                    brokenGeneration
+                );
+            if(peer.registered())
+                world.unregisterPlayer(
+                    peer,
+                    peerGeneration
                 );
 
             world.close();
