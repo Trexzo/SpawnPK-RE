@@ -22,6 +22,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         assertTerminalSharedNpcFailureRetiresBrokenWriterBundle();
         assertRetractedTradePeerClosePreservesPeerRuntime();
         assertTerminalTradePeerCloseFailureRetiresPeerBundle();
+        assertTerminalCompetingRootPeerCloseRetiresPeerBundle();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
         System.out.println(
@@ -40,6 +41,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalPeerSentinelRetained=true "+
             "terminalPeerWriterNotRetouched=true "+
             "terminalTradeCancelledOnce=true "+
+            "terminalCompetingRootPeerRetired=true "+
+            "terminalCompetingRootCommitted=true "+
             "terminalOldOwnerWriterExact=true "+
             "attemptedNewWriterNotRetired=true"
         );
@@ -1482,6 +1485,287 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 world.unregisterPlayer(
                     viewer,
                     viewerGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertTerminalCompetingRootPeerCloseRetiresPeerBundle()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                705L
+            );
+        WorldPlayer current=
+            new WorldPlayer();
+        WorldPlayer peer=
+            new WorldPlayer();
+
+        long currentGeneration=
+            world.registerPlayer(
+                current,
+                "binding-competing-root-current"
+            );
+        long peerGeneration=
+            world.registerPlayer(
+                peer,
+                "binding-competing-root-peer"
+            );
+
+        DevAuthorityWorkbench currentDev=
+            new DevAuthorityWorkbench();
+        DevAuthorityWorkbench peerDev=
+            new DevAuthorityWorkbench();
+        NpcRegistry currentNpcs=
+            new NpcRegistry(
+                currentDev
+            );
+        NpcRegistry peerNpcs=
+            new NpcRegistry(
+                peerDev
+            );
+
+        OutboundPacketQueue currentQueue=
+            new OutboundPacketQueue();
+        SwitchablePrefixFailOutputStream peerOut=
+            new SwitchablePrefixFailOutputStream();
+
+        ServerPacketWriter currentWriter=
+            new ServerPacketWriter(
+                currentQueue,
+                new IsaacCipher(
+                    new int[]{1151,1152,1153,1154}
+                )
+            );
+        ServerPacketWriter peerWriter=
+            new ServerPacketWriter(
+                peerOut,
+                new IsaacCipher(
+                    new int[]{1155,1156,1157,1158}
+                )
+            );
+
+        Player81WorldSync.Context currentSync=
+            Player81WorldSync.register(
+                currentWriter,
+                world,
+                current,
+                currentDev
+            );
+        Player81WorldSync.register(
+            peerWriter,
+            world,
+            peer,
+            peerDev
+        );
+
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
+        SharedNpcWorldRelay.register(
+            currentWriter,
+            world,
+            current,
+            currentNpcs,
+            current.movement()
+        );
+        SharedNpcWorldRelay.register(
+            peerWriter,
+            world,
+            peer,
+            peerNpcs,
+            peer.movement()
+        );
+
+        TradeService.register(
+            world,
+            current,
+            currentGeneration,
+            current.bank(),
+            currentWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            peer,
+            peerGeneration,
+            peer.bank(),
+            peerWriter,
+            ()->{}
+        );
+
+        try{
+            String tradeOpen=
+                TradeService.start(
+                    world,
+                    current,
+                    peer
+                );
+
+            if(tradeOpen==null||
+               !tradeOpen.contains(
+                    "TRADE_UI_OPEN"
+               ))
+                throw new AssertionError(
+                    "terminal competing-root Trade fixture failed: "+
+                    tradeOpen
+                );
+
+            drain(
+                currentQueue
+            );
+
+            Object currentRelay=
+                relayContextFor(
+                    currentWriter
+                );
+            Object peerRelay=
+                relayContextFor(
+                    peerWriter
+                );
+            int peerAttemptsBefore=
+                peerOut.attempts();
+
+            peerOut.enableFailure();
+
+            String replacement=
+                LocalSession
+                    .replaceMonsterSpawnerRootForCurrentSession(
+                        world,
+                        current,
+                        currentGeneration,
+                        ()->{
+                            currentWriter.fixed(
+                                97,
+                                BootstrapPackets
+                                    .interface97(
+                                        15106
+                                    )
+                            );
+                            return "TEST_TERMINAL_COMPETING_ROOT";
+                        }
+                    );
+
+            if(!"TEST_TERMINAL_COMPETING_ROOT"
+                    .equals(
+                        replacement
+                    ))
+                throw new AssertionError(
+                    "committed competing root was reported failed: "+
+                    replacement
+                );
+
+            if(currentQueue.queuedBytes()!=3)
+                throw new AssertionError(
+                    "committed competing root bytes changed expected=3 actual="+
+                    currentQueue.queuedBytes()
+                );
+
+            if(peerOut.attempts()!=
+                    peerAttemptsBefore+1)
+                throw new AssertionError(
+                    "terminal competing-root peer close was duplicated/retouched before="+
+                    peerAttemptsBefore+
+                    " after="+
+                    peerOut.attempts()
+                );
+
+            if(TradeService.active(
+                    current
+                )||
+               TradeService.active(
+                    peer
+               ))
+                throw new AssertionError(
+                    "terminal competing-root peer failure retained live Trade"
+                );
+
+            if(player81ContextFor(
+                    peerWriter
+                )!=null)
+                throw new AssertionError(
+                    "terminal competing-root peer retained Player81 authority"
+                );
+
+            if(relayContextFor(
+                    peerWriter
+                )!=peerRelay)
+                throw new AssertionError(
+                    "terminal competing-root peer relay sentinel changed"
+                );
+
+            if(player81ContextFor(
+                    currentWriter
+                )!=currentSync||
+               relayContextFor(
+                    currentWriter
+                )!=currentRelay)
+                throw new AssertionError(
+                    "terminal competing-root peer failure retired initiating runtime"
+                );
+
+            int peerAttemptsAfter=
+                peerOut.attempts();
+            boolean rejected=false;
+
+            try{
+                SharedNpcWorldRelay
+                    .preflightRegistration(
+                        peerWriter,
+                        world,
+                        peer
+                    );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                rejected=
+                    expected.owner==peer&&
+                    expected.writer==peerWriter;
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "terminal competing-root peer writer was resurrectable"
+                );
+
+            if(peerOut.attempts()!=
+                    peerAttemptsAfter)
+                throw new AssertionError(
+                    "terminal competing-root preflight retouched peer writer"
+                );
+        }finally{
+            peerOut.disableFailure();
+
+            TradeService.unregister(
+                current
+            );
+            TradeService.unregister(
+                peer
+            );
+            SharedNpcWorldRelay.unregister(
+                currentWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                peerWriter
+            );
+            Player81WorldSync.unregister(
+                currentWriter
+            );
+            Player81WorldSync.unregister(
+                peerWriter
+            );
+
+            if(current.registered())
+                world.unregisterPlayer(
+                    current,
+                    currentGeneration
+                );
+            if(peer.registered())
+                world.unregisterPlayer(
+                    peer,
+                    peerGeneration
                 );
 
             world.close();
