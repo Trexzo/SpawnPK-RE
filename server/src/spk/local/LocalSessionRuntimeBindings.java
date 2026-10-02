@@ -88,6 +88,17 @@ final class LocalSessionRuntimeBindings {
                     bindingStarted[0]=true;
 
                     /*
+                     * A retained terminal SharedNpc sentinel represents a
+                     * writer whose transport progress is unknowable. Reject it
+                     * before S2C104 preparation can touch that writer again.
+                     */
+                    SharedNpcWorldRelay.preflightRegistration(
+                        serverPackets,
+                        world,
+                        worldPlayer
+                    );
+
+                    /*
                      * Publish any required exact S2C104 option state while the
                      * old runtime bundle is still authoritative. Queue-backed
                      * rejection is retractable and therefore cannot destroy an
