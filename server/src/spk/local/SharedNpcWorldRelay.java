@@ -473,11 +473,31 @@ final class SharedNpcWorldRelay {
                 if(target==null)
                     continue;
 
-                viewer.npcs.sendMaskLocal(
-                    target,
-                    event.mask,
-                    viewer.writer
-                );
+                final ServerPacketWriter.RecoverablePacketResult
+                    publication;
+
+                try{
+                    publication=
+                        viewer.writer
+                            .publishRecoverablePacket(
+                                ()->viewer.npcs
+                                    .sendMaskLocal(
+                                        target,
+                                        event.mask,
+                                        viewer.writer
+                                    )
+                            );
+                }catch(IOException nonRetryable){
+                    viewer.failCloseProjection();
+                    viewer.state.pruneDeadRecipients();
+                    throw nonRetryable;
+                }
+
+                if(publication==
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .RETRACTED_RETRYABLE)
+                    return;
 
                 viewer.state.world
                     .npcPresentationEvents()
