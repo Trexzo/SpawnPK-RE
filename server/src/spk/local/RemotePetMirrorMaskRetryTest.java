@@ -15,7 +15,8 @@ public final class RemotePetMirrorMaskRetryTest {
             "failedMaskDeferred=true "+
             "stableSceneOnRetry=true "+
             "noDuplicateMirror=true "+
-            "deferredMaskRetried=true"
+            "deferredMaskRetried=true "+
+            "deferredMaskFifo=true"
         );
     }
 
@@ -135,6 +136,21 @@ public final class RemotePetMirrorMaskRetryTest {
                     spawn
                 );
 
+            String nativeState=
+                sourceNpcs.setPetNativeState(
+                    1,
+                    sourceWriter
+                );
+
+            if(nativeState==null||
+               !nativeState.startsWith(
+                    "PET_NATIVE_STATE_OK"
+               ))
+                throw new AssertionError(
+                    "source pet native-state setup failed: "+
+                    nativeState
+                );
+
             Player81WorldSync.transformForTest(
                 viewerSync,
                 BootstrapPackets.player81Idle()
@@ -154,7 +170,7 @@ public final class RemotePetMirrorMaskRetryTest {
 
             if(viewerOut.attempts()!=2)
                 throw new AssertionError(
-                    "fixture did not fail on required post-add mask attempts="+
+                    "later mirror mask overtook deferred interaction mask attempts="+
                     viewerOut.attempts()
                 );
 
@@ -198,9 +214,10 @@ public final class RemotePetMirrorMaskRetryTest {
                     after.sceneIndex
                 );
 
-            if(viewerOut.successfulWrites()!=2)
+            if(viewerOut.successfulWrites()!=3||
+               viewerOut.attempts()!=4)
                 throw new AssertionError(
-                    "deferred interaction mask was not retried exactly once successfulWrites="+
+                    "deferred mirror masks were not drained in FIFO order successfulWrites="+
                     viewerOut.successfulWrites()+
                     " attempts="+
                     viewerOut.attempts()
