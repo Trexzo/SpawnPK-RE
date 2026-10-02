@@ -1646,37 +1646,64 @@ final class TradeService {
         Context replacementB
     ){
         if(context==replacementA||
-           context==replacementB||
-           context.world.closed()||
-           !context.ownerCurrent())
+           context==replacementB)
             return;
 
-        try{
-            context.writer.fixed(
-                219,
-                new byte[0]
-            );
-        }catch(IOException failure){
-            /*
-             * The replacement Trade is already committed and the prior Trade
-             * is already detached. A close IOException therefore terminally
-             * poisons only this old peer writer; retire its remaining runtime
-             * authority locally without disturbing the new replacement Trade.
-             */
-            LocalSessionRuntimeBindings
-                .retireTerminalRuntimeBundle(
-                    context.player,
-                    context.writer,
-                    true,
-                    failure
+        IOException terminalFailure=null;
+
+        /*
+         * The new replacement Trade is already committed. Fence this old
+         * peer's close to the exact stored Context + World generation under
+         * only the player mutation lock. Do not acquire World.lifecycleLock
+         * from under TradeService; runtime registration already owns the
+         * opposite World lifecycle -> TradeService order.
+         */
+        synchronized(context.player.mutationLock()){
+            State current=
+                STATES.get(
+                    context.world
                 );
 
-            System.err.println(
-                "[ENGINE-R4] terminal replaced Trade peer close failed; "+
-                "old peer runtime retired: "+
-                failure
+            if(current==null||
+               current.contexts.get(
+                    context.player.id()
+               )!=context||
+               !context.ownerCurrent())
+                return;
+
+            try{
+                context.writer.fixed(
+                    219,
+                    new byte[0]
+                );
+            }catch(IOException failure){
+                terminalFailure=failure;
+            }catch(Throwable ignored){
+                return;
+            }
+        }
+
+        if(terminalFailure==null)
+            return;
+
+        /*
+         * The replacement Trade is already committed and the prior Trade is
+         * already detached. Retire only this terminal old peer after releasing
+         * its mutation lock; never disturb the new replacement Trade.
+         */
+        LocalSessionRuntimeBindings
+            .retireTerminalRuntimeBundle(
+                context.player,
+                context.writer,
+                true,
+                terminalFailure
             );
-        }catch(Throwable ignored){}
+
+        System.err.println(
+            "[ENGINE-R4] terminal replaced Trade peer close failed; "+
+            "old peer runtime retired: "+
+            terminalFailure
+        );
     }
 
     private static void publishCurrentStageFor(
