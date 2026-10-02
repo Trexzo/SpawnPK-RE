@@ -1214,10 +1214,12 @@ final class SharedNpcWorldRelay {
             }
 
             try{
-                npcs.sendMaskLocal(
-                    npc,
-                    mask,
-                    writer
+                writer.publishRecoverablePacket(
+                    ()->npcs.sendMaskLocal(
+                        npc,
+                        mask,
+                        writer
+                    )
                 );
             }catch(IOException failure){
                 pendingMirrorMasks.addLast(
