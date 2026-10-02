@@ -365,48 +365,79 @@ final class TradeService {
                                 false,
                                 false
                             };
+                            Context[] packetPublicationFailure={
+                                null
+                            };
 
                             try{
                                 ca.rootOwner.publish(
                                     ()->{
                                         rootPublicationEntered[0]=true;
-                                        publishFirstFor(t,ca);
-                                        ca.writer.varShort(
-                                            126,
-                                            BootstrapPackets.widgetText126(
-                                                STATUS_TEXT,
-                                                ""
-                                            )
-                                        );
+                                        try{
+                                            publishFirstFor(t,ca);
+                                            ca.writer.varShort(
+                                                126,
+                                                BootstrapPackets.widgetText126(
+                                                    STATUS_TEXT,
+                                                    ""
+                                                )
+                                            );
+                                        }catch(IOException failure){
+                                            packetPublicationFailure[0]=ca;
+                                            throw failure;
+                                        }
                                     }
                                 );
 
                                 cb.rootOwner.publish(
                                     ()->{
                                         rootPublicationEntered[1]=true;
-                                        publishFirstFor(t,cb);
-                                        cb.writer.varShort(
-                                            126,
-                                            BootstrapPackets.widgetText126(
-                                                STATUS_TEXT,
-                                                ""
-                                            )
-                                        );
+                                        try{
+                                            publishFirstFor(t,cb);
+                                            cb.writer.varShort(
+                                                126,
+                                                BootstrapPackets.widgetText126(
+                                                    STATUS_TEXT,
+                                                    ""
+                                                )
+                                            );
+                                        }catch(IOException failure){
+                                            packetPublicationFailure[0]=cb;
+                                            throw failure;
+                                        }
                                     }
                                 );
                             }catch(IOException failure){
-                                restoreOrCloseEnteredTradeRootAfterStartFailure(
-                                    ca,
-                                    rootPublicationEntered[0],
-                                    priorA,
-                                    failure
-                                );
-                                restoreOrCloseEnteredTradeRootAfterStartFailure(
-                                    cb,
-                                    rootPublicationEntered[1],
-                                    priorB,
-                                    failure
-                                );
+                                if(packetPublicationFailure[0]!=null)
+                                    retireTerminalStartRootPublicationFailure(
+                                        packetPublicationFailure[0],
+                                        ca,
+                                        cb,
+                                        priorA,
+                                        priorB,
+                                        rootPublicationEntered,
+                                        failure
+                                    );
+                                else{
+                                    /*
+                                     * RootOwner itself may fail after the
+                                     * packet action completed. That does not
+                                     * prove either transport terminal, so keep
+                                     * the established reversible rollback.
+                                     */
+                                    restoreOrCloseEnteredTradeRootAfterStartFailure(
+                                        ca,
+                                        rootPublicationEntered[0],
+                                        priorA,
+                                        failure
+                                    );
+                                    restoreOrCloseEnteredTradeRootAfterStartFailure(
+                                        cb,
+                                        rootPublicationEntered[1],
+                                        priorB,
+                                        failure
+                                    );
+                                }
                                 throw failure;
                             }catch(RuntimeException failure){
                                 restoreOrCloseEnteredTradeRootAfterStartFailure(
@@ -1421,6 +1452,66 @@ final class TradeService {
         // 3557/3558 are only empty-list fallback labels; never overlay helper text.
         c.writer.varShort(126,BootstrapPackets.widgetText126(3557,give[0].length==0?"Absolutely nothing!":""));
         c.writer.varShort(126,BootstrapPackets.widgetText126(3558,recv[0].length==0?"Absolutely nothing!":""));
+    }
+
+    private static void retireTerminalStartRootPublicationFailure(
+        Context failed,
+        Context a,
+        Context b,
+        Trade priorA,
+        Trade priorB,
+        boolean[] entered,
+        IOException failure
+    ){
+        Trade failedPrior=
+            failed==a
+                ?priorA
+                :priorB;
+        Context other=
+            failed==a
+                ?b
+                :a;
+        Trade otherPrior=
+            failed==a
+                ?priorB
+                :priorA;
+        boolean otherEntered=
+            failed==a
+                ?entered[1]
+                :entered[0];
+
+        /*
+         * Retire the exact transport that failed inside packet publication.
+         * If it belonged to a prior Trade, broken-writer retirement detaches
+         * that Trade and closes only its distinct healthy peer.
+         */
+        LocalSessionRuntimeBindings
+            .retireTerminalRuntimeBundle(
+                failed.player,
+                failed.writer,
+                true,
+                failure
+            );
+
+        if(!otherEntered)
+            return;
+
+        /*
+         * If both participants shared the failed writer's prior Trade, its
+         * terminal retirement already closed the other participant exactly
+         * once. Otherwise the other entered root still needs its own reversible
+         * restore/close rollback.
+         */
+        if(failedPrior!=null&&
+           otherPrior==failedPrior)
+            return;
+
+        restoreOrCloseEnteredTradeRootAfterStartFailure(
+            other,
+            true,
+            otherPrior,
+            failure
+        );
     }
 
     private static void restoreOrCloseEnteredTradeRootAfterStartFailure(
