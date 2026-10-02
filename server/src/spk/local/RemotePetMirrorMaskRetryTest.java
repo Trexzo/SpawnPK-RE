@@ -15,7 +15,10 @@ public final class RemotePetMirrorMaskRetryTest {
             "failedMaskDeferred=true "+
             "stableSceneOnRetry=true "+
             "noDuplicateMirror=true "+
-            "deferredMaskRetried=true"
+            "deferredMaskRetried=true "+
+            "deferredMaskBlocksLaterProjection=true "+
+            "fifoDrainsBeforeMiniProjection=true "+
+            "nativeMaskOrderedAfterDeferredInteraction=true"
         );
     }
 
@@ -135,6 +138,47 @@ public final class RemotePetMirrorMaskRetryTest {
                     spawn
                 );
 
+            String nativeState=
+                sourceNpcs.setPetNativeState(
+                    1,
+                    sourceWriter
+                );
+
+            if(nativeState==null||
+               !nativeState.startsWith(
+                    "PET_NATIVE_STATE_OK"
+               ))
+                throw new AssertionError(
+                    "source native-state setup failed: "+
+                    nativeState
+                );
+
+            MiniPetDefinitionRepository.Def mini=
+                MiniPetDefinitionRepository.get(
+                    22088
+                );
+
+            if(mini==null)
+                throw new AssertionError(
+                    "missing mini pet 22088"
+                );
+
+            String miniSpawn=
+                sourceNpcs.spawnOrReplaceMiniPet(
+                    mini,
+                    source.movement(),
+                    sourceWriter
+                );
+
+            if(miniSpawn==null||
+               !miniSpawn.startsWith(
+                    "MINIPET_SPAWN_OK"
+               ))
+                throw new AssertionError(
+                    "source mini-pet setup failed: "+
+                    miniSpawn
+                );
+
             Player81WorldSync.transformForTest(
                 viewerSync,
                 BootstrapPackets.player81Idle()
@@ -166,7 +210,7 @@ public final class RemotePetMirrorMaskRetryTest {
 
             if(viewerNpcs.snapshot().size()!=1)
                 throw new AssertionError(
-                    "post-add mask failure did not leave exactly one authoritative mirror size="+
+                    "deferred main mask allowed later mini/canonical projection size="+
                     viewerNpcs.snapshot().size()
                 );
 
@@ -181,28 +225,39 @@ public final class RemotePetMirrorMaskRetryTest {
                 viewerWriter
             );
 
-            if(viewerNpcs.snapshot().size()!=1)
+            if(viewerNpcs.snapshot().size()!=2)
                 throw new AssertionError(
-                    "mask retry spawned duplicate mirror size="+
+                    "retry did not drain deferred main mask before resuming mini projection size="+
                     viewerNpcs.snapshot().size()
                 );
 
             NpcEntity after=
-                viewerNpcs.snapshot().get(0);
+                null;
 
-            if(after.sceneIndex!=scene)
+            for(NpcEntity npc:
+                    viewerNpcs.snapshot())
+                if(npc.sceneIndex==scene){
+                    after=npc;
+                    break;
+                }
+
+            if(after==null)
                 throw new AssertionError(
-                    "mask retry changed mirror scene old="+
-                    scene+
-                    " new="+
-                    after.sceneIndex
+                    "mask retry changed or lost stable main mirror scene="+
+                    scene
                 );
 
-            if(viewerOut.successfulWrites()!=2)
+            if(viewerOut.successfulWrites()!=6)
                 throw new AssertionError(
-                    "deferred interaction mask was not retried exactly once successfulWrites="+
+                    "retry packet order/count mismatch expected main-mask/native-mask/mini-add/mini-masks after initial add successes="+
                     viewerOut.successfulWrites()+
                     " attempts="+
+                    viewerOut.attempts()
+                );
+
+            if(viewerOut.attempts()!=7)
+                throw new AssertionError(
+                    "retry did not consume exactly one failed write plus ordered follow-up packets attempts="+
                     viewerOut.attempts()
                 );
 
@@ -213,9 +268,9 @@ public final class RemotePetMirrorMaskRetryTest {
                 viewerWriter
             );
 
-            if(viewerNpcs.snapshot().size()!=1)
+            if(viewerNpcs.snapshot().size()!=2)
                 throw new AssertionError(
-                    "steady-state sync duplicated mirror"
+                    "steady-state sync changed main+mini mirror cardinality"
                 );
 
             if(viewerOut.attempts()!=
