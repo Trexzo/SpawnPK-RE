@@ -1,7 +1,5 @@
 package spk.local;
 
-import java.io.ByteArrayOutputStream;
-
 public final class TradeServiceGenerationOwnershipFenceTest {
     public static void main(String[] args)throws Exception{
         World world=
@@ -23,10 +21,10 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "trade-generation-b"
             );
 
-        ByteArrayOutputStream oldAOut=
-            new ByteArrayOutputStream();
-        ByteArrayOutputStream bOut=
-            new ByteArrayOutputStream();
+        OutboundPacketQueue oldAOut=
+            new OutboundPacketQueue();
+        OutboundPacketQueue bOut=
+            new OutboundPacketQueue();
 
         ServerPacketWriter oldAWriter=
             writer(oldAOut,1);
@@ -103,9 +101,9 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 );
 
             int oldABytes=
-                oldAOut.size();
+                oldAOut.queuedBytes();
             int bBytesBeforeReplacement=
-                bOut.size();
+                bOut.queuedBytes();
 
             if(TradeService.active(a))
                 throw new AssertionError(
@@ -137,13 +135,13 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "stale context trade start"
             );
 
-            if(oldAOut.size()!=oldABytes)
+            if(oldAOut.queuedBytes()!=oldABytes)
                 throw new AssertionError(
                     "stale generation wrote old writer"
                 );
 
-            ByteArrayOutputStream freshAOut=
-                new ByteArrayOutputStream();
+            OutboundPacketQueue freshAOut=
+                new OutboundPacketQueue();
             freshAWriter=
                 writer(
                     freshAOut,
@@ -159,12 +157,12 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 ()->{}
             );
 
-            if(oldAOut.size()!=oldABytes)
+            if(oldAOut.queuedBytes()!=oldABytes)
                 throw new AssertionError(
                     "replacement registration notified stale writer"
                 );
 
-            if(bOut.size()!=bBytesBeforeReplacement)
+            if(bOut.queuedBytes()!=bBytesBeforeReplacement)
                 throw new AssertionError(
                     "replacement registration notified stale trade peer"
                 );
@@ -273,9 +271,9 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 b.bank().inventoryCount(385);
 
             int freshABytesBeforeStaleCommit=
-                freshAOut.size();
+                freshAOut.queuedBytes();
             int bBytesBeforeStaleCommit=
-                bOut.size();
+                bOut.queuedBytes();
 
             if(!world.unregisterPlayer(
                     a,
@@ -315,9 +313,9 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                     "stale trade mutated inventory"
                 );
 
-            if(freshAOut.size()!=
+            if(freshAOut.queuedBytes()!=
                     freshABytesBeforeStaleCommit||
-               bOut.size()!=
+               bOut.queuedBytes()!=
                     bBytesBeforeStaleCommit)
                 throw new AssertionError(
                     "stale trade cancellation emitted UI output"
@@ -374,7 +372,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
     }
 
     private static ServerPacketWriter writer(
-        ByteArrayOutputStream out,
+        OutboundPacketQueue out,
         int seed
     ){
         return new ServerPacketWriter(
