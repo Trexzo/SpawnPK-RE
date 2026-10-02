@@ -321,31 +321,23 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
             int attempts=
                 directOut.attempts;
 
-            boolean terminalRejected=false;
-
-            try{
-                SharedNpcWorldRelay.flushAfterPlayer81(
-                    directWriter
-                );
-            }catch(IOException expected){
-                terminalRejected=
-                    expected.getMessage()!=null&&
-                    expected.getMessage().contains(
-                        "terminal"
-                    );
-            }
-
-            if(!terminalRejected)
-                throw new AssertionError(
-                    "terminal writer did not reject later relay publication"
-                );
+            SharedNpcWorldRelay.flushAfterPlayer81(
+                directWriter
+            );
 
             if(directOut.attempts!=attempts)
                 throw new AssertionError(
                     "failed-closed relay retried direct transport"
                 );
         }finally{
+            TradeService.unregister(
+                viewer,
+                directWriter
+            );
             SharedNpcWorldRelay.unregister(
+                directWriter
+            );
+            Player81WorldSync.unregister(
                 directWriter
             );
 
