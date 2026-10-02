@@ -26,13 +26,34 @@ public final class SharedNpcRelayContextRetirementLinearizationTest {
             World.isolatedForTest(
                 600L
             );
+        WorldPlayer source=
+            new WorldPlayer();
         WorldPlayer viewer=
             new WorldPlayer();
 
+        long sourceGeneration=
+            world.registerPlayer(
+                source,
+                "relay-context-source"
+            );
         long generation=
             world.registerPlayer(
                 viewer,
                 "relay-context-retirement"
+            );
+
+        OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                sourceQueue,
+                new IsaacCipher(
+                    new int[]{497,498,499,500}
+                )
+            );
+        NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
             );
 
         OutboundPacketQueue queue=
@@ -49,6 +70,13 @@ public final class SharedNpcRelayContextRetirementLinearizationTest {
                 new DevAuthorityWorkbench()
             );
 
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            world,
+            source,
+            sourceNpcs,
+            source.movement()
+        );
         SharedNpcWorldRelay.register(
             writer,
             world,
@@ -111,8 +139,8 @@ public final class SharedNpcRelayContextRetirementLinearizationTest {
                 world.npcPresentationEvents()
                     .enqueueOwned(
                         now,
-                        viewer.id(),
-                        generation,
+                        source.id(),
+                        sourceGeneration,
                         WorldNpcPresentationEvents
                             .Target.scene(
                                 target.sceneIndex,
@@ -305,11 +333,19 @@ public final class SharedNpcRelayContextRetirementLinearizationTest {
             SharedNpcWorldRelay.unregister(
                 writer
             );
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
 
             if(viewer.registered())
                 world.unregisterPlayer(
                     viewer,
                     generation
+                );
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
                 );
 
             world.close();
