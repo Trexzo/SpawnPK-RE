@@ -189,13 +189,22 @@ final class LocalSessionRuntimeBindings {
             primary.addSuppressed(cleanup);
         }
 
-        try{
-            SharedNpcWorldRelay.unregister(
-                writer
-            );
-        }catch(Throwable cleanup){
-            primary.addSuppressed(cleanup);
-        }
+        boolean retainedSharedNpcContext=
+            primary instanceof
+                SharedNpcWorldRelay
+                    .RetryableRegistrationException||
+            primary instanceof
+                SharedNpcWorldRelay
+                    .TerminalRegistrationException;
+
+        if(!retainedSharedNpcContext)
+            try{
+                SharedNpcWorldRelay.unregister(
+                    writer
+                );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
 
         try{
             Player81WorldSync.unregister(
