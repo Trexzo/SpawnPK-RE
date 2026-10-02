@@ -1577,6 +1577,25 @@ final class TradeService {
                     new byte[0]
                 );
             }
+        }catch(IOException cleanup){
+            /*
+             * The original start failure remains primary, but this rollback
+             * publication has now independently made the exact cleanup writer
+             * terminal. Retire its remaining runtime authority without any
+             * further write through that transport, then retain the cleanup
+             * failure as suppressed evidence on the original failure.
+             */
+            LocalSessionRuntimeBindings
+                .retireTerminalRuntimeBundle(
+                    context.player,
+                    context.writer,
+                    true,
+                    cleanup
+                );
+
+            primary.addSuppressed(
+                cleanup
+            );
         }catch(Throwable cleanup){
             primary.addSuppressed(
                 cleanup
