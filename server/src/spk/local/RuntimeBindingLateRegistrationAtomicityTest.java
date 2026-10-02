@@ -309,7 +309,8 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                 "rollbackOnlyOwnsNewLayers=true "+
                 "successfulRetryInstallsFreshBundle=true "+
                 "terminalDirectOptionFailureRetiresBundle=true "+
-                "terminalDirectCleanupNoBrokenWriterRetouch=true"
+                "terminalDirectCleanupNoBrokenWriterRetouch=true "+
+                "terminalDirectSentinelBlocksRetry=true"
             );
         }finally{
             if(pressure!=null)
@@ -483,6 +484,16 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                     "terminal direct fixture lost old Player81 context before failure"
                 );
 
+            Object oldRelayA=
+                relayContextFor(
+                    writerA
+                );
+
+            if(oldRelayA==null)
+                throw new AssertionError(
+                    "terminal direct fixture missing old SharedNpc context"
+                );
+
             int attemptsBeforeTerminal=
                 directA.attempts();
             directA.fail=true;
@@ -501,8 +512,6 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                     expected.owner==a&&
                     expected.writer==writerA;
             }
-
-            directA.fail=false;
 
             if(!terminal)
                 throw new AssertionError(
@@ -532,9 +541,9 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
 
             if(relayContextFor(
                     writerA
-                )!=null)
+                )!=oldRelayA)
                 throw new AssertionError(
-                    "terminal direct failure retained old SharedNpc authority"
+                    "terminal direct failure did not retain exact writer fail-closed sentinel"
                 );
 
             if(TradeService.active(a)||
@@ -542,6 +551,36 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                 throw new AssertionError(
                     "terminal direct failure retained old live Trade"
                 );
+
+            int attemptsAfterTerminal=
+                directA.attempts();
+            boolean retryRejected=false;
+
+            try{
+                bindings.register(
+                    writerA,
+                    "[terminal-options-retry] ",
+                    generationA
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                retryRejected=
+                    expected.owner==a&&
+                    expected.writer==writerA;
+            }
+
+            if(!retryRejected)
+                throw new AssertionError(
+                    "terminal direct writer was resurrected after retained sentinel"
+                );
+
+            if(directA.attempts()!=
+                    attemptsAfterTerminal)
+                throw new AssertionError(
+                    "terminal direct retry touched broken writer"
+                );
+
+            directA.fail=false;
         }finally{
             directA.fail=false;
 
