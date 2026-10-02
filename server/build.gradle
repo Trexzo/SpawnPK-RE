@@ -6390,3 +6390,18 @@ tasks.named('check') {
     dependsOn tasks.named('npcPresentationDeliveryTransportRetractabilityRegression')
 }
 
+
+
+tasks.register('sharedNpcRebindCleanupRetryRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves retractable SharedNpc rebind cleanup preserves the old context and mirror authority until cleanup commits.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.SharedNpcRebindCleanupRetryTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('sharedNpcRebindCleanupRetryRegression')
+}
