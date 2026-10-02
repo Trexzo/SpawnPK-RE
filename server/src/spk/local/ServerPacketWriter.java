@@ -401,8 +401,15 @@ final class ServerPacketWriter {
                     "packet-81 owner stale before unbatched joint commit"
                 );
 
-            SharedNpcWorldRelay
-                .flushAfterPlayer81(this);
+            try{
+                SharedNpcWorldRelay
+                    .flushAfterPlayer81(this);
+            }catch(Throwable relayFailure){
+                System.err.println(
+                    "[ENGINE-R3] committed unbatched packet81 relay flush failed: "+
+                    relayFailure
+                );
+            }
             return;
             }finally{
                 synchronized(this){
