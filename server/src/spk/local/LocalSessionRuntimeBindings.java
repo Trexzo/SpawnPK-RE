@@ -264,10 +264,30 @@ final class LocalSessionRuntimeBindings {
             return;
 
         try{
-            TradeService.retireBrokenWriter(
-                failedOwner,
-                failedWriter
-            );
+            TradeService.BrokenWriterRetirement tradeRetirement=
+                TradeService.retireBrokenWriter(
+                    failedOwner,
+                    failedWriter
+                );
+
+            if(tradeRetirement.terminalPeer()){
+                if(tradeRetirement.peerFailure!=null)
+                    primary.addSuppressed(
+                        tradeRetirement.peerFailure
+                    );
+
+                /*
+                 * The Trade was already detached exactly once before the peer
+                 * close was attempted. Retiring the peer therefore cannot
+                 * publish a close back toward the original broken writer.
+                 */
+                retireTerminalRuntimeBundle(
+                    tradeRetirement.peerOwner,
+                    tradeRetirement.peerWriter,
+                    true,
+                    primary
+                );
+            }
         }catch(Throwable cleanup){
             primary.addSuppressed(cleanup);
         }
