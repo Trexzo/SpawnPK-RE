@@ -18,6 +18,7 @@ public final class RemotePetMirrorMaskRetryTest {
         assertDeferredMasksPreserveFifoOrder();
         assertDeferredMaskBlocksLaterProjection();
         assertDirectTransportFailureFailsClosed();
+        assertTerminalQueueIsNotRetryable();
 
         System.out.println(
             "REMOTE_PET_MIRROR_MASK_RETRY_PASS "+
@@ -34,7 +35,8 @@ public final class RemotePetMirrorMaskRetryTest {
             "deferredMaskBlocksLaterProjection=true "+
             "nativeMaskPreserved=true "+
             "miniProjectionWaitsForDrain=true "+
-            "directTransportFailClosed=true"
+            "directTransportFailClosed=true "+
+            "terminalQueueNotRetryable=true"
         );
     }
 
@@ -686,6 +688,56 @@ public final class RemotePetMirrorMaskRetryTest {
 
             world.close();
         }
+    }
+
+    private static void assertTerminalQueueIsNotRetryable()
+        throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+
+        boolean poisoned=false;
+
+        try{
+            queue.offer(
+                new byte[QUEUE_CAPACITY+1]
+            );
+        }catch(IOException expected){
+            poisoned=true;
+        }
+
+        if(!poisoned||!queue.overflowed())
+            throw new AssertionError(
+                "terminal queue fixture did not poison queue"
+            );
+
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+
+        boolean terminal=false;
+
+        try{
+            writer.publishRecoverablePacket(
+                ()->writer.varShort(
+                    65,
+                    new byte[]{1,2,3}
+                )
+            );
+        }catch(IOException expected){
+            terminal=true;
+        }
+
+        if(!terminal)
+            throw new AssertionError(
+                "already-overflowed queue was classified retractable"
+            );
     }
 
     private static OutboundPacketQueue.BatchReservation
