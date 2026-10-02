@@ -6303,3 +6303,18 @@ tasks.register('player81NoContextLinearizationRegression', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('player81NoContextLinearizationRegression')
 }
+
+
+tasks.register('player81PreparedTransformFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves prepared packet81 transform failures are terminal and cannot fall back to local-only bytes.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81PreparedTransformFailureTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81PreparedTransformFailureRegression')
+}
