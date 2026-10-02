@@ -211,34 +211,56 @@ final class TradeService {
                 detach(s,trade);
 
                 if(peer!=null&&
-                   peer.writer!=writer&&
-                   !peer.world.closed()&&
-                   peer.ownerCurrent()){
-                    peerOwner=peer.player;
-                    peerWriter=peer.writer;
+                   peer.writer!=writer){
+                    /*
+                     * The peer generation can change independently of the
+                     * TradeService monitor. Fence the recoverable close under
+                     * the peer mutation lock and revalidate exact Context
+                     * identity + generation at the publication boundary.
+                     *
+                     * Do not acquire World.lifecycleLock here: runtime binding
+                     * registration already orders World lifecycle ->
+                     * TradeService, so reversing that order would deadlock.
+                     */
+                    synchronized(peer.player.mutationLock()){
+                        State peerState=
+                            STATES.get(
+                                peer.world
+                            );
 
-                    try{
-                        ServerPacketWriter.RecoverablePacketResult result=
-                            peer.writer
-                                .publishRecoverablePacketIfIdle(
-                                    ()->peer.writer.fixed(
-                                        219,
-                                        new byte[0]
-                                    )
-                                );
+                        if(peerState==null||
+                           peerState.contexts.get(
+                                peer.player.id()
+                           )!=peer||
+                           !peer.ownerCurrent())
+                            continue;
 
-                        peerClose=
-                            result==
-                                ServerPacketWriter
-                                    .RecoverablePacketResult
-                                    .COMMITTED
-                                ?BrokenWriterPeerClose.COMMITTED
-                                :BrokenWriterPeerClose
-                                    .RETRACTED_RETRYABLE;
-                    }catch(IOException failure){
-                        peerClose=
-                            BrokenWriterPeerClose.TERMINAL;
-                        peerFailure=failure;
+                        peerOwner=peer.player;
+                        peerWriter=peer.writer;
+
+                        try{
+                            ServerPacketWriter.RecoverablePacketResult result=
+                                peer.writer
+                                    .publishRecoverablePacketIfIdle(
+                                        ()->peer.writer.fixed(
+                                            219,
+                                            new byte[0]
+                                        )
+                                    );
+
+                            peerClose=
+                                result==
+                                    ServerPacketWriter
+                                        .RecoverablePacketResult
+                                        .COMMITTED
+                                    ?BrokenWriterPeerClose.COMMITTED
+                                    :BrokenWriterPeerClose
+                                        .RETRACTED_RETRYABLE;
+                        }catch(IOException failure){
+                            peerClose=
+                                BrokenWriterPeerClose.TERMINAL;
+                            peerFailure=failure;
+                        }
                     }
                 }
             }else{
