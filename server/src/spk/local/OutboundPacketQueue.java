@@ -181,6 +181,28 @@ final class OutboundPacketQueue {
         bytes+=data.length;
     }
 
+    synchronized boolean tryOfferBatch(
+        byte[] data
+    )throws IOException{
+        if(data==null||data.length==0)
+            return true;
+
+        if(overflowed)
+            throw new IOException(
+                "outbound queue already overflowed"
+            );
+
+        if(bytes+reservedBytes+data.length>
+                maxBytes)
+            return false;
+
+        q.addLast(
+            data.clone()
+        );
+        bytes+=data.length;
+        return true;
+    }
+
     static BatchReservation reserveBatch(
         OutboundPacketQueue queue,
         int bytes
