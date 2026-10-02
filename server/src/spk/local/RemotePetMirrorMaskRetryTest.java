@@ -19,6 +19,8 @@ public final class RemotePetMirrorMaskRetryTest {
         assertDeferredMaskBlocksLaterProjection();
         assertDirectTransportFailureFailsClosed();
         assertTerminalQueueIsNotRetryable();
+        assertMirrorAddMoveRemoveRetractable();
+        assertRelayRemovalTrackSurvivesRetraction();
 
         System.out.println(
             "REMOTE_PET_MIRROR_MASK_RETRY_PASS "+
@@ -36,7 +38,11 @@ public final class RemotePetMirrorMaskRetryTest {
             "nativeMaskPreserved=true "+
             "miniProjectionWaitsForDrain=true "+
             "directTransportFailClosed=true "+
-            "terminalQueueNotRetryable=true"
+            "terminalQueueNotRetryable=true "+
+            "mirrorAddRetryRetracted=true "+
+            "mirrorMoveRetryRetracted=true "+
+            "mirrorRemoveRetryRetracted=true "+
+            "relayRemovalTrackRetryPreserved=true"
         );
     }
 
@@ -687,6 +693,341 @@ public final class RemotePetMirrorMaskRetryTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static void assertMirrorAddMoveRemoveRetractable()
+        throws Exception
+    {
+        WorldPlayer viewer=
+            new WorldPlayer();
+        MovementState movement=
+            viewer.movement();
+
+        OutboundPacketQueue retryQueue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+        OutboundPacketQueue cleanQueue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+
+        ServerPacketWriter retryWriter=
+            new ServerPacketWriter(
+                retryQueue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        ServerPacketWriter cleanWriter=
+            new ServerPacketWriter(
+                cleanQueue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+
+        NpcRegistry retryNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry cleanNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        OutboundPacketQueue.BatchReservation addPressure=
+            OutboundPacketQueue.reserveBatch(
+                retryQueue,
+                QUEUE_CAPACITY
+            );
+
+        NpcEntity rejectedAdd=
+            retryNpcs.spawnMirroredNpc(
+                6650,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                retryWriter
+            );
+
+        if(rejectedAdd!=null||
+           retryQueue.queuedBytes()!=0||
+           !retryNpcs.snapshot().isEmpty())
+            throw new AssertionError(
+                "retracted mirror add committed bytes/state"
+            );
+
+        addPressure.release();
+
+        NpcEntity retryNpc=
+            retryNpcs.spawnMirroredNpc(
+                6650,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                retryWriter
+            );
+        NpcEntity cleanNpc=
+            cleanNpcs.spawnMirroredNpc(
+                6650,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                cleanWriter
+            );
+
+        ByteArrayOutputStream retryAdd=
+            new ByteArrayOutputStream();
+        ByteArrayOutputStream cleanAdd=
+            new ByteArrayOutputStream();
+
+        retryQueue.drainTo(
+            retryAdd,
+            Integer.MAX_VALUE
+        );
+        cleanQueue.drainTo(
+            cleanAdd,
+            Integer.MAX_VALUE
+        );
+
+        if(retryNpc==null||
+           cleanNpc==null||
+           !Arrays.equals(
+                retryAdd.toByteArray(),
+                cleanAdd.toByteArray()))
+            throw new AssertionError(
+                "mirror add retry diverged from clean same-seed publication"
+            );
+
+        int nextX=movement.x()+1;
+        int nextY=movement.y();
+        int direction=
+            MovementState.direction(
+                movement.x(),
+                movement.y(),
+                nextX,
+                nextY
+            );
+
+        OutboundPacketQueue.BatchReservation movePressure=
+            OutboundPacketQueue.reserveBatch(
+                retryQueue,
+                QUEUE_CAPACITY
+            );
+
+        ServerPacketWriter.RecoverablePacketResult moveResult=
+            retryNpcs.moveMirroredNpcRetractable(
+                retryNpc,
+                direction,
+                -1,
+                nextX,
+                nextY,
+                retryWriter
+            );
+
+        if(moveResult!=
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .RETRACTED_RETRYABLE||
+           retryNpc.x!=movement.x()||
+           retryNpc.y!=movement.y()||
+           retryQueue.queuedBytes()!=0)
+            throw new AssertionError(
+                "retracted mirror movement committed state/bytes"
+            );
+
+        movePressure.release();
+
+        if(retryNpcs.moveMirroredNpcRetractable(
+                retryNpc,
+                direction,
+                -1,
+                nextX,
+                nextY,
+                retryWriter
+            )!=
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED||
+           cleanNpcs.moveMirroredNpcRetractable(
+                cleanNpc,
+                direction,
+                -1,
+                nextX,
+                nextY,
+                cleanWriter
+            )!=
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED)
+            throw new AssertionError(
+                "mirror movement retry did not commit"
+            );
+
+        ByteArrayOutputStream retryMove=
+            new ByteArrayOutputStream();
+        ByteArrayOutputStream cleanMove=
+            new ByteArrayOutputStream();
+
+        retryQueue.drainTo(
+            retryMove,
+            Integer.MAX_VALUE
+        );
+        cleanQueue.drainTo(
+            cleanMove,
+            Integer.MAX_VALUE
+        );
+
+        if(!Arrays.equals(
+                retryMove.toByteArray(),
+                cleanMove.toByteArray())||
+           retryNpc.x!=nextX||
+           retryNpc.y!=nextY)
+            throw new AssertionError(
+                "mirror movement retry diverged from clean same-seed publication"
+            );
+
+        OutboundPacketQueue.BatchReservation removePressure=
+            OutboundPacketQueue.reserveBatch(
+                retryQueue,
+                QUEUE_CAPACITY
+            );
+
+        ServerPacketWriter.RecoverablePacketResult removeResult=
+            retryNpcs.removeMirroredNpcRetractable(
+                retryNpc.sceneIndex,
+                retryWriter
+            );
+
+        if(removeResult!=
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .RETRACTED_RETRYABLE||
+           retryNpcs.snapshot().size()!=1||
+           retryQueue.queuedBytes()!=0)
+            throw new AssertionError(
+                "retracted mirror removal committed state/bytes"
+            );
+
+        removePressure.release();
+
+        if(retryNpcs.removeMirroredNpcRetractable(
+                retryNpc.sceneIndex,
+                retryWriter
+            )!=
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED||
+           cleanNpcs.removeMirroredNpcRetractable(
+                cleanNpc.sceneIndex,
+                cleanWriter
+            )!=
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED)
+            throw new AssertionError(
+                "mirror removal retry did not commit"
+            );
+
+        ByteArrayOutputStream retryRemove=
+            new ByteArrayOutputStream();
+        ByteArrayOutputStream cleanRemove=
+            new ByteArrayOutputStream();
+
+        retryQueue.drainTo(
+            retryRemove,
+            Integer.MAX_VALUE
+        );
+        cleanQueue.drainTo(
+            cleanRemove,
+            Integer.MAX_VALUE
+        );
+
+        if(!Arrays.equals(
+                retryRemove.toByteArray(),
+                cleanRemove.toByteArray())||
+           !retryNpcs.snapshot().isEmpty())
+            throw new AssertionError(
+                "mirror removal retry diverged from clean same-seed publication"
+            );
+    }
+
+    private static void assertRelayRemovalTrackSurvivesRetraction()
+        throws Exception
+    {
+        Fixture fixture=
+            new Fixture(
+                "mirror-remove-retry"
+            );
+
+        try{
+            PetDefinitionRepository.Def pet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(pet==null)
+                throw new AssertionError(
+                    "missing pet 24019"
+                );
+
+            fixture.spawnSourcePet(
+                pet
+            );
+            fixture.establishVisibility();
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "removal retry fixture did not create one mirror"
+                );
+
+            fixture.viewerQueue.drainTo(
+                new ByteArrayOutputStream(),
+                Integer.MAX_VALUE
+            );
+
+            SharedNpcWorldRelay.unregister(
+                fixture.sourceWriter
+            );
+
+            OutboundPacketQueue.BatchReservation pressure=
+                OutboundPacketQueue.reserveBatch(
+                    fixture.viewerQueue,
+                    QUEUE_CAPACITY
+                );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerNpcs.snapshot().size()!=1||
+               fixture.viewerQueue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "retracted relay removal lost mirror state or emitted bytes"
+                );
+
+            pressure.release();
+
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(!fixture.viewerNpcs.snapshot().isEmpty()||
+               fixture.viewerQueue.queuedPackets()!=1)
+                throw new AssertionError(
+                    "relay removal retry did not retire stale mirror exactly once"
+                );
+        }finally{
+            fixture.close();
         }
     }
 
