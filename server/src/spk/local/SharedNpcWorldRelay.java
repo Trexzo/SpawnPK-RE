@@ -796,9 +796,6 @@ final class SharedNpcWorldRelay {
                 t.mainCanonicalId=petCanonicalId;
                 t.mainParticleSelector=selector;
 
-                if(!pendingMirrorMasks.isEmpty())
-                    return;
-
                 boolean mainRespawned=
                     mainWasAbsent||
                     mainIdentityChanged||
@@ -879,9 +876,6 @@ final class SharedNpcWorldRelay {
                     t.miniX=miniX;
                     t.miniY=miniY;
                     t.miniCanonicalId=miniCanonicalId;
-
-                    if(!pendingMirrorMasks.isEmpty())
-                        return;
 
                     if(t.miniScene>=0&&
                        (mainRespawned||
