@@ -2055,11 +2055,11 @@ tasks.register('currentTrainFocusedRegression') {
 
 tasks.register('diagLocalSessionRuntimeBindingsFailureAtomicity', JavaExec) {
     group = 'verification'
-    description = 'TEMPORARY Chat 2+3 diagnostic: runs only focused manifest test 47.'
+    description = 'TEMPORARY Chat 2+3 diagnostic: runs only focused manifest test 48.'
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
-    mainClass.set('spk.local.LocalSessionRuntimeBindingsFailureAtomicityTest')
+    mainClass.set('spk.local.RelayOwnerWriterRebindCleanupTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
