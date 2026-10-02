@@ -27,6 +27,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         assertTerminalConfirmPublicationWriterIsNotRetouched();
         assertTerminalStartRootWriterIsNotRetouched();
         assertTerminalTradeXPromptWriterIsNotRetouched();
+        assertTerminalStartRollbackWriterIsRetired();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
         System.out.println(
@@ -56,6 +57,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalTradeOfferXWriterRetired=true "+
             "terminalTradeRemoveXWriterRetired=true "+
             "terminalTradeXHealthyPeerClosed=true "+
+            "terminalStartRollbackWriterRetired=true "+
+            "terminalStartRollbackPrimaryPreserved=true "+
             "terminalOldOwnerWriterExact=true "+
             "attemptedNewWriterNotRetired=true"
         );
@@ -2981,6 +2984,287 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 world.unregisterPlayer(
                     healthy,
                     healthyGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertTerminalStartRollbackWriterIsRetired()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                711L
+            );
+        WorldPlayer rollbackFailed=
+            new WorldPlayer();
+        WorldPlayer ownerFailed=
+            new WorldPlayer();
+
+        long rollbackGeneration=
+            world.registerPlayer(
+                rollbackFailed,
+                "binding-start-rollback-failed"
+            );
+        long ownerGeneration=
+            world.registerPlayer(
+                ownerFailed,
+                "binding-start-owner-failed"
+            );
+
+        DevAuthorityWorkbench rollbackDev=
+            new DevAuthorityWorkbench();
+        DevAuthorityWorkbench ownerDev=
+            new DevAuthorityWorkbench();
+        NpcRegistry rollbackNpcs=
+            new NpcRegistry(
+                rollbackDev
+            );
+        NpcRegistry ownerNpcs=
+            new NpcRegistry(
+                ownerDev
+            );
+
+        SwitchablePrefixFailOutputStream rollbackOut=
+            new SwitchablePrefixFailOutputStream();
+        SwitchablePrefixFailOutputStream ownerOut=
+            new SwitchablePrefixFailOutputStream();
+
+        ServerPacketWriter rollbackWriter=
+            new ServerPacketWriter(
+                rollbackOut,
+                new IsaacCipher(
+                    new int[]{1211,1212,1213,1214}
+                )
+            );
+        ServerPacketWriter ownerWriter=
+            new ServerPacketWriter(
+                ownerOut,
+                new IsaacCipher(
+                    new int[]{1215,1216,1217,1218}
+                )
+            );
+
+        Player81WorldSync.register(
+            rollbackWriter,
+            world,
+            rollbackFailed,
+            rollbackDev
+        );
+        Player81WorldSync.Context ownerSync=
+            Player81WorldSync.register(
+                ownerWriter,
+                world,
+                ownerFailed,
+                ownerDev
+            );
+
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
+        SharedNpcWorldRelay.register(
+            rollbackWriter,
+            world,
+            rollbackFailed,
+            rollbackNpcs,
+            rollbackFailed.movement()
+        );
+        SharedNpcWorldRelay.register(
+            ownerWriter,
+            world,
+            ownerFailed,
+            ownerNpcs,
+            ownerFailed.movement()
+        );
+
+        TradeService.register(
+            world,
+            rollbackFailed,
+            rollbackGeneration,
+            rollbackFailed.bank(),
+            rollbackWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            ownerFailed,
+            ownerGeneration,
+            ownerFailed.bank(),
+            ownerWriter,
+            ()->{},
+            action->{
+                action.publish();
+                rollbackOut.enableFailure();
+                throw new IOException(
+                    "EXPECTED_START_OWNER_WRAPPER_FAILURE"
+                );
+            }
+        );
+
+        try{
+            Object rollbackRelay=
+                relayContextFor(
+                    rollbackWriter
+                );
+            Object ownerRelay=
+                relayContextFor(
+                    ownerWriter
+                );
+            int rollbackAttemptsBefore=
+                rollbackOut.attempts();
+            int ownerAttemptsBefore=
+                ownerOut.attempts();
+
+            IOException primary=null;
+
+            try{
+                TradeService.start(
+                    world,
+                    rollbackFailed,
+                    ownerFailed
+                );
+            }catch(IOException expected){
+                primary=expected;
+            }
+
+            if(primary==null||
+               !"EXPECTED_START_OWNER_WRAPPER_FAILURE"
+                    .equals(
+                        primary.getMessage()
+                    ))
+                throw new AssertionError(
+                    "start rollback did not preserve owner-wrapper primary failure"
+                );
+
+            boolean cleanupSuppressed=false;
+            for(Throwable suppressed:
+                    primary.getSuppressed())
+                if("EXPECTED_RUNTIME_BINDING_TERMINAL_PREFIX_FAILURE"
+                        .equals(
+                            suppressed.getMessage()
+                        )){
+                    cleanupSuppressed=true;
+                    break;
+                }
+
+            if(!cleanupSuppressed)
+                throw new AssertionError(
+                    "terminal rollback cleanup failure not suppressed on primary"
+                );
+
+            if(rollbackOut.attempts()!=
+                    rollbackAttemptsBefore+7)
+                throw new AssertionError(
+                    "rollback-failed writer attempts expected six start packets plus one failed cleanup before="+
+                    rollbackAttemptsBefore+
+                    " after="+
+                    rollbackOut.attempts()
+                );
+
+            if(ownerOut.attempts()!=
+                    ownerAttemptsBefore+7)
+                throw new AssertionError(
+                    "owner-failed healthy writer expected six start packets plus one rollback close before="+
+                    ownerAttemptsBefore+
+                    " after="+
+                    ownerOut.attempts()
+                );
+
+            if(TradeService.active(
+                    rollbackFailed
+                )||
+               TradeService.active(
+                    ownerFailed
+               ))
+                throw new AssertionError(
+                    "start rollback failure retained live Trade"
+                );
+
+            if(player81ContextFor(
+                    rollbackWriter
+                )!=null)
+                throw new AssertionError(
+                    "start rollback terminal writer retained Player81 authority"
+                );
+
+            if(relayContextFor(
+                    rollbackWriter
+                )!=rollbackRelay)
+                throw new AssertionError(
+                    "start rollback terminal SharedNpc sentinel changed"
+                );
+
+            if(player81ContextFor(
+                    ownerWriter
+                )!=ownerSync||
+               relayContextFor(
+                    ownerWriter
+                )!=ownerRelay)
+                throw new AssertionError(
+                    "start rollback terminal failure retired healthy owner writer"
+                );
+
+            int rollbackAttemptsAfter=
+                rollbackOut.attempts();
+            boolean rejected=false;
+
+            try{
+                SharedNpcWorldRelay
+                    .preflightRegistration(
+                        rollbackWriter,
+                        world,
+                        rollbackFailed
+                    );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                rejected=
+                    expected.owner==rollbackFailed&&
+                    expected.writer==rollbackWriter;
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "start rollback terminal writer was resurrectable"
+                );
+
+            if(rollbackOut.attempts()!=
+                    rollbackAttemptsAfter)
+                throw new AssertionError(
+                    "start rollback terminal preflight retouched writer"
+                );
+        }finally{
+            rollbackOut.disableFailure();
+
+            TradeService.unregister(
+                rollbackFailed
+            );
+            TradeService.unregister(
+                ownerFailed
+            );
+            SharedNpcWorldRelay.unregister(
+                rollbackWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                ownerWriter
+            );
+            Player81WorldSync.unregister(
+                rollbackWriter
+            );
+            Player81WorldSync.unregister(
+                ownerWriter
+            );
+
+            if(rollbackFailed.registered())
+                world.unregisterPlayer(
+                    rollbackFailed,
+                    rollbackGeneration
+                );
+            if(ownerFailed.registered())
+                world.unregisterPlayer(
+                    ownerFailed,
+                    ownerGeneration
                 );
 
             world.close();
