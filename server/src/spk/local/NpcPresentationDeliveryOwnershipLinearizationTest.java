@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -15,6 +16,8 @@ public final class NpcPresentationDeliveryOwnershipLinearizationTest {
         proveOwnershipAdmissionBlocksUnregister(
             world
         );
+        proveRecoverableEventMaskRetry();
+        proveDirectEventMaskFailureConsumesRetryDebt();
 
         WorldPlayer viewer=
             new WorldPlayer();
@@ -336,7 +339,10 @@ public final class NpcPresentationDeliveryOwnershipLinearizationTest {
                 "matchingSettlementAccepted=true "+
                 "currentFlushDelivered=true "+
                 "staleFlushRejected=true "+
-                "replacementFlushDelivered=true"
+                "replacementFlushDelivered=true "+
+                "eventMaskRetryCipherRewound=true "+
+                "eventMaskQueueFailurePending=true "+
+                "eventMaskDirectFailureDebtConsumed=true"
             );
 
             world.unregisterPlayer(
@@ -360,6 +366,433 @@ public final class NpcPresentationDeliveryOwnershipLinearizationTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static void proveRecoverableEventMaskRetry()
+        throws Exception
+    {
+        World retryWorld=
+            World.isolatedForTest(601L);
+        World cleanWorld=
+            World.isolatedForTest(602L);
+        WorldPlayer retryViewer=
+            new WorldPlayer();
+        WorldPlayer cleanViewer=
+            new WorldPlayer();
+
+        long retryGeneration=
+            retryWorld.registerPlayer(
+                retryViewer,
+                "event-mask-retry"
+            );
+        long cleanGeneration=
+            cleanWorld.registerPlayer(
+                cleanViewer,
+                "event-mask-clean"
+            );
+
+        OutboundPacketQueue retryQueue=
+            new OutboundPacketQueue(1024);
+        OutboundPacketQueue cleanQueue=
+            new OutboundPacketQueue(1024);
+        int[] seed=
+            new int[]{31,32,33,34};
+
+        ServerPacketWriter retryWriter=
+            new ServerPacketWriter(
+                retryQueue,
+                new IsaacCipher(seed.clone())
+            );
+        ServerPacketWriter cleanWriter=
+            new ServerPacketWriter(
+                cleanQueue,
+                new IsaacCipher(seed.clone())
+            );
+
+        NpcRegistry retryNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry cleanNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        try{
+            String retrySpawn=
+                retryNpcs.devSpawnNpc(
+                    1488,
+                    0,
+                    0,
+                    retryViewer.movement(),
+                    retryWriter
+                );
+            String cleanSpawn=
+                cleanNpcs.devSpawnNpc(
+                    1488,
+                    0,
+                    0,
+                    cleanViewer.movement(),
+                    cleanWriter
+                );
+
+            if(!retrySpawn.startsWith(
+                    "DEV_NPC_SPAWN_OK")||
+               !cleanSpawn.startsWith(
+                    "DEV_NPC_SPAWN_OK"))
+                throw new AssertionError(
+                    "event mask retry fixture spawn failed"
+                );
+
+            ByteArrayOutputStream retryInitial=
+                new ByteArrayOutputStream();
+            ByteArrayOutputStream cleanInitial=
+                new ByteArrayOutputStream();
+
+            retryQueue.drainTo(
+                retryInitial,
+                Integer.MAX_VALUE
+            );
+            cleanQueue.drainTo(
+                cleanInitial,
+                Integer.MAX_VALUE
+            );
+
+            if(!Arrays.equals(
+                    retryInitial.toByteArray(),
+                    cleanInitial.toByteArray()))
+                throw new AssertionError(
+                    "event mask fixture initial bytes diverged"
+                );
+
+            NpcEntity retryTarget=
+                onlyNpc(retryNpcs.snapshot());
+            NpcEntity cleanTarget=
+                onlyNpc(cleanNpcs.snapshot());
+
+            SharedNpcWorldRelay.register(
+                retryWriter,
+                retryWorld,
+                retryViewer,
+                retryNpcs,
+                retryViewer.movement()
+            );
+            SharedNpcWorldRelay.register(
+                cleanWriter,
+                cleanWorld,
+                cleanViewer,
+                cleanNpcs,
+                cleanViewer.movement()
+            );
+
+            long retryNow=
+                System.currentTimeMillis();
+            long cleanNow=
+                retryNow;
+
+            retryWorld.npcPresentationEvents()
+                .enqueueOwned(
+                    retryNow,
+                    EntityId.next(),
+                    WorldNpcPresentationEvents.Target.scene(
+                        retryTarget.sceneIndex,
+                        retryTarget.definitionId
+                    ),
+                    NpcSyncEncoder.Mask.forceText(
+                        "retractable-event"
+                    ),
+                    0L,
+                    recipients(
+                        retryViewer.id(),
+                        retryGeneration
+                    )
+                );
+
+            cleanWorld.npcPresentationEvents()
+                .enqueueOwned(
+                    cleanNow,
+                    EntityId.next(),
+                    WorldNpcPresentationEvents.Target.scene(
+                        cleanTarget.sceneIndex,
+                        cleanTarget.definitionId
+                    ),
+                    NpcSyncEncoder.Mask.forceText(
+                        "retractable-event"
+                    ),
+                    0L,
+                    recipients(
+                        cleanViewer.id(),
+                        cleanGeneration
+                    )
+                );
+
+            OutboundPacketQueue.BatchReservation pressure=
+                OutboundPacketQueue.reserveBatch(
+                    retryQueue,
+                    1024
+                );
+
+            SharedNpcWorldRelay.flushAfterPlayer81(
+                retryWriter
+            );
+
+            if(retryQueue.queuedBytes()!=0||
+               retryWorld.npcPresentationEvents()
+                    .pendingFor(
+                        retryViewer.id(),
+                        retryGeneration,
+                        retryNow+1L
+                    ).size()!=1)
+                throw new AssertionError(
+                    "recoverable event mask rejection committed bytes/delivery"
+                );
+
+            pressure.release();
+
+            SharedNpcWorldRelay.flushAfterPlayer81(
+                retryWriter
+            );
+            SharedNpcWorldRelay.flushAfterPlayer81(
+                cleanWriter
+            );
+
+            ByteArrayOutputStream retryBytes=
+                new ByteArrayOutputStream();
+            ByteArrayOutputStream cleanBytes=
+                new ByteArrayOutputStream();
+
+            retryQueue.drainTo(
+                retryBytes,
+                Integer.MAX_VALUE
+            );
+            cleanQueue.drainTo(
+                cleanBytes,
+                Integer.MAX_VALUE
+            );
+
+            if(!Arrays.equals(
+                    retryBytes.toByteArray(),
+                    cleanBytes.toByteArray()))
+                throw new AssertionError(
+                    "recoverable event mask retry bytes diverged from clean same-seed send"
+                );
+
+            if(!retryWorld.npcPresentationEvents()
+                    .pendingFor(
+                        retryViewer.id(),
+                        retryGeneration,
+                        retryNow+2L
+                    ).isEmpty()||
+               !cleanWorld.npcPresentationEvents()
+                    .pendingFor(
+                        cleanViewer.id(),
+                        cleanGeneration,
+                        cleanNow+2L
+                    ).isEmpty())
+                throw new AssertionError(
+                    "successful event mask publication did not settle exactly once"
+                );
+        }finally{
+            SharedNpcWorldRelay.unregister(
+                retryWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                cleanWriter
+            );
+
+            if(retryViewer.registered())
+                retryWorld.unregisterPlayer(
+                    retryViewer,
+                    retryGeneration
+                );
+            if(cleanViewer.registered())
+                cleanWorld.unregisterPlayer(
+                    cleanViewer,
+                    cleanGeneration
+                );
+
+            retryWorld.close();
+            cleanWorld.close();
+        }
+    }
+
+    private static void proveDirectEventMaskFailureConsumesRetryDebt()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(603L);
+        WorldPlayer viewer=
+            new WorldPlayer();
+
+        long generation=
+            world.registerPlayer(
+                viewer,
+                "event-mask-direct"
+            );
+
+        PartialFailOutputStream out=
+            new PartialFailOutputStream();
+
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                out,
+                new IsaacCipher(
+                    new int[]{35,36,37,38}
+                )
+            );
+
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        try{
+            String spawned=
+                npcs.devSpawnNpc(
+                    1488,
+                    0,
+                    0,
+                    viewer.movement(),
+                    writer
+                );
+
+            if(!spawned.startsWith(
+                    "DEV_NPC_SPAWN_OK"))
+                throw new AssertionError(
+                    "direct event mask fixture spawn failed"
+                );
+
+            NpcEntity target=
+                onlyNpc(npcs.snapshot());
+
+            SharedNpcWorldRelay.register(
+                writer,
+                world,
+                viewer,
+                npcs,
+                viewer.movement()
+            );
+
+            long now=
+                System.currentTimeMillis();
+
+            world.npcPresentationEvents()
+                .enqueueOwned(
+                    now,
+                    EntityId.next(),
+                    WorldNpcPresentationEvents.Target.scene(
+                        target.sceneIndex,
+                        target.definitionId
+                    ),
+                    NpcSyncEncoder.Mask.forceText(
+                        "direct-terminal"
+                    ),
+                    0L,
+                    recipients(
+                        viewer.id(),
+                        generation
+                    )
+                );
+
+            out.fail=true;
+
+            boolean terminal=false;
+            try{
+                SharedNpcWorldRelay.flushAfterPlayer81(
+                    writer
+                );
+            }catch(ServerPacketWriter.NonRetractablePublicationException expected){
+                terminal=true;
+            }
+
+            if(!terminal)
+                throw new AssertionError(
+                    "direct event mask failure was not classified non-retractable"
+                );
+
+            if(!world.npcPresentationEvents()
+                    .pendingFor(
+                        viewer.id(),
+                        generation,
+                        now+1L
+                    ).isEmpty())
+                throw new AssertionError(
+                    "non-retractable event mask failure left semantic retry debt"
+                );
+        }finally{
+            SharedNpcWorldRelay.unregister(
+                writer
+            );
+
+            if(viewer.registered())
+                world.unregisterPlayer(
+                    viewer,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
+    private static final class PartialFailOutputStream
+        extends java.io.OutputStream
+    {
+        final ByteArrayOutputStream bytes=
+            new ByteArrayOutputStream();
+        boolean fail;
+
+        @Override public void write(int value)
+            throws java.io.IOException
+        {
+            if(fail){
+                bytes.write(value);
+                throw new java.io.IOException(
+                    "PARTIAL_DIRECT_FAIL"
+                );
+            }
+
+            bytes.write(value);
+        }
+
+        @Override public void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws java.io.IOException{
+            if(fail){
+                int partial=
+                    Math.min(
+                        1,
+                        length
+                    );
+
+                if(partial>0)
+                    bytes.write(
+                        data,
+                        offset,
+                        partial
+                    );
+
+                throw new java.io.IOException(
+                    "PARTIAL_DIRECT_FAIL"
+                );
+            }
+
+            bytes.write(
+                data,
+                offset,
+                length
+            );
+        }
+
+        @Override public void flush()
+            throws java.io.IOException
+        {
+            if(fail)
+                throw new java.io.IOException(
+                    "PARTIAL_DIRECT_FAIL"
+                );
         }
     }
 
