@@ -6346,3 +6346,17 @@ tasks.register('sharedNpcRelayContextRetirementLinearizationRegression', JavaExe
 tasks.named('check') {
     dependsOn tasks.named('sharedNpcRelayContextRetirementLinearizationRegression')
 }
+
+tasks.register('sharedNpcSyncContextRetirementLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc remote/canonical projection sync retains exact relay context authority through publication.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.SharedNpcSyncContextRetirementLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('sharedNpcSyncContextRetirementLinearizationRegression')
+}
