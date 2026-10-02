@@ -478,11 +478,40 @@ final class SharedNpcWorldRelay {
                 if(target==null)
                     continue;
 
-                viewer.npcs.sendMaskLocal(
-                    target,
-                    event.mask,
+                try{
                     viewer.writer
-                );
+                        .publishRecoverablePacket(
+                            ()->viewer.npcs.sendMaskLocal(
+                                target,
+                                event.mask,
+                                viewer.writer
+                            )
+                        );
+                }catch(ServerPacketWriter.RecoverablePublicationException retryable){
+                    /*
+                     * Queue-backed admission rejected before transport
+                     * commit. Writer state was rewound exactly, so keep
+                     * the semantic event pending for the next packet81
+                     * barrier flush.
+                     */
+                    return;
+                }catch(ServerPacketWriter.NonRetractablePublicationException terminal){
+                    /*
+                     * Direct transport progress is unknowable. Retrying the
+                     * same semantic event could duplicate or cipher-desync
+                     * an already-partially-written S2C65, so consume retry
+                     * debt before propagating the terminal relay failure.
+                     */
+                    viewer.state.world
+                        .npcPresentationEvents()
+                        .markDelivered(
+                            event.sequence,
+                            viewer.owner.id(),
+                            viewer.ownerGeneration,
+                            now
+                        );
+                    throw terminal;
+                }
 
                 viewer.state.world
                     .npcPresentationEvents()
