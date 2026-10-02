@@ -60,6 +60,52 @@ final class SharedNpcWorldRelay {
         }
     }
 
+    static synchronized void preflightRegistration(
+        ServerPacketWriter writer,
+        World world,
+        WorldPlayer owner
+    ){
+        if(writer==null||
+           world==null||
+           owner==null)
+            throw new NullPointerException(
+                "SharedNpc registration preflight"
+            );
+
+        Context oldWriter=
+            BY_WRITER.get(
+                writer
+            );
+
+        WorldState state=
+            BY_WORLD.get(
+                world
+            );
+        Context oldOwner=
+            state==null
+                ?null
+                :state.contexts.get(
+                    owner.id()
+                );
+
+        if(oldWriter!=null&&
+           oldWriter.projectionTransportFailedClosed)
+            throw new TerminalRegistrationException(
+                "SharedNpc registration rejected: existing writer relay transport is fail-closed",
+                oldWriter,
+                null
+            );
+
+        if(oldOwner!=null&&
+           oldOwner!=oldWriter&&
+           oldOwner.projectionTransportFailedClosed)
+            throw new TerminalRegistrationException(
+                "SharedNpc registration rejected: existing owner relay transport is fail-closed",
+                oldOwner,
+                null
+            );
+    }
+
     static synchronized void register(
         ServerPacketWriter writer,
         World world,
