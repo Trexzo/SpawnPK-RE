@@ -1431,12 +1431,35 @@ final class Player81WorldSync {
                                     .ISO_8859_1
                             );
 
-                    targetContext.writer
-                        .varByte(
-                            253,
-                            msg
-                        );
+                    ServerPacketWriter.RecoverablePacketResult
+                        publication=
+                            targetContext.writer
+                                .publishRecoverablePacketIfIdle(
+                                    ()->targetContext.writer
+                                        .varByte(
+                                            253,
+                                            msg
+                                        )
+                                );
+
+                    if(publication==
+                            ServerPacketWriter
+                                .RecoverablePacketResult
+                                .RETRACTED_RETRYABLE)
+                        return "TRADE_REQUEST_RECORDED_NOTIFY_FAILED target="+
+                            to.username()+
+                            " error=RETRACTED_RETRYABLE"+
+                            " itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
                 }catch(IOException ioe){
+                    /*
+                     * Ordinary/direct publication may already have advanced
+                     * transport or ISAAC state. Latch only this exact target
+                     * writer here; full runtime teardown cannot safely enter
+                     * Trade/SharedNpc while Player81/World command ownership
+                     * remains on this caller stack.
+                     */
+                    targetContext.writer.markTerminal();
+
                     return "TRADE_REQUEST_RECORDED_NOTIFY_FAILED target="+
                         to.username()+
                         " error="+
