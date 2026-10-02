@@ -20,6 +20,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
     public static void main(String[] args)throws Exception{
         assertRetryableSharedNpcContextSurvivesBindingRollback();
         assertTerminalSharedNpcFailureRetiresBrokenWriterBundle();
+        assertTerminalTradePeerCloseFailureRetiresPeerBundle();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
         System.out.println(
@@ -32,6 +33,10 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalTradeRetired=true "+
             "terminalPeerOnlyClose=true "+
             "terminalBrokenWriterNotRetouched=true "+
+            "terminalPeerWriterRetired=true "+
+            "terminalPeerSentinelRetained=true "+
+            "terminalPeerWriterNotRetouched=true "+
+            "terminalTradeCancelledOnce=true "+
             "terminalOldOwnerWriterExact=true "+
             "attemptedNewWriterNotRetired=true"
         );
@@ -585,6 +590,343 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
              * sentinel. Final fixture teardown may remove it after transport
              * failure injection is disabled.
              */
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
+                viewerWriter
+            );
+
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
+                );
+            if(viewer.registered())
+                world.unregisterPlayer(
+                    viewer,
+                    viewerGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertTerminalTradePeerCloseFailureRetiresPeerBundle()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                703L
+            );
+        WorldPlayer source=
+            new WorldPlayer();
+        WorldPlayer viewer=
+            new WorldPlayer();
+
+        long sourceGeneration=
+            world.registerPlayer(
+                source,
+                "binding-terminal-peer-source"
+            );
+        long viewerGeneration=
+            world.registerPlayer(
+                viewer,
+                "binding-terminal-peer-viewer"
+            );
+
+        DevAuthorityWorkbench viewerDev=
+            new DevAuthorityWorkbench();
+        NpcRegistry viewerNpcs=
+            new NpcRegistry(
+                viewerDev
+            );
+        NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        SwitchablePrefixFailOutputStream viewerOut=
+            new SwitchablePrefixFailOutputStream();
+        SwitchablePrefixFailOutputStream sourceOut=
+            new SwitchablePrefixFailOutputStream();
+
+        ServerPacketWriter viewerWriter=
+            new ServerPacketWriter(
+                viewerOut,
+                new IsaacCipher(
+                    new int[]{1131,1132,1133,1134}
+                )
+            );
+        ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                sourceOut,
+                new IsaacCipher(
+                    new int[]{1135,1136,1137,1138}
+                )
+            );
+
+        Player81WorldSync.register(
+            sourceWriter,
+            world,
+            source,
+            new DevAuthorityWorkbench()
+        );
+        Player81WorldSync.Context oldViewerSync=
+            Player81WorldSync.register(
+                viewerWriter,
+                world,
+                viewer,
+                viewerDev
+            );
+
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            world,
+            source,
+            sourceNpcs,
+            source.movement()
+        );
+        SharedNpcWorldRelay.register(
+            viewerWriter,
+            world,
+            viewer,
+            viewerNpcs,
+            viewer.movement()
+        );
+
+        TradeService.register(
+            world,
+            source,
+            sourceGeneration,
+            source.bank(),
+            sourceWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            viewer,
+            viewerGeneration,
+            viewer.bank(),
+            viewerWriter,
+            ()->{}
+        );
+
+        LocalSessionRuntimeBindings bindings=
+            new LocalSessionRuntimeBindings(
+                world,
+                viewer,
+                viewerDev,
+                viewerNpcs,
+                viewer.movement(),
+                viewer.bank(),
+                new Bridge()
+            );
+
+        try{
+            PetDefinitionRepository.Def pet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(pet==null)
+                throw new AssertionError(
+                    "missing pet 24019"
+                );
+
+            sourceNpcs.spawnPet(
+                pet,
+                source.movement(),
+                sourceWriter
+            );
+            Player81WorldSync.transformForTest(
+                oldViewerSync,
+                BootstrapPackets.player81Idle()
+            );
+            SharedNpcWorldRelay.syncRemotePets(
+                viewerWriter
+            );
+
+            if(viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "terminal peer fixture mirror missing"
+                );
+
+            String tradeOpen=
+                TradeService.start(
+                    world,
+                    source,
+                    viewer
+                );
+
+            if(tradeOpen==null||
+               !tradeOpen.contains(
+                    "TRADE_UI_OPEN"
+               ))
+                throw new AssertionError(
+                    "terminal peer Trade fixture failed: "+
+                    tradeOpen
+                );
+
+            Object oldViewerRelay=
+                relayContextFor(
+                    viewerWriter
+                );
+            Object oldSourceRelay=
+                relayContextFor(
+                    sourceWriter
+                );
+
+            int viewerAttemptsBefore=
+                viewerOut.attempts();
+            int sourceAttemptsBefore=
+                sourceOut.attempts();
+
+            sourceOut.enableFailure();
+            viewerOut.enableFailure();
+
+            boolean terminal=false;
+            try{
+                bindings.register(
+                    viewerWriter,
+                    "[binding-sharednpc-terminal-peer] ",
+                    viewerGeneration
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                terminal=
+                    expected.owner==viewer&&
+                    expected.writer==viewerWriter;
+            }
+
+            if(!terminal)
+                throw new AssertionError(
+                    "terminal peer fixture did not surface original writer"
+                );
+
+            if(viewerOut.attempts()!=
+                    viewerAttemptsBefore+1)
+                throw new AssertionError(
+                    "original terminal writer was retouched during peer retirement"
+                );
+
+            if(sourceOut.attempts()!=
+                    sourceAttemptsBefore+1)
+                throw new AssertionError(
+                    "terminal peer close was duplicated/retouched before="+
+                    sourceAttemptsBefore+
+                    " after="+
+                    sourceOut.attempts()
+                );
+
+            if(relayContextFor(
+                    viewerWriter
+                )!=oldViewerRelay)
+                throw new AssertionError(
+                    "original terminal relay sentinel changed"
+                );
+
+            if(relayContextFor(
+                    sourceWriter
+                )!=oldSourceRelay)
+                throw new AssertionError(
+                    "terminal peer relay sentinel was removed/replaced"
+                );
+
+            if(player81ContextFor(
+                    viewerWriter
+                )!=null||
+               player81ContextFor(
+                    sourceWriter
+               )!=null)
+                throw new AssertionError(
+                    "terminal peer fixture retained Player81 authority"
+                );
+
+            if(TradeService.active(viewer)||
+               TradeService.active(source))
+                throw new AssertionError(
+                    "terminal peer failure retained live Trade"
+                );
+
+            int sourceAttemptsAfter=
+                sourceOut.attempts();
+
+            boolean sourceRejected=false;
+            try{
+                SharedNpcWorldRelay.preflightRegistration(
+                    sourceWriter,
+                    world,
+                    source
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                sourceRejected=
+                    expected.owner==source&&
+                    expected.writer==sourceWriter;
+            }
+
+            if(!sourceRejected)
+                throw new AssertionError(
+                    "terminal peer writer could be resurrected"
+                );
+
+            if(sourceOut.attempts()!=
+                    sourceAttemptsAfter)
+                throw new AssertionError(
+                    "terminal peer preflight retouched broken writer"
+                );
+
+            int viewerAttemptsAfter=
+                viewerOut.attempts();
+
+            boolean viewerRejected=false;
+            try{
+                bindings.register(
+                    viewerWriter,
+                    "[binding-sharednpc-terminal-peer] ",
+                    viewerGeneration
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                viewerRejected=
+                    expected.owner==viewer&&
+                    expected.writer==viewerWriter;
+            }
+
+            if(!viewerRejected||
+               viewerOut.attempts()!=
+                    viewerAttemptsAfter)
+                throw new AssertionError(
+                    "original terminal writer retry touched transport"
+                );
+
+            if(sourceOut.attempts()!=
+                    sourceAttemptsAfter)
+                throw new AssertionError(
+                    "original retry recursively retouched terminal peer"
+                );
+        }finally{
+            sourceOut.disableFailure();
+            viewerOut.disableFailure();
+
+            bindings.unregister();
+            TradeService.unregister(
+                source
+            );
+            TradeService.unregister(
+                viewer
+            );
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
             SharedNpcWorldRelay.unregister(
                 viewerWriter
             );
