@@ -38,6 +38,9 @@ public final class RemotePetMirrorMaskRetryTest {
             "nativeMaskPreserved=true "+
             "miniProjectionWaitsForDrain=true "+
             "directTransportFailClosed=true "+
+            "terminalMirrorRuntimeRetired=true "+
+            "terminalMirrorWriterLatched=true "+
+            "terminalMirrorSentinelRetained=true "+
             "terminalQueueNotRetryable=true "+
             "mirrorAddRetryRetracted=true "+
             "mirrorMoveRetryRetracted=true "+
@@ -600,6 +603,23 @@ public final class RemotePetMirrorMaskRetryTest {
             viewer.movement()
         );
 
+        TradeService.register(
+            world,
+            source,
+            sourceGeneration,
+            source.bank(),
+            sourceWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            viewer,
+            viewerGeneration,
+            viewer.bank(),
+            viewerWriter,
+            ()->{}
+        );
+
         try{
             PetDefinitionRepository.Def pet=
                 PetDefinitionRepository.get(
@@ -653,6 +673,50 @@ public final class RemotePetMirrorMaskRetryTest {
                     viewerNpcs.snapshot().size()
                 );
 
+            if(!viewerWriter.terminal())
+                throw new AssertionError(
+                    "terminal mirror failure did not latch exact writer"
+                );
+
+            if(Player81WorldSync.clientIndexFor(
+                    viewerWriter,
+                    source
+                )!=-1)
+                throw new AssertionError(
+                    "terminal mirror failure retained Player81 authority"
+                );
+
+            requireContains(
+                TradeService.start(
+                    world,
+                    source,
+                    viewer
+                ),
+                "TRADE_UI_REJECTED_CONTEXT_MISSING",
+                "terminal mirror Trade authority"
+            );
+
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+
+            boolean sentinelRetained=false;
+
+            try{
+                SharedNpcWorldRelay.preflightRegistration(
+                    viewerWriter,
+                    world,
+                    viewer
+                );
+            }catch(SharedNpcWorldRelay.TerminalRegistrationException expected){
+                sentinelRetained=true;
+            }
+
+            if(!sentinelRetained)
+                throw new AssertionError(
+                    "terminal mirror SharedNpc sentinel was resurrectable"
+                );
+
             viewerOut.disableFailure();
 
             SharedNpcWorldRelay.syncRemotePets(
@@ -668,6 +732,14 @@ public final class RemotePetMirrorMaskRetryTest {
                     viewerNpcs.snapshot().size()
                 );
         }finally{
+            TradeService.unregister(
+                source,
+                sourceWriter
+            );
+            TradeService.unregister(
+                viewer,
+                viewerWriter
+            );
             SharedNpcWorldRelay.unregister(
                 sourceWriter
             );
