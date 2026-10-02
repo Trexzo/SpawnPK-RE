@@ -5,6 +5,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
         assertCancellationCloseSkipsStaleGeneration();
         assertTerminalPeerCloseSkipsStaleGeneration();
         assertCompetingRootPeerCloseSkipsStaleGeneration();
+        assertReplacementOldPeerCloseSkipsStaleGeneration();
 
         World world=
             World.isolatedForTest(600L);
@@ -355,6 +356,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "staleCancellationCloseFenced=true "+
                 "staleTerminalPeerCloseFenced=true "+
                 "staleCompetingRootPeerCloseFenced=true "+
+                "staleReplacementOldPeerCloseFenced=true "+
                 "staleFinalCommitRejected=true "+
                 "inventoryUnchanged=true"
             );
@@ -1027,6 +1029,253 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                     replacementPeerGeneration!=0L
                         ?replacementPeerGeneration
                         :peer.generation()
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertReplacementOldPeerCloseSkipsStaleGeneration()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                604L
+            );
+        WorldPlayer a=
+            new WorldPlayer();
+        WorldPlayer b=
+            new WorldPlayer();
+        WorldPlayer c=
+            new WorldPlayer();
+
+        long generationA=
+            world.registerPlayer(
+                a,
+                "trade-replacement-fence-a"
+            );
+        long generationB=
+            world.registerPlayer(
+                b,
+                "trade-replacement-fence-b"
+            );
+        long generationC=
+            world.registerPlayer(
+                c,
+                "trade-replacement-fence-c"
+            );
+
+        OutboundPacketQueue aOut=
+            new OutboundPacketQueue();
+        OutboundPacketQueue bOut=
+            new OutboundPacketQueue();
+        OutboundPacketQueue cOut=
+            new OutboundPacketQueue();
+
+        ServerPacketWriter aWriter=
+            writer(
+                aOut,
+                51
+            );
+        ServerPacketWriter bWriter=
+            writer(
+                bOut,
+                55
+            );
+        ServerPacketWriter cWriter=
+            writer(
+                cOut,
+                59
+            );
+
+        long replacementGenerationC=0L;
+        final Throwable[] threadFailure={
+            null
+        };
+        final String[] replacementResult={
+            null
+        };
+        Thread replacementThread=null;
+
+        try{
+            TradeService.register(
+                world,
+                a,
+                generationA,
+                a.bank(),
+                aWriter,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                b,
+                generationB,
+                b.bank(),
+                bWriter,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                c,
+                generationC,
+                c.bank(),
+                cWriter,
+                ()->{}
+            );
+
+            requireContains(
+                TradeService.start(
+                    world,
+                    a,
+                    c
+                ),
+                "TRADE_UI_OPEN",
+                "replacement old-peer fixture initial trade"
+            );
+
+            int cBytesBefore=
+                cOut.queuedBytes();
+
+            synchronized(c.mutationLock()){
+                replacementThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                replacementResult[0]=
+                                    TradeService.start(
+                                        world,
+                                        a,
+                                        b
+                                    );
+                            }catch(Throwable failure){
+                                threadFailure[0]=failure;
+                            }
+                        },
+                        "trade-replacement-old-peer-generation-fence"
+                    );
+
+                replacementThread.start();
+
+                long deadline=
+                    System.nanoTime()+
+                    5_000_000_000L;
+
+                while(replacementThread.isAlive()&&
+                      replacementThread.getState()!=
+                          Thread.State.BLOCKED&&
+                      System.nanoTime()<deadline)
+                    Thread.yield();
+
+                if(replacementThread.getState()!=
+                        Thread.State.BLOCKED)
+                    throw new AssertionError(
+                        "replacement cleanup did not block at old-peer ownership fence state="+
+                        replacementThread.getState()
+                    );
+
+                if(!world.unregisterPlayer(
+                        c,
+                        generationC
+                    ))
+                    throw new AssertionError(
+                        "replacement old-peer generation unregister failed"
+                    );
+
+                replacementGenerationC=
+                    world.registerPlayer(
+                        c,
+                        "trade-replacement-fence-c"
+                    );
+
+                if(replacementGenerationC==
+                        generationC)
+                    throw new AssertionError(
+                        "replacement old-peer generation did not advance"
+                    );
+            }
+
+            replacementThread.join(
+                5000L
+            );
+
+            if(replacementThread.isAlive())
+                throw new AssertionError(
+                    "replacement old-peer fence thread did not terminate"
+                );
+
+            if(threadFailure[0]!=null)
+                throw new AssertionError(
+                    "replacement old-peer fence thread failed",
+                    threadFailure[0]
+                );
+
+            requireContains(
+                replacementResult[0],
+                "TRADE_UI_OPEN",
+                "replacement old-peer new trade"
+            );
+
+            if(cOut.queuedBytes()!=
+                    cBytesBefore)
+                throw new AssertionError(
+                    "stale replacement old-peer close touched old writer before="+
+                    cBytesBefore+
+                    " after="+
+                    cOut.queuedBytes()
+                );
+
+            if(!TradeService.active(
+                    a
+                )||
+               !TradeService.active(
+                    b
+               ))
+                throw new AssertionError(
+                    "replacement A/B Trade did not remain live"
+                );
+
+            if(TradeService.active(
+                    c
+                ))
+                throw new AssertionError(
+                    "stale replacement old peer retained live Trade"
+                );
+        }finally{
+            if(replacementThread!=null&&
+               replacementThread.isAlive())
+                replacementThread.interrupt();
+
+            TradeService.unregister(
+                a,
+                aWriter
+            );
+            TradeService.unregister(
+                b,
+                bWriter
+            );
+            TradeService.unregister(
+                c,
+                cWriter
+            );
+
+            if(a.registered())
+                world.unregisterPlayer(
+                    a,
+                    generationA
+                );
+
+            if(b.registered())
+                world.unregisterPlayer(
+                    b,
+                    generationB
+                );
+
+            if(c.registered())
+                world.unregisterPlayer(
+                    c,
+                    replacementGenerationC!=0L
+                        ?replacementGenerationC
+                        :c.generation()
                 );
 
             world.close();
