@@ -1,5 +1,7 @@
 package spk.local;
 import java.io.*;
+import java.lang.reflect.Field;
+import java.util.IdentityHashMap;
 public final class EngineR4TradeFlowTest{
  public static void main(String[]a)throws Exception{
   World w=World.isolatedForTest(600L);WorldPlayer p1=new WorldPlayer(),p2=new WorldPlayer();w.registerPlayer(p1,"opensrc");w.registerPlayer(p2,"src");
@@ -86,12 +88,13 @@ public final class EngineR4TradeFlowTest{
    testSecondRootPublicationFailureAtomicity();
    testConfirmRootPublicationFailureClosesTrade();
    testReplacementTradeStartFailureAtomicity();
+   testSuccessfulReplacementTerminalOldPeerRetirement();
    testFinalCommitPairAdmissionAtomicity();
    testTradeXPromptFailureAtomicity();
    testOneSidedAcceptStatusAtomicity();
    testOfferRefreshAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptTerminalRetirement=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true replacementTerminalOldPeerRetired=true replacementHealthyTradePreserved=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptTerminalRetirement=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -334,6 +337,106 @@ public final class EngineR4TradeFlowTest{
    if(b.registered())w.unregisterPlayer(b);
    if(c.registered())w.unregisterPlayer(c);
    if(d.registered())w.unregisterPlayer(d);
+   w.close();
+  }
+ }
+
+ static void testSuccessfulReplacementTerminalOldPeerRetirement()throws Exception{
+  World w=World.isolatedForTest(608L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer(),cPeer=new WorldPlayer();
+  long ga=w.registerPlayer(a,"replace-terminal-a");
+  long gb=w.registerPlayer(b,"replace-terminal-b");
+  long gc=w.registerPlayer(cPeer,"replace-terminal-c");
+
+  OutboundPacketQueue qa=new OutboundPacketQueue(),qb=new OutboundPacketQueue();
+  ServerPacketWriter wa=new ServerPacketWriter(qa,new IsaacCipher(new int[]{81,82,83,84}));
+  ServerPacketWriter wb=new ServerPacketWriter(qb,new IsaacCipher(new int[]{85,86,87,88}));
+  SwitchFailOutputStream outC=new SwitchFailOutputStream();
+  ServerPacketWriter wc=new ServerPacketWriter(outC,new IsaacCipher(new int[]{89,90,91,92}));
+
+  NpcRegistry cNpcs=new NpcRegistry(new DevAuthorityWorkbench());
+
+  Player81WorldSync.register(
+   wc,w,cPeer,new DevAuthorityWorkbench()
+  );
+  SharedNpcWorldRelay.register(
+   wc,w,cPeer,cNpcs,cPeer.movement()
+  );
+
+  TradeService.register(w,a,ga,a.bank(),wa,()->{});
+  TradeService.register(w,b,gb,b.bank(),wb,()->{});
+  TradeService.register(w,cPeer,gc,cPeer.bank(),wc,()->{});
+
+  try{
+   need(TradeService.start(w,a,cPeer),"TRADE_UI_OPEN");
+   drain(qa);
+   int attemptsBefore=outC.attempts;
+
+   outC.fail=true;
+
+   need(TradeService.start(w,a,b),"TRADE_UI_OPEN");
+
+   if(!TradeService.active(a)||
+      !TradeService.active(b)||
+      TradeService.active(cPeer))
+    throw new AssertionError(
+     "successful replacement did not preserve new A-B Trade while retiring old C Trade"
+    );
+
+   if(!wc.terminal())
+    throw new AssertionError(
+     "failed old replacement peer writer was not terminal-latched"
+    );
+
+   if(outC.attempts!=attemptsBefore+1)
+    throw new AssertionError(
+     "old replacement peer close attempts expected exactly one before="+
+     attemptsBefore+" after="+outC.attempts
+    );
+
+   if(player81ContextFor(wc)!=null)
+    throw new AssertionError(
+     "terminal old replacement peer retained Player81 authority"
+    );
+
+   Object relay=relayContextFor(wc);
+   if(relay==null)
+    throw new AssertionError(
+     "terminal old replacement peer lost SharedNpc fail-closed sentinel"
+    );
+
+   int attemptsAfter=outC.attempts;
+   boolean rejected=false;
+   try{
+    SharedNpcWorldRelay.preflightRegistration(
+     wc,w,cPeer
+    );
+   }catch(SharedNpcWorldRelay.TerminalRegistrationException expected){
+    rejected=expected.owner==cPeer&&expected.writer==wc;
+   }
+
+   if(!rejected)
+    throw new AssertionError(
+     "terminal old replacement peer writer was resurrectable"
+    );
+
+   if(outC.attempts!=attemptsAfter)
+    throw new AssertionError(
+     "terminal old replacement peer preflight retouched transport"
+    );
+
+   need(TradeService.handleWidget(a,3420),"WAITING_OTHER");
+   need(TradeService.handleWidget(b,3420),"CONFIRM_OPEN");
+  }finally{
+   outC.fail=false;
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   TradeService.unregister(cPeer);
+   SharedNpcWorldRelay.unregister(wc);
+   Player81WorldSync.unregister(wc);
+   if(a.registered())w.unregisterPlayer(a,ga);
+   if(b.registered())w.unregisterPlayer(b,gb);
+   if(cPeer.registered())w.unregisterPlayer(cPeer,gc);
    w.close();
   }
  }
@@ -1094,17 +1197,41 @@ public final class EngineR4TradeFlowTest{
  static final class SwitchFailOutputStream extends OutputStream{
   final ByteArrayOutputStream bytes=new ByteArrayOutputStream();
   int writes;
+  int attempts;
   boolean fail;
 
   @Override public void write(int value)throws IOException{
+   attempts++;
    if(fail)throw new IOException("SWITCH_FAIL");
    bytes.write(value);
   }
 
   @Override public void write(byte[] data,int offset,int length)throws IOException{
+   attempts++;
    if(fail)throw new IOException("SWITCH_FAIL");
    writes++;
    bytes.write(data,offset,length);
+  }
+ }
+
+ static Object relayContextFor(ServerPacketWriter writer)throws Exception{
+  Field f=SharedNpcWorldRelay.class.getDeclaredField("BY_WRITER");
+  f.setAccessible(true);
+  synchronized(SharedNpcWorldRelay.class){
+   @SuppressWarnings("unchecked")
+   IdentityHashMap<ServerPacketWriter,Object> m=
+    (IdentityHashMap<ServerPacketWriter,Object>)f.get(null);
+   return m.get(writer);
+  }
+ }
+ static Object player81ContextFor(ServerPacketWriter writer)throws Exception{
+  Field f=Player81WorldSync.class.getDeclaredField("BY_WRITER");
+  f.setAccessible(true);
+  synchronized(Player81WorldSync.class){
+   @SuppressWarnings("unchecked")
+   IdentityHashMap<ServerPacketWriter,Object> m=
+    (IdentityHashMap<ServerPacketWriter,Object>)f.get(null);
+   return m.get(writer);
   }
  }
 
