@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class RemotePetMirrorMaskRetryTest {
     public static void main(String[] args)throws Exception{
         assertPostAddMaskFailureDoesNotDuplicateMirror();
+        assertDeferredMasksPreserveFifoOrder();
 
         System.out.println(
             "REMOTE_PET_MIRROR_MASK_RETRY_PASS "+
@@ -15,7 +16,9 @@ public final class RemotePetMirrorMaskRetryTest {
             "failedMaskDeferred=true "+
             "stableSceneOnRetry=true "+
             "noDuplicateMirror=true "+
-            "deferredMaskRetried=true"
+            "deferredMaskRetried=true "+
+            "laterMaskQueuedBehindFailure=true "+
+            "deferredMaskFifo=true"
         );
     }
 
@@ -223,6 +226,267 @@ public final class RemotePetMirrorMaskRetryTest {
                 throw new AssertionError(
                     "completed deferred mask was emitted again attemptsBefore="+
                     attemptsAfterRetry+
+                    " after="+
+                    viewerOut.attempts()
+                );
+        }finally{
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
+                viewerWriter
+            );
+
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
+                );
+
+            if(viewer.registered())
+                world.unregisterPlayer(
+                    viewer,
+                    viewerGeneration
+                );
+
+            world.close();
+        }
+    }
+
+
+    private static void assertDeferredMasksPreserveFifoOrder()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+
+        WorldPlayer source=
+            new WorldPlayer();
+        WorldPlayer viewer=
+            new WorldPlayer();
+
+        long sourceGeneration=
+            world.registerPlayer(
+                source,
+                "mirror-mask-fifo-source"
+            );
+        long viewerGeneration=
+            world.registerPlayer(
+                viewer,
+                "mirror-mask-fifo-viewer"
+            );
+
+        OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+
+        ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                sourceQueue,
+                new IsaacCipher(
+                    new int[]{711,712,713,714}
+                )
+            );
+
+        FailNthWriteOutputStream viewerOut=
+            new FailNthWriteOutputStream(
+                2
+            );
+
+        ServerPacketWriter viewerWriter=
+            new ServerPacketWriter(
+                viewerOut,
+                new IsaacCipher(
+                    new int[]{715,716,717,718}
+                )
+            );
+
+        Player81WorldSync.register(
+            sourceWriter,
+            world,
+            source,
+            new DevAuthorityWorkbench()
+        );
+
+        Player81WorldSync.Context viewerSync=
+            Player81WorldSync.register(
+                viewerWriter,
+                world,
+                viewer,
+                new DevAuthorityWorkbench()
+            );
+
+        NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        NpcRegistry viewerNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            world,
+            source,
+            sourceNpcs,
+            source.movement()
+        );
+
+        SharedNpcWorldRelay.register(
+            viewerWriter,
+            world,
+            viewer,
+            viewerNpcs,
+            viewer.movement()
+        );
+
+        try{
+            PetDefinitionRepository.Def base=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(base==null)
+                throw new AssertionError(
+                    "missing pet 24019 template"
+                );
+
+            PetDefinitionRepository.Def nativePet=
+                new PetDefinitionRepository.Def(
+                    base.itemId,
+                    6650,
+                    base.itemName,
+                    "FIFO native-state fixture",
+                    base.standAnim,
+                    base.walkAnim,
+                    base.turn180Anim,
+                    base.turn90CWAnim,
+                    base.turn90CCWAnim,
+                    base.size,
+                    base.models,
+                    "TEST_NATIVE_STATE_FIFO"
+                );
+
+            String spawn=
+                sourceNpcs.spawnPet(
+                    nativePet,
+                    source.movement(),
+                    sourceWriter
+                );
+
+            if(spawn==null||
+               !spawn.startsWith(
+                    "PET_SPAWN_OK"
+               ))
+                throw new AssertionError(
+                    "native-state source pet setup failed: "+
+                    spawn
+                );
+
+            String nativeState=
+                sourceNpcs.setPetNativeState(
+                    2,
+                    sourceWriter
+                );
+
+            if(nativeState==null||
+               !nativeState.startsWith(
+                    "PET_NATIVE_STATE_OK"
+               ))
+                throw new AssertionError(
+                    "native-state fixture setup failed: "+
+                    nativeState
+                );
+
+            Player81WorldSync.transformForTest(
+                viewerSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            if(Player81WorldSync.clientIndexFor(
+                    viewerWriter,
+                    source
+                )<0)
+                throw new AssertionError(
+                    "FIFO viewer did not establish source visibility"
+                );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                viewerWriter
+            );
+
+            /*
+             * Attempt 1: mirrored add succeeds.
+             * Attempt 2: interaction-target mask fails and is deferred.
+             * The later native-state mask must queue behind it rather than
+             * becoming attempt 3 in this same sync.
+             */
+            if(viewerOut.attempts()!=2)
+                throw new AssertionError(
+                    "later mirror mask overtook deferred FIFO attempts="+
+                    viewerOut.attempts()
+                );
+
+            if(viewerOut.successfulWrites()!=1)
+                throw new AssertionError(
+                    "failing FIFO sync emitted a later mask successes="+
+                    viewerOut.successfulWrites()
+                );
+
+            if(viewerNpcs.snapshot().size()!=1)
+                throw new AssertionError(
+                    "FIFO failure did not preserve exactly one mirror size="+
+                    viewerNpcs.snapshot().size()
+                );
+
+            int scene=
+                viewerNpcs.snapshot().get(0)
+                    .sceneIndex;
+
+            viewerOut.disableFailure();
+
+            SharedNpcWorldRelay.syncRemotePets(
+                viewerWriter
+            );
+
+            if(viewerOut.attempts()!=4||
+               viewerOut.successfulWrites()!=3)
+                throw new AssertionError(
+                    "retry did not drain both deferred masks in FIFO attempts="+
+                    viewerOut.attempts()+
+                    " successes="+
+                    viewerOut.successfulWrites()
+                );
+
+            if(viewerNpcs.snapshot().size()!=1||
+               viewerNpcs.snapshot().get(0)
+                    .sceneIndex!=scene)
+                throw new AssertionError(
+                    "FIFO retry changed authoritative mirror scene"
+                );
+
+            int attemptsAfterDrain=
+                viewerOut.attempts();
+
+            SharedNpcWorldRelay.syncRemotePets(
+                viewerWriter
+            );
+
+            if(viewerOut.attempts()!=
+                    attemptsAfterDrain)
+                throw new AssertionError(
+                    "drained FIFO emitted duplicate mask work before="+
+                    attemptsAfterDrain+
                     " after="+
                     viewerOut.attempts()
                 );
