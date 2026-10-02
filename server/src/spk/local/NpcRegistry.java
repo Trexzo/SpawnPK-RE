@@ -352,6 +352,30 @@ final class NpcRegistry {
         return publication;
     }
 
+    /**
+     * Local-only retirement for a mirrored/dev-owned scene after its transport
+     * has already been classified terminal. Emits no packet and therefore must
+     * only be used when client presentation can no longer be repaired.
+     */
+    void retireMirroredNpcLocal(
+        int sceneIndex
+    ){
+        if(!devOwnedSceneIndexes.remove(
+                sceneIndex
+            ))
+            return;
+
+        NpcEntity target=
+            findScene(
+                sceneIndex
+            );
+
+        if(target!=null)
+            visible.remove(
+                target
+            );
+    }
+
     ServerPacketWriter.RecoverablePacketResult
         removeMirroredNpcRetractable(
             int sceneIndex,
