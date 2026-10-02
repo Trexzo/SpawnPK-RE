@@ -8,6 +8,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.lang.reflect.Field;
 import java.util.IdentityHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class NpcPresentationDeliveryTransportRetractabilityTest {
     private static final int QUEUE_CAPACITY=1024;
@@ -27,7 +29,8 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
             "directPartialFailureFailClosed=true "+
             "terminalRecipientDebtRetired=true "+
             "terminalWriterLatched=true "+
-            "terminalRuntimeRetired=true"
+            "terminalRuntimeRetired=true "+
+            "terminalRetirementOutsideRelayMonitor=true"
         );
     }
 
@@ -261,17 +264,135 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                 "direct-partial"
             );
 
-            boolean failed=false;
+            final CountDownLatch tradeMonitorHeld=
+                new CountDownLatch(1);
+            final CountDownLatch releaseTradeMonitor=
+                new CountDownLatch(1);
+            final CountDownLatch relayMonitorAcquired=
+                new CountDownLatch(1);
+            final Throwable[] threadFailure={
+                null
+            };
+            final boolean[] failed={
+                false
+            };
+            Thread tradeHolder=
+                new Thread(
+                    ()->{
+                        synchronized(TradeService.class){
+                            tradeMonitorHeld.countDown();
+
+                            try{
+                                if(!releaseTradeMonitor.await(
+                                        5L,
+                                        TimeUnit.SECONDS
+                                    ))
+                                    throw new AssertionError(
+                                        "Trade monitor release timed out"
+                                    );
+                            }catch(InterruptedException interrupted){
+                                Thread.currentThread().interrupt();
+                                throw new AssertionError(
+                                    "Trade monitor holder interrupted",
+                                    interrupted
+                                );
+                            }
+                        }
+                    },
+                    "sharednpc-terminal-trade-holder"
+                );
+            Thread flushThread=null;
+            Thread relayProbe=null;
+
+            tradeHolder.start();
+
+            if(!tradeMonitorHeld.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ))
+                throw new AssertionError(
+                    "Trade monitor holder did not start"
+                );
 
             try{
-                SharedNpcWorldRelay.flushAfterPlayer81(
-                    directWriter
+                flushThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                SharedNpcWorldRelay.flushAfterPlayer81(
+                                    directWriter
+                                );
+                            }catch(IOException expected){
+                                failed[0]=true;
+                            }catch(Throwable failure){
+                                threadFailure[0]=failure;
+                            }
+                        },
+                        "sharednpc-terminal-flush"
+                    );
+                flushThread.start();
+
+                awaitBlocked(
+                    flushThread,
+                    "terminal relay retirement did not wait on TradeService"
                 );
-            }catch(IOException expected){
-                failed=true;
+
+                relayProbe=
+                    new Thread(
+                        ()->{
+                            synchronized(SharedNpcWorldRelay.class){
+                                relayMonitorAcquired.countDown();
+                            }
+                        },
+                        "sharednpc-terminal-relay-probe"
+                    );
+                relayProbe.start();
+
+                boolean relayReleased=
+                    relayMonitorAcquired.await(
+                        5L,
+                        TimeUnit.SECONDS
+                    );
+
+                releaseTradeMonitor.countDown();
+
+                joinThread(
+                    flushThread,
+                    "terminal relay flush"
+                );
+                joinThread(
+                    relayProbe,
+                    "terminal relay monitor probe"
+                );
+                joinThread(
+                    tradeHolder,
+                    "Trade monitor holder"
+                );
+
+                if(!relayReleased)
+                    throw new AssertionError(
+                        "terminal relay retirement retained SharedNpc monitor while waiting on TradeService"
+                    );
+            }finally{
+                releaseTradeMonitor.countDown();
+
+                if(flushThread!=null&&
+                   flushThread.isAlive())
+                    flushThread.interrupt();
+                if(relayProbe!=null&&
+                   relayProbe.isAlive())
+                    relayProbe.interrupt();
+                if(tradeHolder.isAlive())
+                    tradeHolder.interrupt();
             }
 
-            if(!failed)
+            if(threadFailure[0]!=null)
+                throw new AssertionError(
+                    "terminal relay flush thread failed",
+                    threadFailure[0]
+                );
+
+            if(!failed[0])
                 throw new AssertionError(
                     "partial direct event failure was not surfaced"
                 );
@@ -550,6 +671,46 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                 npcs.size()
             );
         return npcs.get(0);
+    }
+
+    private static void awaitBlocked(
+        Thread thread,
+        String message
+    )throws InterruptedException{
+        long deadline=
+            System.nanoTime()+
+            TimeUnit.SECONDS.toNanos(
+                5L
+            );
+
+        while(thread.isAlive()&&
+              thread.getState()!=
+                  Thread.State.BLOCKED&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(thread.getState()!=
+                Thread.State.BLOCKED)
+            throw new AssertionError(
+                message+
+                " state="+
+                thread.getState()
+            );
+    }
+
+    private static void joinThread(
+        Thread thread,
+        String message
+    )throws InterruptedException{
+        thread.join(
+            5000L
+        );
+
+        if(thread.isAlive())
+            throw new AssertionError(
+                message+
+                " did not terminate"
+            );
     }
 
     private static void drain(
