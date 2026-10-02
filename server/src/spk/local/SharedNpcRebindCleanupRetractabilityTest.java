@@ -11,6 +11,14 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
     private static final int[] VIEWER_SEED=
         new int[]{1005,1006,1007,1008};
 
+    private static final class Bridge
+        implements LocalSessionRuntimeBindings.SessionBridge {
+        @Override public void saveAccount(
+            String tag,
+            String reason
+        ){}
+    }
+
     public static void main(String[] args)throws Exception{
         World world=
             World.isolatedForTest(610L);
@@ -90,6 +98,17 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
             viewer.movement()
         );
 
+        LocalSessionRuntimeBindings bindings=
+            new LocalSessionRuntimeBindings(
+                world,
+                viewer,
+                new DevAuthorityWorkbench(),
+                viewerNpcs,
+                viewer.movement(),
+                viewer.bank(),
+                new Bridge()
+            );
+
         try{
             PetDefinitionRepository.Def pet=
                 PetDefinitionRepository.get(
@@ -166,12 +185,10 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
             boolean retryableRejected=false;
 
             try{
-                SharedNpcWorldRelay.register(
+                bindings.register(
                     viewerWriter,
-                    world,
-                    viewer,
-                    viewerNpcs,
-                    viewer.movement()
+                    "[rebind-cleanup] ",
+                    viewerGeneration
                 );
             }catch(SharedNpcWorldRelay
                     .RetryableRegistrationException expected){
@@ -180,14 +197,19 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
 
             if(!retryableRejected)
                 throw new AssertionError(
-                    "retracted cleanup did not reject replacement explicitly"
+                    "retracted cleanup did not reject RuntimeBindings replacement explicitly"
+                );
+
+            if(bindings.context()!=null)
+                throw new AssertionError(
+                    "failed RuntimeBindings registration retained new Player81 context"
                 );
 
             if(contextFor(
                     viewerWriter
                 )!=oldContext)
                 throw new AssertionError(
-                    "failed rebind detached exact old relay context"
+                    "RuntimeBindings rollback detached exact old relay context"
                 );
 
             if(viewerQueue.queuedBytes()!=0||
@@ -217,13 +239,29 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
 
             pressure.release();
 
-            SharedNpcWorldRelay.register(
+            bindings.register(
                 viewerWriter,
-                world,
-                viewer,
-                viewerNpcs,
-                viewer.movement()
+                "[rebind-cleanup] ",
+                viewerGeneration
             );
+
+            if(bindings.context()==null)
+                throw new AssertionError(
+                    "successful RuntimeBindings retry installed no Player81 context"
+                );
+
+            Player81WorldSync.transformForTest(
+                bindings.context(),
+                BootstrapPackets.player81Idle()
+            );
+
+            if(Player81WorldSync.clientIndexFor(
+                    viewerWriter,
+                    source
+                )<0)
+                throw new AssertionError(
+                    "successful RuntimeBindings retry did not restore source visibility"
+                );
 
             Object newContext=
                 contextFor(
@@ -287,12 +325,15 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                 "SHARED_NPC_REBIND_CLEANUP_RETRACTABILITY_PASS "+
                 "retractedCleanupRejectsReplacement=true "+
                 "oldContextAuthorityPreserved=true "+
+                "runtimeRollbackPreservesOldRelay=true "+
                 "zeroRemovalBytesOnRetraction=true "+
                 "retryCleanupCommitsOnce=true "+
                 "freshContextInstallsAfterCleanup=true "+
                 "noOrphanDuplicateMirror=true"
             );
         }finally{
+            bindings.unregister();
+
             SharedNpcWorldRelay.unregister(
                 sourceWriter
             );
