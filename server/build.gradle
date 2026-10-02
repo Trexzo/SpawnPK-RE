@@ -6375,3 +6375,18 @@ tasks.register('remotePetMirrorMaskRetryRegression', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('remotePetMirrorMaskRetryRegression')
 }
+
+tasks.register('npcPresentationDeliveryTransportRetractabilityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc presentation-event mask retry is transport-retractable, wire-exact, and terminal direct failures retire recipient debt.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcPresentationDeliveryTransportRetractabilityTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('npcPresentationDeliveryTransportRetractabilityRegression')
+}
+
