@@ -29,7 +29,7 @@ public final class RemotePetMirrorMaskRetryTest {
             "retryCipherRewound=true "+
             "eventualWireMatchesCleanReference=true "+
             "directWriterNotRetryable=true "+
-            "directRetryCallbackNotEntered=true "+
+            "partialDirectProgressFailClosed=true "+
             "mirrorAddRetryCipherRewound=true "+
             "mirrorAddStateCommitAfterTransport=true "+
             "mirrorAddDirectFailClosed=true"
@@ -497,8 +497,8 @@ public final class RemotePetMirrorMaskRetryTest {
                 expected.size()
             );
 
-        ByteArrayOutputStream directOut=
-            new ByteArrayOutputStream();
+        PrefixThenFailOutputStream directOut=
+            new PrefixThenFailOutputStream();
         ServerPacketWriter directWriter=
             new ServerPacketWriter(
                 directOut,
@@ -527,11 +527,11 @@ public final class RemotePetMirrorMaskRetryTest {
         }
 
         if(!directRejected||
-           directOut.size()!=0||
+           directOut.bytes.size()!=1||
            !directNpcs.snapshot().isEmpty())
             throw new AssertionError(
-                "direct mirror add was not failed closed bytes="+
-                directOut.size()+
+                "partial direct mirror add was not failed closed bytes="+
+                directOut.bytes.size()+
                 " mirrors="+
                 directNpcs.snapshot().size()
             );
@@ -540,8 +540,8 @@ public final class RemotePetMirrorMaskRetryTest {
     private static void assertDirectWriterIsNotRetryable()
         throws Exception
     {
-        ByteArrayOutputStream out=
-            new ByteArrayOutputStream();
+        PrefixThenFailOutputStream out=
+            new PrefixThenFailOutputStream();
         ServerPacketWriter writer=
             new ServerPacketWriter(
                 out,
@@ -569,18 +569,18 @@ public final class RemotePetMirrorMaskRetryTest {
 
         if(!classified)
             throw new AssertionError(
-                "direct writer was classified retryable"
+                "partial direct writer failure was classified retryable"
             );
 
-        if(entered[0])
+        if(!entered[0])
             throw new AssertionError(
-                "direct writer retry callback was entered before fail-closed classification"
+                "direct publication callback was not exercised"
             );
 
-        if(out.size()!=0)
+        if(out.bytes.size()!=1)
             throw new AssertionError(
-                "direct writer retry classification emitted bytes="+
-                out.size()
+                "partial direct fixture did not emit exactly one prefix byte="+
+                out.bytes.size()
             );
     }
 
@@ -754,6 +754,36 @@ public final class RemotePetMirrorMaskRetryTest {
             this.addBytes=addBytes;
             this.interactionMaskBytes=
                 interactionMaskBytes;
+        }
+    }
+
+    private static final class PrefixThenFailOutputStream
+        extends java.io.OutputStream
+    {
+        final ByteArrayOutputStream bytes=
+            new ByteArrayOutputStream();
+
+        @Override public void write(int value)
+            throws java.io.IOException
+        {
+            bytes.write(value);
+            throw new java.io.IOException(
+                "EXPECTED_PARTIAL_DIRECT_FAILURE"
+            );
+        }
+
+        @Override public void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws java.io.IOException
+        {
+            if(length>0)
+                bytes.write(data[offset]);
+
+            throw new java.io.IOException(
+                "EXPECTED_PARTIAL_DIRECT_FAILURE"
+            );
         }
     }
 
