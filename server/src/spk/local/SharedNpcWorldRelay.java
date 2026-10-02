@@ -266,6 +266,13 @@ final class SharedNpcWorldRelay {
                     }
                 );
         }catch(Throwable t){
+            if(t instanceof
+                    ServerPacketWriter
+                        .NonRetractablePublicationException)
+                unregister(
+                    viewerWriter
+                );
+
             System.err.println(
                 "[ENGINE-R3.2] remote pet sync failed viewer="+
                 candidate.owner.id()+": "+t
