@@ -1201,6 +1201,18 @@ final class SharedNpcWorldRelay {
             NpcEntity npc,
             NpcSyncEncoder.Mask mask
         ){
+            if(!pendingMirrorMasks.isEmpty()){
+                pendingMirrorMasks.addLast(
+                    new PendingMirrorMask(
+                        sourceId,
+                        sourceGeneration,
+                        npc,
+                        mask
+                    )
+                );
+                return;
+            }
+
             try{
                 npcs.sendMaskLocal(
                     npc,
