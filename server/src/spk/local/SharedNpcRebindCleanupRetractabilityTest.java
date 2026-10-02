@@ -166,10 +166,19 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                 contextFor(
                     viewerWriter
                 );
+            Object oldPlayer81Context=
+                player81ContextFor(
+                    viewerWriter
+                );
 
             if(oldContext==null)
                 throw new AssertionError(
                     "initial relay context missing"
+                );
+            if(oldPlayer81Context==null||
+               oldPlayer81Context!=viewerSync)
+                throw new AssertionError(
+                    "initial Player81 context authority missing"
                 );
 
             drain(
@@ -203,6 +212,33 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
             if(bindings.context()!=null)
                 throw new AssertionError(
                     "failed RuntimeBindings registration retained new Player81 context"
+                );
+
+            if(player81ContextFor(
+                    viewerWriter
+                )!=oldPlayer81Context)
+                throw new AssertionError(
+                    "rejected RuntimeBindings rebind retired exact old Player81 context"
+                );
+
+            if(Player81WorldSync.clientIndexFor(
+                    viewerWriter,
+                    source
+                )<0)
+                throw new AssertionError(
+                    "rejected RuntimeBindings rebind lost old Player81 visibility authority"
+                );
+
+            Player81WorldSync.transformForTest(
+                viewerSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            if(player81ContextFor(
+                    viewerWriter
+                )!=oldPlayer81Context)
+                throw new AssertionError(
+                    "old Player81 context stopped being usable after rejected rebind"
                 );
 
             if(contextFor(
@@ -326,6 +362,8 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                 "retractedCleanupRejectsReplacement=true "+
                 "oldContextAuthorityPreserved=true "+
                 "runtimeRollbackPreservesOldRelay=true "+
+                "oldPlayer81AuthorityPreserved=true "+
+                "oldPlayer81RemainsUsable=true "+
                 "zeroRemovalBytesOnRetraction=true "+
                 "retryCleanupCommitsOnce=true "+
                 "freshContextInstallsAfterCleanup=true "+
@@ -359,6 +397,27 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static Object player81ContextFor(
+        ServerPacketWriter writer
+    )throws Exception{
+        Field field=
+            Player81WorldSync.class
+                .getDeclaredField(
+                    "BY_WRITER"
+                );
+        field.setAccessible(true);
+
+        synchronized(Player81WorldSync.class){
+            @SuppressWarnings("unchecked")
+            IdentityHashMap<ServerPacketWriter,Object>
+                contexts=
+                    (IdentityHashMap<ServerPacketWriter,Object>)
+                    field.get(null);
+
+            return contexts.get(writer);
         }
     }
 
