@@ -489,11 +489,31 @@ final class SharedNpcWorldRelay {
                 if(target==null)
                     continue;
 
-                viewer.npcs.sendMaskLocal(
-                    target,
-                    event.mask,
-                    viewer.writer
-                );
+                final ServerPacketWriter.RecoverablePacketResult
+                    publication;
+
+                try{
+                    publication=
+                        viewer.writer
+                            .publishRecoverablePacket(
+                                ()->viewer.npcs
+                                    .sendMaskLocal(
+                                        target,
+                                        event.mask,
+                                        viewer.writer
+                                    )
+                            );
+                }catch(IOException nonRetryable){
+                    viewer.projectionTransportFailedClosed=true;
+                    viewer.state.pruneDeadRecipients();
+                    throw nonRetryable;
+                }
+
+                if(publication==
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .RETRACTED_RETRYABLE)
+                    return;
 
                 viewer.state.world
                     .npcPresentationEvents()
@@ -557,7 +577,8 @@ final class SharedNpcWorldRelay {
 
             for(Context context:
                     contexts.values())
-                if(context.ownerCurrent())
+                if(context.ownerCurrent()&&
+                   !context.projectionTransportFailedClosed)
                     live.put(
                         context.owner.id(),
                         context.ownerGeneration
