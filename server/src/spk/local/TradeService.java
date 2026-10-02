@@ -1742,39 +1742,66 @@ final class TradeService {
     private static void closeCancelledParticipant(
         Context context
     ){
-        try{
-            context.writer.fixed(
-                219,
-                new byte[0]
-            );
-        }catch(IOException failure){
-            /*
-             * Cancellation is already semantically committed. An ordinary
-             * unbatched close IOException is not provably retractable, so the
-             * exact participant writer is terminal. Retire remaining runtime
-             * authority locally without turning the completed cancellation
-             * into a false rollback signal.
-             */
-            LocalSessionRuntimeBindings
-                .retireTerminalRuntimeBundle(
-                    context.player,
-                    context.writer,
-                    true,
-                    failure
+        IOException terminalFailure=null;
+
+        /*
+         * TradeService registration/replacement is serialized by the class
+         * monitor. World generation changes are independent, so fence this
+         * snapshotted Context under the player's mutation lock before touching
+         * its writer. Do not acquire World.lifecycleLock here: runtime binding
+         * registration already orders World lifecycle -> TradeService, and
+         * reversing that order would introduce a deadlock.
+         */
+        synchronized(context.player.mutationLock()){
+            State current=
+                STATES.get(
+                    context.world
                 );
 
-            System.err.println(
-                "[ENGINE-R4] terminal Trade cancellation close failed; "+
-                "participant runtime retired: "+
-                failure
-            );
-        }catch(Throwable ignored){
-            /*
-             * Preserve the historical cleanup behavior for non-I/O throwables.
-             * Transport-terminal classification in this path is intentionally
-             * limited to checked I/O publication failure.
-             */
+            if(current==null||
+               current.contexts.get(
+                    context.player.id()
+               )!=context||
+               !context.ownerCurrent())
+                return;
+
+            try{
+                context.writer.fixed(
+                    219,
+                    new byte[0]
+                );
+            }catch(IOException failure){
+                terminalFailure=failure;
+            }catch(Throwable ignored){
+                /*
+                 * Preserve the historical cleanup behavior for non-I/O
+                 * throwables.
+                 */
+                return;
+            }
         }
+
+        if(terminalFailure==null)
+            return;
+
+        /*
+         * Cancellation is already semantically committed. Handle terminal
+         * retirement only after releasing the player mutation lock so
+         * cross-service cleanup never expands that lock's scope.
+         */
+        LocalSessionRuntimeBindings
+            .retireTerminalRuntimeBundle(
+                context.player,
+                context.writer,
+                true,
+                terminalFailure
+            );
+
+        System.err.println(
+            "[ENGINE-R4] terminal Trade cancellation close failed; "+
+            "participant runtime retired: "+
+            terminalFailure
+        );
     }
     private static void detach(State s,Trade t){s.trades.remove(t.a.player.id());s.trades.remove(t.b.player.id());t.a.trade=null;t.b.trade=null;t.a.pendingX=t.b.pendingX=null;}
 
