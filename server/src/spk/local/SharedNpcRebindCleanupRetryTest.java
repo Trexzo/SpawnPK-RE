@@ -10,6 +10,7 @@ public final class SharedNpcRebindCleanupRetryTest {
 
     public static void main(String[] args)throws Exception{
         assertRetractedCleanupKeepsOldContextAuthoritative();
+        assertMultiContextRebindDoesNotDetachEarly();
         assertTerminalCleanupCannotResurrectWriter();
 
         System.out.println(
@@ -20,6 +21,7 @@ public final class SharedNpcRebindCleanupRetryTest {
             "retryCleanupCommitsOnce=true "+
             "freshContextInstalledAfterCleanup=true "+
             "noDuplicateMirrorAfterRebind=true "+
+            "multiContextDetachDeferredUntilAllCleanupCommits=true "+
             "terminalCleanupRejectsReplacement=true "+
             "terminalContextRemainsFailClosed=true "+
             "terminalWriterNotResurrected=true"
@@ -324,6 +326,341 @@ public final class SharedNpcRebindCleanupRetryTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static void assertMultiContextRebindDoesNotDetachEarly()
+        throws Exception
+    {
+        World worldA=
+            World.isolatedForTest(
+                602L
+            );
+        World worldB=
+            World.isolatedForTest(
+                603L
+            );
+
+        WorldPlayer ownerA=
+            new WorldPlayer();
+        WorldPlayer ownerB=
+            new WorldPlayer();
+        WorldPlayer sourceB=
+            new WorldPlayer();
+
+        long ownerAGeneration=
+            worldA.registerPlayer(
+                ownerA,
+                "rebind-multi-a"
+            );
+        long ownerBGeneration=
+            worldB.registerPlayer(
+                ownerB,
+                "rebind-multi-b"
+            );
+        long sourceBGeneration=
+            worldB.registerPlayer(
+                sourceB,
+                "rebind-multi-source"
+            );
+
+        OutboundPacketQueue queueA=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+        OutboundPacketQueue queueB=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+        OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+
+        ServerPacketWriter writerA=
+            new ServerPacketWriter(
+                queueA,
+                new IsaacCipher(
+                    new int[]{1021,1022,1023,1024}
+                )
+            );
+        ServerPacketWriter writerB=
+            new ServerPacketWriter(
+                queueB,
+                new IsaacCipher(
+                    new int[]{1025,1026,1027,1028}
+                )
+            );
+        ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                sourceQueue,
+                new IsaacCipher(
+                    new int[]{1029,1030,1031,1032}
+                )
+            );
+
+        NpcRegistry npcsA=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry npcsB=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        Player81WorldSync.register(
+            sourceWriter,
+            worldB,
+            sourceB,
+            new DevAuthorityWorkbench()
+        );
+        Player81WorldSync.Context viewerBSync=
+            Player81WorldSync.register(
+                writerB,
+                worldB,
+                ownerB,
+                new DevAuthorityWorkbench()
+            );
+
+        SharedNpcWorldRelay.register(
+            writerA,
+            worldA,
+            ownerA,
+            npcsA,
+            ownerA.movement()
+        );
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            worldB,
+            sourceB,
+            sourceNpcs,
+            sourceB.movement()
+        );
+        SharedNpcWorldRelay.register(
+            writerB,
+            worldB,
+            ownerB,
+            npcsB,
+            ownerB.movement()
+        );
+
+        OutboundPacketQueue.BatchReservation pressure=
+            null;
+
+        try{
+            PetDefinitionRepository.Def pet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(pet==null)
+                throw new AssertionError(
+                    "missing pet 24019"
+                );
+
+            sourceNpcs.spawnPet(
+                pet,
+                sourceB.movement(),
+                sourceWriter
+            );
+
+            Player81WorldSync.transformForTest(
+                viewerBSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                writerB
+            );
+
+            if(npcsB.snapshot().size()!=1)
+                throw new AssertionError(
+                    "multi-context fixture did not create one target-owner mirror"
+                );
+
+            drain(queueB);
+
+            Object contextA=
+                contextFor(
+                    writerA
+                );
+            Object contextB=
+                contextFor(
+                    writerB
+                );
+
+            if(contextA==null||
+               contextB==null||
+               contextA==contextB)
+                throw new AssertionError(
+                    "multi-context fixture contexts invalid"
+                );
+
+            pressure=
+                OutboundPacketQueue.reserveBatch(
+                    queueB,
+                    QUEUE_CAPACITY
+                );
+
+            boolean rejected=false;
+
+            try{
+                SharedNpcWorldRelay.register(
+                    writerA,
+                    worldB,
+                    ownerB,
+                    npcsB,
+                    ownerB.movement()
+                );
+            }catch(SharedNpcWorldRelay.RetryableRegistrationException expected){
+                rejected=true;
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "target-owner cleanup retraction did not reject multi-context rebind"
+                );
+
+            if(contextFor(
+                    writerA
+                )!=contextA)
+                throw new AssertionError(
+                    "incoming writer old Context detached before target-owner cleanup committed"
+                );
+
+            if(contextFor(
+                    writerB
+                )!=contextB)
+                throw new AssertionError(
+                    "target-owner old Context detached on retraction"
+                );
+
+            if(npcsB.snapshot().size()!=1||
+               queueB.queuedBytes()!=0)
+                throw new AssertionError(
+                    "multi-context retraction changed target mirror/transport"
+                );
+
+            pressure.release();
+            pressure=null;
+
+            SharedNpcWorldRelay.register(
+                writerA,
+                worldB,
+                ownerB,
+                npcsB,
+                ownerB.movement()
+            );
+
+            if(contextFor(
+                    writerB
+                )!=null)
+                throw new AssertionError(
+                    "old target-owner writer remained bound after successful retry"
+                );
+
+            Object rebound=
+                contextFor(
+                    writerA
+                );
+
+            if(rebound==null||
+               rebound==contextA||
+               rebound==contextB)
+                throw new AssertionError(
+                    "successful multi-context retry did not install fresh Context"
+                );
+
+            if(!npcsB.snapshot().isEmpty())
+                throw new AssertionError(
+                    "successful multi-context cleanup retained old mirror"
+                );
+
+            drain(queueB);
+
+            Player81WorldSync.unregister(
+                writerB
+            );
+
+            Player81WorldSync.Context reboundSync=
+                Player81WorldSync.register(
+                    writerA,
+                    worldB,
+                    ownerB,
+                    new DevAuthorityWorkbench()
+                );
+
+            Player81WorldSync.transformForTest(
+                reboundSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                writerA
+            );
+
+            if(npcsB.snapshot().size()!=1)
+                throw new AssertionError(
+                    "multi-context rebound projection did not create exactly one mirror size="+
+                    npcsB.snapshot().size()
+                );
+
+            drain(queueA);
+
+            SharedNpcWorldRelay.syncRemotePets(
+                writerA
+            );
+
+            if(npcsB.snapshot().size()!=1)
+                throw new AssertionError(
+                    "multi-context steady-state duplicated mirror"
+                );
+        }finally{
+            if(pressure!=null)
+                pressure.release();
+
+            SharedNpcWorldRelay.unregister(
+                writerA
+            );
+            SharedNpcWorldRelay.unregister(
+                writerB
+            );
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
+
+            Player81WorldSync.unregister(
+                writerA
+            );
+            Player81WorldSync.unregister(
+                writerB
+            );
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+
+            if(ownerA.registered())
+                worldA.unregisterPlayer(
+                    ownerA,
+                    ownerAGeneration
+                );
+
+            if(ownerB.registered())
+                worldB.unregisterPlayer(
+                    ownerB,
+                    ownerBGeneration
+                );
+
+            if(sourceB.registered())
+                worldB.unregisterPlayer(
+                    sourceB,
+                    sourceBGeneration
+                );
+
+            worldA.close();
+            worldB.close();
         }
     }
 
