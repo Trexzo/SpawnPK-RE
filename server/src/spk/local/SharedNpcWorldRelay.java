@@ -706,15 +706,38 @@ final class SharedNpcWorldRelay {
         if(viewer==null)
             return;
 
-        viewer.state.world
-            .withOpenPlayerOwnershipIfCurrent(
-                viewer.owner,
-                viewer.ownerGeneration,
-                ()->flushCurrentViewer(
-                    viewerWriter,
-                    viewer
-                )
-            );
+        try{
+            viewer.state.world
+                .withOpenPlayerOwnershipIfCurrent(
+                    viewer.owner,
+                    viewer.ownerGeneration,
+                    ()->flushCurrentViewer(
+                        viewerWriter,
+                        viewer
+                    )
+                );
+        }catch(IOException terminal){
+            /*
+             * flushCurrentViewer holds the SharedNpc registry monitor while
+             * linearizing event delivery. Do full cross-service terminal
+             * retirement only after that monitor has unwound: the retirement
+             * path acquires Trade authority before re-entering SharedNpc, and
+             * doing so inside the relay monitor would invert the established
+             * Trade -> SharedNpc cleanup ordering.
+             *
+             * The packet-65 failure was already classified non-retractable by
+             * flushCurrentViewer. Packet-81, when present, is already committed
+             * and is intentionally not rolled back here.
+             */
+            LocalSessionRuntimeBindings
+                .retireTerminalRuntimeBundle(
+                    viewer.owner,
+                    viewer.writer,
+                    true,
+                    terminal
+                );
+            throw terminal;
+        }
     }
 
     private static void flushCurrentViewer(
