@@ -4,6 +4,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
     public static void main(String[] args)throws Exception{
         assertCancellationCloseSkipsStaleGeneration();
         assertTerminalPeerCloseSkipsStaleGeneration();
+        assertCompetingRootPeerCloseSkipsStaleGeneration();
 
         World world=
             World.isolatedForTest(600L);
@@ -353,6 +354,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "staleWriterUnregisterFenced=true "+
                 "staleCancellationCloseFenced=true "+
                 "staleTerminalPeerCloseFenced=true "+
+                "staleCompetingRootPeerCloseFenced=true "+
                 "staleFinalCommitRejected=true "+
                 "inventoryUnchanged=true"
             );
@@ -793,6 +795,230 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 world.unregisterPlayer(
                     broken,
                     brokenGeneration
+                );
+
+            if(peer.registered())
+                world.unregisterPlayer(
+                    peer,
+                    replacementPeerGeneration!=0L
+                        ?replacementPeerGeneration
+                        :peer.generation()
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertCompetingRootPeerCloseSkipsStaleGeneration()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                603L
+            );
+        WorldPlayer owner=
+            new WorldPlayer();
+        WorldPlayer peer=
+            new WorldPlayer();
+
+        long ownerGeneration=
+            world.registerPlayer(
+                owner,
+                "trade-competing-fence-owner"
+            );
+        long peerGeneration=
+            world.registerPlayer(
+                peer,
+                "trade-competing-fence-peer"
+            );
+
+        OutboundPacketQueue ownerOut=
+            new OutboundPacketQueue();
+        OutboundPacketQueue peerOut=
+            new OutboundPacketQueue();
+        ServerPacketWriter ownerWriter=
+            writer(
+                ownerOut,
+                41
+            );
+        ServerPacketWriter peerWriter=
+            writer(
+                peerOut,
+                45
+            );
+
+        long replacementPeerGeneration=0L;
+        final Throwable[] threadFailure={
+            null
+        };
+        final boolean[] published={
+            false
+        };
+        Thread replacementThread=null;
+
+        try{
+            TradeService.register(
+                world,
+                owner,
+                ownerGeneration,
+                owner.bank(),
+                ownerWriter,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                peer,
+                peerGeneration,
+                peer.bank(),
+                peerWriter,
+                ()->{}
+            );
+
+            requireContains(
+                TradeService.start(
+                    world,
+                    owner,
+                    peer
+                ),
+                "TRADE_UI_OPEN",
+                "competing-root peer fence trade open"
+            );
+
+            int ownerBytesBefore=
+                ownerOut.queuedBytes();
+            int peerBytesBefore=
+                peerOut.queuedBytes();
+
+            synchronized(peer.mutationLock()){
+                replacementThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                published[0]=
+                                    TradeService.publishCompetingRoot(
+                                        owner,
+                                        ()->{
+                                            ownerWriter.fixed(
+                                                97,
+                                                BootstrapPackets.interface97(
+                                                    15106
+                                                )
+                                            );
+                                            return true;
+                                        }
+                                    );
+                            }catch(Throwable failure){
+                                threadFailure[0]=failure;
+                            }
+                        },
+                        "trade-competing-root-peer-generation-fence"
+                    );
+
+                replacementThread.start();
+
+                long deadline=
+                    System.nanoTime()+
+                    5_000_000_000L;
+
+                while(replacementThread.isAlive()&&
+                      replacementThread.getState()!=
+                          Thread.State.BLOCKED&&
+                      System.nanoTime()<deadline)
+                    Thread.yield();
+
+                if(replacementThread.getState()!=
+                        Thread.State.BLOCKED)
+                    throw new AssertionError(
+                        "competing-root retirement did not block at peer ownership fence state="+
+                        replacementThread.getState()
+                    );
+
+                if(!world.unregisterPlayer(
+                        peer,
+                        peerGeneration
+                    ))
+                    throw new AssertionError(
+                        "competing-root peer generation unregister failed"
+                    );
+
+                replacementPeerGeneration=
+                    world.registerPlayer(
+                        peer,
+                        "trade-competing-fence-peer"
+                    );
+
+                if(replacementPeerGeneration==
+                        peerGeneration)
+                    throw new AssertionError(
+                        "competing-root peer generation did not advance"
+                    );
+            }
+
+            replacementThread.join(
+                5000L
+            );
+
+            if(replacementThread.isAlive())
+                throw new AssertionError(
+                    "competing-root peer fence thread did not terminate"
+                );
+
+            if(threadFailure[0]!=null)
+                throw new AssertionError(
+                    "competing-root peer fence thread failed",
+                    threadFailure[0]
+                );
+
+            if(!published[0])
+                throw new AssertionError(
+                    "competing replacement root did not remain committed"
+                );
+
+            if(ownerOut.queuedBytes()!=
+                    ownerBytesBefore+3)
+                throw new AssertionError(
+                    "competing replacement root bytes changed expected="+
+                    (ownerBytesBefore+3)+
+                    " actual="+
+                    ownerOut.queuedBytes()
+                );
+
+            if(peerOut.queuedBytes()!=
+                    peerBytesBefore)
+                throw new AssertionError(
+                    "stale competing-root peer close touched old writer before="+
+                    peerBytesBefore+
+                    " after="+
+                    peerOut.queuedBytes()
+                );
+
+            if(TradeService.active(
+                    owner
+                )||
+               TradeService.active(
+                    peer
+               ))
+                throw new AssertionError(
+                    "competing-root peer fence retained live Trade"
+                );
+        }finally{
+            if(replacementThread!=null&&
+               replacementThread.isAlive())
+                replacementThread.interrupt();
+
+            TradeService.unregister(
+                owner,
+                ownerWriter
+            );
+            TradeService.unregister(
+                peer,
+                peerWriter
+            );
+
+            if(owner.registered())
+                world.unregisterPlayer(
+                    owner,
+                    ownerGeneration
                 );
 
             if(peer.registered())
