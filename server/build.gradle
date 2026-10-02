@@ -6390,3 +6390,18 @@ tasks.register('npcPresentationDeliveryTransportRetractabilityRegression', JavaE
 tasks.named('check') {
     dependsOn tasks.named('npcPresentationDeliveryTransportRetractabilityRegression')
 }
+
+tasks.register('sharedNpcRebindCleanupRetractabilityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc rebind retains old context authority until retractable projection cleanup commits.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.SharedNpcRebindCleanupRetractabilityTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('sharedNpcRebindCleanupRetractabilityRegression')
+}
+
