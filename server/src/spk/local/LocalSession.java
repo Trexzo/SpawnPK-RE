@@ -1895,6 +1895,9 @@ final class LocalSession implements Runnable {
             }
 
             if(logoutRequested){
+                requireLiveSessionWriter(
+                    serverPackets
+                );
                 serverPackets.flush();
                 drainOutbound(out);
                 System.out.println(tag+"V5124_LOGOUT_SOCKET_END requested=true phase=PRE_TICK_ATTACH");
@@ -1908,6 +1911,9 @@ final class LocalSession implements Runnable {
                 public void onWorldTick(long tick,long nowMillis)throws Exception{LocalSession.this.onWorldTick(tick,nowMillis);}
             });
             worldTickAttached=true;
+            requireLiveSessionWriter(
+                serverPackets
+            );
             serverPackets.flush();
             drainOutbound(out);
             System.out.println(tag+"V512_WORLD_TICK_ATTACH playerId="+worldPlayer.id()+" generation="+attachedGeneration+" worldTick="+world.clock().tick()+" members="+world.players().size());
@@ -1915,6 +1921,9 @@ final class LocalSession implements Runnable {
             socket.setSoTimeout(100);
             while (true) {
                 long now = System.currentTimeMillis();
+                requireLiveSessionWriter(
+                    serverPackets
+                );
                 if(outboundPackets.overflowed())throw new IOException("outbound packet queue overflowed");
                 drainOutbound(out);
 
@@ -2151,13 +2160,27 @@ final class LocalSession implements Runnable {
         world.submitAndWait(
             worldPlayer,
             worldPlayerGeneration,
-            ()->pendingRequests.drain(
-                clientPackets,
-                serverPackets,
-                tag
-            ),
+            ()->{
+                requireLiveSessionWriter(
+                    serverPackets
+                );
+                pendingRequests.drain(
+                    clientPackets,
+                    serverPackets,
+                    tag
+                );
+            },
             5_000L
         );
+    }
+
+    static void requireLiveSessionWriter(
+        ServerPacketWriter writer
+    )throws IOException{
+        if(writer!=null&&writer.terminal())
+            throw new IOException(
+                "terminal session packet writer"
+            );
     }
 
     private void drainOutbound(OutputStream out)throws IOException{
@@ -2170,7 +2193,10 @@ final class LocalSession implements Runnable {
         long now
     )throws Exception{
         sessionWorldTick=worldTick;
-        if(!bootstrap||sessionPackets==null)return;
+        if(!bootstrap||
+           sessionPackets==null||
+           sessionPackets.terminal())
+            return;
 
         sessionPackets.beginBatch();
         try{
