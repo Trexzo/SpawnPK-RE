@@ -502,10 +502,17 @@ final class ServerPacketWriter {
                 "recoverable packet publication requires idle pending buffer"
             );
 
-        if(queue==null)
-            throw new NonRetractablePublicationException(
-                "recoverable packet publication requires queue-backed writer"
-            );
+        if(queue==null){
+            try{
+                publication.publish();
+                return;
+            }catch(IOException failure){
+                throw new NonRetractablePublicationException(
+                    "direct stream publication failed with unknown transport progress",
+                    failure
+                );
+            }
+        }
 
         beginBatchLocked();
         boolean completed=false;
