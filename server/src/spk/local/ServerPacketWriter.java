@@ -460,6 +460,33 @@ final class ServerPacketWriter {
     }
 
     synchronized RecoverablePacketResult
+        publishRecoverablePacketIfIdle(
+            RecoverablePacketPublication publication
+        )throws IOException
+    {
+        if(publication==null)
+            throw new NullPointerException(
+                "publication"
+            );
+
+        /*
+         * Do not wait here. Callers such as Player81 registration may already
+         * own semantic authority that an in-flight packet81 operation needs in
+         * order to clear packet81InFlight. Returning RETRACTED_RETRYABLE keeps
+         * the acquisition zero-byte and avoids monitor-order deadlock.
+         */
+        if(packet81InFlight||
+           batchDepth!=0||
+           pending.size()!=0)
+            return RecoverablePacketResult
+                .RETRACTED_RETRYABLE;
+
+        return publishRecoverablePacket(
+            publication
+        );
+    }
+
+    synchronized RecoverablePacketResult
         publishRecoverablePacket(
             RecoverablePacketPublication publication
         )throws IOException
