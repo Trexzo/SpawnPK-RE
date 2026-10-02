@@ -73,6 +73,8 @@ final class LocalSessionRuntimeBindings {
 
         boolean[] bindingStarted=
             new boolean[]{false};
+        boolean[] sharedNpcInstalled=
+            new boolean[]{false};
 
         try{
             world.withOpenPlayerOwnership(
@@ -99,6 +101,7 @@ final class LocalSessionRuntimeBindings {
                         npcs,
                         movement
                     );
+                    sharedNpcInstalled[0]=true;
 
                     TradeService.register(
                         world,
@@ -126,6 +129,7 @@ final class LocalSessionRuntimeBindings {
             if(bindingStarted[0])
                 rollbackRegistration(
                     serverPackets,
+                    sharedNpcInstalled[0],
                     failure
                 );
 
@@ -178,6 +182,7 @@ final class LocalSessionRuntimeBindings {
 
     private void rollbackRegistration(
         ServerPacketWriter writer,
+        boolean sharedNpcInstalled,
         Throwable primary
     ){
         try{
@@ -189,13 +194,14 @@ final class LocalSessionRuntimeBindings {
             primary.addSuppressed(cleanup);
         }
 
-        try{
-            SharedNpcWorldRelay.unregister(
-                writer
-            );
-        }catch(Throwable cleanup){
-            primary.addSuppressed(cleanup);
-        }
+        if(sharedNpcInstalled)
+            try{
+                SharedNpcWorldRelay.unregister(
+                    writer
+                );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
 
         try{
             Player81WorldSync.unregister(
