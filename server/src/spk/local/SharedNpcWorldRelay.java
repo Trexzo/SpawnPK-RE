@@ -721,6 +721,7 @@ final class SharedNpcWorldRelay {
         ServerPacketWriter viewerWriter,
         Context viewer
     )throws IOException{
+        IOException terminalFailure=null;
         /*
          * Exact relay context identity is part of the delivery authority.
          * register()/unregister() use this same monitor, so retain it across
@@ -816,18 +817,16 @@ final class SharedNpcWorldRelay {
                     /*
                      * Queue-backed admission is handled above as retractable.
                      * Reaching this catch means ordinary/direct publication made
-                     * transport/cipher progress that cannot be rewound. Retire
-                     * the exact viewer runtime bundle through the shared
-                     * terminal-writer seam before propagating the relay error.
+                     * transport/cipher progress that cannot be rewound.
+                     *
+                     * Do not enter cross-service terminal retirement while
+                     * holding SharedNpcWorldRelay.class. Trade terminal paths
+                     * retire through this relay too, so SharedNpc -> Trade here
+                     * would invert Trade -> SharedNpc and permit deadlock.
                      */
-                    LocalSessionRuntimeBindings
-                        .retireTerminalRuntimeBundle(
-                            viewer.owner,
-                            viewer.writer,
-                            true,
-                            nonRetryable
-                        );
-                    throw nonRetryable;
+                    terminalFailure=
+                        nonRetryable;
+                    break;
                 }
 
                 if(publication==
@@ -845,6 +844,17 @@ final class SharedNpcWorldRelay {
                         now
                     );
             }
+        }
+
+        if(terminalFailure!=null){
+            LocalSessionRuntimeBindings
+                .retireTerminalRuntimeBundle(
+                    viewer.owner,
+                    viewer.writer,
+                    true,
+                    terminalFailure
+                );
+            throw terminalFailure;
         }
     }
 
