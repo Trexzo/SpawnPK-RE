@@ -118,6 +118,16 @@ public final class NpcPresentationSourceGenerationFenceTest {
                     "generation A source event not queued"
                 );
 
+            SharedNpcWorldRelay.retireTerminalWriter(
+                sourceWriterA
+            );
+
+            if(world.npcPresentationEvents()
+                    .size()!=0)
+                throw new AssertionError(
+                    "first terminal retirement did not remove generation A event"
+                );
+
             if(!world.unregisterPlayer(
                     source,
                     sourceGenerationA
@@ -217,18 +227,31 @@ public final class NpcPresentationSourceGenerationFenceTest {
                     "source generation prune fixture not queued"
                 );
 
-            int removedA=
-                world.npcPresentationEvents()
-                    .removeSourceGeneration(
-                        source.id(),
-                        sourceGenerationA,
-                        freshNow+2L
-                    );
+            /*
+             * Writer A remains a terminal BY_WRITER sentinel while healthy
+             * generation B owns the active SharedNpc Context. A repeated
+             * terminal retirement of A must prune only A-generation events.
+             */
+            SharedNpcWorldRelay.retireTerminalWriter(
+                sourceWriterA
+            );
 
-            if(removedA!=1)
+            boolean oldWriterRejected=false;
+            try{
+                SharedNpcWorldRelay.preflightRegistration(
+                    sourceWriterA,
+                    world,
+                    source
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                oldWriterRejected=
+                    expected.writer==sourceWriterA;
+            }
+
+            if(!oldWriterRejected)
                 throw new AssertionError(
-                    "expected one A-generation event removed, got "+
-                    removedA
+                    "terminal source writer sentinel was not retained"
                 );
 
             List<WorldNpcPresentationEvents.Event>
@@ -280,6 +303,8 @@ public final class NpcPresentationSourceGenerationFenceTest {
                 "staleARejected=true "+
                 "staleAPruned=true "+
                 "exactPrunePreservedB=true "+
+                "terminalExactPrunePreservedB=true "+
+                "terminalSentinelRetained=true "+
                 "generationBDelivered=true"
             );
 
