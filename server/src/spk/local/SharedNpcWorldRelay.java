@@ -561,7 +561,8 @@ final class SharedNpcWorldRelay {
 
             for(Context context:
                     contexts.values())
-                if(context.ownerCurrent())
+                if(context.ownerCurrent()&&
+                   !context.projectionTransportFailedClosed)
                     live.put(
                         context.owner.id(),
                         context.ownerGeneration
