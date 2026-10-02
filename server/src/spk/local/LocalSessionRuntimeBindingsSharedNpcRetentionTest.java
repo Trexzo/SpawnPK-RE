@@ -24,10 +24,10 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         System.out.println(
             "LOCAL_SESSION_RUNTIME_BINDINGS_SHARED_NPC_RETENTION_PASS "+
             "retryableOldContextPreserved=true "+
-            "retryablePlayer81RolledBack=true "+
+            "retryableOldPlayer81Preserved=true "+
             "retryableBindingRetrySucceeds=true "+
             "terminalOldContextPreserved=true "+
-            "terminalPlayer81RolledBack=true "+
+            "terminalOldPlayer81Preserved=true "+
             "terminalWriterNotRetried=true"
         );
     }
@@ -101,6 +101,15 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 viewer,
                 viewerDev
             );
+
+        /*
+         * #1621 prepublishes S2C104 before SharedNpc admission. Seed the
+         * already-authoritative old Player81 contexts while transport is
+         * healthy so the injected failure reaches SharedNpc rebind cleanup.
+         */
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
 
         SharedNpcWorldRelay.register(
             sourceWriter,
@@ -204,10 +213,11 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     "binding rollback unregistered retained retryable SharedNpc Context"
                 );
 
-            if(player81WriterTracked(
-                    viewerWriter))
+            if(player81ContextFor(
+                    viewerWriter
+                )!=oldViewerSync)
                 throw new AssertionError(
-                    "retryable binding failure retained newly registered Player81 writer"
+                    "retryable SharedNpc rejection did not preserve exact old Player81 Context"
                 );
 
             if(viewerNpcs.snapshot().size()!=1||
@@ -363,6 +373,15 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 viewerDev
             );
 
+        /*
+         * #1621 prepublishes S2C104 before SharedNpc admission. Seed the
+         * already-authoritative old Player81 contexts while transport is
+         * healthy so the injected failure reaches SharedNpc rebind cleanup.
+         */
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
         SharedNpcWorldRelay.register(
             sourceWriter,
             world,
@@ -458,10 +477,11 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     "binding rollback unregistered retained terminal SharedNpc Context"
                 );
 
-            if(player81WriterTracked(
-                    viewerWriter))
+            if(player81ContextFor(
+                    viewerWriter
+                )!=oldViewerSync)
                 throw new AssertionError(
-                    "terminal binding failure retained Player81 writer"
+                    "terminal SharedNpc rejection did not preserve exact old Player81 Context"
                 );
 
             if(viewerOut.attempts()<=
@@ -558,7 +578,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         }
     }
 
-    private static boolean player81WriterTracked(
+    private static Object player81ContextFor(
         ServerPacketWriter writer
     )throws Exception{
         Field field=
@@ -574,7 +594,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                 (IdentityHashMap<ServerPacketWriter,Object>)
                 field.get(null);
 
-            return contexts.containsKey(
+            return contexts.get(
                 writer
             );
         }
