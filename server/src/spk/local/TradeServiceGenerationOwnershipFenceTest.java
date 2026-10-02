@@ -3,10 +3,10 @@ package spk.local;
 public final class TradeServiceGenerationOwnershipFenceTest {
     public static void main(String[] args)throws Exception{
         assertFinalCommitDoesNotAcquireParticipantMutationLock();
-        assertCancellationCloseSkipsStaleGeneration();
-        assertTerminalPeerCloseSkipsStaleGeneration();
-        assertCompetingRootPeerCloseSkipsStaleGeneration();
-        assertReplacementOldPeerCloseSkipsStaleGeneration();
+        assertCancellationCloseSerializesGenerationChange();
+        assertTerminalPeerCloseSerializesGenerationChange();
+        assertCompetingRootPeerCloseSerializesGenerationChange();
+        assertReplacementOldPeerCloseSerializesGenerationChange();
 
         World world=
             World.isolatedForTest(600L);
@@ -354,10 +354,10 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "staleStartRejected=true "+
                 "replacementNoStaleNotify=true "+
                 "staleWriterUnregisterFenced=true "+
-                "staleCancellationCloseFenced=true "+
-                "staleTerminalPeerCloseFenced=true "+
-                "staleCompetingRootPeerCloseFenced=true "+
-                "staleReplacementOldPeerCloseFenced=true "+
+                "cancellationCloseRegistryLinearized=true "+
+                "terminalPeerCloseRegistryLinearized=true "+
+                "competingRootPeerCloseRegistryLinearized=true "+
+                "replacementOldPeerCloseRegistryLinearized=true "+
                 "cleanupGenerationFenceUsesRegistry=true "+
                 "finalCommitMutationLockFree=true "+
                 "staleFinalCommitRejected=true "+
@@ -605,21 +605,21 @@ public final class TradeServiceGenerationOwnershipFenceTest {
         }
     }
 
-    private static void assertCancellationCloseSkipsStaleGeneration()
+    private static void assertCancellationCloseSerializesGenerationChange()
         throws Exception
     {
         World world=
             World.isolatedForTest(
                 601L
             );
-        WorldPlayer stale=
+        WorldPlayer participant=
             new WorldPlayer();
         WorldPlayer peer=
             new WorldPlayer();
 
-        long staleGeneration=
+        long participantGeneration=
             world.registerPlayer(
-                stale,
+                participant,
                 "trade-cancel-fence-a"
             );
         long peerGeneration=
@@ -628,13 +628,13 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "trade-cancel-fence-b"
             );
 
-        OutboundPacketQueue staleOut=
+        OutboundPacketQueue participantOut=
             new OutboundPacketQueue();
         OutboundPacketQueue peerOut=
             new OutboundPacketQueue();
-        ServerPacketWriter staleWriter=
+        ServerPacketWriter participantWriter=
             writer(
-                staleOut,
+                participantOut,
                 21
             );
         ServerPacketWriter peerWriter=
@@ -643,19 +643,28 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 25
             );
 
-        long replacementGeneration=0L;
-        final Throwable[] threadFailure={
+        final long[] replacementGeneration={
+            0L
+        };
+        final Throwable[] cancelFailure={
+            null
+        };
+        final Throwable[] rebindFailure={
+            null
+        };
+        final String[] cancelResult={
             null
         };
         Thread cancelThread=null;
+        Thread rebindThread=null;
 
         try{
             TradeService.register(
                 world,
-                stale,
-                staleGeneration,
-                stale.bank(),
-                staleWriter,
+                participant,
+                participantGeneration,
+                participant.bank(),
+                participantWriter,
                 ()->{}
             );
             TradeService.register(
@@ -670,119 +679,127 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             requireContains(
                 TradeService.start(
                     world,
-                    stale,
+                    participant,
                     peer
                 ),
                 "TRADE_UI_OPEN",
                 "cancellation fence trade open"
             );
 
-            int staleBytesBefore=
-                staleOut.queuedBytes();
+            int participantBytesBefore=
+                participantOut.queuedBytes();
             int peerBytesBefore=
                 peerOut.queuedBytes();
 
-            synchronized(world.players()){
+            synchronized(participantWriter){
                 cancelThread=
                     new Thread(
                         ()->{
                             try{
-                                String result=
+                                cancelResult[0]=
                                     TradeService.handleWidget(
-                                        stale,
+                                        participant,
                                         TradeService.FIRST_DECLINE
                                     );
-
-                                if(result==null||
-                                   !result.contains(
-                                        "TRADE_CANCELLED_DECLINE"
-                                   ))
-                                    throw new AssertionError(
-                                        "cancellation fence result="+
-                                        result
-                                    );
                             }catch(Throwable failure){
-                                threadFailure[0]=failure;
+                                cancelFailure[0]=failure;
                             }
                         },
-                        "trade-cancel-generation-fence"
+                        "trade-cancel-registry-linearization"
                     );
 
                 cancelThread.start();
 
-                long deadline=
-                    System.nanoTime()+
-                    5_000_000_000L;
+                awaitBlocked(
+                    cancelThread,
+                    "cancellation close writer boundary"
+                );
 
-                while(cancelThread.isAlive()&&
-                      cancelThread.getState()!=
-                          Thread.State.BLOCKED&&
-                      System.nanoTime()<deadline)
-                    Thread.yield();
+                rebindThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                if(!world.unregisterPlayer(
+                                        participant,
+                                        participantGeneration
+                                    ))
+                                    throw new AssertionError(
+                                        "cancellation rebind unregister failed"
+                                    );
 
-                if(cancelThread.getState()!=
-                        Thread.State.BLOCKED)
-                    throw new AssertionError(
-                        "cancellation did not block at participant registry fence state="+
-                        cancelThread.getState()
+                                replacementGeneration[0]=
+                                    world.registerPlayer(
+                                        participant,
+                                        "trade-cancel-fence-a"
+                                    );
+                            }catch(Throwable failure){
+                                rebindFailure[0]=failure;
+                            }
+                        },
+                        "trade-cancel-registry-rebind"
                     );
 
-                if(!world.unregisterPlayer(
-                        stale,
-                        staleGeneration
-                    ))
-                    throw new AssertionError(
-                        "cancellation fence stale generation unregister failed"
-                    );
+                rebindThread.start();
 
-                replacementGeneration=
-                    world.registerPlayer(
-                        stale,
-                        "trade-cancel-fence-a"
-                    );
-
-                if(replacementGeneration==
-                        staleGeneration)
-                    throw new AssertionError(
-                        "cancellation fence generation did not advance"
-                    );
+                awaitBlocked(
+                    rebindThread,
+                    "cancellation rebind registry boundary"
+                );
             }
 
-            cancelThread.join(
-                5000L
+            joinThread(
+                cancelThread,
+                "cancellation thread"
+            );
+            joinThread(
+                rebindThread,
+                "cancellation rebind thread"
             );
 
-            if(cancelThread.isAlive())
+            if(cancelFailure[0]!=null)
                 throw new AssertionError(
-                    "cancellation fence thread did not terminate"
+                    "cancellation thread failed",
+                    cancelFailure[0]
+                );
+            if(rebindFailure[0]!=null)
+                throw new AssertionError(
+                    "cancellation rebind failed",
+                    rebindFailure[0]
                 );
 
-            if(threadFailure[0]!=null)
+            requireContains(
+                cancelResult[0],
+                "TRADE_CANCELLED_DECLINE",
+                "cancellation result"
+            );
+
+            if(replacementGeneration[0]==0L||
+               replacementGeneration[0]==
+                    participantGeneration)
                 throw new AssertionError(
-                    "cancellation fence thread failed",
-                    threadFailure[0]
+                    "cancellation generation did not advance"
                 );
 
-            if(staleOut.queuedBytes()!=
-                    staleBytesBefore)
+            if(participantOut.queuedBytes()!=
+                    participantBytesBefore+1)
                 throw new AssertionError(
-                    "stale cancellation close touched old writer before="+
-                    staleBytesBefore+
+                    "cancellation participant close did not linearize before rebind before="+
+                    participantBytesBefore+
                     " after="+
-                    staleOut.queuedBytes()
+                    participantOut.queuedBytes()
                 );
 
             if(peerOut.queuedBytes()!=
                     peerBytesBefore+1)
                 throw new AssertionError(
-                    "current peer did not receive exactly one cancellation close before="+
+                    "cancellation peer did not receive exactly one close before="+
                     peerBytesBefore+
                     " after="+
                     peerOut.queuedBytes()
                 );
 
             if(TradeService.active(
-                    stale
+                    participant
                 )||
                TradeService.active(
                     peer
@@ -794,22 +811,25 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             if(cancelThread!=null&&
                cancelThread.isAlive())
                 cancelThread.interrupt();
+            if(rebindThread!=null&&
+               rebindThread.isAlive())
+                rebindThread.interrupt();
 
             TradeService.unregister(
-                stale,
-                staleWriter
+                participant,
+                participantWriter
             );
             TradeService.unregister(
                 peer,
                 peerWriter
             );
 
-            if(stale.registered())
+            if(participant.registered())
                 world.unregisterPlayer(
-                    stale,
-                    replacementGeneration!=0L
-                        ?replacementGeneration
-                        :stale.generation()
+                    participant,
+                    replacementGeneration[0]!=0L
+                        ?replacementGeneration[0]
+                        :participant.generation()
                 );
 
             if(peer.registered())
@@ -822,7 +842,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
         }
     }
 
-    private static void assertTerminalPeerCloseSkipsStaleGeneration()
+    private static void assertTerminalPeerCloseSerializesGenerationChange()
         throws Exception
     {
         World world=
@@ -860,14 +880,20 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 35
             );
 
-        long replacementPeerGeneration=0L;
-        final Throwable[] threadFailure={
+        final long[] replacementPeerGeneration={
+            0L
+        };
+        final Throwable[] retireFailure={
+            null
+        };
+        final Throwable[] rebindFailure={
             null
         };
         final TradeService.BrokenWriterRetirement[] retirement={
             null
         };
         Thread retireThread=null;
+        Thread rebindThread=null;
 
         try{
             TradeService.register(
@@ -900,7 +926,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             int peerBytesBefore=
                 peerOut.queuedBytes();
 
-            synchronized(world.players()){
+            synchronized(peerWriter){
                 retireThread=
                     new Thread(
                         ()->{
@@ -911,85 +937,91 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                                         brokenWriter
                                     );
                             }catch(Throwable failure){
-                                threadFailure[0]=failure;
+                                retireFailure[0]=failure;
                             }
                         },
-                        "trade-terminal-peer-generation-fence"
+                        "trade-terminal-peer-registry-linearization"
                     );
 
                 retireThread.start();
 
-                long deadline=
-                    System.nanoTime()+
-                    5_000_000_000L;
+                awaitBlocked(
+                    retireThread,
+                    "terminal peer close writer boundary"
+                );
 
-                while(retireThread.isAlive()&&
-                      retireThread.getState()!=
-                          Thread.State.BLOCKED&&
-                      System.nanoTime()<deadline)
-                    Thread.yield();
+                rebindThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                if(!world.unregisterPlayer(
+                                        peer,
+                                        peerGeneration
+                                    ))
+                                    throw new AssertionError(
+                                        "terminal peer rebind unregister failed"
+                                    );
 
-                if(retireThread.getState()!=
-                        Thread.State.BLOCKED)
-                    throw new AssertionError(
-                        "terminal peer retirement did not block at ownership fence state="+
-                        retireThread.getState()
+                                replacementPeerGeneration[0]=
+                                    world.registerPlayer(
+                                        peer,
+                                        "trade-terminal-fence-peer"
+                                    );
+                            }catch(Throwable failure){
+                                rebindFailure[0]=failure;
+                            }
+                        },
+                        "trade-terminal-peer-registry-rebind"
                     );
 
-                if(!world.unregisterPlayer(
-                        peer,
-                        peerGeneration
-                    ))
-                    throw new AssertionError(
-                        "terminal peer fence generation unregister failed"
-                    );
+                rebindThread.start();
 
-                replacementPeerGeneration=
-                    world.registerPlayer(
-                        peer,
-                        "trade-terminal-fence-peer"
-                    );
-
-                if(replacementPeerGeneration==
-                        peerGeneration)
-                    throw new AssertionError(
-                        "terminal peer fence generation did not advance"
-                    );
+                awaitBlocked(
+                    rebindThread,
+                    "terminal peer rebind registry boundary"
+                );
             }
 
-            retireThread.join(
-                5000L
+            joinThread(
+                retireThread,
+                "terminal peer retirement thread"
+            );
+            joinThread(
+                rebindThread,
+                "terminal peer rebind thread"
             );
 
-            if(retireThread.isAlive())
+            if(retireFailure[0]!=null)
                 throw new AssertionError(
-                    "terminal peer fence thread did not terminate"
+                    "terminal peer retirement failed",
+                    retireFailure[0]
+                );
+            if(rebindFailure[0]!=null)
+                throw new AssertionError(
+                    "terminal peer rebind failed",
+                    rebindFailure[0]
                 );
 
-            if(threadFailure[0]!=null)
+            if(retirement[0]==null||
+               retirement[0].peerClose!=
+                    TradeService.BrokenWriterPeerClose.COMMITTED||
+               retirement[0].peerOwner!=peer||
+               retirement[0].peerWriter!=peerWriter)
                 throw new AssertionError(
-                    "terminal peer fence thread failed",
-                    threadFailure[0]
+                    "terminal peer close did not commit before rebind"
                 );
 
-            if(retirement[0]==null)
+            if(replacementPeerGeneration[0]==0L||
+               replacementPeerGeneration[0]==
+                    peerGeneration)
                 throw new AssertionError(
-                    "terminal peer fence produced no retirement result"
-                );
-
-            if(retirement[0].peerClose!=
-                    TradeService.BrokenWriterPeerClose.NONE||
-               retirement[0].peerOwner!=null||
-               retirement[0].peerWriter!=null)
-                throw new AssertionError(
-                    "stale terminal peer was classified for close result="+
-                    retirement[0].peerClose
+                    "terminal peer generation did not advance"
                 );
 
             if(peerOut.queuedBytes()!=
-                    peerBytesBefore)
+                    peerBytesBefore+1)
                 throw new AssertionError(
-                    "stale terminal peer close touched old writer before="+
+                    "terminal peer close did not linearize before rebind before="+
                     peerBytesBefore+
                     " after="+
                     peerOut.queuedBytes()
@@ -1008,6 +1040,9 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             if(retireThread!=null&&
                retireThread.isAlive())
                 retireThread.interrupt();
+            if(rebindThread!=null&&
+               rebindThread.isAlive())
+                rebindThread.interrupt();
 
             TradeService.unregister(
                 broken,
@@ -1027,8 +1062,8 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             if(peer.registered())
                 world.unregisterPlayer(
                     peer,
-                    replacementPeerGeneration!=0L
-                        ?replacementPeerGeneration
+                    replacementPeerGeneration[0]!=0L
+                        ?replacementPeerGeneration[0]
                         :peer.generation()
                 );
 
@@ -1036,7 +1071,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
         }
     }
 
-    private static void assertCompetingRootPeerCloseSkipsStaleGeneration()
+    private static void assertCompetingRootPeerCloseSerializesGenerationChange()
         throws Exception
     {
         World world=
@@ -1074,14 +1109,20 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 45
             );
 
-        long replacementPeerGeneration=0L;
-        final Throwable[] threadFailure={
+        final long[] replacementPeerGeneration={
+            0L
+        };
+        final Throwable[] replacementFailure={
+            null
+        };
+        final Throwable[] rebindFailure={
             null
         };
         final boolean[] published={
             false
         };
         Thread replacementThread=null;
+        Thread rebindThread=null;
 
         try{
             TradeService.register(
@@ -1116,7 +1157,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             int peerBytesBefore=
                 peerOut.queuedBytes();
 
-            synchronized(world.players()){
+            synchronized(peerWriter){
                 replacementThread=
                     new Thread(
                         ()->{
@@ -1135,70 +1176,81 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                                         }
                                     );
                             }catch(Throwable failure){
-                                threadFailure[0]=failure;
+                                replacementFailure[0]=failure;
                             }
                         },
-                        "trade-competing-root-peer-generation-fence"
+                        "trade-competing-root-registry-linearization"
                     );
 
                 replacementThread.start();
 
-                long deadline=
-                    System.nanoTime()+
-                    5_000_000_000L;
-
-                while(replacementThread.isAlive()&&
-                      replacementThread.getState()!=
-                          Thread.State.BLOCKED&&
-                      System.nanoTime()<deadline)
-                    Thread.yield();
-
-                if(replacementThread.getState()!=
-                        Thread.State.BLOCKED)
-                    throw new AssertionError(
-                        "competing-root retirement did not block at peer registry fence state="+
-                        replacementThread.getState()
-                    );
-
-                if(!world.unregisterPlayer(
-                        peer,
-                        peerGeneration
-                    ))
-                    throw new AssertionError(
-                        "competing-root peer generation unregister failed"
-                    );
-
-                replacementPeerGeneration=
-                    world.registerPlayer(
-                        peer,
-                        "trade-competing-fence-peer"
-                    );
-
-                if(replacementPeerGeneration==
-                        peerGeneration)
-                    throw new AssertionError(
-                        "competing-root peer generation did not advance"
-                    );
-            }
-
-            replacementThread.join(
-                5000L
-            );
-
-            if(replacementThread.isAlive())
-                throw new AssertionError(
-                    "competing-root peer fence thread did not terminate"
+                awaitBlocked(
+                    replacementThread,
+                    "competing-root peer close writer boundary"
                 );
 
-            if(threadFailure[0]!=null)
+                rebindThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                if(!world.unregisterPlayer(
+                                        peer,
+                                        peerGeneration
+                                    ))
+                                    throw new AssertionError(
+                                        "competing-root peer rebind unregister failed"
+                                    );
+
+                                replacementPeerGeneration[0]=
+                                    world.registerPlayer(
+                                        peer,
+                                        "trade-competing-fence-peer"
+                                    );
+                            }catch(Throwable failure){
+                                rebindFailure[0]=failure;
+                            }
+                        },
+                        "trade-competing-root-registry-rebind"
+                    );
+
+                rebindThread.start();
+
+                awaitBlocked(
+                    rebindThread,
+                    "competing-root peer rebind registry boundary"
+                );
+            }
+
+            joinThread(
+                replacementThread,
+                "competing-root replacement thread"
+            );
+            joinThread(
+                rebindThread,
+                "competing-root rebind thread"
+            );
+
+            if(replacementFailure[0]!=null)
                 throw new AssertionError(
-                    "competing-root peer fence thread failed",
-                    threadFailure[0]
+                    "competing-root replacement failed",
+                    replacementFailure[0]
+                );
+            if(rebindFailure[0]!=null)
+                throw new AssertionError(
+                    "competing-root peer rebind failed",
+                    rebindFailure[0]
                 );
 
             if(!published[0])
                 throw new AssertionError(
                     "competing replacement root did not remain committed"
+                );
+
+            if(replacementPeerGeneration[0]==0L||
+               replacementPeerGeneration[0]==
+                    peerGeneration)
+                throw new AssertionError(
+                    "competing-root peer generation did not advance"
                 );
 
             if(ownerOut.queuedBytes()!=
@@ -1211,9 +1263,9 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 );
 
             if(peerOut.queuedBytes()!=
-                    peerBytesBefore)
+                    peerBytesBefore+1)
                 throw new AssertionError(
-                    "stale competing-root peer close touched old writer before="+
+                    "competing-root peer close did not linearize before rebind before="+
                     peerBytesBefore+
                     " after="+
                     peerOut.queuedBytes()
@@ -1232,6 +1284,9 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             if(replacementThread!=null&&
                replacementThread.isAlive())
                 replacementThread.interrupt();
+            if(rebindThread!=null&&
+               rebindThread.isAlive())
+                rebindThread.interrupt();
 
             TradeService.unregister(
                 owner,
@@ -1251,8 +1306,8 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             if(peer.registered())
                 world.unregisterPlayer(
                     peer,
-                    replacementPeerGeneration!=0L
-                        ?replacementPeerGeneration
+                    replacementPeerGeneration[0]!=0L
+                        ?replacementPeerGeneration[0]
                         :peer.generation()
                 );
 
@@ -1260,7 +1315,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
         }
     }
 
-    private static void assertReplacementOldPeerCloseSkipsStaleGeneration()
+    private static void assertReplacementOldPeerCloseSerializesGenerationChange()
         throws Exception
     {
         World world=
@@ -1313,14 +1368,20 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 59
             );
 
-        long replacementGenerationC=0L;
-        final Throwable[] threadFailure={
+        final long[] replacementGenerationC={
+            0L
+        };
+        final Throwable[] replacementFailure={
+            null
+        };
+        final Throwable[] rebindFailure={
             null
         };
         final String[] replacementResult={
             null
         };
         Thread replacementThread=null;
+        Thread rebindThread=null;
 
         try{
             TradeService.register(
@@ -1361,7 +1422,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             int cBytesBefore=
                 cOut.queuedBytes();
 
-            synchronized(world.players()){
+            synchronized(cWriter){
                 replacementThread=
                     new Thread(
                         ()->{
@@ -1373,65 +1434,69 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                                         b
                                     );
                             }catch(Throwable failure){
-                                threadFailure[0]=failure;
+                                replacementFailure[0]=failure;
                             }
                         },
-                        "trade-replacement-old-peer-generation-fence"
+                        "trade-replacement-old-peer-registry-linearization"
                     );
 
                 replacementThread.start();
 
-                long deadline=
-                    System.nanoTime()+
-                    5_000_000_000L;
-
-                while(replacementThread.isAlive()&&
-                      replacementThread.getState()!=
-                          Thread.State.BLOCKED&&
-                      System.nanoTime()<deadline)
-                    Thread.yield();
-
-                if(replacementThread.getState()!=
-                        Thread.State.BLOCKED)
-                    throw new AssertionError(
-                        "replacement cleanup did not block at old-peer registry fence state="+
-                        replacementThread.getState()
-                    );
-
-                if(!world.unregisterPlayer(
-                        c,
-                        generationC
-                    ))
-                    throw new AssertionError(
-                        "replacement old-peer generation unregister failed"
-                    );
-
-                replacementGenerationC=
-                    world.registerPlayer(
-                        c,
-                        "trade-replacement-fence-c"
-                    );
-
-                if(replacementGenerationC==
-                        generationC)
-                    throw new AssertionError(
-                        "replacement old-peer generation did not advance"
-                    );
-            }
-
-            replacementThread.join(
-                5000L
-            );
-
-            if(replacementThread.isAlive())
-                throw new AssertionError(
-                    "replacement old-peer fence thread did not terminate"
+                awaitBlocked(
+                    replacementThread,
+                    "replacement old-peer close writer boundary"
                 );
 
-            if(threadFailure[0]!=null)
+                rebindThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                if(!world.unregisterPlayer(
+                                        c,
+                                        generationC
+                                    ))
+                                    throw new AssertionError(
+                                        "replacement old-peer rebind unregister failed"
+                                    );
+
+                                replacementGenerationC[0]=
+                                    world.registerPlayer(
+                                        c,
+                                        "trade-replacement-fence-c"
+                                    );
+                            }catch(Throwable failure){
+                                rebindFailure[0]=failure;
+                            }
+                        },
+                        "trade-replacement-old-peer-registry-rebind"
+                    );
+
+                rebindThread.start();
+
+                awaitBlocked(
+                    rebindThread,
+                    "replacement old-peer rebind registry boundary"
+                );
+            }
+
+            joinThread(
+                replacementThread,
+                "replacement old-peer start thread"
+            );
+            joinThread(
+                rebindThread,
+                "replacement old-peer rebind thread"
+            );
+
+            if(replacementFailure[0]!=null)
                 throw new AssertionError(
-                    "replacement old-peer fence thread failed",
-                    threadFailure[0]
+                    "replacement old-peer start failed",
+                    replacementFailure[0]
+                );
+            if(rebindFailure[0]!=null)
+                throw new AssertionError(
+                    "replacement old-peer rebind failed",
+                    rebindFailure[0]
                 );
 
             requireContains(
@@ -1440,10 +1505,17 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "replacement old-peer new trade"
             );
 
-            if(cOut.queuedBytes()!=
-                    cBytesBefore)
+            if(replacementGenerationC[0]==0L||
+               replacementGenerationC[0]==
+                    generationC)
                 throw new AssertionError(
-                    "stale replacement old-peer close touched old writer before="+
+                    "replacement old-peer generation did not advance"
+                );
+
+            if(cOut.queuedBytes()!=
+                    cBytesBefore+1)
+                throw new AssertionError(
+                    "replacement old-peer close did not linearize before rebind before="+
                     cBytesBefore+
                     " after="+
                     cOut.queuedBytes()
@@ -1463,12 +1535,15 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                     c
                 ))
                 throw new AssertionError(
-                    "stale replacement old peer retained live Trade"
+                    "replacement old peer retained live Trade"
                 );
         }finally{
             if(replacementThread!=null&&
                replacementThread.isAlive())
                 replacementThread.interrupt();
+            if(rebindThread!=null&&
+               rebindThread.isAlive())
+                rebindThread.interrupt();
 
             TradeService.unregister(
                 a,
@@ -1498,13 +1573,51 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             if(c.registered())
                 world.unregisterPlayer(
                     c,
-                    replacementGenerationC!=0L
-                        ?replacementGenerationC
+                    replacementGenerationC[0]!=0L
+                        ?replacementGenerationC[0]
                         :c.generation()
                 );
 
             world.close();
         }
+    }
+
+    private static void awaitBlocked(
+        Thread thread,
+        String phase
+    )throws InterruptedException{
+        long deadline=
+            System.nanoTime()+
+            5_000_000_000L;
+
+        while(thread.isAlive()&&
+              thread.getState()!=
+                  Thread.State.BLOCKED&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(thread.getState()!=
+                Thread.State.BLOCKED)
+            throw new AssertionError(
+                phase+
+                " state="+
+                thread.getState()
+            );
+    }
+
+    private static void joinThread(
+        Thread thread,
+        String phase
+    )throws InterruptedException{
+        thread.join(
+            5000L
+        );
+
+        if(thread.isAlive())
+            throw new AssertionError(
+                phase+
+                " did not terminate"
+            );
     }
 
     private static ServerPacketWriter writer(
