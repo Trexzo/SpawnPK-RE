@@ -1,11 +1,15 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Arrays;
 
 public final class RemotePetMirrorMaskRetryTest {
+    private static final int QUEUE_CAPACITY=1024;
+    private static final int[] SOURCE_SEED=
+        new int[]{701,702,703,704};
+    private static final int[] VIEWER_SEED=
+        new int[]{705,706,707,708};
+
     public static void main(String[] args)throws Exception{
         assertPostAddMaskFailureDoesNotDuplicateMirror();
 
@@ -18,7 +22,10 @@ public final class RemotePetMirrorMaskRetryTest {
             "deferredMaskRetried=true "+
             "deferredMaskBlocksLaterProjection=true "+
             "fifoDrainsBeforeMiniProjection=true "+
-            "nativeMaskOrderedAfterDeferredInteraction=true"
+            "nativeMaskOrderedAfterDeferredInteraction=true "+
+            "queueBackedRetry=true "+
+            "retryCipherRewound=true "+
+            "eventualWireMatchesCleanReference=true"
         );
     }
 
@@ -53,20 +60,20 @@ public final class RemotePetMirrorMaskRetryTest {
             new ServerPacketWriter(
                 sourceQueue,
                 new IsaacCipher(
-                    new int[]{701,702,703,704}
+                    SOURCE_SEED.clone()
                 )
             );
 
-        FailNthWriteOutputStream viewerOut=
-            new FailNthWriteOutputStream(
-                2
+        OutboundPacketQueue viewerQueue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
             );
 
         ServerPacketWriter viewerWriter=
             new ServerPacketWriter(
-                viewerOut,
+                viewerQueue,
                 new IsaacCipher(
-                    new int[]{705,706,707,708}
+                    VIEWER_SEED.clone()
                 )
             );
 
@@ -184,28 +191,39 @@ public final class RemotePetMirrorMaskRetryTest {
                 BootstrapPackets.player81Idle()
             );
 
-            if(Player81WorldSync.clientIndexFor(
+            int playerIndex=
+                Player81WorldSync.clientIndexFor(
                     viewerWriter,
                     source
-                )<0)
+                );
+
+            if(playerIndex<0)
                 throw new AssertionError(
                     "viewer did not establish source visibility"
                 );
+
+            PacketSizes sizes=
+                measureMainPacketSizes(
+                    pet.npcId,
+                    viewer.movement(),
+                    32768+playerIndex
+                );
+
+            OutboundPacketQueue.BatchReservation
+                pressure=
+                    reserveFirstMaskFailure(
+                        viewerQueue,
+                        sizes
+                    );
 
             SharedNpcWorldRelay.syncRemotePets(
                 viewerWriter
             );
 
-            if(viewerOut.attempts()!=2)
+            if(viewerQueue.queuedPackets()!=1)
                 throw new AssertionError(
-                    "fixture did not fail on required post-add mask attempts="+
-                    viewerOut.attempts()
-                );
-
-            if(viewerOut.successfulWrites()!=1)
-                throw new AssertionError(
-                    "expected only mirror add write to succeed before mask failure successes="+
-                    viewerOut.successfulWrites()
+                    "failing sync should admit only main mirror add queued="+
+                    viewerQueue.queuedPackets()
                 );
 
             if(viewerNpcs.snapshot().size()!=1)
@@ -219,7 +237,15 @@ public final class RemotePetMirrorMaskRetryTest {
             int scene=
                 first.sceneIndex;
 
-            viewerOut.disableFailure();
+            pressure.release();
+
+            ByteArrayOutputStream actual=
+                new ByteArrayOutputStream();
+
+            viewerQueue.drainTo(
+                actual,
+                Integer.MAX_VALUE
+            );
 
             SharedNpcWorldRelay.syncRemotePets(
                 viewerWriter
@@ -247,22 +273,36 @@ public final class RemotePetMirrorMaskRetryTest {
                     scene
                 );
 
-            if(viewerOut.successfulWrites()!=6)
+            if(viewerQueue.queuedPackets()!=5)
                 throw new AssertionError(
-                    "retry packet order/count mismatch expected queued-main-mask/queued-native-mask/mini-add/mini-masks after initial add successes="+
-                    viewerOut.successfulWrites()+
-                    " attempts="+
-                    viewerOut.attempts()
+                    "retry packet count mismatch expected queued-main-mask/queued-native-mask/mini-add/mini-masks packets="+
+                    viewerQueue.queuedPackets()
                 );
 
-            if(viewerOut.attempts()!=7)
-                throw new AssertionError(
-                    "retry did not consume exactly one failed write plus ordered follow-up packets attempts="+
-                    viewerOut.attempts()
+            viewerQueue.drainTo(
+                actual,
+                Integer.MAX_VALUE
+            );
+
+            byte[] expected=
+                cleanReferenceBytes(
+                    pet.npcId,
+                    sourceNpcs.pet(),
+                    mini.npcId,
+                    sourceNpcs.miniPet(),
+                    viewer.movement(),
+                    32768+playerIndex
                 );
 
-            int attemptsAfterRetry=
-                viewerOut.attempts();
+            if(!Arrays.equals(
+                    actual.toByteArray(),
+                    expected))
+                throw new AssertionError(
+                    "eventual retry bytes differ from clean same-seed projection actual="+
+                    actual.size()+
+                    " expected="+
+                    expected.length
+                );
 
             SharedNpcWorldRelay.syncRemotePets(
                 viewerWriter
@@ -273,13 +313,10 @@ public final class RemotePetMirrorMaskRetryTest {
                     "steady-state sync changed main+mini mirror cardinality"
                 );
 
-            if(viewerOut.attempts()!=
-                    attemptsAfterRetry)
+            if(viewerQueue.queuedPackets()!=0)
                 throw new AssertionError(
-                    "completed deferred mask was emitted again attemptsBefore="+
-                    attemptsAfterRetry+
-                    " after="+
-                    viewerOut.attempts()
+                    "completed deferred mask emitted again queued="+
+                    viewerQueue.queuedPackets()
                 );
         }finally{
             SharedNpcWorldRelay.unregister(
@@ -312,66 +349,176 @@ public final class RemotePetMirrorMaskRetryTest {
         }
     }
 
-    private static final class FailNthWriteOutputStream
-        extends OutputStream {
+    private static OutboundPacketQueue.BatchReservation
+        reserveFirstMaskFailure(
+            OutboundPacketQueue queue,
+            PacketSizes sizes
+        )throws Exception
+    {
+        int reserve=
+            QUEUE_CAPACITY-
+            sizes.addBytes-
+            sizes.interactionMaskBytes+
+            1;
 
-        private final ByteArrayOutputStream delegate=
+        if(reserve<0)
+            throw new AssertionError(
+                "fixture packets exceed queue capacity add="+
+                sizes.addBytes+
+                " mask="+
+                sizes.interactionMaskBytes
+            );
+
+        return OutboundPacketQueue.reserveBatch(
+            queue,
+            reserve
+        );
+    }
+
+    private static PacketSizes measureMainPacketSizes(
+        int npcId,
+        MovementState movement,
+        int interactionTarget
+    )throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue();
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        NpcEntity mirror=
+            npcs.spawnMirroredNpc(
+                npcId,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                writer
+            );
+
+        int addBytes=
+            queue.queuedBytes();
+
+        npcs.sendMaskLocal(
+            mirror,
+            NpcSyncEncoder.Mask.interactionTarget(
+                interactionTarget
+            ),
+            writer
+        );
+
+        return new PacketSizes(
+            addBytes,
+            queue.queuedBytes()-addBytes
+        );
+    }
+
+    private static byte[] cleanReferenceBytes(
+        int mainNpcId,
+        NpcEntity sourceMain,
+        int miniNpcId,
+        NpcEntity sourceMini,
+        MovementState movement,
+        int playerTarget
+    )throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue();
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        NpcEntity main=
+            npcs.spawnMirroredNpc(
+                mainNpcId,
+                sourceMain.x,
+                sourceMain.y,
+                null,
+                movement,
+                writer
+            );
+
+        npcs.sendMaskLocal(
+            main,
+            NpcSyncEncoder.Mask.interactionTarget(
+                playerTarget
+            ),
+            writer
+        );
+
+        npcs.sendMaskLocal(
+            main,
+            NpcSyncEncoder.Mask.forceText(
+                "1"
+            ),
+            writer
+        );
+
+        NpcEntity mini=
+            npcs.spawnMirroredNpc(
+                miniNpcId,
+                sourceMini.x,
+                sourceMini.y,
+                null,
+                movement,
+                writer
+            );
+
+        npcs.sendMaskLocal(
+            mini,
+            NpcSyncEncoder.Mask.interactionTarget(
+                main.sceneIndex
+            ),
+            writer
+        );
+
+        npcs.sendMaskLocal(
+            mini,
+            NpcSyncEncoder.Mask.interactionTarget(
+                main.sceneIndex
+            ),
+            writer
+        );
+
+        ByteArrayOutputStream out=
             new ByteArrayOutputStream();
-        private final int failAt;
-        private int attempts;
-        private int successfulWrites;
-        private final AtomicBoolean failureEnabled=
-            new AtomicBoolean(true);
 
-        FailNthWriteOutputStream(
-            int failAt
+        queue.drainTo(
+            out,
+            Integer.MAX_VALUE
+        );
+
+        return out.toByteArray();
+    }
+
+    private static final class PacketSizes {
+        final int addBytes;
+        final int interactionMaskBytes;
+
+        PacketSizes(
+            int addBytes,
+            int interactionMaskBytes
         ){
-            this.failAt=failAt;
-        }
-
-        synchronized int attempts(){
-            return attempts;
-        }
-
-        synchronized int successfulWrites(){
-            return successfulWrites;
-        }
-
-        void disableFailure(){
-            failureEnabled.set(false);
-        }
-
-        @Override public void write(
-            int value
-        )throws IOException{
-            byte[] one=
-                new byte[]{(byte)value};
-            write(
-                one,
-                0,
-                1
-            );
-        }
-
-        @Override public synchronized void write(
-            byte[] bytes,
-            int offset,
-            int length
-        )throws IOException{
-            attempts++;
-
-            if(failureEnabled.get()&&
-               attempts==failAt)
-                throw new IOException(
-                    "EXPECTED_POST_ADD_MASK_FAILURE"
-                );
-
-            delegate.write(
-                bytes,
-                offset,
-                length
-            );
-            successfulWrites++;
+            this.addBytes=addBytes;
+            this.interactionMaskBytes=
+                interactionMaskBytes;
         }
     }
 
