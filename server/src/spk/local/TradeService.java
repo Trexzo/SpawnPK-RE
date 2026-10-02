@@ -1347,7 +1347,69 @@ final class TradeService {
         t.a.writer.varShort(126,BootstrapPackets.widgetText126(CONFIRM_STATUS,sa));
         t.b.writer.varShort(126,BootstrapPackets.widgetText126(CONFIRM_STATUS,sb));
     }
-    private static void publishConfirm(Trade t)throws IOException{publishConfirmFor(t,t.a);publishConfirmFor(t,t.b);}
+    private static void publishConfirm(Trade t)throws IOException{
+        try{
+            publishConfirmFor(
+                t,
+                t.a
+            );
+        }catch(IOException failure){
+            retireTerminalConfirmPublicationFailure(
+                t,
+                t.a,
+                failure
+            );
+            throw failure;
+        }
+
+        try{
+            publishConfirmFor(
+                t,
+                t.b
+            );
+        }catch(IOException failure){
+            retireTerminalConfirmPublicationFailure(
+                t,
+                t.b,
+                failure
+            );
+            throw failure;
+        }
+    }
+
+    private static void retireTerminalConfirmPublicationFailure(
+        Trade trade,
+        Context failed,
+        IOException failure
+    ){
+        Context peer=
+            trade.other(
+                failed
+            );
+
+        trade.stage=Stage.CANCELLED;
+        detach(
+            state(failed.world),
+            trade
+        );
+
+        /*
+         * The failed confirmation publication was ordinary/unbatched. Its
+         * exact writer is already terminal and must not receive a cleanup
+         * close. Retire that runtime locally first, then close only the peer.
+         */
+        LocalSessionRuntimeBindings
+            .retireTerminalRuntimeBundle(
+                failed.player,
+                failed.writer,
+                true,
+                failure
+            );
+
+        closeCancelledParticipant(
+            peer
+        );
+    }
     private static void publishConfirmFor(Trade t,Context c)throws IOException{
         Context o=t.other(c);
         c.writer.fixed(97,BootstrapPackets.interface97(CONFIRM_ROOT));
