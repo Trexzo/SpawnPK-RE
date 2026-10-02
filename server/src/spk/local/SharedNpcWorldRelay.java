@@ -391,6 +391,17 @@ final class SharedNpcWorldRelay {
         ServerPacketWriter viewerWriter,
         Context viewer
     )throws IOException{
+        /*
+         * Exact relay context identity is part of the delivery authority.
+         * register()/unregister() use this same monitor, so retain it across
+         * resolve -> packet65 publication -> markDelivered. Retirement/rebind
+         * therefore linearizes before this delivery or after it, never through
+         * an in-flight event commit.
+         *
+         * World/player ownership is acquired before entering this method, and
+         * packet publication acquires the writer only after this registry
+         * monitor. No writer-held path enters SharedNpcWorldRelay.
+         */
         synchronized(SharedNpcWorldRelay.class){
             if(BY_WRITER.get(viewerWriter)!=
                     viewer||
@@ -398,79 +409,79 @@ final class SharedNpcWorldRelay {
                     viewer.owner.id()
                 )!=viewer)
                 return;
-        }
 
-        long now=System.currentTimeMillis();
+            long now=System.currentTimeMillis();
 
-        List<WorldNpcPresentationEvents.Event> pending=
-            viewer.state.world
-                .npcPresentationEvents()
-                .pendingFor(
-                    viewer.owner.id(),
-                    viewer.ownerGeneration,
-                    now
+            List<WorldNpcPresentationEvents.Event> pending=
+                viewer.state.world
+                    .npcPresentationEvents()
+                    .pendingFor(
+                        viewer.owner.id(),
+                        viewer.ownerGeneration,
+                        now
+                    );
+
+            for(WorldNpcPresentationEvents.Event event:
+                pending){
+                if(!sourceCurrent(
+                        viewer,
+                        event
+                    )){
+                    if(event.sourceGeneration>=0L)
+                        viewer.state.world
+                            .npcPresentationEvents()
+                            .removeSourceGeneration(
+                                event.sourceId,
+                                event.sourceGeneration,
+                                now
+                            );
+                    continue;
+                }
+
+                long consumed=
+                    event.sourceGeneration>=0L
+                        ?Player81WorldSync
+                            .consumedEventSequence(
+                                viewerWriter,
+                                event.sourceId,
+                                event.sourceGeneration
+                            )
+                        :Player81WorldSync
+                            .consumedEventSequence(
+                                viewerWriter,
+                                event.sourceId
+                            );
+
+                if(event.playerBarrierSequence>0&&
+                   consumed<
+                        event.playerBarrierSequence)
+                    continue;
+
+                NpcEntity target=
+                    viewer.resolve(
+                        event.sourceId,
+                        event.sourceGeneration,
+                        event.target
+                    );
+
+                if(target==null)
+                    continue;
+
+                viewer.npcs.sendMaskLocal(
+                    target,
+                    event.mask,
+                    viewer.writer
                 );
 
-        for(WorldNpcPresentationEvents.Event event:
-            pending){
-            if(!sourceCurrent(
-                    viewer,
-                    event
-                )){
-                if(event.sourceGeneration>=0L)
-                    viewer.state.world
-                        .npcPresentationEvents()
-                        .removeSourceGeneration(
-                            event.sourceId,
-                            event.sourceGeneration,
-                            now
-                        );
-                continue;
+                viewer.state.world
+                    .npcPresentationEvents()
+                    .markDelivered(
+                        event.sequence,
+                        viewer.owner.id(),
+                        viewer.ownerGeneration,
+                        now
+                    );
             }
-
-            long consumed=
-                event.sourceGeneration>=0L
-                    ?Player81WorldSync
-                        .consumedEventSequence(
-                            viewerWriter,
-                            event.sourceId,
-                            event.sourceGeneration
-                        )
-                    :Player81WorldSync
-                        .consumedEventSequence(
-                            viewerWriter,
-                            event.sourceId
-                        );
-
-            if(event.playerBarrierSequence>0&&
-               consumed<
-                    event.playerBarrierSequence)
-                continue;
-
-            NpcEntity target=
-                viewer.resolve(
-                    event.sourceId,
-                    event.sourceGeneration,
-                    event.target
-                );
-
-            if(target==null)
-                continue;
-
-            viewer.npcs.sendMaskLocal(
-                target,
-                event.mask,
-                viewer.writer
-            );
-
-            viewer.state.world
-                .npcPresentationEvents()
-                .markDelivered(
-                    event.sequence,
-                    viewer.owner.id(),
-                    viewer.ownerGeneration,
-                    now
-                );
         }
     }
 
