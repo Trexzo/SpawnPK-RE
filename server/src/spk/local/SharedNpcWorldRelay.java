@@ -568,13 +568,19 @@ final class SharedNpcWorldRelay {
     }
 
     private static final class PendingMirrorMask{
+        final EntityId sourceId;
+        final long sourceGeneration;
         final NpcEntity npc;
         final NpcSyncEncoder.Mask mask;
 
         PendingMirrorMask(
+            EntityId sourceId,
+            long sourceGeneration,
             NpcEntity npc,
             NpcSyncEncoder.Mask mask
         ){
+            this.sourceId=sourceId;
+            this.sourceGeneration=sourceGeneration;
             this.npc=npc;
             this.mask=mask;
         }
@@ -769,6 +775,8 @@ final class SharedNpcWorldRelay {
                 boolean mainWasAbsent=t.mainScene<0;
 
                 t.mainScene=syncOne(
+                    src.owner.id(),
+                    src.ownerGeneration,
                     t.mainScene,
                     t.mainDef,
                     petDef,
@@ -806,6 +814,8 @@ final class SharedNpcWorldRelay {
                             npcs.scene(t.mainScene);
                         if(mirrored!=null)
                             sendMirrorMaskOrDefer(
+                                src.owner.id(),
+                                src.ownerGeneration,
                                 mirrored,
                                 NpcSyncEncoder.Mask.forceText(
                                     Integer.toString(
@@ -844,6 +854,8 @@ final class SharedNpcWorldRelay {
                     int oldMiniScene=t.miniScene;
 
                     t.miniScene=syncOne(
+                        src.owner.id(),
+                        src.ownerGeneration,
                         t.miniScene,
                         t.miniDef,
                         miniDef,
@@ -869,6 +881,8 @@ final class SharedNpcWorldRelay {
                             npcs.scene(t.miniScene);
                         if(mirroredMini!=null)
                             sendMirrorMaskOrDefer(
+                                src.owner.id(),
+                                src.ownerGeneration,
                                 mirroredMini,
                                 NpcSyncEncoder.Mask.interactionTarget(
                                     t.mainScene
@@ -1182,6 +1196,8 @@ final class SharedNpcWorldRelay {
         }
 
         private void sendMirrorMaskOrDefer(
+            EntityId sourceId,
+            long sourceGeneration,
             NpcEntity npc,
             NpcSyncEncoder.Mask mask
         ){
@@ -1194,6 +1210,8 @@ final class SharedNpcWorldRelay {
             }catch(IOException failure){
                 pendingMirrorMasks.addLast(
                     new PendingMirrorMask(
+                        sourceId,
+                        sourceGeneration,
                         npc,
                         mask
                     )
@@ -1213,6 +1231,19 @@ final class SharedNpcWorldRelay {
             while(!pendingMirrorMasks.isEmpty()){
                 PendingMirrorMask pending=
                     pendingMirrorMasks.peekFirst();
+
+                Context source=
+                    state.contexts.get(
+                        pending.sourceId
+                    );
+
+                if(source==null||
+                   source.ownerGeneration!=
+                        pending.sourceGeneration||
+                   !source.ownerCurrent()){
+                    pendingMirrorMasks.removeFirst();
+                    continue;
+                }
 
                 NpcEntity current=
                     npcs.scene(
@@ -1235,6 +1266,8 @@ final class SharedNpcWorldRelay {
         }
 
         int syncOne(
+            EntityId sourceId,
+            long sourceGeneration,
             int scene,
             int oldDef,
             int def,
@@ -1293,6 +1326,8 @@ final class SharedNpcWorldRelay {
 
                 if(e!=null)
                     sendMirrorMaskOrDefer(
+                        sourceId,
+                        sourceGeneration,
                         e,
                         NpcSyncEncoder.Mask.interactionTarget(
                             interactionTarget
@@ -1361,6 +1396,8 @@ final class SharedNpcWorldRelay {
                         canonicalId
                     );
                 return syncOne(
+                    sourceId,
+                    sourceGeneration,
                     -1,
                     -1,
                     def,
