@@ -86,6 +86,7 @@ public final class Player81BatchAbortAtomicityTest {
         );
 
         try{
+            System.out.println("[P81-BATCH-DIAG] phase=bootstrap-shared-home");
             NpcEntity[] sharedHome=
                 bootstrapSharedHome(
                     world,
@@ -201,11 +202,17 @@ public final class Player81BatchAbortAtomicityTest {
                     packetDelta
                 );
 
+            System.out.println("[P81-BATCH-DIAG] phase=ownership-commit-barrier");
             testOwnershipCommitBarrier();
+            System.out.println("[P81-BATCH-DIAG] phase=stale-preparation");
             testStalePreparationFailClosed();
+            System.out.println("[P81-BATCH-DIAG] phase=unbatched-publication");
             testUnbatchedPublicationAtomicity();
+            System.out.println("[P81-BATCH-DIAG] phase=postcommit-relay");
             testUnbatchedPostCommitRelayFailureIsolation();
+            System.out.println("[P81-BATCH-DIAG] phase=batch-lifetime");
             testPacket81BatchLifetimeGate();
+            System.out.println("[P81-BATCH-DIAG] phase=all-subtests-complete");
 
             System.out.println(
                 "PLAYER81_BATCH_ABORT_ATOMICITY_PASS "+
@@ -256,9 +263,13 @@ public final class Player81BatchAbortAtomicityTest {
     private static void testPacket81BatchLifetimeGate()
         throws Exception
     {
+        System.out.println("[P81-BATCH-DIAG] lifetime=staged-abort");
         testStagedAbortLifetimeGate();
+        System.out.println("[P81-BATCH-DIAG] lifetime=staged-end");
         testStagedEndLifetimeGate();
+        System.out.println("[P81-BATCH-DIAG] lifetime=unbatched-begin");
         testUnbatchedBeginLifetimeGate();
+        System.out.println("[P81-BATCH-DIAG] lifetime=complete");
     }
 
     private static void testStagedAbortLifetimeGate()
