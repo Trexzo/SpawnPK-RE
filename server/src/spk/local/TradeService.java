@@ -520,7 +520,27 @@ final class TradeService {
             BankState.Stack slot=c.bank.inventoryAt(a.slot);
             if(slot==null||slot.itemId!=a.itemId)return "TRADE_OFFER_REJECTED_SLOT_MISMATCH slot="+a.slot+" item="+a.itemId;
             if(ItemPolicyRepository.explicitlyUntradeable(a.itemId))return "TRADE_OFFER_REJECTED_EXPLICIT_UNTRADEABLE item="+a.itemId;
-            if(amount<0){c.writer.fixed(27,new byte[0]);c.pendingX=new PendingX(XKind.OFFER,a.itemId);return "TRADE_OFFER_X_PROMPT item="+a.itemId;}
+            if(amount<0){
+                try{
+                    c.writer.fixed(
+                        27,
+                        new byte[0]
+                    );
+                }catch(IOException failure){
+                    retireTerminalParticipantPublicationFailure(
+                        t,
+                        c,
+                        failure
+                    );
+                    throw failure;
+                }
+                c.pendingX=
+                    new PendingX(
+                        XKind.OFFER,
+                        a.itemId
+                    );
+                return "TRADE_OFFER_X_PROMPT item="+a.itemId;
+            }
             int available=Math.max(0,c.bank.inventoryCount(a.itemId)-t.offer(c).getOrDefault(a.itemId,0));
             int add=amount==Integer.MAX_VALUE?available:Math.min(amount,available);if(add<=0)return "TRADE_OFFER_REJECTED_NO_AVAILABLE item="+a.itemId;
             String presentationFailure=changeOffer(t,c,a.itemId,add);
@@ -528,7 +548,27 @@ final class TradeService {
             return "TRADE_OFFER_OK item="+a.itemId+" qty="+add+" explicitTradeable="+ItemPolicyRepository.explicitTradeable(a.itemId);
         }else{
             int item=offerItemAt(t,c,a.slot);if(item<0||item!=a.itemId)return "TRADE_REMOVE_REJECTED_SLOT_MISMATCH slot="+a.slot+" item="+a.itemId+" resolved="+item;
-            if(amount<0){c.writer.fixed(27,new byte[0]);c.pendingX=new PendingX(XKind.REMOVE,item);return "TRADE_REMOVE_X_PROMPT item="+item;}
+            if(amount<0){
+                try{
+                    c.writer.fixed(
+                        27,
+                        new byte[0]
+                    );
+                }catch(IOException failure){
+                    retireTerminalParticipantPublicationFailure(
+                        t,
+                        c,
+                        failure
+                    );
+                    throw failure;
+                }
+                c.pendingX=
+                    new PendingX(
+                        XKind.REMOVE,
+                        item
+                    );
+                return "TRADE_REMOVE_X_PROMPT item="+item;
+            }
             int have=t.offer(c).getOrDefault(item,0);int rem=amount==Integer.MAX_VALUE?have:Math.min(amount,have);if(rem<=0)return "TRADE_REMOVE_REJECTED_EMPTY item="+item;
             String presentationFailure=changeOffer(t,c,item,-rem);
             if(presentationFailure!=null)return presentationFailure;
@@ -1385,7 +1425,7 @@ final class TradeService {
                 t.a
             );
         }catch(IOException failure){
-            retireTerminalConfirmPublicationFailure(
+            retireTerminalParticipantPublicationFailure(
                 t,
                 t.a,
                 failure
@@ -1399,7 +1439,7 @@ final class TradeService {
                 t.b
             );
         }catch(IOException failure){
-            retireTerminalConfirmPublicationFailure(
+            retireTerminalParticipantPublicationFailure(
                 t,
                 t.b,
                 failure
@@ -1408,7 +1448,7 @@ final class TradeService {
         }
     }
 
-    private static void retireTerminalConfirmPublicationFailure(
+    private static void retireTerminalParticipantPublicationFailure(
         Trade trade,
         Context failed,
         IOException failure
@@ -1425,7 +1465,7 @@ final class TradeService {
         );
 
         /*
-         * The failed confirmation publication was ordinary/unbatched. Its
+         * The failed participant publication was ordinary/unbatched. Its
          * exact writer is already terminal and must not receive a cleanup
          * close. Retire that runtime locally first, then close only the peer.
          */
