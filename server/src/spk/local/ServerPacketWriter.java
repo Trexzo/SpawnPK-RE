@@ -44,6 +44,9 @@ final class ServerPacketWriter {
                                 "atomic pair batch already completed"
                             );
 
+                        first.requireLiveLocked();
+                        second.requireLiveLocked();
+
                         if(first.batchDepth!=1||
                            second.batchDepth!=1)
                             throw new IllegalStateException(
@@ -134,6 +137,7 @@ final class ServerPacketWriter {
     private boolean packet81InFlightStaged;
     private long packet81InFlightBatchGeneration=-1L;
     private long batchGeneration;
+    private volatile boolean terminal;
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -148,7 +152,23 @@ final class ServerPacketWriter {
         if(queue==null)throw new NullPointerException("queue");
     }
 
+    synchronized void markTerminal(){
+        terminal=true;
+    }
+
+    boolean terminal(){
+        return terminal;
+    }
+
+    private void requireLiveLocked()throws IOException{
+        if(terminal)
+            throw new IOException(
+                "server packet writer terminal"
+            );
+    }
+
     synchronized void fixed(int opcode, byte[] body) throws IOException {
+        requireLiveLocked();
         if(body==null)body=new byte[0];
         writeOpcode(opcode);
         pending.write(body);
@@ -171,6 +191,7 @@ final class ServerPacketWriter {
             Player81WorldSync.PreparedBatch prepared;
 
             synchronized(this){
+                requireLiveLocked();
                 awaitPacket81IdleLocked();
                 packet81InFlight=true;
                 staged=batchDepth>0;
@@ -428,6 +449,7 @@ final class ServerPacketWriter {
             );
 
         synchronized(this){
+            requireLiveLocked();
             writeOpcode(opcode);
             pending.write(
                 (checkedBody.length>>>8)&255
@@ -441,6 +463,7 @@ final class ServerPacketWriter {
     }
 
     synchronized void varByte(int opcode, byte[] body) throws IOException {
+        requireLiveLocked();
         if(body==null)body=new byte[0];
         if(body.length>255)throw new IllegalArgumentException("varByte payload too large: "+body.length);
         writeOpcode(opcode);
@@ -464,6 +487,7 @@ final class ServerPacketWriter {
             RecoverablePacketPublication publication
         )throws IOException
     {
+        requireLiveLocked();
         if(publication==null)
             throw new NullPointerException(
                 "publication"
@@ -491,6 +515,7 @@ final class ServerPacketWriter {
             RecoverablePacketPublication publication
         )throws IOException
     {
+        requireLiveLocked();
         if(publication==null)
             throw new NullPointerException(
                 "publication"
@@ -546,6 +571,10 @@ final class ServerPacketWriter {
     }
 
     synchronized void beginBatch(){
+        if(terminal)
+            throw new IllegalStateException(
+                "server packet writer terminal"
+            );
         awaitPacket81IdleLocked();
         beginBatchLocked();
     }
@@ -640,6 +669,9 @@ final class ServerPacketWriter {
                     first,
                     second,
                     ()->{
+                        first.requireLiveLocked();
+                        second.requireLiveLocked();
+
                         if(first.packet81InFlight||
                            second.packet81InFlight||
                            first.batchDepth!=0||
@@ -809,6 +841,8 @@ final class ServerPacketWriter {
         boolean staged,
         long expectedBatchGeneration
     ){
+        requireLiveLocked();
+
         if(!packet81InFlight||
            packet81InFlightStaged!=staged)
             throw new IllegalStateException(
@@ -846,6 +880,7 @@ final class ServerPacketWriter {
     }
 
     synchronized void flush() throws IOException {
+        requireLiveLocked();
         if(pending.size()>0){
             byte[] bytes=pending.toByteArray();
 
