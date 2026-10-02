@@ -242,6 +242,47 @@ final class NpcRegistry {
         w.varShort(65,NpcSyncEncoder.encode(updates,Collections.emptyList(),0,0));
     }
 
+    /**
+     * Viewer-local publication for semantic work that is safe to retry only when
+     * packet admission is provably retractable. Returns false only when a
+     * queue-backed writer rejected capacity before framing/ISAAC state changed.
+     */
+    boolean trySendMaskLocalRetractable(
+        NpcEntity target,
+        NpcSyncEncoder.Mask mask,
+        ServerPacketWriter w
+    )throws IOException{
+        if(target==null ||
+           mask==null ||
+           findScene(target.sceneIndex)!=target)
+            throw new IllegalArgumentException(
+                "target not visible"
+            );
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            updates.add(
+                n==target
+                    ?NpcSyncEncoder.Update.mask(
+                        n,
+                        mask
+                    )
+                    :NpcSyncEncoder.Update.retain(n)
+            );
+
+        return w.tryVarShortRetractable(
+            65,
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+    }
+
     Integer petParticleSelector(){ return dev.petParticleSelector(); }
     int petNativeState(){ return petNativeState; }
 
