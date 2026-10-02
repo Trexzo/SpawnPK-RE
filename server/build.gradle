@@ -2053,12 +2053,23 @@ tasks.register('currentTrainFocusedRegression') {
     }
 }
 
-tasks.register('diagRelayOwnerWriterRebindCleanup', JavaExec) {
+tasks.register('diagRelayOwnerWriterRebindCleanup') {
     group = 'verification'
-    description = 'TEMPORARY Chat 1 diagnostic: runs only RelayOwnerWriterRebindCleanupTest.'
+    description = 'TEMPORARY Chat 1 diagnostic: runs focused tests 52 through 80 only.'
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass.set('spk.local.WorldNpcPresentationEventsCloseTest')
+
+    doLast {
+        currentTrainFocusedTests.subList(51, 80).eachWithIndex { className, index ->
+            logger.lifecycle(
+                "[CURRENT-TRAIN-FOCUSED-DIAG] ${index + 52}/${currentTrainFocusedTests.size()} ${className}"
+            )
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(className)
+            }
+        }
+    }
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
