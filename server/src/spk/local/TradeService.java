@@ -1166,36 +1166,15 @@ final class TradeService {
             return null;
         }
 
-        trade.a.writer.beginBatch();
-        trade.b.writer.beginBatch();
-        boolean endedA=false;
-        boolean endedB=false;
-
-        try{
-            writeFirstStagePostimage(
-                trade.a.writer,
-                postA
-            );
-            writeFirstStagePostimage(
-                trade.b.writer,
-                postB
-            );
-            trade.a.writer.endBatch();
-            endedA=true;
-            trade.b.writer.endBatch();
-            endedB=true;
-        }finally{
-            if(!endedA)
-                try{
-                    trade.a.writer.abortBatch();
-                }catch(Throwable ignored){}
-            if(!endedB)
-                try{
-                    trade.b.writer.abortBatch();
-                }catch(Throwable ignored){}
-        }
-
-        return null;
+        /*
+         * Direct/non-queue writers cannot provide a cross-stream commit
+         * boundary. Writer-local batches are not sufficient: participant A
+         * could flush a prospective postimage before participant B fails.
+         * Reject before either writer is touched and leave canonical offer
+         * state unchanged. Queue-backed atomic-pair behavior above remains the
+         * only two-party postimage commit path.
+         */
+        return "TRADE_OFFER_CHANGE_REJECTED_DIRECT_NONATOMIC";
     }
 
     private static byte[][] firstStagePostimage(
