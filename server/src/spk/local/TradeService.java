@@ -222,13 +222,14 @@ final class TradeService {
                      * registration already orders World lifecycle ->
                      * TradeService, so reversing that order would deadlock.
                      */
-                    synchronized(peer.player.mutationLock()){
+                    synchronized(peer.world.players()){
                         State peerState=
                             STATES.get(
                                 peer.world
                             );
 
-                        if(peerState!=null&&
+                        if(!peer.world.closed()&&
+                           peerState!=null&&
                            peerState.contexts.get(
                                 peer.player.id()
                            )==peer&&
@@ -844,13 +845,14 @@ final class TradeService {
          * World.lifecycleLock here because runtime binding registration already
          * orders World lifecycle -> TradeService.
          */
-        synchronized(peer.player.mutationLock()){
+        synchronized(peer.world.players()){
             State peerState=
                 STATES.get(
                     peer.world
                 );
 
-            if(peerState==null||
+            if(peer.world.closed()||
+               peerState==null||
                peerState.contexts.get(
                     peer.player.id()
                )!=peer||
@@ -1658,13 +1660,14 @@ final class TradeService {
          * from under TradeService; runtime registration already owns the
          * opposite World lifecycle -> TradeService order.
          */
-        synchronized(context.player.mutationLock()){
+        synchronized(context.world.players()){
             State current=
                 STATES.get(
                     context.world
                 );
 
-            if(current==null||
+            if(context.world.closed()||
+               current==null||
                current.contexts.get(
                     context.player.id()
                )!=context||
@@ -1818,18 +1821,19 @@ final class TradeService {
         /*
          * TradeService registration/replacement is serialized by the class
          * monitor. World generation changes are independent, so fence this
-         * snapshotted Context under the player's mutation lock before touching
+         * snapshotted Context under the World PlayerRegistry monitor before touching
          * its writer. Do not acquire World.lifecycleLock here: runtime binding
          * registration already orders World lifecycle -> TradeService, and
          * reversing that order would introduce a deadlock.
          */
-        synchronized(context.player.mutationLock()){
+        synchronized(context.world.players()){
             State current=
                 STATES.get(
                     context.world
                 );
 
-            if(current==null||
+            if(context.world.closed()||
+               current==null||
                current.contexts.get(
                     context.player.id()
                )!=context||
@@ -1857,7 +1861,7 @@ final class TradeService {
 
         /*
          * Cancellation is already semantically committed. Handle terminal
-         * retirement only after releasing the player mutation lock so
+         * retirement only after releasing the PlayerRegistry monitor so
          * cross-service cleanup never expands that lock's scope.
          */
         LocalSessionRuntimeBindings
