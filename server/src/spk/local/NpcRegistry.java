@@ -279,6 +279,112 @@ final class NpcRegistry {
         return e;
     }
 
+    /**
+     * SharedNpc-only movement publication. The visible mirror coordinates move
+     * only after the exact packet65 walk/run postimage commits.
+     */
+    void moveMirroredNpcRetractable(
+        NpcEntity target,
+        int direction1,
+        int direction2,
+        int worldX,
+        int worldY,
+        ServerPacketWriter w
+    )throws IOException{
+        if(target==null||
+           findScene(target.sceneIndex)!=target||
+           !devOwnedSceneIndexes.contains(target.sceneIndex))
+            throw new IllegalArgumentException(
+                "mirror target not visible/dev-owned"
+            );
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?(direction2>=0
+                        ?NpcSyncEncoder.Update.run(
+                            npc,
+                            direction1,
+                            direction2
+                        )
+                        :NpcSyncEncoder.Update.walk(
+                            npc,
+                            direction1
+                        ))
+                    :NpcSyncEncoder.Update.retain(npc)
+            );
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            );
+
+        w.publishRecoverablePacket(
+            ()->w.varShort(
+                65,
+                body
+            )
+        );
+
+        target.x=worldX;
+        target.y=worldY;
+    }
+
+    /**
+     * SharedNpc-only removal publication. Viewer-local registry ownership is
+     * retired only after the exact packet65 remove postimage commits.
+     */
+    boolean removeMirroredNpcRetractable(
+        int sceneIndex,
+        ServerPacketWriter w
+    )throws IOException{
+        if(!devOwnedSceneIndexes.contains(sceneIndex))
+            return false;
+
+        NpcEntity target=
+            findScene(sceneIndex);
+
+        if(target==null){
+            devOwnedSceneIndexes.remove(sceneIndex);
+            return true;
+        }
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?NpcSyncEncoder.Update.remove(npc)
+                    :NpcSyncEncoder.Update.retain(npc)
+            );
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            );
+
+        w.publishRecoverablePacket(
+            ()->w.varShort(
+                65,
+                body
+            )
+        );
+
+        visible.remove(target);
+        devOwnedSceneIndexes.remove(sceneIndex);
+        return true;
+    }
+
     /** Exact NPC forced-text mask path. NPC 8330 consumes literal SNIPE in the
      * pinned client and enters its bespoke Scopesight presentation state. */
     String forcePetText(String text,ServerPacketWriter w) throws IOException {
