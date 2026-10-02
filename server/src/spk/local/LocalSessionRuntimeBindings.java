@@ -75,6 +75,10 @@ final class LocalSessionRuntimeBindings {
             new boolean[]{false};
         boolean[] sharedNpcInstalled=
             new boolean[]{false};
+        boolean[] player81Installed=
+            new boolean[]{false};
+        boolean[] tradeInstalled=
+            new boolean[]{false};
 
         try{
             world.withOpenPlayerOwnership(
@@ -106,6 +110,7 @@ final class LocalSessionRuntimeBindings {
                             worldPlayer,
                             dev
                         );
+                    player81Installed[0]=true;
 
                     registeredPackets=
                         serverPackets;
@@ -125,6 +130,7 @@ final class LocalSessionRuntimeBindings {
                                 action
                             )
                     );
+                    tradeInstalled[0]=true;
 
                     Player81WorldSync
                         .sendPlayerOptionsIfMultiplayer(
@@ -136,7 +142,9 @@ final class LocalSessionRuntimeBindings {
             if(bindingStarted[0])
                 rollbackRegistration(
                     serverPackets,
+                    tradeInstalled[0],
                     sharedNpcInstalled[0],
+                    player81Installed[0],
                     failure
                 );
 
@@ -189,17 +197,20 @@ final class LocalSessionRuntimeBindings {
 
     private void rollbackRegistration(
         ServerPacketWriter writer,
+        boolean tradeInstalled,
         boolean sharedNpcInstalled,
+        boolean player81Installed,
         Throwable primary
     ){
-        try{
-            TradeService.unregister(
-                worldPlayer,
-                writer
-            );
-        }catch(Throwable cleanup){
-            primary.addSuppressed(cleanup);
-        }
+        if(tradeInstalled)
+            try{
+                TradeService.unregister(
+                    worldPlayer,
+                    writer
+                );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
 
         if(sharedNpcInstalled)
             try{
@@ -210,13 +221,14 @@ final class LocalSessionRuntimeBindings {
                 primary.addSuppressed(cleanup);
             }
 
-        try{
-            Player81WorldSync.unregister(
-                writer
-            );
-        }catch(Throwable cleanup){
-            primary.addSuppressed(cleanup);
-        }
+        if(player81Installed)
+            try{
+                Player81WorldSync.unregister(
+                    writer
+                );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
 
         registeredPackets=null;
         player81Sync=null;
