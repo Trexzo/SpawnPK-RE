@@ -328,6 +328,27 @@ final class Player81WorldSync {
         }
     }
 
+    static final class TerminalPlayerOptionsException
+        extends IOException
+    {
+        final WorldPlayer owner;
+        final ServerPacketWriter writer;
+
+        TerminalPlayerOptionsException(
+            WorldPlayer owner,
+            ServerPacketWriter writer,
+            IOException cause
+        ){
+            super(
+                "non-retractable player option publication failed owner="+
+                (owner==null?"NONE":owner.id()),
+                cause
+            );
+            this.owner=owner;
+            this.writer=writer;
+        }
+    }
+
     static synchronized boolean preparePlayerOptionsForRegistration(
         World world,
         WorldPlayer owner,
@@ -355,7 +376,10 @@ final class Player81WorldSync {
                    context.playerOptionsSent)
                     continue;
 
-                ServerPacketWriter.RecoverablePacketResult
+                final ServerPacketWriter.RecoverablePacketResult
+                    result;
+
+                try{
                     result=
                         context.writer
                             .publishRecoverablePacket(
@@ -363,6 +387,13 @@ final class Player81WorldSync {
                                     context.writer
                                 )
                             );
+                }catch(IOException terminal){
+                    throw new TerminalPlayerOptionsException(
+                        context.owner,
+                        context.writer,
+                        terminal
+                    );
+                }
 
                 if(result==
                         ServerPacketWriter
@@ -387,13 +418,25 @@ final class Player81WorldSync {
            oldWriter.playerOptionsSent)
             return true;
 
-        ServerPacketWriter.RecoverablePacketResult
+        final ServerPacketWriter.RecoverablePacketResult
+            targetResult;
+
+        try{
             targetResult=
                 targetWriter.publishRecoverablePacket(
                     ()->sendPlayerOptions(
                         targetWriter
                     )
                 );
+        }catch(IOException terminal){
+            throw new TerminalPlayerOptionsException(
+                oldWriter==null
+                    ?owner
+                    :oldWriter.owner,
+                targetWriter,
+                terminal
+            );
+        }
 
         if(targetResult==
                 ServerPacketWriter
