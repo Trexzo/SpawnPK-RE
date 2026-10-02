@@ -874,8 +874,8 @@ final class TradeService {
 
         /*
          * The initiating competing root already committed and this Trade is
-         * already detached. Retire the terminal peer only after releasing its
-         * mutation lock; never report the committed replacement root as failed.
+         * already detached. Retire the terminal peer only after releasing the
+         * PlayerRegistry monitor; never report the committed replacement root as failed.
          */
         LocalSessionRuntimeBindings
             .retireTerminalRuntimeBundle(
