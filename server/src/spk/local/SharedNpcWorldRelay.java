@@ -568,14 +568,14 @@ final class SharedNpcWorldRelay {
     }
 
     private static final class PendingMirrorMask{
-        final int scene;
+        final NpcEntity npc;
         final NpcSyncEncoder.Mask mask;
 
         PendingMirrorMask(
-            int scene,
+            NpcEntity npc,
             NpcSyncEncoder.Mask mask
         ){
-            this.scene=scene;
+            this.npc=npc;
             this.mask=mask;
         }
     }
@@ -1194,7 +1194,7 @@ final class SharedNpcWorldRelay {
             }catch(IOException failure){
                 pendingMirrorMasks.addLast(
                     new PendingMirrorMask(
-                        npc.sceneIndex,
+                        npc,
                         mask
                     )
                 );
@@ -1214,18 +1214,18 @@ final class SharedNpcWorldRelay {
                 PendingMirrorMask pending=
                     pendingMirrorMasks.peekFirst();
 
-                NpcEntity npc=
+                NpcEntity current=
                     npcs.scene(
-                        pending.scene
+                        pending.npc.sceneIndex
                     );
 
-                if(npc==null){
+                if(current!=pending.npc){
                     pendingMirrorMasks.removeFirst();
                     continue;
                 }
 
                 npcs.sendMaskLocal(
-                    npc,
+                    pending.npc,
                     pending.mask,
                     writer
                 );
