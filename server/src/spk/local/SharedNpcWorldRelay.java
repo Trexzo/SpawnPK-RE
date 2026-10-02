@@ -1213,7 +1213,7 @@ final class SharedNpcWorldRelay {
             long sourceGeneration,
             NpcEntity npc,
             NpcSyncEncoder.Mask mask
-        ){
+        )throws IOException{
             PendingMirrorMask pending=
                 new PendingMirrorMask(
                     sourceId,
@@ -1229,23 +1229,24 @@ final class SharedNpcWorldRelay {
                 return;
             }
 
-            try{
-                npcs.sendMaskLocal(
+            boolean published=
+                npcs.trySendMaskLocalRetractable(
                     npc,
                     mask,
                     writer
                 );
-            }catch(IOException failure){
-                pendingMirrorMasks.addLast(
-                    pending
-                );
 
-                System.err.println(
-                    "[ENGINE-R3.2] deferred remote mirror mask scene="+
-                    npc.sceneIndex+
-                    " error="+failure
-                );
-            }
+            if(published)
+                return;
+
+            pendingMirrorMasks.addLast(
+                pending
+            );
+
+            System.err.println(
+                "[ENGINE-R3.2] deferred remote mirror mask before framing scene="+
+                npc.sceneIndex
+            );
         }
 
         private void flushPendingMirrorMasks()
@@ -1278,11 +1279,22 @@ final class SharedNpcWorldRelay {
                     continue;
                 }
 
-                npcs.sendMaskLocal(
-                    pending.npc,
-                    pending.mask,
-                    writer
-                );
+                boolean published;
+
+                try{
+                    published=
+                        npcs.trySendMaskLocalRetractable(
+                            pending.npc,
+                            pending.mask,
+                            writer
+                        );
+                }catch(ServerPacketWriter.NonRetractablePublicationException failure){
+                    pendingMirrorMasks.removeFirst();
+                    throw failure;
+                }
+
+                if(!published)
+                    return;
 
                 pendingMirrorMasks.removeFirst();
             }
