@@ -6420,3 +6420,18 @@ tasks.register('runtimeBindingLateRegistrationAtomicityRegression', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('runtimeBindingLateRegistrationAtomicityRegression')
 }
+
+
+tasks.register('localSessionRuntimeBindingsSharedNpcRetentionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves runtime-binding rollback preserves SharedNpc contexts intentionally retained by retryable or terminal live rebind rejection.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalSessionRuntimeBindingsSharedNpcRetentionTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('localSessionRuntimeBindingsSharedNpcRetentionRegression')
+}
