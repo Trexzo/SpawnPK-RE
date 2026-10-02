@@ -478,9 +478,9 @@ final class World implements AutoCloseable {
              * Keep lifecycle ownership across the action, but do not retain
              * either player mutation lock. Registration/unregistration also
              * requires lifecycle ownership, so the validated generations
-             * cannot change while the action runs. This avoids inversion with
-             * TradeService commit, whose established order is Trade monitor
-             * -> ordered player mutation locks.
+             * cannot change while the action runs. Trade final commit no
+             * longer acquires participant mutation locks; its generation fence
+             * is serialized under TradeService and the World PlayerRegistry.
              */
             action.run();
             return true;
