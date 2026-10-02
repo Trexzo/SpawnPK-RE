@@ -745,10 +745,34 @@ final class TradeService {
 
         if(!peer.world.closed()&&
            peer.ownerCurrent())
-            peer.writer.fixed(
-                219,
-                new byte[0]
-            );
+            try{
+                peer.writer.fixed(
+                    219,
+                    new byte[0]
+                );
+            }catch(IOException failure){
+                /*
+                 * The initiating competing root already committed and this
+                 * Trade is already detached. Do not report that committed root
+                 * as failed. The ordinary peer close is not transport-
+                 * retractable, so a peer IOException makes that exact writer
+                 * terminal: retire its remaining runtime authority locally
+                 * without touching the writer again.
+                 */
+                LocalSessionRuntimeBindings
+                    .retireTerminalRuntimeBundle(
+                        peer.player,
+                        peer.writer,
+                        true,
+                        failure
+                    );
+
+                System.err.println(
+                    "[ENGINE-R4] terminal Trade competing-root peer close failed; "+
+                    "peer runtime retired: "+
+                    failure
+                );
+            }
     }
 
     static synchronized boolean active(WorldPlayer p){
