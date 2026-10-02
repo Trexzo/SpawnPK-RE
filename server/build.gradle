@@ -2053,6 +2053,15 @@ tasks.register('currentTrainFocusedRegression') {
     }
 }
 
+tasks.register('diagLocalSessionRuntimeBindingsFailureAtomicity', JavaExec) {
+    group = 'verification'
+    description = 'TEMPORARY Chat 2+3 diagnostic: runs only focused manifest test 47.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalSessionRuntimeBindingsFailureAtomicityTest')
+}
+
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     group = 'verification'
     description = 'Verifies login accepts build config 307/308 while keeping outer protocol revision 317 strict.'
