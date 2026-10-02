@@ -25,6 +25,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         assertTerminalCompetingRootPeerCloseRetiresPeerBundle();
         assertTerminalTradeCancellationWriterRetiresOnlyFailedParticipant();
         assertTerminalConfirmPublicationWriterIsNotRetouched();
+        assertTerminalStartRootWriterIsNotRetouched();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
         System.out.println(
@@ -49,6 +50,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalTradeCancelHealthyPeerClosed=true "+
             "terminalConfirmWriterNotRetouched=true "+
             "terminalConfirmHealthyPeerClosed=true "+
+            "terminalStartWriterNotRetouched=true "+
+            "terminalStartHealthyPeerClosed=true "+
             "terminalOldOwnerWriterExact=true "+
             "attemptedNewWriterNotRetired=true"
         );
@@ -2300,6 +2303,266 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     failedAttemptsAfter)
                 throw new AssertionError(
                     "terminal confirm preflight retouched failed writer"
+                );
+        }finally{
+            failedOut.disableFailure();
+
+            TradeService.unregister(
+                healthy
+            );
+            TradeService.unregister(
+                failed
+            );
+            SharedNpcWorldRelay.unregister(
+                healthyWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                failedWriter
+            );
+            Player81WorldSync.unregister(
+                healthyWriter
+            );
+            Player81WorldSync.unregister(
+                failedWriter
+            );
+
+            if(healthy.registered())
+                world.unregisterPlayer(
+                    healthy,
+                    healthyGeneration
+                );
+            if(failed.registered())
+                world.unregisterPlayer(
+                    failed,
+                    failedGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertTerminalStartRootWriterIsNotRetouched()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                708L
+            );
+        WorldPlayer healthy=
+            new WorldPlayer();
+        WorldPlayer failed=
+            new WorldPlayer();
+
+        long healthyGeneration=
+            world.registerPlayer(
+                healthy,
+                "binding-start-healthy"
+            );
+        long failedGeneration=
+            world.registerPlayer(
+                failed,
+                "binding-start-failed"
+            );
+
+        DevAuthorityWorkbench healthyDev=
+            new DevAuthorityWorkbench();
+        DevAuthorityWorkbench failedDev=
+            new DevAuthorityWorkbench();
+        NpcRegistry healthyNpcs=
+            new NpcRegistry(
+                healthyDev
+            );
+        NpcRegistry failedNpcs=
+            new NpcRegistry(
+                failedDev
+            );
+
+        SwitchablePrefixFailOutputStream healthyOut=
+            new SwitchablePrefixFailOutputStream();
+        SwitchablePrefixFailOutputStream failedOut=
+            new SwitchablePrefixFailOutputStream();
+
+        ServerPacketWriter healthyWriter=
+            new ServerPacketWriter(
+                healthyOut,
+                new IsaacCipher(
+                    new int[]{1181,1182,1183,1184}
+                )
+            );
+        ServerPacketWriter failedWriter=
+            new ServerPacketWriter(
+                failedOut,
+                new IsaacCipher(
+                    new int[]{1185,1186,1187,1188}
+                )
+            );
+
+        Player81WorldSync.Context healthySync=
+            Player81WorldSync.register(
+                healthyWriter,
+                world,
+                healthy,
+                healthyDev
+            );
+        Player81WorldSync.register(
+            failedWriter,
+            world,
+            failed,
+            failedDev
+        );
+
+        Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+            world
+        );
+
+        SharedNpcWorldRelay.register(
+            healthyWriter,
+            world,
+            healthy,
+            healthyNpcs,
+            healthy.movement()
+        );
+        SharedNpcWorldRelay.register(
+            failedWriter,
+            world,
+            failed,
+            failedNpcs,
+            failed.movement()
+        );
+
+        TradeService.register(
+            world,
+            healthy,
+            healthyGeneration,
+            healthy.bank(),
+            healthyWriter,
+            ()->{}
+        );
+        TradeService.register(
+            world,
+            failed,
+            failedGeneration,
+            failed.bank(),
+            failedWriter,
+            ()->{}
+        );
+
+        try{
+            Object healthyRelay=
+                relayContextFor(
+                    healthyWriter
+                );
+            Object failedRelay=
+                relayContextFor(
+                    failedWriter
+                );
+            int healthyAttemptsBefore=
+                healthyOut.attempts();
+            int failedAttemptsBefore=
+                failedOut.attempts();
+
+            failedOut.enableFailure();
+
+            boolean failedAsExpected=false;
+
+            try{
+                TradeService.start(
+                    world,
+                    healthy,
+                    failed
+                );
+            }catch(IOException expected){
+                failedAsExpected=
+                    "EXPECTED_RUNTIME_BINDING_TERMINAL_PREFIX_FAILURE"
+                        .equals(
+                            expected.getMessage()
+                        );
+            }
+
+            if(!failedAsExpected)
+                throw new AssertionError(
+                    "terminal start-root publication failure was not propagated"
+                );
+
+            if(failedOut.attempts()!=
+                    failedAttemptsBefore+1)
+                throw new AssertionError(
+                    "terminal start-root writer was retouched after failure before="+
+                    failedAttemptsBefore+
+                    " after="+
+                    failedOut.attempts()
+                );
+
+            if(healthyOut.attempts()!=
+                    healthyAttemptsBefore+7)
+                throw new AssertionError(
+                    "healthy start-root peer expected six root packets plus one close before="+
+                    healthyAttemptsBefore+
+                    " after="+
+                    healthyOut.attempts()
+                );
+
+            if(TradeService.active(
+                    healthy
+                )||
+               TradeService.active(
+                    failed
+               ))
+                throw new AssertionError(
+                    "terminal start-root failure retained live Trade"
+                );
+
+            if(player81ContextFor(
+                    failedWriter
+                )!=null)
+                throw new AssertionError(
+                    "terminal start-root writer retained Player81 authority"
+                );
+
+            if(relayContextFor(
+                    failedWriter
+                )!=failedRelay)
+                throw new AssertionError(
+                    "terminal start-root SharedNpc sentinel changed"
+                );
+
+            if(player81ContextFor(
+                    healthyWriter
+                )!=healthySync||
+               relayContextFor(
+                    healthyWriter
+                )!=healthyRelay)
+                throw new AssertionError(
+                    "terminal start-root failure retired healthy peer runtime"
+                );
+
+            int failedAttemptsAfter=
+                failedOut.attempts();
+            boolean rejected=false;
+
+            try{
+                SharedNpcWorldRelay
+                    .preflightRegistration(
+                        failedWriter,
+                        world,
+                        failed
+                    );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                rejected=
+                    expected.owner==failed&&
+                    expected.writer==failedWriter;
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "terminal start-root writer was resurrectable"
+                );
+
+            if(failedOut.attempts()!=
+                    failedAttemptsAfter)
+                throw new AssertionError(
+                    "terminal start-root preflight retouched failed writer"
                 );
         }finally{
             failedOut.disableFailure();
