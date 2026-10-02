@@ -13,6 +13,7 @@ public final class RemotePetMirrorMaskRetryTest {
     public static void main(String[] args)throws Exception{
         assertPostAddMaskFailureDoesNotDuplicateMirror();
         assertDirectWriterIsNotRetryable();
+        assertMirrorAddPublicationRetractable();
 
         System.out.println(
             "REMOTE_PET_MIRROR_MASK_RETRY_PASS "+
@@ -28,7 +29,10 @@ public final class RemotePetMirrorMaskRetryTest {
             "retryCipherRewound=true "+
             "eventualWireMatchesCleanReference=true "+
             "directWriterNotRetryable=true "+
-            "directRetryCallbackNotEntered=true"
+            "directRetryCallbackNotEntered=true "+
+            "mirrorAddRetryCipherRewound=true "+
+            "mirrorAddStateCommitAfterTransport=true "+
+            "mirrorAddDirectFailClosed=true"
         );
     }
 
@@ -350,6 +354,187 @@ public final class RemotePetMirrorMaskRetryTest {
 
             world.close();
         }
+    }
+
+    private static void assertMirrorAddPublicationRetractable()
+        throws Exception
+    {
+        WorldPlayer viewer=
+            new WorldPlayer();
+        MovementState movement=
+            viewer.movement();
+
+        PacketSizes sizes=
+            measureMainPacketSizes(
+                6650,
+                movement,
+                32768
+            );
+
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(
+                QUEUE_CAPACITY
+            );
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        int reserve=
+            QUEUE_CAPACITY-
+            sizes.addBytes+
+            1;
+
+        OutboundPacketQueue.BatchReservation pressure=
+            OutboundPacketQueue.reserveBatch(
+                queue,
+                reserve
+            );
+
+        boolean rejected=false;
+
+        try{
+            npcs.spawnMirroredNpc(
+                6650,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                writer
+            );
+        }catch(ServerPacketWriter.RecoverablePublicationException expected){
+            rejected=true;
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "mirror add capacity rejection was not classified recoverable"
+            );
+
+        if(queue.queuedBytes()!=0||
+           queue.queuedPackets()!=0)
+            throw new AssertionError(
+                "failed mirror add emitted bytes queued="+
+                queue.queuedBytes()
+            );
+
+        if(!npcs.snapshot().isEmpty())
+            throw new AssertionError(
+                "failed mirror add committed viewer NPC state size="+
+                npcs.snapshot().size()
+            );
+
+        pressure.release();
+
+        NpcEntity retry=
+            npcs.spawnMirroredNpc(
+                6650,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                writer
+            );
+
+        if(retry==null||
+           npcs.snapshot().size()!=1||
+           npcs.snapshot().get(0)!=retry)
+            throw new AssertionError(
+                "mirror add retry did not commit exactly one NPC"
+            );
+
+        ByteArrayOutputStream actual=
+            new ByteArrayOutputStream();
+        queue.drainTo(
+            actual,
+            Integer.MAX_VALUE
+        );
+
+        OutboundPacketQueue cleanQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter cleanWriter=
+            new ServerPacketWriter(
+                cleanQueue,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        NpcRegistry cleanNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        cleanNpcs.spawnMirroredNpc(
+            6650,
+            movement.x(),
+            movement.y(),
+            null,
+            movement,
+            cleanWriter
+        );
+
+        ByteArrayOutputStream expected=
+            new ByteArrayOutputStream();
+        cleanQueue.drainTo(
+            expected,
+            Integer.MAX_VALUE
+        );
+
+        if(!Arrays.equals(
+                actual.toByteArray(),
+                expected.toByteArray()))
+            throw new AssertionError(
+                "mirror add retry bytes differ from clean same-seed add actual="+
+                actual.size()+
+                " expected="+
+                expected.size()
+            );
+
+        ByteArrayOutputStream directOut=
+            new ByteArrayOutputStream();
+        ServerPacketWriter directWriter=
+            new ServerPacketWriter(
+                directOut,
+                new IsaacCipher(
+                    VIEWER_SEED.clone()
+                )
+            );
+        NpcRegistry directNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        boolean directRejected=false;
+
+        try{
+            directNpcs.spawnMirroredNpc(
+                6650,
+                movement.x(),
+                movement.y(),
+                null,
+                movement,
+                directWriter
+            );
+        }catch(ServerPacketWriter.NonRetractablePublicationException expectedFailure){
+            directRejected=true;
+        }
+
+        if(!directRejected||
+           directOut.size()!=0||
+           !directNpcs.snapshot().isEmpty())
+            throw new AssertionError(
+                "direct mirror add was not failed closed bytes="+
+                directOut.size()+
+                " mirrors="+
+                directNpcs.snapshot().size()
+            );
     }
 
     private static void assertDirectWriterIsNotRetryable()
