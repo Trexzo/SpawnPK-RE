@@ -6346,3 +6346,18 @@ tasks.register('sharedNpcRelayContextRetirementLinearizationRegression', JavaExe
 tasks.named('check') {
     dependsOn tasks.named('sharedNpcRelayContextRetirementLinearizationRegression')
 }
+
+
+tasks.register('remotePetRelayContextRetirementLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc remote-pet mirror sync retains exact relay context authority until packet65 synchronization completes.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.RemotePetRelayContextRetirementLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('remotePetRelayContextRetirementLinearizationRegression')
+}
