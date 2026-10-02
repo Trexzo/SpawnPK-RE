@@ -1419,11 +1419,13 @@ final class SharedNpcWorldRelay {
         )throws IOException{
             if(Math.abs(x-movement.x())>15||
                Math.abs(y-movement.y())>15){
-                if(scene>=0)
-                    npcs.devRemoveNpc(
-                        scene,
-                        writer
-                    );
+                if(scene>=0&&
+                   removeMirror(scene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return RETRY_SCENE;
+
                 if(canonicalId!=null)
                     remoteIndexes.unbind(
                         canonicalId
@@ -1434,27 +1436,30 @@ final class SharedNpcWorldRelay {
             if(scene<0||
                oldDef!=def||
                npcs.scene(scene)==null){
-                if(scene>=0)
-                    npcs.devRemoveNpc(
-                        scene,
-                        writer
-                    );
+                if(scene>=0&&
+                   removeMirror(scene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return RETRY_SCENE;
+
                 if(canonicalId!=null)
                     remoteIndexes.unbind(
                         canonicalId
                     );
 
                 NpcEntity e=
-                    npcs.spawnMirroredNpc(
+                    spawnMirror(
                         def,
                         x,
                         y,
-                        particleSelector,
-                        movement,
-                        writer
+                        particleSelector
                     );
 
-                if(e!=null&&canonicalId!=null){
+                if(e==null)
+                    return RETRY_SCENE;
+
+                if(canonicalId!=null){
                     e.bindCanonicalId(canonicalId);
                     remoteIndexes.bind(
                         canonicalId,
@@ -1462,19 +1467,16 @@ final class SharedNpcWorldRelay {
                     );
                 }
 
-                if(e!=null)
-                    sendMirrorMaskOrDefer(
-                        sourceId,
-                        sourceGeneration,
-                        e,
-                        NpcSyncEncoder.Mask.interactionTarget(
-                            interactionTarget
-                        )
-                    );
+                sendMirrorMaskOrDefer(
+                    sourceId,
+                    sourceGeneration,
+                    e,
+                    NpcSyncEncoder.Mask.interactionTarget(
+                        interactionTarget
+                    )
+                );
 
-                return e==null
-                    ?-1
-                    :e.sceneIndex;
+                return e.sceneIndex;
             }
 
             NpcEntity e=npcs.scene(scene);
@@ -1525,14 +1527,17 @@ final class SharedNpcWorldRelay {
                     Math.abs(dx),
                     Math.abs(dy)
                 )>1&&d2<0)){
-                npcs.devRemoveNpc(
-                    scene,
-                    writer
-                );
+                if(removeMirror(scene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return RETRY_SCENE;
+
                 if(canonicalId!=null)
                     remoteIndexes.unbind(
                         canonicalId
                     );
+
                 return syncOne(
                     sourceId,
                     sourceGeneration,
@@ -1549,40 +1554,18 @@ final class SharedNpcWorldRelay {
                 );
             }
 
-            ArrayList<NpcSyncEncoder.Update> ups=
-                new ArrayList<>();
-            for(NpcEntity n:npcs.snapshot()){
-                if(n.sceneIndex==scene)
-                    ups.add(
-                        d2>=0
-                            ?NpcSyncEncoder.Update.run(
-                                n,
-                                d1,
-                                d2
-                            )
-                            :NpcSyncEncoder.Update.walk(
-                                n,
-                                d1
-                            )
-                    );
-                else
-                    ups.add(
-                        NpcSyncEncoder.Update.retain(n)
-                    );
-            }
+            if(moveMirror(
+                    e,
+                    d1,
+                    d2,
+                    x,
+                    y
+                )!=
+                    ServerPacketWriter
+                        .RecoverablePacketResult
+                        .COMMITTED)
+                return RETRY_SCENE;
 
-            writer.varShort(
-                65,
-                NpcSyncEncoder.encode(
-                    ups,
-                    Collections.<NpcEntity>emptyList(),
-                    0,
-                    0
-                )
-            );
-
-            e.x=x;
-            e.y=y;
             return scene;
         }
 
@@ -1657,30 +1640,55 @@ final class SharedNpcWorldRelay {
                 :null;
         }
 
-        void removeRemote(EntityId id)throws IOException{
-            RemotePetTrack t=remote.remove(id);
-            if(t==null)return;
+        boolean removeRemote(EntityId id)throws IOException{
+            RemotePetTrack t=remote.get(id);
+            if(t==null)return true;
 
-            if(t.miniScene>=0)
-                npcs.devRemoveNpc(
-                    t.miniScene,
-                    writer
-                );
-            if(t.mainScene>=0)
-                npcs.devRemoveNpc(
-                    t.mainScene,
-                    writer
-                );
+            if(t.miniScene>=0){
+                if(removeMirror(t.miniScene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return false;
 
-            if(t.miniCanonicalId!=null)
-                remoteIndexes.unbind(
-                    t.miniCanonicalId
-                );
-            if(t.mainCanonicalId!=null)
-                remoteIndexes.unbind(
-                    t.mainCanonicalId
-                );
+                t.miniScene=-1;
+
+                if(t.miniCanonicalId!=null){
+                    remoteIndexes.unbind(
+                        t.miniCanonicalId
+                    );
+                    t.miniCanonicalId=null;
+                }
+            }
+
+            if(t.mainScene>=0){
+                if(removeMirror(t.mainScene)!=
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .COMMITTED)
+                    return false;
+
+                t.mainScene=-1;
+
+                if(t.mainCanonicalId!=null){
+                    remoteIndexes.unbind(
+                        t.mainCanonicalId
+                    );
+                    t.mainCanonicalId=null;
+                }
+            }
+
+            remote.remove(id);
+            return true;
         }
-        void removeAllRemotePets()throws IOException{for(EntityId id:new ArrayList<>(remote.keySet()))removeRemote(id);}
+
+        void removeAllRemotePets()throws IOException{
+            for(EntityId id:
+                    new ArrayList<>(
+                        remote.keySet()
+                    ))
+                if(!removeRemote(id))
+                    return;
+        }
     }
 }
