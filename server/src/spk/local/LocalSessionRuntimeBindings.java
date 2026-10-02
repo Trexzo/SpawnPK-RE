@@ -154,6 +154,16 @@ final class LocalSessionRuntimeBindings {
                 }
             );
         }catch(Throwable failure){
+            if(failure instanceof
+                    Player81WorldSync
+                        .TerminalPlayerOptionsException)
+                retireTerminalRuntimeBundle(
+                    (Player81WorldSync
+                        .TerminalPlayerOptionsException)
+                        failure,
+                    failure
+                );
+
             if(bindingStarted[0])
                 rollbackRegistration(
                     serverPackets,
@@ -208,6 +218,46 @@ final class LocalSessionRuntimeBindings {
                 writer
             )
         );
+    }
+
+    private static void retireTerminalRuntimeBundle(
+        Player81WorldSync.TerminalPlayerOptionsException
+            terminal,
+        Throwable primary
+    ){
+        WorldPlayer failedOwner=
+            terminal.owner;
+        ServerPacketWriter failedWriter=
+            terminal.writer;
+
+        if(failedOwner==null||
+           failedWriter==null)
+            return;
+
+        try{
+            TradeService.unregister(
+                failedOwner,
+                failedWriter
+            );
+        }catch(Throwable cleanup){
+            primary.addSuppressed(cleanup);
+        }
+
+        try{
+            SharedNpcWorldRelay.unregister(
+                failedWriter
+            );
+        }catch(Throwable cleanup){
+            primary.addSuppressed(cleanup);
+        }
+
+        try{
+            Player81WorldSync.unregister(
+                failedWriter
+            );
+        }catch(Throwable cleanup){
+            primary.addSuppressed(cleanup);
+        }
     }
 
     private void rollbackRegistration(
