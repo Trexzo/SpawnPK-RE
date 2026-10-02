@@ -840,7 +840,7 @@ final class ServerPacketWriter {
     private void requirePacket81LifetimeLocked(
         boolean staged,
         long expectedBatchGeneration
-    ){
+    )throws IOException{
         requireLiveLocked();
 
         if(!packet81InFlight||
