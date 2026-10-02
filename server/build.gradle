@@ -2053,6 +2053,14 @@ tasks.register('currentTrainFocusedRegression') {
     }
 }
 
+tasks.register('diagRelayOwnerWriterRebindCleanup', JavaExec) {
+    group = 'verification'
+    description = 'TEMPORARY Chat 1 diagnostic: runs only RelayOwnerWriterRebindCleanupTest.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RelayOwnerWriterRebindCleanupTest')
+}
+
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     group = 'verification'
     description = 'Verifies login accepts build config 307/308 while keeping outer protocol revision 317 strict.'
