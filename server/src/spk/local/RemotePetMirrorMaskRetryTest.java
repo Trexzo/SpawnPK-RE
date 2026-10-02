@@ -41,6 +41,7 @@ public final class RemotePetMirrorMaskRetryTest {
             "terminalMirrorRuntimeRetired=true "+
             "terminalMirrorWriterLatched=true "+
             "terminalMirrorWriterLatchedBeforeRuntimeRetire=true "+
+            "terminalMirrorWriterNoRetouchBeforeRuntimeRetire=true "+
             "terminalMirrorSentinelRetained=true "+
             "terminalQueueNotRetryable=true "+
             "mirrorAddRetryRetracted=true "+
@@ -702,6 +703,36 @@ public final class RemotePetMirrorMaskRetryTest {
                 if(!viewerWriter.terminal())
                     throw new AssertionError(
                         "terminal mirror failure did not latch exact writer before outer runtime retirement"
+                    );
+
+                int attemptsBeforeProbe=
+                    viewerOut.attempts();
+
+                viewerOut.disableFailure();
+
+                boolean probeRejected=false;
+
+                try{
+                    viewerWriter.fixed(
+                        97,
+                        new byte[0]
+                    );
+                }catch(IOException expected){
+                    probeRejected=true;
+                }
+
+                if(!probeRejected)
+                    throw new AssertionError(
+                        "terminal mirror writer accepted probe publication before runtime retirement"
+                    );
+
+                if(viewerOut.attempts()!=
+                        attemptsBeforeProbe)
+                    throw new AssertionError(
+                        "terminal mirror writer retouched transport before runtime retirement before="+
+                        attemptsBeforeProbe+
+                        " after="+
+                        viewerOut.attempts()
                     );
             }
 
