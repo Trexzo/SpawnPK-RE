@@ -75,23 +75,20 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                 new DevAuthorityWorkbench()
             );
 
-        if(!SharedNpcWorldRelay.register(
-                sourceWriter,
-                world,
-                source,
-                sourceNpcs,
-                source.movement()
-            )||
-           !SharedNpcWorldRelay.register(
-                viewerWriter,
-                world,
-                viewer,
-                viewerNpcs,
-                viewer.movement()
-            ))
-            throw new AssertionError(
-                "initial relay registration rejected"
-            );
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            world,
+            source,
+            sourceNpcs,
+            source.movement()
+        );
+        SharedNpcWorldRelay.register(
+            viewerWriter,
+            world,
+            viewer,
+            viewerNpcs,
+            viewer.movement()
+        );
 
         try{
             PetDefinitionRepository.Def pet=
@@ -166,7 +163,9 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                     QUEUE_CAPACITY
                 );
 
-            boolean replacedUnderPressure=
+            boolean retryableRejected=false;
+
+            try{
                 SharedNpcWorldRelay.register(
                     viewerWriter,
                     world,
@@ -174,10 +173,14 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
                     viewerNpcs,
                     viewer.movement()
                 );
+            }catch(SharedNpcWorldRelay
+                    .RetryableRegistrationException expected){
+                retryableRejected=true;
+            }
 
-            if(replacedUnderPressure)
+            if(!retryableRejected)
                 throw new AssertionError(
-                    "rebind committed despite retracted old-context cleanup"
+                    "retracted cleanup did not reject replacement explicitly"
                 );
 
             if(contextFor(
@@ -214,19 +217,13 @@ public final class SharedNpcRebindCleanupRetractabilityTest {
 
             pressure.release();
 
-            boolean replaced=
-                SharedNpcWorldRelay.register(
-                    viewerWriter,
-                    world,
-                    viewer,
-                    viewerNpcs,
-                    viewer.movement()
-                );
-
-            if(!replaced)
-                throw new AssertionError(
-                    "rebind retry did not commit after capacity returned"
-                );
+            SharedNpcWorldRelay.register(
+                viewerWriter,
+                world,
+                viewer,
+                viewerNpcs,
+                viewer.movement()
+            );
 
             Object newContext=
                 contextFor(
