@@ -266,6 +266,13 @@ final class SharedNpcWorldRelay {
                     }
                 );
         }catch(Throwable t){
+            if(t instanceof
+                    ServerPacketWriter
+                        .NonRetractablePublicationException)
+                unregister(
+                    viewerWriter
+                );
+
             System.err.println(
                 "[ENGINE-R3.2] remote pet sync failed viewer="+
                 candidate.owner.id()+": "+t
@@ -1207,7 +1214,7 @@ final class SharedNpcWorldRelay {
             long sourceGeneration,
             NpcEntity npc,
             NpcSyncEncoder.Mask mask
-        ){
+        )throws IOException{
             PendingMirrorMask pending=
                 new PendingMirrorMask(
                     sourceId,
@@ -1224,20 +1231,22 @@ final class SharedNpcWorldRelay {
             }
 
             try{
-                npcs.sendMaskLocal(
-                    npc,
-                    mask,
-                    writer
+                writer.publishRecoverablePacket(
+                    ()->npcs.sendMaskLocal(
+                        npc,
+                        mask,
+                        writer
+                    )
                 );
-            }catch(IOException failure){
+            }catch(ServerPacketWriter.RecoverablePublicationException failure){
                 pendingMirrorMasks.addLast(
                     pending
                 );
 
                 System.err.println(
-                    "[ENGINE-R3.2] deferred remote mirror mask scene="+
+                    "[ENGINE-R3.2] deferred remote mirror mask before transport commit scene="+
                     npc.sceneIndex+
-                    " error="+failure
+                    " error="+failure.getCause()
                 );
             }
         }
@@ -1272,11 +1281,20 @@ final class SharedNpcWorldRelay {
                     continue;
                 }
 
-                npcs.sendMaskLocal(
-                    pending.npc,
-                    pending.mask,
-                    writer
-                );
+                try{
+                    writer.publishRecoverablePacket(
+                        ()->npcs.sendMaskLocal(
+                            pending.npc,
+                            pending.mask,
+                            writer
+                        )
+                    );
+                }catch(ServerPacketWriter.RecoverablePublicationException failure){
+                    return;
+                }catch(IOException failure){
+                    pendingMirrorMasks.removeFirst();
+                    throw failure;
+                }
 
                 pendingMirrorMasks.removeFirst();
             }
