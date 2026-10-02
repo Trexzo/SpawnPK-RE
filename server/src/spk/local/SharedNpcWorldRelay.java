@@ -253,12 +253,15 @@ final class SharedNpcWorldRelay {
                         ){
                             if(BY_WRITER.get(
                                     viewerWriter
-                                )!=candidate)
+                                )!=candidate||
+                               candidate.state.contexts.get(
+                                    candidate.owner.id()
+                               )!=candidate)
                                 return;
-                        }
 
-                        candidate.syncRemotePets();
-                        candidate.syncCanonicalNpcs();
+                            candidate.syncRemotePets();
+                            candidate.syncCanonicalNpcs();
+                        }
                     }
                 );
         }catch(Throwable t){
