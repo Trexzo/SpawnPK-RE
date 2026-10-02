@@ -204,6 +204,7 @@ public final class Player81BatchAbortAtomicityTest {
             testOwnershipCommitBarrier();
             testStalePreparationFailClosed();
             testUnbatchedPublicationAtomicity();
+            testUnbatchedPostCommitRelayFailureIsolation();
             testPacket81BatchLifetimeGate();
 
             System.out.println(
@@ -219,6 +220,7 @@ public final class Player81BatchAbortAtomicityTest {
                 "unbatchedQueueFailureAtomic=true "+
                 "unbatchedRetryCommitsOnce=true "+
                 "unbatchedDirectOutputFailClosed=true "+
+                "unbatchedPostCommitRelayFailureIsolated=true "+
                 "stagedAbortWaitsForFraming=true "+
                 "stagedEndWaitsForFraming=true "+
                 "unbatchedBeginCannotCapture=true "+
@@ -933,6 +935,248 @@ public final class Player81BatchAbortAtomicityTest {
             throw new AssertionError(
                 "unregistered unbatched local-only packet81 compatibility was lost"
             );
+    }
+
+    private static void testUnbatchedPostCommitRelayFailureIsolation()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(606L);
+        WorldPlayer source=
+            new WorldPlayer();
+        WorldPlayer viewer=
+            new WorldPlayer();
+
+        world.registerPlayer(
+            source,
+            "player81-relay-source"
+        );
+        world.registerPlayer(
+            viewer,
+            "player81-relay-viewer"
+        );
+
+        OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+        OutboundPacketQueue viewerQueue=
+            new OutboundPacketQueue(1024);
+        ServerPacketWriter sourceWriter=
+            new ServerPacketWriter(
+                sourceQueue,
+                new IsaacCipher(
+                    new int[]{37,38,39,40}
+                )
+            );
+        ServerPacketWriter viewerWriter=
+            new ServerPacketWriter(
+                viewerQueue,
+                new IsaacCipher(
+                    new int[]{41,42,43,44}
+                )
+            );
+
+        Player81WorldSync.register(
+            sourceWriter,
+            world,
+            source,
+            new DevAuthorityWorkbench()
+        );
+        Player81WorldSync.register(
+            viewerWriter,
+            world,
+            viewer,
+            new DevAuthorityWorkbench()
+        );
+
+        NpcRegistry sourceNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        NpcRegistry viewerNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        MovementState sourceMovement=
+            new MovementState();
+        MovementState viewerMovement=
+            new MovementState();
+
+        SharedNpcWorldRelay.register(
+            sourceWriter,
+            world,
+            source,
+            sourceNpcs,
+            sourceMovement
+        );
+        SharedNpcWorldRelay.register(
+            viewerWriter,
+            world,
+            viewer,
+            viewerNpcs,
+            viewerMovement
+        );
+
+        try{
+            NpcEntity sourceTarget=
+                bootstrapSharedHome(
+                    world,
+                    sourceNpcs,
+                    viewerNpcs,
+                    sourceMovement,
+                    viewerMovement,
+                    sourceWriter,
+                    viewerWriter
+                )[0];
+
+            sourceWriter.varShort(
+                81,
+                BootstrapPackets.player81Idle()
+            );
+            viewerWriter.varShort(
+                81,
+                BootstrapPackets.player81Idle()
+            );
+            drain(sourceQueue);
+            drain(viewerQueue);
+
+            sourceWriter.varShort(
+                81,
+                CombatSync.player81AnimationAndInteraction(
+                    15552,
+                    sourceTarget.sceneIndex
+                )
+            );
+            drain(sourceQueue);
+
+            sourceNpcs.sendMask(
+                sourceTarget,
+                NpcSyncEncoder.Mask.singleHit(
+                    100,
+                    6,
+                    255,
+                    255
+                ),
+                sourceWriter
+            );
+            drain(sourceQueue);
+
+            int pendingBefore=
+                world.npcPresentationEvents()
+                    .pendingFor(
+                        viewer.id(),
+                        viewer.generation(),
+                        System.currentTimeMillis()
+                    ).size();
+
+            if(pendingBefore<=0)
+                throw new AssertionError(
+                    "relay failure fixture has no pending event"
+                );
+
+            byte[] legacy=
+                BootstrapPackets.player81WalkStep(4);
+
+            Player81WorldSync.PreparedBatchStart measured=
+                Player81WorldSync
+                    .beginPreparedBatchStatus(
+                        viewerWriter
+                    );
+
+            if(measured.status!=
+                    Player81WorldSync
+                        .PreparedBatchStartStatus
+                        .PREPARED||
+               measured.prepared==null)
+                throw new AssertionError(
+                    "relay failure fixture could not prepare packet81"
+                );
+
+            byte[] transformed=
+                Player81WorldSync
+                    .transformPrepared(
+                        measured.prepared,
+                        legacy
+                    );
+
+            Player81WorldSync.abortPreparedBatch(
+                measured.prepared
+            );
+
+            int packetBytes=
+                transformed.length+3;
+
+            if(packetBytes<=0||
+               packetBytes>1024)
+                throw new AssertionError(
+                    "unexpected packet81 frame size "+
+                    packetBytes
+                );
+
+            int filler=
+                1024-packetBytes;
+
+            if(filler>0)
+                viewerQueue.offer(
+                    new byte[filler]
+                );
+
+            long sequenceBefore=
+                sequence(world);
+
+            viewerWriter.varShort(
+                81,
+                legacy
+            );
+
+            if(sequence(world)<=
+                    sequenceBefore)
+                throw new AssertionError(
+                    "post-commit relay failure lost packet81 semantic commit"
+                );
+
+            if(viewerQueue.queuedBytes()!=1024)
+                throw new AssertionError(
+                    "post-commit relay fixture did not consume exact queue capacity bytes="+
+                    viewerQueue.queuedBytes()
+                );
+
+            int pendingAfter=
+                world.npcPresentationEvents()
+                    .pendingFor(
+                        viewer.id(),
+                        viewer.generation(),
+                        System.currentTimeMillis()
+                    ).size();
+
+            if(pendingAfter<=0)
+                throw new AssertionError(
+                    "failed relay event was incorrectly marked delivered"
+                );
+        }finally{
+            SharedNpcWorldRelay.unregister(
+                sourceWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
+                viewerWriter
+            );
+
+            if(source.registered())
+                world.unregisterPlayer(
+                    source
+                );
+            if(viewer.registered())
+                world.unregisterPlayer(
+                    viewer
+                );
+
+            world.close();
+        }
     }
 
     private static void testStalePreparationFailClosed()
