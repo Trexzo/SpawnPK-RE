@@ -357,7 +357,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "cancellationCloseRegistryLinearized=true "+
                 "terminalPeerCloseRegistryLinearized=true "+
                 "competingRootPeerCloseRegistryLinearized=true "+
-                "replacementOldPeerCloseRegistryLinearized=true "+
+                "replacementOldPeerCloseGenerationSerialized=true "+
                 "cleanupGenerationFenceUsesRegistry=true "+
                 "finalCommitMutationLockFree=true "+
                 "staleFinalCommitRejected=true "+
