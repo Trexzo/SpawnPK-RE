@@ -92,9 +92,11 @@ public final class EngineR4TradeFlowTest{
    testFinalCommitPairAdmissionAtomicity();
    testTradeXPromptFailureAtomicity();
    testOneSidedAcceptStatusAtomicity();
+   testDirectOneSidedAcceptStatusTerminalFailure(false);
+   testDirectOneSidedAcceptStatusTerminalFailure(true);
    testOfferRefreshAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true replacementTerminalOldPeerRetired=true replacementHealthyTradePreserved=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptTerminalRetirement=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true replacementTerminalOldPeerRetired=true replacementHealthyTradePreserved=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptTerminalRetirement=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true directFirstAcceptTerminalRetired=true directFinalAcceptTerminalRetired=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -1178,6 +1180,169 @@ public final class EngineR4TradeFlowTest{
     w.unregisterPlayer(a);
    if(b.registered())
     w.unregisterPlayer(b);
+   w.close();
+  }
+ }
+
+ static void testDirectOneSidedAcceptStatusTerminalFailure(
+  boolean finalStage
+ )throws Exception{
+  World w=World.isolatedForTest(finalStage?610L:609L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
+  long ga=w.registerPlayer(a,finalStage?"direct-final-a":"direct-first-a");
+  long gb=w.registerPlayer(b,finalStage?"direct-final-b":"direct-first-b");
+
+  SwitchFailOutputStream outA=new SwitchFailOutputStream();
+  SwitchFailOutputStream outB=new SwitchFailOutputStream();
+  ServerPacketWriter wa=
+   new ServerPacketWriter(
+    outA,
+    new IsaacCipher(finalStage
+     ?new int[]{101,102,103,104}
+     :new int[]{93,94,95,96})
+   );
+  ServerPacketWriter wb=
+   new ServerPacketWriter(
+    outB,
+    new IsaacCipher(finalStage
+     ?new int[]{105,106,107,108}
+     :new int[]{97,98,99,100})
+   );
+
+  NpcRegistry aNpcs=new NpcRegistry(new DevAuthorityWorkbench());
+  NpcRegistry bNpcs=new NpcRegistry(new DevAuthorityWorkbench());
+
+  Player81WorldSync.Context aSync=
+   Player81WorldSync.register(
+    wa,w,a,new DevAuthorityWorkbench()
+   );
+  Player81WorldSync.register(
+   wb,w,b,new DevAuthorityWorkbench()
+  );
+  SharedNpcWorldRelay.register(
+   wa,w,a,aNpcs,a.movement()
+  );
+  SharedNpcWorldRelay.register(
+   wb,w,b,bNpcs,b.movement()
+  );
+
+  TradeService.register(w,a,ga,a.bank(),wa,()->{});
+  TradeService.register(w,b,gb,b.bank(),wb,()->{});
+
+  try{
+   need(TradeService.start(w,a,b),"TRADE_UI_OPEN");
+
+   if(finalStage){
+    need(
+     TradeService.handleWidget(a,3420),
+     "WAITING_OTHER"
+    );
+    need(
+     TradeService.handleWidget(b,3420),
+     "CONFIRM_OPEN"
+    );
+   }
+
+   Object aRelay=relayContextFor(wa);
+   Object bRelay=relayContextFor(wb);
+   int aAttemptsBefore=outA.attempts;
+   int bAttemptsBefore=outB.attempts;
+
+   outB.fail=true;
+
+   boolean failed=false;
+   try{
+    TradeService.handleWidget(
+     a,
+     finalStage?3546:3420
+    );
+   }catch(IOException expected){
+    failed="SWITCH_FAIL".equals(expected.getMessage());
+   }
+
+   if(!failed)
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " accept-status peer failure was not propagated"
+    );
+
+   if(outB.attempts!=bAttemptsBefore+1)
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " failed peer writer retouched attemptsBefore="+
+     bAttemptsBefore+" after="+outB.attempts
+    );
+
+   if(outA.attempts!=aAttemptsBefore+2)
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " healthy accept writer expected status+close attemptsBefore="+
+     aAttemptsBefore+" after="+outA.attempts
+    );
+
+   if(TradeService.active(a)||TradeService.active(b))
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " accept-status failure retained live Trade"
+    );
+
+   if(!wb.terminal())
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " failed peer writer not terminal-latched"
+    );
+
+   if(player81ContextFor(wb)!=null)
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " failed peer retained Player81 authority"
+    );
+
+   if(relayContextFor(wb)!=bRelay)
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " failed peer SharedNpc sentinel changed"
+    );
+
+   if(wa.terminal()||
+      player81ContextFor(wa)!=aSync||
+      relayContextFor(wa)!=aRelay)
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " failure retired healthy accepting runtime"
+    );
+
+   int bAttemptsAfter=outB.attempts;
+   boolean rejected=false;
+   try{
+    SharedNpcWorldRelay.preflightRegistration(
+     wb,w,b
+    );
+   }catch(SharedNpcWorldRelay.TerminalRegistrationException expected){
+    rejected=expected.owner==b&&expected.writer==wb;
+   }
+
+   if(!rejected)
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " terminal peer writer was resurrectable"
+    );
+
+   if(outB.attempts!=bAttemptsAfter)
+    throw new AssertionError(
+     "direct "+(finalStage?"final":"first")+
+     " preflight retouched terminal peer writer"
+    );
+  }finally{
+   outB.fail=false;
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   SharedNpcWorldRelay.unregister(wa);
+   SharedNpcWorldRelay.unregister(wb);
+   Player81WorldSync.unregister(wa);
+   Player81WorldSync.unregister(wb);
+   if(a.registered())w.unregisterPlayer(a,ga);
+   if(b.registered())w.unregisterPlayer(b,gb);
    w.close();
   }
  }
