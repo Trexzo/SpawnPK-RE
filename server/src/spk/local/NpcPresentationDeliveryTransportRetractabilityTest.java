@@ -30,7 +30,8 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
             "terminalRecipientDebtRetired=true "+
             "terminalWriterLatched=true "+
             "terminalRuntimeRetired=true "+
-            "terminalRetirementOutsideRelayMonitor=true"
+            "terminalRetirementOutsideRelayMonitor=true "+
+            "terminalRelayLatchNoRetouch=true"
         );
     }
 
@@ -302,6 +303,7 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                     "sharednpc-terminal-trade-holder"
                 );
             Thread flushThread=null;
+            Thread secondFlushThread=null;
             Thread relayProbe=null;
 
             tradeHolder.start();
@@ -336,6 +338,43 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                     flushThread,
                     "terminal relay retirement did not wait on TradeService"
                 );
+
+                if(!directWriter.terminal())
+                    throw new AssertionError(
+                        "terminal relay writer was not latched before cross-service retirement"
+                    );
+
+                int attemptsBeforeSecondFlush=
+                    directOut.attempts;
+
+                secondFlushThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                SharedNpcWorldRelay.flushAfterPlayer81(
+                                    directWriter
+                                );
+                            }catch(Throwable failure){
+                                threadFailure[0]=failure;
+                            }
+                        },
+                        "sharednpc-terminal-second-flush"
+                    );
+                secondFlushThread.start();
+
+                joinThread(
+                    secondFlushThread,
+                    "terminal relay second flush"
+                );
+
+                if(directOut.attempts!=
+                        attemptsBeforeSecondFlush)
+                    throw new AssertionError(
+                        "terminal relay writer was retouched before runtime retirement before="+
+                        attemptsBeforeSecondFlush+
+                        " after="+
+                        directOut.attempts
+                    );
 
                 relayProbe=
                     new Thread(
@@ -379,6 +418,9 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                 if(flushThread!=null&&
                    flushThread.isAlive())
                     flushThread.interrupt();
+                if(secondFlushThread!=null&&
+                   secondFlushThread.isAlive())
+                    secondFlushThread.interrupt();
                 if(relayProbe!=null&&
                    relayProbe.isAlive())
                     relayProbe.interrupt();
