@@ -156,13 +156,35 @@ final class LocalSessionRuntimeBindings {
         }catch(Throwable failure){
             if(failure instanceof
                     Player81WorldSync
-                        .TerminalPlayerOptionsException)
+                        .TerminalPlayerOptionsException){
+                Player81WorldSync.TerminalPlayerOptionsException
+                    terminal=
+                        (Player81WorldSync
+                            .TerminalPlayerOptionsException)
+                            failure;
+
                 retireTerminalRuntimeBundle(
-                    (Player81WorldSync
-                        .TerminalPlayerOptionsException)
-                        failure,
+                    terminal.owner,
+                    terminal.writer,
+                    true,
                     failure
                 );
+            }else if(failure instanceof
+                    SharedNpcWorldRelay
+                        .TerminalRegistrationException){
+                SharedNpcWorldRelay.TerminalRegistrationException
+                    terminal=
+                        (SharedNpcWorldRelay
+                            .TerminalRegistrationException)
+                            failure;
+
+                retireTerminalRuntimeBundle(
+                    terminal.owner,
+                    terminal.writer,
+                    false,
+                    failure
+                );
+            }
 
             if(bindingStarted[0])
                 rollbackRegistration(
@@ -221,21 +243,17 @@ final class LocalSessionRuntimeBindings {
     }
 
     private static void retireTerminalRuntimeBundle(
-        Player81WorldSync.TerminalPlayerOptionsException
-            terminal,
+        WorldPlayer failedOwner,
+        ServerPacketWriter failedWriter,
+        boolean retireSharedNpc,
         Throwable primary
     ){
-        WorldPlayer failedOwner=
-            terminal.owner;
-        ServerPacketWriter failedWriter=
-            terminal.writer;
-
         if(failedOwner==null||
            failedWriter==null)
             return;
 
         try{
-            TradeService.unregister(
+            TradeService.retireBrokenWriter(
                 failedOwner,
                 failedWriter
             );
@@ -243,13 +261,15 @@ final class LocalSessionRuntimeBindings {
             primary.addSuppressed(cleanup);
         }
 
-        try{
-            SharedNpcWorldRelay.unregister(
-                failedWriter
-            );
-        }catch(Throwable cleanup){
-            primary.addSuppressed(cleanup);
-        }
+        if(retireSharedNpc)
+            try{
+                SharedNpcWorldRelay
+                    .retireTerminalWriter(
+                        failedWriter
+                    );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
 
         try{
             Player81WorldSync.unregister(
