@@ -8,6 +8,34 @@ import java.io.*;
  * synchronizer the byte stream is identical to R2.14.
  */
 final class ServerPacketWriter {
+    static class RecoverablePublicationException
+        extends IOException {
+
+        RecoverablePublicationException(
+            String message,
+            Throwable cause
+        ){
+            super(message,cause);
+        }
+    }
+
+    static final class NonRetractablePublicationException
+        extends IOException {
+
+        NonRetractablePublicationException(
+            String message
+        ){
+            super(message);
+        }
+
+        NonRetractablePublicationException(
+            String message,
+            Throwable cause
+        ){
+            super(message,cause);
+        }
+    }
+
     private static final Object ATOMIC_PAIR_LOCK=
         new Object();
 
@@ -447,6 +475,66 @@ final class ServerPacketWriter {
         pending.write(body.length&255);
         pending.write(body);
         autoFlush();
+    }
+
+    @FunctionalInterface
+    interface RecoverablePacketPublication {
+        void publish()throws IOException;
+    }
+
+    synchronized void publishRecoverablePacket(
+        RecoverablePacketPublication publication
+    )throws IOException{
+        if(publication==null)
+            throw new NullPointerException(
+                "publication"
+            );
+
+        awaitPacket81IdleLocked();
+
+        if(batchDepth!=0)
+            throw new IllegalStateException(
+                "recoverable packet publication requires idle writer"
+            );
+
+        if(pending.size()!=0)
+            throw new IllegalStateException(
+                "recoverable packet publication requires idle pending buffer"
+            );
+
+        if(queue==null)
+            throw new NonRetractablePublicationException(
+                "recoverable packet publication requires queue-backed writer"
+            );
+
+        beginBatchLocked();
+        boolean completed=false;
+
+        try{
+            publication.publish();
+
+            if(batchDepth!=1)
+                throw new IllegalStateException(
+                    "recoverable packet publication changed batch depth"
+                );
+
+            try{
+                flush();
+            }catch(IOException admissionFailure){
+                abortBatchLocked();
+                throw new RecoverablePublicationException(
+                    "recoverable packet admission rejected before commit",
+                    admissionFailure
+                );
+            }
+
+            completeBatchLocked();
+            completed=true;
+        }finally{
+            if(!completed&&
+               batchDepth>0)
+                abortBatchLocked();
+        }
     }
 
     synchronized void beginBatch(){
