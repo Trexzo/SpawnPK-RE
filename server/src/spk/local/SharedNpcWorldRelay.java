@@ -203,7 +203,25 @@ final class SharedNpcWorldRelay {
     }
 
     static synchronized void unregister(ServerPacketWriter writer){
-        Context c=BY_WRITER.remove(writer);if(c==null)return;
+        Context c=BY_WRITER.get(writer);
+        if(c==null)
+            return;
+
+        /*
+         * Terminal retirement deliberately leaves an exact writer-local
+         * fail-closed sentinel in BY_WRITER. Normal session teardown may later
+         * reach unregister for that same writer; that teardown must be
+         * idempotent. Removing/re-cleaning the sentinel would both permit the
+         * broken transport to be registered again and could erase a newer
+         * owner Context installed on a healthy replacement writer.
+         *
+         * World close is the authority that finally discards terminal
+         * sentinels for the closed World.
+         */
+        if(c.projectionTransportFailedClosed)
+            return;
+
+        BY_WRITER.remove(writer);
         cleanupContext(c);
     }
 
