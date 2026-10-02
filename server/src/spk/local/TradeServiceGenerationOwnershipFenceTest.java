@@ -2,6 +2,8 @@ package spk.local;
 
 public final class TradeServiceGenerationOwnershipFenceTest {
     public static void main(String[] args)throws Exception{
+        assertCancellationCloseSkipsStaleGeneration();
+
         World world=
             World.isolatedForTest(600L);
 
@@ -348,6 +350,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "staleStartRejected=true "+
                 "replacementNoStaleNotify=true "+
                 "staleWriterUnregisterFenced=true "+
+                "staleCancellationCloseFenced=true "+
                 "staleFinalCommitRejected=true "+
                 "inventoryUnchanged=true"
             );
@@ -365,6 +368,223 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 world.unregisterPlayer(
                     b,
                     b.generation()
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertCancellationCloseSkipsStaleGeneration()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                601L
+            );
+        WorldPlayer stale=
+            new WorldPlayer();
+        WorldPlayer peer=
+            new WorldPlayer();
+
+        long staleGeneration=
+            world.registerPlayer(
+                stale,
+                "trade-cancel-fence-a"
+            );
+        long peerGeneration=
+            world.registerPlayer(
+                peer,
+                "trade-cancel-fence-b"
+            );
+
+        OutboundPacketQueue staleOut=
+            new OutboundPacketQueue();
+        OutboundPacketQueue peerOut=
+            new OutboundPacketQueue();
+        ServerPacketWriter staleWriter=
+            writer(
+                staleOut,
+                21
+            );
+        ServerPacketWriter peerWriter=
+            writer(
+                peerOut,
+                25
+            );
+
+        long replacementGeneration=0L;
+        final Throwable[] threadFailure={
+            null
+        };
+        Thread cancelThread=null;
+
+        try{
+            TradeService.register(
+                world,
+                stale,
+                staleGeneration,
+                stale.bank(),
+                staleWriter,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                peer,
+                peerGeneration,
+                peer.bank(),
+                peerWriter,
+                ()->{}
+            );
+
+            requireContains(
+                TradeService.start(
+                    world,
+                    stale,
+                    peer
+                ),
+                "TRADE_UI_OPEN",
+                "cancellation fence trade open"
+            );
+
+            int staleBytesBefore=
+                staleOut.queuedBytes();
+            int peerBytesBefore=
+                peerOut.queuedBytes();
+
+            synchronized(stale.mutationLock()){
+                cancelThread=
+                    new Thread(
+                        ()->{
+                            try{
+                                String result=
+                                    TradeService.handleWidget(
+                                        stale,
+                                        TradeService.FIRST_DECLINE
+                                    );
+
+                                if(result==null||
+                                   !result.contains(
+                                        "TRADE_CANCELLED_DECLINE"
+                                   ))
+                                    throw new AssertionError(
+                                        "cancellation fence result="+
+                                        result
+                                    );
+                            }catch(Throwable failure){
+                                threadFailure[0]=failure;
+                            }
+                        },
+                        "trade-cancel-generation-fence"
+                    );
+
+                cancelThread.start();
+
+                long deadline=
+                    System.nanoTime()+
+                    5_000_000_000L;
+
+                while(cancelThread.isAlive()&&
+                      cancelThread.getState()!=
+                          Thread.State.BLOCKED&&
+                      System.nanoTime()<deadline)
+                    Thread.yield();
+
+                if(cancelThread.getState()!=
+                        Thread.State.BLOCKED)
+                    throw new AssertionError(
+                        "cancellation did not block at participant ownership fence state="+
+                        cancelThread.getState()
+                    );
+
+                if(!world.unregisterPlayer(
+                        stale,
+                        staleGeneration
+                    ))
+                    throw new AssertionError(
+                        "cancellation fence stale generation unregister failed"
+                    );
+
+                replacementGeneration=
+                    world.registerPlayer(
+                        stale,
+                        "trade-cancel-fence-a"
+                    );
+
+                if(replacementGeneration==
+                        staleGeneration)
+                    throw new AssertionError(
+                        "cancellation fence generation did not advance"
+                    );
+            }
+
+            cancelThread.join(
+                5000L
+            );
+
+            if(cancelThread.isAlive())
+                throw new AssertionError(
+                    "cancellation fence thread did not terminate"
+                );
+
+            if(threadFailure[0]!=null)
+                throw new AssertionError(
+                    "cancellation fence thread failed",
+                    threadFailure[0]
+                );
+
+            if(staleOut.queuedBytes()!=
+                    staleBytesBefore)
+                throw new AssertionError(
+                    "stale cancellation close touched old writer before="+
+                    staleBytesBefore+
+                    " after="+
+                    staleOut.queuedBytes()
+                );
+
+            if(peerOut.queuedBytes()!=
+                    peerBytesBefore+1)
+                throw new AssertionError(
+                    "current peer did not receive exactly one cancellation close before="+
+                    peerBytesBefore+
+                    " after="+
+                    peerOut.queuedBytes()
+                );
+
+            if(TradeService.active(
+                    stale
+                )||
+               TradeService.active(
+                    peer
+               ))
+                throw new AssertionError(
+                    "cancellation fence retained live Trade"
+                );
+        }finally{
+            if(cancelThread!=null&&
+               cancelThread.isAlive())
+                cancelThread.interrupt();
+
+            TradeService.unregister(
+                stale,
+                staleWriter
+            );
+            TradeService.unregister(
+                peer,
+                peerWriter
+            );
+
+            if(stale.registered())
+                world.unregisterPlayer(
+                    stale,
+                    replacementGeneration!=0L
+                        ?replacementGeneration
+                        :stale.generation()
+                );
+
+            if(peer.registered())
+                world.unregisterPlayer(
+                    peer,
+                    peerGeneration
                 );
 
             world.close();
