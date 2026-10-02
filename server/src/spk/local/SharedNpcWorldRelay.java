@@ -701,6 +701,10 @@ final class SharedNpcWorldRelay {
 
             flushPendingMirrorMasks();
 
+            if(!pendingMirrorMasks.isEmpty()||
+               projectionTransportFailedClosed)
+                return;
+
             ArrayList<Context> sources;
             synchronized(SharedNpcWorldRelay.class){
                 sources=new ArrayList<>(
@@ -1037,7 +1041,8 @@ final class SharedNpcWorldRelay {
 
                 if(canonical==null||
                    canonical.ownerId!=null){
-                    removeGeneric(id);
+                    if(!removeGeneric(id))
+                        return;
                     continue;
                 }
 
