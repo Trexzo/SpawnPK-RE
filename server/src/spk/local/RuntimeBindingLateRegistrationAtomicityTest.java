@@ -310,7 +310,8 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                 "successfulRetryInstallsFreshBundle=true "+
                 "terminalDirectOptionFailureRetiresBundle=true "+
                 "terminalDirectCleanupNoBrokenWriterRetouch=true "+
-                "terminalDirectSentinelBlocksRetry=true"
+                "terminalDirectSentinelBlocksRetry=true "+
+                "terminalDirectMirrorsRetiredLocally=true"
             );
         }finally{
             if(pressure!=null)
@@ -459,6 +460,36 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
             );
 
         try{
+            PetDefinitionRepository.Def terminalPet=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(terminalPet==null)
+                throw new AssertionError(
+                    "terminal direct fixture missing pet 24019"
+                );
+
+            npcsB.spawnPet(
+                terminalPet,
+                b.movement(),
+                writerB
+            );
+
+            Player81WorldSync.transformForTest(
+                contextA,
+                BootstrapPackets.player81Idle()
+            );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                writerA
+            );
+
+            if(npcsA.snapshot().size()!=1)
+                throw new AssertionError(
+                    "terminal direct fixture did not establish one remote mirror"
+                );
+
             String opened=
                 TradeService.start(
                     world,
@@ -544,6 +575,11 @@ public final class RuntimeBindingLateRegistrationAtomicityTest {
                 )!=oldRelayA)
                 throw new AssertionError(
                     "terminal direct failure did not retain exact writer fail-closed sentinel"
+                );
+
+            if(!npcsA.snapshot().isEmpty())
+                throw new AssertionError(
+                    "terminal direct failure retained packetless relay mirror state"
                 );
 
             if(TradeService.active(a)||
