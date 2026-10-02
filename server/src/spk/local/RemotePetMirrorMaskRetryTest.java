@@ -30,6 +30,7 @@ public final class RemotePetMirrorMaskRetryTest {
             "deferredMaskFifo=true "+
             "retryCipherRewound=true "+
             "queueBackedRetry=true "+
+            "repeatedRetryRetracted=true "+
             "deferredMaskBlocksLaterProjection=true "+
             "nativeMaskPreserved=true "+
             "miniProjectionWaitsForDrain=true "+
@@ -98,6 +99,25 @@ public final class RemotePetMirrorMaskRetryTest {
                 fixture.viewerNpcs.snapshot().get(0);
             int scene=
                 first.sceneIndex;
+
+            /*
+             * Retry once while the same reservation still blocks transport.
+             * The FIFO head must remain pending and the writer must rewind
+             * ISAAC/pending state again without emitting another packet.
+             */
+            SharedNpcWorldRelay.syncRemotePets(
+                fixture.viewerWriter
+            );
+
+            if(fixture.viewerQueue.queuedPackets()!=1||
+               fixture.viewerNpcs.snapshot().size()!=1||
+               fixture.viewerNpcs.snapshot().get(0).sceneIndex!=scene)
+                throw new AssertionError(
+                    "second retractable retry changed transport or mirror state packets="+
+                    fixture.viewerQueue.queuedPackets()+
+                    " size="+
+                    fixture.viewerNpcs.snapshot().size()
+                );
 
             pressure.release();
 
