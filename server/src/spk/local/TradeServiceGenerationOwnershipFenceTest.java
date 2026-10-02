@@ -65,7 +65,26 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 generationB,
                 b.bank(),
                 bWriter,
-                ()->{}
+                ()->{
+                    if(Thread.holdsLock(
+                            TradeService.class
+                        )||
+                       Thread.holdsLock(
+                            world.players()
+                        ))
+                        throw new AssertionError(
+                            "Trade B save callback retained Trade/registry lock"
+                        );
+
+                    if(saveOrder[0]!=1)
+                        throw new AssertionError(
+                            "Trade B save callback order="+
+                            saveOrder[0]
+                        );
+
+                    saveOrder[0]=2;
+                    saveOutsideTradeLocks[1]=true;
+                }
             );
 
             String initial=
@@ -360,6 +379,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "replacementOldPeerCloseGenerationSerialized=true "+
                 "cleanupGenerationFenceUsesRegistry=true "+
                 "finalCommitMutationLockFree=true "+
+                "postCommitSavesOutsideTradeLocks=true "+
                 "staleFinalCommitRejected=true "+
                 "inventoryUnchanged=true"
             );
@@ -427,6 +447,13 @@ public final class TradeServiceGenerationOwnershipFenceTest {
         final String[] commitResult={
             null
         };
+        final int[] saveOrder={
+            0
+        };
+        final boolean[] saveOutsideTradeLocks={
+            false,
+            false
+        };
         Thread commitThread=null;
 
         try{
@@ -447,7 +474,26 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 generationA,
                 a.bank(),
                 aWriter,
-                ()->{}
+                ()->{
+                    if(Thread.holdsLock(
+                            TradeService.class
+                        )||
+                       Thread.holdsLock(
+                            world.players()
+                        ))
+                        throw new AssertionError(
+                            "Trade A save callback retained Trade/registry lock"
+                        );
+
+                    if(saveOrder[0]!=0)
+                        throw new AssertionError(
+                            "Trade A save callback order="+
+                            saveOrder[0]
+                        );
+
+                    saveOrder[0]=1;
+                    saveOutsideTradeLocks[0]=true;
+                }
             );
             TradeService.register(
                 world,
@@ -564,6 +610,18 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "TRADE_COMMITTED",
                 "final Trade commit result"
             );
+
+            if(saveOrder[0]!=2||
+               !saveOutsideTradeLocks[0]||
+               !saveOutsideTradeLocks[1])
+                throw new AssertionError(
+                    "Trade post-commit saves did not run outside locks/order="+
+                    saveOrder[0]+
+                    " outsideA="+
+                    saveOutsideTradeLocks[0]+
+                    " outsideB="+
+                    saveOutsideTradeLocks[1]
+                );
 
             if(TradeService.active(a)||
                TradeService.active(b))
