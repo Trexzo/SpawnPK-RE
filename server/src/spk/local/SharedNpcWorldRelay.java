@@ -109,13 +109,6 @@ final class SharedNpcWorldRelay {
                     "SharedNpc replacement cleanup retracted; retry registration"
                 );
 
-            if(result==
-                    ReplacementCleanupResult
-                        .TERMINAL_FAIL_CLOSED)
-                throw new TerminalRegistrationException(
-                    "SharedNpc replacement cleanup failed terminally; existing relay remains fail-closed",
-                    null
-                );
         }
 
         for(Context previous:replacing)
@@ -158,8 +151,7 @@ final class SharedNpcWorldRelay {
 
     private enum ReplacementCleanupResult {
         COMMITTED,
-        RETRACTED_RETRYABLE,
-        TERMINAL_FAIL_CLOSED
+        RETRACTED_RETRYABLE
     }
 
     private static ReplacementCleanupResult
@@ -176,8 +168,10 @@ final class SharedNpcWorldRelay {
         }
 
         if(context.projectionTransportFailedClosed)
-            return ReplacementCleanupResult
-                .TERMINAL_FAIL_CLOSED;
+            throw new TerminalRegistrationException(
+                "SharedNpc replacement rejected: existing relay transport is fail-closed",
+                null
+            );
 
         try{
             if(!context.removeAllRemotePets())
@@ -189,16 +183,18 @@ final class SharedNpcWorldRelay {
                     .RETRACTED_RETRYABLE;
 
             return ReplacementCleanupResult.COMMITTED;
-        }catch(IOException terminal){
+        }catch(Throwable terminal){
             /*
-             * Unknown/partial transport progress is not retryable. Keep the old
-             * Context installed and permanently fail-closed so callers cannot
-             * accidentally install a fresh healthy relay Context over unknowable
-             * stream progress.
+             * Unknown/partial transport progress or an unexpected live cleanup
+             * failure is not retryable. Keep the old Context installed and
+             * permanently fail-closed so callers cannot accidentally install a
+             * fresh healthy relay Context over unknowable state/stream progress.
              */
             context.failCloseProjection();
-            return ReplacementCleanupResult
-                .TERMINAL_FAIL_CLOSED;
+            throw new TerminalRegistrationException(
+                "SharedNpc replacement cleanup failed terminally; existing relay remains fail-closed",
+                terminal
+            );
         }
     }
 
