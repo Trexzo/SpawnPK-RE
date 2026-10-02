@@ -357,6 +357,7 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "staleTerminalPeerCloseFenced=true "+
                 "staleCompetingRootPeerCloseFenced=true "+
                 "staleReplacementOldPeerCloseFenced=true "+
+                "cleanupGenerationFenceUsesRegistry=true "+
                 "staleFinalCommitRejected=true "+
                 "inventoryUnchanged=true"
             );
