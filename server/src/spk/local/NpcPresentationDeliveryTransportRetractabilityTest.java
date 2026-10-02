@@ -6,6 +6,8 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.lang.reflect.Field;
+import java.util.IdentityHashMap;
 
 public final class NpcPresentationDeliveryTransportRetractabilityTest {
     private static final int QUEUE_CAPACITY=1024;
@@ -23,7 +25,9 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
             "eventRetryCipherRewound=true "+
             "eventRetryWireExact=true "+
             "directPartialFailureFailClosed=true "+
-            "terminalRecipientDebtRetired=true"
+            "terminalRecipientDebtRetired=true "+
+            "terminalWriterLatched=true "+
+            "terminalRuntimeRetired=true"
         );
     }
 
@@ -218,6 +222,12 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                     npcs.snapshot()
                 );
 
+            Player81WorldSync.register(
+                directWriter,
+                world,
+                viewer,
+                new DevAuthorityWorkbench()
+            );
             SharedNpcWorldRelay.register(
                 directWriter,
                 world,
@@ -225,6 +235,19 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                 npcs,
                 viewer.movement()
             );
+            TradeService.register(
+                world,
+                viewer,
+                generation,
+                viewer.bank(),
+                directWriter,
+                ()->{}
+            );
+
+            Object relaySentinel=
+                relayContextFor(
+                    directWriter
+                );
 
             long now=
                 System.currentTimeMillis();
@@ -259,6 +282,32 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                     directOut.bytes.size()
                 );
 
+            if(!directWriter.terminal())
+                throw new AssertionError(
+                    "terminal S2C65 failure did not latch writer terminal"
+                );
+
+            if(player81ContextFor(
+                    directWriter
+                )!=null)
+                throw new AssertionError(
+                    "terminal S2C65 failure retained Player81 authority"
+                );
+
+            if(TradeService.active(
+                    viewer
+                ))
+                throw new AssertionError(
+                    "terminal S2C65 failure retained Trade authority"
+                );
+
+            if(relayContextFor(
+                    directWriter
+                )!=relaySentinel)
+                throw new AssertionError(
+                    "terminal S2C65 failure replaced/removed exact SharedNpc sentinel"
+                );
+
             if(!world.npcPresentationEvents()
                     .pendingFor(
                         viewer.id(),
@@ -272,9 +321,24 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
             int attempts=
                 directOut.attempts;
 
-            SharedNpcWorldRelay.flushAfterPlayer81(
-                directWriter
-            );
+            boolean terminalRejected=false;
+
+            try{
+                SharedNpcWorldRelay.flushAfterPlayer81(
+                    directWriter
+                );
+            }catch(IOException expected){
+                terminalRejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "terminal"
+                    );
+            }
+
+            if(!terminalRejected)
+                throw new AssertionError(
+                    "terminal writer did not reject later relay publication"
+                );
 
             if(directOut.attempts!=attempts)
                 throw new AssertionError(
@@ -292,6 +356,50 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static Object relayContextFor(
+        ServerPacketWriter writer
+    )throws Exception{
+        Field field=
+            SharedNpcWorldRelay.class
+                .getDeclaredField(
+                    "BY_WRITER"
+                );
+        field.setAccessible(true);
+
+        synchronized(SharedNpcWorldRelay.class){
+            @SuppressWarnings("unchecked")
+            IdentityHashMap<ServerPacketWriter,Object> contexts=
+                (IdentityHashMap<ServerPacketWriter,Object>)
+                    field.get(null);
+
+            return contexts.get(
+                writer
+            );
+        }
+    }
+
+    private static Object player81ContextFor(
+        ServerPacketWriter writer
+    )throws Exception{
+        Field field=
+            Player81WorldSync.class
+                .getDeclaredField(
+                    "BY_WRITER"
+                );
+        field.setAccessible(true);
+
+        synchronized(Player81WorldSync.class){
+            @SuppressWarnings("unchecked")
+            IdentityHashMap<ServerPacketWriter,Object> contexts=
+                (IdentityHashMap<ServerPacketWriter,Object>)
+                    field.get(null);
+
+            return contexts.get(
+                writer
+            );
         }
     }
 
