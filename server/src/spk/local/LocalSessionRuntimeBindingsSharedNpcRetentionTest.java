@@ -28,6 +28,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
         assertTerminalStartRootWriterIsNotRetouched();
         assertTerminalTradeXPromptWriterIsNotRetouched();
         assertTerminalStartRollbackWriterIsRetired();
+        assertTerminalSentinelPurgedOnWorldClose();
         assertTerminalWriterLatchStopsSessionReuse();
         assertTerminalOldOwnerWriterIdentityIsExact();
 
@@ -60,6 +61,7 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
             "terminalTradeXHealthyPeerClosed=true "+
             "terminalStartRollbackWriterRetired=true "+
             "terminalStartRollbackPrimaryPreserved=true "+
+            "terminalSentinelPurgedOnWorldClose=true "+
             "terminalWriterLatched=true "+
             "terminalSessionIngressRejected=true "+
             "terminalReplacementWriterHealthy=true "+
@@ -3293,6 +3295,78 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
 
             world.close();
         }
+    }
+
+    private static void assertTerminalSentinelPurgedOnWorldClose()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                713L
+            );
+        WorldPlayer owner=
+            new WorldPlayer();
+
+        world.registerPlayer(
+            owner,
+            "binding-terminal-close-owner"
+        );
+
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                new OutboundPacketQueue(),
+                new IsaacCipher(
+                    new int[]{1231,1232,1233,1234}
+                )
+            );
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+
+        SharedNpcWorldRelay.register(
+            writer,
+            world,
+            owner,
+            npcs,
+            owner.movement()
+        );
+
+        Object registered=
+            relayContextFor(
+                writer
+            );
+
+        if(registered==null)
+            throw new AssertionError(
+                "terminal close fixture did not install SharedNpc context"
+            );
+
+        LocalSessionRuntimeBindings
+            .retireTerminalRuntimeBundle(
+                owner,
+                writer,
+                true,
+                new IOException(
+                    "EXPECTED_TERMINAL_CLOSE_SENTINEL"
+                )
+            );
+
+        if(relayContextFor(
+                writer
+            )!=registered)
+            throw new AssertionError(
+                "terminal close fixture lost writer-local sentinel before World close"
+            );
+
+        world.close();
+
+        if(relayContextFor(
+                writer
+            )!=null)
+            throw new AssertionError(
+                "World close retained detached SharedNpc terminal sentinel"
+            );
     }
 
     private static void assertTerminalWriterLatchStopsSessionReuse()
