@@ -1999,8 +1999,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     "terminal cancellation retired healthy participant runtime"
                 );
 
-            int failedBytesAfter=
-                failedQueue.queuedBytes();
+            int failedAttemptsAfter=
+                failedOut.attempts();
             boolean rejected=false;
 
             try{
@@ -2946,8 +2946,8 @@ public final class LocalSessionRuntimeBindingsSharedNpcRetentionTest {
                     remove
                 );
 
-            int failedAttemptsAfter=
-                failedOut.attempts();
+            int failedBytesAfter=
+                failedQueue.queuedBytes();
             boolean rejected=false;
 
             try{
