@@ -35,6 +35,17 @@ final class SharedNpcWorldRelay {
         }
     }
 
+    static final class TerminalRegistrationException
+        extends IllegalStateException {
+
+        TerminalRegistrationException(
+            String message,
+            Throwable cause
+        ){
+            super(message,cause);
+        }
+    }
+
     static synchronized void register(ServerPacketWriter writer,World world,WorldPlayer owner,NpcRegistry npcs,MovementState movement){
         if(writer==null||world==null||owner==null||npcs==null||movement==null)return;
 
@@ -105,6 +116,12 @@ final class SharedNpcWorldRelay {
            context.state.world.closed())
             return;
 
+        if(context.projectionTransportFailedClosed)
+            throw new TerminalRegistrationException(
+                "SharedNpc replacement rejected: existing relay transport is fail-closed",
+                null
+            );
+
         try{
             context.removeAllRemotePets();
             context.removeAllGenericNpcs();
@@ -115,13 +132,19 @@ final class SharedNpcWorldRelay {
             );
         }catch(Throwable terminal){
             /*
-             * Preserve the pre-existing terminal replacement policy: a
-             * non-retractable transport failure cannot be safely retried on
-             * the old context, so detach/fail closed instead of inventing
-             * retry authority.
+             * A direct/non-retractable failure can leave stream progress and
+             * cipher state unknowable. Keep the old Context installed but mark
+             * it terminal so a later register() cannot resurrect the same live
+             * writer as a fresh healthy relay Context.
              */
             context.projectionTransportFailedClosed=true;
             context.pendingMirrorMasks.clear();
+            context.state.pruneDeadRecipients();
+
+            throw new TerminalRegistrationException(
+                "SharedNpc replacement cleanup failed terminally; existing relay remains fail-closed",
+                terminal
+            );
         }
     }
 
