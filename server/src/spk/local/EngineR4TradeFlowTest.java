@@ -603,23 +603,20 @@ public final class EngineR4TradeFlowTest{
  )throws Exception{
   World w=World.isolatedForTest(seed);
   WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
-  w.registerPlayer(
+  long ga=w.registerPlayer(
    a,
    remove?"xprompt-remove-a":"xprompt-offer-a"
   );
-  w.registerPlayer(
+  long gb=w.registerPlayer(
    b,
    remove?"xprompt-remove-b":"xprompt-offer-b"
   );
 
-  SwitchFailOutputStream outA=
-   new SwitchFailOutputStream();
-  ByteArrayOutputStream outB=
-   new ByteArrayOutputStream();
-
+  OutboundPacketQueue qa=new OutboundPacketQueue(1024);
+  OutboundPacketQueue qb=new OutboundPacketQueue(1024);
   ServerPacketWriter wa=
    new ServerPacketWriter(
-    outA,
+    qa,
     new IsaacCipher(
      remove
       ?new int[]{81,82,83,84}
@@ -628,7 +625,7 @@ public final class EngineR4TradeFlowTest{
    );
   ServerPacketWriter wb=
    new ServerPacketWriter(
-    outB,
+    qb,
     new IsaacCipher(
      remove
       ?new int[]{85,86,87,88}
@@ -642,11 +639,12 @@ public final class EngineR4TradeFlowTest{
     1000,
     wa
    );
+   drain(qa);
 
    TradeService.register(
     w,
     a,
-    a.generation(),
+    ga,
     a.bank(),
     wa,
     ()->{}
@@ -654,7 +652,7 @@ public final class EngineR4TradeFlowTest{
    TradeService.register(
     w,
     b,
-    b.generation(),
+    gb,
     b.bank(),
     wb,
     ()->{}
@@ -668,6 +666,8 @@ public final class EngineR4TradeFlowTest{
     ),
     "TRADE_UI_OPEN"
    );
+   drain(qa);
+   drain(qb);
 
    int coinSlot=
     find(
@@ -675,7 +675,7 @@ public final class EngineR4TradeFlowTest{
      995
     );
 
-   if(remove)
+   if(remove){
     need(
      TradeService.handleItemAction(
       a,
@@ -690,11 +690,17 @@ public final class EngineR4TradeFlowTest{
      ),
      "TRADE_OFFER_OK"
     );
+    drain(qa);
+    drain(qb);
+   }
+
+   qa.offer(
+    new byte[1024]
+   );
 
    int healthyBytesBefore=
-    outB.size();
+    qb.queuedBytes();
 
-   outA.fail=true;
    boolean promptFailed=false;
    try{
     TradeService.handleItemAction(
@@ -709,16 +715,17 @@ public final class EngineR4TradeFlowTest{
      )
     );
    }catch(IOException expected){
-    promptFailed=
-     "SWITCH_FAIL".equals(
-      expected.getMessage()
-     );
+    promptFailed=true;
    }
-   outA.fail=false;
 
    if(!promptFailed)
     throw new AssertionError(
      "Trade X prompt failure not propagated remove="+remove
+    );
+
+   if(!wa.terminal())
+    throw new AssertionError(
+     "Trade X prompt failure did not terminal-latch writer remove="+remove
     );
 
    if(TradeService.active(a)||
@@ -735,21 +742,27 @@ public final class EngineR4TradeFlowTest{
      "failed Trade X prompt left hidden pending authority remove="+remove
     );
 
-   if(outB.size()!=healthyBytesBefore+1)
+   if(qa.queuedBytes()!=1024)
+    throw new AssertionError(
+     "terminal Trade X prompt retouched failed queue remove="+
+     remove+
+     " bytes="+qa.queuedBytes()
+    );
+
+   if(qb.queuedBytes()!=healthyBytesBefore+1)
     throw new AssertionError(
      "healthy Trade X peer close expected exactly one byte remove="+
      remove+
      " before="+healthyBytesBefore+
-     " after="+outB.size()
+     " after="+qb.queuedBytes()
     );
   }finally{
-   outA.fail=false;
    TradeService.unregister(a);
    TradeService.unregister(b);
    if(a.registered())
-    w.unregisterPlayer(a);
+    w.unregisterPlayer(a,ga);
    if(b.registered())
-    w.unregisterPlayer(b);
+    w.unregisterPlayer(b,gb);
    w.close();
   }
  }
