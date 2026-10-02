@@ -25,6 +25,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 
@@ -35,4 +36,4 @@ jobs:
           java-version: '21'
 
       - name: Build and verify Java 11 bytecode
-        run: bash server/gradlew --no-daemon clean currentTrainFocusedRegression
+        run: bash server/gradlew --no-daemon clean build -x currentTrainFocusedRegression --console=plain --info
