@@ -23,7 +23,11 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
             "eventRetryCipherRewound=true "+
             "eventRetryWireExact=true "+
             "directPartialFailureFailClosed=true "+
-            "terminalRecipientDebtRetired=true"
+            "terminalRecipientDebtRetired=true "+
+            "terminalEventWriterLatched=true "+
+            "terminalEventPlayer81Retired=true "+
+            "terminalEventTradeRetired=true "+
+            "terminalEventHealthyPeerClosed=true"
         );
     }
 
@@ -161,11 +165,18 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
             );
         WorldPlayer viewer=
             new WorldPlayer();
+        WorldPlayer peer=
+            new WorldPlayer();
 
         long generation=
             world.registerPlayer(
                 viewer,
                 "event-direct-fail"
+            );
+        long peerGeneration=
+            world.registerPlayer(
+                peer,
+                "event-direct-peer"
             );
 
         OutboundPacketQueue setupQueue=
@@ -191,6 +202,18 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                     new int[]{921,922,923,924}
                 )
             );
+
+        OutboundPacketQueue peerQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter peerWriter=
+            new ServerPacketWriter(
+                peerQueue,
+                new IsaacCipher(
+                    new int[]{925,926,927,928}
+                )
+            );
+
+        Player81WorldSync.Context viewerSync=null;
 
         try{
             String spawned=
@@ -218,6 +241,20 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                     npcs.snapshot()
                 );
 
+            viewerSync=
+                Player81WorldSync.register(
+                    directWriter,
+                    world,
+                    viewer,
+                    new DevAuthorityWorkbench()
+                );
+            Player81WorldSync.register(
+                peerWriter,
+                world,
+                peer,
+                new DevAuthorityWorkbench()
+            );
+
             SharedNpcWorldRelay.register(
                 directWriter,
                 world,
@@ -225,6 +262,50 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                 npcs,
                 viewer.movement()
             );
+            SharedNpcWorldRelay.register(
+                peerWriter,
+                world,
+                peer,
+                new NpcRegistry(
+                    new DevAuthorityWorkbench()
+                ),
+                peer.movement()
+            );
+
+            TradeService.register(
+                world,
+                viewer,
+                generation,
+                viewer.bank(),
+                directWriter,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                peer,
+                peerGeneration,
+                peer.bank(),
+                peerWriter,
+                ()->{}
+            );
+
+            String tradeOpen=
+                TradeService.start(
+                    world,
+                    viewer,
+                    peer
+                );
+
+            if(tradeOpen==null||
+               !tradeOpen.contains(
+                    "TRADE_UI_OPEN"
+               ))
+                throw new AssertionError(
+                    "terminal event Trade fixture failed: "+
+                    tradeOpen
+                );
+
+            drain(peerQueue);
 
             long now=
                 System.currentTimeMillis();
@@ -238,6 +319,13 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                 "direct-partial"
             );
 
+            int bytesBeforeFailure=
+                directOut.bytes.size();
+            int attemptsBeforeFailure=
+                directOut.attempts;
+
+            directOut.enableFailure();
+
             boolean failed=false;
 
             try{
@@ -245,7 +333,11 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                     directWriter
                 );
             }catch(IOException expected){
-                failed=true;
+                failed=
+                    "EXPECTED_EVENT_PARTIAL_DIRECT_FAILURE"
+                        .equals(
+                            expected.getMessage()
+                        );
             }
 
             if(!failed)
@@ -253,10 +345,44 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                     "partial direct event failure was not surfaced"
                 );
 
-            if(directOut.bytes.size()!=1)
+            if(directOut.bytes.size()!=
+                    bytesBeforeFailure+1)
                 throw new AssertionError(
-                    "partial direct fixture emitted unexpected prefix bytes="+
-                    directOut.bytes.size()
+                    "partial direct fixture emitted unexpected failure prefix delta="+
+                    (directOut.bytes.size()-
+                     bytesBeforeFailure)
+                );
+
+            if(directOut.attempts!=
+                    attemptsBeforeFailure+1)
+                throw new AssertionError(
+                    "terminal event writer received duplicate failure/cleanup attempts before="+
+                    attemptsBeforeFailure+
+                    " after="+
+                    directOut.attempts
+                );
+
+            if(!directWriter.terminal())
+                throw new AssertionError(
+                    "terminal event failure did not latch writer"
+                );
+
+            if(viewerSync==null||
+               viewerSync.ownerCurrent())
+                throw new AssertionError(
+                    "terminal event failure retained Player81 authority"
+                );
+
+            if(TradeService.active(viewer)||
+               TradeService.active(peer))
+                throw new AssertionError(
+                    "terminal event failure retained live Trade"
+                );
+
+            if(peerQueue.queuedBytes()!=1)
+                throw new AssertionError(
+                    "healthy Trade peer expected one S2C219 close byte got="+
+                    peerQueue.queuedBytes()
                 );
 
             if(!world.npcPresentationEvents()
@@ -266,29 +392,91 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
                         now+1L
                     ).isEmpty())
                 throw new AssertionError(
-                    "failed-closed viewer retained presentation retry debt"
+                    "terminal event viewer retained presentation retry debt"
                 );
 
-            int attempts=
+            boolean terminalRelay=false;
+            try{
+                SharedNpcWorldRelay.preflightRegistration(
+                    directWriter,
+                    world,
+                    viewer
+                );
+            }catch(SharedNpcWorldRelay
+                    .TerminalRegistrationException expected){
+                terminalRelay=
+                    expected.owner==viewer&&
+                    expected.writer==directWriter;
+            }
+
+            if(!terminalRelay)
+                throw new AssertionError(
+                    "terminal event failure did not retain SharedNpc sentinel"
+                );
+
+            int attemptsAfterFailure=
                 directOut.attempts;
+
+            boolean writerRejected=false;
+            try{
+                directWriter.fixed(
+                    219,
+                    new byte[0]
+                );
+            }catch(IOException expected){
+                writerRejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage()
+                        .contains(
+                            "server packet writer terminal"
+                        );
+            }
+
+            if(!writerRejected)
+                throw new AssertionError(
+                    "terminal event writer accepted later publication"
+                );
 
             SharedNpcWorldRelay.flushAfterPlayer81(
                 directWriter
             );
 
-            if(directOut.attempts!=attempts)
+            if(directOut.attempts!=
+                    attemptsAfterFailure)
                 throw new AssertionError(
-                    "failed-closed relay retried direct transport"
+                    "terminal event writer was retouched after retirement"
                 );
         }finally{
+            directOut.disableFailure();
+
+            TradeService.unregister(
+                viewer
+            );
+            TradeService.unregister(
+                peer
+            );
             SharedNpcWorldRelay.unregister(
                 directWriter
+            );
+            SharedNpcWorldRelay.unregister(
+                peerWriter
+            );
+            Player81WorldSync.unregister(
+                directWriter
+            );
+            Player81WorldSync.unregister(
+                peerWriter
             );
 
             if(viewer.registered())
                 world.unregisterPlayer(
                     viewer,
                     generation
+                );
+            if(peer.registered())
+                world.unregisterPlayer(
+                    peer,
+                    peerGeneration
                 );
 
             world.close();
@@ -471,15 +659,29 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
         final ByteArrayOutputStream bytes=
             new ByteArrayOutputStream();
         int attempts;
+        boolean fail;
+
+        void enableFailure(){
+            fail=true;
+        }
+
+        void disableFailure(){
+            fail=false;
+        }
 
         @Override public void write(
             int value
         )throws IOException{
-            bytes.write(value);
             attempts++;
-            throw new IOException(
-                "EXPECTED_EVENT_PARTIAL_DIRECT_FAILURE"
-            );
+
+            if(fail){
+                bytes.write(value);
+                throw new IOException(
+                    "EXPECTED_EVENT_PARTIAL_DIRECT_FAILURE"
+                );
+            }
+
+            bytes.write(value);
         }
 
         @Override public void write(
@@ -488,12 +690,21 @@ public final class NpcPresentationDeliveryTransportRetractabilityTest {
             int length
         )throws IOException{
             attempts++;
-            if(length>0)
-                bytes.write(
-                    data[offset]
+
+            if(fail){
+                if(length>0)
+                    bytes.write(
+                        data[offset]
+                    );
+                throw new IOException(
+                    "EXPECTED_EVENT_PARTIAL_DIRECT_FAILURE"
                 );
-            throw new IOException(
-                "EXPECTED_EVENT_PARTIAL_DIRECT_FAILURE"
+            }
+
+            bytes.write(
+                data,
+                offset,
+                length
             );
         }
     }
