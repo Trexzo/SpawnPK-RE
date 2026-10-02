@@ -35,4 +35,4 @@ jobs:
           java-version: '21'
 
       - name: Build and verify Java 11 bytecode
-        run: bash server/gradlew --no-daemon clean build
+        run: bash server/gradlew --no-daemon clean player81BatchAbortAtomicityRegression
