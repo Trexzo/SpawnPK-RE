@@ -195,15 +195,35 @@ final class Player81WorldSync {
            !context.ownerCurrent())
             return false;
 
-        context.writer.fixed(
-            134,
-            BootstrapPackets.skill134(
-                skill,
-                xp,
-                currentLevel
-            )
-        );
-        return true;
+        try{
+            ServerPacketWriter.RecoverablePacketResult
+                publication=
+                    context.writer
+                        .publishRecoverablePacketIfIdle(
+                            ()->context.writer.fixed(
+                                134,
+                                BootstrapPackets.skill134(
+                                    skill,
+                                    xp,
+                                    currentLevel
+                                )
+                            )
+                        );
+
+            return publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED;
+        }catch(IOException terminal){
+            /*
+             * This is the target writer, not necessarily the session whose
+             * world tick is producing the combat outcome. Latch only the exact
+             * broken writer here; its owning session will observe the terminal
+             * bit at the normal live-writer gate and perform teardown.
+             */
+            context.writer.markTerminal();
+            return false;
+        }
     }
 
     static synchronized void unregister(ServerPacketWriter writer){
