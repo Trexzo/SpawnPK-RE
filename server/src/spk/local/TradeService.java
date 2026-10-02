@@ -127,18 +127,62 @@ final class TradeService {
         );
     }
 
+    enum BrokenWriterPeerClose {
+        NONE,
+        COMMITTED,
+        RETRACTED_RETRYABLE,
+        TERMINAL
+    }
+
+    static final class BrokenWriterRetirement {
+        final BrokenWriterPeerClose peerClose;
+        final WorldPlayer peerOwner;
+        final ServerPacketWriter peerWriter;
+        final IOException peerFailure;
+
+        BrokenWriterRetirement(
+            BrokenWriterPeerClose peerClose,
+            WorldPlayer peerOwner,
+            ServerPacketWriter peerWriter,
+            IOException peerFailure
+        ){
+            this.peerClose=peerClose;
+            this.peerOwner=peerOwner;
+            this.peerWriter=peerWriter;
+            this.peerFailure=peerFailure;
+        }
+
+        boolean terminalPeer(){
+            return peerClose==
+                BrokenWriterPeerClose.TERMINAL&&
+                peerOwner!=null&&
+                peerWriter!=null;
+        }
+    }
+
     /**
      * Retires runtime Trade authority after the supplied writer has already
-     * been classified terminal/non-retractable. Never publishes to that
-     * writer again; only a distinct healthy current peer may receive S2C219.
+     * been classified terminal/non-retractable. Never publishes to that writer
+     * again. A distinct peer close is attempted through the recoverable writer
+     * transaction so queue-backed rejection remains retractable; only a
+     * non-retractable peer failure is returned as a second terminal writer.
      */
-    static synchronized void retireBrokenWriter(
+    static synchronized BrokenWriterRetirement retireBrokenWriter(
         WorldPlayer player,
         ServerPacketWriter writer
-    )throws IOException{
+    ){
         if(player==null||writer==null)
-            return;
+            return new BrokenWriterRetirement(
+                BrokenWriterPeerClose.NONE,
+                null,
+                null,
+                null
+            );
 
+        BrokenWriterPeerClose peerClose=
+            BrokenWriterPeerClose.NONE;
+        WorldPlayer peerOwner=null;
+        ServerPacketWriter peerWriter=null;
         IOException peerFailure=null;
 
         for(
@@ -169,15 +213,34 @@ final class TradeService {
                 if(peer!=null&&
                    peer.writer!=writer&&
                    !peer.world.closed()&&
-                   peer.ownerCurrent())
+                   peer.ownerCurrent()){
+                    peerOwner=peer.player;
+                    peerWriter=peer.writer;
+
                     try{
-                        peer.writer.fixed(
-                            219,
-                            new byte[0]
-                        );
+                        ServerPacketWriter.RecoverablePacketResult result=
+                            peer.writer
+                                .publishRecoverablePacketIfIdle(
+                                    ()->peer.writer.fixed(
+                                        219,
+                                        new byte[0]
+                                    )
+                                );
+
+                        peerClose=
+                            result==
+                                ServerPacketWriter
+                                    .RecoverablePacketResult
+                                    .COMMITTED
+                                ?BrokenWriterPeerClose.COMMITTED
+                                :BrokenWriterPeerClose
+                                    .RETRACTED_RETRYABLE;
                     }catch(IOException failure){
+                        peerClose=
+                            BrokenWriterPeerClose.TERMINAL;
                         peerFailure=failure;
                     }
+                }
             }else{
                 c.trade=null;
                 c.pendingX=null;
@@ -195,8 +258,12 @@ final class TradeService {
                 it.remove();
         }
 
-        if(peerFailure!=null)
-            throw peerFailure;
+        return new BrokenWriterRetirement(
+            peerClose,
+            peerOwner,
+            peerWriter,
+            peerFailure
+        );
     }
     static synchronized void closeWorld(
         World world
