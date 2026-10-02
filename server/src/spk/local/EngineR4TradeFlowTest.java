@@ -91,7 +91,7 @@ public final class EngineR4TradeFlowTest{
    testOneSidedAcceptStatusAtomicity();
    testOfferRefreshAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptReplacementPreservesPrior=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true startOwnerIoNonTerminal=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptTerminalRetirement=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -486,10 +486,24 @@ public final class EngineR4TradeFlowTest{
  }
 
  static void testTradeXPromptFailureAtomicity()throws Exception{
-  World w=World.isolatedForTest(605L);
+  testTradeXPromptTerminalFailure(false,605L);
+  testTradeXPromptTerminalFailure(true,611L);
+ }
+
+ static void testTradeXPromptTerminalFailure(
+  boolean remove,
+  long seed
+ )throws Exception{
+  World w=World.isolatedForTest(seed);
   WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
-  w.registerPlayer(a,"xprompt-a");
-  w.registerPlayer(b,"xprompt-b");
+  w.registerPlayer(
+   a,
+   remove?"xprompt-remove-a":"xprompt-offer-a"
+  );
+  w.registerPlayer(
+   b,
+   remove?"xprompt-remove-b":"xprompt-offer-b"
+  );
 
   SwitchFailOutputStream outA=
    new SwitchFailOutputStream();
@@ -500,14 +514,18 @@ public final class EngineR4TradeFlowTest{
    new ServerPacketWriter(
     outA,
     new IsaacCipher(
-     new int[]{81,82,83,84}
+     remove
+      ?new int[]{81,82,83,84}
+      :new int[]{121,122,123,124}
     )
    );
   ServerPacketWriter wb=
    new ServerPacketWriter(
     outB,
     new IsaacCipher(
-     new int[]{85,86,87,88}
+     remove
+      ?new int[]{85,86,87,88}
+      :new int[]{125,126,127,128}
     )
    );
 
@@ -550,134 +568,72 @@ public final class EngineR4TradeFlowTest{
      995
     );
 
+   if(remove)
+    need(
+     TradeService.handleItemAction(
+      a,
+      new ItemContainerAction(
+       145,
+       3322,
+       coinSlot,
+       995,
+       0,
+       "ITEM_ACTION_1"
+      )
+     ),
+     "TRADE_OFFER_OK"
+    );
+
+   int healthyBytesBefore=
+    outB.size();
+
    outA.fail=true;
-   boolean offerPromptFailed=false;
+   boolean promptFailed=false;
    try{
     TradeService.handleItemAction(
      a,
      new ItemContainerAction(
       135,
-      3322,
-      coinSlot,
+      remove?3415:3322,
+      remove?0:coinSlot,
       995,
       0,
       "ITEM_ACTION_X"
      )
     );
    }catch(IOException expected){
-    offerPromptFailed=
+    promptFailed=
      "SWITCH_FAIL".equals(
       expected.getMessage()
      );
    }
    outA.fail=false;
 
-   if(!offerPromptFailed||
-      TradeService.handleAmount(
+   if(!promptFailed)
+    throw new AssertionError(
+     "Trade X prompt failure not propagated remove="+remove
+    );
+
+   if(TradeService.active(a)||
+      TradeService.active(b))
+    throw new AssertionError(
+     "terminal Trade X prompt kept Trade live remove="+remove
+    );
+
+   if(TradeService.handleAmount(
        a,
        1
       )!=null)
     throw new AssertionError(
-     "failed Trade Offer-X left hidden pending authority"
+     "failed Trade X prompt left hidden pending authority remove="+remove
     );
 
-   need(
-    TradeService.handleItemAction(
-     a,
-     new ItemContainerAction(
-      145,
-      3322,
-      coinSlot,
-      995,
-      0,
-      "ITEM_ACTION_1"
-     )
-    ),
-    "TRADE_OFFER_OK"
-   );
-
-   outA.fail=true;
-   boolean removePromptFailed=false;
-   try{
-    TradeService.handleItemAction(
-     a,
-     new ItemContainerAction(
-      135,
-      3415,
-      0,
-      995,
-      0,
-      "ITEM_ACTION_X"
-     )
-    );
-   }catch(IOException expected){
-    removePromptFailed=
-     "SWITCH_FAIL".equals(
-      expected.getMessage()
-     );
-   }
-   outA.fail=false;
-
-   if(!removePromptFailed||
-      TradeService.handleAmount(
-       a,
-       1
-      )!=null)
+   if(outB.size()!=healthyBytesBefore+1)
     throw new AssertionError(
-     "failed Trade Remove-X left hidden pending authority"
-    );
-
-   need(
-    TradeService.handleItemAction(
-     a,
-     new ItemContainerAction(
-      135,
-      3415,
-      0,
-      995,
-      0,
-      "ITEM_ACTION_X"
-     )
-    ),
-    "TRADE_REMOVE_X_PROMPT"
-   );
-
-   outA.fail=true;
-   boolean replacementFailed=false;
-   try{
-    TradeService.handleItemAction(
-     a,
-     new ItemContainerAction(
-      135,
-      3322,
-      coinSlot,
-      995,
-      0,
-      "ITEM_ACTION_X"
-     )
-    );
-   }catch(IOException expected){
-    replacementFailed=
-     "SWITCH_FAIL".equals(
-      expected.getMessage()
-     );
-   }
-   outA.fail=false;
-
-   String preserved=
-    TradeService.handleAmount(
-     a,
-     1
-    );
-
-   if(!replacementFailed||
-      preserved==null||
-      !preserved.contains(
-       "TRADE_REMOVE_X_OK"
-      ))
-    throw new AssertionError(
-     "failed Trade Offer-X replacement did not preserve old Remove-X result="+
-     preserved
+     "healthy Trade X peer close expected exactly one byte remove="+
+     remove+
+     " before="+healthyBytesBefore+
+     " after="+outB.size()
     );
   }finally{
    outA.fail=false;
