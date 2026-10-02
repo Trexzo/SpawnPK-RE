@@ -428,6 +428,16 @@ public final class TradeServiceGenerationOwnershipFenceTest {
             null
         };
         Thread commitThread=null;
+        Thread registryProbeThread=null;
+        final java.util.concurrent.CountDownLatch saveAEntered=
+            new java.util.concurrent.CountDownLatch(1);
+        final java.util.concurrent.CountDownLatch releaseSaveA=
+            new java.util.concurrent.CountDownLatch(1);
+        final java.util.concurrent.CountDownLatch registryProbeAcquired=
+            new java.util.concurrent.CountDownLatch(1);
+        final int[] saveOrder={
+            0
+        };
 
         try{
             a.bank().spawnItem(
@@ -447,7 +457,38 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 generationA,
                 a.bank(),
                 aWriter,
-                ()->{}
+                ()->{
+                    if(Thread.holdsLock(
+                            TradeService.class))
+                        throw new AssertionError(
+                            "A save callback retained TradeService lock"
+                        );
+
+                    if(saveOrder[0]!=0)
+                        throw new AssertionError(
+                            "A save callback order="+
+                            saveOrder[0]
+                        );
+
+                    saveOrder[0]=1;
+                    saveAEntered.countDown();
+
+                    try{
+                        if(!releaseSaveA.await(
+                                5L,
+                                java.util.concurrent.TimeUnit.SECONDS
+                            ))
+                            throw new AssertionError(
+                                "A save callback release timed out"
+                            );
+                    }catch(InterruptedException interrupted){
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(
+                            "A save callback interrupted",
+                            interrupted
+                        );
+                    }
+                }
             );
             TradeService.register(
                 world,
@@ -455,7 +496,21 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 generationB,
                 b.bank(),
                 bWriter,
-                ()->{}
+                ()->{
+                    if(Thread.holdsLock(
+                            TradeService.class))
+                        throw new AssertionError(
+                            "B save callback retained TradeService lock"
+                        );
+
+                    if(saveOrder[0]!=1)
+                        throw new AssertionError(
+                            "B save callback order="+
+                            saveOrder[0]
+                        );
+
+                    saveOrder[0]=2;
+                }
             );
 
             requireContains(
@@ -543,13 +598,51 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                     );
 
                 commitThread.start();
+
+                if(!saveAEntered.await(
+                        5L,
+                        java.util.concurrent.TimeUnit.SECONDS
+                    ))
+                    throw new AssertionError(
+                        "final Trade commit did not reach deferred A save"
+                    );
+
+                registryProbeThread=
+                    new Thread(
+                        ()->{
+                            synchronized(world.players()){
+                                registryProbeAcquired.countDown();
+                            }
+                        },
+                        "trade-final-save-registry-probe"
+                    );
+                registryProbeThread.start();
+
+                if(!registryProbeAcquired.await(
+                        5L,
+                        java.util.concurrent.TimeUnit.SECONDS
+                    ))
+                    throw new AssertionError(
+                        "A save callback retained PlayerRegistry monitor"
+                    );
+
+                releaseSaveA.countDown();
+
                 commitThread.join(
+                    5000L
+                );
+                registryProbeThread.join(
                     5000L
                 );
 
                 if(commitThread.isAlive())
                     throw new AssertionError(
                         "final Trade commit waited on participant mutation lock"
+                    );
+
+                if(registryProbeThread.isAlive())
+                    throw new AssertionError(
+                        "PlayerRegistry probe did not terminate"
                     );
             }
 
@@ -565,6 +658,12 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "final Trade commit result"
             );
 
+            if(saveOrder[0]!=2)
+                throw new AssertionError(
+                    "final Trade save callbacks out of order="+
+                    saveOrder[0]
+                );
+
             if(TradeService.active(a)||
                TradeService.active(b))
                 throw new AssertionError(
@@ -577,9 +676,14 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                     "final Trade commit inventory transfer missing"
                 );
         }finally{
+            releaseSaveA.countDown();
+
             if(commitThread!=null&&
                commitThread.isAlive())
                 commitThread.interrupt();
+            if(registryProbeThread!=null&&
+               registryProbeThread.isAlive())
+                registryProbeThread.interrupt();
 
             TradeService.unregister(
                 a,
