@@ -591,6 +591,27 @@ final class SharedNpcWorldRelay {
                     }
                 );
         }catch(Throwable t){
+            boolean retireTerminal=false;
+
+            if(t instanceof IOException){
+                synchronized(SharedNpcWorldRelay.class){
+                    retireTerminal=
+                        BY_WRITER.get(
+                            viewerWriter
+                        )==candidate&&
+                        candidate.projectionTransportFailedClosed;
+                }
+            }
+
+            if(retireTerminal)
+                LocalSessionRuntimeBindings
+                    .retireTerminalRuntimeBundle(
+                        candidate.owner,
+                        candidate.writer,
+                        true,
+                        t
+                    );
+
             System.err.println(
                 "[ENGINE-R3.2] remote pet sync failed viewer="+
                 candidate.owner.id()+": "+t
