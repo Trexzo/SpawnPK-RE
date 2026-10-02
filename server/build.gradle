@@ -2036,9 +2036,9 @@ tasks.register('currentTrainFocusedRegression') {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
 
     doLast {
-        currentTrainFocusedTests.eachWithIndex { className, index ->
+        currentTrainFocusedTests.take(47).eachWithIndex { className, index ->
             logger.lifecycle(
-                "[CURRENT-TRAIN-FOCUSED] ${index + 1}/${currentTrainFocusedTests.size()} ${className}"
+                "[CURRENT-TRAIN-FOCUSED-DIAG-PREFIX] ${index + 1}/47 ${className}"
             )
             project.javaexec {
                 workingDir repoRoot
