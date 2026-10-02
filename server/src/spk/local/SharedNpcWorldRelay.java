@@ -223,6 +223,25 @@ final class SharedNpcWorldRelay {
 
         BY_WRITER.remove(writer);
         cleanupContext(c);
+
+        if(c.projectionTransportFailedClosed){
+            /*
+             * Ordinary unregister can itself discover a non-retractable
+             * transport failure while removing live mirrors. The Context was
+             * detached from active relay authority before cleanup, but the
+             * exact broken writer still needs the same non-resurrectable
+             * sentinel as every other terminal path. Reinstall it only as a
+             * writer-local fail-closed identity, then retire any remaining
+             * local mirror bookkeeping without another packet publication.
+             */
+            BY_WRITER.put(
+                writer,
+                c
+            );
+            retireTerminalWriter(
+                writer
+            );
+        }
     }
 
     /**
