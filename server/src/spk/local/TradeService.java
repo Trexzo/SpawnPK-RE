@@ -264,10 +264,13 @@ final class TradeService {
                                  * generation cannot reuse this transport in the
                                  * retirement handoff window.
                                  */
-                                peer.writer.markTerminal();
                                 peerClose=
                                     BrokenWriterPeerClose.TERMINAL;
-                                peerFailure=failure;
+                                peerFailure=
+                                    latchTerminalCleanupFailure(
+                                        peer,
+                                        failure
+                                    );
                             }
                         }
                     }
@@ -914,8 +917,11 @@ final class TradeService {
                  * classification. Cross-service retirement remains outside
                  * the registry monitor.
                  */
-                peer.writer.markTerminal();
-                terminalFailure=failure;
+                terminalFailure=
+                    latchTerminalCleanupFailure(
+                        peer,
+                        failure
+                    );
             }
         }
 
@@ -1755,8 +1761,11 @@ final class TradeService {
                  * generation fence is released; full runtime retirement stays
                  * outside the registry monitor.
                  */
-                context.writer.markTerminal();
-                terminalFailure=failure;
+                terminalFailure=
+                    latchTerminalCleanupFailure(
+                        context,
+                        failure
+                    );
             }catch(Throwable ignored){
                 return;
             }
@@ -1928,8 +1937,11 @@ final class TradeService {
                  * replacement generation cannot adopt the same broken writer
                  * before outer runtime retirement begins.
                  */
-                context.writer.markTerminal();
-                terminalFailure=failure;
+                terminalFailure=
+                    latchTerminalCleanupFailure(
+                        context,
+                        failure
+                    );
             }catch(Throwable ignored){
                 /*
                  * Preserve the historical cleanup behavior for non-I/O
@@ -1961,6 +1973,32 @@ final class TradeService {
             terminalFailure
         );
     }
+    private static IOException latchTerminalCleanupFailure(
+        Context context,
+        IOException failure
+    ){
+        if(context==null||failure==null)
+            throw new NullPointerException(
+                "terminal cleanup context/failure"
+            );
+
+        /*
+         * This helper is intentionally legal only while the exact
+         * PlayerRegistry fence which admitted the cleanup write is still held.
+         * Cross-service retirement must happen after that monitor is released,
+         * but the broken writer itself must become non-reusable before it.
+         */
+        if(!Thread.holdsLock(
+                context.world.players()
+            ))
+            throw new IllegalStateException(
+                "terminal Trade cleanup latch requires PlayerRegistry ownership"
+            );
+
+        context.writer.markTerminal();
+        return failure;
+    }
+
     private static void detach(State s,Trade t){s.trades.remove(t.a.player.id());s.trades.remove(t.b.player.id());t.a.trade=null;t.b.trade=null;t.a.pendingX=t.b.pendingX=null;}
 
     private static int amountFor(int opcode){if(opcode==145)return 1;if(opcode==117)return 5;if(opcode==43)return 10;if(opcode==129)return Integer.MAX_VALUE;if(opcode==135)return -1;return 0;}
