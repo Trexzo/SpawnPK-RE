@@ -13,6 +13,16 @@ final class LocalPetRealtimeScheduler {
     interface SessionBridge {
         ServerPacketWriter sessionPackets();
         String sessionTag();
+
+        default boolean runIfSessionWorldCallbackActive(
+            Runnable action
+        ){
+            Objects.requireNonNull(
+                action,
+                "session world callback"
+            ).run();
+            return true;
+        }
     }
 
     private final boolean bootstrap;
@@ -123,7 +133,10 @@ final class LocalPetRealtimeScheduler {
                 at,
                 worldPlayer,
                 ownerGeneration.getAsLong(),
-                ()->runPetFollowRealtime()
+                ()->bridge
+                    .runIfSessionWorldCallbackActive(
+                        this::runPetFollowRealtime
+                    )
             );
         }catch(RuntimeException failure){
             petFollowRealtimeScheduled=false;
@@ -156,7 +169,10 @@ final class LocalPetRealtimeScheduler {
                 at,
                 worldPlayer,
                 ownerGeneration.getAsLong(),
-                ()->runPetTestSequenceRealtime()
+                ()->bridge
+                    .runIfSessionWorldCallbackActive(
+                        this::runPetTestSequenceRealtime
+                    )
             );
         }catch(RuntimeException failure){
             petTestRealtimeScheduled=false;
