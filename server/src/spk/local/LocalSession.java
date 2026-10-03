@@ -2402,7 +2402,19 @@ final class LocalSession implements Runnable {
                 scenePublisher
             );
 
-        sessionPackets.beginBatch();
+        SharedNpcWorldRelay.beginSourceMaskBatch(
+            sessionPackets
+        );
+
+        try{
+            sessionPackets.beginBatch();
+        }catch(Throwable beginFailure){
+            SharedNpcWorldRelay.abortSourceMaskBatch(
+                sessionPackets
+            );
+            throw beginFailure;
+        }
+
         boolean batchCommitted=false;
         boolean tickCompleted=false;
 
@@ -2423,6 +2435,10 @@ final class LocalSession implements Runnable {
             }
         }finally{
             if(batchCommitted){
+                SharedNpcWorldRelay.commitSourceMaskBatch(
+                    sessionPackets
+                );
+
                 worldTicks
                     .commitHomePresentationBatch();
                 worldTicks
@@ -2458,6 +2474,10 @@ final class LocalSession implements Runnable {
                         .abortDeferredPetPickupAfterWorldTick();
                 }
             }else{
+                SharedNpcWorldRelay.abortSourceMaskBatch(
+                    sessionPackets
+                );
+
                 scenePublisher=
                     sceneBatch.abortAndRestore();
 
