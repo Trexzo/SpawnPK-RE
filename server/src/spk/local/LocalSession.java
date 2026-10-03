@@ -75,10 +75,16 @@ final class LocalSession implements Runnable {
                     "world command gate action"
                 );
 
-            if(!active||
-               writer==null||
-               writer.terminal())
+            if(!active)
                 return false;
+
+            if(writer==null)
+                return false;
+
+            if(writer.terminal())
+                throw new IOException(
+                    "terminal session packet writer"
+                );
 
             action.run();
             return true;
