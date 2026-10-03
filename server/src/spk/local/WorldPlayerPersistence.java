@@ -624,6 +624,18 @@ final class WorldPlayerPersistence
     FinalSaveReservation reserveFinalSaveWithBackpressure(
         long timeoutMillis
     ){
+        return reserveFinalSaveWithBackpressure(
+            null,
+            0L,
+            timeoutMillis
+        );
+    }
+
+    FinalSaveReservation reserveFinalSaveWithBackpressure(
+        WorldPlayer owner,
+        long expectedGeneration,
+        long timeoutMillis
+    ){
         if(timeoutMillis<0L)
             throw new IllegalArgumentException(
                 "timeoutMillis="+timeoutMillis
@@ -634,8 +646,22 @@ final class WorldPlayerPersistence
                 "blocking final-save reservation on World execution context"
             );
 
+        if(owner!=null&&
+           !world.players().owns(
+               owner,
+               expectedGeneration))
+            throw new IllegalStateException(
+                "final-save reservation owner changed player="+
+                owner.id()+
+                " expectedGeneration="+
+                expectedGeneration
+            );
+
         ReservedFinalSaveTask task=
-            new ReservedFinalSaveTask();
+            new ReservedFinalSaveTask(
+                owner,
+                expectedGeneration
+            );
 
         enqueueFinalReservationWithBackpressure(
             task,
@@ -672,8 +698,10 @@ final class WorldPlayerPersistence
                         executeAttempted=true;
 
                         try{
-                            io.execute(task);
-                            return;
+                            if(tryAdmitFinalReservationLocked(
+                                    task,
+                                    true))
+                                return;
                         }catch(RejectedExecutionException full){
                             if(io.isShutdown())
                                 throw new RejectedExecutionException(
@@ -683,7 +711,9 @@ final class WorldPlayerPersistence
                         }
                     }
 
-                    if(io.getQueue().offer(task))
+                    if(tryAdmitFinalReservationLocked(
+                            task,
+                            false))
                         return;
                 }
 
@@ -1385,11 +1415,22 @@ final class WorldPlayerPersistence
     private final class ReservedFinalSaveTask
         implements Runnable {
 
+        final WorldPlayer owner;
+        final long ownerGeneration;
         private CapturedSave captured;
         private Throwable terminalFailure;
 
+        ReservedFinalSaveTask(
+            WorldPlayer owner,
+            long ownerGeneration
+        ){
+            this.owner=owner;
+            this.ownerGeneration=ownerGeneration;
+        }
+
         @Override public void run(){
             CapturedSave ready=null;
+            Throwable terminal=null;
             boolean interrupted=false;
 
             synchronized(this){
@@ -1408,14 +1449,23 @@ final class WorldPlayerPersistence
                 }
 
                 ready=captured;
+                terminal=terminalFailure;
             }
 
             if(interrupted)
                 Thread.currentThread()
                     .interrupt();
 
-            if(ready!=null)
+            if(ready!=null){
                 saveTask(ready).run();
+                return;
+            }
+
+            if(terminal!=null)
+                clearFinalReservation(
+                    owner,
+                    ownerGeneration
+                );
         }
 
         synchronized boolean publish(
@@ -1425,48 +1475,81 @@ final class WorldPlayerPersistence
                terminalFailure!=null)
                 return false;
 
-            this.captured=
+            CapturedSave checked=
                 Objects.requireNonNull(
                     captured,
                     "captured"
                 );
+
+            if(owner!=null&&
+               (checked.owner!=owner||
+                checked.expectedGeneration!=
+                    ownerGeneration))
+                throw new IllegalArgumentException(
+                    "final reservation capture owner mismatch player="+
+                    owner.id()+
+                    " expectedGeneration="+
+                    ownerGeneration
+                );
+
+            this.captured=checked;
             notifyAll();
             return true;
         }
 
-        synchronized void abort(
+        void abort(
             Throwable failure
         ){
-            if(captured!=null||
-               terminalFailure!=null)
-                return;
+            boolean changed=false;
 
-            terminalFailure=
-                failure==null
-                    ?new IllegalStateException(
-                        "final-save reservation aborted"
-                    )
-                    :failure;
-            notifyAll();
+            synchronized(this){
+                if(captured!=null||
+                   terminalFailure!=null)
+                    return;
+
+                terminalFailure=
+                    failure==null
+                        ?new IllegalStateException(
+                            "final-save reservation aborted"
+                        )
+                        :failure;
+                changed=true;
+                notifyAll();
+            }
+
+            if(changed)
+                clearFinalReservation(
+                    owner,
+                    ownerGeneration
+                );
         }
 
-        synchronized boolean reject(
+        boolean reject(
             RejectedExecutionException error,
             String stage
         ){
-            if(terminalFailure!=null)
-                return false;
+            CapturedSave ready;
 
-            terminalFailure=error;
-            notifyAll();
+            synchronized(this){
+                if(terminalFailure!=null)
+                    return false;
 
-            if(captured!=null)
-                return saveTask(captured)
+                terminalFailure=error;
+                ready=captured;
+                notifyAll();
+            }
+
+            if(ready!=null)
+                return saveTask(ready)
                     .reject(
                         error,
                         stage
                     );
 
+            clearFinalReservation(
+                owner,
+                ownerGeneration
+            );
             return true;
         }
     }
@@ -1474,6 +1557,9 @@ final class WorldPlayerPersistence
     private final class SaveTask
         implements Runnable {
 
+        private final WorldPlayer owner;
+        private final long expectedGeneration;
+        private final boolean finalDisconnect;
         private final long saveSequence;
         private final PlayerSnapshot snapshot;
         private final int petAccessoryItem;
@@ -1482,19 +1568,29 @@ final class WorldPlayerPersistence
         private final CompletableFuture<Void> future;
 
         SaveTask(
-            long saveSequence,
-            PlayerSnapshot snapshot,
-            int petAccessoryItem,
-            String tag,
-            String reason,
-            CompletableFuture<Void> future
+            CapturedSave captured
         ){
-            this.saveSequence=saveSequence;
-            this.snapshot=snapshot;
-            this.petAccessoryItem=petAccessoryItem;
-            this.tag=tag;
-            this.reason=reason;
-            this.future=future;
+            CapturedSave checked=
+                Objects.requireNonNull(
+                    captured,
+                    "captured"
+                );
+
+            this.owner=checked.owner;
+            this.expectedGeneration=
+                checked.expectedGeneration;
+            this.finalDisconnect=
+                checked.finalDisconnect;
+            this.saveSequence=
+                checked.ticket.sequence;
+            this.snapshot=
+                checked.ticket.snapshot;
+            this.petAccessoryItem=
+                checked.petAccessoryItem;
+            this.tag=checked.tag;
+            this.reason=checked.reason;
+            this.future=
+                checked.ticket.completion;
         }
 
         @Override public void run(){
@@ -1514,6 +1610,12 @@ final class WorldPlayerPersistence
                     this,
                     null
                 );
+
+                if(finalDisconnect)
+                    clearFinalReservation(
+                        owner,
+                        expectedGeneration
+                    );
             }
         }
 
@@ -1521,25 +1623,37 @@ final class WorldPlayerPersistence
             RejectedExecutionException error,
             String stage
         ){
+            boolean rejected;
+
             synchronized(future){
                 if(future.isDone())
-                    return false;
-
-                failed.incrementAndGet();
-                future.completeExceptionally(
-                    error
-                );
+                    rejected=false;
+                else{
+                    failed.incrementAndGet();
+                    future.completeExceptionally(
+                        error
+                    );
+                    rejected=true;
+                }
             }
 
-            logRejected(
-                snapshot,
-                saveSequence,
-                tag,
-                reason,
-                stage,
-                error
-            );
-            return true;
+            if(rejected)
+                logRejected(
+                    snapshot,
+                    saveSequence,
+                    tag,
+                    reason,
+                    stage,
+                    error
+                );
+
+            if(finalDisconnect)
+                clearFinalReservation(
+                    owner,
+                    expectedGeneration
+                );
+
+            return rejected;
         }
     }
 
