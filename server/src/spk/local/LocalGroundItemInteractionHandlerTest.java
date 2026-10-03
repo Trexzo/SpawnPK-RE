@@ -230,9 +230,10 @@ public final class LocalGroundItemInteractionHandlerTest {
                 throw new AssertionError("unimplemented semantic must not save");
 
             testTakeTransactionAtomicity();
+            testDeferredTakeFailureRetainsPending();
 
             System.out.println(
-                "LOCAL_GROUND_ITEM_HANDLER_PASS immediateTake=true deferredOwnership=true pathEndCancel=true nonTakeFailClosed=true ownerAwareLookup=true currentPlane=true privatePreferred=true publicFallback=true takeTransactionAtomic=true takeSceneContextRollback=true");
+                "LOCAL_GROUND_ITEM_HANDLER_PASS immediateTake=true deferredOwnership=true pathEndCancel=true nonTakeFailClosed=true ownerAwareLookup=true currentPlane=true privatePreferred=true publicFallback=true takeTransactionAtomic=true takeSceneContextRollback=true deferredTransportFailureRetainsPending=true");
         }finally{
             world.close();
         }
@@ -362,6 +363,155 @@ public final class LocalGroundItemInteractionHandlerTest {
                world.groundItems().byId(ground.id)!=null)
                 throw new AssertionError(
                     "Take retry did not commit exactly once"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void testDeferredTakeFailureRetainsPending()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(53L);
+
+        try{
+            WorldPlayer player=
+                new WorldPlayer();
+            BankState bank=
+                player.bank();
+            MovementState movement=
+                player.movement();
+            LocalGroundItemInteractionHandler handler=
+                new LocalGroundItemInteractionHandler(
+                    world,
+                    bank,
+                    movement
+                );
+
+            Tile target=
+                new Tile(
+                    movement.x()+1,
+                    movement.y(),
+                    0
+                );
+
+            GroundItem ground=
+                world.groundItems().add(
+                    4151,
+                    1,
+                    target,
+                    "opensrc",
+                    31L,
+                    false
+                );
+
+            OutboundPacketQueue queue=
+                fullQueue();
+            ServerPacketWriter writer=
+                queueWriter(
+                    queue,
+                    new int[]{31,32,33,34}
+                );
+            SceneCoordinateContext context=
+                new SceneCoordinateContext(
+                    MovementState.REGION_BASE_X,
+                    MovementState.REGION_BASE_Y,
+                    0
+                );
+            SceneUpdatePublisher scene=
+                new SceneUpdatePublisher(
+                    writer,
+                    context
+                );
+
+            LocalGroundItemInteractionHandler.Result deferred=
+                handler.handle(
+                    new GroundItemInteraction(
+                        236,
+                        3,
+                        4151,
+                        target.x,
+                        target.y
+                    ),
+                    "opensrc",
+                    scene,
+                    writer
+                );
+
+            if(deferred==null||
+               !handler.hasPendingTake()||
+               handler.pendingTakeGroundId()!=ground.id)
+                throw new AssertionError(
+                    "deferred failure fixture did not retain exact identity"
+                );
+
+            String accepted=
+                movement.accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{target.x},
+                        new int[]{target.y},
+                        new byte[0]
+                    )
+                );
+
+            if(!accepted.startsWith("ACCEPTED"))
+                throw new AssertionError(
+                    "deferred failure movement rejected: "+
+                    accepted
+                );
+
+            movement.advance();
+
+            boolean failed=false;
+
+            try{
+                handler.tick(
+                    System.currentTimeMillis(),
+                    scene,
+                    writer
+                );
+            }catch(java.io.IOException expected){
+                failed=true;
+            }
+
+            if(!failed||
+               !handler.hasPendingTake()||
+               handler.pendingTakeGroundId()!=ground.id||
+               bank.inventoryCount(4151)!=0||
+               world.groundItems().byId(ground.id)!=ground||
+               context.currentChunkX()!=-1||
+               context.currentChunkY()!=-1)
+                throw new AssertionError(
+                    "failed deferred Take did not preserve retry preimage"
+                );
+
+            ByteArrayOutputStream drain=
+                new ByteArrayOutputStream();
+            queue.drainTo(
+                drain,
+                1<<20
+            );
+
+            LocalGroundItemInteractionHandler.Result retry=
+                handler.tick(
+                    System.currentTimeMillis(),
+                    scene,
+                    writer
+                );
+
+            if(retry==null||
+               !"GROUND_TAKE".equals(
+                    retry.saveReason
+               )||
+               handler.hasPendingTake()||
+               bank.inventoryCount(4151)!=1||
+               world.groundItems().byId(ground.id)!=null||
+               queue.queuedBytes()<=0)
+                throw new AssertionError(
+                    "deferred Take retry did not commit exactly once"
                 );
         }finally{
             world.close();

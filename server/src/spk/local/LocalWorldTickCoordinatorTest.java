@@ -534,6 +534,146 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture deferredTake=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredTake.coordinator(true,bridge);
+
+            Tile target=
+                new Tile(
+                    MovementState.INITIAL_X+1,
+                    MovementState.INITIAL_Y,
+                    0
+                );
+
+            GroundItem ground=
+                deferredTake.world.groundItems().add(
+                    995,
+                    25,
+                    target,
+                    "opensrc",
+                    30L,
+                    false
+                );
+
+            LocalGroundItemInteractionHandler.Result queued=
+                deferredTake.groundItems.handle(
+                    new GroundItemInteraction(
+                        236,
+                        3,
+                        995,
+                        target.x,
+                        target.y
+                    ),
+                    "opensrc",
+                    deferredTake.publisher,
+                    deferredTake.writer
+                );
+
+            if(queued==null||
+               !queued.logText.contains(
+                   "DEFERRED_UNTIL_EXACT_TILE")||
+               !deferredTake.groundItems.hasPendingTake())
+                throw new AssertionError(
+                    "deferred Take fixture was not retained"
+                );
+
+            String accepted=
+                deferredTake.movement.accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{target.x},
+                        new int[]{target.y},
+                        new byte[0]
+                    )
+                );
+
+            if(!accepted.startsWith("ACCEPTED"))
+                throw new AssertionError(
+                    "deferred Take movement rejected: "+
+                    accepted
+                );
+
+            deferredTake.writer.beginBatch();
+
+            coordinator.tick(
+                20L,
+                5_000L,
+                deferredTake.writer,
+                "[tick-ground-take-abort] "
+            );
+
+            if(deferredTake.bank.inventoryCount(995)!=0||
+               deferredTake.world.groundItems().byId(
+                    ground.id
+                )!=ground||
+               !deferredTake.groundItems.hasPendingTake()||
+               !coordinator.deferredGroundTakeEligible())
+                throw new AssertionError(
+                    "deferred Take committed inside outer world-tick batch"
+                );
+
+            deferredTake.writer.abortBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+
+            if(deferredTake.bank.inventoryCount(995)!=0||
+               deferredTake.world.groundItems().byId(
+                    ground.id
+                )!=ground||
+               !deferredTake.groundItems.hasPendingTake()||
+               coordinator.deferredGroundTakeEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed deferred Take state"
+                );
+
+            deferredTake.writer.beginBatch();
+
+            coordinator.tick(
+                21L,
+                5_600L,
+                deferredTake.writer,
+                "[tick-ground-take-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredTake.writer
+            );
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                5_600L
+            );
+
+            if(deferredTake.bank.inventoryCount(995)!=0||
+               deferredTake.world.groundItems().byId(
+                    ground.id
+                )!=ground||
+               !deferredTake.groundItems.hasPendingTake())
+                throw new AssertionError(
+                    "deferred Take settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredGroundTakeAfterWorldTick(
+                5_600L,
+                deferredTake.writer,
+                "[tick-ground-take-commit] "
+            );
+
+            if(deferredTake.bank.inventoryCount(995)!=25||
+               deferredTake.world.groundItems().byId(
+                    ground.id
+                )!=null||
+               deferredTake.groundItems.hasPendingTake()||
+               !"GROUND_TAKE".equals(
+                    bridge.lastSaveReason
+               ))
+                throw new AssertionError(
+                    "post-commit deferred Take settlement failed"
+                );
+        }
+
         try(Fixture reconnect=new Fixture()){
             reconnect.npcs.tickHome(
                 reconnect.movement,
@@ -565,6 +705,8 @@ public final class LocalWorldTickCoordinatorTest {
             "tickCountersOwned=true schedulerHooks=true "+
             "respawnLifecycle=true "+
             "transientMovementSave=false "+
+            "deferredTakeOuterAbortPreservesState=true "+
+            "deferredTakePostCommitSettles=true "+
             "sharedHomeClockReconnect=true"
         );
     }
