@@ -19,11 +19,12 @@ public final class OutboundPacketQueueTest {
         if(!overflow||!q.overflowed())throw new AssertionError("overflow policy");
 
         testOrdinaryOverflowTerminalLatch();
+        testSocketDrainFailureTerminalLatch();
         testExplicitBatchAbort();
         testFailedBatchAdmissionAbort();
         testSuccessfulBatchParity();
 
-        System.out.println("V512_OUTBOUND_QUEUE_PASS worldThreadSocketWrite=false bounded=true overflowFailClosed=true ordinaryOverflowWriterTerminal=true ordinaryOverflowNoRetouch=true batchAbortZeroLeak=true batchAbortIsaacRewind=true failedBatchAdmissionAbortable=true batchAdmissionWriterHealthy=true successfulBatchParity=true");
+        System.out.println("V512_OUTBOUND_QUEUE_PASS worldThreadSocketWrite=false bounded=true overflowFailClosed=true ordinaryOverflowWriterTerminal=true ordinaryOverflowNoRetouch=true socketDrainWriterTerminal=true socketDrainNoFurtherPublication=true replacementWriterHealthy=true successfulSocketDrain=true batchAbortZeroLeak=true batchAbortIsaacRewind=true failedBatchAdmissionAbortable=true batchAdmissionWriterHealthy=true successfulBatchParity=true");
     }
 
     private static void testOrdinaryOverflowTerminalLatch()
@@ -107,6 +108,135 @@ public final class OutboundPacketQueueTest {
             );
     }
 
+    private static void testSocketDrainFailureTerminalLatch()
+        throws Exception
+    {
+        int[] seed={41,42,43,44};
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(seed)
+            );
+
+        writer.fixed(
+            97,
+            BootstrapPackets.interface97(
+                15106
+            )
+        );
+
+        PartialSocketFailOutputStream failingOut=
+            new PartialSocketFailOutputStream();
+
+        boolean failed=false;
+        try{
+            LocalSession.drainSessionOutbound(
+                queue,
+                writer,
+                failingOut,
+                1024
+            );
+        }catch(IOException expected){
+            failed=true;
+        }
+
+        if(!failed)
+            throw new AssertionError(
+                "socket drain failure was not propagated"
+            );
+        if(!writer.terminal())
+            throw new AssertionError(
+                "socket drain failure left session writer live"
+            );
+        if(failingOut.attempts!=1)
+            throw new AssertionError(
+                "socket drain failure attempt count="+
+                failingOut.attempts
+            );
+        if(queue.queuedBytes()!=0||
+           queue.queuedPackets()!=0)
+            throw new AssertionError(
+                "failed socket drain retained removed queue packet"
+            );
+
+        int queuedBeforeProbe=
+            queue.queuedBytes();
+        boolean probeRejected=false;
+
+        try{
+            writer.fixed(
+                219,
+                new byte[0]
+            );
+        }catch(IOException terminal){
+            probeRejected=true;
+        }
+
+        if(!probeRejected)
+            throw new AssertionError(
+                "terminal socket-drain writer accepted later publication"
+            );
+        if(queue.queuedBytes()!=
+                queuedBeforeProbe)
+            throw new AssertionError(
+                "terminal socket-drain writer queued later bytes"
+            );
+
+        OutboundPacketQueue replacementQueue=
+            new OutboundPacketQueue(1024);
+        ServerPacketWriter replacement=
+            new ServerPacketWriter(
+                replacementQueue,
+                new IsaacCipher(
+                    new int[]{45,46,47,48}
+                )
+            );
+        replacement.fixed(
+            219,
+            new byte[0]
+        );
+
+        if(replacement.terminal()||
+           replacementQueue.queuedBytes()!=1)
+            throw new AssertionError(
+                "socket drain terminal latch affected replacement writer"
+            );
+
+        OutboundPacketQueue successQueue=
+            new OutboundPacketQueue(1024);
+        ServerPacketWriter successWriter=
+            new ServerPacketWriter(
+                successQueue,
+                new IsaacCipher(
+                    new int[]{49,50,51,52}
+                )
+            );
+        successWriter.fixed(
+            219,
+            new byte[0]
+        );
+
+        ByteArrayOutputStream successOut=
+            new ByteArrayOutputStream();
+        int drained=
+            LocalSession.drainSessionOutbound(
+                successQueue,
+                successWriter,
+                successOut,
+                1024
+            );
+
+        if(drained!=1||
+           successOut.size()!=1||
+           successQueue.queuedBytes()!=0||
+           successWriter.terminal())
+            throw new AssertionError(
+                "successful session socket drain changed behavior"
+            );
+    }
+
     private static void testExplicitBatchAbort()
         throws Exception
     {
@@ -183,6 +313,39 @@ public final class OutboundPacketQueueTest {
 
         if(!Arrays.equals(drain(batchedQueue),drain(directQueue)))
             throw new AssertionError("successful batching changed wire bytes");
+    }
+
+    private static final class PartialSocketFailOutputStream
+        extends OutputStream {
+
+        final ByteArrayOutputStream bytes=
+            new ByteArrayOutputStream();
+        int attempts;
+
+        @Override public void write(
+            int value
+        )throws IOException{
+            bytes.write(value);
+            attempts++;
+            throw new IOException(
+                "EXPECTED_SOCKET_DRAIN_FAILURE"
+            );
+        }
+
+        @Override public void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws IOException{
+            attempts++;
+            if(length>0)
+                bytes.write(
+                    data[offset]
+                );
+            throw new IOException(
+                "EXPECTED_SOCKET_DRAIN_FAILURE"
+            );
+        }
     }
 
     private static byte[] singleFixedPacket(
