@@ -8,6 +8,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class WorldPulsePlayerCallbackLockOrderTest {
     public static void main(String[] args)throws Exception{
+        assertLocalSessionTickGateQuiescence();
+
         World world=
             World.isolatedForTest(600L);
 
@@ -234,7 +236,9 @@ public final class WorldPulsePlayerCallbackLockOrderTest {
                 "lifecycleReentryWorked=true "+
                 "unregisterBlockedDuringCallback=true "+
                 "unregisterCompletedAfterCallback=true "+
-                "staleTargetRejected=true"
+                "staleTargetRejected=true "+
+                "localSessionTickQuiescedBeforeTeardown=true "+
+                "lateSnapshottedTickRejected=true"
             );
         }finally{
             allowLifecycleReentry.countDown();
@@ -256,6 +260,153 @@ public final class WorldPulsePlayerCallbackLockOrderTest {
 
                 world.close();
             }
+        }
+    }
+
+    private static void assertLocalSessionTickGateQuiescence()
+        throws Exception
+    {
+        LocalSession.WorldTickGate gate=
+            new LocalSession.WorldTickGate();
+
+        CountDownLatch callbackEntered=
+            new CountDownLatch(1);
+        CountDownLatch releaseCallback=
+            new CountDownLatch(1);
+        CountDownLatch disableCompleted=
+            new CountDownLatch(1);
+
+        AtomicBoolean lateCallbackRan=
+            new AtomicBoolean();
+        AtomicReference<Throwable> callbackFailure=
+            new AtomicReference<>();
+        AtomicReference<Throwable> disableFailure=
+            new AtomicReference<>();
+
+        gate.activate();
+
+        Thread callbackThread=
+            new Thread(
+                ()->{
+                    try{
+                        boolean ran=
+                            gate.runIfActive(
+                                ()->{
+                                    callbackEntered.countDown();
+
+                                    if(!releaseCallback.await(
+                                            5L,
+                                            TimeUnit.SECONDS))
+                                        throw new AssertionError(
+                                            "LocalSession tick gate callback release timeout"
+                                        );
+                                }
+                            );
+
+                        if(!ran)
+                            throw new AssertionError(
+                                "active LocalSession tick gate rejected callback"
+                            );
+                    }catch(Throwable failure){
+                        callbackFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "localsession-worldtick-gate-callback"
+            );
+
+        Thread disableThread=
+            new Thread(
+                ()->{
+                    try{
+                        gate.disableAndAwait();
+                        disableCompleted.countDown();
+                    }catch(Throwable failure){
+                        disableFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "localsession-worldtick-gate-disable"
+            );
+
+        callbackThread.setDaemon(true);
+        disableThread.setDaemon(true);
+
+        try{
+            callbackThread.start();
+
+            if(!callbackEntered.await(
+                    5L,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "LocalSession tick gate callback did not enter"
+                );
+
+            disableThread.start();
+
+            if(disableCompleted.await(
+                    150L,
+                    TimeUnit.MILLISECONDS))
+                throw new AssertionError(
+                    "LocalSession tick teardown crossed active callback"
+                );
+
+            releaseCallback.countDown();
+
+            callbackThread.join(
+                5_000L
+            );
+            disableThread.join(
+                5_000L
+            );
+
+            if(callbackThread.isAlive()||
+               disableThread.isAlive())
+                throw new AssertionError(
+                    "LocalSession tick gate threads did not quiesce"
+                );
+
+            if(callbackFailure.get()!=null)
+                throw new AssertionError(
+                    "LocalSession tick callback failed",
+                    callbackFailure.get()
+                );
+
+            if(disableFailure.get()!=null)
+                throw new AssertionError(
+                    "LocalSession tick gate disable failed",
+                    disableFailure.get()
+                );
+
+            if(disableCompleted.getCount()!=0L||
+               gate.active())
+                throw new AssertionError(
+                    "LocalSession tick gate did not disable after callback exit"
+                );
+
+            boolean lateAccepted=
+                gate.runIfActive(
+                    ()->lateCallbackRan.set(
+                        true
+                    )
+                );
+
+            if(lateAccepted||
+               lateCallbackRan.get())
+                throw new AssertionError(
+                    "late snapshotted LocalSession tick ran after teardown gate disabled"
+                );
+        }finally{
+            releaseCallback.countDown();
+
+            callbackThread.join(
+                1_000L
+            );
+            disableThread.join(
+                1_000L
+            );
         }
     }
 
