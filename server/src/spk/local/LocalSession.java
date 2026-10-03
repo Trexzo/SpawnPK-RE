@@ -2394,6 +2394,9 @@ final class LocalSession implements Runnable {
            sessionPackets.terminal())
             return;
 
+        String tickTag=
+            "[session "+socket.getRemoteSocketAddress()+"] ";
+
         sessionPackets.beginBatch();
         boolean batchCommitted=false;
 
@@ -2403,7 +2406,7 @@ final class LocalSession implements Runnable {
                     worldTick,
                     now,
                     sessionPackets,
-                    "[session "+socket.getRemoteSocketAddress()+"] "
+                    tickTag
                 );
             }finally{
                 endWorldTickBatch(
@@ -2419,11 +2422,19 @@ final class LocalSession implements Runnable {
                     .commitGroundPresentationBatch(
                         System.currentTimeMillis()
                     );
+                worldTicks
+                    .settleDeferredGroundTakeAfterWorldTick(
+                        System.currentTimeMillis(),
+                        sessionPackets,
+                        tickTag
+                    );
             }else{
                 worldTicks
                     .abortHomePresentationBatch();
                 worldTicks
                     .abortGroundPresentationBatch();
+                worldTicks
+                    .abortDeferredGroundTakeAfterWorldTick();
             }
         }
     }
