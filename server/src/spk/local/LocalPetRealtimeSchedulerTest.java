@@ -27,6 +27,7 @@ public final class LocalPetRealtimeSchedulerTest {
             new LocalSession.WorldTickGate();
         ServerPacketWriter writer;
         int rejectedCallbacks;
+        int acceptedCallbacks;
 
         @Override public ServerPacketWriter sessionPackets(){
             return writer;
@@ -47,7 +48,9 @@ public final class LocalPetRealtimeSchedulerTest {
                     action
                 );
 
-            if(!accepted)
+            if(accepted)
+                acceptedCallbacks++;
+            else
                 rejectedCallbacks++;
 
             return accepted;
@@ -323,6 +326,76 @@ public final class LocalPetRealtimeSchedulerTest {
                     "teardown-rejected realtime callback mutated pet presentation state"
                 );
 
+            if(scheduler.followScheduled())
+                throw new AssertionError(
+                    "gate-rejected follow callback left scheduled latch armed"
+                );
+
+            if(scheduler.testSequenceScheduled())
+                throw new AssertionError(
+                    "gate-rejected test callback left scheduled latch armed"
+                );
+
+            schedulerBridge.gate.activate();
+
+            scheduler.ensureFollowScheduled(
+                2_000L
+            );
+            scheduler.ensureTestSequenceScheduled(
+                System.currentTimeMillis()
+            );
+
+            if(!scheduler.followScheduled()||
+               !scheduler.testSequenceScheduled())
+                throw new AssertionError(
+                    "gate-rejected pet realtime work did not re-arm after activation"
+                );
+
+            if(world.realtime().size()!=2)
+                throw new AssertionError(
+                    "expected follow + test recovery wrappers after activation size="+
+                    world.realtime().size()
+                );
+
+            /*
+             * Let the recovered wrappers enter the now-active gate without
+             * allowing either fixture to recursively schedule more work.
+             */
+            npcs.devFollowFreeze(true);
+            runtime.failSequence();
+
+            int recoveredDue=
+                world.realtime().runDue(
+                    Long.MAX_VALUE
+                );
+
+            if(recoveredDue!=2)
+                throw new AssertionError(
+                    "recovered pet realtime wrappers did not drain count="+
+                    recoveredDue
+                );
+
+            if(schedulerBridge.acceptedCallbacks!=2)
+                throw new AssertionError(
+                    "recovered pet realtime wrappers did not enter active gate accepted="+
+                    schedulerBridge.acceptedCallbacks
+                );
+
+            if(scheduler.followScheduled()||
+               scheduler.testSequenceScheduled())
+                throw new AssertionError(
+                    "recovered pet realtime latches did not settle after accepted callbacks"
+                );
+
+            System.out.println(
+                "LOCAL_PET_REALTIME_GATE_REJECTION_RECOVERY_PASS "+
+                "followLatchRecovered=true "+
+                "testLatchRecovered=true "+
+                "rescheduledAfterActivation=true"
+            );
+
+            npcs.devFollowFreeze(false);
+
             /*
              * Separate terminal-entry case: arm a fresh realtime follow while
              * the writer is still live, then latch that exact writer terminal
@@ -375,6 +448,11 @@ public final class LocalPetRealtimeSchedulerTest {
                     schedulerBridge.rejectedCallbacks
                 );
 
+            if(scheduler.followScheduled())
+                throw new AssertionError(
+                    "terminal-writer rejection left follow scheduled latch armed"
+                );
+
             if(wire.size()!=terminalWireBefore)
                 throw new AssertionError(
                     "terminal-writer realtime callback emitted wire bytes"
@@ -401,6 +479,7 @@ public final class LocalPetRealtimeSchedulerTest {
                 "transientFollowArm=true "+
                 "resetState=true testSequenceArm=true "+
                 "teardownGateRejectsRealtimeCallbacks=true "+
+                "gateRejectionLatchRecovery=true "+
                 "terminalWriterRejectsRealtimeCallback=true"
             );
         }finally{
