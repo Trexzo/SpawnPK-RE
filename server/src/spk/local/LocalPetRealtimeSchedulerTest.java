@@ -23,7 +23,10 @@ public final class LocalPetRealtimeSchedulerTest {
     private static final class SchedulerBridge
         implements LocalPetRealtimeScheduler.SessionBridge
     {
+        final LocalSession.WorldTickGate gate=
+            new LocalSession.WorldTickGate();
         ServerPacketWriter writer;
+        int rejectedCallbacks;
 
         @Override public ServerPacketWriter sessionPackets(){
             return writer;
@@ -31,6 +34,22 @@ public final class LocalPetRealtimeSchedulerTest {
 
         @Override public String sessionTag(){
             return "[pet-realtime-test] ";
+        }
+
+        @Override public boolean
+            runIfSessionWorldCallbackActive(
+                Runnable action
+            )
+        {
+            boolean accepted=
+                gate.runRunnableIfActive(
+                    action
+                );
+
+            if(!accepted)
+                rejectedCallbacks++;
+
+            return accepted;
         }
     }
 
@@ -96,6 +115,7 @@ public final class LocalPetRealtimeSchedulerTest {
             SchedulerBridge schedulerBridge=
                 new SchedulerBridge();
             schedulerBridge.writer=writer;
+            schedulerBridge.gate.activate();
 
             LocalPetRealtimeScheduler scheduler=
                 new LocalPetRealtimeScheduler(
@@ -245,11 +265,69 @@ public final class LocalPetRealtimeSchedulerTest {
                     world.realtime().size()
                 );
 
+            int wireBeforeTeardown=
+                wire.size();
+            NpcEntity petBeforeTeardown=
+                npcs.pet();
+            int petXBeforeTeardown=
+                petBeforeTeardown==null
+                    ?Integer.MIN_VALUE
+                    :petBeforeTeardown.x;
+            int petYBeforeTeardown=
+                petBeforeTeardown==null
+                    ?Integer.MIN_VALUE
+                    :petBeforeTeardown.y;
+            int petNativeStateBeforeTeardown=
+                npcs.petNativeState();
+
+            schedulerBridge.gate.disableAndAwait();
+
+            int drainedAfterDisable=
+                world.realtime().runDue(
+                    Long.MAX_VALUE
+                );
+
+            if(drainedAfterDisable!=3)
+                throw new AssertionError(
+                    "expected three due realtime wrappers after teardown disable, got "+
+                    drainedAfterDisable
+                );
+
+            if(schedulerBridge.rejectedCallbacks!=3)
+                throw new AssertionError(
+                    "teardown gate did not reject every realtime callback rejected="+
+                    schedulerBridge.rejectedCallbacks
+                );
+
+            if(wire.size()!=wireBeforeTeardown)
+                throw new AssertionError(
+                    "teardown-rejected realtime callback emitted wire bytes before="+
+                    wireBeforeTeardown+
+                    " after="+
+                    wire.size()
+                );
+
+            NpcEntity petAfterTeardown=
+                npcs.pet();
+
+            if(petAfterTeardown!=petBeforeTeardown||
+               (petAfterTeardown!=null&&
+                (petAfterTeardown.x!=
+                    petXBeforeTeardown||
+                 petAfterTeardown.y!=
+                    petYBeforeTeardown))||
+               npcs.petNativeState()!=
+                    petNativeStateBeforeTeardown)
+                throw new AssertionError(
+                    "teardown-rejected realtime callback mutated pet presentation state"
+                );
+
             System.out.println(
                 "LOCAL_PET_REALTIME_SCHEDULER_PASS "+
                 "emptyFollowFailClosed=true followArm=true "+
                 "transientFollowArm=true "+
-                "resetState=true testSequenceArm=true"
+                "resetState=true testSequenceArm=true "+
+                "teardownGateRejectsRealtimeCallbacks=true"
             );
         }finally{
             world.close();
