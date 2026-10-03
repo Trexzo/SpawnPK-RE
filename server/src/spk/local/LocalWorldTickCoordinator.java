@@ -727,6 +727,25 @@ final class LocalWorldTickCoordinator {
         );
     }
 
+    int commitGroundPresentationBatch(
+        long now
+    ){
+        return groundItemPresentationRelay
+            .commitStagedDeliveries(
+                now
+            );
+    }
+
+    int abortGroundPresentationBatch(){
+        return groundItemPresentationRelay
+            .abortStagedDeliveries();
+    }
+
+    int stagedGroundPresentationCount(){
+        return groundItemPresentationRelay
+            .stagedDeliveryCount();
+    }
+
     long legacyTickCount(){
         return legacyTickCount;
     }
