@@ -383,6 +383,9 @@ final class SharedNpcWorldRelay {
     private static void detachAfterReplacementCleanup(
         Context context
     ){
+        context.pendingSourceMasks.clear();
+        context.sourceMaskBatchActive=false;
+
         if(BY_WRITER.get(context.writer)==context)
             BY_WRITER.remove(context.writer);
 
@@ -411,6 +414,8 @@ final class SharedNpcWorldRelay {
     }
 
     private static void cleanupContext(Context c){
+        c.pendingSourceMasks.clear();
+        c.sourceMaskBatchActive=false;
         c.state.contexts.remove(c.owner.id());
 
         if(c.state.world.closed()){
@@ -645,6 +650,138 @@ final class SharedNpcWorldRelay {
         }
     }
 
+    static boolean beginSourceMaskBatch(
+        ServerPacketWriter sourceWriter
+    ){
+        if(sourceWriter==null)
+            return false;
+
+        synchronized(SharedNpcWorldRelay.class){
+            Context source=
+                BY_WRITER.get(
+                    sourceWriter
+                );
+
+            if(source==null||
+               source.projectionTransportFailedClosed)
+                return false;
+
+            if(source.sourceMaskBatchActive)
+                throw new IllegalStateException(
+                    "shared NPC source-mask batch already active"
+                );
+
+            source.pendingSourceMasks.clear();
+            source.sourceMaskBatchActive=true;
+            return true;
+        }
+    }
+
+    static int abortSourceMaskBatch(
+        ServerPacketWriter sourceWriter
+    ){
+        if(sourceWriter==null)
+            return 0;
+
+        synchronized(SharedNpcWorldRelay.class){
+            Context source=
+                BY_WRITER.get(
+                    sourceWriter
+                );
+
+            if(source==null)
+                return 0;
+
+            int discarded=
+                source.pendingSourceMasks.size();
+
+            source.pendingSourceMasks.clear();
+            source.sourceMaskBatchActive=false;
+            return discarded;
+        }
+    }
+
+    static int commitSourceMaskBatch(
+        ServerPacketWriter sourceWriter
+    ){
+        if(sourceWriter==null)
+            return 0;
+
+        final Context candidate;
+
+        synchronized(SharedNpcWorldRelay.class){
+            candidate=
+                BY_WRITER.get(
+                    sourceWriter
+                );
+        }
+
+        if(candidate==null)
+            return 0;
+
+        final int[] committed={0};
+
+        boolean admitted=
+            candidate.state.world.runIfOpen(
+                ()->{
+                    synchronized(SharedNpcWorldRelay.class){
+                        Context source=
+                            BY_WRITER.get(
+                                sourceWriter
+                            );
+
+                        if(source!=candidate||
+                           !candidate.sourceMaskBatchActive||
+                           candidate.projectionTransportFailedClosed||
+                           !candidate.state.world.players().owns(
+                                candidate.owner,
+                                candidate.ownerGeneration
+                           )){
+                            candidate.pendingSourceMasks.clear();
+                            candidate.sourceMaskBatchActive=false;
+                            return;
+                        }
+
+                        while(!candidate.pendingSourceMasks.isEmpty()){
+                            PendingSourceMask pending=
+                                candidate.pendingSourceMasks.removeFirst();
+
+                            if(pending.sourceGeneration!=
+                                    candidate.ownerGeneration||
+                               !pending.sourceId.equals(
+                                    candidate.owner.id()
+                               ))
+                                continue;
+
+                            if(candidate.state.world
+                                    .npcPresentationEvents()
+                                    .enqueueOwned(
+                                        pending.createdAt,
+                                        pending.sourceId,
+                                        pending.sourceGeneration,
+                                        pending.target,
+                                        pending.mask,
+                                        pending.playerBarrierSequence,
+                                        pending.recipients
+                                    ))
+                                committed[0]++;
+                        }
+
+                        candidate.sourceMaskBatchActive=false;
+                    }
+                }
+            );
+
+        if(!admitted){
+            synchronized(SharedNpcWorldRelay.class){
+                candidate.pendingSourceMasks.clear();
+                candidate.sourceMaskBatchActive=false;
+            }
+        }
+
+        return committed[0];
+    }
+
     /**
      * Called by NpcRegistry.sendMask after the owner-local packet has been emitted.
      * The semantic mask is queued once and translated against each viewer's scene
@@ -722,9 +859,8 @@ final class SharedNpcWorldRelay {
                     if(recipients.isEmpty())
                         return;
 
-                    src.state.world
-                        .npcPresentationEvents()
-                        .enqueueOwned(
+                    PendingSourceMask pending=
+                        new PendingSourceMask(
                             System.currentTimeMillis(),
                             src.owner.id(),
                             src.ownerGeneration,
@@ -732,6 +868,25 @@ final class SharedNpcWorldRelay {
                             mask,
                             barrier,
                             recipients
+                        );
+
+                    if(src.sourceMaskBatchActive){
+                        src.pendingSourceMasks.addLast(
+                            pending
+                        );
+                        return;
+                    }
+
+                    src.state.world
+                        .npcPresentationEvents()
+                        .enqueueOwned(
+                            pending.createdAt,
+                            pending.sourceId,
+                            pending.sourceGeneration,
+                            pending.target,
+                            pending.mask,
+                            pending.playerBarrierSequence,
+                            pending.recipients
                         );
                 }
             }
@@ -945,6 +1100,37 @@ final class SharedNpcWorldRelay {
     }
 
 
+    private static final class PendingSourceMask {
+        final long createdAt;
+        final EntityId sourceId;
+        final long sourceGeneration;
+        final WorldNpcPresentationEvents.Target target;
+        final NpcSyncEncoder.Mask mask;
+        final long playerBarrierSequence;
+        final LinkedHashMap<EntityId,Long> recipients;
+
+        PendingSourceMask(
+            long createdAt,
+            EntityId sourceId,
+            long sourceGeneration,
+            WorldNpcPresentationEvents.Target target,
+            NpcSyncEncoder.Mask mask,
+            long playerBarrierSequence,
+            LinkedHashMap<EntityId,Long> recipients
+        ){
+            this.createdAt=createdAt;
+            this.sourceId=sourceId;
+            this.sourceGeneration=sourceGeneration;
+            this.target=target;
+            this.mask=mask;
+            this.playerBarrierSequence=playerBarrierSequence;
+            this.recipients=
+                new LinkedHashMap<>(
+                    recipients
+                );
+        }
+    }
+
     private static final class WorldState{
         final World world;
         final HashMap<EntityId,Context> contexts=
@@ -1030,6 +1216,10 @@ final class SharedNpcWorldRelay {
         final ArrayDeque<PendingMirrorMask>
             pendingMirrorMasks=
                 new ArrayDeque<>();
+        final ArrayDeque<PendingSourceMask>
+            pendingSourceMasks=
+                new ArrayDeque<>();
+        boolean sourceMaskBatchActive;
         boolean projectionTransportFailedClosed;
         Context(ServerPacketWriter w,WorldState s,WorldPlayer o,NpcRegistry n,MovementState m){
             writer=w;
@@ -1054,6 +1244,8 @@ final class SharedNpcWorldRelay {
             writer.markTerminal();
             projectionTransportFailedClosed=true;
             pendingMirrorMasks.clear();
+            pendingSourceMasks.clear();
+            sourceMaskBatchActive=false;
         }
 
         private NpcEntity spawnMirror(
