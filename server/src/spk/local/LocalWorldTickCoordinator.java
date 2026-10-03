@@ -366,6 +366,10 @@ final class LocalWorldTickCoordinator {
 
         legacyTickCount++;
 
+        npcs.beginHomePresentationBatch(
+            homeWorld
+        );
+
         String npcPulse=
             npcs.tickHome(
                 movement,
@@ -725,6 +729,18 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    boolean commitHomePresentationBatch(){
+        return npcs
+            .commitHomePresentationBatch();
+    }
+
+    boolean abortHomePresentationBatch(){
+        return npcs
+            .abortHomePresentationBatch(
+                homeWorld
+            );
     }
 
     int commitGroundPresentationBatch(
