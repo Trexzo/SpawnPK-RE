@@ -56,6 +56,7 @@ final class LocalWorldTickCoordinator {
 
     private long legacyTickCount;
     private long movementTickCount;
+    private boolean deferredGroundTakeEligible;
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -161,6 +162,8 @@ final class LocalWorldTickCoordinator {
         ServerPacketWriter writer,
         String tag
     )throws Exception{
+        deferredGroundTakeEligible=false;
+
         PlayerStatusService.TickResult statusTick=
             statuses.tick(worldTick);
 
@@ -343,14 +346,13 @@ final class LocalWorldTickCoordinator {
             regionStreams.regionLoadPending()
         );
 
-        applyGroundItemResult(
-            groundItemHandler.tick(
-                now,
-                bridge.scenePublisher(),
-                writer
-            ),
-            tag
-        );
+        /*
+         * Deferred exact-tile Take owns its own already-certified packet/domain
+         * transaction. Do not run that nested transaction while LocalSession's
+         * outer world-tick packet batch is still provisional. The session
+         * settles it only after the outer batch commits.
+         */
+        deferredGroundTakeEligible=true;
 
         petDropPickup.tick(
             writer,
@@ -729,6 +731,34 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    void settleDeferredGroundTakeAfterWorldTick(
+        long now,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(!deferredGroundTakeEligible)
+            return;
+
+        deferredGroundTakeEligible=false;
+
+        applyGroundItemResult(
+            groundItemHandler.tick(
+                now,
+                bridge.scenePublisher(),
+                writer
+            ),
+            tag
+        );
+    }
+
+    void abortDeferredGroundTakeAfterWorldTick(){
+        deferredGroundTakeEligible=false;
+    }
+
+    boolean deferredGroundTakeEligible(){
+        return deferredGroundTakeEligible;
     }
 
     boolean commitHomePresentationBatch(){
