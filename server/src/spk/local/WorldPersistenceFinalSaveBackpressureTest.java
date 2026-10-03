@@ -308,6 +308,7 @@ public final class WorldPersistenceFinalSaveBackpressureTest {
         }
 
         assertReservedFinalRetiresBeforeIoAndOrdersLoad();
+        assertTimedOutFinalWorldActionOwnsReservation();
     }
 
     private static void assertReservedFinalRetiresBeforeIoAndOrdersLoad()
@@ -715,6 +716,311 @@ public final class WorldPersistenceFinalSaveBackpressureTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static void assertTimedOutFinalWorldActionOwnsReservation()
+        throws Exception
+    {
+        RecordingRepository repository=
+            new RecordingRepository();
+        World world=
+            World.isolatedForTest(
+                60_000L,
+                repository
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        CountDownLatch releaseAction=
+            new CountDownLatch(1);
+
+        try{
+            long generation=
+                world.registerPlayer(
+                    player,
+                    LocalAccountProfiles.PRIMARY
+                );
+
+            world.start();
+
+            WorldPlayerPersistence.FinalSaveReservation
+                reservation=
+                    world.persistence()
+                        .reserveFinalSaveWithBackpressure(
+                            5_000L
+                        );
+
+            CountDownLatch actionEntered=
+                new CountDownLatch(1);
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > ticket=
+                new AtomicReference<>();
+
+            CompletableFuture<Void> finalAction=
+                world.submit(
+                    player,
+                    generation,
+                    ()->{
+                        actionEntered.countDown();
+
+                        releaseAction.await();
+
+                        player.movement()
+                            .setRunEnergy(77);
+
+                        WorldPlayerPersistence.CapturedSave
+                            captured=
+                                world.persistence()
+                                    .captureDeferredFinalSave(
+                                        LocalAccountProfiles.PRIMARY,
+                                        player,
+                                        generation,
+                                        0,
+                                        "[final-timeout-test] ",
+                                        "SESSION_END"
+                                    );
+
+                        if(!world.unregisterPlayer(
+                                player,
+                                generation))
+                            throw new AssertionError(
+                                "late final action could not retire exact generation"
+                            );
+
+                        ticket.set(
+                            reservation.publish(
+                                captured
+                            )
+                        );
+                    }
+                );
+
+            finalAction.whenComplete(
+                (ignored,failure)->{
+                    if(failure!=null)
+                        reservation.abort(
+                            failure
+                        );
+                }
+            );
+
+            if(!actionEntered.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "final timeout action did not start"
+                );
+
+            boolean timedOut=false;
+
+            try{
+                finalAction.get(
+                    25L,
+                    TimeUnit.MILLISECONDS
+                );
+            }catch(TimeoutException expected){
+                timedOut=true;
+            }
+
+            if(!timedOut)
+                throw new AssertionError(
+                    "final action did not reproduce caller-side timeout"
+                );
+
+            releaseAction.countDown();
+
+            finalAction.get(
+                5,
+                TimeUnit.SECONDS
+            );
+
+            WorldPlayerPersistence.SaveTicket
+                finalTicket=
+                    ticket.get();
+
+            if(finalTicket==null)
+                throw new AssertionError(
+                    "timed-out final action did not publish reserved save"
+                );
+
+            finalTicket.completion.get(
+                5,
+                TimeUnit.SECONDS
+            );
+
+            if(player.registered())
+                throw new AssertionError(
+                    "timed-out final action retained World ownership"
+                );
+
+            Optional<PlayerSnapshot> stored=
+                repository.load(
+                    LocalAccountProfiles.PRIMARY
+                );
+
+            if(!stored.isPresent()||
+               !"77".equals(
+                   stored.get().value(
+                       "movement.runEnergy"
+                   )))
+                throw new AssertionError(
+                    "timed-out final action lost final snapshot"
+                );
+        }finally{
+            releaseAction.countDown();
+
+            if(player.registered())
+                world.unregisterPlayer(
+                    player,
+                    player.generation()
+                );
+
+            world.close();
+        }
+
+        RecordingRepository cancelledRepository=
+            new RecordingRepository();
+        World cancelledWorld=
+            World.isolatedForTest(
+                60_000L,
+                cancelledRepository
+            );
+        WorldPlayer cancelledPlayer=
+            new WorldPlayer();
+
+        try{
+            long generation=
+                cancelledWorld.registerPlayer(
+                    cancelledPlayer,
+                    LocalAccountProfiles.PRIMARY
+                );
+
+            WorldPlayerPersistence.FinalSaveReservation
+                reservation=
+                    cancelledWorld.persistence()
+                        .reserveFinalSaveWithBackpressure(
+                            5_000L
+                        );
+
+            AtomicBoolean actionRan=
+                new AtomicBoolean();
+
+            CompletableFuture<Void> finalAction=
+                cancelledWorld.submit(
+                    cancelledPlayer,
+                    generation,
+                    ()->actionRan.set(
+                        true
+                    )
+                );
+
+            finalAction.whenComplete(
+                (ignored,failure)->{
+                    if(failure!=null)
+                        reservation.abort(
+                            failure
+                        );
+                }
+            );
+
+            if(!cancelledWorld.unregisterPlayer(
+                    cancelledPlayer,
+                    generation))
+                throw new AssertionError(
+                    "outer unregister did not retire queued final action owner"
+                );
+
+            try{
+                finalAction.get(
+                    1,
+                    TimeUnit.SECONDS
+                );
+                throw new AssertionError(
+                    "queued final action survived outer unregister"
+                );
+            }catch(ExecutionException|
+                    CancellationException expected){
+                // expected: command cleanup owns reservation abort.
+            }
+
+            if(actionRan.get())
+                throw new AssertionError(
+                    "cancelled final action executed after outer unregister"
+                );
+
+            AtomicReference<Throwable>
+                loadFailure=
+                    new AtomicReference<>();
+            Thread loader=
+                new Thread(
+                    ()->{
+                        try{
+                            cancelledWorld.persistence()
+                                .load(
+                                    LocalAccountProfiles.PRIMARY
+                                );
+                        }catch(Throwable failure){
+                            loadFailure.set(
+                                failure
+                            );
+                        }
+                    },
+                    "final-timeout-abort-load"
+                );
+            loader.setDaemon(
+                true
+            );
+            loader.start();
+            loader.join(
+                1_000L
+            );
+
+            if(loader.isAlive())
+                throw new AssertionError(
+                    "aborted final reservation retained persistence worker"
+                );
+
+            if(loadFailure.get()!=null)
+                throw new AssertionError(
+                    "load behind aborted final reservation failed",
+                    loadFailure.get()
+                );
+
+            System.out.println(
+                "WORLD_PERSISTENCE_FINAL_TIMEOUT_HANDOFF_PASS "+
+                "callerTimeoutDoesNotAbortInFlight=true "+
+                "lateWorldActionPublished=true "+
+                "outerUnregisterCancelsQueuedAction=true "+
+                "cancelledReservationReleasedWorker=true"
+            );
+        }finally{
+            if(cancelledPlayer.registered())
+                cancelledWorld.unregisterPlayer(
+                    cancelledPlayer,
+                    cancelledPlayer.generation()
+                );
+
+            cancelledWorld.close();
+        }
+    }
+
+    private static final class RecordingRepository
+        implements PlayerRepository {
+        volatile PlayerSnapshot stored;
+
+        @Override public Optional<PlayerSnapshot> load(
+            String username
+        ){
+            return Optional.ofNullable(
+                stored
+            );
+        }
+
+        @Override public void save(
+            PlayerSnapshot snapshot
+        ){
+            stored=snapshot;
         }
     }
 
