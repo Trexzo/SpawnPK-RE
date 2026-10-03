@@ -6,6 +6,7 @@ import java.util.Arrays;
 
 public final class ServerPacketWriterBatchAbortTest {
     public static void main(String[] args)throws Exception{
+        ordinaryDirectFailureLatchesTerminal();
         explicitAbortDiscardsAndRewindsCipher();
         failedQueueCommitRemainsAbortable();
         nestedAbortDiscardsWholeOuterBatch();
@@ -14,10 +15,72 @@ public final class ServerPacketWriterBatchAbortTest {
 
         System.out.println(
             "SERVER_PACKET_WRITER_BATCH_ABORT_PASS "+
+            "ordinaryDirectTerminal=true directNoRetouch=true "+
             "zeroLeak=true isaacRewind=true "+
-            "queueFailureAbortable=true nestedWholeAbort=true "+
-            "pairAbort=true successWireParity=true"
+            "queueFailureAbortable=true batchFailureNonTerminal=true "+
+            "nestedWholeAbort=true pairAbort=true successWireParity=true"
         );
+    }
+
+    private static void ordinaryDirectFailureLatchesTerminal()
+        throws Exception
+    {
+        PartialFailOutputStream out=
+            new PartialFailOutputStream();
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                out,
+                new IsaacCipher(
+                    new int[]{1,2,3,4}
+                )
+            );
+
+        boolean failed=false;
+        try{
+            writer.fixed(
+                97,
+                BootstrapPackets.interface97(
+                    15106
+                )
+            );
+        }catch(IOException expected){
+            failed=true;
+        }
+
+        if(!failed)
+            throw new AssertionError(
+                "ordinary direct partial publication did not fail"
+            );
+        if(!writer.terminal())
+            throw new AssertionError(
+                "ordinary direct partial failure left writer live"
+            );
+
+        int attemptsBeforeProbe=
+            out.attempts;
+        out.fail=false;
+
+        boolean probeRejected=false;
+        try{
+            writer.fixed(
+                219,
+                new byte[0]
+            );
+        }catch(IOException terminal){
+            probeRejected=true;
+        }
+
+        if(!probeRejected)
+            throw new AssertionError(
+                "terminal direct writer accepted later publication"
+            );
+        if(out.attempts!=attemptsBeforeProbe)
+            throw new AssertionError(
+                "terminal direct writer retouched output before="+
+                attemptsBeforeProbe+
+                " after="+
+                out.attempts
+            );
     }
 
     private static void explicitAbortDiscardsAndRewindsCipher()
@@ -115,6 +178,10 @@ public final class ServerPacketWriterBatchAbortTest {
         if(!failed)
             throw new AssertionError(
                 "expected bounded queue admission failure"
+            );
+        if(writer.terminal())
+            throw new AssertionError(
+                "abortable queue batch failure terminalized writer"
             );
         if(queue.queuedBytes()!=existing.length||
            queue.queuedPackets()!=1)
@@ -296,6 +363,36 @@ public final class ServerPacketWriterBatchAbortTest {
             throw new AssertionError(
                 "pair abort did not rewind cipher/reservation state"
             );
+    }
+
+    private static final class PartialFailOutputStream
+        extends java.io.OutputStream {
+
+        int attempts;
+        boolean fail=true;
+
+        @Override public void write(
+            int value
+        )throws IOException{
+            attempts++;
+            if(fail)
+                throw new IOException(
+                    "EXPECTED_ORDINARY_DIRECT_PARTIAL_FAILURE"
+                );
+        }
+
+        @Override public void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws IOException{
+            attempts++;
+
+            if(fail)
+                throw new IOException(
+                    "EXPECTED_ORDINARY_DIRECT_PARTIAL_FAILURE"
+                );
+        }
     }
 
     private static void successfulBatchPreservesWireBytes()
