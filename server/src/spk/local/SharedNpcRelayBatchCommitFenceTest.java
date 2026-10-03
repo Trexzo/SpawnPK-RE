@@ -288,6 +288,63 @@ public final class SharedNpcRelayBatchCommitFenceTest {
                     .beginSourceMaskBatch(
                         sourceWriter
                     ),
+                "stale-target relay batch did not begin"
+            );
+
+            sourceWriter.beginBatch();
+            sourceNpcs.sendMask(
+                sourceNpc,
+                NpcSyncEncoder.Mask.forceText(
+                    "stale-target"
+                ),
+                sourceWriter
+            );
+            LocalSession.endWorldTickBatch(
+                sourceWriter
+            );
+
+            /*
+             * Replace the exact source registry projection after the source
+             * bytes committed but before relay settlement. The semantic target
+             * descriptor may still resolve to the same canonical HOME id, but
+             * the staged relay belongs to the exact old source NpcEntity.
+             */
+            sourceNpcs.bootstrapHome(
+                sourceWriter,
+                sourceMovement,
+                new PetState(),
+                new HomeWorldRuntimePlan(
+                    world.homeNpcs()
+                )
+            );
+
+            require(
+                SharedNpcWorldRelay
+                    .commitSourceMaskBatch(
+                        sourceWriter
+                    )==0,
+                "stale source target relay was committed"
+            );
+
+            require(
+                world.npcPresentationEvents()
+                    .pendingFor(
+                        viewer.id(),
+                        viewer.generation(),
+                        System.currentTimeMillis()
+                    )
+                    .isEmpty(),
+                "stale source target relay event leaked remotely"
+            );
+
+            drain(sourceQueue);
+            drain(viewerQueue);
+
+            require(
+                SharedNpcWorldRelay
+                    .beginSourceMaskBatch(
+                        sourceWriter
+                    ),
                 "stale-source relay batch did not begin"
             );
 
@@ -340,6 +397,7 @@ public final class SharedNpcRelayBatchCommitFenceTest {
                 "abortDropsRelay=true "+
                 "retryEnqueuesOnce=true "+
                 "commitAfterSourceBytes=true "+
+                "staleTargetRejected=true "+
                 "staleSourceRejected=true"
             );
         }finally{
