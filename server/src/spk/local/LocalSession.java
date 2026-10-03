@@ -2184,7 +2184,41 @@ final class LocalSession implements Runnable {
     }
 
     private void drainOutbound(OutputStream out)throws IOException{
-        if(outboundPackets!=null)outboundPackets.drainTo(out,256*1024);
+        drainSessionOutbound(
+            outboundPackets,
+            sessionPackets,
+            out,
+            256*1024
+        );
+    }
+
+    static int drainSessionOutbound(
+        OutboundPacketQueue packets,
+        ServerPacketWriter writer,
+        OutputStream out,
+        int maxBytesPerDrain
+    )throws IOException{
+        if(packets==null)
+            return 0;
+
+        try{
+            return packets.drainTo(
+                out,
+                maxBytesPerDrain
+            );
+        }catch(IOException failure){
+            /*
+             * The queue -> socket handoff is no longer retractable once the
+             * network OutputStream rejects a drain. Latch the exact session
+             * writer before the failure escapes so an already-snapshotted
+             * WorldPulse target stops at onWorldTick's terminal gate.
+             * Normal LocalSession finally teardown still owns runtime/world
+             * cleanup.
+             */
+            if(writer!=null)
+                writer.markTerminal();
+            throw failure;
+        }
     }
 
     /** Existing certified per-player gameplay tick, now invoked only by the one shared WorldPulse. */
