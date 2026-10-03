@@ -57,6 +57,7 @@ final class LocalWorldTickCoordinator {
     private long legacyTickCount;
     private long movementTickCount;
     private boolean deferredBankInteractionEligible;
+    private boolean deferredMakeoverEligible;
     private boolean deferredGroundTakeEligible;
     private boolean deferredPetPickupEligible;
 
@@ -320,16 +321,13 @@ final class LocalWorldTickCoordinator {
          */
         deferredBankInteractionEligible=true;
 
-        String makeoverTick=
-            routedNpcHandler.tickMakeover(
-                now,
-                writer,
-                tag
-            );
-        if(makeoverTick!=null)
-            System.out.println(
-                tag+makeoverTick
-            );
+        /*
+         * Make-over dialogue open/close presentation owns semantic dialogue
+         * state and must not settle while LocalSession's outer packet batch is
+         * still provisional. Preserve the historical Bank -> Makeover order by
+         * settling this immediately after deferred Bank post-commit work.
+         */
+        deferredMakeoverEligible=true;
 
         groundItemPresentationRelay.publishPendingIfSceneReady(
             now,
@@ -764,6 +762,36 @@ final class LocalWorldTickCoordinator {
 
     boolean deferredBankInteractionEligible(){
         return deferredBankInteractionEligible;
+    }
+
+    void settleDeferredMakeoverAfterWorldTick(
+        long now,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(!deferredMakeoverEligible)
+            return;
+
+        deferredMakeoverEligible=false;
+
+        String makeoverTick=
+            routedNpcHandler.tickMakeover(
+                now,
+                writer,
+                tag
+            );
+        if(makeoverTick!=null)
+            System.out.println(
+                tag+makeoverTick
+            );
+    }
+
+    void abortDeferredMakeoverAfterWorldTick(){
+        deferredMakeoverEligible=false;
+    }
+
+    boolean deferredMakeoverEligible(){
+        return deferredMakeoverEligible;
     }
 
     void settleDeferredGroundTakeAfterWorldTick(
