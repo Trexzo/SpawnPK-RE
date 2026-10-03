@@ -8,6 +8,7 @@ on:
       - 'tools/runtime/**'
       - 'tools/custom-assets/**'
       - '*.ps1'
+      - 'docs/EXTERNAL_RUNTIME.md'
       - '.gitignore'
       - '.github/workflows/gradle-server-build.yml'
   push:
@@ -19,6 +20,7 @@ on:
       - 'tools/runtime/**'
       - 'tools/custom-assets/**'
       - '*.ps1'
+      - 'docs/EXTERNAL_RUNTIME.md'
       - '.gitignore'
       - '.github/workflows/gradle-server-build.yml'
 
