@@ -2412,14 +2412,19 @@ final class LocalSession implements Runnable {
                 batchCommitted=true;
             }
         }finally{
-            if(batchCommitted)
+            if(batchCommitted){
+                worldTicks
+                    .commitHomePresentationBatch();
                 worldTicks
                     .commitGroundPresentationBatch(
                         System.currentTimeMillis()
                     );
-            else
+            }else{
+                worldTicks
+                    .abortHomePresentationBatch();
                 worldTicks
                     .abortGroundPresentationBatch();
+            }
         }
     }
 
