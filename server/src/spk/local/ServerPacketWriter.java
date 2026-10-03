@@ -911,16 +911,29 @@ final class ServerPacketWriter {
                 if(out!=null)
                     out.flush();
             }catch(IOException failure){
-                if(batchDepth==0)
+                if(batchDepth==0){
+                    /*
+                     * Ordinary publication has already consumed an ISAAC value
+                     * and has no rollback checkpoint. The failed transport is
+                     * therefore non-retractable: discard pending bytes and make
+                     * this exact writer permanently non-reusable before the
+                     * failure escapes to callers such as WorldPulse.
+                     */
                     pending.reset();
+                    terminal=true;
+                }
                 throw failure;
             }catch(RuntimeException failure){
-                if(batchDepth==0)
+                if(batchDepth==0){
                     pending.reset();
+                    terminal=true;
+                }
                 throw failure;
             }catch(Error failure){
-                if(batchDepth==0)
+                if(batchDepth==0){
                     pending.reset();
+                    terminal=true;
+                }
                 throw failure;
             }
 
