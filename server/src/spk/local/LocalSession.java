@@ -2395,17 +2395,31 @@ final class LocalSession implements Runnable {
             return;
 
         sessionPackets.beginBatch();
+        boolean batchCommitted=false;
+
         try{
-            worldTicks.tick(
-                worldTick,
-                now,
-                sessionPackets,
-                "[session "+socket.getRemoteSocketAddress()+"] "
-            );
+            try{
+                worldTicks.tick(
+                    worldTick,
+                    now,
+                    sessionPackets,
+                    "[session "+socket.getRemoteSocketAddress()+"] "
+                );
+            }finally{
+                endWorldTickBatch(
+                    sessionPackets
+                );
+                batchCommitted=true;
+            }
         }finally{
-            endWorldTickBatch(
-                sessionPackets
-            );
+            if(batchCommitted)
+                worldTicks
+                    .commitGroundPresentationBatch(
+                        System.currentTimeMillis()
+                    );
+            else
+                worldTicks
+                    .abortGroundPresentationBatch();
         }
     }
 
