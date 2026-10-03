@@ -505,6 +505,100 @@ public final class LocalBankObjectInteractionHandlerTest {
                     replacementAmount
                 );
 
+            WorldPlayer deferredRetryPlayer=
+                new WorldPlayer();
+            BankState deferredRetryBank=
+                deferredRetryPlayer.bank();
+            MovementState deferredRetryMovement=
+                deferredRetryPlayer.movement();
+            LocalBankObjectInteractionHandler deferredRetryHandler=
+                new LocalBankObjectInteractionHandler(
+                    deferredRetryBank,
+                    deferredRetryMovement,
+                    world.content()
+                );
+            deferredRetryHandler.installRootOwner(
+                action->action.open()
+            );
+
+            OutboundPacketQueue deferredRetryQueue=
+                new OutboundPacketQueue(1024);
+            ServerPacketWriter deferredRetryWriter=
+                new ServerPacketWriter(
+                    deferredRetryQueue,
+                    new IsaacCipher(
+                        new int[]{149,150,151,152}
+                    )
+                );
+            ObjectInteraction deferredRetryRequest=
+                new ObjectInteraction(
+                    132,
+                    BankState.BANK_OBJECT_ID,
+                    deferredRetryMovement.x()+2,
+                    deferredRetryMovement.y()
+                );
+
+            String deferredRetryQueued=
+                deferredRetryHandler.handle(
+                    deferredRetryRequest,
+                    deferredRetryWriter
+                );
+
+            if(deferredRetryQueued==null||
+               !deferredRetryQueued.contains(
+                   "DEFERRED_UNTIL_ADJACENT")||
+               !deferredRetryHandler.hasPending())
+                throw new AssertionError(
+                    "deferred object retry fixture did not queue"
+                );
+
+            if(deferredRetryMovement.advance()==null)
+                throw new AssertionError(
+                    "deferred object retry approach did not advance"
+                );
+
+            OutboundPacketQueue.BatchReservation
+                deferredRetryPressure=
+                    OutboundPacketQueue.reserveBatch(
+                        deferredRetryQueue,
+                        1024
+                    );
+
+            boolean deferredOpenFailed=false;
+            try{
+                deferredRetryHandler.tick(
+                    System.currentTimeMillis(),
+                    deferredRetryWriter
+                );
+            }catch(java.io.IOException expected){
+                deferredOpenFailed=true;
+            }finally{
+                deferredRetryPressure.release();
+            }
+
+            if(!deferredOpenFailed||
+               deferredRetryBank.isOpen()||
+               !deferredRetryHandler.hasPending()||
+               deferredRetryQueue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "failed deferred object bank open lost retry authority"
+                );
+
+            String deferredRetryOpened=
+                deferredRetryHandler.tick(
+                    System.currentTimeMillis(),
+                    deferredRetryWriter
+                );
+
+            if(deferredRetryOpened==null||
+               !deferredRetryOpened.contains(
+                   "OPENED_AFTER_AUTHORITATIVE_ARRIVAL")||
+               !deferredRetryBank.isOpen()||
+               deferredRetryHandler.hasPending())
+                throw new AssertionError(
+                    "deferred object bank retry did not commit"
+                );
+
             ObjectInteraction nonBank=
                 new ObjectInteraction(
                     132,
