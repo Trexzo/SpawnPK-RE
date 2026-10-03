@@ -18,11 +18,93 @@ public final class OutboundPacketQueueTest {
         boolean overflow=false;try{q.offer(new byte[1024]);}catch(IOException ok){overflow=true;}
         if(!overflow||!q.overflowed())throw new AssertionError("overflow policy");
 
+        testOrdinaryOverflowTerminalLatch();
         testExplicitBatchAbort();
         testFailedBatchAdmissionAbort();
         testSuccessfulBatchParity();
 
-        System.out.println("V512_OUTBOUND_QUEUE_PASS worldThreadSocketWrite=false bounded=true overflowFailClosed=true batchAbortZeroLeak=true batchAbortIsaacRewind=true failedBatchAdmissionAbortable=true successfulBatchParity=true");
+        System.out.println("V512_OUTBOUND_QUEUE_PASS worldThreadSocketWrite=false bounded=true overflowFailClosed=true ordinaryOverflowWriterTerminal=true ordinaryOverflowNoRetouch=true batchAbortZeroLeak=true batchAbortIsaacRewind=true failedBatchAdmissionAbortable=true batchAdmissionWriterHealthy=true successfulBatchParity=true");
+    }
+
+    private static void testOrdinaryOverflowTerminalLatch()
+        throws Exception
+    {
+        int[] seed={7,8,9,10};
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        queue.offer(
+            new byte[1024]
+        );
+
+        IsaacCipher cipher=
+            new IsaacCipher(seed);
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                cipher
+            );
+
+        boolean failed=false;
+        try{
+            writer.fixed(
+                219,
+                new byte[0]
+            );
+        }catch(IOException expected){
+            failed=true;
+        }
+
+        if(!failed)
+            throw new AssertionError(
+                "ordinary full-queue publication did not fail"
+            );
+        if(!queue.overflowed())
+            throw new AssertionError(
+                "ordinary full-queue publication did not poison queue"
+            );
+        if(!writer.terminal())
+            throw new AssertionError(
+                "ordinary full-queue publication left writer live"
+            );
+        if(queue.queuedBytes()!=1024)
+            throw new AssertionError(
+                "ordinary full-queue publication leaked packet bytes="+
+                queue.queuedBytes()
+            );
+
+        IsaacCipher expected=
+            new IsaacCipher(seed);
+        expected.nextInt();
+
+        boolean probeRejected=false;
+        try{
+            writer.fixed(
+                97,
+                BootstrapPackets.interface97(
+                    15106
+                )
+            );
+        }catch(IOException terminal){
+            probeRejected=true;
+        }
+
+        if(!probeRejected)
+            throw new AssertionError(
+                "terminal overflow writer accepted later publication"
+            );
+
+        int actualNext=
+            cipher.nextInt();
+        int expectedNext=
+            expected.nextInt();
+
+        if(actualNext!=expectedNext)
+            throw new AssertionError(
+                "terminal overflow writer consumed another ISAAC value expected="+
+                expectedNext+
+                " actual="+
+                actualNext
+            );
     }
 
     private static void testExplicitBatchAbort()
@@ -70,6 +152,7 @@ public final class OutboundPacketQueueTest {
         if(!failed)throw new AssertionError("full queue did not reject outer batch");
         if(queue.overflowed())throw new AssertionError("failed batch admission poisoned queue");
         if(queue.queuedBytes()!=1023)throw new AssertionError("failed batch admission leaked staged bytes");
+        if(writer.terminal())throw new AssertionError("abortable batch admission failure terminalized writer");
 
         writer.abortBatch();
         drain(queue);
