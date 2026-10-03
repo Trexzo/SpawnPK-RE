@@ -1943,19 +1943,25 @@ final class LocalSession implements Runnable {
             }
 
             final long attachedGeneration=worldPlayerGeneration;
-            world.attachTickTarget(new WorldTickTarget(){
-                public EntityId ownerId(){return worldPlayer.id();}
-                public long ownerGeneration(){return attachedGeneration;}
-                public void onWorldTick(long tick,long nowMillis)throws Exception{LocalSession.this.onWorldTick(tick,nowMillis);}
-            });
+
             /*
-             * Activate only after the target is installed. A callback
-             * snapshotted in this tiny attach/activate window is allowed to
-             * skip one tick; it must never run before the session declares
-             * its callback lifetime active.
+             * Activate before publication into World.tickTargets so there is
+             * no attached-but-inactive window which could drop the first
+             * legitimate callback. If attachment itself fails, roll the
+             * session-local gate back immediately.
              */
             worldTickGate.activate();
-            worldTickAttached=true;
+            try{
+                world.attachTickTarget(new WorldTickTarget(){
+                    public EntityId ownerId(){return worldPlayer.id();}
+                    public long ownerGeneration(){return attachedGeneration;}
+                    public void onWorldTick(long tick,long nowMillis)throws Exception{LocalSession.this.onWorldTick(tick,nowMillis);}
+                });
+                worldTickAttached=true;
+            }catch(Throwable attachFailure){
+                worldTickGate.disableAndAwait();
+                throw attachFailure;
+            }
             requireLiveSessionWriter(
                 serverPackets
             );
