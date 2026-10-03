@@ -41,6 +41,35 @@ final class NpcRegistry {
     private int petDiscontinuityTicks;
     private int miniDiscontinuityTicks;
 
+    private static final class HomePresentationSnapshot {
+        final ArrayList<NpcEntity> visible;
+        final IdentityHashMap<NpcEntity,int[]> positions;
+        final HomeWorldRuntimePlan.ViewerPresentationSnapshot home;
+
+        HomePresentationSnapshot(
+            List<NpcEntity> visible,
+            HomeWorldRuntimePlan.ViewerPresentationSnapshot home
+        ){
+            this.visible=
+                new ArrayList<>(
+                    visible
+                );
+            this.positions=
+                new IdentityHashMap<>();
+
+            for(NpcEntity npc:this.visible)
+                this.positions.put(
+                    npc,
+                    new int[]{npc.x,npc.y}
+                );
+
+            this.home=home;
+        }
+    }
+
+    private HomePresentationSnapshot stagedHomePresentation;
+    private boolean homePresentationResyncRequired;
+
     NpcRegistry(){
         this(new DevAuthorityWorkbench(),null,null);
     }
@@ -2063,9 +2092,98 @@ final class NpcRegistry {
      * one coherent existing-list ordering. The pet is only RETAINED here; its follower
      * movement remains exclusively in tickFollow().
      */
+    void beginHomePresentationBatch(
+        HomeWorldRuntimePlan home
+    ){
+        if(home==null)
+            throw new NullPointerException(
+                "home"
+            );
+        if(stagedHomePresentation!=null)
+            throw new IllegalStateException(
+                "HOME presentation batch already staged"
+            );
+
+        stagedHomePresentation=
+            new HomePresentationSnapshot(
+                visible,
+                home.snapshotViewerPresentation()
+            );
+    }
+
+    boolean commitHomePresentationBatch(){
+        if(stagedHomePresentation==null)
+            return false;
+
+        stagedHomePresentation=null;
+        return true;
+    }
+
+    boolean abortHomePresentationBatch(
+        HomeWorldRuntimePlan home
+    ){
+        HomePresentationSnapshot snapshot=
+            stagedHomePresentation;
+
+        if(snapshot==null)
+            return false;
+
+        stagedHomePresentation=null;
+
+        visible.clear();
+        visible.addAll(
+            snapshot.visible
+        );
+
+        for(Map.Entry<NpcEntity,int[]> entry:
+                snapshot.positions.entrySet()){
+            int[] xy=entry.getValue();
+            entry.getKey().x=xy[0];
+            entry.getKey().y=xy[1];
+        }
+
+        home.restoreViewerPresentation(
+            snapshot.home
+        );
+
+        /*
+         * The shared canonical HOME world intentionally remains advanced. This
+         * viewer did not receive the retracted packet-65 bytes, so its next
+         * HOME publication must rebuild from current canonical authority rather
+         * than depend on a historical walk delta that will not be replayed.
+         */
+        homePresentationResyncRequired=true;
+
+        assertUniqueSceneIndexes();
+        return true;
+    }
+
+    boolean homePresentationResyncRequired(){
+        return homePresentationResyncRequired;
+    }
+
     String tickHome(MovementState movement,ServerPacketWriter w,HomeWorldRuntimePlan home,long worldTick) throws IOException {
         if(home==null) throw new NullPointerException("home");
-        HomeWorldRuntimePlan.NpcDelta wd=home.tick(worldTick,movement.x(),movement.y());
+
+        HomeWorldRuntimePlan.NpcDelta wd=
+            home.tick(
+                worldTick,
+                movement.x(),
+                movement.y()
+            );
+
+        if(homePresentationResyncRequired){
+            String result=
+                publishAuthoritativeHomeResync(
+                    movement,
+                    w,
+                    home,
+                    worldTick
+                );
+            homePresentationResyncRequired=false;
+            return result;
+        }
+
         ArrayList<NpcSyncEncoder.Update> updates=new ArrayList<>();
         for(NpcEntity n:visible){
             if(HomeWorldRuntimePlan.isHomeWorldSceneIndex(n.sceneIndex)){
@@ -2082,6 +2200,117 @@ final class NpcRegistry {
         assertUniqueSceneIndexes();
         return "HOME_NPC_PULSE tick="+worldTick+" worldAdd="+wd.added.size()+" worldRemove="+wd.removedSceneIndexes.size()+
             " worldWalk="+wd.walkDirectionBySceneIndex.size()+" pet="+(pet==null?"none":"RETAIN")+" visible="+visible.size();
+    }
+
+    private String publishAuthoritativeHomeResync(
+        MovementState movement,
+        ServerPacketWriter w,
+        HomeWorldRuntimePlan home,
+        long worldTick
+    )throws IOException{
+        ArrayList<NpcSyncEncoder.Update> remove=
+            new ArrayList<>();
+        int removed=0;
+
+        for(NpcEntity n:visible){
+            if(HomeWorldRuntimePlan.isHomeWorldSceneIndex(
+                    n.sceneIndex)){
+                remove.add(
+                    NpcSyncEncoder.Update.remove(
+                        n
+                    )
+                );
+                removed++;
+            }else{
+                remove.add(
+                    NpcSyncEncoder.Update.retain(
+                        n
+                    )
+                );
+            }
+        }
+
+        List<NpcEntity> authoritative=
+            home.currentProjection(
+                movement.x(),
+                movement.y()
+            );
+
+        /*
+         * Pre-encode both packet-65 bodies before touching the writer so this
+         * two-stage resync cannot create a new partial-publication failure
+         * between remove and add due to local encoding validation.
+         */
+        byte[] removeBody=
+            removed==0
+                ?null
+                :NpcSyncEncoder.encode(
+                    remove,
+                    Collections.emptyList(),
+                    0,
+                    0
+                );
+
+        ArrayList<NpcSyncEncoder.Update> retainedDynamic=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(!HomeWorldRuntimePlan.isHomeWorldSceneIndex(
+                    n.sceneIndex))
+                retainedDynamic.add(
+                    NpcSyncEncoder.Update.retain(
+                        n
+                    )
+                );
+
+        ensureNoAddedSceneCollision(
+            authoritative
+        );
+
+        byte[] addBody=
+            NpcSyncEncoder.encode(
+                retainedDynamic,
+                authoritative,
+                movement.x(),
+                movement.y()
+            );
+
+        if(removeBody!=null)
+            w.varShort(
+                65,
+                removeBody
+            );
+
+        visible.removeIf(
+            n->HomeWorldRuntimePlan
+                .isHomeWorldSceneIndex(
+                    n.sceneIndex
+                )
+        );
+
+        w.varShort(
+            65,
+            addBody
+        );
+
+        visible.addAll(
+            authoritative
+        );
+
+        assertUniqueSceneIndexes();
+
+        return "HOME_NPC_PULSE tick="+
+            worldTick+
+            " worldAdd="+
+            authoritative.size()+
+            " worldRemove="+
+            removed+
+            " worldWalk=0"+
+            " resync=AUTHORITATIVE_CANONICAL"+
+            " pet="+
+            (pet==null?"none":"RETAIN")+
+            " visible="+
+            visible.size();
     }
 
     private String teleportBesideOwner(
