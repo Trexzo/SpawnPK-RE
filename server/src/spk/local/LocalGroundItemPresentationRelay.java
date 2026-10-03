@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -12,6 +14,38 @@ final class LocalGroundItemPresentationRelay {
     private final World world;
     private final WorldPlayer viewer;
     private final MovementState movement;
+
+    private static final class PendingDeliveryAck {
+        final long sequence;
+        final EntityId recipientId;
+        final long recipientGeneration;
+
+        PendingDeliveryAck(
+            long sequence,
+            EntityId recipientId,
+            long recipientGeneration
+        ){
+            this.sequence=sequence;
+            this.recipientId=Objects.requireNonNull(
+                recipientId,
+                "recipientId"
+            );
+            this.recipientGeneration=
+                recipientGeneration;
+        }
+    }
+
+    /*
+     * These acknowledgements correspond to bytes staged in the caller-owned
+     * LocalSession world-tick packet batch. They are not canonical delivery
+     * authority until that outer batch commits.
+     */
+    private final ArrayList<PendingDeliveryAck>
+        stagedDeliveryAcks=
+            new ArrayList<>();
+    private final HashSet<Long>
+        stagedSequences=
+            new HashSet<>();
 
     LocalGroundItemPresentationRelay(
         World world,
@@ -63,6 +97,10 @@ final class LocalGroundItemPresentationRelay {
 
         for(WorldGroundItemPresentationEvents.Event event:
                 pending){
+            if(stagedSequences.contains(
+                    event.sequence))
+                continue;
+
             if(event.tile.plane!=
                     movement.plane()||
                !movement.insideCurrentLoadedRegion(
@@ -100,22 +138,78 @@ final class LocalGroundItemPresentationRelay {
                     event.kind
                 );
 
-            if(!world.groundItemPresentationEvents()
-                    .markDelivered(
-                        event.sequence,
-                        viewer.id(),
-                        generation,
-                        now
-                    ))
+            if(!stagedSequences.add(
+                    event.sequence))
                 throw new IllegalStateException(
-                    "ground presentation delivery identity changed sequence="+
+                    "ground presentation event already staged sequence="+
                     event.sequence
                 );
+
+            stagedDeliveryAcks.add(
+                new PendingDeliveryAck(
+                    event.sequence,
+                    viewer.id(),
+                    generation
+                )
+            );
 
             published++;
         }
 
         return published;
+    }
+
+    int commitStagedDeliveries(
+        long now
+    ){
+        int committed=0;
+
+        try{
+            for(PendingDeliveryAck ack:
+                    stagedDeliveryAcks){
+                if(!world.players().owns(
+                        viewer,
+                        ack.recipientGeneration))
+                    throw new IllegalStateException(
+                        "ground presentation viewer generation changed before batch commit viewer="+
+                        ack.recipientId+
+                        " expectedGeneration="+
+                        ack.recipientGeneration
+                    );
+
+                if(!world.groundItemPresentationEvents()
+                        .markDelivered(
+                            ack.sequence,
+                            ack.recipientId,
+                            ack.recipientGeneration,
+                            now
+                        ))
+                    throw new IllegalStateException(
+                        "ground presentation delivery identity changed before batch commit sequence="+
+                        ack.sequence
+                    );
+
+                committed++;
+            }
+
+            return committed;
+        }finally{
+            stagedDeliveryAcks.clear();
+            stagedSequences.clear();
+        }
+    }
+
+    int abortStagedDeliveries(){
+        int aborted=
+            stagedDeliveryAcks.size();
+
+        stagedDeliveryAcks.clear();
+        stagedSequences.clear();
+        return aborted;
+    }
+
+    int stagedDeliveryCount(){
+        return stagedDeliveryAcks.size();
     }
 
     int publishPendingIfSceneReady(
