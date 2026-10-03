@@ -534,6 +534,141 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture deferredBank=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredBank.coordinator(false,bridge);
+
+            int targetX=
+                deferredBank.movement.x()+2;
+            int targetY=
+                deferredBank.movement.y();
+
+            String spawned=
+                deferredBank.npcs.devSpawnNpc(
+                    7605,
+                    2,
+                    0,
+                    deferredBank.movement,
+                    deferredBank.writer
+                );
+
+            if(!spawned.startsWith(
+                    "DEV_NPC_SPAWN_OK"))
+                throw new AssertionError(
+                    "deferred bank coordinator banker spawn="+
+                    spawned
+                );
+
+            NpcEntity banker=null;
+
+            for(NpcEntity npc:
+                    deferredBank.npcs.snapshot())
+                if(npc.definitionId==7605&&
+                   npc.x==targetX&&
+                   npc.y==targetY){
+                    banker=npc;
+                    break;
+                }
+
+            if(banker==null)
+                throw new AssertionError(
+                    "deferred bank coordinator banker missing"
+                );
+
+            String queued=
+                deferredBank.routedNpcs.handle(
+                    new NpcAction(
+                        17,
+                        banker.sceneIndex
+                    ),
+                    banker,
+                    deferredBank.writer
+                );
+
+            if(queued==null||
+               !queued.contains(
+                   "DEFERRED_UNTIL_ADJACENT")||
+               !deferredBank.routedNpcs.hasPendingBank()||
+               deferredBank.routedNpcs.pendingBankNpc()!=banker)
+                throw new AssertionError(
+                    "deferred bank coordinator request not queued result="+
+                    queued
+                );
+
+            if(deferredBank.movement.advance()==null)
+                throw new AssertionError(
+                    "deferred bank coordinator did not approach"
+                );
+
+            deferredBank.writer.beginBatch();
+
+            coordinator.tick(
+                15L,
+                4_000L,
+                deferredBank.writer,
+                "[tick-bank-abort] "
+            );
+
+            if(deferredBank.bank.isOpen()||
+               !deferredBank.routedNpcs.hasPendingBank()||
+               deferredBank.routedNpcs.pendingBankNpc()!=banker||
+               !coordinator.deferredBankInteractionEligible())
+                throw new AssertionError(
+                    "deferred Bank opened inside outer world-tick batch"
+                );
+
+            deferredBank.writer.abortBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+
+            if(deferredBank.bank.isOpen()||
+               !deferredBank.routedNpcs.hasPendingBank()||
+               deferredBank.routedNpcs.pendingBankNpc()!=banker||
+               coordinator.deferredBankInteractionEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed deferred Bank state"
+                );
+
+            deferredBank.writer.beginBatch();
+
+            coordinator.tick(
+                16L,
+                4_600L,
+                deferredBank.writer,
+                "[tick-bank-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredBank.writer
+            );
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                4_600L
+            );
+
+            if(deferredBank.bank.isOpen()||
+               !deferredBank.routedNpcs.hasPendingBank())
+                throw new AssertionError(
+                    "deferred Bank settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredBankInteractionsAfterWorldTick(
+                4_600L,
+                deferredBank.writer,
+                "[tick-bank-commit] "
+            );
+
+            if(!deferredBank.bank.isOpen()||
+               deferredBank.routedNpcs.hasPendingBank())
+                throw new AssertionError(
+                    "post-commit deferred Bank settlement failed"
+                );
+        }
+
         try(Fixture deferredTake=new Fixture()){
             TickBridge bridge=new TickBridge();
             LocalWorldTickCoordinator coordinator=
@@ -617,6 +752,7 @@ public final class LocalWorldTickCoordinatorTest {
             deferredTake.writer.abortBatch();
             coordinator.abortHomePresentationBatch();
             coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
             coordinator.abortDeferredGroundTakeAfterWorldTick();
 
             if(deferredTake.bank.inventoryCount(995)!=0||
@@ -644,6 +780,11 @@ public final class LocalWorldTickCoordinatorTest {
             coordinator.commitHomePresentationBatch();
             coordinator.commitGroundPresentationBatch(
                 5_600L
+            );
+            coordinator.settleDeferredBankInteractionsAfterWorldTick(
+                5_600L,
+                deferredTake.writer,
+                "[tick-ground-take-commit] "
             );
 
             if(deferredTake.bank.inventoryCount(995)!=0||
@@ -766,6 +907,7 @@ public final class LocalWorldTickCoordinatorTest {
             deferredPetPickup.writer.abortBatch();
             coordinator.abortHomePresentationBatch();
             coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
             coordinator.abortDeferredGroundTakeAfterWorldTick();
             coordinator.abortDeferredPetPickupAfterWorldTick();
 
@@ -795,6 +937,11 @@ public final class LocalWorldTickCoordinatorTest {
             coordinator.commitHomePresentationBatch();
             coordinator.commitGroundPresentationBatch(
                 6_600L
+            );
+            coordinator.settleDeferredBankInteractionsAfterWorldTick(
+                6_600L,
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-commit] "
             );
 
             if(deferredPetPickup.npcs.pet()!=pet||
@@ -860,6 +1007,8 @@ public final class LocalWorldTickCoordinatorTest {
             "tickCountersOwned=true schedulerHooks=true "+
             "respawnLifecycle=true "+
             "transientMovementSave=false "+
+            "deferredBankOuterAbortPreservesState=true "+
+            "deferredBankPostCommitSettles=true "+
             "deferredTakeOuterAbortPreservesState=true "+
             "deferredTakePostCommitSettles=true "+
             "deferredPetPickupOuterAbortPreservesState=true "+

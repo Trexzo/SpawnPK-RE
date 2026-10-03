@@ -151,10 +151,21 @@ final class LocalBankObjectInteractionHandler {
             return null;
         }
 
-        pending=null;
         movement.clearQueuedPath();
-        return openNow(
-            request,serverPackets,"OPENED_AFTER_AUTHORITATIVE_ARRIVAL");
+
+        String result=
+            openNow(
+                request,
+                serverPackets,
+                "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
+            );
+
+        /*
+         * Clear only after standalone Bank publication returns normally.
+         * Transport failure retains the exact deferred object request.
+         */
+        pending=null;
+        return result;
     }
 
     boolean hasPending(){

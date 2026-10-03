@@ -673,6 +673,9 @@ public final class LocalBankObjectInteractionHandlerTest {
                     " count="+rootPublications[0]
                 );
 
+            testDeferredBankPublicationFailureRetainsPending(
+                world.content()
+            );
             testBankTransferPublicationAtomicity();
             testBankStructuralPublicationAtomicity();
             testBankTransferQuantityOverflow();
@@ -686,6 +689,7 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "nonBankFailClosed=true "+
                 "deferredOwnership=true "+
                 "deferredRootOwnership=true "+
+                "deferredPublicationFailureRetainsPending=true "+
                 "serverApproachQueued=true "+
                 "pathEndCancel=true "+
                 "bankClosedOpenFailureAtomic=true "+
@@ -716,6 +720,112 @@ public final class LocalBankObjectInteractionHandlerTest {
                 world.unregisterPlayer(player);
             world.close();
         }
+    }
+
+    private static void testDeferredBankPublicationFailureRetainsPending(
+        ContentRegistry registry
+    )throws Exception{
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=
+            player.bank();
+        MovementState movement=
+            player.movement();
+        LocalBankObjectInteractionHandler handler=
+            new LocalBankObjectInteractionHandler(
+                bank,
+                movement,
+                registry
+            );
+
+        ByteArrayOutputStream healthyWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                healthyWire,
+                new IsaacCipher(
+                    new int[]{201,202,203,204}
+                )
+            );
+
+        ObjectInteraction request=
+            new ObjectInteraction(
+                132,
+                BankState.BANK_OBJECT_ID,
+                movement.x()+2,
+                movement.y()
+            );
+
+        String queued=
+            handler.handle(
+                request,
+                healthy
+            );
+
+        if(queued==null||
+           !queued.contains(
+               "DEFERRED_UNTIL_ADJACENT")||
+           !handler.hasPending())
+            throw new AssertionError(
+                "deferred bank failure fixture not queued result="+
+                queued
+            );
+
+        if(movement.advance()==null)
+            throw new AssertionError(
+                "deferred bank failure fixture did not approach"
+            );
+
+        OutboundPacketQueue queue=
+            fullQueue();
+        ServerPacketWriter failed=
+            queueWriter(
+                queue,
+                new int[]{205,206,207,208}
+            );
+
+        boolean publicationFailed=false;
+
+        try{
+            handler.tick(
+                System.currentTimeMillis(),
+                failed
+            );
+        }catch(java.io.IOException expected){
+            publicationFailed=true;
+        }
+
+        if(!publicationFailed||
+           bank.isOpen()||
+           !handler.hasPending())
+            throw new AssertionError(
+                "failed deferred bank publication lost preimage"
+            );
+
+        ByteArrayOutputStream drain=
+            new ByteArrayOutputStream();
+
+        queue.drainTo(
+            drain,
+            1<<20
+        );
+
+        String retry=
+            handler.tick(
+                System.currentTimeMillis(),
+                failed
+            );
+
+        if(retry==null||
+           !retry.contains(
+               "OPENED_AFTER_AUTHORITATIVE_ARRIVAL")||
+           !bank.isOpen()||
+           handler.hasPending()||
+           queue.queuedBytes()<=0)
+            throw new AssertionError(
+                "deferred bank same-writer retry failed result="+
+                retry
+            );
     }
 
     private static void testBankTransferPublicationAtomicity()
