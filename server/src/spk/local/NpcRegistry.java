@@ -171,12 +171,12 @@ final class NpcRegistry {
                 updates.add(
                     NpcSyncEncoder.Update.retain(n)
                 );
-        }else{
+            }else{
                 updates.add(
                     NpcSyncEncoder.Update.remove(n)
                 );
                 removed++;
-        }
+            }
         }
 
         if(removed>0){
@@ -964,7 +964,7 @@ final class NpcRegistry {
                     miniTrailingTileFor(
                         nextPet,
                         movement
-                );
+                    );
 
                 nextMini=
                     new NpcEntity(
@@ -972,8 +972,8 @@ final class NpcRegistry {
                         miniDefinition.npcId,
                         start[0],
                         start[1]
-                );
-        }
+                    );
+            }
         }
 
         int egressDir=
@@ -1001,7 +1001,7 @@ final class NpcRegistry {
                         movement.y())==1){
                 outX=lastOwnerAnchorX;
                 outY=lastOwnerAnchorY;
-        }else{
+            }else{
                 int[] west=
                     directionDelta(3);
                 outX=
@@ -1010,7 +1010,7 @@ final class NpcRegistry {
                 outY=
                     movement.y()+
                     west[1];
-        }
+            }
         }
 
         return new PreparedMainPetTransition(
@@ -1392,9 +1392,9 @@ final class NpcRegistry {
             // separate. Prefer a recently occupied cardinal tile when available.
             if(hasLastOwnerAnchor && Math.abs(lastOwnerAnchorX-movement.x())+Math.abs(lastOwnerAnchorY-movement.y())==1){
                 outX=lastOwnerAnchorX; outY=lastOwnerAnchorY;
-        } else {
+            } else {
                 int[] west=directionDelta(3); outX=movement.x()+west[0]; outY=movement.y()+west[1];
-        }
+            }
         }
         enqueueTrail(outX,outY);
         return "PET_SPAWN_OK item="+d.itemId+" npc="+d.npcId+" sceneIndex="+n.sceneIndex+" world="+n.x+","+n.y+" spawn=OWNER_TILE stepOutTarget="+outX+","+outY+
@@ -1607,11 +1607,11 @@ final class NpcRegistry {
                         entered[0]=true;
                         result[0]=
                             tickFollowMutating(
-                            movement,
-                            w,
+                                movement,
+                                w,
                                 deferredRelays
-                        );
-                }
+                            );
+                    }
                 );
         }catch(IOException failure){
             if(entered[0])
@@ -1825,11 +1825,11 @@ final class NpcRegistry {
             if(LocalSession.chebyshev(pet.x,pet.y,first[0],first[1])>1){
                 if(discardUntilAdjacent(ownerTrail,pet)){
                     petTrailState="DISCONTINUITY_RECONNECTED"; petDiscontinuityTicks=0;
-            } else {
+                } else {
                     ownerTrail.clear(); petDiscontinuityTicks=0; directPetCatchup=true;
                     petTrailState="BROKEN_TRAIL_DIRECT_CARDINAL_CATCHUP";
+                }
             }
-        }
         } else if(dist>1){
             directPetCatchup=true;
             petTrailState="EMPTY_TRAIL_DIRECT_CARDINAL_CATCHUP";
@@ -1852,7 +1852,7 @@ final class NpcRegistry {
                 applyPetDirection(pet,dir,true);
                 if(petMoves==0)petDir1=dir;else petDir2=dir;
                 petMoves++;
-        }
+            }
         } else if(!ownerTrail.isEmpty()){
             int[] first=ownerTrail.peekFirst();
             int firstManhattan=Math.abs(first[0]-pet.x)+Math.abs(first[1]-pet.y);
@@ -1865,7 +1865,7 @@ final class NpcRegistry {
                     ownerTrail.clear();
                     petTrailState="DISCONTINUITY_DURING_STEP_DIRECT_NEXT_TICK";
                     break;
-            }
+                }
                 int dir=FollowerStepResolver.nextDirection(
                     pet.x,
                     pet.y,
@@ -1880,7 +1880,7 @@ final class NpcRegistry {
                 if(petMoves==0)petDir1=dir;else petDir2=dir;
                 petMoves++;
                 if(pet.x==target[0]&&pet.y==target[1])ownerTrail.removeFirst();
-        }
+            }
         }
 
         int miniDir1=-1,miniDir2=-1,miniMoves=0;
@@ -1891,7 +1891,7 @@ final class NpcRegistry {
                 String recovery=reanchorMiniBesidePet(movement,w,deferredRelays);
                 miniDiscontinuityTicks=0;
                 return "PET_FOLLOW_MINI_TEMP_8_TILE_REANCHOR dist="+miniDist+" "+recovery+" policy=USER_APPROVED_TEMPORARY";
-        }
+            }
             pruneReached(miniTrail,miniPet);
             boolean directMiniCatchup=false;
             if(!miniTrail.isEmpty()){
@@ -1899,14 +1899,14 @@ final class NpcRegistry {
                 if(LocalSession.chebyshev(miniPet.x,miniPet.y,first[0],first[1])>1){
                     if(discardUntilAdjacent(miniTrail,miniPet)){
                         miniTrailState="DISCONTINUITY_RECONNECTED";miniDiscontinuityTicks=0;
-                }else{
+                    }else{
                         miniTrail.clear();miniDiscontinuityTicks=0;directMiniCatchup=true;
                         miniTrailState="BROKEN_TRAIL_DIRECT_CARDINAL_CATCHUP";
+                    }
                 }
-            }
-        }else if(miniDist>1){
+            }else if(miniDist>1){
                 directMiniCatchup=true;miniTrailState="EMPTY_TRAIL_DIRECT_CARDINAL_CATCHUP";
-        }
+            }
 
             if(directMiniCatchup){
                 int budget=(petMoves>0||miniDist>2)?2:1;
@@ -1919,13 +1919,13 @@ final class NpcRegistry {
                         pet.y,
                         1,
                         movement
-                );
+                    );
                     if(dir<0)break;
                     applyPetDirection(miniPet,dir,false);
                     if(miniMoves==0)miniDir1=dir;else miniDir2=dir;
                     miniMoves++;
-            }
-        }else if(!miniTrail.isEmpty()){
+                }
+            }else if(!miniTrail.isEmpty()){
                 int[] first=miniTrail.peekFirst();
                 int firstManhattan=Math.abs(first[0]-miniPet.x)+Math.abs(first[1]-miniPet.y);
                 int budget=petMoves>0?petMoves:((miniTrail.size()>1||firstManhattan>1||miniDist>2)?2:1);
@@ -1942,14 +1942,14 @@ final class NpcRegistry {
                         target[1],
                         0,
                         movement
-                );
+                    );
                     if(dir<0)break;
                     applyPetDirection(miniPet,dir,false);
                     if(miniMoves==0)miniDir1=dir;else miniDir2=dir;
                     miniMoves++;
                     if(miniPet.x==target[0]&&miniPet.y==target[1])miniTrail.removeFirst();
+                }
             }
-        }
             hasMiniTrail=!miniTrail.isEmpty();
             if(hasMiniTrail){int[] t=miniTrail.peekFirst();miniTrailX=t[0];miniTrailY=t[1];}
         }
@@ -2054,7 +2054,7 @@ final class NpcRegistry {
             if(!MovementState.insideLoadedRegion(tx,ty)){
                 tx=mainPet.x;
                 ty=mainPet.y-1;
-        }
+            }
         }
 
         if(tx==mainPet.x&&ty==mainPet.y)
@@ -2184,20 +2184,20 @@ final class NpcRegistry {
             return result;
         }
 
-            ArrayList<NpcSyncEncoder.Update> updates=new ArrayList<>();
-            for(NpcEntity n:visible){
-                if(HomeWorldRuntimePlan.isHomeWorldSceneIndex(n.sceneIndex)){
-                    if(wd.shouldRemove(n.sceneIndex)){ updates.add(NpcSyncEncoder.Update.remove(n)); continue; }
-                    Integer d=wd.walkDirection(n.sceneIndex);
-                    if(d!=null){ applyDirection(n,d); updates.add(NpcSyncEncoder.Update.walk(n,d)); continue; }
+        ArrayList<NpcSyncEncoder.Update> updates=new ArrayList<>();
+        for(NpcEntity n:visible){
+            if(HomeWorldRuntimePlan.isHomeWorldSceneIndex(n.sceneIndex)){
+                if(wd.shouldRemove(n.sceneIndex)){ updates.add(NpcSyncEncoder.Update.remove(n)); continue; }
+                Integer d=wd.walkDirection(n.sceneIndex);
+                if(d!=null){ applyDirection(n,d); updates.add(NpcSyncEncoder.Update.walk(n,d)); continue; }
             }
-                // Dynamic pet and any other MAINLINE-owned actor are retained here.
-                updates.add(NpcSyncEncoder.Update.retain(n));
+            // Dynamic pet and any other MAINLINE-owned actor are retained here.
+            updates.add(NpcSyncEncoder.Update.retain(n));
         }
-            ensureNoAddedSceneCollision(wd.added);
-            w.varShort(65,NpcSyncEncoder.encode(updates,wd.added,movement.x(),movement.y()));
-            applyWorldMembership(wd);
-            assertUniqueSceneIndexes();
+        ensureNoAddedSceneCollision(wd.added);
+        w.varShort(65,NpcSyncEncoder.encode(updates,wd.added,movement.x(),movement.y()));
+        applyWorldMembership(wd);
+        assertUniqueSceneIndexes();
         return "HOME_NPC_PULSE tick="+worldTick+" worldAdd="+wd.added.size()+" worldRemove="+wd.removedSceneIndexes.size()+
             " worldWalk="+wd.walkDirectionBySceneIndex.size()+" pet="+(pet==null?"none":"RETAIN")+" visible="+visible.size();
     }
@@ -2221,13 +2221,13 @@ final class NpcRegistry {
                     )
                 );
                 removed++;
-        }else{
+            }else{
                 remove.add(
                     NpcSyncEncoder.Update.retain(
                         n
                     )
                 );
-        }
+            }
         }
 
         List<NpcEntity> authoritative=
@@ -2720,7 +2720,7 @@ final class NpcRegistry {
             for(NpcEntity n:visible){
                 if(n.sceneIndex==a.sceneIndex && !HomeWorldRuntimePlan.isHomeWorldSceneIndex(n.sceneIndex))
                     throw new IllegalStateException("HOME add collides with dynamic scene index "+a.sceneIndex);
-        }
+            }
         }
     }
 
@@ -2806,7 +2806,7 @@ final class NpcRegistry {
                 pet.bindCanonicalId(canonical.id);
                 pet.x=canonical.x();
                 pet.y=canonical.y();
-        }
+            }
         }
 
         if(miniPet!=null){
@@ -2816,7 +2816,7 @@ final class NpcRegistry {
                 miniPet.bindCanonicalId(canonical.id);
                 miniPet.x=canonical.x();
                 miniPet.y=canonical.y();
-        }
+            }
         }
     }
 
