@@ -674,6 +674,171 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture deferredPet=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredPet.coordinator(
+                    true,
+                    bridge
+                );
+
+            PetDefinitionRepository.Def petDef=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(petDef==null)
+                throw new AssertionError(
+                    "deferred pet fixture missing"
+                );
+
+            String spawned=
+                deferredPet.npcs.spawnPet(
+                    petDef,
+                    deferredPet.movement,
+                    deferredPet.writer
+                );
+
+            if(spawned==null||
+               !spawned.startsWith(
+                   "PET_SPAWN_OK"))
+                throw new AssertionError(
+                    "deferred pet spawn failed result="+
+                    spawned
+                );
+
+            deferredPet.petState.activate(
+                petDef
+            );
+
+            NpcEntity pet=
+                deferredPet.npcs.pet();
+
+            if(pet==null)
+                throw new AssertionError(
+                    "deferred pet actor missing"
+                );
+
+            pet.x=
+                deferredPet.movement.x()+1;
+            pet.y=
+                deferredPet.movement.y();
+
+            if(!deferredPet.petDropPickup
+                    .handlePickupNpcAction(
+                        new NpcAction(
+                            155,
+                            pet.sceneIndex
+                        ),
+                        deferredPet.writer,
+                        "[tick-pet-pickup-arm] "
+                    )||
+               !deferredPet.petDropPickup
+                    .pickupPending())
+                throw new AssertionError(
+                    "deferred pet pickup did not arm"
+                );
+
+            int inventoryBefore=
+                deferredPet.bank.inventoryCount(
+                    petDef.itemId
+                );
+
+            deferredPet.writer.beginBatch();
+
+            coordinator.tick(
+                30L,
+                6_000L,
+                deferredPet.writer,
+                "[tick-pet-pickup-abort] "
+            );
+
+            if(!deferredPet.petState.active()||
+               deferredPet.npcs.pet()!=pet||
+               deferredPet.bank.inventoryCount(
+                    petDef.itemId
+                )!=inventoryBefore||
+               !deferredPet.petDropPickup
+                    .pickupPending()||
+               !coordinator
+                    .deferredPetPickupEligible())
+                throw new AssertionError(
+                    "deferred pet pickup committed inside outer world-tick batch"
+                );
+
+            deferredPet.writer.abortBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+
+            if(!deferredPet.petState.active()||
+               deferredPet.npcs.pet()!=pet||
+               deferredPet.bank.inventoryCount(
+                    petDef.itemId
+                )!=inventoryBefore||
+               !deferredPet.petDropPickup
+                    .pickupPending()||
+               coordinator
+                    .deferredPetPickupEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed deferred pet pickup state"
+                );
+
+            deferredPet.writer.beginBatch();
+
+            coordinator.tick(
+                31L,
+                6_600L,
+                deferredPet.writer,
+                "[tick-pet-pickup-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredPet.writer
+            );
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                6_600L
+            );
+
+            if(!deferredPet.petState.active()||
+               deferredPet.npcs.pet()!=pet||
+               deferredPet.bank.inventoryCount(
+                    petDef.itemId
+               )!=inventoryBefore||
+               !deferredPet.petDropPickup
+                    .pickupPending())
+                throw new AssertionError(
+                    "deferred pet pickup settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredGroundTakeAfterWorldTick(
+                6_600L,
+                deferredPet.writer,
+                "[tick-pet-pickup-commit] "
+            );
+
+            coordinator.settleDeferredPetPickupAfterWorldTick(
+                6_600L,
+                deferredPet.writer,
+                "[tick-pet-pickup-commit] "
+            );
+
+            if(deferredPet.petState.active()||
+               deferredPet.npcs.pet()!=null||
+               deferredPet.bank.inventoryCount(
+                    petDef.itemId
+                )!=inventoryBefore+1||
+               deferredPet.petDropPickup
+                    .pickupPending()||
+               coordinator
+                    .deferredPetPickupEligible())
+                throw new AssertionError(
+                    "post-commit deferred pet pickup settlement failed"
+                );
+        }
+
         try(Fixture reconnect=new Fixture()){
             reconnect.npcs.tickHome(
                 reconnect.movement,
@@ -707,6 +872,8 @@ public final class LocalWorldTickCoordinatorTest {
             "transientMovementSave=false "+
             "deferredTakeOuterAbortPreservesState=true "+
             "deferredTakePostCommitSettles=true "+
+            "deferredPetPickupOuterAbortPreservesState=true "+
+            "deferredPetPickupPostCommitSettles=true "+
             "sharedHomeClockReconnect=true"
         );
     }
