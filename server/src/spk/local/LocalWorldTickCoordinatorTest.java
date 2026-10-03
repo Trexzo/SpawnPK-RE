@@ -674,6 +674,161 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture deferredPetPickup=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredPetPickup.coordinator(false,bridge);
+
+            PetDefinitionRepository.Def def=
+                PetDefinitionRepository.get(24019);
+
+            if(def==null)
+                throw new AssertionError(
+                    "deferred pet pickup fixture definition missing"
+                );
+
+            String spawn=
+                deferredPetPickup.npcs.spawnPet(
+                    def,
+                    deferredPetPickup.movement,
+                    deferredPetPickup.writer
+                );
+
+            if(!spawn.startsWith("PET_SPAWN_OK"))
+                throw new AssertionError(
+                    "deferred pet pickup spawn failed: "+
+                    spawn
+                );
+
+            deferredPetPickup.petState.activate(
+                def
+            );
+
+            String follow=
+                deferredPetPickup.npcs.tickFollow(
+                    deferredPetPickup.movement,
+                    deferredPetPickup.writer
+                );
+
+            NpcEntity pet=
+                deferredPetPickup.npcs.pet();
+
+            if(follow==null||
+               !follow.contains("movement=WALK")||
+               pet==null||
+               Math.abs(
+                   pet.x-
+                   deferredPetPickup.movement.x()
+               )+
+               Math.abs(
+                   pet.y-
+                   deferredPetPickup.movement.y()
+               )!=1)
+                throw new AssertionError(
+                    "deferred pet pickup fixture not cardinal adjacent"
+                );
+
+            if(!deferredPetPickup.petDropPickup
+                    .handlePickupNpcAction(
+                        new NpcAction(
+                            155,
+                            pet.sceneIndex
+                        ),
+                        deferredPetPickup.writer,
+                        "[tick-pet-pickup-fixture] "
+                    )||
+               !deferredPetPickup.petDropPickup
+                    .pickupPending())
+                throw new AssertionError(
+                    "deferred pet pickup was not queued"
+                );
+
+            deferredPetPickup.writer.beginBatch();
+
+            coordinator.tick(
+                30L,
+                6_000L,
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-abort] "
+            );
+
+            if(deferredPetPickup.npcs.pet()!=pet||
+               !deferredPetPickup.petState.active()||
+               deferredPetPickup.bank.inventoryCount(
+                    def.itemId
+               )!=0||
+               !deferredPetPickup.petDropPickup.pickupPending()||
+               !coordinator.deferredPetPickupEligible())
+                throw new AssertionError(
+                    "pet pickup committed inside outer world-tick batch"
+                );
+
+            deferredPetPickup.writer.abortBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+
+            if(deferredPetPickup.npcs.pet()!=pet||
+               !deferredPetPickup.petState.active()||
+               deferredPetPickup.bank.inventoryCount(
+                    def.itemId
+               )!=0||
+               !deferredPetPickup.petDropPickup.pickupPending()||
+               coordinator.deferredPetPickupEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed pet pickup state"
+                );
+
+            deferredPetPickup.writer.beginBatch();
+
+            coordinator.tick(
+                31L,
+                6_600L,
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredPetPickup.writer
+            );
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                6_600L
+            );
+
+            if(deferredPetPickup.npcs.pet()!=pet||
+               !deferredPetPickup.petState.active()||
+               deferredPetPickup.bank.inventoryCount(
+                    def.itemId
+               )!=0||
+               !deferredPetPickup.petDropPickup.pickupPending())
+                throw new AssertionError(
+                    "pet pickup settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredGroundTakeAfterWorldTick(
+                6_600L,
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-commit] "
+            );
+            coordinator.settleDeferredPetPickupAfterWorldTick(
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-commit] ",
+                6_600L
+            );
+
+            if(deferredPetPickup.npcs.pet()!=null||
+               deferredPetPickup.petState.active()||
+               deferredPetPickup.bank.inventoryCount(
+                    def.itemId
+               )!=1||
+               deferredPetPickup.petDropPickup.pickupPending())
+                throw new AssertionError(
+                    "post-commit pet pickup settlement failed"
+                );
+        }
+
         try(Fixture reconnect=new Fixture()){
             reconnect.npcs.tickHome(
                 reconnect.movement,
@@ -707,6 +862,8 @@ public final class LocalWorldTickCoordinatorTest {
             "transientMovementSave=false "+
             "deferredTakeOuterAbortPreservesState=true "+
             "deferredTakePostCommitSettles=true "+
+            "deferredPetPickupOuterAbortPreservesState=true "+
+            "deferredPetPickupPostCommitSettles=true "+
             "sharedHomeClockReconnect=true"
         );
     }
