@@ -200,6 +200,17 @@ final class WorldPlayerPersistence
         new AtomicReference<>();
     private final AtomicReference<SaveTask> inFlightSave=
         new AtomicReference<>();
+
+    /*
+     * Protected by the persistence admission lock (io). A bound final
+     * reservation becomes visible here only while it actually owns a FIFO
+     * position. Ordinary saves for that exact owner/generation are then
+     * rejected instead of being admitted behind the final slot.
+     */
+    private final IdentityHashMap<WorldPlayer,Long>
+        finalReservationGenerations=
+            new IdentityHashMap<>();
+
     private final Object checkpointLock=
         new Object();
     private final HashMap<EntityId,CheckpointSlot> checkpoints=
@@ -409,14 +420,9 @@ final class WorldPlayerPersistence
         SaveTask task=
             saveTask(captured);
 
-        try{
-            io.execute(task);
-        }catch(RejectedExecutionException e){
-            task.reject(
-                e,
-                "IO_BACKPRESSURE"
-            );
-        }
+        enqueueSaveImmediate(
+            task
+        );
 
         return captured.ticket;
     }
@@ -767,13 +773,181 @@ final class WorldPlayerPersistence
         CapturedSave captured
     ){
         return new SaveTask(
-            captured.ticket.sequence,
-            captured.ticket.snapshot,
-            captured.petAccessoryItem,
-            captured.tag,
-            captured.reason,
-            captured.ticket.completion
+            captured
         );
+    }
+
+    private boolean finalReservationBlocksLocked(
+        SaveTask task
+    ){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "final reservation save fence requires persistence admission ownership"
+            );
+
+        if(task==null||
+           task.finalDisconnect||
+           task.owner==null)
+            return false;
+
+        Long generation=
+            finalReservationGenerations.get(
+                task.owner
+            );
+
+        return generation!=null&&
+            generation.longValue()==
+                task.expectedGeneration;
+    }
+
+    private RejectedExecutionException
+        finalReservationSaveRejection(
+            SaveTask task
+        )
+    {
+        return new RejectedExecutionException(
+            "ordinary save blocked behind final reservation player="+
+            task.owner.id()+
+            " generation="+
+            task.expectedGeneration
+        );
+    }
+
+    private void activateFinalReservationLocked(
+        ReservedFinalSaveTask task
+    ){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "final reservation activation requires persistence admission ownership"
+            );
+
+        if(task.owner==null)
+            return;
+
+        Long existing=
+            finalReservationGenerations.get(
+                task.owner
+            );
+
+        if(existing!=null)
+            throw new IllegalStateException(
+                "final reservation already active player="+
+                task.owner.id()+
+                " generation="+
+                existing
+            );
+
+        finalReservationGenerations.put(
+            task.owner,
+            task.ownerGeneration
+        );
+    }
+
+    private void clearFinalReservationLocked(
+        WorldPlayer owner,
+        long expectedGeneration
+    ){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "final reservation clear requires persistence admission ownership"
+            );
+
+        if(owner==null)
+            return;
+
+        Long existing=
+            finalReservationGenerations.get(
+                owner
+            );
+
+        if(existing!=null&&
+           existing.longValue()==expectedGeneration)
+            finalReservationGenerations.remove(
+                owner
+            );
+    }
+
+    private void clearFinalReservation(
+        WorldPlayer owner,
+        long expectedGeneration
+    ){
+        if(owner==null)
+            return;
+
+        synchronized(io){
+            clearFinalReservationLocked(
+                owner,
+                expectedGeneration
+            );
+        }
+    }
+
+    private boolean tryAdmitFinalReservationLocked(
+        ReservedFinalSaveTask task,
+        boolean executorAdmission
+    ){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "final reservation admission requires persistence admission ownership"
+            );
+
+        activateFinalReservationLocked(
+            task
+        );
+
+        boolean admitted=false;
+
+        try{
+            if(executorAdmission){
+                io.execute(
+                    task
+                );
+                admitted=true;
+                return true;
+            }
+
+            admitted=
+                io.getQueue().offer(
+                    task
+                );
+            return admitted;
+        }finally{
+            if(!admitted)
+                clearFinalReservationLocked(
+                    task.owner,
+                    task.ownerGeneration
+                );
+        }
+    }
+
+    private void enqueueSaveImmediate(
+        SaveTask task
+    ){
+        synchronized(io){
+            if(finalReservationBlocksLocked(
+                    task)){
+                task.reject(
+                    finalReservationSaveRejection(
+                        task
+                    ),
+                    "FINAL_RESERVATION_FENCE"
+                );
+                return;
+            }
+
+            try{
+                io.execute(
+                    task
+                );
+            }catch(RejectedExecutionException failure){
+                task.reject(
+                    failure,
+                    io.isShutdown()
+                        ?"SHUTDOWN"
+                        :"IO_BACKPRESSURE"
+                );
+            }
+        }
     }
 
     private void enqueueSaveWithBackpressure(
@@ -792,6 +966,17 @@ final class WorldPlayerPersistence
         try{
             for(;;){
                 synchronized(io){
+                    if(finalReservationBlocksLocked(
+                            task)){
+                        task.reject(
+                            finalReservationSaveRejection(
+                                task
+                            ),
+                            "FINAL_RESERVATION_FENCE"
+                        );
+                        return;
+                    }
+
                     if(io.isShutdown()){
                         task.reject(
                             new RejectedExecutionException(
