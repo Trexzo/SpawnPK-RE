@@ -108,6 +108,24 @@ final class WorldPlayerPersistence
                 throw failure;
             }
 
+            if(task.owner!=null&&
+               (captured.owner!=task.owner||
+                captured.expectedGeneration!=
+                    task.ownerGeneration)){
+                IllegalArgumentException failure=
+                    new IllegalArgumentException(
+                        "final save reservation owner mismatch player="+
+                        task.owner.id()+
+                        " expectedGeneration="+
+                        task.ownerGeneration
+                    );
+
+                abort(
+                    failure
+                );
+                throw failure;
+            }
+
             synchronized(this){
                 if(settled)
                     throw new IllegalStateException(
