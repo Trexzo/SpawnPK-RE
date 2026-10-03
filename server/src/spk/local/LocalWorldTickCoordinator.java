@@ -49,6 +49,7 @@ final class LocalWorldTickCoordinator {
     private final LocalBankObjectInteractionHandler bankObjectHandler;
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     private final LocalGroundItemInteractionHandler groundItemHandler;
+    private final LocalGroundItemPresentationRelay groundItemPresentationRelay;
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final SessionBridge bridge;
@@ -141,6 +142,12 @@ final class LocalWorldTickCoordinator {
             routedNpcHandler,"routedNpcHandler");
         this.groundItemHandler=Objects.requireNonNull(
             groundItemHandler,"groundItemHandler");
+        this.groundItemPresentationRelay=
+            new LocalGroundItemPresentationRelay(
+                this.world,
+                this.worldPlayer,
+                this.movement
+            );
         this.petDropPickup=Objects.requireNonNull(
             petDropPickup,"petDropPickup");
         this.petRuntimeCommands=Objects.requireNonNull(
@@ -330,6 +337,12 @@ final class LocalWorldTickCoordinator {
                 tag+makeoverTick
             );
 
+        groundItemPresentationRelay.publishPendingIfSceneReady(
+            now,
+            bridge.scenePublisher(),
+            regionStreams.regionLoadPending()
+        );
+
         applyGroundItemResult(
             groundItemHandler.tick(
                 now,
@@ -352,6 +365,10 @@ final class LocalWorldTickCoordinator {
             );
 
         legacyTickCount++;
+
+        npcs.beginHomePresentationBatch(
+            homeWorld
+        );
 
         String npcPulse=
             npcs.tickHome(
@@ -528,6 +545,12 @@ final class LocalWorldTickCoordinator {
             movementTickCount++;
         }
 
+        groundItemPresentationRelay.publishPendingIfSceneReady(
+            now,
+            bridge.scenePublisher(),
+            regionStreams.regionLoadPending()
+        );
+
         petDropPickup.tick(
             writer,
             tag,
@@ -562,6 +585,26 @@ final class LocalWorldTickCoordinator {
                 " staticCollision=true homeWorldNpcSystemsSuspended=true petLifecycleActive=true transientPositionSave=false"
             );
         }
+    }
+
+    void completeRegionLoad(
+        RegionLoadLifecycle.Completion completion,
+        ServerPacketWriter writer,
+        String tag,
+        long now
+    )throws IOException{
+        boolean groundSnapshotPublished=
+            regionStreams.completeRegionLoad(
+                completion,
+                writer,
+                tag
+            );
+
+        groundItemPresentationRelay
+            .consumeSnapshotCoveredAfterSnapshot(
+                now,
+                groundSnapshotPublished
+            );
     }
 
     private void publishMovement(
@@ -686,6 +729,37 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    boolean commitHomePresentationBatch(){
+        return npcs
+            .commitHomePresentationBatch();
+    }
+
+    boolean abortHomePresentationBatch(){
+        return npcs
+            .abortHomePresentationBatch(
+                homeWorld
+            );
+    }
+
+    int commitGroundPresentationBatch(
+        long now
+    ){
+        return groundItemPresentationRelay
+            .commitStagedDeliveries(
+                now
+            );
+    }
+
+    int abortGroundPresentationBatch(){
+        return groundItemPresentationRelay
+            .abortStagedDeliveries();
+    }
+
+    int stagedGroundPresentationCount(){
+        return groundItemPresentationRelay
+            .stagedDeliveryCount();
     }
 
     long legacyTickCount(){

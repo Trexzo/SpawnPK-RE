@@ -23,6 +23,25 @@ final class LocalCompCapeCustomizeHandler {
             playerState,"playerState");
     }
 
+    boolean willOpenRoot(
+        ItemContainerAction action
+    ){
+        if(action==null||
+           action.opcode!=75||
+           action.widgetId!=BankState.NORMAL_INVENTORY_CONTAINER||
+           !isSpecialCompCape(action.itemId))
+            return false;
+
+        BankState.Stack stack=
+            bank.inventoryAt(
+                action.slot
+            );
+
+        return stack!=null&&
+            stack.itemId==action.itemId&&
+            stack.qty>0;
+    }
+
     String handleItemAction(
         ItemContainerAction action,
         ServerPacketWriter serverPackets

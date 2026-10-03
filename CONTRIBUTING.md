@@ -1,8 +1,10 @@
 # Contributing
 
-Use a focused feature, fix, research, test, or documentation branch and open a pull request against `main`.
+Use a focused feature, fix, research, test, or documentation branch. For ordinary work, open a pull request against `main`; when the repository's active GitHub coordination queue names a cumulative integration/release target, follow that target instead. Do not assume a permanent intermediate branch name.
 
 Do not edit `main` directly. Mainline changes should remain reviewable and compatible with the repository's cumulative certification and provenance model.
+
+Promote to `main` only through the current cumulative integration/release process after the required certification and merged-main verification gates are satisfied.
 
 ## Before merge
 

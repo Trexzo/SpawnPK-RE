@@ -17,12 +17,51 @@ final class SceneUpdatePublisher {
     private void ensureBase(int cx,int cy)throws IOException{ if(!ctx.isCurrent(cx,cy)){ packets.fixed(85,SceneObjectPacketCodec.sceneBase85(cx,cy)); ctx.setCurrent(cx,cy); } }
 
     void groundSpawn(GroundItem g)throws IOException{
-        int c=packed(g.tile);
-        packets.fixed(44,SceneUpdateEncoding.groundSpawn(c,g.itemId,g.amount));
+        groundSpawn(
+            g.itemId,
+            g.amount,
+            g.tile
+        );
+    }
+    void groundSpawn(
+        int itemId,
+        int amount,
+        Tile tile
+    )throws IOException{
+        int c=packed(tile);
+        packets.fixed(
+            44,
+            SceneUpdateEncoding.groundSpawn(
+                c,
+                itemId,
+                amount
+            )
+        );
     }
     void groundAmount(GroundItem g,int oldAmount)throws IOException{
-        int c=packed(g.tile);
-        packets.fixed(84,SceneUpdateEncoding.groundAmount(c,g.itemId,oldAmount,g.amount));
+        groundAmount(
+            g.itemId,
+            oldAmount,
+            g.amount,
+            g.tile
+        );
+    }
+    void groundAmount(
+        int itemId,
+        int oldAmount,
+        int newAmount,
+        Tile tile
+    )throws IOException{
+        int c=packed(tile);
+        packets.fixed(
+            84,
+            SceneUpdateEncoding.groundAmount(
+                c,
+                itemId,
+                oldAmount,
+                newAmount
+            )
+        );
     }
     void groundRemove(GroundItem g)throws IOException{
         int c=packed(g.tile);

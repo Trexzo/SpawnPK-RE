@@ -25,4 +25,5 @@ final class PetState {
     void clearMini(){miniItemId=-1;}
 
 
+
 }

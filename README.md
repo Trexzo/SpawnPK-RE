@@ -280,6 +280,16 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\RUN_LOCAL_LAB.ps1
 ```
 
+Bootstrap runs the inherited exact-v308 179/179 R8.5 development compatibility selftest when the exact client fixture is available. That is useful setup/regression evidence, but it is **not** the complete current cumulative release certificate.
+
+For the full current release acceptance path, use:
+
+```powershell
+.\RUN_CURRENT_RELEASE_ACCEPTANCE.ps1 -V308ClientPath .\evidence\client(6).jar
+```
+
+That path runs the ordinary build, the canonical exact-current cumulative certification/evidence wrapper, and the live LocalLab loopback smoke.
+
 The LocalLab binds only to loopback:
 
 ```text

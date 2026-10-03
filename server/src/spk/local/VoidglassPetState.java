@@ -14,6 +14,10 @@ final class VoidglassPetState {
     int procCount(){return procCount;}
     Integer previousParticleSelector(){return previousParticleSelector;}
 
+    Integer selectorAfterClear(){
+        return previousParticleSelector;
+    }
+
     void activate(Integer previous){
         active=true;
         previousParticleSelector=previous;

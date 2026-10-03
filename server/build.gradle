@@ -54,6 +54,20 @@ def kotlinFixtureStdlib =
         transitive = false
     }
 
+def kotlinScriptingRuntime =
+    configurations.create('kotlinScriptingRuntime') {
+        canBeConsumed = false
+        canBeResolved = true
+        visible = false
+    }
+
+def kotlinScriptPluginClasspath =
+    configurations.create('kotlinScriptPluginClasspath') {
+        canBeConsumed = false
+        canBeResolved = true
+        visible = false
+    }
+
 dependencies {
     add(
         kotlinFixtureCompiler.name,
@@ -62,6 +76,40 @@ dependencies {
     add(
         kotlinFixtureStdlib.name,
         'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
+    )
+
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-script-runtime:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-scripting-common:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-scripting-jvm:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-scripting-jvm-host:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:2.4.20'
+    )
+
+    add(
+        kotlinScriptPluginClasspath.name,
+        'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
+    )
+    add(
+        kotlinScriptPluginClasspath.name,
+        'org.jetbrains.kotlin:kotlin-script-runtime:2.4.20'
     )
 }
 
@@ -249,8 +297,180 @@ def pluginApiJar =
         }
     }
 
+def kotlinScriptSdkOutput =
+    layout.buildDirectory.dir(
+        'classes/kotlin-script-sdk/main'
+    )
+
+def compileKotlinScriptSdk =
+    tasks.register(
+        'compileKotlinScriptSdk',
+        JavaExec
+    ) {
+        group = 'build'
+        description = 'Compiles Kotlin script DSL helpers against the standalone plugin API and script-visible Kotlin runtime only.'
+        dependsOn pluginApiJar
+
+        classpath = kotlinFixtureCompiler
+        mainClass =
+            'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler'
+        javaLauncher =
+            javaToolchains.launcherFor {
+                languageVersion =
+                    JavaLanguageVersion.of(21)
+            }
+
+        def kotlinSources =
+            fileTree(
+                'kotlin-sdk'
+            ) {
+                include '**/*.kt'
+            }
+
+        inputs.files(kotlinSources)
+        inputs.files(kotlinScriptPluginClasspath)
+        outputs.dir(kotlinScriptSdkOutput)
+
+        doFirst {
+            File output =
+                kotlinScriptSdkOutput
+                    .get()
+                    .asFile
+
+            project.delete(output)
+
+            if(!output.mkdirs()&&
+               !output.isDirectory())
+                throw new GradleException(
+                    'Could not create Kotlin script SDK output: ' +
+                    output
+                )
+
+            File apiJar =
+                pluginApiJar.get()
+                    .archiveFile.get()
+                    .asFile
+
+            def sources =
+                kotlinSources.files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+
+            if(sources.empty)
+                throw new GradleException(
+                    'No Kotlin script SDK sources found.'
+                )
+
+            String compileClasspath =
+                files(
+                    apiJar,
+                    kotlinScriptPluginClasspath
+                ).asPath
+
+            setArgs(
+                [
+                    '-jvm-target',
+                    '11',
+                    '-Xjdk-release=11',
+                    '-no-reflect',
+                    '-no-stdlib',
+                    '-classpath',
+                    compileClasspath,
+                    '-d',
+                    output.absolutePath
+                ] +
+                sources.collect {
+                    it.absolutePath
+                }
+            )
+        }
+    }
+
+tasks.register('verifyKotlinScriptSdkBytecode') {
+    group = 'verification'
+    description = 'Verifies Kotlin script SDK classes remain Java 11 bytecode compatible.'
+    dependsOn compileKotlinScriptSdk
+
+    doLast {
+        def classFiles =
+            fileTree(
+                kotlinScriptSdkOutput
+                    .get()
+                    .asFile
+            ) {
+                include '**/*.class'
+            }.files
+
+        if(classFiles.empty)
+            throw new GradleException(
+                'Kotlin script SDK produced no class files.'
+            )
+
+        classFiles.each { classFile ->
+            int major =
+                readClassMajor(
+                    classFile
+                )
+
+            if(major != 55)
+                throw new GradleException(
+                    'Kotlin script SDK bytecode major=' +
+                    major +
+                    ', expected=55 file=' +
+                    classFile
+                )
+        }
+
+        logger.lifecycle(
+            'KOTLIN_SCRIPT_SDK_BYTECODE_PASS major=55 classes=' +
+            classFiles.size()
+        )
+    }
+}
+
+
+def kotlinScriptRuntimeJar =
+    tasks.register(
+        'kotlinScriptRuntimeJar',
+        Jar
+    ) {
+        group = 'build'
+        description = 'Builds the script-visible Kotlin runtime + DSL artifact without SpawnPK server implementation classes.'
+        dependsOn compileKotlinScriptSdk
+        archiveFileName =
+            'SpawnPKKotlinScriptRuntime.jar'
+        destinationDirectory =
+            layout.buildDirectory
+        duplicatesStrategy =
+            DuplicatesStrategy.EXCLUDE
+
+        from(kotlinScriptSdkOutput)
+
+        from {
+            kotlinScriptPluginClasspath.collect {
+                file ->
+                    file.isDirectory()
+                        ? file
+                        : zipTree(file)
+            }
+        }
+
+        exclude(
+            'META-INF/*.SF',
+            'META-INF/*.DSA',
+            'META-INF/*.RSA'
+        )
+    }
+
 tasks.named('assemble') {
-    dependsOn pluginApiJar
+    dependsOn(
+        pluginApiJar,
+        kotlinScriptRuntimeJar
+    )
 }
 
 def compileJavaPluginApiFixture =
@@ -474,6 +694,11 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                 .archiveFile.get()
                 .asFile
 
+        boolean scriptingHostPresent = false
+        boolean scriptingSdkPresent = false
+        boolean kotlinStdlibPresent = false
+        boolean scriptingCompilerPresent = false
+
         new java.util.jar.JarFile(
             serverJar
         ).withCloseable { jar ->
@@ -486,23 +711,117 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                         .nextElement()
                         .getName()
 
-                if(name.startsWith(
-                        'kotlin/') ||
-                   name.startsWith(
-                        'org/jetbrains/kotlin/') ||
-                   name.endsWith(
-                        '.kotlin_module'))
-                    throw new GradleException(
-                        'Kotlin validation tooling leaked into server artifact: ' +
-                        name
-                    )
+                if(name ==
+                        'spk/local/KotlinPluginLoader.class')
+                    scriptingHostPresent = true
+
+                if(name ==
+                        'spk/plugin/kotlin/KotlinPluginDslKt.class')
+                    scriptingSdkPresent = true
+
+                if(name ==
+                        'kotlin/Unit.class')
+                    kotlinStdlibPresent = true
+
+                if(name ==
+                        'org/jetbrains/kotlin/scripting/compiler/plugin/ScriptingCompilerConfigurationComponentRegistrar.class' ||
+                   name ==
+                        'org/jetbrains/kotlin/cli/jvm/K2JVMCompiler.class')
+                    scriptingCompilerPresent = true
             }
         }
+
+        if(!scriptingHostPresent ||
+           !scriptingSdkPresent ||
+           !kotlinStdlibPresent ||
+           !scriptingCompilerPresent)
+            throw new GradleException(
+                'Kotlin scripting runtime packaging incomplete: host=' +
+                scriptingHostPresent +
+                ' sdk=' +
+                scriptingSdkPresent +
+                ' stdlib=' +
+                kotlinStdlibPresent +
+                ' compiler=' +
+                scriptingCompilerPresent
+            )
 
         File apiJar =
             pluginApiJar.get()
                 .archiveFile.get()
                 .asFile
+
+        File scriptRuntimeJar =
+            kotlinScriptRuntimeJar.get()
+                .archiveFile.get()
+                .asFile
+
+        if(!scriptRuntimeJar.isFile())
+            throw new GradleException(
+                'Missing Kotlin script runtime artifact: ' +
+                scriptRuntimeJar
+            )
+
+        boolean scriptStdlibPresent = false
+        boolean scriptTemplatePresent = false
+        boolean scriptDslPresent = false
+
+        new java.util.jar.JarFile(
+            scriptRuntimeJar
+        ).withCloseable { jar ->
+            def enumeration =
+                jar.entries()
+
+            while(enumeration.hasMoreElements()) {
+                def entry =
+                    enumeration
+                        .nextElement()
+                String name =
+                    entry.getName()
+
+                if(entry.isDirectory())
+                    continue
+
+                if(name.startsWith('spk/')) {
+                    boolean dsl =
+                        name ==
+                            'spk/plugin/kotlin/KotlinPluginDslKt.class' ||
+                        name.startsWith(
+                            'spk/plugin/kotlin/KotlinPluginDslKt$'
+                        )
+
+                    if(!dsl)
+                        throw new GradleException(
+                            'Kotlin script runtime artifact contains non-DSL SpawnPK class: ' +
+                            name
+                        )
+
+                    if(name ==
+                            'spk/plugin/kotlin/KotlinPluginDslKt.class')
+                        scriptDslPresent = true
+                }
+
+                if(name ==
+                        'kotlin/Unit.class')
+                    scriptStdlibPresent = true
+
+                if(name ==
+                        'kotlin/script/templates/standard/SimpleScriptTemplate.class')
+                    scriptTemplatePresent = true
+            }
+        }
+
+        if(!scriptStdlibPresent ||
+           !scriptTemplatePresent ||
+           !scriptDslPresent)
+            throw new GradleException(
+                'Kotlin script runtime artifact incomplete: stdlib=' +
+                scriptStdlibPresent +
+                ' template=' +
+                scriptTemplatePresent +
+                ' dsl=' +
+                scriptDslPresent
+            )
 
         def fixtureClasspath =
             files(
@@ -525,9 +844,303 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
             'jvmTarget=11 ' +
             'jdkRelease=11 ' +
             'bytecodeMajor=55 ' +
-            'serverRuntimeUnchanged=true ' +
-            'serverJarKotlinFree=true ' +
-            'scriptingRuntimeIntegrated=false'
+            'serverRuntimeScriptingOnly=true ' +
+            'serverJarKotlinScripting=true ' +
+            'scriptRuntimeArtifact=SpawnPKKotlinScriptRuntime.jar ' +
+            'scriptRuntimeSdkOnly=true ' +
+            'scriptingRuntimeIntegrated=true'
+        )
+    }
+}
+
+
+def kotlinScriptingHostOutput =
+    layout.buildDirectory.dir(
+        'classes/kotlin-scripting/main'
+    )
+
+def compileKotlinScriptingHost =
+    tasks.register(
+        'compileKotlinScriptingHost',
+        JavaExec
+    ) {
+        group = 'build'
+        description = 'Compiles the Kotlin 2.4.20 scripting host/loader against server internals while scripts themselves remain API-only.'
+        dependsOn tasks.named('classes')
+
+        classpath = kotlinFixtureCompiler
+        mainClass =
+            'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler'
+        javaLauncher =
+            javaToolchains.launcherFor {
+                languageVersion =
+                    JavaLanguageVersion.of(21)
+            }
+
+        def kotlinSources =
+            fileTree(
+                'kotlin-src'
+            ) {
+                include '**/*.kt'
+            }
+
+        inputs.files(kotlinSources)
+        inputs.files(kotlinScriptingRuntime)
+        outputs.dir(kotlinScriptingHostOutput)
+
+        doFirst {
+            File output =
+                kotlinScriptingHostOutput
+                    .get()
+                    .asFile
+
+            project.delete(output)
+
+            if(!output.mkdirs()&&
+               !output.isDirectory())
+                throw new GradleException(
+                    'Could not create Kotlin scripting host output: ' +
+                    output
+                )
+
+            def sources =
+                kotlinSources.files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+
+            if(sources.empty)
+                throw new GradleException(
+                    'No Kotlin scripting host sources found.'
+                )
+
+            String compileClasspath =
+                files(
+                    sourceSets.main.output.classesDirs,
+                    kotlinScriptingRuntime
+                ).asPath
+
+            setArgs(
+                [
+                    '-jvm-target',
+                    '11',
+                    '-Xjdk-release=11',
+                    '-no-reflect',
+                    '-no-stdlib',
+                    '-classpath',
+                    compileClasspath,
+                    '-d',
+                    output.absolutePath
+                ] +
+                sources.collect {
+                    it.absolutePath
+                }
+            )
+        }
+    }
+
+def kotlinScriptingServicesOutput =
+    layout.buildDirectory.dir(
+        'generated/kotlin-scripting-services'
+    )
+
+def mergeKotlinScriptingServices =
+    tasks.register(
+        'mergeKotlinScriptingServices'
+    ) {
+        group = 'build'
+        description = 'Deterministically merges META-INF/services providers from the embedded Kotlin scripting runtime.'
+        inputs.files(kotlinScriptingRuntime)
+        outputs.dir(kotlinScriptingServicesOutput)
+
+        doLast {
+            File output =
+                kotlinScriptingServicesOutput
+                    .get()
+                    .asFile
+
+            project.delete(output)
+
+            Map<String,LinkedHashSet<String>> providers =
+                new TreeMap<>()
+
+            def dependencies =
+                kotlinScriptingRuntime
+                    .files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+
+            dependencies.each { dependency ->
+                def tree =
+                    dependency.isDirectory()
+                        ? fileTree(dependency)
+                        : zipTree(dependency)
+
+                tree.matching {
+                    include 'META-INF/services/**'
+                }.files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+                    .each { serviceFile ->
+                        String relative
+
+                        if(dependency.isDirectory())
+                            relative =
+                                dependency.toPath()
+                                    .relativize(
+                                        serviceFile.toPath()
+                                    )
+                                    .toString()
+                                    .replace(
+                                        File.separatorChar,
+                                        '/' as char
+                                    )
+                        else {
+                            String absolute =
+                                serviceFile.absolutePath
+                                    .replace('\\','/')
+                            int markerIndex =
+                                absolute.lastIndexOf(
+                                    '/META-INF/services/'
+                                )
+
+                            if(markerIndex<0)
+                                throw new GradleException(
+                                    'Could not derive service path for ' +
+                                    serviceFile
+                                )
+
+                            relative =
+                                absolute.substring(
+                                    markerIndex + 1
+                                )
+                        }
+
+                        LinkedHashSet<String> lines =
+                            providers.computeIfAbsent(
+                                relative
+                            ) {
+                                new LinkedHashSet<String>()
+                            }
+
+                        serviceFile.eachLine(
+                            'UTF-8'
+                        ) { line ->
+                            String clean =
+                                line.trim()
+
+                            if(!clean.isEmpty() &&
+                               !clean.startsWith('#'))
+                                lines.add(clean)
+                        }
+                    }
+            }
+
+            providers.each {
+                relative,
+                lines ->
+                    File target =
+                        new File(
+                            output,
+                            relative
+                        )
+
+                    if(!target.parentFile.mkdirs() &&
+                       !target.parentFile.isDirectory())
+                        throw new GradleException(
+                            'Could not create service output directory: ' +
+                            target.parentFile
+                        )
+
+                    target.setText(
+                        lines.join(
+                            System.lineSeparator()
+                        ) +
+                        System.lineSeparator(),
+                        'UTF-8'
+                    )
+            }
+
+            logger.lifecycle(
+                'KOTLIN_SCRIPTING_SERVICES_MERGED files=' +
+                providers.size()
+            )
+        }
+    }
+
+tasks.named('jar', Jar) {
+    dependsOn(
+        pluginApiJar,
+        compileKotlinScriptingHost,
+        mergeKotlinScriptingServices,
+        kotlinScriptRuntimeJar
+    )
+
+    from(kotlinScriptingHostOutput)
+    from(kotlinScriptSdkOutput)
+
+    from({
+        kotlinScriptingRuntime.collect { file ->
+            file.isDirectory()
+                ? file
+                : zipTree(file)
+        }
+    }) {
+        exclude 'META-INF/services/**'
+    }
+
+    from(kotlinScriptingServicesOutput)
+}
+
+tasks.register('verifyKotlinScriptingHostBytecode') {
+    group = 'verification'
+    description = 'Verifies Kotlin scripting host classes retain Java 11 bytecode compatibility.'
+    dependsOn compileKotlinScriptingHost
+
+    doLast {
+        def classFiles =
+            fileTree(
+                kotlinScriptingHostOutput
+                    .get()
+                    .asFile
+            ) {
+                include '**/*.class'
+            }.files
+
+        if(classFiles.empty)
+            throw new GradleException(
+                'Kotlin scripting host produced no class files.'
+            )
+
+        classFiles.each { classFile ->
+            int major =
+                readClassMajor(
+                    classFile
+                )
+
+            if(major != 55)
+                throw new GradleException(
+                    'Kotlin scripting host bytecode major=' +
+                    major +
+                    ', expected=55 file=' +
+                    classFile
+                )
+        }
+
+        logger.lifecycle(
+            'KOTLIN_SCRIPTING_HOST_BYTECODE_PASS major=55 classes=' +
+            classFiles.size()
         )
     }
 }
@@ -715,6 +1328,165 @@ tasks.register(
             it.archiveFile
         }.get().asFile.absolutePath
     )
+}
+
+tasks.register(
+    'pluginLoaderAbstractionRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves the internal PluginLoader boundary preserves the existing isolated JAR runtime while reserving .kts for Kotlin scripting.'
+    dependsOn(
+        tasks.named('testClasses'),
+        pluginIsolationAJar
+    )
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass =
+        'spk.local.PluginLoaderAbstractionTest'
+    args(
+        pluginIsolationAJar.flatMap {
+            it.archiveFile
+        }.get().asFile.absolutePath
+    )
+}
+tasks.register(
+    'pluginKotlinScriptHostRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Loads an API-only .kts Plugin through KotlinPluginLoader, proves event/command callbacks, denies spk.local, and verifies runtime teardown.'
+    dependsOn(
+        pluginApiJar,
+        compileKotlinScriptingHost,
+        tasks.named('verifyKotlinScriptingHostBytecode'),
+        tasks.named('verifyKotlinScriptSdkBytecode'),
+        tasks.named('testClasses')
+    )
+
+    classpath = files(
+        sourceSets.test.runtimeClasspath,
+        kotlinScriptingHostOutput,
+        kotlinScriptSdkOutput,
+        kotlinScriptingRuntime
+    )
+    mainClass =
+        'spk.local.KotlinPluginLoaderTest'
+
+    def healthyScript =
+        file(
+            'plugin-fixtures/kotlin-script/healthy.kts'
+        )
+    def deniedScript =
+        file(
+            'plugin-fixtures/kotlin-script/internal-access-denied.kts'
+        )
+
+    inputs.files(
+        healthyScript,
+        deniedScript,
+        kotlinScriptRuntimeJar
+    )
+
+    doFirst {
+        File apiJar =
+            pluginApiJar.get()
+                .archiveFile.get()
+                .asFile
+
+        File scriptRuntimeJar =
+            kotlinScriptRuntimeJar.get()
+                .archiveFile.get()
+                .asFile
+
+        setArgs(
+            [
+                healthyScript.absolutePath,
+                deniedScript.absolutePath,
+                apiJar.absolutePath,
+                scriptRuntimeJar.absolutePath
+            ]
+        )
+    }
+}
+
+tasks.register(
+    'pluginKotlinDirectoryRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves plugins/kotlin startup discovery, production sibling artifact lookup, on-demand load, event/command callbacks, and root confinement.'
+    dependsOn(
+        tasks.named('pluginKotlinScriptHostRegression'),
+        kotlinScriptRuntimeJar,
+        pluginApiJar,
+        compileKotlinScriptingHost,
+        tasks.named('testClasses')
+    )
+
+    classpath = files(
+        sourceSets.test.runtimeClasspath,
+        kotlinScriptingHostOutput,
+        kotlinScriptSdkOutput,
+        kotlinScriptingRuntime
+    )
+    mainClass =
+        'spk.local.KotlinPluginDirectoryTest'
+
+    def healthyScript =
+        file(
+            'plugin-fixtures/kotlin-script/healthy.kts'
+        )
+
+    inputs.file(healthyScript)
+
+    doFirst {
+        File apiJar =
+            pluginApiJar.get()
+                .archiveFile.get()
+                .asFile
+        File scriptRuntimeJar =
+            kotlinScriptRuntimeJar.get()
+                .archiveFile.get()
+                .asFile
+
+        setArgs(
+            [
+                healthyScript.absolutePath,
+                apiJar.absolutePath,
+                scriptRuntimeJar.absolutePath
+            ]
+        )
+    }
+}
+
+tasks.register('pluginKotlinDslRegression') {
+    group = 'verification'
+    description = 'Proves Kotlin script DSL command/NPC/item/semantic-button/event helpers compile to the existing core-owned plugin API and execute through the normal lifecycle.'
+
+    dependsOn(
+        tasks.named('pluginKotlinScriptHostRegression'),
+        tasks.named('verifyKotlinScriptSdkBytecode')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'PLUGIN_KOTLIN_DSL_PASS ' +
+            'command=true ' +
+            'commandPlayerArgs=true ' +
+            'npc=true ' +
+            'item=true ' +
+            'semanticButton=true ' +
+            'event=true ' +
+            'typedCancelledEvent=true ' +
+            'issue5Names=true ' +
+            'rawWidgetIds=false ' +
+            'rawWidgetTransportDenied=true ' +
+            'dslNamespaceExact=true ' +
+            'dslClassIdentity=true ' +
+            'provenanceCoreOwned=true ' +
+            'publicApiExpanded=false'
+        )
+    }
 }
 
 tasks.register('pluginDeveloperApiArtifactRegression') {
@@ -1221,6 +1993,10 @@ def currentTrainFocusedTests = [
     'spk.local.LocalRegionStreamHandlerTest',
     'spk.local.LocalWorldTickCoordinatorTest',
     'spk.local.LocalPetRealtimeSchedulerTest',
+    'spk.local.PetFollowTransportAtomicityTest',
+    'spk.local.MiniPetBatchFailureAtomicityTest',
+    'spk.local.HomeNpcBatchCommitFenceTest',
+    'spk.local.GroundPresentationBatchCommitFenceTest',
     'spk.local.TransientRegionPetViewTest',
     'spk.local.LocalSessionRuntimeBindingCleanupTest',
     'spk.local.WorldPlayerUnregisterCleanupTest',
@@ -1248,10 +2024,10 @@ def currentTrainFocusedTests = [
     'spk.local.BloodDiamondFuserServiceTest'
 ]
 
-if (currentTrainFocusedTests.size() != 175 ||
-    currentTrainFocusedTests.toSet().size() != 175) {
+if (currentTrainFocusedTests.size() != 179 ||
+    currentTrainFocusedTests.toSet().size() != 179) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 175 unique tests, found " +
+        "Current-train focused manifest drift: expected 179 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -1616,6 +2392,177 @@ tasks.register('customAssetPipelineHardeningRegression', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.CustomAssetPipelineHardeningTest')
+}
+
+
+def issue9HostOs =
+    System.getProperty('os.name')
+        .toLowerCase(java.util.Locale.ROOT)
+def issue9WindowsHost =
+    issue9HostOs.contains('windows')
+def issue9PythonExecutable =
+    System.getenv('PYTHON') ?:
+        (issue9WindowsHost ? 'python' : 'python3')
+def issue9PowerShellExecutable =
+    System.getenv('POWERSHELL') ?:
+        (issue9WindowsHost ? 'powershell.exe' : 'pwsh')
+
+tasks.register(
+    'issue9LegacyTexturedSkinnedWriterRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Runs the source-only exact-R11 legacy textured+skinned writer byte-identity and fail-closed regression.'
+    workingDir repoRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    commandLine(
+        issue9PythonExecutable,
+        new File(
+            repoRoot,
+            'tools/custom-assets/test_legacy_textured_skinned_writer.py'
+        ).absolutePath
+    )
+}
+
+tasks.register(
+    'issue9R13ProfilePathGuardRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Runs the source-only R13 isolated-profile path-containment regression.'
+    workingDir repoRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    commandLine(
+        issue9PythonExecutable,
+        new File(
+            repoRoot,
+            'tools/custom-assets/test_r13_profile_path_guards.py'
+        ).absolutePath
+    )
+}
+
+tasks.register(
+    'walkHereFallbackClientPatchRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Runs the source-only fail-closed exact-v308 Walk-here radius-2 LocalLab client patch regression.'
+    workingDir repoRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    commandLine(
+        issue9PythonExecutable,
+        new File(
+            repoRoot,
+            'tools/runtime/build_v308_local_clients.py'
+        ).absolutePath,
+        '--selftest-walk-here'
+    )
+}
+
+tasks.register(
+    'issue9LauncherContractRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Runs the static LocalLab launcher/exact-v308 runtime contract without requiring external JARs.'
+    workingDir repoRoot
+
+    doFirst {
+        List<String> arguments =
+            [
+                '-NoProfile'
+            ]
+
+        if(issue9WindowsHost)
+            arguments.addAll(
+                [
+                    '-ExecutionPolicy',
+                    'Bypass'
+                ]
+            )
+
+        arguments.addAll(
+            [
+                '-File',
+                new File(
+                    repoRoot,
+                    'scripts/Test-LauncherContract.ps1'
+                ).absolutePath,
+                '-SkipJavaProbe'
+            ]
+        )
+
+        commandLine(
+            [issue9PowerShellExecutable]+
+                arguments
+        )
+    }
+}
+
+tasks.register(
+    'gradleBootstrapContractRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Proves every repository Gradle execution is derived from the pinned distribution bytes in invocation-owned extraction.'
+    workingDir repoRoot
+
+    doFirst {
+        List<String> arguments =
+            [
+                '-NoProfile'
+            ]
+
+        if(issue9WindowsHost)
+            arguments.addAll(
+                [
+                    '-ExecutionPolicy',
+                    'Bypass'
+                ]
+            )
+
+        arguments.addAll(
+            [
+                '-File',
+                new File(
+                    repoRoot,
+                    'scripts/Test-GradleBootstrapContract.ps1'
+                ).absolutePath
+            ]
+        )
+
+        commandLine(
+            [issue9PowerShellExecutable]+
+                arguments
+        )
+    }
+}
+
+
+tasks.register('issue9R13SourceCertification') {
+    group = 'verification'
+    description = 'Runs source-only Issue #9 R13 writer/profile/launcher coverage plus the existing custom-asset pipeline gates.'
+
+    dependsOn(
+        tasks.named('customAssetPipelineRegression'),
+        tasks.named('customAssetPipelineHardeningRegression'),
+        tasks.named('issue9LegacyTexturedSkinnedWriterRegression'),
+        tasks.named('issue9R13ProfilePathGuardRegression'),
+        tasks.named('issue9LauncherContractRegression')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'SPAWNPK_ISSUE9_R13_SOURCE_CERTIFICATION_PASS ' +
+            'writer=true ' +
+            'profilePathGuard=true ' +
+            'launcherContract=true ' +
+            'pipeline=true ' +
+            'hardening=true ' +
+            'exactV308ExternalRequired=true ' +
+            'visualGateExternal=true'
+        )
+    }
 }
 
 tasks.register('bossTeleportPresentationRegression') {
@@ -2610,6 +3557,36 @@ tasks.register('petChargeContentCommandActionOwnershipRegression') {
 }
 
 
+tasks.register('petSpecializedProcContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned evilwolperproc/temporossproc aliases while specialized pet eligibility, animation/native-state and owner-GFX effects remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetSpecializedProcContentCommandActionOwnershipTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.PetProcContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_SPECIALIZED_PROC_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS aliases=true customProvenance=true evilDefault=true evilRangeFallback=true evilTrailingArgs=true temporossDefault=true temporossUnclamped=true policyWireBytes=0 runtimeEligibility=true evilNativeState=true evilOwnerGfx=true temporossAnimation=true temporossNativeState=true malformedFailClosed=true legacyRoutes=false workbenchRoutesRetained=true publicApiExpanded=false'
+        )
+    }
+}
+
+
 tasks.register('issue7CoreContentDecouplingAcceptance') {
     group = 'verification'
     description = 'Locks Issue #7 core acceptance: decoder purity and command selftest through the real JVM plugin/content dispatcher.'
@@ -3069,7 +4046,944 @@ tasks.register('issue4FinalCertification') {
     }
 }
 
+tasks.register('chat1CumulativeWrapperContractRegression') {
+    group = 'verification'
+    description = 'Locks the canonical exact-v308 cumulative-certification wrapper and local evidence boundary without requiring proprietary client bytes.'
+
+    doLast {
+        File wrapper =
+            new File(
+                repoRoot,
+                'scripts/Run-Chat1CumulativeCertification.ps1'
+            )
+        File gitignore =
+            new File(
+                repoRoot,
+                '.gitignore'
+            )
+        File currentRelease =
+            new File(
+                repoRoot,
+                'RUN_CURRENT_RELEASE_ACCEPTANCE.ps1'
+            )
+
+        if(!wrapper.isFile())
+            throw new GradleException(
+                "Missing Chat 1 cumulative certification wrapper: ${wrapper}"
+            )
+        if(!gitignore.isFile())
+            throw new GradleException(
+                "Missing repository ignore policy: ${gitignore}"
+            )
+        if(!currentRelease.isFile())
+            throw new GradleException(
+                "Missing current release acceptance entry point: ${currentRelease}"
+            )
+
+        String text =
+            wrapper.getText('UTF-8')
+        String ignoreText =
+            gitignore.getText('UTF-8')
+        String currentReleaseText =
+            currentRelease.getText('UTF-8')
+
+        [
+            'Select-LocalLabBuildJava.ps1',
+            'Get-Sha256Hex',
+            'Get-FileHash',
+            '[IO.File]::Open(',
+            '[IO.FileMode]::CreateNew',
+            '[IO.FileShare]::Read',
+            '[IO.FileShare]::None',
+            '$sourceGuard',
+            '$snapshotRoot',
+            '$snapshotClient',
+            '$privateGuard',
+            '$sourceGuard.CopyTo($snapshotWriter)',
+            '$privateClientSha',
+            'EvidenceFileName',
+            '$markerMatches = @(',
+            'serverSha256=([0-9a-f]{64})',
+            'certifiedServerJarSha256 = $certifiedServerSha',
+            'serverSha256=$certifiedServerSha',
+            'invocationOwnedClient = $true',
+            'invocationOwnedClient=true',
+            'function Assert-OrdinaryFile',
+            'function Remove-EmptyCertificationSnapshotRootSafely',
+            'function Remove-CertificationSnapshotSafely',
+            'function Remove-CertificationEvidenceLeafSafely',
+            '$snapshotClientOwned = $true',
+            '$evidenceOwned = $true',
+            '$publishCleanupFailures = @()',
+            'evidence writer dispose:',
+            'evidence guard dispose:',
+            'evidence leaf cleanup:',
+            'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient',
+            'Remove-CertificationEvidenceLeafSafely -Path $evidence',
+            'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop',
+            'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop',
+            v308AcceptanceClientSha256,
+            'chat1CurrentCumulativeCertification',
+            '-Pv308ClientPath=',
+            '--no-daemon',
+            '--console=plain',
+            '$evidenceRoot = Join-Path $runtimeRoot \'certification\'',
+            '$runtimeRoot = Join-Path $repo \'runtime\'',
+            'function Assert-OrdinaryDirectory',
+            'Get-Item -LiteralPath $Path -Force -ErrorAction Stop',
+            '$item.PSIsContainer',
+            'function Initialize-CertificationEvidenceRoot',
+            '[IO.FileAttributes]::ReparsePoint',
+            'Assert-OrdinaryDirectory -Path $runtimeRoot',
+            'Assert-OrdinaryDirectory -Path $evidenceRoot',
+            'Assert-OrdinaryDirectory -Path $snapshotRoot',
+            "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before client snapshot copy'",
+            "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before client snapshot copy'",
+            "Assert-OrdinaryDirectory -Path \$snapshotRoot -Label 'Certification client snapshot root before client snapshot copy'",
+            "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before log write'",
+            "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before log write'",
+            "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before JSON evidence write'",
+            "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before JSON evidence write'",
+            'Initialize-CertificationEvidenceRoot',
+            'git -C $repo rev-parse HEAD',
+            'git -C $repo status --porcelain --untracked-files=normal',
+            "New-Object 'System.Collections.Generic.List[string]'",
+            '$gradleOutput.Add($line)',
+            '$logGuard',
+            '$logWriter',
+            '$logWriter.WriteLine($line)',
+            '$logGuard.Flush($true)',
+            'Write-Host $line',
+            'Get-FileHash -InputStream $logGuard -Algorithm SHA256',
+            '$authoritativeMarker = \'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS\'',
+            '$gradleOutput |',
+            '$gradleExit = $LASTEXITCODE',
+            "\$ErrorActionPreference = 'Continue'",
+            'spawnpk-chat1-local-certification-evidence-v1',
+            'hostedPromotionSatisfied = $false',
+            'hostedEvidenceSeparate = $true',
+            '$evidenceGuard',
+            '$evidenceWriter',
+            '[IO.FileAccess]::ReadWrite',
+            '[IO.StreamWriter]::new(',
+            '$evidenceWriter.WriteLine($json)',
+            '$evidenceGuard.Flush($true)',
+            'Get-FileHash -InputStream $evidenceGuard -Algorithm SHA256',
+            'Cumulative certification evidence publication failed and cleanup was unsafe/incomplete.',
+            'spawnpk-chat1-cumulative-result-v1',
+            'evidenceSha256 = $evidenceSha',
+            'Write-Output $completion',
+            'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS',
+            'CHAT1_CUMULATIVE_WRAPPER_COMPLETE',
+            'hostedPromotionSatisfied=false',
+            'exactV308=true'
+        ].each { required ->
+            if(!text.contains(required))
+                throw new GradleException(
+                    "Chat 1 cumulative wrapper contract missing: ${required}"
+                )
+        }
+
+        [
+            '[IO.File]::Open(': 5,
+            '[IO.FileShare]::Read': 4,
+            '[IO.FileShare]::None': 1,
+            '[IO.FileMode]::CreateNew': 3,
+            '[IO.FileAccess]::ReadWrite': 2,
+            '[IO.StreamWriter]::new(': 2
+        ].each { anchor, expectedCount ->
+            int count = 0
+            int from = 0
+            while(true) {
+                int found =
+                    text.indexOf(
+                        anchor,
+                        from
+                    )
+                if(found < 0)
+                    break
+                count++
+                from = found + anchor.length()
+            }
+            if(count != expectedCount)
+                throw new GradleException(
+                    "Chat 1 cumulative client-snapshot guard count drift: expected=${expectedCount} actual=${count} anchor=${anchor}"
+                )
+        }
+
+        if(text.contains("hostedPromotionBlocker = '#816'"))
+            throw new GradleException(
+                'Local cumulative evidence must not name resolved infrastructure issue #816 as a current promotion blocker.'
+            )
+
+        [
+            'Set-Content -LiteralPath $evidence',
+            'Get-FileHash -LiteralPath $evidence -Algorithm SHA256',
+            'Tee-Object -FilePath $log',
+            'Select-String -LiteralPath $log',
+            'Get-FileHash -LiteralPath $log',
+            'Get-Item -LiteralPath $log',
+            'New-Item -ItemType Directory -Force -Path $evidenceRoot',
+            'Test-Path -LiteralPath $Path -PathType Container',
+            'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force',
+            'Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue'
+        ].each { staleMutableAuthority ->
+            if(text.contains(staleMutableAuthority))
+                throw new GradleException(
+                    "Cumulative wrapper must not reacquire authority from a mutable path: ${staleMutableAuthority}"
+                )
+        }
+
+        String authoritativeMarker =
+            'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
+        List<String> authoritativeMarkerLines =
+            text.readLines().findAll {
+                it.contains(
+                    authoritativeMarker
+                )
+            }
+
+        if(authoritativeMarkerLines.size() != 1 ||
+           !authoritativeMarkerLines[0].contains(
+                "\$authoritativeMarker = '${authoritativeMarker}'"
+            ))
+            throw new GradleException(
+                'Wrapper must define the exact Gradle-owned cumulative PASS marker exactly once for invocation-output matching.'
+            )
+
+        if(authoritativeMarkerLines[0] =~
+                /(?i)\b(Write-Host|Write-Output|echo|return)\b/)
+            throw new GradleException(
+                'Wrapper must not emit the authoritative cumulative PASS marker.'
+            )
+
+        [
+            'Write-Host $markerMatch',
+            'Write-Output $markerMatch',
+            'echo $markerMatch',
+            'return $markerMatch'
+        ].each { forbiddenOutput ->
+            if(text.contains(forbiddenOutput))
+                throw new GradleException(
+                    "Wrapper must not emit observed Gradle marker data: ${forbiddenOutput}"
+                )
+        }
+
+        [
+            'function Get-ExactGitHead',
+            '& $gradlew @gradleArgs',
+            '$authoritativeMarker = \'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS\'',
+            'New-Object \'System.Collections.Generic.List[string]\'',
+            '[void]$gradleOutput.Add($line)',
+            '$logWriter.WriteLine($line)',
+            'Get-FileHash -InputStream $logGuard -Algorithm SHA256',
+            'ConvertTo-Json',
+            'spawnpk-chat1-cumulative-result-v1',
+            'Write-Output $completion',
+            'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
+        ].each { anchor ->
+            int count = 0
+            int from = 0
+            while(true) {
+                int found =
+                    text.indexOf(
+                        anchor,
+                        from
+                    )
+                if(found < 0)
+                    break
+                count++
+                from = found + anchor.length()
+            }
+            if(count != 1)
+                throw new GradleException(
+                    "Chat 1 cumulative wrapper structural anchor count drift: expected=1 actual=${count} anchor=${anchor}"
+                )
+        }
+
+        [
+            'function Assert-OrdinaryDirectory': 1,
+            'function Assert-OrdinaryFile': 1,
+            'function Initialize-CertificationEvidenceRoot': 1,
+            'function Remove-EmptyCertificationSnapshotRootSafely': 1,
+            'function Remove-CertificationSnapshotSafely': 1,
+            'function Remove-CertificationEvidenceLeafSafely': 1,
+            'Assert-OrdinaryDirectory -Path $runtimeRoot': 11,
+            'Assert-OrdinaryDirectory -Path $evidenceRoot': 11,
+            'Assert-OrdinaryDirectory -Path $snapshotRoot': 2,
+            'Assert-OrdinaryDirectory -Path $SnapshotRoot': 4,
+            'Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $snapshotRoot': 1,
+            'Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $SnapshotRoot': 1,
+            'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient': 1,
+            'Remove-CertificationEvidenceLeafSafely -Path $evidence': 1,
+            '$snapshotClientOwned = $false': 2,
+            '$snapshotClientOwned = $true': 1,
+            '$evidenceOwned = $false': 2,
+            '$evidenceOwned = $true': 1,
+            'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop': 1,
+            'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop': 1
+        ].each { anchor, expectedCount ->
+            int count = 0
+            int from = 0
+            while(true) {
+                int found =
+                    text.indexOf(
+                        anchor,
+                        from
+                    )
+                if(found < 0)
+                    break
+                count++
+                from = found + anchor.length()
+            }
+            if(count != expectedCount)
+                throw new GradleException(
+                    "Chat 1 cumulative evidence-root guard count drift: expected=${expectedCount} actual=${count} anchor=${anchor}"
+                )
+        }
+
+        int evidenceRootInitIndex =
+            text.lastIndexOf(
+                'Initialize-CertificationEvidenceRoot'
+            )
+        int snapshotRootCreateIndex =
+            text.indexOf(
+                'New-Item -ItemType Directory -Path $snapshotRoot'
+            )
+
+        if(evidenceRootInitIndex < 0 ||
+           snapshotRootCreateIndex < 0 ||
+           evidenceRootInitIndex >= snapshotRootCreateIndex)
+            throw new GradleException(
+                'Certification evidence-root validation must complete before invocation snapshot creation.'
+            )
+
+        int snapshotWriterIndex =
+            text.indexOf(
+                '\$snapshotWriter ='
+            )
+        int runtimeRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before client snapshot copy'",
+                snapshotWriterIndex
+            )
+        int evidenceRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before client snapshot copy'",
+                runtimeRevalidateIndex
+            )
+        int snapshotRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$snapshotRoot -Label 'Certification client snapshot root before client snapshot copy'",
+                evidenceRevalidateIndex
+            )
+        int snapshotCopyIndex =
+            text.indexOf(
+                '\$sourceGuard.CopyTo(\$snapshotWriter)',
+                snapshotRevalidateIndex
+            )
+
+        if(snapshotWriterIndex < 0 ||
+           runtimeRevalidateIndex <= snapshotWriterIndex ||
+           evidenceRevalidateIndex <= runtimeRevalidateIndex ||
+           snapshotRevalidateIndex <= evidenceRevalidateIndex ||
+           snapshotCopyIndex <= snapshotRevalidateIndex)
+            throw new GradleException(
+                'Client snapshot authority ordering drifted: expected destination CreateNew -> runtime/evidence/snapshot parent revalidation -> guarded source copy.'
+            )
+
+        int logOpenIndex =
+            text.indexOf(
+                '\$logGuard =',
+                text.indexOf(
+                    "\$gradleOutput ="
+                )
+            )
+        int logRuntimeRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before log write'",
+                logOpenIndex
+            )
+        int logEvidenceRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before log write'",
+                logRuntimeRevalidateIndex
+            )
+        int logWriterAfterParentValidationIndex =
+            text.indexOf(
+                '\$logWriter =',
+                logEvidenceRevalidateIndex
+            )
+
+        if(logOpenIndex < 0 ||
+           logRuntimeRevalidateIndex <= logOpenIndex ||
+           logEvidenceRevalidateIndex <= logRuntimeRevalidateIndex ||
+           logWriterAfterParentValidationIndex <= logEvidenceRevalidateIndex)
+            throw new GradleException(
+                'Certification log authority ordering drifted: expected log CreateNew -> runtime/evidence revalidation -> log writer.'
+            )
+
+        int evidenceOpenSearchStart =
+            text.indexOf(
+                "\$evidenceSha = \$null"
+            )
+        int evidenceOpenIndex =
+            text.indexOf(
+                '\$evidenceGuard =',
+                evidenceOpenSearchStart
+            )
+        int jsonRuntimeRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before JSON evidence write'",
+                evidenceOpenIndex
+            )
+        int jsonEvidenceRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before JSON evidence write'",
+                jsonRuntimeRevalidateIndex
+            )
+        int evidenceWriterAfterParentValidationIndex =
+            text.indexOf(
+                '\$evidenceWriter =',
+                jsonEvidenceRevalidateIndex
+            )
+
+        if(evidenceOpenSearchStart < 0 ||
+           evidenceOpenIndex <= evidenceOpenSearchStart ||
+           jsonRuntimeRevalidateIndex <= evidenceOpenIndex ||
+           jsonEvidenceRevalidateIndex <= jsonRuntimeRevalidateIndex ||
+           evidenceWriterAfterParentValidationIndex <= jsonEvidenceRevalidateIndex)
+            throw new GradleException(
+                'Certification JSON evidence authority ordering drifted: expected evidence CreateNew -> runtime/evidence revalidation -> JSON writer.'
+            )
+
+        int emptySnapshotCleanupFunctionIndex =
+            text.indexOf(
+                'function Remove-EmptyCertificationSnapshotRootSafely'
+            )
+        int emptySnapshotProofIndex =
+            text.indexOf(
+                'Certification snapshot root is not empty; refusing cleanup of unowned or unexpected contents.',
+                emptySnapshotCleanupFunctionIndex
+            )
+        int snapshotRootRemoveIndex =
+            text.indexOf(
+                'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop',
+                emptySnapshotProofIndex
+            )
+
+        if(emptySnapshotCleanupFunctionIndex < 0 ||
+           emptySnapshotProofIndex <= emptySnapshotCleanupFunctionIndex ||
+           snapshotRootRemoveIndex <= emptySnapshotProofIndex)
+            throw new GradleException(
+                'Empty snapshot-root cleanup must prove no entries before non-recursive root removal.'
+            )
+
+        int snapshotCleanupFunctionIndex =
+            text.indexOf(
+                'function Remove-CertificationSnapshotSafely'
+            )
+        int snapshotCleanupContentsIndex =
+            text.indexOf(
+                'Get-ChildItem -LiteralPath $SnapshotRoot -Force -ErrorAction Stop',
+                snapshotCleanupFunctionIndex
+            )
+        int snapshotLeafRemoveIndex =
+            text.indexOf(
+                'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop',
+                snapshotCleanupContentsIndex
+            )
+        int snapshotEmptyCleanupInvokeIndex =
+            text.indexOf(
+                'Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $SnapshotRoot',
+                snapshotLeafRemoveIndex
+            )
+
+        if(snapshotCleanupFunctionIndex < 0 ||
+           snapshotCleanupContentsIndex <= snapshotCleanupFunctionIndex ||
+           snapshotLeafRemoveIndex <= snapshotCleanupContentsIndex ||
+           snapshotEmptyCleanupInvokeIndex <= snapshotLeafRemoveIndex)
+            throw new GradleException(
+                'Owned snapshot cleanup must prove the exact leaf, remove only that leaf, then delegate to empty-root cleanup.'
+            )
+
+        int snapshotWriterOwnedIndex =
+            text.indexOf(
+                '$snapshotClientOwned = $true',
+                snapshotWriterIndex
+            )
+        int snapshotOwnedCleanupBranchIndex =
+            text.indexOf(
+                'if ($snapshotClientOwned)'
+            )
+        int snapshotUnownedEmptyCleanupIndex =
+            text.indexOf(
+                'Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $snapshotRoot',
+                snapshotOwnedCleanupBranchIndex
+            )
+
+        if(snapshotWriterOwnedIndex <= snapshotWriterIndex ||
+           snapshotOwnedCleanupBranchIndex <= snapshotWriterOwnedIndex ||
+           snapshotUnownedEmptyCleanupIndex <= snapshotOwnedCleanupBranchIndex)
+            throw new GradleException(
+                'Snapshot destructive cleanup must be gated by successful CreateNew ownership; unowned-client failure may remove only a proven-empty invocation root.'
+            )
+
+        int failedEvidenceCleanupFunctionIndex =
+            text.indexOf(
+                'function Remove-CertificationEvidenceLeafSafely'
+            )
+        int failedEvidenceParentCheckIndex =
+            text.indexOf(
+                "Certification runtime root before failed-evidence cleanup",
+                failedEvidenceCleanupFunctionIndex
+            )
+        int failedEvidenceLeafCheckIndex =
+            text.indexOf(
+                "Assert-OrdinaryFile -Path \$Path -Label 'Failed certification evidence cleanup leaf'",
+                failedEvidenceParentCheckIndex
+            )
+        int failedEvidenceRemoveIndex =
+            text.indexOf(
+                'Remove-Item -LiteralPath $Path -Force -ErrorAction Stop',
+                failedEvidenceLeafCheckIndex
+            )
+        int evidenceOwnedIndex =
+            text.indexOf(
+                '$evidenceOwned = $true',
+                evidenceOpenIndex
+            )
+        int publishOwnedCleanupBranchIndex =
+            text.indexOf(
+                'if ($evidenceOwned)'
+            )
+        int publishCleanupInvokeIndex =
+            text.indexOf(
+                'Remove-CertificationEvidenceLeafSafely -Path $evidence',
+                publishOwnedCleanupBranchIndex
+            )
+        int publishCleanupAccumulatorIndex =
+            text.indexOf(
+                '$publishCleanupFailures = @()'
+            )
+        int publishWriterCleanupIndex =
+            text.indexOf(
+                'evidence writer dispose:',
+                publishCleanupAccumulatorIndex
+            )
+        int publishGuardCleanupIndex =
+            text.indexOf(
+                'evidence guard dispose:',
+                publishWriterCleanupIndex
+            )
+        int publishLeafCleanupEvidenceIndex =
+            text.indexOf(
+                'evidence leaf cleanup:',
+                publishGuardCleanupIndex
+            )
+        int publishCleanupCompositeIndex =
+            text.indexOf(
+                'Cumulative certification evidence publication failed and cleanup was unsafe/incomplete.',
+                publishCleanupInvokeIndex
+            )
+
+        if(failedEvidenceCleanupFunctionIndex < 0 ||
+           failedEvidenceParentCheckIndex <= failedEvidenceCleanupFunctionIndex ||
+           failedEvidenceLeafCheckIndex <= failedEvidenceParentCheckIndex ||
+           failedEvidenceRemoveIndex <= failedEvidenceLeafCheckIndex ||
+           evidenceOwnedIndex <= evidenceOpenIndex ||
+           publishCleanupAccumulatorIndex < 0 ||
+           publishWriterCleanupIndex <= publishCleanupAccumulatorIndex ||
+           publishGuardCleanupIndex <= publishWriterCleanupIndex ||
+           publishOwnedCleanupBranchIndex <= evidenceOwnedIndex ||
+           publishCleanupInvokeIndex <= publishOwnedCleanupBranchIndex ||
+           publishLeafCleanupEvidenceIndex <= publishGuardCleanupIndex ||
+           publishCleanupCompositeIndex <= publishCleanupInvokeIndex)
+            throw new GradleException(
+                'Failed JSON evidence cleanup must preserve the primary publication failure through writer/guard disposal, require successful CreateNew ownership, revalidate ancestry/leaf identity, and compose cleanup failures.'
+            )
+
+        if(!ignoreText.readLines().any {
+                it.trim() == 'runtime/certification/'
+            })
+            throw new GradleException(
+                'Local cumulative certification evidence directory is not ignored.'
+            )
+
+        [
+            'scripts\\Run-Chat1CumulativeCertification.ps1',
+            '& $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName',
+            'Tee-Object -Variable cumulativeOutput',
+            'spawnpk-chat1-cumulative-result-v1',
+            '$certifiedServerSha = [string]$cumulativeResult.certifiedServerJarSha256',
+            '$expectedEvidenceSha = [string]$cumulativeResult.evidenceSha256',
+            'Get-FileHash -InputStream $cumulativeEvidenceGuard -Algorithm SHA256',
+            '$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha',
+            '-ExpectedServerSha256 $certifiedServerSha',
+            'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS',
+            'hostedPromotionSatisfied=false'
+        ].each { required ->
+            if(!currentReleaseText.contains(required))
+                throw new GradleException(
+                    "Current release acceptance contract missing: ${required}"
+                )
+        }
+
+        [
+            '& $gradle r85V308Acceptance',
+            'CURRENT_RELEASE_V308_ACCEPTANCE_PASS'
+        ].each { forbidden ->
+            if(currentReleaseText.contains(forbidden))
+                throw new GradleException(
+                    "Current release acceptance still uses stale inherited-only path: ${forbidden}"
+                )
+        }
+
+        int currentBuildIndex =
+            currentReleaseText.indexOf(
+                '& $gradle clean build'
+            )
+        int currentLoopbackIndex =
+            currentReleaseText.lastIndexOf(
+                'Invoke-CurrentServerLoopbackSmoke'
+            )
+        int currentCumulativeIndex =
+            currentReleaseText.indexOf(
+                '& $cumulativeWrapper -ClientJar $client'
+            )
+        int currentResultIndex =
+            currentReleaseText.indexOf(
+                '$cumulativeResult = $cumulativeResults[0]'
+            )
+        int currentServerShaIndex =
+            currentReleaseText.indexOf(
+                '$certifiedServerSha = [string]$cumulativeResult.certifiedServerJarSha256'
+            )
+        int currentEvidenceHashIndex =
+            currentReleaseText.indexOf(
+                'Get-FileHash -InputStream $cumulativeEvidenceGuard -Algorithm SHA256'
+            )
+        int currentEvidenceServerMatchIndex =
+            currentReleaseText.indexOf(
+                '$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha'
+            )
+
+        if(currentBuildIndex < 0 ||
+           currentCumulativeIndex <= currentBuildIndex ||
+           currentResultIndex <= currentCumulativeIndex ||
+           currentServerShaIndex <= currentResultIndex ||
+           currentEvidenceHashIndex <= currentServerShaIndex ||
+           currentEvidenceServerMatchIndex <= currentEvidenceHashIndex ||
+           currentLoopbackIndex <= currentEvidenceServerMatchIndex)
+            throw new GradleException(
+                'Current release acceptance ordering drifted: expected clean build -> canonical cumulative wrapper -> in-memory result/server SHA -> guarded evidence hash/cross-check -> loopback smoke.'
+            )
+
+        int currentCumulativeCount = 0
+        int currentCumulativeFrom = 0
+        String currentCumulativeAnchor =
+            '& $cumulativeWrapper -ClientJar $client'
+        while(true) {
+            int found =
+                currentReleaseText.indexOf(
+                    currentCumulativeAnchor,
+                    currentCumulativeFrom
+                )
+            if(found < 0)
+                break
+            currentCumulativeCount++
+            currentCumulativeFrom =
+                found + currentCumulativeAnchor.length()
+        }
+        if(currentCumulativeCount != 1)
+            throw new GradleException(
+                "Current release acceptance cumulative-wrapper invocation count drift: expected=1 actual=${currentCumulativeCount}"
+            )
+
+        int cleanIndex =
+            text.indexOf(
+                "'clean'"
+            )
+        int gateIndex =
+            text.indexOf(
+                "'chat1CurrentCumulativeCertification'"
+            )
+        int sourceOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open('
+            )
+        int writerOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open(',
+                sourceOpenIndex + 1
+            )
+        int privateOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open(',
+                writerOpenIndex + 1
+            )
+        int sourceHashIndex =
+            text.indexOf(
+                '$actualClientSha = Get-Sha256Hex -Stream $sourceGuard'
+            )
+        int copyIndex =
+            text.indexOf(
+                '$sourceGuard.CopyTo($snapshotWriter)'
+            )
+        int privateHashIndex =
+            text.indexOf(
+                '$privateClientSha = Get-Sha256Hex -Stream $privateGuard'
+            )
+        int markerServerShaParseIndex =
+            text.indexOf(
+                'serverSha256=([0-9a-f]{64})'
+            )
+        int sourceReleaseIndex =
+            text.indexOf(
+                '$sourceGuard.Dispose()'
+            )
+        int clientIndex =
+            text.indexOf(
+                '"-Pv308ClientPath=$snapshotClient"'
+            )
+        int invokeIndex =
+            text.indexOf(
+                '& $gradlew @gradleArgs'
+            )
+        int exitCaptureIndex =
+            text.indexOf(
+                '$gradleExit = $LASTEXITCODE'
+            )
+        int exitSuccessCheckIndex =
+            text.indexOf(
+                'if ($null -eq $gradleExit -or $gradleExit -ne 0)'
+            )
+        int gradleOutputInitIndex =
+            text.indexOf(
+                "New-Object 'System.Collections.Generic.List[string]'"
+            )
+        int logGuardIndex =
+            text.indexOf(
+                '$logGuard =',
+                gradleOutputInitIndex
+            )
+        int logWriterIndex =
+            text.indexOf(
+                '[IO.StreamWriter]::new(',
+                logGuardIndex
+            )
+        int gradleOutputAddIndex =
+            text.indexOf(
+                '[void]$gradleOutput.Add($line)',
+                invokeIndex
+            )
+        int logLineWriteIndex =
+            text.indexOf(
+                '$logWriter.WriteLine($line)',
+                gradleOutputAddIndex
+            )
+        int markerObservationIndex =
+            text.indexOf(
+                '$gradleOutput |',
+                exitSuccessCheckIndex
+            )
+        int logHashIndex =
+            text.indexOf(
+                'Get-FileHash -InputStream $logGuard -Algorithm SHA256',
+                markerObservationIndex
+            )
+        int logGuardReleaseIndex =
+            text.indexOf(
+                '$logGuard.Dispose()',
+                logHashIndex
+            )
+        int jsonIndex =
+            text.indexOf(
+                'ConvertTo-Json'
+            )
+        int evidenceGuardIndex =
+            text.indexOf(
+                '$evidenceGuard =',
+                jsonIndex
+            )
+        int evidenceWriterIndex =
+            text.indexOf(
+                '[IO.StreamWriter]::new(',
+                evidenceGuardIndex
+            )
+        int evidenceWriteIndex =
+            text.indexOf(
+                '$evidenceWriter.WriteLine($json)',
+                evidenceWriterIndex
+            )
+        int evidenceFlushIndex =
+            text.indexOf(
+                '$evidenceGuard.Flush($true)',
+                evidenceWriteIndex
+            )
+        int evidenceHashIndex =
+            text.indexOf(
+                'Get-FileHash -InputStream $evidenceGuard -Algorithm SHA256',
+                evidenceFlushIndex
+            )
+        int evidenceGuardReleaseIndex =
+            text.lastIndexOf(
+                '$evidenceGuard.Dispose()'
+            )
+        int completionObjectIndex =
+            text.indexOf(
+                '$completion = [pscustomobject]@{'
+            )
+        int completionIndex =
+            text.indexOf(
+                'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
+            )
+        int structuredResultIndex =
+            text.indexOf(
+                'Write-Output $completion'
+            )
+
+        if(sourceOpenIndex < 0 ||
+           sourceHashIndex <= sourceOpenIndex ||
+           writerOpenIndex <= sourceHashIndex ||
+           copyIndex <= writerOpenIndex ||
+           privateOpenIndex <= copyIndex ||
+           privateHashIndex <= privateOpenIndex ||
+           sourceReleaseIndex <= privateHashIndex)
+            throw new GradleException(
+                'Wrapper exact-v308 client admission ordering drifted: expected guarded source open -> source hash -> private writer open/copy -> private guard open -> private hash -> source release.'
+            )
+
+        if(text.contains('"-Pv308ClientPath=$client"'))
+            throw new GradleException(
+                'Wrapper must never pass the mutable external client path into Gradle.'
+            )
+
+        if(cleanIndex < 0 ||
+           gateIndex <= cleanIndex ||
+           clientIndex <= gateIndex)
+            throw new GradleException(
+                'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> invocation-owned exact client snapshot.'
+            )
+
+        int privateReleaseIndex =
+            text.lastIndexOf(
+                '$privateGuard.Dispose()'
+            )
+        int snapshotCleanupIndex =
+            text.lastIndexOf(
+                'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient'
+            )
+
+        if(gradleOutputInitIndex < 0 ||
+           logGuardIndex <= gradleOutputInitIndex ||
+           logWriterIndex <= logGuardIndex ||
+           invokeIndex <= logWriterIndex ||
+           gradleOutputAddIndex <= invokeIndex ||
+           logLineWriteIndex <= gradleOutputAddIndex ||
+           exitCaptureIndex <= logLineWriteIndex ||
+           exitSuccessCheckIndex <= exitCaptureIndex ||
+           markerObservationIndex <= exitSuccessCheckIndex ||
+           markerServerShaParseIndex <= markerObservationIndex ||
+           logHashIndex <= markerServerShaParseIndex ||
+           logGuardReleaseIndex <= logHashIndex ||
+           privateReleaseIndex <= logGuardReleaseIndex ||
+           snapshotCleanupIndex <= privateReleaseIndex ||
+           jsonIndex <= snapshotCleanupIndex ||
+           evidenceGuardIndex <= jsonIndex ||
+           evidenceWriterIndex <= evidenceGuardIndex ||
+           evidenceWriteIndex <= evidenceWriterIndex ||
+           evidenceFlushIndex <= evidenceWriteIndex ||
+           evidenceHashIndex <= evidenceFlushIndex ||
+           evidenceGuardReleaseIndex <= evidenceHashIndex ||
+           completionObjectIndex <= evidenceGuardReleaseIndex ||
+           completionIndex <= completionObjectIndex ||
+           structuredResultIndex <= completionIndex)
+            throw new GradleException(
+                'Wrapper evidence ordering drifted: expected invocation-owned output/log guards -> Gradle invoke -> in-memory output/log write -> native exit capture -> zero-exit check -> in-memory marker/server SHA -> same-stream log hash -> log guard release -> private guard release -> private-root cleanup -> guarded JSON evidence -> completion/result.'
+            )
+
+        logger.lifecycle(
+            'CHAT1_CUMULATIVE_WRAPPER_CONTRACT_PASS ' +
+            'exactV308HashPinned=true ' +
+            'invocationOwnedClient=true ' +
+            'sourceReadGuard=true ' +
+            'privateReadGuard=true ' +
+            'canonicalGate=true ' +
+            'cleanHeadBound=true ' +
+            'durableEvidence=true ' +
+            'durableEvidenceIdentityGuarded=true ' +
+            'gradleOutputAuthorityInvocationOwned=true ' +
+            'durableLogIdentityGuarded=true ' +
+            'certifiedServerShaBound=true ' +
+            'inMemoryReleaseHandoff=true ' +
+            'hostedPromotionSatisfied=false ' +
+            'authoritativeMarkerObservedOnly=true'
+        )
+    }
+}
+
+tasks.register('player81WorldStateCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Player81 static World/writer state is released by World.close and cannot be resurrected after terminal close.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81WorldStateCleanupTest'
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('walkHereFallbackClientPatchRegression')
+    dependsOn tasks.named('player81WorldStateCleanupRegression')
+    dependsOn tasks.named('globalEventRegistrationCompositionRegression')
+    dependsOn tasks.named('globalEventCompositionOwnershipRegression')
+    dependsOn tasks.named('matchInstanceSessionCompositionAtomicityRegression')
+    dependsOn tasks.named('clanWarSessionServiceRegression')
+    dependsOn tasks.named('duelSessionServiceRegression')
+    dependsOn tasks.named('tournamentServiceRegression')
+    dependsOn tasks.named('matchInstanceCompositionOwnershipRegression')
+    dependsOn tasks.named('npcCombatEngagementServiceRegression')
+    dependsOn tasks.named('npcCombatApproachServiceRegression')
+    dependsOn tasks.named('npcCombatControllerServiceRegression')
+    dependsOn tasks.named('npcTargetAcquisitionServiceRegression')
+    dependsOn tasks.named('npcCombatAiServiceRegression')
+    dependsOn tasks.named('npcWorldPulseAiRegression')
+    dependsOn tasks.named('npcCombatRuntimeBinderRegression')
+    dependsOn tasks.named('monsterSpawnerCombatBindingRegression')
+    dependsOn tasks.named('monsterSpawnerCombatDespawnRegression')
+    dependsOn tasks.named('monsterSpawnerNpcLifecycleBindingRegression')
+    dependsOn tasks.named('npcCombatDeadAttackerGuardRegression')
+    dependsOn tasks.named('monsterSpawnerNpcSceneProjectionRegression')
+    dependsOn tasks.named('canonicalNpcAttackClickRegression')
+    dependsOn tasks.named('canonicalNpcAttackOwnershipRaceRegression')
+    dependsOn tasks.named('canonicalNpcAttackSpatialAtomicityRegression')
+    dependsOn tasks.named('canonicalNpcAttackPvmRuntimeBridgeRegression')
+    dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
+    dependsOn tasks.named('npcCombatDelayedCompositionRegression')
+    dependsOn tasks.named('monsterSpawnerServiceRegression')
+    dependsOn tasks.named('pvpHotspotServiceRegression')
+    dependsOn tasks.named('monsterSpawnerNpcDeathFinalizationRegression')
+    dependsOn tasks.named('monsterSpawnerPvmRuntimeRegression')
+    dependsOn tasks.named('monsterSpawnerPvmSpawnExecutorRegression')
+    dependsOn tasks.named('npcDeadTerminalCompositionRegression')
+    dependsOn tasks.named('npcDropResolutionServiceRegression')
+    dependsOn tasks.named('groundItemBatchSettlementRegression')
+    dependsOn tasks.named('npcDropGroundSettlementRegression')
+    dependsOn tasks.named('npcDropLiveSceneRegression')
+    dependsOn tasks.named('npcDropLiveSettlementAtomicRegression')
+    dependsOn tasks.named('localGroundItemInteractionRegression')
+    dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
+    dependsOn tasks.named('npcCombatResolutionServiceRegression')
+    dependsOn tasks.named('npcRespawnServiceRegression')
+    dependsOn tasks.named('npcDeadLifecycleOwnershipRegression')
+    dependsOn tasks.named('worldNpcLifecycleAuthorityRegression')
+    dependsOn tasks.named('npcLifecycleServiceRegression')
+    dependsOn tasks.named('worldNpcMutationOwnershipRegression')
+    dependsOn tasks.named('issue9LauncherContractRegression')
+    dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
+    dependsOn tasks.named('chat1CurrentCumulativeServerIdentityRegression')
+    dependsOn tasks.named('gradleBootstrapContractRegression')
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')
     dependsOn tasks.named('playerAppearanceRoleRegression')
@@ -3078,5 +4992,1469 @@ tasks.named('check') {
     dependsOn tasks.named('dailyChallengeTransportRegression')
     dependsOn tasks.named('loadoutEditorTransportRegression')
     dependsOn tasks.named('currentTrainFocusedRegression')
+    dependsOn tasks.named('pluginKotlinJvmConsumerRegression')
+    dependsOn tasks.named('pluginKotlinDirectoryRegression')
+    dependsOn tasks.named('pluginClassloaderIsolationRegression')
+    dependsOn tasks.named('pluginLoaderAbstractionRegression')
+    dependsOn tasks.named('pluginKotlinDslRegression')
+    dependsOn tasks.named('pluginWorldTerminalLifecycleRegression')
+    dependsOn tasks.named('pluginRuntimeFailureCascadeRegression')
+    dependsOn tasks.named('localServerStartupFailureCleanupRegression')
+    dependsOn tasks.named('localSessionConstructionOwnershipRegression')
+    dependsOn tasks.named('issue9R13SourceCertification')
+    dependsOn tasks.named('staffPartyhatAppearanceGateRegression')
+    dependsOn tasks.named('tournamentPresentationRegression')
+    dependsOn tasks.named('normalDuelPresentationRegression')
+    dependsOn tasks.named('monsterSpawnerPresentationRegression')
+    dependsOn tasks.named('monsterSpawnerUiServiceAdapterRegression')
+    dependsOn tasks.named('localMonsterSpawnerActivationPvmSpawnRegression')
+    dependsOn tasks.named('localMonsterSpawnerCallbackLinearizationRegression')
+    dependsOn tasks.named('itemEnchantmentServiceRegression')
+    dependsOn tasks.named('itemEnchantmentPresentationRegression')
+    dependsOn tasks.named('legendaryPetFusionServiceRegression')
+    dependsOn tasks.named('legendaryPetFusionPresentationRegression')
+    dependsOn tasks.named('bloodcoreLotteryPresentationRegression')
+    dependsOn tasks.named('petDamageContentCommandActionOwnershipRegression')
+    dependsOn tasks.named('petSpecializedProcContentCommandActionOwnershipRegression')
+    dependsOn tasks.named('worldPulseStartFailureAtomicRegression')
+    dependsOn tasks.named('worldAdmissionPulseStartAtomicRegression')
+    dependsOn tasks.named('localAuxHttpResponseRegression')
+    dependsOn tasks.named('localAuxResponseLivenessRegression')
+    dependsOn tasks.named('localAuxiliaryWorkerFailureRegression')
+    dependsOn tasks.named('localAuxVersionsRegression')
+    dependsOn tasks.named('localAuxHttpWorkerFailurePreservationRegression')
+    dependsOn tasks.named('localAuxHttpRequestReaderRegression')
+    dependsOn tasks.named('localAuxArchivePathRegression')
+    dependsOn tasks.named('localAuxArchiveAccessRegression')
     dependsOn tasks.named('r85Regression')
+}
+
+tasks.register('issue5KotlinScriptingCertification') {
+    group = 'verification'
+    description = 'Runs the complete Issue #5 Kotlin scripting acceptance surface over the existing public plugin lifecycle.'
+
+    dependsOn(
+        tasks.named('pluginDeveloperApiArtifactRegression'),
+        tasks.named('pluginKotlinJvmConsumerRegression'),
+        tasks.named('pluginClassloaderIsolationRegression'),
+        tasks.named('pluginLoaderAbstractionRegression'),
+        tasks.named('pluginKotlinScriptHostRegression'),
+        tasks.named('pluginKotlinDirectoryRegression'),
+        tasks.named('pluginKotlinDslRegression'),
+        tasks.named('pluginWorldTerminalLifecycleRegression'),
+        tasks.named('pluginRuntimeFailureCascadeRegression'),
+        tasks.named('verifyJava11Bytecode'),
+        tasks.named('currentTrainFocusedRegression'),
+        tasks.named('r85V308Acceptance')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'SPAWNPK_ISSUE5_KOTLIN_SCRIPTING_CERTIFICATION_PASS ' +
+            'loaderNeutral=true ' +
+            'kotlin=2.4.20 ' +
+            'jvmTarget=11 ' +
+            'apiIsolated=true ' +
+            'runtimeIsolated=true ' +
+            'lifecycleOwned=true ' +
+            'startupDiscovery=true ' +
+            'onDemand=true ' +
+            'rootConfinement=true ' +
+            'dsl=true ' +
+            'issue5DslNames=true ' +
+            'commandPlayerArgs=true ' +
+            'typedCancelledEvent=true ' +
+            'customProvenance=true ' +
+            'callbackTccl=true ' +
+            'dslNamespaceExact=true ' +
+            'dslClassIdentity=true ' +
+            'rawWidgetIds=false ' +
+            'focused=175 ' +
+            'exactV308=179 ' +
+            'canonicalPromoted=true ' +
+            'bytecodeMajor=55'
+        )
+    }
+}
+
+tasks.register('staffPartyhatAppearanceGateRegression') {
+    group = 'verification'
+    description = 'Locks exact-client staff-partyhat HEAD-vs-Override publication for all eight recovered item ids without inventing named rank mappings.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.StaffPartyhatAppearanceGateTest')
+        }
+
+        logger.lifecycle(
+            'STAFF_PARTYHAT_APPEARANCE_GATE_PASS items=8 wornHead=true overrideBs=true semanticAcPreserved=true namedSpawnPkMappingInvented=false'
+        )
+    }
+}
+
+
+tasks.register('tournamentPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Tournament hub/leaderboard roots, actions, filters and text-row projection without owning tournament policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.TournamentPresentationTest')
+        }
+
+        logger.lifecycle(
+            'TOURNAMENT_PRESENTATION_PASS root27400=true leaderboard61011=true hubActions3=true filters4=true historyRows35=true playerRows26=true clanRows26=true prizeWidget56007Unowned=true policyOwned=false'
+        )
+    }
+}
+
+
+tasks.register('normalDuelPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 normal Duel selector/rules roots, C2S185 actions, contextual load-last reconstruction and challenge suffixes without owning duel policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.NormalDuelPresentationTest')
+        }
+
+        logger.lifecycle(
+            'NORMAL_DUEL_PRESENTATION_PASS selector25754=true rules6575=true modes3=true invite25763=true close65418=true loadLast68440Wire2904=true challengeSuffixes3=true policyOwned=false'
+        )
+    }
+}
+
+
+tasks.register('monsterSpawnerPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Monster Spawner root, toggle, 22 row actions, text projection and unattached-control boundary without owning spawn policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.MonsterSpawnerPresentationTest')
+        }
+
+        logger.lifecycle(
+            'MONSTER_SPAWNER_PRESENTATION_PASS root41000=true toggle41007=true rows22=true selectedNpc41019=true scroll41020=true distanced41017Unattached=true x3_41018Unattached=true catalogOwned=false spawnPolicyOwned=false'
+        )
+    }
+}
+
+tasks.register(
+    'itemEnchantmentServiceRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Validates the recovered protocol-independent Item Enchantment application lifecycle over ConversionService.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.ItemEnchantmentServiceTest'
+}
+
+tasks.register('itemEnchantmentPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Item Enchantment roots, category/row/item intents and result-state projection over the recovered semantic service without owning recipes, search transport, economy or RNG.'
+    dependsOn(
+        tasks.named('itemEnchantmentServiceRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.ItemEnchantmentPresentationTest')
+        }
+
+        logger.lifecycle(
+            'ITEM_ENCHANTMENT_PRESENTATION_PASS main31244=true categories31243=true categories7=true rows16=true itemWidget50253=true attempt49991=true search50314=true back50319=true resultTarget38=true state0123=true iso88591Fence=true searchPromptWireOwned=false selectionIsolation=true rawProtocolInService=false policyOwned=false'
+        )
+    }
+}
+
+tasks.register(
+    'legendaryPetFusionServiceRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Validates the recovered protocol-independent Legendary Pet Fusion lifecycle over ConversionService.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LegendaryPetFusionServiceTest'
+}
+
+tasks.register('legendaryPetFusionPresentationRegression') {
+    group = 'verification'
+    description = 'Validates the exact-v308 Legendary Pet Fusing root, contextual Fuse alias and caller-defined presentation over the recovered semantic service without owning recipe/economy/RNG policy.'
+    dependsOn(
+        tasks.named('legendaryPetFusionServiceRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.LegendaryPetFusionPresentationTest')
+        }
+
+        logger.lifecycle(
+            'LEGENDARY_PET_FUSION_PRESENTATION_PASS root18547=true fuseInternal65559=true fuseWire23=true close65418=true oneOffering=true callerDefinedProjection=true stateProjection=true stateWireOwned=false iso88591Fence=true legacyDefaultsEvidenceOnly=true rawProtocolInService=false policyOwned=false'
+        )
+    }
+}
+
+tasks.register('bloodcoreLotteryPresentationRegression') {
+    group = 'verification'
+    description = 'Bridges exact-v308 Bloodcore Lottery presentation to LotteryService history/entry intent without owning economics, RNG, prize or static token-value semantics.'
+    dependsOn(
+        tasks.named('lotteryPresentationRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.BloodcoreLotteryAdapterTest')
+        }
+
+        logger.lifecycle(
+            'BLOODCORE_LOTTERY_ADAPTER_PASS root61150=true enter61196=true history35=true channelBloodcore=true existingPresentationReused=true callerFormattedHistory=true opaqueItem22844=true opaque250=true opaque10000=true opaqueSemantics=false entrySettlementExternal=true rngExternal=true rawProtocolInService=false'
+        )
+    }
+}
+
+tasks.register('petDamageContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned behemothhit/petdamage aliases while nonpositive ordering, charge-family eligibility, accumulation and native-state publication remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetDamageContentCommandActionOwnershipTest',
+            'spk.local.PetChargeContentCommandActionOwnershipTest',
+            'spk.local.BehemothChargeStateTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.PetProcContentCommandActionOwnershipTest',
+            'spk.local.ScopeSnipeContentCommandActionOwnershipTest',
+            'spk.local.PetBoostContentCommandActionOwnershipTest',
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_DAMAGE_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS aliases=true semanticAction=true invalidCompatibility=true missingCompatibility=true extraArgsCompatibility=true policyWireBytes=0 nonpositiveBeforeEligibility=true noActivePositive=true nonThresholdNoWire=true thresholdNativeState=true sourceLabel=true modifiersRecordedOnly=true malformedFailClosed=true legacyRoutes=false pettestDamageRuntimeOwned=true publicApiExpanded=false'
+        )
+    }
+}
+
+tasks.register('localServerStartupFailureCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves partial LocalLab listener bind failure closes listeners, pool and World through the ordinary shutdown coordinator.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalServerStartupFailureCleanupTest'
+}
+
+
+tasks.register('worldPulseStartFailureAtomicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves WorldPulse startup publishes running before the starter but rolls all startup state back when thread creation/start fails.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldPulseStartFailureAtomicTest'
+}
+
+
+tasks.register('globalEventRegistrationCompositionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves GlobalEvent creation and consumer parent publication share one rollback-safe registration ownership boundary.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.GlobalEventRegistrationCompositionTest'
+}
+
+
+tasks.register('globalEventCompositionOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves GlobalEvent composition actions retain reentrant event ownership and block concurrent lifecycle mutation.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.GlobalEventCompositionOwnershipTest'
+}
+
+
+tasks.register('localSessionConstructionOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves accepted game sockets are coordinator-owned before fallible LocalSession construction and remain fenced across concurrent shutdown.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalSessionConstructionOwnershipTest'
+}
+
+
+tasks.register('worldNpcMutationOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact canonical WorldNpc mutation ownership linearizes concurrent remove/replace across the full caller action.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldNpcMutationOwnershipTest'
+}
+
+
+tasks.register('worldNpcLifecycleAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves each World owns one canonical NPC HP/death lifecycle authority shared unchanged by runtime services.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldNpcLifecycleAuthorityTest'
+}
+
+
+tasks.register('npcLifecycleServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical WorldNpc HP/death mutation is linearized by exact registry ownership and remains protocol independent.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('worldNpcMutationOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcLifecycleServiceTest'
+}
+
+
+tasks.register('npcDeadLifecycleOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact DEAD NPC lifecycle identity remains owned across read-only caller execution and blocks lifecycle unregister interleaving.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDeadLifecycleOwnershipTest'
+}
+
+
+tasks.register('npcDeadTerminalCompositionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact DEAD canonical NPC terminal callbacks cannot split canonical registry identity from lifecycle retirement.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcDeadLifecycleOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDeadTerminalCompositionTest'
+}
+
+
+tasks.register('monsterSpawnerNpcDeathFinalizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact DEAD Monster Spawner NPC drop resolution commits before atomic lifecycle/combat/canonical teardown without owning reward or respawn policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('canonicalNpcAttackClickRegression'),
+        tasks.named('npcDropResolutionServiceRegression'),
+        tasks.named('npcDeadTerminalCompositionRegression'),
+        tasks.named('monsterSpawnerCombatDespawnRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerNpcDeathFinalizationTest'
+}
+
+
+tasks.register('npcRespawnServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves dead canonical NPC retirement and fresh respawn registration are ownership-linearized and rollback-safe.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcRespawnServiceTest'
+}
+
+
+tasks.register('npcDropResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves deterministic NPC death drop resolution runs under exact canonical DEAD lifecycle ownership without mutating settlement/reward state.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcDeadLifecycleOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDropResolutionServiceTest'
+}
+
+
+tasks.register('npcCombatResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves player-to-NPC PvM resolution holds attacker generation ownership and delegates final HP/death mutation to the exact canonical NPC lifecycle fence.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatResolutionServiceTest'
+}
+
+
+tasks.register('groundItemBatchSettlementRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical ground-item drop bundles validate and commit atomically with deterministic stack merging and rollback on later-row failure.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.GroundItemBatchSettlementTest'
+}
+
+
+tasks.register('npcDropGroundSettlementRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves immutable NPC drop resolutions settle exactly once into owner-scoped canonical World ground items with retry after atomic batch failure.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('groundItemBatchSettlementRegression'),
+        tasks.named('npcDropResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDropGroundSettlementServiceTest'
+}
+
+
+tasks.register('npcDropLiveSceneRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves owner-scoped NPC drop settlement publishes live ground spawn/amount scene updates to the exact current player generation.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcDropGroundSettlementRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDropLiveSceneTest'
+}
+
+
+tasks.register('npcDropLiveSettlementAtomicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves live owner-scoped NPC loot presentation and receipts derive from immutable old/new facts captured by the exact atomic ground-item batch commit.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcDropLiveSceneRegression'),
+        tasks.named('npcDropGroundSettlementRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDropLiveSettlementAtomicTest'
+}
+
+
+tasks.register('localGroundItemInteractionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves ground-item Take resolves current-plane visible ownership correctly, including private precedence and public fallback.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalGroundItemInteractionHandlerTest'
+}
+
+
+tasks.register('monsterSpawnerPvmRuntimeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves one exact World-bound Monster Spawner PvM runtime owns spawn identity, death finalization and retryable drop settlement.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerNpcDeathFinalizationRegression'),
+        tasks.named('npcDropGroundSettlementRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerPvmRuntimeTest'
+}
+
+
+tasks.register('monsterSpawnerPvmSpawnExecutorRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves caller-owned Monster Spawner placement resolves outside ownership and commits one PvM spawn only against the exact active session snapshot.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerPvmRuntimeRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerPvmSpawnExecutorTest'
+}
+
+
+tasks.register('npcPlayerCombatResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves NPC-to-player damage holds exact player generation and canonical NPC ownership through caller policy and HP mutation.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcPlayerCombatResolutionServiceTest'
+}
+
+
+tasks.register('pvpHotspotServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves PvP Hotspot semantic presence and caller-validated kill counters without reward, teleport, multiplier, or protocol ownership.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PvpHotspotServiceTest'
+}
+
+
+tasks.register('npcCombatEngagementServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit NPC engagement/cadence state keeps target generation ownership and delegates attack execution without owning damage/pathing policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcPlayerCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatEngagementServiceTest'
+}
+
+
+
+
+tasks.register('npcCombatApproachServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves an already-selected canonical NPC can approach an exact current player by one collision-safe RouteFinder step without owning aggro, target selection, damage, or presentation.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatEngagementServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatApproachServiceTest'
+}
+
+
+tasks.register('npcCombatControllerServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit NPC engagements approach collision-safely before cadence-gated canonical NPC-to-player damage.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatApproachServiceRegression'),
+        tasks.named('npcCombatEngagementServiceRegression'),
+        tasks.named('npcPlayerCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatControllerServiceTest'
+}
+
+
+tasks.register('npcTargetAcquisitionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves deterministic caller-policy NPC target acquisition over exact canonical player generations without owning aggro or combat.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatControllerServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcTargetAcquisitionServiceTest'
+}
+
+
+tasks.register('npcCombatAiServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves idle canonical NPC target acquisition begins an engagement without same-tick combat, then delegates existing engagements to the combat controller.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcTargetAcquisitionServiceRegression'),
+        tasks.named('npcCombatControllerServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatAiServiceTest'
+}
+
+
+tasks.register('npcWorldPulseAiRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical NPC combat AI executes on the one authoritative WorldPulse through a separate NPC-owned tick-target contract.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatAiServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcWorldPulseAiTest'
+}
+
+
+tasks.register('npcCombatRuntimeBinderRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves caller-defined NPC combat behavior plans bind atomically to canonical WorldPulse runtime without inventing combat policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcWorldPulseAiRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatRuntimeBinderTest'
+}
+
+
+tasks.register('monsterSpawnerCombatBindingRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Monster Spawner canonical spawn/budget state and NPC combat runtime attachment commit or roll back together under World lifecycle ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatRuntimeBinderRegression'),
+        tasks.named('monsterSpawnerServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerCombatBindingServiceTest'
+}
+
+
+tasks.register('monsterSpawnerCombatDespawnRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves bound Monster Spawner NPC terminal removal unbinds pulse runtime and canonical/tracked NPC state atomically.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerCombatBindingRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerCombatDespawnTest'
+}
+
+
+tasks.register('monsterSpawnerNpcLifecycleBindingRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Monster Spawner combat NPC creation atomically publishes canonical World-owned HP/death lifecycle registration under caller-owned HP policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerCombatDespawnRegression'),
+        tasks.named('worldNpcLifecycleAuthorityRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerNpcLifecycleBindingTest'
+}
+
+
+tasks.register('npcCombatDeadAttackerGuardRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact canonical dead NPCs cancel engagement and cannot acquire, approach or damage through autonomous combat AI.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerNpcLifecycleBindingRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatDeadAttackerGuardTest'
+}
+
+
+tasks.register('monsterSpawnerNpcSceneProjectionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicitly tracked canonical Monster Spawner NPCs project into independent viewer-local packet-65 scenes through NpcRegistry.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatDeadAttackerGuardRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerNpcSceneProjectionTest'
+}
+
+
+tasks.register('canonicalNpcAttackClickRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact semantic NPC Attack clicks resolve viewer-local canonical identity into one World-owned PvM strike and lifecycle-derived packet-65 hit presentation.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerNpcSceneProjectionRegression'),
+        tasks.named('npcCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalCanonicalNpcAttackHandlerTest'
+}
+
+
+tasks.register('canonicalNpcAttackOwnershipRaceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical NPC Attack ownership invalidation races fail closed without session-terminal exception, HP, packet or cadence side effects.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('canonicalNpcAttackClickRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalCanonicalNpcAttackOwnershipRaceTest'
+}
+
+
+tasks.register('canonicalNpcAttackSpatialAtomicityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves player/NPC spatial legality is revalidated under exact mutation ownership at canonical PvM damage admission.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('canonicalNpcAttackOwnershipRaceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalCanonicalNpcAttackSpatialAtomicityTest'
+}
+
+
+tasks.register('canonicalNpcAttackPvmRuntimeBridgeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves a lethal canonical NPC Attack finalizes only through one explicitly configured exact-World Monster Spawner PvM runtime after hit publication.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('canonicalNpcAttackSpatialAtomicityRegression'),
+        tasks.named('monsterSpawnerPvmRuntimeRegression'),
+        tasks.named('npcDropLiveSettlementAtomicRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalCanonicalNpcAttackPvmRuntimeBridgeTest'
+}
+
+
+tasks.register('npcPvmDelayedHitServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves already-resolved player-to-NPC damage is delivered once on the shared WorldEventQueue under exact attacker generation and canonical target ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcPvmDelayedHitServiceTest'
+}
+
+
+tasks.register('npcCombatDelayedCompositionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves PvM resolution preserves immediate compatibility and composes positive hit delay into canonical WorldEventQueue delivery without recalculating damage.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcPvmDelayedHitServiceRegression'),
+        tasks.named('npcCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatDelayedCompositionTest'
+}
+
+
+tasks.register('matchInstanceCompositionOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves MatchSession and WorldInstance mutation ownership is held together across one composition action.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MatchInstanceCompositionOwnershipTest'
+}
+
+
+
+
+tasks.register('clanWarSessionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves accepted Clan Wars compose into semantic MatchSession + WorldInstance lifecycles without inventing rewards or transport policy.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.ClanWarSessionServiceTest'
+}
+
+
+
+
+tasks.register('duelSessionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves standard Duel challenge/session composition over MatchSession + WorldInstance without owning stakes, rewards, or transport.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.DuelSessionServiceTest'
+}
+
+
+
+
+tasks.register('tournamentServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit LocalLab single-elimination Tournament composition over GlobalEvent + MatchSession + WorldInstance without reward or protocol ownership.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.TournamentServiceTest'
+}
+
+
+
+
+tasks.register('matchInstanceSessionCompositionAtomicityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Clan War, Duel and Tournament startup/terminal composition remains inside shared MatchSession + WorldInstance ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('matchInstanceCompositionOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MatchInstanceSessionCompositionAtomicityTest'
+}
+
+
+
+
+tasks.register('monsterSpawnerUiServiceAdapterRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact-v308 Monster Spawner row/toggle widgets delegate only to caller-owned catalog/session/budget policy without spawning or inventing mechanics.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerPresentationRegression'),
+        tasks.named('monsterSpawnerServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalMonsterSpawnerUiHandlerTest'
+}
+
+
+tasks.register('localLabMonsterSpawnerProvisioningRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Main-ready CUSTOM_LOCALLAB Monster Spawner provisioning creates one World-bound UI/runtime graph and a real one-shot PvM spawn.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerUiServiceAdapterRegression'),
+        tasks.named('monsterSpawnerPvmSpawnExecutorRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalLabMonsterSpawnerProvisioningTest'
+}
+
+
+tasks.register('localMonsterSpawnerActivationPvmSpawnRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit caller-owned Monster Spawner activation callback can invoke exactly one atomic PvM spawn without default server policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerUiServiceAdapterRegression'),
+        tasks.named('monsterSpawnerPvmSpawnExecutorRegression'),
+        tasks.named('localLabMonsterSpawnerProvisioningRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalMonsterSpawnerActivationPvmSpawnTest'
+}
+
+
+tasks.register('localMonsterSpawnerCallbackLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Monster Spawner committed-result callbacks linearize with exact player unregister and World terminal close.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localMonsterSpawnerActivationPvmSpawnRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalMonsterSpawnerCallbackLinearizationTest'
+}
+
+
+tasks.register('monsterSpawnerServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves caller-defined Monster Spawner catalog/budget semantics with exact canonical WorldNpc tracking and despawn ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('worldNpcMutationOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerServiceTest'
+}
+
+
+
+
+tasks.register('worldAdmissionPulseStartAtomicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves registerPlayerAndStart rolls back exact player membership when WorldPulse startup fails and permits a clean retry.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldAdmissionPulseStartAtomicTest'
+}
+
+
+tasks.register('localAuxHttpResponseRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves LocalLab auxiliary archive responses stream with bounded memory while preserving HTTP length, HEAD and missing-archive behavior.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxHttpResponseTest'
+}
+
+
+tasks.register('localAuxResponseLivenessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves AUX response writes are guarded by one bounded no-progress watchdog without changing exact archive streaming semantics.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxResponseLivenessTest'
+}
+
+
+tasks.register('localAuxiliaryWorkerFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves an uncaught auxiliary worker failure becomes authoritative serving failure instead of silently killing the AUX accept task.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxiliaryWorkerFailureTest'
+}
+
+
+tasks.register('localAuxVersionsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves local versions.dat input is accepted only below 16 KiB and never read beyond the existing decision bound.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxVersionsTest'
+}
+
+
+tasks.register('localAuxHttpWorkerFailurePreservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves AUX handler RuntimeException/Error remains primary across any socket-retirement Throwable while checked handler I/O stays connection-scoped.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxHttpWorkerFailurePreservationTest'
+}
+
+
+tasks.register('localAuxHttpRequestReaderRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves LocalLab AUX HTTP request parsing has a physical-line limit, total request budget and absolute deadline that continuous peer traffic cannot reset.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxHttpRequestReaderTest'
+}
+
+
+tasks.register('localAuxArchivePathRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves optional LocalLab archive path resolution fails closed when caller home state is unavailable without swallowing unrelated failures.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxArchivePathTest'
+}
+
+
+tasks.register('localAuxArchiveAccessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves optional AUX archive access SecurityException maps to unavailable while IOException and unrelated unchecked failures retain their classifications.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxArchiveAccessTest'
+}
+
+
+tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
+    group = 'verification'
+    description = 'Locks the Gradle-owned cumulative server-JAR SHA handoff used by the canonical wrapper and final smoke.'
+
+    doLast {
+        File buildFile = new File(repoRoot, 'server/build.gradle')
+        String buildText = buildFile.getText('UTF-8')
+        String taskAnchor = "tasks.register('chat1CurrentCumulativeCertification')"
+        int taskIndex = buildText.lastIndexOf(taskAnchor)
+        if(taskIndex < 0)
+            throw new GradleException('Current cumulative certification task not found.')
+
+        String taskText = buildText.substring(taskIndex)
+        int nextTaskIndex =
+            taskText.indexOf(
+                'tasks.register(',
+                taskAnchor.length()
+            )
+
+        String cumulativeTaskText =
+            nextTaskIndex < 0 ?
+                taskText :
+                taskText.substring(0, nextTaskIndex)
+
+        [
+            "tasks.named('jar', Jar).get().archiveFile.get().asFile",
+            'sha256(certifiedServerJar)',
+            "'serverSha256=' + certifiedServerSha256 + ' '"
+        ].each { required ->
+            if(!cumulativeTaskText.contains(required))
+                throw new GradleException(
+                    "Current cumulative server identity contract missing: ${required}"
+                )
+        }
+
+        int dependencyBlockEnd =
+            cumulativeTaskText.indexOf('    doLast {')
+        if(dependencyBlockEnd < 0)
+            throw new GradleException(
+                'Current cumulative dependency block terminator not found.'
+            )
+
+        String dependencyText =
+            cumulativeTaskText.substring(0, dependencyBlockEnd)
+
+        [
+            "tasks.named('currentTrainFocusedRegression')",
+            "tasks.named('r85V308Acceptance')",
+            "tasks.named('verifyJava11Bytecode')"
+        ].each { required ->
+            if(!dependencyText.contains(required))
+                throw new GradleException(
+                    "Current cumulative direct proof dependency missing: ${required}"
+                )
+        }
+
+        [
+            "'focused=175 '",
+            "'exactV308=179 '",
+            "'bytecodeMajor=55'"
+        ].each { required ->
+            if(!cumulativeTaskText.contains(required))
+                throw new GradleException(
+                    "Current cumulative numeric proof claim missing: ${required}"
+                )
+        }
+
+        int jarIndex = cumulativeTaskText.indexOf(
+            "tasks.named('jar', Jar).get().archiveFile.get().asFile"
+        )
+        int hashIndex = cumulativeTaskText.indexOf(
+            'sha256(certifiedServerJar)'
+        )
+        int markerIndex = cumulativeTaskText.indexOf(
+            "'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS '"
+        )
+        int markerShaIndex = cumulativeTaskText.indexOf(
+            "'serverSha256=' + certifiedServerSha256 + ' '"
+        )
+
+        if(jarIndex < 0 ||
+           hashIndex <= jarIndex ||
+           markerIndex <= hashIndex ||
+           markerShaIndex <= markerIndex)
+            throw new GradleException(
+                'Current cumulative server identity ordering drifted: expected jar identity -> SHA -> Gradle-owned PASS marker -> serverSha256 field.'
+            )
+
+        logger.lifecycle(
+            'CHAT1_CUMULATIVE_SERVER_IDENTITY_CONTRACT_PASS ' +
+            'gradleOwned=true serverSha256=true'
+        )
+    }
+}
+
+tasks.register('chat1CurrentCumulativeCertification') {
+    group = 'verification'
+    description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, Issue #9 R13 source gates, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
+
+    dependsOn(
+        tasks.named('chat1CumulativeWrapperContractRegression'),
+        tasks.named('chat1CurrentCumulativeServerIdentityRegression'),
+        tasks.named('gradleBootstrapContractRegression'),
+        tasks.named('issue5KotlinScriptingCertification'),
+        tasks.named('currentTrainFocusedRegression'),
+        tasks.named('r85V308Acceptance'),
+        tasks.named('verifyJava11Bytecode'),
+        tasks.named('issue9R13SourceCertification'),
+        tasks.named('staffPartyhatAppearanceGateRegression'),
+        tasks.named('tournamentPresentationRegression'),
+        tasks.named('normalDuelPresentationRegression'),
+        tasks.named('monsterSpawnerPresentationRegression'),
+        tasks.named('itemEnchantmentServiceRegression'),
+        tasks.named('itemEnchantmentPresentationRegression'),
+        tasks.named('legendaryPetFusionServiceRegression'),
+        tasks.named('legendaryPetFusionPresentationRegression'),
+        tasks.named('bloodcoreLotteryPresentationRegression'),
+        tasks.named('petDamageContentCommandActionOwnershipRegression'),
+        tasks.named('petSpecializedProcContentCommandActionOwnershipRegression'),
+        tasks.named('localServerStartupFailureCleanupRegression'),
+        tasks.named('worldPulseStartFailureAtomicRegression'),
+        tasks.named('localSessionConstructionOwnershipRegression'),
+        tasks.named('worldAdmissionPulseStartAtomicRegression'),
+        tasks.named('localAuxHttpResponseRegression'),
+        tasks.named('localAuxResponseLivenessRegression'),
+        tasks.named('localAuxiliaryWorkerFailureRegression'),
+        tasks.named('localAuxVersionsRegression'),
+        tasks.named('localAuxHttpWorkerFailurePreservationRegression'),
+        tasks.named('localAuxHttpRequestReaderRegression'),
+        tasks.named('localAuxArchivePathRegression'),
+        tasks.named('localAuxArchiveAccessRegression')
+    )
+
+    doLast {
+        File certifiedServerJar =
+            tasks.named('jar', Jar).get().archiveFile.get().asFile
+        if(!certifiedServerJar.isFile())
+            throw new GradleException(
+                "Cumulative certification produced no server JAR: ${certifiedServerJar}"
+            )
+
+        String certifiedServerSha256 =
+            sha256(certifiedServerJar)
+        if(!(certifiedServerSha256 ==~ /[0-9a-f]{64}/))
+            throw new GradleException(
+                "Invalid cumulative-certified server SHA-256: ${certifiedServerSha256}"
+            )
+
+        logger.lifecycle(
+            'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS ' +
+            'issue5=true ' +
+            'issue9R13Source=true ' +
+            'gradleBootstrapPinned=true ' +
+            'staffPartyhat=true ' +
+            'tournament=true ' +
+            'normalDuel=true ' +
+            'monsterSpawner=true ' +
+            'itemEnchantment=true ' +
+            'legendaryPetFusion=true ' +
+            'bloodcoreLottery=true ' +
+            'petDamage=true ' +
+            'specializedPetProc=true ' +
+            'startupFailureAtomic=true ' +
+            'worldPulseStartAtomic=true ' +
+            'localSessionConstructionOwnership=true ' +
+            'worldAdmissionPulseStartAtomic=true ' +
+            'localAuxHttpStreaming=true ' +
+            'localAuxResponseLiveness=true ' +
+            'auxWorkerFailurePropagation=true ' +
+            'localAuxVersionsBounded=true ' +
+            'auxHandlerFailurePreserved=true ' +
+            'localAuxRequestBounded=true ' +
+            'localAuxArchivePathSafe=true ' +
+            'localAuxArchiveAccessSafe=true ' +
+            'focused=175 ' +
+            'exactV308=179 ' +
+            'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
+            'serverSha256=' + certifiedServerSha256 + ' ' +
+            'canonicalPromoted=true ' +
+            'bytecodeMajor=55'
+        )
+    }
+}
+
+
+
+tasks.register('serverPacketWriterBatchAbortRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves failed single-writer packet batches discard staged bytes and restore exact ISAAC framing state.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.ServerPacketWriterBatchAbortTest'
+}
+
+tasks.register('outboundPacketQueueBatchAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves active single-writer batch queue admission is non-poisoning and retry-safe.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.OutboundPacketQueueTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('serverPacketWriterBatchAbortRegression')
+    dependsOn tasks.named('outboundPacketQueueBatchAdmissionRegression')
+}
+
+
+tasks.register('player81BatchAbortAtomicityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves batched packet81 presentation state and NPC relay barriers commit only after transport admission and survive abort.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81BatchAbortAtomicityTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81BatchAbortAtomicityRegression')
+}
+
+tasks.register('player81NoContextLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves packet81 NO_CONTEXT classification stays local-only across later Player81 registration.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81NoContextLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81NoContextLinearizationRegression')
+}
+
+tasks.register('player81ContextRetirementLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves prepared packet81 commit authority cannot be retired or rebound inside its semantic+transport commit critical section.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81ContextRetirementLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81ContextRetirementLinearizationRegression')
+}
+
+tasks.register('player81PreparedTransformFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves prepared packet81 transform failures are terminal and cannot fall back to local-only bytes.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81PreparedTransformFailureTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81PreparedTransformFailureRegression')
+}
+
+
+tasks.register('sharedNpcRelayContextRetirementLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc relay unregister/rebind cannot retire a viewer context through an in-flight packet65 delivery commit.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.SharedNpcRelayContextRetirementLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('sharedNpcRelayContextRetirementLinearizationRegression')
+}
+
+tasks.register('sharedNpcSyncContextRetirementLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc remote/canonical projection sync retains exact relay context authority through publication.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.SharedNpcSyncContextRetirementLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('sharedNpcSyncContextRetirementLinearizationRegression')
+}
+
+
+tasks.register('remotePetMirrorMaskRetryRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves a post-add remote mirror mask failure is retryable without allocating a duplicate mirrored NPC.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.RemotePetMirrorMaskRetryTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('remotePetMirrorMaskRetryRegression')
+}
+
+
+tasks.register('npcPresentationDeliveryTransportRetractabilityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc presentation-event mask retry is transport-retractable, wire-exact, and terminal direct failures retire recipient debt.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcPresentationDeliveryTransportRetractabilityTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('npcPresentationDeliveryTransportRetractabilityRegression')
+}
+
+tasks.register('sharedNpcRebindCleanupRetractabilityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc rebind retains old context authority until retractable projection cleanup commits.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.SharedNpcRebindCleanupRetractabilityTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('sharedNpcRebindCleanupRetractabilityRegression')
+}
+
+
+
+tasks.register('runtimeBindingLateRegistrationAtomicityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves recoverable player-option admission failure preserves the exact old Player81, SharedNpc and Trade runtime bundle.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.RuntimeBindingLateRegistrationAtomicityTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('runtimeBindingLateRegistrationAtomicityRegression')
+}
+
+
+tasks.register('localSessionRuntimeBindingsSharedNpcRetentionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves runtime-binding rollback preserves SharedNpc contexts intentionally retained by retryable or terminal live rebind rejection.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalSessionRuntimeBindingsSharedNpcRetentionTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('localSessionRuntimeBindingsSharedNpcRetentionRegression')
 }

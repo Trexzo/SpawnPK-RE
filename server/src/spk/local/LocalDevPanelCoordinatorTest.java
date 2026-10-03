@@ -11,6 +11,7 @@ public final class LocalDevPanelCoordinatorTest {
     {
         SceneUpdatePublisher publisher;
         String saveReason;
+        int rootReplacingAmounts;
 
         @Override public String username(){
             return "opensrc";
@@ -31,6 +32,15 @@ public final class LocalDevPanelCoordinatorTest {
             String reason
         ){
             saveReason=reason;
+        }
+
+        @Override public LocalDevPanelAmountHandler.Outcome
+            handleRootReplacingAmount(
+                LocalDevPanelCoordinator
+                    .RootReplacingAmountAction action
+            )throws java.io.IOException{
+            rootReplacingAmounts++;
+            return action.handle();
         }
     }
 
@@ -262,6 +272,204 @@ public final class LocalDevPanelCoordinatorTest {
                 );
             }
 
+            OutboundPacketQueue failedPromptQueue=
+                new OutboundPacketQueue(1024);
+            failedPromptQueue.offer(
+                new byte[1023]
+            );
+            ServerPacketWriter failedPromptWriter=
+                new ServerPacketWriter(
+                    failedPromptQueue,
+                    new IsaacCipher(
+                        new int[]{21,22,23,24}
+                    )
+                );
+
+            boolean promptFailed=false;
+            try{
+                coordinator.promptAmount(
+                    DevControlCenter.PendingAmount.HIT_DAMAGE,
+                    failedPromptWriter
+                );
+            }catch(java.io.IOException expected){
+                promptFailed=true;
+            }
+
+            if(!promptFailed||
+               !panel.isOpen()||
+               panel.page()!=
+                    DevControlCenter.Page.MAIN||
+               panel.hasPending())
+                throw new AssertionError(
+                    "failed numeric prompt committed Dev Panel state"
+                );
+
+            String keysAfterFailedPrompt=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!keysAfterFailedPrompt.contains(
+                    "active=true")||
+               !keysAfterFailedPrompt.contains(
+                    "widgets=2482,2483,2484,2485"
+               ))
+                throw new AssertionError(
+                    "failed numeric prompt cleared dialog key sidecar: "+
+                    keysAfterFailedPrompt
+                );
+
+            WorldPlayer tradePeer=
+                new WorldPlayer();
+            world.registerPlayer(
+                tradePeer,
+                "dev-panel-peer"
+            );
+            OutboundPacketQueue tradePeerQueue=
+                new OutboundPacketQueue();
+            ServerPacketWriter tradePeerWriter=
+                new ServerPacketWriter(
+                    tradePeerQueue,
+                    new IsaacCipher(
+                        new int[]{9,10,11,12}
+                    )
+                );
+
+            TradeService.register(
+                world,
+                player,
+                player.generation(),
+                bank,
+                writer,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                tradePeer,
+                tradePeer.generation(),
+                tradePeer.bank(),
+                tradePeerWriter,
+                ()->{}
+            );
+            if(!TradeService.start(
+                    world,
+                    player,
+                    tradePeer
+                ).contains("TRADE_UI_OPEN"))
+                throw new AssertionError(
+                    "Dev Panel failure fixture Trade did not open"
+                );
+
+            bank.open(writer);
+            itemLibrary.open(
+                writer,
+                28860
+            );
+            coordinator.promptAmount(
+                DevControlCenter.PendingAmount.HIT_DAMAGE,
+                writer
+            );
+
+            OutboundPacketQueue failedPanelQueue=
+                new OutboundPacketQueue(1024);
+            failedPanelQueue.offer(
+                new byte[900]
+            );
+            ServerPacketWriter failedPanelWriter=
+                new ServerPacketWriter(
+                    failedPanelQueue,
+                    new IsaacCipher(
+                        new int[]{13,14,15,16}
+                    )
+                );
+
+            boolean panelOpenFailed=false;
+            try{
+                coordinator.open(
+                    DevControlCenter.Page.MORE,
+                    failedPanelWriter
+                );
+            }catch(java.io.IOException expected){
+                panelOpenFailed=true;
+            }
+
+            if(!panelOpenFailed||
+               panel.isOpen()||
+               !panel.hasPending()||
+               panel.pending()!=
+                    DevControlCenter.PendingAmount.HIT_DAMAGE)
+                throw new AssertionError(
+                    "failed Dev Panel target did not restore prior panel state"
+                );
+
+            if(!bank.isOpen()||
+               !itemLibrary.isOpen()||
+               itemLibrary.selectedItem()!=28860||
+               !TradeService.active(player)||
+               !TradeService.active(tradePeer))
+                throw new AssertionError(
+                    "failed Dev Panel target retired an existing owner"
+                );
+
+            TradeService.cancelIfActive(
+                player,
+                "DEV_PANEL_FAILURE_FIXTURE_CLEANUP"
+            );
+            TradeService.unregister(
+                tradePeer
+            );
+            world.unregisterPlayer(
+                tradePeer
+            );
+            bank.clientClosed();
+            itemLibrary.close();
+
+            coordinator.promptAmount(
+                DevControlCenter.PendingAmount.ITEM_LIBRARY_ID,
+                writer
+            );
+            int rootReplacingBeforeInvalid=
+                bridge.rootReplacingAmounts;
+
+            coordinator.handleAmount(
+                -1,
+                writer,
+                "[dev-panel-test] "
+            );
+
+            if(bridge.rootReplacingAmounts!=
+                    rootReplacingBeforeInvalid||
+               itemLibrary.isOpen())
+                throw new AssertionError(
+                    "invalid Item Library amount entered root replacement"
+                );
+
+            coordinator.promptAmount(
+                DevControlCenter.PendingAmount.ITEM_LIBRARY_ID,
+                writer
+            );
+
+            coordinator.handleAmount(
+                28860,
+                writer,
+                "[dev-panel-test] "
+            );
+
+            if(bridge.rootReplacingAmounts!=
+                    rootReplacingBeforeInvalid+1||
+               !itemLibrary.isOpen()||
+               itemLibrary.selectedItem()!=28860)
+                throw new AssertionError(
+                    "valid Item Library amount bypassed root replacement"
+                );
+
+            itemLibrary.close();
+            coordinator.open(
+                DevControlCenter.Page.MAIN,
+                writer
+            );
+
             coordinator.promptAmount(
                 DevControlCenter.PendingAmount.HIT_DAMAGE,
                 writer
@@ -289,6 +497,85 @@ public final class LocalDevPanelCoordinatorTest {
                     prompted
                 );
             }
+
+            OutboundPacketQueue failedReopenQueue=
+                new OutboundPacketQueue(1024);
+            failedReopenQueue.offer(
+                new byte[1024]
+            );
+            ServerPacketWriter failedReopenWriter=
+                new ServerPacketWriter(
+                    failedReopenQueue,
+                    new IsaacCipher(
+                        new int[]{25,26,27,28}
+                    )
+                );
+
+            boolean reopenFailed=false;
+            try{
+                coordinator.handleAmount(
+                    42,
+                    failedReopenWriter,
+                    "[dev-panel-test] "
+                );
+            }catch(java.io.IOException expected){
+                reopenFailed=true;
+            }
+
+            if(!reopenFailed||
+               panel.isOpen()||
+               !panel.hasPending()||
+               panel.pending()!=
+                    DevControlCenter.PendingAmount.HIT_DAMAGE||
+               panel.page()!=
+                    DevControlCenter.Page.MAIN)
+                throw new AssertionError(
+                    "failed amount-result reopen did not restore exact prompt state"
+                );
+
+            String keysAfterFailedReopen=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!keysAfterFailedReopen.startsWith(
+                    "active=false\nwidgets=\n"
+               ))
+                throw new AssertionError(
+                    "failed amount-result reopen published dialog keys: "+
+                    keysAfterFailedReopen
+                );
+
+            coordinator.handleAmount(
+                42,
+                writer,
+                "[dev-panel-test] "
+            );
+
+            if(!panel.isOpen()||
+               panel.hasPending()||
+               panel.page()!=
+                    DevControlCenter.Page.MAIN)
+                throw new AssertionError(
+                    "amount-result reopen retry did not commit exact return page"
+                );
+
+            String keysAfterReopenRetry=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!keysAfterReopenRetry.contains(
+                    "active=true")||
+               !keysAfterReopenRetry.contains(
+                    "widgets=2482,2483,2484,2485"
+               ))
+                throw new AssertionError(
+                    "successful amount-result reopen did not publish dialog keys: "+
+                    keysAfterReopenRetry
+                );
 
             coordinator.open(
                 DevControlCenter.Page.MORE,
@@ -319,7 +606,20 @@ public final class LocalDevPanelCoordinatorTest {
             System.out.println(
                 "LOCAL_DEV_PANEL_COORDINATOR_PASS "+
                 "openRender=true keyPublication=true "+
-                "numericPrompt=true sessionClose=true"
+                "itemLibraryRootReplacement=true "+
+                "invalidItemLibraryPreserved=true "+
+                "numericPrompt=true "+
+                "promptFailureAtomic=true "+
+                "promptFailurePreservesKeys=true "+
+                "sessionClose=true "+
+                "targetFailureAtomic=true "+
+                "failedTargetPreservesBank=true "+
+                "failedTargetPreservesItemLibrary=true "+
+                "failedTargetPreservesTrade=true "+
+                "amountReopenFailureAtomic=true "+
+                "amountReopenPreservesPending=true "+
+                "amountReopenPreservesKeys=true "+
+                "amountReopenRetryExact=true"
             );
         }finally{
             world.close();

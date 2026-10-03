@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * Owns the exact current interface-close and widget-action routing that was
@@ -11,6 +12,60 @@ import java.util.Objects;
  * does not own sockets, persistence implementation, or logout loop control.
  */
 final class LocalSessionUiActionHandler {
+    static final class MonsterSpawnerDispatch {
+        final boolean admitted;
+        final boolean closedUi;
+        final LocalMonsterSpawnerUiHandler.Result result;
+
+        private MonsterSpawnerDispatch(
+            boolean admitted,
+            boolean closedUi,
+            LocalMonsterSpawnerUiHandler.Result result
+        ){
+            this.admitted=admitted;
+            this.closedUi=closedUi;
+            this.result=result;
+        }
+
+        static MonsterSpawnerDispatch admitted(
+            LocalMonsterSpawnerUiHandler.Result result
+        ){
+            return new MonsterSpawnerDispatch(
+                true,
+                false,
+                result
+            );
+        }
+
+        static MonsterSpawnerDispatch closedUi(){
+            return new MonsterSpawnerDispatch(
+                true,
+                true,
+                null
+            );
+        }
+
+        static MonsterSpawnerDispatch rejected(){
+            return new MonsterSpawnerDispatch(
+                false,
+                false,
+                null
+            );
+        }
+    }
+
+    interface RootInterfaceAction {
+        String publish() throws IOException;
+    }
+
+    interface RootInterfaceBooleanAction {
+        boolean publish() throws IOException;
+    }
+
+    interface RootCommitAction {
+        void commit();
+    }
+
     interface SessionBridge {
         void saveAccount(String tag,String reason);
         void clearDialogNumberKeys();
@@ -27,6 +82,82 @@ final class LocalSessionUiActionHandler {
             ServerPacketWriter serverPackets,
             String tag
         )throws IOException{}
+        default void handleMonsterSpawnerResult(
+            LocalMonsterSpawnerUiHandler.Result result,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{}
+
+        default MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            LocalMonsterSpawnerUiHandler.Result result=
+                Objects.requireNonNull(
+                    handler,
+                    "handler"
+                ).handle(
+                    widget,
+                    serverPackets
+                );
+
+            if(result!=null)
+                handleMonsterSpawnerResult(
+                    result,
+                    serverPackets,
+                    tag
+                );
+
+            return MonsterSpawnerDispatch.admitted(
+                result
+            );
+        }
+
+        default MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter serverPackets,
+            String tag,
+            BooleanSupplier uiOpen
+        )throws IOException{
+            if(!Objects.requireNonNull(
+                    uiOpen,
+                    "uiOpen"
+                ).getAsBoolean())
+                return MonsterSpawnerDispatch.closedUi();
+
+            return handleMonsterSpawnerWidget(
+                handler,
+                widget,
+                serverPackets,
+                tag
+            );
+        }
+
+        default boolean closeMonsterSpawnerUi(
+            BooleanSupplier closeAction
+        )throws IOException{
+            return Objects.requireNonNull(
+                closeAction,
+                "closeAction"
+            ).getAsBoolean();
+        }
+
+        default String replaceMonsterSpawnerRoot(
+            RootInterfaceAction action
+        )throws IOException{
+            return Objects.requireNonNull(
+                action,
+                "action"
+            ).publish();
+        }
+
+        default boolean retireMakeoverDesignerRoot(){
+            return false;
+        }
+
         void requestLogout();
     }
 
@@ -37,6 +168,8 @@ final class LocalSessionUiActionHandler {
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
+    private volatile LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
+    private volatile boolean monsterSpawnerUiOpen;
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
@@ -55,6 +188,36 @@ final class LocalSessionUiActionHandler {
         EquipmentState equipment,
         SessionBridge bridge
     ){
+        this(
+            worldPlayer,
+            itemLibrary,
+            devPanel,
+            bank,
+            compCapeCustomize,
+            petDialogs,
+            gameplayWidgetHandler,
+            movement,
+            movementEnabled,
+            equipment,
+            null,
+            bridge
+        );
+    }
+
+    LocalSessionUiActionHandler(
+        WorldPlayer worldPlayer,
+        NativeItemLibraryService itemLibrary,
+        DevControlCenter devPanel,
+        BankState bank,
+        LocalCompCapeCustomizeHandler compCapeCustomize,
+        LocalPetInventoryDialogHandler petDialogs,
+        LocalGameplayWidgetHandler gameplayWidgetHandler,
+        MovementState movement,
+        boolean movementEnabled,
+        EquipmentState equipment,
+        LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler,
+        SessionBridge bridge
+    ){
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.itemLibrary=Objects.requireNonNull(itemLibrary,"itemLibrary");
         this.devPanel=Objects.requireNonNull(devPanel,"devPanel");
@@ -64,10 +227,56 @@ final class LocalSessionUiActionHandler {
         this.petDialogs=Objects.requireNonNull(petDialogs,"petDialogs");
         this.gameplayWidgetHandler=Objects.requireNonNull(
             gameplayWidgetHandler,"gameplayWidgetHandler");
+        this.monsterSpawnerUiHandler=monsterSpawnerUiHandler;
         this.movement=Objects.requireNonNull(movement,"movement");
         this.movementEnabled=movementEnabled;
         this.equipment=Objects.requireNonNull(equipment,"equipment");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
+    }
+
+    synchronized void installMonsterSpawnerUiHandler(
+        LocalMonsterSpawnerUiHandler adapter
+    ){
+        LocalMonsterSpawnerUiHandler checked=
+            Objects.requireNonNull(
+                adapter,
+                "adapter"
+            );
+
+        if(monsterSpawnerUiHandler==null){
+            monsterSpawnerUiHandler=checked;
+            return;
+        }
+
+        if(monsterSpawnerUiHandler!=checked)
+            throw new IllegalStateException(
+                "Monster Spawner UI adapter already installed"
+            );
+    }
+
+    boolean openMonsterSpawnerIfConfigured(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        LocalMonsterSpawnerUiHandler configured=
+            monsterSpawnerUiHandler;
+
+        if(configured==null)
+            return false;
+
+        configured.open(
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            )
+        );
+        itemLibrary.close();
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        monsterSpawnerUiOpen=true;
+        return true;
     }
 
     void handleInterfaceClose(
@@ -87,6 +296,16 @@ final class LocalSessionUiActionHandler {
             devPanel.isOpen()||devPanel.hasPending();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+
+        boolean monsterSpawnerWasOpen=
+            bridge.closeMonsterSpawnerUi(
+                ()->{
+                    boolean wasOpen=
+                        monsterSpawnerUiOpen;
+                    monsterSpawnerUiOpen=false;
+                    return wasOpen;
+                }
+            );
 
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
@@ -113,6 +332,7 @@ final class LocalSessionUiActionHandler {
             " tradeWasOpen="+tradeWasOpen+
             " itemLibraryWasOpen="+itemLibraryWasOpen+
             " devPanelWasOpen="+devPanelWasOpen+
+            " monsterSpawnerWasOpen="+monsterSpawnerWasOpen+
             " petColorWasOpen="+petColorWasOpen+
             " miniConfigWasOpen="+miniConfigWasOpen+
             " petAccessoryWasOpen="+petAccessoryWasOpen+
@@ -137,6 +357,32 @@ final class LocalSessionUiActionHandler {
         }
 
         if(devPanel.isOpen()&&isDevPanelWidget(widget)){
+            if(isDevPanelRootReplacementWidget(
+                    widget
+                )){
+                String replaced=
+                    replaceMonsterSpawnerRoot(
+                        ()->{
+                            bridge.handleDevPanelWidget(
+                                widget,
+                                serverPackets,
+                                tag
+                            );
+                            return "DEV_PANEL_ROOT_REPLACED";
+                        }
+                    );
+
+                if(replaced==null)
+                    System.out.println(
+                        tag+
+                        "V5171_DEV_PANEL widget="+
+                        widget+
+                        " result=LIFECYCLE_REJECTED"
+                    );
+
+                return;
+            }
+
             bridge.handleDevPanelWidget(
                 widget,
                 serverPackets,
@@ -147,10 +393,24 @@ final class LocalSessionUiActionHandler {
 
         if(widget==NativeEquipmentDeathUi.EQUIPMENT_STATS_BUTTON){
             String result=
-                NativeEquipmentDeathUi.openEquipmentStats(
-                    serverPackets,
-                    equipment
+                replaceMonsterSpawnerRoot(
+                    ()->
+                        NativeEquipmentDeathUi.openEquipmentStats(
+                            serverPackets,
+                            equipment
+                        )
                 );
+
+            if(result==null){
+                System.out.println(
+                    tag+
+                    "V5140_EQUIPMENT_STATS widget="+
+                    widget+
+                    " result=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
             System.out.println(
                 tag+"V5140_EQUIPMENT_STATS widget="+widget+
                 " result="+result
@@ -160,11 +420,25 @@ final class LocalSessionUiActionHandler {
 
         if(widget==NativeEquipmentDeathUi.DEATH_BUTTON){
             String result=
-                NativeEquipmentDeathUi.openDeathPreview(
-                    serverPackets,
-                    bank,
-                    equipment
+                replaceMonsterSpawnerRoot(
+                    ()->
+                        NativeEquipmentDeathUi.openDeathPreview(
+                            serverPackets,
+                            bank,
+                            equipment
+                        )
                 );
+
+            if(result==null){
+                System.out.println(
+                    tag+
+                    "V5140_DEATH_PREVIEW widget="+
+                    widget+
+                    " result=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
@@ -188,6 +462,69 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_TRADE_WIDGET widget="+widget+
                 " result="+tradeWidget
+            );
+            return;
+        }
+
+        LocalMonsterSpawnerUiHandler configuredMonsterSpawner=
+            monsterSpawnerUiHandler;
+
+        if(configuredMonsterSpawner!=null&&
+           configuredMonsterSpawner.ownsWidget(
+                widget
+           )){
+            MonsterSpawnerDispatch dispatch=
+                bridge.handleMonsterSpawnerWidget(
+                    configuredMonsterSpawner,
+                    widget,
+                    serverPackets,
+                    tag,
+                    ()->monsterSpawnerUiOpen
+                );
+
+            if(!dispatch.admitted){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
+            if(dispatch.closedUi){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalMonsterSpawnerUiHandler.Result monsterSpawner=
+                dispatch.result;
+
+            if(monsterSpawner!=null){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status="+
+                    monsterSpawner.status+
+                    " row="+
+                    monsterSpawner.rowIndex+
+                    " budget="+
+                    monsterSpawner.activationBudget
+                );
+                return;
+            }
+
+            System.out.println(
+                tag+
+                "MONSTER_SPAWNER_UI widget="+
+                widget+
+                " status=UNCONFIGURED_ROW_NOOP"
             );
             return;
         }
@@ -278,6 +615,319 @@ final class LocalSessionUiActionHandler {
                 " action=CLOSE_BANK bankOpen="+bank.isOpen()
             );
         }
+    }
+
+    String replaceMonsterSpawnerRootCommand(
+        RootInterfaceBooleanAction publisher
+    )throws IOException{
+        RootInterfaceBooleanAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return replaceMonsterSpawnerRoot(
+            ()->
+                checked.publish()
+                    ?"ROOT_COMMAND_HANDLED"
+                    :"ROOT_COMMAND_NOT_HANDLED"
+        );
+    }
+
+    String replaceMonsterSpawnerWithItemLibraryRootCommand(
+        RootInterfaceBooleanAction publisher
+    )throws IOException{
+        RootInterfaceBooleanAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return replaceMonsterSpawnerWithItemLibraryRoot(
+            ()->
+                checked.publish()
+                    ?"ROOT_COMMAND_HANDLED"
+                    :"ROOT_COMMAND_NOT_HANDLED"
+        );
+    }
+
+    String publishDevPanelRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        return result;
+    }
+
+    String publishBankRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String publishCompCapeRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String publishMakeoverRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String publishTradeRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String publishItemLibraryRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String publishCompetingRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithItemLibraryRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishItemLibraryRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithMakeoverRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishMakeoverRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithMakeoverRoot(
+        RootInterfaceAction publisher,
+        RootCommitAction commit
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+        RootCommitAction checkedCommit=
+            Objects.requireNonNull(
+                commit,
+                "commit"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->{
+                String result=
+                    publishMakeoverRootForOwnedSession(
+                        checked
+                    );
+                checkedCommit.commit();
+                return result;
+            }
+        );
+    }
+
+    String replaceMonsterSpawnerWithCompCapeRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishCompCapeRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithBankRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishBankRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishCompetingRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    private boolean isDevPanelRootReplacementWidget(
+        int widget
+    ){
+        if(devPanel.page()!=
+                DevControlCenter.Page.ITEMS)
+            return false;
+
+        int choice=widget-2482;
+
+        return choice==1||
+            choice==2;
     }
 
     static boolean isDevPanelWidget(int widget){

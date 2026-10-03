@@ -41,6 +41,35 @@ final class NpcRegistry {
     private int petDiscontinuityTicks;
     private int miniDiscontinuityTicks;
 
+    private static final class HomePresentationSnapshot {
+        final ArrayList<NpcEntity> visible;
+        final IdentityHashMap<NpcEntity,int[]> positions;
+        final HomeWorldRuntimePlan.ViewerPresentationSnapshot home;
+
+        HomePresentationSnapshot(
+            List<NpcEntity> visible,
+            HomeWorldRuntimePlan.ViewerPresentationSnapshot home
+        ){
+            this.visible=
+                new ArrayList<>(
+                    visible
+                );
+            this.positions=
+                new IdentityHashMap<>();
+
+            for(NpcEntity npc:this.visible)
+                this.positions.put(
+                    npc,
+                    new int[]{npc.x,npc.y}
+                );
+
+            this.home=home;
+        }
+    }
+
+    private HomePresentationSnapshot stagedHomePresentation;
+    private boolean homePresentationResyncRequired;
+
     NpcRegistry(){
         this(new DevAuthorityWorkbench(),null,null);
     }
@@ -260,9 +289,178 @@ final class NpcRegistry {
         Map<Integer,NpcSpawnPresentation> presentation=particleSelector==null
             ? Collections.<Integer,NpcSpawnPresentation>emptyMap()
             : Collections.singletonMap(scene,NpcSpawnPresentation.particle(particleSelector.intValue()));
-        w.varShort(65,NpcSyncEncoder.encode(retains(),Collections.singletonList(e),movement.x(),movement.y(),presentation));
-        visible.add(e);devOwnedSceneIndexes.add(scene);
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                retains(),
+                Collections.singletonList(e),
+                movement.x(),
+                movement.y(),
+                presentation
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .RETRACTED_RETRYABLE)
+            return null;
+
+        visible.add(e);
+        devOwnedSceneIndexes.add(scene);
         return e;
+    }
+
+    ServerPacketWriter.RecoverablePacketResult
+        moveMirroredNpcRetractable(
+            NpcEntity target,
+            int direction1,
+            int direction2,
+            int worldX,
+            int worldY,
+            ServerPacketWriter w
+        )throws IOException
+    {
+        if(target==null||
+           findScene(target.sceneIndex)!=target||
+           !devOwnedSceneIndexes.contains(target.sceneIndex))
+            throw new IllegalArgumentException(
+                "mirror target not visible/dev-owned"
+            );
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?(direction2>=0
+                        ?NpcSyncEncoder.Update.run(
+                            npc,
+                            direction1,
+                            direction2
+                        )
+                        :NpcSyncEncoder.Update.walk(
+                            npc,
+                            direction1
+                        ))
+                    :NpcSyncEncoder.Update.retain(npc)
+            );
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED){
+            target.x=worldX;
+            target.y=worldY;
+        }
+
+        return publication;
+    }
+
+    /**
+     * Local-only retirement for a mirrored/dev-owned scene after its transport
+     * has already been classified terminal. Emits no packet and therefore must
+     * only be used when client presentation can no longer be repaired.
+     */
+    void retireMirroredNpcLocal(
+        int sceneIndex
+    ){
+        if(!devOwnedSceneIndexes.remove(
+                sceneIndex
+            ))
+            return;
+
+        NpcEntity target=
+            findScene(
+                sceneIndex
+            );
+
+        if(target!=null)
+            visible.remove(
+                target
+            );
+    }
+
+    ServerPacketWriter.RecoverablePacketResult
+        removeMirroredNpcRetractable(
+            int sceneIndex,
+            ServerPacketWriter w
+        )throws IOException
+    {
+        if(!devOwnedSceneIndexes.contains(sceneIndex))
+            return ServerPacketWriter
+                .RecoverablePacketResult
+                .COMMITTED;
+
+        NpcEntity target=
+            findScene(sceneIndex);
+
+        if(target==null){
+            devOwnedSceneIndexes.remove(sceneIndex);
+            return ServerPacketWriter
+                .RecoverablePacketResult
+                .COMMITTED;
+        }
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?NpcSyncEncoder.Update.remove(npc)
+                    :NpcSyncEncoder.Update.retain(npc)
+            );
+
+        byte[] body=
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            );
+
+        ServerPacketWriter.RecoverablePacketResult publication=
+            w.publishRecoverablePacket(
+                ()->w.varShort(
+                    65,
+                    body
+                )
+            );
+
+        if(publication==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .COMMITTED){
+            visible.remove(target);
+            devOwnedSceneIndexes.remove(sceneIndex);
+        }
+
+        return publication;
     }
 
     /** Exact NPC forced-text mask path. NPC 8330 consumes literal SNIPE in the
@@ -328,6 +526,214 @@ final class NpcRegistry {
             " world="+replacement.x+","+replacement.y+" persisted=false pickupStillReturnsItem="+old.petItemId;
     }
 
+    static final class PreparedMiniPetReplacement {
+        final NpcEntity expectedMainPet;
+        final NpcEntity oldMini;
+        final NpcEntity newMini;
+        final int itemId;
+
+        PreparedMiniPetReplacement(
+            NpcEntity expectedMainPet,
+            NpcEntity oldMini,
+            NpcEntity newMini,
+            int itemId
+        ){
+            this.expectedMainPet=expectedMainPet;
+            this.oldMini=oldMini;
+            this.newMini=newMini;
+            this.itemId=itemId;
+        }
+    }
+
+    PreparedMiniPetReplacement prepareMiniPetReplacement(
+        MiniPetDefinitionRepository.Def d,
+        MovementState movement
+    ){
+        if(d==null)
+            throw new IllegalArgumentException(
+                "mini definition"
+            );
+        if(pet==null)
+            throw new IllegalStateException(
+                "no active main pet"
+            );
+
+        int scene=
+            miniPet!=null
+                ?miniPet.sceneIndex
+                :allocateDynamicSceneIndex();
+
+        if(scene<0)
+            return null;
+
+        int[] start=
+            miniTrailingTile(movement);
+
+        NpcEntity next=
+            new NpcEntity(
+                scene,
+                d.npcId,
+                start[0],
+                start[1]
+            );
+
+        return new PreparedMiniPetReplacement(
+            pet,
+            miniPet,
+            next,
+            d.itemId
+        );
+    }
+
+    String publishMiniPetReplacement(
+        PreparedMiniPetReplacement prepared,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            return "REJECTED_NO_FREE_SCENE_INDEX";
+
+        if(prepared.oldMini!=null){
+            ArrayList<NpcSyncEncoder.Update> remove=
+                new ArrayList<>();
+
+            for(NpcEntity n:visible)
+                remove.add(
+                    n==prepared.oldMini
+                        ?NpcSyncEncoder.Update.remove(n)
+                        :NpcSyncEncoder.Update.retain(n)
+                );
+
+            w.varShort(
+                65,
+                NpcSyncEncoder.encode(
+                    remove,
+                    Collections.emptyList(),
+                    0,
+                    0
+                )
+            );
+        }
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(n!=prepared.oldMini)
+                retained.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    prepared.newMini
+                ),
+                movement.x(),
+                movement.y()
+            )
+        );
+
+        ArrayList<NpcSyncEncoder.Update> masked=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(n!=prepared.oldMini)
+                masked.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        masked.add(
+            NpcSyncEncoder.Update.mask(
+                prepared.newMini,
+                NpcSyncEncoder.Mask.interactionTarget(
+                    prepared.expectedMainPet.sceneIndex
+                )
+            )
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                masked,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        return "MINIPET_SPAWN_OK item="+
+            prepared.itemId+
+            " npc="+prepared.newMini.definitionId+
+            " scene="+prepared.newMini.sceneIndex+
+            " world="+prepared.newMini.x+
+            ","+prepared.newMini.y+
+            " mainPetScene="+
+            prepared.expectedMainPet.sceneIndex+
+            " relation=PLAYER_TO_MAINPET_TO_MINIPET spawnPolicy=LOCAL_TRAILING_MAINPET";
+    }
+
+    void commitMiniPetReplacement(
+        PreparedMiniPetReplacement prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+        if(pet!=prepared.expectedMainPet||
+           miniPet!=prepared.oldMini)
+            throw new IllegalStateException(
+                "mini-pet state changed before prepared commit"
+            );
+
+        if(prepared.oldMini!=null)
+            visible.remove(
+                prepared.oldMini
+            );
+
+        visible.add(
+            prepared.newMini
+        );
+        miniPet=prepared.newMini;
+        miniTrail.clear();
+        hasMiniTrail=true;
+        miniTrailX=pet.x;
+        miniTrailY=pet.y;
+        canonicalEnsureMini(
+            prepared.itemId
+        );
+    }
+
+    void relayCommittedMiniPetInteractionTarget(
+        PreparedMiniPetReplacement prepared,
+        ServerPacketWriter sourceWriter
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+        if(sourceWriter==null)
+            throw new NullPointerException(
+                "sourceWriter"
+            );
+        if(pet!=prepared.expectedMainPet||
+           miniPet!=prepared.newMini)
+            throw new IllegalStateException(
+                "prepared mini replacement not committed"
+            );
+
+        SharedNpcWorldRelay.relayMask(
+            sourceWriter,
+            this,
+            miniPet,
+            NpcSyncEncoder.Mask.interactionTarget(
+                pet.sceneIndex
+            )
+        );
+    }
+
     String spawnOrReplaceMiniPet(MiniPetDefinitionRepository.Def d,MovementState movement,ServerPacketWriter w)throws IOException {
         if(d==null)return "REJECTED_NULL_MINI_DEFINITION";
         if(pet==null)return "REJECTED_NO_MAIN_PET";
@@ -346,14 +752,624 @@ final class NpcRegistry {
             " mainPetScene="+pet.sceneIndex+" relation=PLAYER_TO_MAINPET_TO_MINIPET spawnPolicy=LOCAL_TRAILING_MAINPET authority="+d.authority;
     }
 
-    String removeMiniPet(ServerPacketWriter w)throws IOException {
-        if(miniPet==null)return "MINIPET_NONE_ACTIVE";
-        NpcEntity old=miniPet; ArrayList<NpcSyncEncoder.Update> updates=new ArrayList<>();
-        for(NpcEntity n:visible)updates.add(n==old?NpcSyncEncoder.Update.remove(n):NpcSyncEncoder.Update.retain(n));
-        w.varShort(65,NpcSyncEncoder.encode(updates,Collections.emptyList(),0,0));
-        visible.remove(old); miniPet=null; miniTrail.clear(); hasMiniTrail=false;
+    static final class PreparedMiniPetRemoval {
+        final NpcEntity expectedMini;
+
+        PreparedMiniPetRemoval(
+            NpcEntity expectedMini
+        ){
+            this.expectedMini=expectedMini;
+        }
+    }
+
+    PreparedMiniPetRemoval prepareMiniPetRemoval(){
+        return new PreparedMiniPetRemoval(
+            miniPet
+        );
+    }
+
+    String publishMiniPetRemoval(
+        PreparedMiniPetRemoval prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        NpcEntity old=
+            prepared.expectedMini;
+
+        if(old==null)
+            return "MINIPET_NONE_ACTIVE";
+
+        if(miniPet!=old)
+            throw new IllegalStateException(
+                "mini-pet state changed before prepared publication"
+            );
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            updates.add(
+                n==old
+                    ?NpcSyncEncoder.Update.remove(n)
+                    :NpcSyncEncoder.Update.retain(n)
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        return "MINIPET_DESPAWN_OK npc="+
+            old.definitionId+
+            " scene="+old.sceneIndex;
+    }
+
+    void commitMiniPetRemoval(
+        PreparedMiniPetRemoval prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        NpcEntity old=
+            prepared.expectedMini;
+
+        if(miniPet!=old)
+            throw new IllegalStateException(
+                "mini-pet state changed before prepared commit"
+            );
+
+        if(old==null)
+            return;
+
+        visible.remove(old);
+        miniPet=null;
+        miniTrail.clear();
+        hasMiniTrail=false;
         canonicalRemoveMini();
-        return "MINIPET_DESPAWN_OK npc="+old.definitionId+" scene="+old.sceneIndex;
+    }
+
+    String removeMiniPet(ServerPacketWriter w)throws IOException {
+        PreparedMiniPetRemoval prepared=
+            prepareMiniPetRemoval();
+        String result=
+            publishMiniPetRemoval(
+                prepared,
+                w
+            );
+        commitMiniPetRemoval(
+            prepared
+        );
+        return result;
+    }
+
+    static final class PreparedMainPetTransition {
+        final NpcEntity expectedOldPet;
+        final NpcEntity expectedOldMini;
+        final NpcEntity newPet;
+        final NpcEntity newMini;
+        final int newPetItemId;
+        final int configuredMiniItemId;
+        final int egressX;
+        final int egressY;
+        final Integer prospectiveParticleSelector;
+
+        PreparedMainPetTransition(
+            NpcEntity expectedOldPet,
+            NpcEntity expectedOldMini,
+            NpcEntity newPet,
+            NpcEntity newMini,
+            int newPetItemId,
+            int configuredMiniItemId,
+            int egressX,
+            int egressY,
+            Integer prospectiveParticleSelector
+        ){
+            this.expectedOldPet=expectedOldPet;
+            this.expectedOldMini=expectedOldMini;
+            this.newPet=newPet;
+            this.newMini=newMini;
+            this.newPetItemId=newPetItemId;
+            this.configuredMiniItemId=configuredMiniItemId;
+            this.egressX=egressX;
+            this.egressY=egressY;
+            this.prospectiveParticleSelector=
+                prospectiveParticleSelector;
+        }
+
+        boolean removalOnly(){
+            return newPet==null;
+        }
+
+        boolean replacement(){
+            return expectedOldPet!=null&&
+                newPet!=null;
+        }
+    }
+
+    PreparedMainPetTransition prepareMainPetTransition(
+        PetDefinitionRepository.Def nextDefinition,
+        Integer configuredMiniItemId,
+        MovementState movement,
+        Integer prospectiveParticleSelector
+    ){
+        NpcEntity oldPet=pet;
+        NpcEntity oldMini=miniPet;
+
+        if(nextDefinition==null){
+            if(oldPet==null)
+                return null;
+
+            return new PreparedMainPetTransition(
+                oldPet,
+                oldMini,
+                null,
+                null,
+                -1,
+                configuredMiniItemId==null
+                    ?-1
+                    :configuredMiniItemId.intValue(),
+                0,
+                0,
+                prospectiveParticleSelector
+            );
+        }
+
+        NpcEntity nextPet=
+            new NpcEntity(
+                PET_INDEX,
+                nextDefinition.npcId,
+                movement.x(),
+                movement.y(),
+                true,
+                nextDefinition.itemId,
+                LOCAL_PLAYER_INDEX
+            );
+
+        NpcEntity nextMini=null;
+        int miniItem=
+            configuredMiniItemId==null
+                ?-1
+                :configuredMiniItemId.intValue();
+
+        if(miniItem>=0){
+            MiniPetDefinitionRepository.Def miniDefinition=
+                MiniPetDefinitionRepository.get(
+                    miniItem
+                );
+
+            if(miniDefinition==null)
+                throw new IllegalArgumentException(
+                    "unknown configured mini item "+
+                    miniItem
+                );
+
+            int scene=
+                oldMini!=null
+                    ?oldMini.sceneIndex
+                    :allocateDynamicSceneIndex();
+
+            if(scene>=0){
+                int[] start=
+                    miniTrailingTileFor(
+                        nextPet,
+                        movement
+                    );
+
+                nextMini=
+                    new NpcEntity(
+                        scene,
+                        miniDefinition.npcId,
+                        start[0],
+                        start[1]
+                    );
+            }
+        }
+
+        int egressDir=
+            cardinalizeFacing(
+                lastOwnerFacingDir
+            );
+        int[] egress=
+            directionDelta(
+                egressDir
+            );
+        int outX=
+            movement.x()+
+            egress[0];
+        int outY=
+            movement.y()+
+            egress[1];
+
+        if(!MovementState.insideLoadedRegion(
+                outX,
+                outY)){
+            if(hasLastOwnerAnchor&&
+               Math.abs(lastOwnerAnchorX-
+                        movement.x())+
+               Math.abs(lastOwnerAnchorY-
+                        movement.y())==1){
+                outX=lastOwnerAnchorX;
+                outY=lastOwnerAnchorY;
+            }else{
+                int[] west=
+                    directionDelta(3);
+                outX=
+                    movement.x()+
+                    west[0];
+                outY=
+                    movement.y()+
+                    west[1];
+            }
+        }
+
+        return new PreparedMainPetTransition(
+            oldPet,
+            oldMini,
+            nextPet,
+            nextMini,
+            nextDefinition.itemId,
+            miniItem,
+            outX,
+            outY,
+            prospectiveParticleSelector
+        );
+    }
+
+    String publishPreparedMainPetCore(
+        PreparedMainPetTransition prepared,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            return "REJECTED_MAIN_PET_TRANSITION";
+
+        if(prepared.expectedOldPet!=null){
+            ArrayList<NpcSyncEncoder.Update> remove=
+                new ArrayList<>();
+
+            for(NpcEntity n:visible)
+                remove.add(
+                    n==prepared.expectedOldPet||
+                    n==prepared.expectedOldMini
+                        ?NpcSyncEncoder.Update.remove(n)
+                        :NpcSyncEncoder.Update.retain(n)
+                );
+
+            w.varShort(
+                65,
+                NpcSyncEncoder.encode(
+                    remove,
+                    Collections.emptyList(),
+                    0,
+                    0
+                )
+            );
+        }
+
+        if(prepared.newPet==null)
+            return "PET_DESPAWN_OK item="+
+                prepared.expectedOldPet.petItemId+
+                " npc="+
+                prepared.expectedOldPet.definitionId+
+                " sceneIndex="+
+                prepared.expectedOldPet.sceneIndex+
+                " miniRemoved="+
+                (prepared.expectedOldMini==null
+                    ?"none"
+                    :prepared.expectedOldMini.sceneIndex);
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            prospectiveRetainedWithoutOld(
+                prepared
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    prepared.newPet
+                ),
+                movement.x(),
+                movement.y(),
+                spawnPresentationFor(
+                    prepared.newPet,
+                    prepared.prospectiveParticleSelector
+                )
+            )
+        );
+
+        return "PET_SPAWN_OK item="+
+            prepared.newPet.petItemId+
+            " npc="+
+            prepared.newPet.definitionId+
+            " sceneIndex="+
+            prepared.newPet.sceneIndex+
+            " world="+
+            prepared.newPet.x+
+            ","+
+            prepared.newPet.y+
+            " spawn=OWNER_TILE stepOutTarget="+
+            prepared.egressX+
+            ","+
+            prepared.egressY;
+    }
+
+    String publishPreparedMainPetSelector(
+        PreparedMainPetTransition prepared,
+        Integer selector,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null||
+           prepared.newPet==null)
+            return "DEV_PET_FX_SET value="+
+                (selector==null?"AUTO":selector)+
+                " activePet=none";
+
+        ArrayList<NpcSyncEncoder.Update> remove=
+            prospectiveRetainedWithoutOld(
+                prepared
+            );
+        remove.add(
+            NpcSyncEncoder.Update.remove(
+                prepared.newPet
+            )
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                remove,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            prospectiveRetainedWithoutOld(
+                prepared
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    prepared.newPet
+                ),
+                movement.x(),
+                movement.y(),
+                spawnPresentationFor(
+                    prepared.newPet,
+                    selector
+                )
+            )
+        );
+
+        return "DEV_PET_FX_SET value="+
+            (selector==null?"AUTO":selector)+
+            " item="+prepared.newPet.petItemId+
+            " npc="+prepared.newPet.definitionId+
+            " authority=TEMPORARY_OVERRIDE";
+    }
+
+    String publishPreparedMainPetMini(
+        PreparedMainPetTransition prepared,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            return "MINIPET_NONE_CONFIGURED";
+
+        if(prepared.newMini==null)
+            return prepared.configuredMiniItemId>=0
+                ?"MINIPET_CONFIGURED_REJECTED_NO_FREE_SCENE_INDEX item="+
+                    prepared.configuredMiniItemId
+                :"MINIPET_NONE_CONFIGURED";
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            prospectiveRetainedWithoutOld(
+                prepared
+            );
+        retained.add(
+            NpcSyncEncoder.Update.retain(
+                prepared.newPet
+            )
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    prepared.newMini
+                ),
+                movement.x(),
+                movement.y()
+            )
+        );
+
+        ArrayList<NpcSyncEncoder.Update> masked=
+            new ArrayList<>(
+                retained
+            );
+        masked.add(
+            NpcSyncEncoder.Update.mask(
+                prepared.newMini,
+                NpcSyncEncoder.Mask.interactionTarget(
+                    prepared.newPet.sceneIndex
+                )
+            )
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                masked,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        return "MINIPET_SPAWN_OK item="+
+            prepared.configuredMiniItemId+
+            " npc="+
+            prepared.newMini.definitionId+
+            " scene="+
+            prepared.newMini.sceneIndex+
+            " world="+
+            prepared.newMini.x+
+            ","+
+            prepared.newMini.y+
+            " mainPetScene="+
+            prepared.newPet.sceneIndex+
+            " relation=PLAYER_TO_MAINPET_TO_MINIPET spawnPolicy=LOCAL_TRAILING_MAINPET";
+    }
+
+    String publishPreparedMainPetTransition(
+        PreparedMainPetTransition prepared,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        String result=
+            publishPreparedMainPetCore(
+                prepared,
+                movement,
+                w
+            );
+
+        if(prepared!=null&&
+           prepared.newMini!=null)
+            publishPreparedMainPetMini(
+                prepared,
+                movement,
+                w
+            );
+
+        return result;
+    }
+
+    private ArrayList<NpcSyncEncoder.Update>
+        prospectiveRetainedWithoutOld(
+            PreparedMainPetTransition prepared
+        ){
+        ArrayList<NpcSyncEncoder.Update> retained=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(n!=prepared.expectedOldPet&&
+               n!=prepared.expectedOldMini)
+                retained.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        return retained;
+    }
+
+    void commitPreparedMainPetTransition(
+        PreparedMainPetTransition prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        if(pet!=prepared.expectedOldPet||
+           miniPet!=prepared.expectedOldMini)
+            throw new IllegalStateException(
+                "main-pet actor preimage changed before commit"
+            );
+
+        if(prepared.expectedOldPet!=null)
+            visible.remove(
+                prepared.expectedOldPet
+            );
+        if(prepared.expectedOldMini!=null)
+            visible.remove(
+                prepared.expectedOldMini
+            );
+
+        ownerTrail.clear();
+        miniTrail.clear();
+        recentOwnerRunning=false;
+        petNativeState=0;
+
+        if(prepared.newPet==null){
+            pet=null;
+            miniPet=null;
+            hasMiniTrail=false;
+            canonicalRemoveAll();
+            return;
+        }
+
+        visible.add(
+            prepared.newPet
+        );
+        pet=prepared.newPet;
+        miniPet=null;
+        canonicalRemoveAll();
+        canonicalEnsureMain(
+            prepared.newPetItemId
+        );
+
+        enqueueTrail(
+            prepared.egressX,
+            prepared.egressY
+        );
+
+        if(prepared.newMini!=null){
+            visible.add(
+                prepared.newMini
+            );
+            miniPet=prepared.newMini;
+            miniTrail.clear();
+            hasMiniTrail=true;
+            miniTrailX=pet.x;
+            miniTrailY=pet.y;
+            canonicalEnsureMini(
+                prepared.configuredMiniItemId
+            );
+        }else{
+            hasMiniTrail=false;
+        }
+    }
+
+    void relayCommittedPreparedMainMiniTarget(
+        PreparedMainPetTransition prepared,
+        ServerPacketWriter sourceWriter
+    ){
+        if(prepared==null||
+           prepared.newMini==null)
+            return;
+
+        if(pet!=prepared.newPet||
+           miniPet!=prepared.newMini)
+            throw new IllegalStateException(
+                "prepared main/mini transition not committed"
+            );
+
+        SharedNpcWorldRelay.relayMask(
+            sourceWriter,
+            this,
+            miniPet,
+            NpcSyncEncoder.Mask.interactionTarget(
+                pet.sceneIndex
+            )
+        );
     }
 
     String spawnPet(PetDefinitionRepository.Def d,MovementState movement,ServerPacketWriter w) throws IOException {
@@ -504,7 +1520,288 @@ final class NpcRegistry {
      * component is selected through the shared collision authority. When the old
      * deterministic X/Y component is blocked, the follower takes a cardinal detour.
      */
-    String tickFollow(MovementState movement,ServerPacketWriter w) throws IOException {
+    private static final class FollowerMaskRelay {
+        final NpcEntity target;
+        final NpcSyncEncoder.Mask mask;
+
+        FollowerMaskRelay(
+            NpcEntity target,
+            NpcSyncEncoder.Mask mask
+        ){
+            this.target=target;
+            this.mask=mask;
+        }
+    }
+
+    private static final class FollowerTransportSnapshot {
+        final NpcEntity pet;
+        final int petX;
+        final int petY;
+        final NpcEntity miniPet;
+        final int miniX;
+        final int miniY;
+        final ArrayList<NpcEntity> visible;
+        final ArrayDeque<int[]> ownerTrail;
+        final ArrayDeque<int[]> miniTrail;
+        final boolean hasMiniTrail;
+        final int miniTrailX;
+        final int miniTrailY;
+        final int petDiscontinuityTicks;
+        final int miniDiscontinuityTicks;
+
+        FollowerTransportSnapshot(
+            NpcEntity pet,
+            int petX,
+            int petY,
+            NpcEntity miniPet,
+            int miniX,
+            int miniY,
+            ArrayList<NpcEntity> visible,
+            ArrayDeque<int[]> ownerTrail,
+            ArrayDeque<int[]> miniTrail,
+            boolean hasMiniTrail,
+            int miniTrailX,
+            int miniTrailY,
+            int petDiscontinuityTicks,
+            int miniDiscontinuityTicks
+        ){
+            this.pet=pet;
+            this.petX=petX;
+            this.petY=petY;
+            this.miniPet=miniPet;
+            this.miniX=miniX;
+            this.miniY=miniY;
+            this.visible=visible;
+            this.ownerTrail=ownerTrail;
+            this.miniTrail=miniTrail;
+            this.hasMiniTrail=hasMiniTrail;
+            this.miniTrailX=miniTrailX;
+            this.miniTrailY=miniTrailY;
+            this.petDiscontinuityTicks=petDiscontinuityTicks;
+            this.miniDiscontinuityTicks=miniDiscontinuityTicks;
+        }
+    }
+
+    String tickFollow(
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        refreshCanonicalActorProjections();
+
+        if(pet==null)
+            return null;
+
+        FollowerTransportSnapshot before=
+            snapshotFollowerTransport();
+        final String[] result={null};
+        final boolean[] entered={false};
+        final ArrayList<FollowerMaskRelay> deferredRelays=
+            new ArrayList<>();
+
+        ServerPacketWriter.RecoverablePacketResult publication;
+
+        try{
+            publication=
+                w.publishRecoverablePacketIfIdle(
+                    ()->{
+                        entered[0]=true;
+                        result[0]=
+                            tickFollowMutating(
+                                movement,
+                                w,
+                                deferredRelays
+                            );
+                    }
+                );
+        }catch(IOException failure){
+            if(entered[0])
+                restoreFollowerTransportAfterFailure(
+                    before,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(entered[0])
+                restoreFollowerTransportAfterFailure(
+                    before,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(entered[0])
+                restoreFollowerTransportAfterFailure(
+                    before,
+                    failure
+                );
+            throw failure;
+        }
+
+        if(publication==
+                ServerPacketWriter.RecoverablePacketResult
+                    .RETRACTED_RETRYABLE){
+            if(entered[0])
+                restoreFollowerTransport(
+                    before
+                );
+
+            return "PET_FOLLOW_TRANSPORT_RETRACTED_RETRYABLE stateRestored=true";
+        }
+
+        for(FollowerMaskRelay relay:deferredRelays)
+            SharedNpcWorldRelay.relayMask(
+                w,
+                this,
+                relay.target,
+                relay.mask
+            );
+
+        return result[0];
+    }
+
+    private FollowerTransportSnapshot snapshotFollowerTransport(){
+        return new FollowerTransportSnapshot(
+            pet,
+            pet==null?0:pet.x,
+            pet==null?0:pet.y,
+            miniPet,
+            miniPet==null?0:miniPet.x,
+            miniPet==null?0:miniPet.y,
+            new ArrayList<>(
+                visible
+            ),
+            copyFollowerTrail(
+                ownerTrail
+            ),
+            copyFollowerTrail(
+                miniTrail
+            ),
+            hasMiniTrail,
+            miniTrailX,
+            miniTrailY,
+            petDiscontinuityTicks,
+            miniDiscontinuityTicks
+        );
+    }
+
+    private static ArrayDeque<int[]> copyFollowerTrail(
+        ArrayDeque<int[]> source
+    ){
+        ArrayDeque<int[]> copy=
+            new ArrayDeque<>();
+
+        for(int[] tile:source)
+            copy.addLast(
+                tile.clone()
+            );
+
+        return copy;
+    }
+
+    private static void restoreFollowerTrail(
+        ArrayDeque<int[]> target,
+        ArrayDeque<int[]> saved
+    ){
+        target.clear();
+
+        for(int[] tile:saved)
+            target.addLast(
+                tile.clone()
+            );
+    }
+
+    private void restoreFollowerTransport(
+        FollowerTransportSnapshot saved
+    ){
+        visible.clear();
+        visible.addAll(
+            saved.visible
+        );
+
+        pet=saved.pet;
+        miniPet=saved.miniPet;
+
+        restoreFollowerTrail(
+            ownerTrail,
+            saved.ownerTrail
+        );
+        restoreFollowerTrail(
+            miniTrail,
+            saved.miniTrail
+        );
+
+        hasMiniTrail=saved.hasMiniTrail;
+        miniTrailX=saved.miniTrailX;
+        miniTrailY=saved.miniTrailY;
+        petDiscontinuityTicks=
+            saved.petDiscontinuityTicks;
+        miniDiscontinuityTicks=
+            saved.miniDiscontinuityTicks;
+
+        if(pet!=null)
+            setCanonicalActorPosition(
+                pet,
+                true,
+                saved.petX,
+                saved.petY
+            );
+
+        if(miniPet!=null)
+            setCanonicalActorPosition(
+                miniPet,
+                false,
+                saved.miniX,
+                saved.miniY
+            );
+    }
+
+    private void restoreFollowerTransportAfterFailure(
+        FollowerTransportSnapshot saved,
+        Throwable primary
+    ){
+        try{
+            restoreFollowerTransport(
+                saved
+            );
+        }catch(Throwable rollbackFailure){
+            primary.addSuppressed(
+                rollbackFailure
+            );
+        }
+    }
+
+    private void publishFollowerMask(
+        NpcEntity target,
+        NpcSyncEncoder.Mask mask,
+        ServerPacketWriter w,
+        ArrayList<FollowerMaskRelay> deferredRelays
+    )throws IOException{
+        if(deferredRelays==null){
+            sendMask(
+                target,
+                mask,
+                w
+            );
+            return;
+        }
+
+        sendMaskLocal(
+            target,
+            mask,
+            w
+        );
+        deferredRelays.add(
+            new FollowerMaskRelay(
+                target,
+                mask
+            )
+        );
+    }
+
+    private String tickFollowMutating(
+        MovementState movement,
+        ServerPacketWriter w,
+        ArrayList<FollowerMaskRelay> deferredRelays
+    )throws IOException{
         refreshCanonicalActorProjections();
         if(pet==null) return null;
         int dist=LocalSession.chebyshev(pet.x,pet.y,movement.x(),movement.y());
@@ -513,9 +1810,9 @@ final class NpcRegistry {
         // production-proven V9.12 authority: >=8 tiles may reanchor, below 8 must
         // keep walking immediately rather than sitting in DISCONTINUITY_WAIT.
         if(dist>=8){
-            String recovery=teleportBesideOwner(movement,w,dist);
+            String recovery=teleportBesideOwner(movement,w,dist,deferredRelays);
             petDiscontinuityTicks=0; ownerTrail.clear();
-            if(miniPet!=null) recovery += " "+reanchorMiniBesidePet(movement,w);
+            if(miniPet!=null) recovery += " "+reanchorMiniBesidePet(movement,w,deferredRelays);
             return "PET_FOLLOW_TEMP_8_TILE_REANCHOR dist="+dist+" "+recovery+" policy=USER_APPROVED_TEMPORARY";
         }
 
@@ -591,7 +1888,7 @@ final class NpcRegistry {
         if(miniPet!=null){
             int miniDist=LocalSession.chebyshev(miniPet.x,miniPet.y,pet.x,pet.y);
             if(miniDist>=8){
-                String recovery=reanchorMiniBesidePet(movement,w);
+                String recovery=reanchorMiniBesidePet(movement,w,deferredRelays);
                 miniDiscontinuityTicks=0;
                 return "PET_FOLLOW_MINI_TEMP_8_TILE_REANCHOR dist="+miniDist+" "+recovery+" policy=USER_APPROVED_TEMPORARY";
             }
@@ -682,7 +1979,11 @@ final class NpcRegistry {
     }
 
     /** Recovery only for an internally broken mini breadcrumb chain. Not a gameplay catch-up threshold. */
-    private String reanchorMiniBesidePet(MovementState movement,ServerPacketWriter w)throws IOException{
+    private String reanchorMiniBesidePet(
+        MovementState movement,
+        ServerPacketWriter w,
+        ArrayList<FollowerMaskRelay> deferredRelays
+    )throws IOException{
         if(miniPet==null||pet==null)return "MINIPET_RECOVERY_NONE";
         NpcEntity old=miniPet;
         ArrayList<NpcSyncEncoder.Update> remove=new ArrayList<>();
@@ -695,25 +1996,70 @@ final class NpcRegistry {
         ArrayList<NpcSyncEncoder.Update> retained=new ArrayList<>();for(NpcEntity n:visible)retained.add(NpcSyncEncoder.Update.retain(n));
         w.varShort(65,NpcSyncEncoder.encode(retained,Collections.singletonList(old),movement.x(),movement.y()));
         visible.add(old);miniPet=old;miniTrail.clear();hasMiniTrail=false;
-        sendMask(miniPet,NpcSyncEncoder.Mask.interactionTarget(pet.sceneIndex),w);
+        publishFollowerMask(
+            miniPet,
+            NpcSyncEncoder.Mask.interactionTarget(
+                pet.sceneIndex
+            ),
+            w,
+            deferredRelays
+        );
         return "MINIPET_BROKEN_TRAIL_REANCHOR scene="+old.sceneIndex+" world="+old.x+","+old.y+" mainPet="+pet.x+","+pet.y;
     }
 
     private boolean miniNeedsFollow(){return miniPet!=null&&pet!=null&&(!miniTrail.isEmpty()||LocalSession.chebyshev(miniPet.x,miniPet.y,pet.x,pet.y)>1);}
 
     private int[] miniTrailingTile(MovementState movement){
-        int dx=Integer.compare(pet.x,movement.x()), dy=Integer.compare(pet.y,movement.y());
-        int tx=pet.x,ty=pet.y;
+        return miniTrailingTileFor(
+            pet,
+            movement
+        );
+    }
+
+    private static int[] miniTrailingTileFor(
+        NpcEntity mainPet,
+        MovementState movement
+    ){
+        if(mainPet==null)
+            throw new IllegalArgumentException(
+                "mainPet"
+            );
+
+        int dx=
+            Integer.compare(
+                mainPet.x,
+                movement.x()
+            );
+        int dy=
+            Integer.compare(
+                mainPet.y,
+                movement.y()
+            );
+        int tx=mainPet.x;
+        int ty=mainPet.y;
+
         if(dx!=0||dy!=0){
             // Initial spawn placement may be diagonal, but follower movement itself
             // is always cardinalized in tickFollow().
-            tx+=dx; ty+=dy;
-        } else { tx=pet.x-1; }
-        if(!MovementState.insideLoadedRegion(tx,ty)){
-            tx=pet.x+1;ty=pet.y;
-            if(!MovementState.insideLoadedRegion(tx,ty)){tx=pet.x;ty=pet.y-1;}
+            tx+=dx;
+            ty+=dy;
+        }else{
+            tx=mainPet.x-1;
         }
-        if(tx==pet.x&&ty==pet.y)tx=pet.x-1;
+
+        if(!MovementState.insideLoadedRegion(tx,ty)){
+            tx=mainPet.x+1;
+            ty=mainPet.y;
+
+            if(!MovementState.insideLoadedRegion(tx,ty)){
+                tx=mainPet.x;
+                ty=mainPet.y-1;
+            }
+        }
+
+        if(tx==mainPet.x&&ty==mainPet.y)
+            tx=mainPet.x-1;
+
         return new int[]{tx,ty};
     }
 
@@ -746,9 +2092,98 @@ final class NpcRegistry {
      * one coherent existing-list ordering. The pet is only RETAINED here; its follower
      * movement remains exclusively in tickFollow().
      */
+    void beginHomePresentationBatch(
+        HomeWorldRuntimePlan home
+    ){
+        if(home==null)
+            throw new NullPointerException(
+                "home"
+            );
+        if(stagedHomePresentation!=null)
+            throw new IllegalStateException(
+                "HOME presentation batch already staged"
+            );
+
+        stagedHomePresentation=
+            new HomePresentationSnapshot(
+                visible,
+                home.snapshotViewerPresentation()
+            );
+    }
+
+    boolean commitHomePresentationBatch(){
+        if(stagedHomePresentation==null)
+            return false;
+
+        stagedHomePresentation=null;
+        return true;
+    }
+
+    boolean abortHomePresentationBatch(
+        HomeWorldRuntimePlan home
+    ){
+        HomePresentationSnapshot snapshot=
+            stagedHomePresentation;
+
+        if(snapshot==null)
+            return false;
+
+        stagedHomePresentation=null;
+
+        visible.clear();
+        visible.addAll(
+            snapshot.visible
+        );
+
+        for(Map.Entry<NpcEntity,int[]> entry:
+                snapshot.positions.entrySet()){
+            int[] xy=entry.getValue();
+            entry.getKey().x=xy[0];
+            entry.getKey().y=xy[1];
+        }
+
+        home.restoreViewerPresentation(
+            snapshot.home
+        );
+
+        /*
+         * The shared canonical HOME world intentionally remains advanced. This
+         * viewer did not receive the retracted packet-65 bytes, so its next
+         * HOME publication must rebuild from current canonical authority rather
+         * than depend on a historical walk delta that will not be replayed.
+         */
+        homePresentationResyncRequired=true;
+
+        assertUniqueSceneIndexes();
+        return true;
+    }
+
+    boolean homePresentationResyncRequired(){
+        return homePresentationResyncRequired;
+    }
+
     String tickHome(MovementState movement,ServerPacketWriter w,HomeWorldRuntimePlan home,long worldTick) throws IOException {
         if(home==null) throw new NullPointerException("home");
-        HomeWorldRuntimePlan.NpcDelta wd=home.tick(worldTick,movement.x(),movement.y());
+
+        HomeWorldRuntimePlan.NpcDelta wd=
+            home.tick(
+                worldTick,
+                movement.x(),
+                movement.y()
+            );
+
+        if(homePresentationResyncRequired){
+            String result=
+                publishAuthoritativeHomeResync(
+                    movement,
+                    w,
+                    home,
+                    worldTick
+                );
+            homePresentationResyncRequired=false;
+            return result;
+        }
+
         ArrayList<NpcSyncEncoder.Update> updates=new ArrayList<>();
         for(NpcEntity n:visible){
             if(HomeWorldRuntimePlan.isHomeWorldSceneIndex(n.sceneIndex)){
@@ -767,7 +2202,136 @@ final class NpcRegistry {
             " worldWalk="+wd.walkDirectionBySceneIndex.size()+" pet="+(pet==null?"none":"RETAIN")+" visible="+visible.size();
     }
 
-    private String teleportBesideOwner(MovementState movement,ServerPacketWriter w,int distBefore)throws IOException{
+    private String publishAuthoritativeHomeResync(
+        MovementState movement,
+        ServerPacketWriter w,
+        HomeWorldRuntimePlan home,
+        long worldTick
+    )throws IOException{
+        ArrayList<NpcSyncEncoder.Update> remove=
+            new ArrayList<>();
+        int removed=0;
+
+        for(NpcEntity n:visible){
+            if(HomeWorldRuntimePlan.isHomeWorldSceneIndex(
+                    n.sceneIndex)){
+                remove.add(
+                    NpcSyncEncoder.Update.remove(
+                        n
+                    )
+                );
+                removed++;
+            }else{
+                remove.add(
+                    NpcSyncEncoder.Update.retain(
+                        n
+                    )
+                );
+            }
+        }
+
+        List<NpcEntity> authoritative=
+            home.currentProjection(
+                movement.x(),
+                movement.y()
+            );
+
+        /*
+         * Pre-encode both packet-65 bodies before touching the writer so this
+         * two-stage resync cannot create a new partial-publication failure
+         * between remove and add due to local encoding validation.
+         */
+        byte[] removeBody=
+            removed==0
+                ?null
+                :NpcSyncEncoder.encode(
+                    remove,
+                    Collections.emptyList(),
+                    0,
+                    0
+                );
+
+        ArrayList<NpcSyncEncoder.Update> retainedDynamic=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(!HomeWorldRuntimePlan.isHomeWorldSceneIndex(
+                    n.sceneIndex))
+                retainedDynamic.add(
+                    NpcSyncEncoder.Update.retain(
+                        n
+                    )
+                );
+
+        ensureNoAddedSceneCollision(
+            authoritative
+        );
+
+        byte[] addBody=
+            NpcSyncEncoder.encode(
+                retainedDynamic,
+                authoritative,
+                movement.x(),
+                movement.y()
+            );
+
+        if(removeBody!=null)
+            w.varShort(
+                65,
+                removeBody
+            );
+
+        visible.removeIf(
+            n->HomeWorldRuntimePlan
+                .isHomeWorldSceneIndex(
+                    n.sceneIndex
+                )
+        );
+
+        w.varShort(
+            65,
+            addBody
+        );
+
+        visible.addAll(
+            authoritative
+        );
+
+        assertUniqueSceneIndexes();
+
+        return "HOME_NPC_PULSE tick="+
+            worldTick+
+            " worldAdd="+
+            authoritative.size()+
+            " worldRemove="+
+            removed+
+            " worldWalk=0"+
+            " resync=AUTHORITATIVE_CANONICAL"+
+            " pet="+
+            (pet==null?"none":"RETAIN")+
+            " visible="+
+            visible.size();
+    }
+
+    private String teleportBesideOwner(
+        MovementState movement,
+        ServerPacketWriter w,
+        int distBefore
+    )throws IOException{
+        return teleportBesideOwner(
+            movement,
+            w,
+            distBefore,
+            null
+        );
+    }
+
+    private String teleportBesideOwner(
+        MovementState movement,
+        ServerPacketWriter w,
+        int distBefore,
+        ArrayList<FollowerMaskRelay> deferredRelays
+    )throws IOException{
         // Prefer the most recent authoritative owner breadcrumb when it is adjacent
         // to the owner's current tile. That tile is known traversable because the
         // player just occupied it; only fall back to west-adjacent when no such
@@ -793,17 +2357,118 @@ final class NpcRegistry {
         for(NpcEntity n:visible) retained.add(NpcSyncEncoder.Update.retain(n));
         w.varShort(65,NpcSyncEncoder.encode(retained,Collections.singletonList(oldPet),movement.x(),movement.y(),spawnPresentationFor(oldPet)));
         visible.add(oldPet); pet=oldPet;
-        if(miniPet!=null) sendMask(miniPet,NpcSyncEncoder.Mask.interactionTarget(pet.sceneIndex),w);
+        if(miniPet!=null)
+            publishFollowerMask(
+                miniPet,
+                NpcSyncEncoder.Mask.interactionTarget(
+                    pet.sceneIndex
+                ),
+                w,
+                deferredRelays
+            );
         return "PET_TELEPORT_TO_OWNER sceneIndex="+pet.sceneIndex+" npc="+pet.definitionId+" distBefore="+distBefore+" world="+pet.x+","+pet.y+" owner="+movement.x()+","+movement.y()+" targetAuthority="+(safe!=null?"OWNER_CURRENT_ROUTE":"FALLBACK_ADJACENT");
     }
 
     boolean followFrozen(){ return dev.petFollowFrozen(); }
 
     String devSetParticleSelector(Integer selector,MovementState movement,ServerPacketWriter w)throws IOException{
-        dev.setPetParticleSelector(selector);
-        if(pet==null) return "DEV_PET_FX_SET value="+(selector==null?"AUTO":selector)+" activePet=none";
-        respawnPetSameTile(movement,w);
-        return "DEV_PET_FX_SET value="+(selector==null?"AUTO":selector)+" item="+pet.petItemId+" npc="+pet.definitionId+" authority=TEMPORARY_OVERRIDE";
+        String result=
+            publishPetParticleSelector(
+                selector,
+                movement,
+                w
+            );
+        commitPetParticleSelector(
+            selector
+        );
+        return result;
+    }
+
+    String publishPetParticleSelector(
+        Integer selector,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(selector!=null&&
+           (selector<0||selector>255))
+            throw new IllegalArgumentException(
+                "particle selector 0..255"
+            );
+
+        if(pet==null)
+            return "DEV_PET_FX_SET value="+
+                (selector==null?"AUTO":selector)+
+                " activePet=none";
+
+        NpcEntity currentPet=pet;
+        ArrayList<NpcSyncEncoder.Update> remove=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            remove.add(
+                n==currentPet
+                    ?NpcSyncEncoder.Update.remove(n)
+                    :NpcSyncEncoder.Update.retain(n)
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                remove,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(n!=currentPet)
+                retained.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    currentPet
+                ),
+                movement.x(),
+                movement.y(),
+                spawnPresentationFor(
+                    currentPet,
+                    selector
+                )
+            )
+        );
+
+        if(miniPet!=null)
+            sendMask(
+                miniPet,
+                NpcSyncEncoder.Mask
+                    .interactionTarget(
+                        currentPet.sceneIndex
+                    ),
+                w
+            );
+
+        return "DEV_PET_FX_SET value="+
+            (selector==null?"AUTO":selector)+
+            " item="+currentPet.petItemId+
+            " npc="+currentPet.definitionId+
+            " authority=TEMPORARY_OVERRIDE";
+    }
+
+    void commitPetParticleSelector(
+        Integer selector
+    ){
+        dev.setPetParticleSelector(
+            selector
+        );
     }
 
     String devFollowFreeze(boolean freeze){
@@ -973,9 +2638,25 @@ final class NpcRegistry {
     }
 
     private Map<Integer,NpcSpawnPresentation> spawnPresentationFor(NpcEntity n){
-        Integer selector=dev.petParticleSelector();
-        if(n==null || !n.pet || selector==null) return Collections.emptyMap();
-        return Collections.singletonMap(n.sceneIndex,NpcSpawnPresentation.particle(selector));
+        return spawnPresentationFor(
+            n,
+            dev.petParticleSelector()
+        );
+    }
+
+    private Map<Integer,NpcSpawnPresentation> spawnPresentationFor(
+        NpcEntity n,
+        Integer selector
+    ){
+        if(n==null || !n.pet || selector==null)
+            return Collections.emptyMap();
+
+        return Collections.singletonMap(
+            n.sceneIndex,
+            NpcSpawnPresentation.particle(
+                selector
+            )
+        );
     }
 
     private void enqueueTrail(int x,int y){ enqueueOwnerBreadcrumb(x,y); }
