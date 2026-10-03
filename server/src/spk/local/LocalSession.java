@@ -81,6 +81,26 @@ final class LocalSession implements Runnable {
             return true;
         }
 
+        synchronized boolean
+            runRunnableIfActiveAndWriterLive(
+                ServerPacketWriter writer,
+                Runnable action
+            )
+        {
+            if(action==null)
+                throw new NullPointerException(
+                    "world callback gate action"
+                );
+
+            if(!active||
+               writer==null||
+               writer.terminal())
+                return false;
+
+            action.run();
+            return true;
+        }
+
         synchronized boolean active(){
             return active;
         }
@@ -860,7 +880,8 @@ final class LocalSession implements Runnable {
                 {
                     return LocalSession.this
                         .worldTickGate
-                        .runRunnableIfActive(
+                        .runRunnableIfActiveAndWriterLive(
+                            LocalSession.this.sessionPackets,
                             action
                         );
                 }
