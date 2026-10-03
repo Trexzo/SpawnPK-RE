@@ -147,6 +147,132 @@ public final class GroundPresentationBatchCommitFenceTest {
 
             drain(queue);
 
+            GroundItem snapshotItem=
+                world.groundItems().add(
+                    11840,
+                    2,
+                    new Tile(
+                        viewer.movement().x(),
+                        viewer.movement().y(),
+                        viewer.movement().plane()
+                    ),
+                    null,
+                    2L,
+                    false
+                );
+            GroundItemRegistry.BatchMutation snapshotMutation=
+                new GroundItemRegistry.BatchMutation(
+                    snapshotItem,
+                    2,
+                    0
+                );
+            long snapshotNow=
+                System.currentTimeMillis();
+
+            if(!world.groundItemPresentationEvents()
+                    .enqueueSpawn(
+                        snapshotNow,
+                        snapshotMutation,
+                        viewer,
+                        generation
+                    ))
+                throw new AssertionError(
+                    "snapshot-covered ground fixture enqueue failed"
+                );
+
+            writer.beginBatch();
+            publisher.groundSpawn(
+                snapshotItem
+            );
+
+            if(relay.consumeSnapshotCoveredAfterSnapshot(
+                    snapshotNow,
+                    true
+                )!=1||
+               relay.stagedDeliveryCount()!=1)
+                throw new AssertionError(
+                    "snapshot-covered ground event was not staged"
+                );
+
+            if(relay.publishPending(
+                    snapshotNow,
+                    publisher
+                )!=0)
+                throw new AssertionError(
+                    "snapshot-covered ground event duplicated in same batch"
+                );
+
+            if(world.groundItemPresentationEvents()
+                    .pendingFor(
+                        viewer.id(),
+                        generation,
+                        snapshotNow
+                    ).size()!=1)
+                throw new AssertionError(
+                    "snapshot-covered event consumed before packet batch commit"
+                );
+
+            writer.abortBatch();
+
+            if(relay.abortStagedDeliveries()!=1)
+                throw new AssertionError(
+                    "snapshot-covered staged acknowledgement was not aborted"
+                );
+
+            if(queue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "aborted snapshot packet batch leaked queued bytes"
+                );
+
+            if(world.groundItemPresentationEvents()
+                    .pendingFor(
+                        viewer.id(),
+                        generation,
+                        snapshotNow
+                    ).size()!=1)
+                throw new AssertionError(
+                    "aborted snapshot packet batch lost ground event"
+                );
+
+            writer.beginBatch();
+            publisher.groundSpawn(
+                snapshotItem
+            );
+
+            if(relay.consumeSnapshotCoveredAfterSnapshot(
+                    snapshotNow,
+                    true
+                )!=1)
+                throw new AssertionError(
+                    "snapshot-covered ground event was not retryable after abort"
+                );
+
+            writer.endBatch();
+
+            if(relay.commitStagedDeliveries(
+                    System.currentTimeMillis()
+                )!=1)
+                throw new AssertionError(
+                    "committed snapshot batch did not settle exact event"
+                );
+
+            if(!world.groundItemPresentationEvents()
+                    .pendingFor(
+                        viewer.id(),
+                        generation,
+                        System.currentTimeMillis()
+                    ).isEmpty())
+                throw new AssertionError(
+                    "committed snapshot-covered event remained pending"
+                );
+
+            if(queue.queuedBytes()<=0)
+                throw new AssertionError(
+                    "committed snapshot retry produced no queued bytes"
+                );
+
+            drain(queue);
+
             GroundItem second=
                 world.groundItems().add(
                     4151,
@@ -157,7 +283,7 @@ public final class GroundPresentationBatchCommitFenceTest {
                         viewer.movement().plane()
                     ),
                     null,
-                    2L,
+                    3L,
                     false
                 );
             GroundItemRegistry.BatchMutation secondMutation=
@@ -243,6 +369,9 @@ public final class GroundPresentationBatchCommitFenceTest {
                 "abortRetainsEvent=true "+
                 "retryPublishes=true "+
                 "commitConsumesEvent=true "+
+                "snapshotAbortRetainsEvent=true "+
+                "snapshotCommitConsumesEvent=true "+
+                "snapshotSameBatchNoDuplicate=true "+
                 "staleGenerationRejected=true"
             );
         }finally{
