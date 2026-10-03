@@ -1993,6 +1993,7 @@ def currentTrainFocusedTests = [
     'spk.local.LocalRegionStreamHandlerTest',
     'spk.local.LocalWorldTickCoordinatorTest',
     'spk.local.LocalPetRealtimeSchedulerTest',
+    'spk.local.PetFollowTransportAtomicityTest',
     'spk.local.TransientRegionPetViewTest',
     'spk.local.LocalSessionRuntimeBindingCleanupTest',
     'spk.local.WorldPlayerUnregisterCleanupTest',
