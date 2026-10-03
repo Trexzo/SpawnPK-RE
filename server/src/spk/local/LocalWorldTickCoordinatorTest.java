@@ -669,6 +669,145 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture deferredMakeover=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredMakeover.coordinator(
+                    false,
+                    bridge
+                );
+            LocalMakeoverMageHandler makeover=
+                deferredMakeover.routedNpcs
+                    .makeoverMage();
+
+            String spawned=
+                deferredMakeover.npcs.devSpawnNpc(
+                    LocalMakeoverMageHandler.NPC_ID,
+                    2,
+                    0,
+                    deferredMakeover.movement,
+                    deferredMakeover.writer
+                );
+
+            if(spawned==null||
+               !spawned.startsWith(
+                   "DEV_NPC_SPAWN_OK"))
+                throw new AssertionError(
+                    "deferred Make-over fixture spawn="+
+                    spawned
+                );
+
+            NpcEntity mage=null;
+            for(NpcEntity candidate:
+                    deferredMakeover.npcs.snapshot())
+                if(candidate.definitionId==
+                        LocalMakeoverMageHandler.NPC_ID&&
+                   candidate.x==
+                        deferredMakeover.movement.x()+2&&
+                   candidate.y==
+                        deferredMakeover.movement.y()){
+                    mage=candidate;
+                    break;
+                }
+
+            if(mage==null)
+                throw new AssertionError(
+                    "deferred Make-over mage missing"
+                );
+
+            if(!makeover.beginIfSupported(
+                    new NpcAction(
+                        155,
+                        mage.sceneIndex
+                    ),
+                    mage,
+                    deferredMakeover.writer,
+                    "[tick-makeover-fixture] "
+                )||
+               !makeover.pending()||
+               makeover.active())
+                throw new AssertionError(
+                    "deferred Make-over did not queue"
+                );
+
+            if(deferredMakeover.movement.advance()==null)
+                throw new AssertionError(
+                    "deferred Make-over approach did not advance"
+                );
+
+            deferredMakeover.writer.beginBatch();
+
+            coordinator.tick(
+                18L,
+                4_800L,
+                deferredMakeover.writer,
+                "[tick-makeover-abort] "
+            );
+
+            if(!makeover.pending()||
+               makeover.active()||
+               !coordinator.deferredMakeoverEligible())
+                throw new AssertionError(
+                    "Make-over settled inside provisional outer batch"
+                );
+
+            deferredMakeover.writer.abortBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredMakeoverAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+
+            if(!makeover.pending()||
+               makeover.active()||
+               coordinator.deferredMakeoverEligible())
+                throw new AssertionError(
+                    "outer abort changed deferred Make-over authority"
+                );
+
+            deferredMakeover.writer.beginBatch();
+
+            coordinator.tick(
+                19L,
+                5_400L,
+                deferredMakeover.writer,
+                "[tick-makeover-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredMakeover.writer
+            );
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                5_400L
+            );
+            coordinator.settleDeferredBankInteractionsAfterWorldTick(
+                5_400L,
+                deferredMakeover.writer,
+                "[tick-makeover-commit] "
+            );
+
+            if(!makeover.pending()||
+               makeover.active())
+                throw new AssertionError(
+                    "Make-over settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredMakeoverAfterWorldTick(
+                5_400L,
+                deferredMakeover.writer,
+                "[tick-makeover-commit] "
+            );
+
+            if(makeover.pending()||
+               !makeover.active()||
+               coordinator.deferredMakeoverEligible())
+                throw new AssertionError(
+                    "post-commit Make-over settlement failed"
+                );
+        }
+
         try(Fixture deferredTake=new Fixture()){
             TickBridge bridge=new TickBridge();
             LocalWorldTickCoordinator coordinator=
@@ -1009,6 +1148,8 @@ public final class LocalWorldTickCoordinatorTest {
             "transientMovementSave=false "+
             "deferredBankOuterAbortPreservesState=true "+
             "deferredBankPostCommitSettles=true "+
+            "deferredMakeoverOuterAbortPreservesState=true "+
+            "deferredMakeoverPostCommitSettles=true "+
             "deferredTakeOuterAbortPreservesState=true "+
             "deferredTakePostCommitSettles=true "+
             "deferredPetPickupOuterAbortPreservesState=true "+
