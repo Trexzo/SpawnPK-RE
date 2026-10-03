@@ -2438,6 +2438,24 @@ tasks.register(
 }
 
 tasks.register(
+    'walkHereFallbackClientPatchRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Runs the source-only fail-closed exact-v308 Walk-here radius-2 LocalLab client patch regression.'
+    workingDir repoRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    commandLine(
+        issue9PythonExecutable,
+        new File(
+            repoRoot,
+            'tools/runtime/build_v308_local_clients.py'
+        ).absolutePath,
+        '--selftest-walk-here'
+    )
+}
+
+tasks.register(
     'issue9LauncherContractRegression',
     Exec
 ) {
@@ -4912,6 +4930,7 @@ tasks.register('player81WorldStateCleanupRegression', JavaExec) {
 }
 
 tasks.named('check') {
+    dependsOn tasks.named('walkHereFallbackClientPatchRegression')
     dependsOn tasks.named('player81WorldStateCleanupRegression')
     dependsOn tasks.named('globalEventRegistrationCompositionRegression')
     dependsOn tasks.named('globalEventCompositionOwnershipRegression')
