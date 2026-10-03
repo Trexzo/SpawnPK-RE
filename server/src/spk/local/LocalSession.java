@@ -66,6 +66,24 @@ final class LocalSession implements Runnable {
             return true;
         }
 
+        synchronized boolean runIfActiveAndWriterLive(
+            ServerPacketWriter writer,
+            WorldTickGateAction action
+        )throws Exception{
+            if(action==null)
+                throw new NullPointerException(
+                    "world command gate action"
+                );
+
+            if(!active||
+               writer==null||
+               writer.terminal())
+                return false;
+
+            action.run();
+            return true;
+        }
+
         synchronized boolean runRunnableIfActive(
             Runnable action
         ){
@@ -185,6 +203,8 @@ final class LocalSession implements Runnable {
     private long worldPlayerGeneration;
     private boolean worldTickAttached;
     private final WorldTickGate worldTickGate=
+        new WorldTickGate();
+    private final WorldTickGate worldCommandGate=
         new WorldTickGate();
     private String username = AccountStore.CANONICAL_USERNAME;
     private String loginAlias = "localtest";
@@ -1895,6 +1915,13 @@ final class LocalSession implements Runnable {
             worldPlayerGeneration=playerInit.worldPlayerGeneration;
             worldRegistered=true;
 
+            /*
+             * Session-owned World commands are valid before the regular tick
+             * target is attached, so they have an independent callback
+             * lifetime. Activate immediately after exact player registration.
+             */
+            worldCommandGate.activate();
+
             LocalMonsterSpawnerUiHandler monsterSpawnerUi=
                 resolveMonsterSpawnerUiAfterLogin(
                     monsterSpawnerUiFactory,
@@ -2052,6 +2079,15 @@ final class LocalSession implements Runnable {
         } catch (Throwable t) {
             System.err.println(tag + "closed: " + t);
         } finally {
+            /*
+             * Stop session-owned World commands first. A command which is
+             * already active keeps this session-local monitor until its whole
+             * gameplay action exits; a queued/dequeued command entering later
+             * observes inactive and becomes a no-op. No World/service lock is
+             * held while teardown waits here.
+             */
+            worldCommandGate.disableAndAwait();
+
             if(worldTickAttached){
                 /*
                  * Quiesce the LocalSession callback lifetime before any
@@ -2269,16 +2305,15 @@ final class LocalSession implements Runnable {
         world.submitAndWait(
             worldPlayer,
             worldPlayerGeneration,
-            ()->{
-                requireLiveSessionWriter(
-                    serverPackets
-                );
-                pendingRequests.drain(
-                    clientPackets,
+            ()->worldCommandGate
+                .runIfActiveAndWriterLive(
                     serverPackets,
-                    tag
-                );
-            },
+                    ()->pendingRequests.drain(
+                        clientPackets,
+                        serverPackets,
+                        tag
+                    )
+                ),
             5_000L
         );
     }
