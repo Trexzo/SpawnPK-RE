@@ -2207,7 +2207,48 @@ final class LocalSession implements Runnable {
                 "[session "+socket.getRemoteSocketAddress()+"] "
             );
         }finally{
-            sessionPackets.endBatch();
+            endWorldTickBatch(
+                sessionPackets
+            );
+        }
+    }
+
+    static void endWorldTickBatch(
+        ServerPacketWriter writer
+    )throws IOException{
+        try{
+            writer.endBatch();
+        }catch(IOException failure){
+            abortWorldTickBatchAfterCommitFailure(
+                writer,
+                failure
+            );
+            throw failure;
+        }catch(RuntimeException failure){
+            abortWorldTickBatchAfterCommitFailure(
+                writer,
+                failure
+            );
+            throw failure;
+        }catch(Error failure){
+            abortWorldTickBatchAfterCommitFailure(
+                writer,
+                failure
+            );
+            throw failure;
+        }
+    }
+
+    private static void abortWorldTickBatchAfterCommitFailure(
+        ServerPacketWriter writer,
+        Throwable primary
+    ){
+        try{
+            writer.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
         }
     }
 
