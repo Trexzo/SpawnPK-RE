@@ -1491,7 +1491,288 @@ final class NpcRegistry {
      * component is selected through the shared collision authority. When the old
      * deterministic X/Y component is blocked, the follower takes a cardinal detour.
      */
-    String tickFollow(MovementState movement,ServerPacketWriter w) throws IOException {
+    private static final class FollowerMaskRelay {
+        final NpcEntity target;
+        final NpcSyncEncoder.Mask mask;
+
+        FollowerMaskRelay(
+            NpcEntity target,
+            NpcSyncEncoder.Mask mask
+        ){
+            this.target=target;
+            this.mask=mask;
+        }
+    }
+
+    private static final class FollowerTransportSnapshot {
+        final NpcEntity pet;
+        final int petX;
+        final int petY;
+        final NpcEntity miniPet;
+        final int miniX;
+        final int miniY;
+        final ArrayList<NpcEntity> visible;
+        final ArrayDeque<int[]> ownerTrail;
+        final ArrayDeque<int[]> miniTrail;
+        final boolean hasMiniTrail;
+        final int miniTrailX;
+        final int miniTrailY;
+        final int petDiscontinuityTicks;
+        final int miniDiscontinuityTicks;
+
+        FollowerTransportSnapshot(
+            NpcEntity pet,
+            int petX,
+            int petY,
+            NpcEntity miniPet,
+            int miniX,
+            int miniY,
+            ArrayList<NpcEntity> visible,
+            ArrayDeque<int[]> ownerTrail,
+            ArrayDeque<int[]> miniTrail,
+            boolean hasMiniTrail,
+            int miniTrailX,
+            int miniTrailY,
+            int petDiscontinuityTicks,
+            int miniDiscontinuityTicks
+        ){
+            this.pet=pet;
+            this.petX=petX;
+            this.petY=petY;
+            this.miniPet=miniPet;
+            this.miniX=miniX;
+            this.miniY=miniY;
+            this.visible=visible;
+            this.ownerTrail=ownerTrail;
+            this.miniTrail=miniTrail;
+            this.hasMiniTrail=hasMiniTrail;
+            this.miniTrailX=miniTrailX;
+            this.miniTrailY=miniTrailY;
+            this.petDiscontinuityTicks=petDiscontinuityTicks;
+            this.miniDiscontinuityTicks=miniDiscontinuityTicks;
+        }
+    }
+
+    String tickFollow(
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        refreshCanonicalActorProjections();
+
+        if(pet==null)
+            return null;
+
+        FollowerTransportSnapshot before=
+            snapshotFollowerTransport();
+        final String[] result={null};
+        final boolean[] entered={false};
+        final ArrayList<FollowerMaskRelay> deferredRelays=
+            new ArrayList<>();
+
+        ServerPacketWriter.RecoverablePacketResult publication;
+
+        try{
+            publication=
+                w.publishRecoverablePacketIfIdle(
+                    ()->{
+                        entered[0]=true;
+                        result[0]=
+                            tickFollowMutating(
+                                movement,
+                                w,
+                                deferredRelays
+                            );
+                    }
+                );
+        }catch(IOException failure){
+            if(entered[0])
+                restoreFollowerTransportAfterFailure(
+                    before,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(entered[0])
+                restoreFollowerTransportAfterFailure(
+                    before,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(entered[0])
+                restoreFollowerTransportAfterFailure(
+                    before,
+                    failure
+                );
+            throw failure;
+        }
+
+        if(publication==
+                ServerPacketWriter.RecoverablePacketResult
+                    .RETRACTED_RETRYABLE){
+            if(entered[0])
+                restoreFollowerTransport(
+                    before
+                );
+
+            return "PET_FOLLOW_TRANSPORT_RETRACTED_RETRYABLE stateRestored=true";
+        }
+
+        for(FollowerMaskRelay relay:deferredRelays)
+            SharedNpcWorldRelay.relayMask(
+                w,
+                this,
+                relay.target,
+                relay.mask
+            );
+
+        return result[0];
+    }
+
+    private FollowerTransportSnapshot snapshotFollowerTransport(){
+        return new FollowerTransportSnapshot(
+            pet,
+            pet==null?0:pet.x,
+            pet==null?0:pet.y,
+            miniPet,
+            miniPet==null?0:miniPet.x,
+            miniPet==null?0:miniPet.y,
+            new ArrayList<>(
+                visible
+            ),
+            copyFollowerTrail(
+                ownerTrail
+            ),
+            copyFollowerTrail(
+                miniTrail
+            ),
+            hasMiniTrail,
+            miniTrailX,
+            miniTrailY,
+            petDiscontinuityTicks,
+            miniDiscontinuityTicks
+        );
+    }
+
+    private static ArrayDeque<int[]> copyFollowerTrail(
+        ArrayDeque<int[]> source
+    ){
+        ArrayDeque<int[]> copy=
+            new ArrayDeque<>();
+
+        for(int[] tile:source)
+            copy.addLast(
+                tile.clone()
+            );
+
+        return copy;
+    }
+
+    private static void restoreFollowerTrail(
+        ArrayDeque<int[]> target,
+        ArrayDeque<int[]> saved
+    ){
+        target.clear();
+
+        for(int[] tile:saved)
+            target.addLast(
+                tile.clone()
+            );
+    }
+
+    private void restoreFollowerTransport(
+        FollowerTransportSnapshot saved
+    ){
+        visible.clear();
+        visible.addAll(
+            saved.visible
+        );
+
+        pet=saved.pet;
+        miniPet=saved.miniPet;
+
+        restoreFollowerTrail(
+            ownerTrail,
+            saved.ownerTrail
+        );
+        restoreFollowerTrail(
+            miniTrail,
+            saved.miniTrail
+        );
+
+        hasMiniTrail=saved.hasMiniTrail;
+        miniTrailX=saved.miniTrailX;
+        miniTrailY=saved.miniTrailY;
+        petDiscontinuityTicks=
+            saved.petDiscontinuityTicks;
+        miniDiscontinuityTicks=
+            saved.miniDiscontinuityTicks;
+
+        if(pet!=null)
+            setCanonicalActorPosition(
+                pet,
+                true,
+                saved.petX,
+                saved.petY
+            );
+
+        if(miniPet!=null)
+            setCanonicalActorPosition(
+                miniPet,
+                false,
+                saved.miniX,
+                saved.miniY
+            );
+    }
+
+    private void restoreFollowerTransportAfterFailure(
+        FollowerTransportSnapshot saved,
+        Throwable primary
+    ){
+        try{
+            restoreFollowerTransport(
+                saved
+            );
+        }catch(Throwable rollbackFailure){
+            primary.addSuppressed(
+                rollbackFailure
+            );
+        }
+    }
+
+    private void publishFollowerMask(
+        NpcEntity target,
+        NpcSyncEncoder.Mask mask,
+        ServerPacketWriter w,
+        ArrayList<FollowerMaskRelay> deferredRelays
+    )throws IOException{
+        if(deferredRelays==null){
+            sendMask(
+                target,
+                mask,
+                w
+            );
+            return;
+        }
+
+        sendMaskLocal(
+            target,
+            mask,
+            w
+        );
+        deferredRelays.add(
+            new FollowerMaskRelay(
+                target,
+                mask
+            )
+        );
+    }
+
+    private String tickFollowMutating(
+        MovementState movement,
+        ServerPacketWriter w,
+        ArrayList<FollowerMaskRelay> deferredRelays
+    )throws IOException{
         refreshCanonicalActorProjections();
         if(pet==null) return null;
         int dist=LocalSession.chebyshev(pet.x,pet.y,movement.x(),movement.y());
@@ -1500,9 +1781,9 @@ final class NpcRegistry {
         // production-proven V9.12 authority: >=8 tiles may reanchor, below 8 must
         // keep walking immediately rather than sitting in DISCONTINUITY_WAIT.
         if(dist>=8){
-            String recovery=teleportBesideOwner(movement,w,dist);
+            String recovery=teleportBesideOwner(movement,w,dist,deferredRelays);
             petDiscontinuityTicks=0; ownerTrail.clear();
-            if(miniPet!=null) recovery += " "+reanchorMiniBesidePet(movement,w);
+            if(miniPet!=null) recovery += " "+reanchorMiniBesidePet(movement,w,deferredRelays);
             return "PET_FOLLOW_TEMP_8_TILE_REANCHOR dist="+dist+" "+recovery+" policy=USER_APPROVED_TEMPORARY";
         }
 
@@ -1578,7 +1859,7 @@ final class NpcRegistry {
         if(miniPet!=null){
             int miniDist=LocalSession.chebyshev(miniPet.x,miniPet.y,pet.x,pet.y);
             if(miniDist>=8){
-                String recovery=reanchorMiniBesidePet(movement,w);
+                String recovery=reanchorMiniBesidePet(movement,w,deferredRelays);
                 miniDiscontinuityTicks=0;
                 return "PET_FOLLOW_MINI_TEMP_8_TILE_REANCHOR dist="+miniDist+" "+recovery+" policy=USER_APPROVED_TEMPORARY";
             }
@@ -1669,7 +1950,11 @@ final class NpcRegistry {
     }
 
     /** Recovery only for an internally broken mini breadcrumb chain. Not a gameplay catch-up threshold. */
-    private String reanchorMiniBesidePet(MovementState movement,ServerPacketWriter w)throws IOException{
+    private String reanchorMiniBesidePet(
+        MovementState movement,
+        ServerPacketWriter w,
+        ArrayList<FollowerMaskRelay> deferredRelays
+    )throws IOException{
         if(miniPet==null||pet==null)return "MINIPET_RECOVERY_NONE";
         NpcEntity old=miniPet;
         ArrayList<NpcSyncEncoder.Update> remove=new ArrayList<>();
@@ -1682,7 +1967,14 @@ final class NpcRegistry {
         ArrayList<NpcSyncEncoder.Update> retained=new ArrayList<>();for(NpcEntity n:visible)retained.add(NpcSyncEncoder.Update.retain(n));
         w.varShort(65,NpcSyncEncoder.encode(retained,Collections.singletonList(old),movement.x(),movement.y()));
         visible.add(old);miniPet=old;miniTrail.clear();hasMiniTrail=false;
-        sendMask(miniPet,NpcSyncEncoder.Mask.interactionTarget(pet.sceneIndex),w);
+        publishFollowerMask(
+            miniPet,
+            NpcSyncEncoder.Mask.interactionTarget(
+                pet.sceneIndex
+            ),
+            w,
+            deferredRelays
+        );
         return "MINIPET_BROKEN_TRAIL_REANCHOR scene="+old.sceneIndex+" world="+old.x+","+old.y+" mainPet="+pet.x+","+pet.y;
     }
 
@@ -1792,7 +2084,25 @@ final class NpcRegistry {
             " worldWalk="+wd.walkDirectionBySceneIndex.size()+" pet="+(pet==null?"none":"RETAIN")+" visible="+visible.size();
     }
 
-    private String teleportBesideOwner(MovementState movement,ServerPacketWriter w,int distBefore)throws IOException{
+    private String teleportBesideOwner(
+        MovementState movement,
+        ServerPacketWriter w,
+        int distBefore
+    )throws IOException{
+        return teleportBesideOwner(
+            movement,
+            w,
+            distBefore,
+            null
+        );
+    }
+
+    private String teleportBesideOwner(
+        MovementState movement,
+        ServerPacketWriter w,
+        int distBefore,
+        ArrayList<FollowerMaskRelay> deferredRelays
+    )throws IOException{
         // Prefer the most recent authoritative owner breadcrumb when it is adjacent
         // to the owner's current tile. That tile is known traversable because the
         // player just occupied it; only fall back to west-adjacent when no such
@@ -1818,7 +2128,15 @@ final class NpcRegistry {
         for(NpcEntity n:visible) retained.add(NpcSyncEncoder.Update.retain(n));
         w.varShort(65,NpcSyncEncoder.encode(retained,Collections.singletonList(oldPet),movement.x(),movement.y(),spawnPresentationFor(oldPet)));
         visible.add(oldPet); pet=oldPet;
-        if(miniPet!=null) sendMask(miniPet,NpcSyncEncoder.Mask.interactionTarget(pet.sceneIndex),w);
+        if(miniPet!=null)
+            publishFollowerMask(
+                miniPet,
+                NpcSyncEncoder.Mask.interactionTarget(
+                    pet.sceneIndex
+                ),
+                w,
+                deferredRelays
+            );
         return "PET_TELEPORT_TO_OWNER sceneIndex="+pet.sceneIndex+" npc="+pet.definitionId+" distBefore="+distBefore+" world="+pet.x+","+pet.y+" owner="+movement.x()+","+movement.y()+" targetAuthority="+(safe!=null?"OWNER_CURRENT_ROUTE":"FALLBACK_ADJACENT");
     }
 
