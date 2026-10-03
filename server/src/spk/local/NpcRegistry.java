@@ -493,13 +493,12 @@ final class NpcRegistry {
         visible.add(replacement); pet=replacement; ownerTrail.clear(); miniTrail.clear();
         canonicalEnsureMain(old.petItemId);
         if(miniPet!=null)
-            publishFollowerMaskAndDeferRelay(
+            sendMask(
                 miniPet,
                 NpcSyncEncoder.Mask.interactionTarget(
                     pet.sceneIndex
                 ),
-                w,
-                deferredMasks
+                w
             );
         return "PET_PREVIEW_DEFINITION_OK item="+old.petItemId+" npc="+old.definitionId+"->"+npcId+
             " world="+replacement.x+","+replacement.y+" persisted=false pickupStillReturnsItem="+old.petItemId;
