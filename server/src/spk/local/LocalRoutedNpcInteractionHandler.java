@@ -268,7 +268,6 @@ final class LocalRoutedNpcInteractionHandler {
             return null;
         }
 
-        clearPendingBank();
         movement.clearQueuedPath();
 
         // Preserve the current R8.5 deferred-bank reconstruction exactly:
@@ -277,13 +276,21 @@ final class LocalRoutedNpcInteractionHandler {
         NpcInteractionRouter.Route route=
             NpcInteractionRouter.resolve(synthetic,npc);
 
-        return openBank(
-            npc,
-            synthetic,
-            route,
-            serverPackets,
-            "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
-        );
+        String result=
+            openBank(
+                npc,
+                synthetic,
+                route,
+                serverPackets,
+                "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
+            );
+
+        /*
+         * A failed standalone Bank publication must retain the exact banker
+         * identity so the next authoritative tick can retry.
+         */
+        clearPendingBank();
+        return result;
     }
 
     boolean hasPendingBank(){
