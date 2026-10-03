@@ -750,7 +750,13 @@ final class SharedNpcWorldRelay {
                                     candidate.ownerGeneration||
                                !pending.sourceId.equals(
                                     candidate.owner.id()
-                               ))
+                               )||
+                               pending.sourceNpcs!=
+                                    candidate.npcs||
+                               pending.sourceTarget==null||
+                               pending.sourceNpcs.scene(
+                                   pending.sourceTarget.sceneIndex
+                               )!=pending.sourceTarget)
                                 continue;
 
                             if(candidate.state.world
@@ -864,6 +870,8 @@ final class SharedNpcWorldRelay {
                             System.currentTimeMillis(),
                             src.owner.id(),
                             src.ownerGeneration,
+                            sourceNpcs,
+                            sourceTarget,
                             target,
                             mask,
                             barrier,
@@ -1104,6 +1112,8 @@ final class SharedNpcWorldRelay {
         final long createdAt;
         final EntityId sourceId;
         final long sourceGeneration;
+        final NpcRegistry sourceNpcs;
+        final NpcEntity sourceTarget;
         final WorldNpcPresentationEvents.Target target;
         final NpcSyncEncoder.Mask mask;
         final long playerBarrierSequence;
@@ -1113,6 +1123,8 @@ final class SharedNpcWorldRelay {
             long createdAt,
             EntityId sourceId,
             long sourceGeneration,
+            NpcRegistry sourceNpcs,
+            NpcEntity sourceTarget,
             WorldNpcPresentationEvents.Target target,
             NpcSyncEncoder.Mask mask,
             long playerBarrierSequence,
@@ -1121,6 +1133,8 @@ final class SharedNpcWorldRelay {
             this.createdAt=createdAt;
             this.sourceId=sourceId;
             this.sourceGeneration=sourceGeneration;
+            this.sourceNpcs=sourceNpcs;
+            this.sourceTarget=sourceTarget;
             this.target=target;
             this.mask=mask;
             this.playerBarrierSequence=playerBarrierSequence;
