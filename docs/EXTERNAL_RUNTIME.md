@@ -11,10 +11,10 @@ evidence\client(6).jar
 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
 
 local-client\client-airgap.jar
-83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33
+024fad774453430bb964076b98d460a6dae821ee31100322d104e30d9a9c97a7
 
 local-client\client-localhost.jar
-01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd
+15ceb89669ddfe0a666e65b4a5291705af692a50e479bbde17e751eceb7fd23e
 ```
 
 ## Rebuild the local variants
@@ -47,17 +47,25 @@ runtime should be rebuilt through the PowerShell wrapper above.
 
 ### localhost variant
 
-The exact client already contains a dormant local socket mode. The localhost variant
-changes only `rs/f/a.class` to enable that existing mode.
+The exact client already contains a dormant local socket mode. The localhost variant:
+- changes `rs/f/a.class` to enable that existing mode;
+- applies the exact-v308, byte-length-neutral `rs/Client.class` Walk-here patch that
+  expands the already-present unreachable-target fallback from radius 1 to radius 2.
 
 Result:
 - game socket -> `127.0.0.1:43594`;
 - AUX socket -> `127.0.0.1:43595`;
-- updater/web/API URLs otherwise remain stock.
+- updater/web/API URLs otherwise remain stock;
+- Walk-here uses the certified radius-2 fallback derivative.
+
+Hosted source regression proves the deterministic patch contract and generated hashes.
+The human HOME blocked-scenery Walk-here acceptance remains external and must not be
+inferred from source CI alone.
 
 ### airgap variant
 
-The airgap variant includes localhost mode and redirects every known first-party
+The airgap variant includes the same localhost mode and exact-v308
+`rs/Client.class` Walk-here radius-2 patch, then redirects every known first-party
 SpawnPK updater/web/API constant to LocalLab loopback.
 
 Updater base:
