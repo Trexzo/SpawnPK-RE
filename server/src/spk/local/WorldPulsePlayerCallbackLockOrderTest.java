@@ -475,18 +475,23 @@ public final class WorldPulsePlayerCallbackLockOrderTest {
             gate.activate();
             writer.markTerminal();
 
-            boolean terminalAccepted=
+            boolean terminalRejected=false;
+
+            try{
                 gate.runIfActiveAndWriterLive(
                     writer,
                     ()->terminalGameplayRan.set(
                         true
                     )
                 );
+            }catch(java.io.IOException expected){
+                terminalRejected=true;
+            }
 
-            if(terminalAccepted||
+            if(!terminalRejected||
                terminalGameplayRan.get())
                 throw new AssertionError(
-                    "terminal session writer admitted World-command gameplay"
+                    "terminal session writer did not fail closed before World-command gameplay"
                 );
 
             System.out.println(
