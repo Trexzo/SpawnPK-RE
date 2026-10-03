@@ -547,6 +547,27 @@ final class WorldPlayerPersistence
                         player,
                         petAccessoryItem
                     );
+
+                /*
+                 * A checkpoint captured after the ordered final reservation
+                 * was accepted can be queued behind that reservation. If left
+                 * pending, its drain would run after the final save and could
+                 * overwrite the repository with older pre-disconnect state.
+                 *
+                 * Only discard the still-pending/coalesced checkpoint after
+                 * final capture succeeds. A checkpoint already running was
+                 * dequeued ahead of the reservation and may finish normally
+                 * before the final save.
+                 */
+                synchronized(checkpointLock){
+                    CheckpointSlot slot=
+                        checkpoints.get(
+                            player.id()
+                        );
+
+                    if(slot!=null)
+                        slot.latest=null;
+                }
             }catch(RuntimeException|Error failure){
                 synchronized(checkpointLock){
                     Long current=

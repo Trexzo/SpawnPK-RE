@@ -309,6 +309,7 @@ public final class WorldPersistenceFinalSaveBackpressureTest {
 
         assertReservedFinalRetiresBeforeIoAndOrdersLoad();
         assertTimedOutFinalWorldActionOwnsReservation();
+        assertQueuedCheckpointCannotOverwriteReservedFinal();
     }
 
     private static void assertReservedFinalRetiresBeforeIoAndOrdersLoad()
@@ -1002,6 +1003,164 @@ public final class WorldPersistenceFinalSaveBackpressureTest {
                 );
 
             cancelledWorld.close();
+        }
+    }
+
+    private static void assertQueuedCheckpointCannotOverwriteReservedFinal()
+        throws Exception
+    {
+        RecordingRepository repository=
+            new RecordingRepository();
+        World world=
+            World.isolatedForTest(
+                60_000L,
+                repository
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+
+        try{
+            long generation=
+                world.registerPlayer(
+                    player,
+                    LocalAccountProfiles.PRIMARY
+                );
+
+            world.start();
+
+            /*
+             * With an otherwise idle persistence worker this reservation runs
+             * first and waits for publication. The checkpoint drain scheduled
+             * below is therefore FIFO-behind the reserved final slot.
+             */
+            WorldPlayerPersistence.FinalSaveReservation
+                reservation=
+                    world.persistence()
+                        .reserveFinalSaveWithBackpressure(
+                            5_000L
+                        );
+
+            long capturedBefore=
+                world.persistence()
+                    .checkpointCapturedCount();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(
+                            41
+                        );
+
+                    world.persistence()
+                        .checkpointDue(
+                            WorldPlayerPersistence
+                                .AUTOSAVE_INTERVAL_TICKS
+                        );
+                },
+                5_000L
+            );
+
+            if(world.persistence()
+                    .checkpointCapturedCount()!=
+               capturedBefore+1L)
+                throw new AssertionError(
+                    "checkpoint-behind-final fixture did not capture autosave"
+                );
+
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > finalTicket=
+                new AtomicReference<>();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(
+                            99
+                        );
+
+                    WorldPlayerPersistence.CapturedSave
+                        captured=
+                            world.persistence()
+                                .captureDeferredFinalSave(
+                                    LocalAccountProfiles.PRIMARY,
+                                    player,
+                                    generation,
+                                    0,
+                                    "[final-checkpoint-fence-test] ",
+                                    "SESSION_END"
+                                );
+
+                    if(!world.unregisterPlayer(
+                            player,
+                            generation))
+                        throw new AssertionError(
+                            "checkpoint-fence final action could not retire exact generation"
+                        );
+
+                    finalTicket.set(
+                        reservation.publish(
+                            captured
+                        )
+                    );
+                },
+                5_000L
+            );
+
+            WorldPlayerPersistence.SaveTicket ticket=
+                finalTicket.get();
+
+            if(ticket==null)
+                throw new AssertionError(
+                    "checkpoint-fence final ticket missing"
+                );
+
+            ticket.completion.get(
+                5,
+                TimeUnit.SECONDS
+            );
+
+            Optional<PlayerSnapshot> loaded=
+                world.persistence()
+                    .load(
+                        LocalAccountProfiles.PRIMARY
+                    );
+
+            if(!loaded.isPresent())
+                throw new AssertionError(
+                    "checkpoint-fence final snapshot missing"
+                );
+
+            String energy=
+                loaded.get().value(
+                    "movement.runEnergy"
+                );
+
+            if(!"99".equals(
+                    energy
+                ))
+                throw new AssertionError(
+                    "queued checkpoint overwrote final snapshot energy="+
+                    energy
+                );
+
+            System.out.println(
+                "WORLD_PERSISTENCE_FINAL_CHECKPOINT_FENCE_PASS "+
+                "queuedCheckpointDiscarded=true "+
+                "finalSnapshotRemainsAuthoritative=true"
+            );
+        }finally{
+            if(player.registered())
+                world.unregisterPlayer(
+                    player,
+                    player.generation()
+                );
+
+            world.close();
         }
     }
 
