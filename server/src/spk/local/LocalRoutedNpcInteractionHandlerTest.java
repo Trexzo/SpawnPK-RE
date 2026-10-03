@@ -120,6 +120,126 @@ public final class LocalRoutedNpcInteractionHandlerTest {
                 "non-bank NPC action entered bank root ownership"
             );
 
+        WorldPlayer retryPlayer=
+            new WorldPlayer();
+        MovementState retryMovement=
+            retryPlayer.movement();
+        BankState retryBank=
+            retryPlayer.bank();
+        NpcRegistry retryNpcs=
+            new NpcRegistry();
+        OutboundPacketQueue retryQueue=
+            new OutboundPacketQueue(1024);
+        ServerPacketWriter retryWriter=
+            new ServerPacketWriter(
+                retryQueue,
+                new IsaacCipher(
+                    new int[]{153,154,155,156}
+                )
+            );
+        LocalRoutedNpcInteractionHandler retryHandler=
+            new LocalRoutedNpcInteractionHandler(
+                retryNpcs,
+                retryBank,
+                retryMovement
+            );
+        retryHandler.installBankRootOwner(
+            action->action.open()
+        );
+
+        String retrySpawn=
+            retryNpcs.devSpawnNpc(
+                7605,
+                2,
+                0,
+                retryMovement,
+                retryWriter
+            );
+        if(!retrySpawn.startsWith(
+                "DEV_NPC_SPAWN_OK"))
+            throw new AssertionError(
+                "deferred banker retry spawn="+
+                retrySpawn
+            );
+
+        NpcEntity retryBanker=null;
+        for(NpcEntity candidate:
+                retryNpcs.snapshot())
+            if(candidate.definitionId==7605){
+                retryBanker=candidate;
+                break;
+            }
+
+        if(retryBanker==null)
+            throw new AssertionError(
+                "deferred banker retry fixture missing"
+            );
+
+        String retryQueued=
+            retryHandler.handle(
+                new NpcAction(
+                    17,
+                    retryBanker.sceneIndex
+                ),
+                retryBanker,
+                retryWriter
+            );
+
+        if(retryQueued==null||
+           !retryQueued.contains(
+               "DEFERRED_UNTIL_ADJACENT")||
+           !retryHandler.hasPendingBank())
+            throw new AssertionError(
+                "deferred banker retry did not queue"
+            );
+
+        if(retryMovement.advance()==null)
+            throw new AssertionError(
+                "deferred banker retry approach did not advance"
+            );
+
+        OutboundPacketQueue.BatchReservation retryPressure=
+            OutboundPacketQueue.reserveBatch(
+                retryQueue,
+                1024
+            );
+
+        boolean deferredBankFailed=false;
+        try{
+            retryHandler.tick(
+                System.currentTimeMillis(),
+                retryWriter
+            );
+        }catch(java.io.IOException expected){
+            deferredBankFailed=true;
+        }finally{
+            retryPressure.release();
+        }
+
+        if(!deferredBankFailed||
+           retryBank.isOpen()||
+           !retryHandler.hasPendingBank()||
+           retryHandler.pendingBankNpc()!=retryBanker||
+           retryQueue.queuedBytes()!=0)
+            throw new AssertionError(
+                "failed deferred banker open lost exact pending authority"
+            );
+
+        String retryOpened=
+            retryHandler.tick(
+                System.currentTimeMillis(),
+                retryWriter
+            );
+
+        if(retryOpened==null||
+           !retryOpened.contains(
+               "OPENED_AFTER_AUTHORITATIVE_ARRIVAL")||
+           !retryBank.isOpen()||
+           retryHandler.hasPendingBank())
+            throw new AssertionError(
+                "deferred banker same-writer retry did not commit"
+            );
+
         WorldPlayer rejectedPlayer=new WorldPlayer();
         MovementState rejectedMovement=rejectedPlayer.movement();
         BankState rejectedBank=rejectedPlayer.bank();
@@ -202,6 +322,6 @@ public final class LocalRoutedNpcInteractionHandlerTest {
             "bankerImmediate=true bankRootOwner=true "+
             "deferredOwnership=true deferredNoEarlyRoot=true "+
             "pathEndReroute=true timeoutCancel=true "+
-            "genericFailClosed=true rejectedRootNoMutation=true");
+            "genericFailClosed=true deferredOpenFailureRetainsPending=true rejectedRootNoMutation=true");
     }
 }
