@@ -1714,7 +1714,7 @@ final class NpcRegistry {
             restoreFollowerState(
                 snapshot
             );
-        }catch(Throwable rollbackFailure){
+        }catch(RuntimeException|Error rollbackFailure){
             if(primary!=null)
                 primary.addSuppressed(
                     rollbackFailure
