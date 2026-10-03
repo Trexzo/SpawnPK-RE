@@ -57,6 +57,7 @@ final class LocalWorldTickCoordinator {
     private long legacyTickCount;
     private long movementTickCount;
     private boolean deferredBankInteractionEligible;
+    private boolean deferredMakeoverEligible;
     private boolean deferredGroundTakeEligible;
     private boolean deferredPetPickupEligible;
 
@@ -165,6 +166,7 @@ final class LocalWorldTickCoordinator {
         String tag
     )throws Exception{
         deferredBankInteractionEligible=false;
+        deferredMakeoverEligible=false;
         deferredGroundTakeEligible=false;
         deferredPetPickupEligible=false;
 
@@ -320,16 +322,12 @@ final class LocalWorldTickCoordinator {
          */
         deferredBankInteractionEligible=true;
 
-        String makeoverTick=
-            routedNpcHandler.tickMakeover(
-                now,
-                writer,
-                tag
-            );
-        if(makeoverTick!=null)
-            System.out.println(
-                tag+makeoverTick
-            );
+        /*
+         * Deferred Make-over arrival/active-close presentation is a standalone
+         * dialogue transaction. The LocalSession outer world-tick packet batch
+         * is still provisional here, so settle it only after that batch commits.
+         */
+        deferredMakeoverEligible=true;
 
         groundItemPresentationRelay.publishPendingIfSceneReady(
             now,
@@ -764,6 +762,37 @@ final class LocalWorldTickCoordinator {
 
     boolean deferredBankInteractionEligible(){
         return deferredBankInteractionEligible;
+    }
+
+    void settleDeferredMakeoverAfterWorldTick(
+        long now,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(!deferredMakeoverEligible)
+            return;
+
+        deferredMakeoverEligible=false;
+
+        String result=
+            routedNpcHandler.tickMakeover(
+                now,
+                writer,
+                tag
+            );
+
+        if(result!=null)
+            System.out.println(
+                tag+result
+            );
+    }
+
+    void abortDeferredMakeoverAfterWorldTick(){
+        deferredMakeoverEligible=false;
+    }
+
+    boolean deferredMakeoverEligible(){
+        return deferredMakeoverEligible;
     }
 
     void settleDeferredGroundTakeAfterWorldTick(
