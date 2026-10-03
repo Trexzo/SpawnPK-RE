@@ -256,6 +256,15 @@ final class TradeService {
                                         :BrokenWriterPeerClose
                                             .RETRACTED_RETRYABLE;
                             }catch(IOException failure){
+                                /*
+                                 * The exact peer Context/generation is still
+                                 * protected by the PlayerRegistry fence here.
+                                 * Latch the non-retractable writer terminal
+                                 * before releasing that fence so a replacement
+                                 * generation cannot reuse this transport in the
+                                 * retirement handoff window.
+                                 */
+                                peer.writer.markTerminal();
                                 peerClose=
                                     BrokenWriterPeerClose.TERMINAL;
                                 peerFailure=failure;
@@ -900,6 +909,12 @@ final class TradeService {
                     new byte[0]
                 );
             }catch(IOException failure){
+                /*
+                 * Preserve the registry-fence linearization through terminal
+                 * classification. Cross-service retirement remains outside
+                 * the registry monitor.
+                 */
+                peer.writer.markTerminal();
                 terminalFailure=failure;
             }
         }
@@ -1734,6 +1749,13 @@ final class TradeService {
                     new byte[0]
                 );
             }catch(IOException failure){
+                /*
+                 * The old peer is exact-current under this PlayerRegistry
+                 * fence. Make its broken transport non-reusable before the
+                 * generation fence is released; full runtime retirement stays
+                 * outside the registry monitor.
+                 */
+                context.writer.markTerminal();
                 terminalFailure=failure;
             }catch(Throwable ignored){
                 return;
@@ -1900,6 +1922,13 @@ final class TradeService {
                     new byte[0]
                 );
             }catch(IOException failure){
+                /*
+                 * This Context is exact-current under the PlayerRegistry
+                 * fence. Latch terminal before releasing that fence so a
+                 * replacement generation cannot adopt the same broken writer
+                 * before outer runtime retirement begins.
+                 */
+                context.writer.markTerminal();
                 terminalFailure=failure;
             }catch(Throwable ignored){
                 /*
