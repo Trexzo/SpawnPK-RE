@@ -40,7 +40,7 @@ try {
     & $runtimeCheck
 
     $expectedLocalhostSha256 =
-        '01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd'
+        '15ceb89669ddfe0a666e65b4a5291705af692a50e479bbde17e751eceb7fd23e'
 
     Write-Host 'NONAIRGAP_DIAGNOSTIC_EXPLICIT externalEndpointsMayRemain=true' -ForegroundColor Red
     Write-Host 'This localhost client keeps game/AUX sockets local but may still contain external web/CDN endpoints.' -ForegroundColor Yellow
