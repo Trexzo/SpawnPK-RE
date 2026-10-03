@@ -239,16 +239,25 @@ final class MiniPetService {
             w.endBatch();
             ended=true;
         }catch(IOException failure){
-            if(!ended)
-                try{w.endBatch();}catch(Throwable ignored){}
+            abortBatchAfterFailure(
+                w,
+                ended,
+                failure
+            );
             throw failure;
         }catch(RuntimeException failure){
-            if(!ended)
-                try{w.endBatch();}catch(Throwable ignored){}
+            abortBatchAfterFailure(
+                w,
+                ended,
+                failure
+            );
             throw failure;
         }catch(Error failure){
-            if(!ended)
-                try{w.endBatch();}catch(Throwable ignored){}
+            abortBatchAfterFailure(
+                w,
+                ended,
+                failure
+            );
             throw failure;
         }
 
@@ -282,16 +291,25 @@ final class MiniPetService {
             w.endBatch();
             ended=true;
         }catch(IOException failure){
-            if(!ended)
-                try{w.endBatch();}catch(Throwable ignored){}
+            abortBatchAfterFailure(
+                w,
+                ended,
+                failure
+            );
             throw failure;
         }catch(RuntimeException failure){
-            if(!ended)
-                try{w.endBatch();}catch(Throwable ignored){}
+            abortBatchAfterFailure(
+                w,
+                ended,
+                failure
+            );
             throw failure;
         }catch(Error failure){
-            if(!ended)
-                try{w.endBatch();}catch(Throwable ignored){}
+            abortBatchAfterFailure(
+                w,
+                ended,
+                failure
+            );
             throw failure;
         }
 
@@ -301,6 +319,23 @@ final class MiniPetService {
             npcs,
             actor
         );
+    }
+
+    private static void abortBatchAfterFailure(
+        ServerPacketWriter writer,
+        boolean ended,
+        Throwable primary
+    ){
+        if(ended)
+            return;
+
+        try{
+            writer.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
+        }
     }
 
     String onMainPetSpawn(PetState state,NpcRegistry npcs,MovementState movement,ServerPacketWriter w)throws IOException{
