@@ -11,7 +11,9 @@ public final class PetFollowTransportAtomicityTest {
         World world=World.isolatedForTest(50L);
         try{
             WorldPlayer owner=new WorldPlayer();
+            WorldPlayer viewer=new WorldPlayer();
             world.registerPlayer(owner,"pet-follow-transport");
+            world.registerPlayer(viewer,"pet-follow-viewer");
             MovementState movement=owner.movement();
             NpcRegistry npcs=new NpcRegistry(
                 new DevAuthorityWorkbench(),
@@ -27,6 +29,18 @@ public final class PetFollowTransportAtomicityTest {
             String spawn=npcs.spawnPet(def,movement,setup);
             if(!spawn.startsWith("PET_SPAWN_OK"))throw new AssertionError(spawn);
 
+            owner.petState().activate(def);
+            String miniConfigured=
+                owner.miniPets().configure(
+                    23629,
+                    owner.petState(),
+                    npcs,
+                    movement,
+                    setup
+                );
+            if(!miniConfigured.startsWith("MINIPET_CONFIGURED"))
+                throw new AssertionError(miniConfigured);
+
             npcs.onOwnerRouteReplaced();
             WorldNpc canonical=requireCanonical(world,owner);
             int originX=canonical.x(), originY=canonical.y();
@@ -40,6 +54,51 @@ public final class PetFollowTransportAtomicityTest {
             ServerPacketWriter queued=new ServerPacketWriter(
                 queue,new IsaacCipher(SEED)
             );
+            OutboundPacketQueue viewerQueue=
+                new OutboundPacketQueue(1024);
+            ServerPacketWriter viewerWriter=
+                new ServerPacketWriter(
+                    viewerQueue,
+                    new IsaacCipher(
+                        new int[]{51,52,53,54}
+                    )
+                );
+            NpcRegistry viewerNpcs=
+                new NpcRegistry(
+                    new DevAuthorityWorkbench(),
+                    world.petNpcs(),
+                    viewer.id()
+                );
+
+            Player81WorldSync.register(
+                queued,
+                world,
+                owner,
+                new DevAuthorityWorkbench()
+            );
+            Player81WorldSync.register(
+                viewerWriter,
+                world,
+                viewer,
+                new DevAuthorityWorkbench()
+            );
+            SharedNpcWorldRelay.register(
+                queued,
+                world,
+                owner,
+                npcs,
+                movement
+            );
+            SharedNpcWorldRelay.register(
+                viewerWriter,
+                world,
+                viewer,
+                viewerNpcs,
+                viewer.movement()
+            );
+
+            drain(queue);
+            drain(viewerQueue);
             queue.offer(new byte[1020]);
 
             Snapshot beforeWalk=snapshot(world,owner,npcs,movement);
@@ -73,6 +132,9 @@ public final class PetFollowTransportAtomicityTest {
             queue.offer(new byte[1020]);
 
             Snapshot beforeReanchor=snapshot(world,owner,npcs,movement);
+            int relayBefore=
+                world.npcPresentationEvents()
+                    .size();
             String snapRetracted=npcs.devSnapToOwner(movement,queued);
             if(!snapRetracted.contains("RETRACTED_RETRYABLE"))
                 throw new AssertionError("reanchor did not retract: "+snapRetracted);
@@ -83,11 +145,19 @@ public final class PetFollowTransportAtomicityTest {
             );
             if(npcs.scene(NpcRegistry.PET_INDEX)!=beforeReanchor.petRef)
                 throw new AssertionError("reanchor retract changed visible identity");
+            if(world.npcPresentationEvents().size()!=relayBefore)
+                throw new AssertionError(
+                    "retracted reanchor leaked SharedNpc relay event"
+                );
 
             drain(queue);
             String snapRetry=npcs.devSnapToOwner(movement,queued);
             if(!snapRetry.startsWith("PET_TELEPORT_TO_OWNER"))
                 throw new AssertionError("reanchor retry failed: "+snapRetry);
+            if(world.npcPresentationEvents().size()!=relayBefore+1)
+                throw new AssertionError(
+                    "committed reanchor did not publish exactly one SharedNpc relay event"
+                );
 
             canonical=requireCanonical(world,owner);
             if(npcs.pet().x!=canonical.x()||
@@ -130,6 +200,7 @@ public final class PetFollowTransportAtomicityTest {
                 "queueRetractPreservesState=true "+
                 "retryCommitsOnce=true "+
                 "reanchorRetractPreservesState=true "+
+                "reanchorRelayDeferredUntilCommit=true "+
                 "directFailureRestoresState=true"
             );
         }finally{
