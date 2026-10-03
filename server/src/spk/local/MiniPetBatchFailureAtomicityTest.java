@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Field;
+import java.util.Arrays;
 
 public final class MiniPetBatchFailureAtomicityTest {
     private static final int QUEUE_CAPACITY=1024;
@@ -109,13 +111,18 @@ public final class MiniPetBatchFailureAtomicityTest {
             new OutboundPacketQueue(
                 QUEUE_CAPACITY
             );
+        IsaacCipher writerCipher=
+            new IsaacCipher(
+                SEED.clone()
+            );
         ServerPacketWriter writer=
             new ServerPacketWriter(
                 queue,
-                new IsaacCipher(
-                    SEED.clone()
-                )
+                writerCipher
             );
+
+        IsaacCipher.Snapshot configureCipherBefore=
+            writerCipher.snapshot();
 
         OutboundPacketQueue.BatchReservation
             configurePressure=
@@ -145,16 +152,13 @@ public final class MiniPetBatchFailureAtomicityTest {
                 "mini configure queue pressure did not fail"
             );
 
-        if(writer.terminal())
-            throw new AssertionError(
-                "mini configure failure terminal-latched retractable writer"
-            );
-
-        if(queue.queuedBytes()!=0)
-            throw new AssertionError(
-                "mini configure failure leaked packet bytes="+
-                queue.queuedBytes()
-            );
+        assertWriterRewound(
+            writer,
+            queue,
+            writerCipher,
+            configureCipherBefore,
+            "configure"
+        );
 
         if(!petState.miniConfigured()||
            petState.miniItemId()!=first.itemId||
@@ -190,6 +194,8 @@ public final class MiniPetBatchFailureAtomicityTest {
 
         NpcEntity configuredActor=
             npcs.miniPet();
+        IsaacCipher.Snapshot offCipherBefore=
+            writerCipher.snapshot();
 
         OutboundPacketQueue.BatchReservation
             offPressure=
@@ -217,16 +223,13 @@ public final class MiniPetBatchFailureAtomicityTest {
                 "mini off queue pressure did not fail"
             );
 
-        if(writer.terminal())
-            throw new AssertionError(
-                "mini off failure terminal-latched retractable writer"
-            );
-
-        if(queue.queuedBytes()!=0)
-            throw new AssertionError(
-                "mini off failure leaked packet bytes="+
-                queue.queuedBytes()
-            );
+        assertWriterRewound(
+            writer,
+            queue,
+            writerCipher,
+            offCipherBefore,
+            "off"
+        );
 
         if(!petState.miniConfigured()||
            petState.miniItemId()!=second.itemId||
@@ -260,6 +263,102 @@ public final class MiniPetBatchFailureAtomicityTest {
             "offStateUnchanged=true "+
             "retryWorks=true"
         );
+    }
+
+    private static void assertWriterRewound(
+        ServerPacketWriter writer,
+        OutboundPacketQueue queue,
+        IsaacCipher cipher,
+        IsaacCipher.Snapshot expectedCipher,
+        String stage
+    )throws Exception{
+        if(writer.terminal())
+            throw new AssertionError(
+                "mini "+stage+
+                " failure terminal-latched retractable writer"
+            );
+
+        if(queue.queuedBytes()!=0)
+            throw new AssertionError(
+                "mini "+stage+
+                " failure leaked packet bytes="+
+                queue.queuedBytes()
+            );
+
+        Field depthField=
+            ServerPacketWriter.class
+                .getDeclaredField(
+                    "batchDepth"
+                );
+        depthField.setAccessible(true);
+
+        if(depthField.getInt(writer)!=0)
+            throw new AssertionError(
+                "mini "+stage+
+                " failure left batch depth="+
+                depthField.getInt(writer)
+            );
+
+        Field pendingField=
+            ServerPacketWriter.class
+                .getDeclaredField(
+                    "pending"
+                );
+        pendingField.setAccessible(true);
+        ByteArrayOutputStream pending=
+            (ByteArrayOutputStream)
+                pendingField.get(
+                    writer
+                );
+
+        if(pending.size()!=0)
+            throw new AssertionError(
+                "mini "+stage+
+                " failure left pending bytes="+
+                pending.size()
+            );
+
+        Field checkpointField=
+            ServerPacketWriter.class
+                .getDeclaredField(
+                    "batchCipherCheckpoint"
+                );
+        checkpointField.setAccessible(true);
+
+        if(checkpointField.get(writer)!=null)
+            throw new AssertionError(
+                "mini "+stage+
+                " failure left cipher checkpoint active"
+            );
+
+        assertCipherEquals(
+            expectedCipher,
+            cipher.snapshot(),
+            stage
+        );
+    }
+
+    private static void assertCipherEquals(
+        IsaacCipher.Snapshot expected,
+        IsaacCipher.Snapshot actual,
+        String stage
+    ){
+        if(expected.count!=actual.count||
+           expected.accumulator!=actual.accumulator||
+           expected.lastResult!=actual.lastResult||
+           expected.counter!=actual.counter||
+           !Arrays.equals(
+               expected.results,
+               actual.results
+           )||
+           !Arrays.equals(
+               expected.memory,
+               actual.memory
+           ))
+            throw new AssertionError(
+                "mini "+stage+
+                " failure did not restore exact ISAAC snapshot"
+            );
     }
 
     private static void drain(
