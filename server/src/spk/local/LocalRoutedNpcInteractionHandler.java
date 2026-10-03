@@ -268,22 +268,24 @@ final class LocalRoutedNpcInteractionHandler {
             return null;
         }
 
-        clearPendingBank();
-        movement.clearQueuedPath();
-
         // Preserve the current R8.5 deferred-bank reconstruction exactly:
         // the arrival path synthesizes option-3/opcode17 before re-resolving.
         NpcAction synthetic=new NpcAction(17,scene);
         NpcInteractionRouter.Route route=
             NpcInteractionRouter.resolve(synthetic,npc);
 
-        return openBank(
-            npc,
-            synthetic,
-            route,
-            serverPackets,
-            "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
-        );
+        String result=
+            openBank(
+                npc,
+                synthetic,
+                route,
+                serverPackets,
+                "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
+            );
+
+        clearPendingBank();
+        movement.clearQueuedPath();
+        return result;
     }
 
     boolean hasPendingBank(){
