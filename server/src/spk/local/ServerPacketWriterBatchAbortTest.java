@@ -9,6 +9,7 @@ public final class ServerPacketWriterBatchAbortTest {
         ordinaryDirectFailureLatchesTerminal();
         explicitAbortDiscardsAndRewindsCipher();
         failedQueueCommitRemainsAbortable();
+        localSessionFailedTickBatchAbortsAndRetries();
         nestedAbortDiscardsWholeOuterBatch();
         atomicPairAbortReleasesReservationAndRewindsCipher();
         successfulBatchPreservesWireBytes();
@@ -18,6 +19,7 @@ public final class ServerPacketWriterBatchAbortTest {
             "ordinaryDirectTerminal=true directNoRetouch=true "+
             "zeroLeak=true isaacRewind=true "+
             "queueFailureAbortable=true batchFailureNonTerminal=true "+
+            "worldTickCommitFailureAborted=true worldTickRetryExact=true "+
             "nestedWholeAbort=true pairAbort=true successWireParity=true"
         );
     }
@@ -207,6 +209,106 @@ public final class ServerPacketWriterBatchAbortTest {
                 expectedNext+
                 " actual="+
                 actualNext
+            );
+    }
+
+    private static void localSessionFailedTickBatchAbortsAndRetries()
+        throws Exception
+    {
+        int[] seed={13,14,15,16};
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+
+        byte[] pressure=
+            new byte[1020];
+        Arrays.fill(
+            pressure,
+            (byte)0x6b
+        );
+        queue.offer(
+            pressure
+        );
+
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(seed)
+            );
+
+        writer.beginBatch();
+        writer.fixed(
+            42,
+            new byte[]{1,2,3,4}
+        );
+
+        boolean failed=false;
+        try{
+            LocalSession.endWorldTickBatch(
+                writer
+            );
+        }catch(IOException expected){
+            failed=true;
+        }
+
+        if(!failed)
+            throw new AssertionError(
+                "pressured world-tick batch unexpectedly committed"
+            );
+        if(writer.terminal())
+            throw new AssertionError(
+                "retractable world-tick batch failure terminalized writer"
+            );
+        if(queue.overflowed())
+            throw new AssertionError(
+                "world-tick batch admission poisoned queue"
+            );
+        if(queue.queuedBytes()!=pressure.length||
+           queue.queuedPackets()!=1)
+            throw new AssertionError(
+                "failed world-tick batch leaked staged bytes bytes="+
+                queue.queuedBytes()+
+                " packets="+
+                queue.queuedPackets()
+            );
+
+        ByteArrayOutputStream discardedPressure=
+            new ByteArrayOutputStream();
+        queue.drainTo(
+            discardedPressure,
+            4096
+        );
+
+        writer.beginBatch();
+        writer.fixed(
+            42,
+            new byte[]{1,2,3,4}
+        );
+        LocalSession.endWorldTickBatch(
+            writer
+        );
+
+        ByteArrayOutputStream actual=
+            new ByteArrayOutputStream();
+        queue.drainTo(
+            actual,
+            4096
+        );
+
+        ByteArrayOutputStream expected=
+            new ByteArrayOutputStream();
+        new ServerPacketWriter(
+            expected,
+            new IsaacCipher(seed)
+        ).fixed(
+            42,
+            new byte[]{1,2,3,4}
+        );
+
+        if(!Arrays.equals(
+                actual.toByteArray(),
+                expected.toByteArray()))
+            throw new AssertionError(
+                "world-tick batch failure did not rewind for exact retry"
             );
     }
 
