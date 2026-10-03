@@ -66,6 +66,21 @@ final class LocalSession implements Runnable {
             return true;
         }
 
+        synchronized boolean runRunnableIfActive(
+            Runnable action
+        ){
+            if(action==null)
+                throw new NullPointerException(
+                    "world callback gate action"
+                );
+
+            if(!active)
+                return false;
+
+            action.run();
+            return true;
+        }
+
         synchronized boolean active(){
             return active;
         }
@@ -836,6 +851,18 @@ final class LocalSession implements Runnable {
                     return "[session "+
                         LocalSession.this.socket.getRemoteSocketAddress()+
                         "] ";
+                }
+
+                @Override public boolean
+                    runIfSessionWorldCallbackActive(
+                        Runnable action
+                    )
+                {
+                    return LocalSession.this
+                        .worldTickGate
+                        .runRunnableIfActive(
+                            action
+                        );
                 }
             });
         this.movementRequests = new LocalMovementRequestHandler(
