@@ -2543,45 +2543,79 @@ final class LocalSession implements Runnable {
     }
 
     private WorldPlayerPersistence.CapturedSave
-        captureAccountSaveDeferred(
+        captureFinalSaveAndUnregister(
             String tag,
             String reason
         )throws Exception{
-        if(!persistentAccount)
+        if(!persistentAccount||
+           !worldRegistered)
             return null;
 
         if(world.pulse().inExecutionContext())
-            return world.persistence()
-                .captureDeferredFinalSave(
-                    username,
-                    worldPlayer,
-                    worldPlayerGeneration,
-                    petAccessoryState.activeItem(),
-                    tag,
-                    reason
-                );
+            throw new IllegalStateException(
+                "final session teardown cannot run on World execution context"
+            );
 
         final java.util.concurrent.atomic.AtomicReference<
             WorldPlayerPersistence.CapturedSave
         > captured=
             new java.util.concurrent.atomic.AtomicReference<>();
 
+        final java.util.concurrent.atomic.AtomicBoolean
+            removed=
+                new java.util.concurrent.atomic.AtomicBoolean();
+
         world.submitAndWait(
             worldPlayer,
             worldPlayerGeneration,
-            ()->captured.set(
-                world.persistence()
-                    .captureDeferredFinalSave(
-                        username,
+            ()->{
+                WorldPlayerPersistence.CapturedSave
+                    finalCapture=
+                        world.persistence()
+                            .captureDeferredFinalSave(
+                                username,
+                                worldPlayer,
+                                worldPlayerGeneration,
+                                petAccessoryState.activeItem(),
+                                tag,
+                                reason
+                            );
+
+                boolean unregistered=
+                    world.unregisterPlayer(
                         worldPlayer,
-                        worldPlayerGeneration,
-                        petAccessoryState.activeItem(),
-                        tag,
-                        reason
-                    )
-            ),
+                        worldPlayerGeneration
+                    );
+
+                if(!unregistered){
+                    world.persistence()
+                        .releaseCheckpointSuppression(
+                            worldPlayer.id(),
+                            worldPlayerGeneration
+                        );
+
+                    throw new IllegalStateException(
+                        "final save capture could not unregister exact player generation id="+
+                        worldPlayer.id()+
+                        " generation="+
+                        worldPlayerGeneration
+                    );
+                }
+
+                captured.set(
+                    finalCapture
+                );
+                removed.set(
+                    true
+                );
+            },
             5_000L
         );
+
+        if(!removed.get())
+            throw new IllegalStateException(
+                "world final-save teardown did not remove player generation"
+            );
 
         WorldPlayerPersistence.CapturedSave result=
             captured.get();
@@ -2590,6 +2624,13 @@ final class LocalSession implements Runnable {
             throw new IllegalStateException(
                 "world final-save capture produced no snapshot"
             );
+
+        /*
+         * World ownership ended in the same exact-player action as snapshot
+         * capture, before any persistence I/O wait. The outer finally must not
+         * attempt a second unregister.
+         */
+        worldRegistered=false;
 
         return result;
     }
@@ -2628,28 +2669,57 @@ final class LocalSession implements Runnable {
            !worldRegistered)
             return;
 
+        WorldPlayerPersistence.FinalSaveReservation
+            reservation=null;
+
         try{
+            /*
+             * Reserve persistence FIFO position before final capture. Queue
+             * saturation may wait here, off the World thread, while the player
+             * remains live so every later mutation is included in the eventual
+             * snapshot.
+             */
+            reservation=
+                world.persistence()
+                    .reserveFinalSaveWithBackpressure(
+                        5_000L
+                    );
+
+            /*
+             * Capture and exact-generation unregister are one World-owned
+             * action. Once this returns, no NPC/command/realtime gameplay can
+             * legally mutate the captured player generation.
+             */
             WorldPlayerPersistence.CapturedSave captured=
-                captureAccountSaveDeferred(
+                captureFinalSaveAndUnregister(
                     tag,
                     reason
                 );
 
-            if(captured==null)
+            if(captured==null){
+                reservation.abort(
+                    new IllegalStateException(
+                        "final save capture unavailable"
+                    )
+                );
                 return;
+            }
 
             WorldPlayerPersistence.SaveTicket ticket=
-                world.persistence()
-                    .submitCapturedWithBackpressure(
-                        captured,
-                        5_000L
-                    );
+                reservation.publish(
+                    captured
+                );
 
             ticket.completion.get(
                 5,
                 java.util.concurrent.TimeUnit.SECONDS
             );
         }catch(Throwable e){
+            if(reservation!=null)
+                reservation.abort(
+                    e
+                );
+
             System.err.println(
                 tag+
                 "V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED reason="+
