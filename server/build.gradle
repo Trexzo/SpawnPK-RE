@@ -1723,7 +1723,7 @@ def readR85Selftests = {
     if (names.size() != 179 ||
         uniqueNames != 179) {
         throw new GradleException(
-            "R8.5 regression manifest drift: expected 179 unique tests, found " +
+            "R8.5 regression manifest drift: expected 180 unique tests, found " +
             names.size() +
             " / " +
             uniqueNames
@@ -1992,6 +1992,7 @@ def currentTrainFocusedTests = [
     'spk.local.LocalRegionDevCommandHandlerTest',
     'spk.local.LocalRegionStreamHandlerTest',
     'spk.local.LocalWorldTickCoordinatorTest',
+    'spk.local.SceneContextBatchCommitFenceTest',
     'spk.local.LocalPetRealtimeSchedulerTest',
     'spk.local.PetFollowTransportAtomicityTest',
     'spk.local.MiniPetBatchFailureAtomicityTest',
@@ -2024,8 +2025,8 @@ def currentTrainFocusedTests = [
     'spk.local.BloodDiamondFuserServiceTest'
 ]
 
-if (currentTrainFocusedTests.size() != 179 ||
-    currentTrainFocusedTests.toSet().size() != 179) {
+if (currentTrainFocusedTests.size() != 180 ||
+    currentTrainFocusedTests.toSet().size() != 180) {
     throw new GradleException(
         "Current-train focused manifest drift: expected 179 unique tests, found " +
         currentTrainFocusedTests.size() +

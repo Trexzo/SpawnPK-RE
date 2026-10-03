@@ -2397,6 +2397,11 @@ final class LocalSession implements Runnable {
         String tickTag=
             "[session "+socket.getRemoteSocketAddress()+"] ";
 
+        ScenePublisherBatchSnapshot sceneBatch=
+            ScenePublisherBatchSnapshot.capture(
+                scenePublisher
+            );
+
         sessionPackets.beginBatch();
         boolean batchCommitted=false;
         boolean tickCompleted=false;
@@ -2445,6 +2450,9 @@ final class LocalSession implements Runnable {
                         .abortDeferredPetPickupAfterWorldTick();
                 }
             }else{
+                scenePublisher=
+                    sceneBatch.abortAndRestore();
+
                 worldTicks
                     .abortHomePresentationBatch();
                 worldTicks
@@ -2454,6 +2462,39 @@ final class LocalSession implements Runnable {
                 worldTicks
                     .abortDeferredPetPickupAfterWorldTick();
             }
+        }
+    }
+
+    static final class ScenePublisherBatchSnapshot {
+        private final SceneUpdatePublisher publisher;
+        private final SceneCoordinateContext.Snapshot context;
+
+        private ScenePublisherBatchSnapshot(
+            SceneUpdatePublisher publisher,
+            SceneCoordinateContext.Snapshot context
+        ){
+            this.publisher=publisher;
+            this.context=context;
+        }
+
+        static ScenePublisherBatchSnapshot capture(
+            SceneUpdatePublisher publisher
+        ){
+            return new ScenePublisherBatchSnapshot(
+                publisher,
+                publisher==null
+                    ?null
+                    :publisher.context().snapshot()
+            );
+        }
+
+        SceneUpdatePublisher abortAndRestore(){
+            if(publisher!=null)
+                publisher.context().restore(
+                    context
+                );
+
+            return publisher;
         }
     }
 
