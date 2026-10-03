@@ -1,9 +1,11 @@
 package spk.local;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class MainShutdownFinalizerTest {
-    public static void main(String[] args){
+    public static void main(String[] args)
+        throws Exception{
         RuntimeException shutdownFailure=
             new RuntimeException(
                 "shutdown-failed"
@@ -88,6 +90,92 @@ public final class MainShutdownFinalizerTest {
             ()->{}
         );
 
+        IOException servingFailure=
+            new IOException(
+                "serving-loop-failed"
+            );
+        RuntimeException servingShutdownFailure=
+            new RuntimeException(
+                "serving-shutdown-failed"
+            );
+        RuntimeException servingRemovalFailure=
+            new RuntimeException(
+                "serving-remove-hook-failed"
+            );
+        AtomicBoolean servingShutdownRan=
+            new AtomicBoolean();
+        AtomicBoolean servingRemovalRan=
+            new AtomicBoolean();
+        Throwable servingObserved=null;
+
+        try{
+            MainShutdownFinalizer.runPreserving(
+                servingFailure,
+                ()->{
+                    servingShutdownRan.set(
+                        true
+                    );
+                    throw servingShutdownFailure;
+                },
+                ()->{
+                    servingRemovalRan.set(
+                        true
+                    );
+                    throw servingRemovalFailure;
+                }
+            );
+        }catch(Throwable failure){
+            servingObserved=failure;
+        }
+
+        if(servingObserved!=
+                servingFailure)
+            throw new AssertionError(
+                "serving-loop failure did not remain exact primary",
+                servingObserved
+            );
+
+        if(!servingShutdownRan.get()||
+           !servingRemovalRan.get())
+            throw new AssertionError(
+                "serving-loop failure skipped terminal cleanup"
+            );
+
+        Throwable[] servingSuppressed=
+            servingObserved.getSuppressed();
+
+        if(servingSuppressed.length!=2||
+           servingSuppressed[0]!=
+                servingShutdownFailure||
+           servingSuppressed[1]!=
+                servingRemovalFailure)
+            throw new AssertionError(
+                "terminal cleanup failures were not suppressed behind serving failure in order"
+            );
+
+        IOException servingOnly=
+            new IOException(
+                "serving-only-failed"
+            );
+        Throwable servingOnlyObserved=null;
+
+        try{
+            MainShutdownFinalizer.runPreserving(
+                servingOnly,
+                ()->{},
+                ()->{}
+            );
+        }catch(Throwable failure){
+            servingOnlyObserved=failure;
+        }
+
+        if(servingOnlyObserved!=
+                servingOnly)
+            throw new AssertionError(
+                "checked serving-only failure identity changed",
+                servingOnlyObserved
+            );
+
         System.out.println(
             "MAIN_SHUTDOWN_FINALIZER_PASS "+
             "retirementAfterFailure=true "+
@@ -95,7 +183,10 @@ public final class MainShutdownFinalizerTest {
             "removalFailureSuppressed=true "+
             "jvmShutdownIllegalStateIgnored=true "+
             "removalOnlyFailurePropagated=true "+
-            "cleanCompletionSilent=true"
+            "cleanCompletionSilent=true "+
+            "servingFailurePrimary=true "+
+            "servingCleanupSuppressed=true "+
+            "checkedServingIdentity=true"
         );
     }
 

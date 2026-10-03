@@ -31,6 +31,30 @@ public final class LocalCompCapeCustomizeHandlerTest {
                 "INVENTORY_OPTION_3"
             );
 
+        if(!handler.willOpenRoot(
+                openAction
+            ))
+            throw new AssertionError(
+                "valid comp cape customize was not classified as root-publishing"
+            );
+
+        ItemContainerAction mismatchedOpen=
+            new ItemContainerAction(
+                75,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                slot,
+                21963,
+                0,
+                "INVENTORY_OPTION_3"
+            );
+
+        if(handler.willOpenRoot(
+                mismatchedOpen
+            ))
+            throw new AssertionError(
+                "inventory-mismatched comp cape action classified as root-publishing"
+            );
+
         int before=wire.size();
         String opened=
             handler.handleItemAction(openAction,writer);
@@ -77,7 +101,7 @@ public final class LocalCompCapeCustomizeHandlerTest {
                 "unrelated action should remain outside handler");
 
         System.out.println(
-            "LOCAL_COMP_CAPE_CUSTOMIZE_HANDLER_PASS open=true nativeRoot63036=true close=true ignoredWhenClosed=true");
+            "LOCAL_COMP_CAPE_CUSTOMIZE_HANDLER_PASS open=true nativeRoot63036=true close=true ignoredWhenClosed=true rootPreflight=true invalidPreflightPreserved=true");
     }
 
     private static int findSlot(BankState bank,int itemId){

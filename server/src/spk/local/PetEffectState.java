@@ -11,6 +11,7 @@ final class PetEffectState {
         itemId=item; npcId=npc; accumulatedDamage=0; charge=0; lastDamageAtMs=0L;
     }
     void clear(){ onPetChanged(-1,-1); }
+
     int charge(){ return charge; }
     int accumulatedDamage(){ return accumulatedDamage; }
     long lastDamageAtMs(){ return lastDamageAtMs; }

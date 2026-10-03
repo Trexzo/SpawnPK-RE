@@ -150,6 +150,62 @@ final class LocalPetRuntimeCommandHandler {
         );
     }
 
+    List<String> evilWolperProc(
+        int state,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        NpcEntity pet=npcs.pet();
+
+        if(pet==null||
+           !(pet.definitionId==6991||
+             (pet.definitionId>=8124&&
+              pet.definitionId<=8126))){
+            return one(
+                "V59_EVIL_WOLPER_PROC result=REJECTED_ACTIVE_PET_NOT_EVIL_WOLPER");
+        }
+
+        String nativeState=npcs.setPetNativeState(
+            state,serverPackets);
+
+        serverPackets.varShort(
+            81,
+            CombatSync.player81GfxOnly(
+                PetPresentationProfile.OWNER_BOOST_GFX,
+                0,
+                0));
+
+        return one(
+            "V593_EVIL_WOLPER_PROC state="+nativeState+
+            " ownerBoost=GFX1310_ONLY nativeIcon=sprite53 physicalBodyAnimation=UNRESOLVED_USE_pettest_anim");
+    }
+
+    List<String> temporossProc(
+        int state,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        NpcEntity pet=npcs.pet();
+
+        if(pet==null||
+           PetPresentationProfile.nativeStateFamily(
+               pet.definitionId)!=
+               PetPresentationProfile.NativeStateFamily.TEMPOROSS_DEBUFF){
+            return one(
+                "V59_TEMPOROSS_PROC result=REJECTED_ACTIVE_PET_NOT_TEMPOROSS");
+        }
+
+        String animation=npcs.animatePet(
+            PetPresentationProfile.TEMPOROSS_ACTIVATION_ANIMATION_CANDIDATE,
+            0,
+            serverPackets);
+        String nativeState=npcs.setPetNativeState(
+            state,serverPackets);
+
+        return one(
+            "V59_TEMPOROSS_PROC anim="+animation+
+            " state="+nativeState+
+            " anim15562Evidence=EXACT_CACHE_NAME_CANDIDATE nativeStateRenderer=EXACT_CLIENT");
+    }
+
     List<String> charge(
         int charge,
         ServerPacketWriter serverPackets
@@ -177,6 +233,20 @@ final class LocalPetRuntimeCommandHandler {
         return one(
             "V59_BEHEMOTH_CHARGE result="+state+
             " effectState={"+petEffects.summary()+"}");
+    }
+
+    List<String> damage(
+        int damage,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        return one(
+            applyDamage(
+                damage,
+                System.currentTimeMillis(),
+                serverPackets,
+                "MANUAL_BEHEMOTH_HIT"
+            )
+        );
     }
 
     List<String> handle(
@@ -427,72 +497,6 @@ final class LocalPetRuntimeCommandHandler {
                 "V59_PET_TEST result=UNKNOWN_SUBCOMMAND sub="+
                 sub+
                 " use=::pettest_help");
-        }
-
-        if(p[0].equalsIgnoreCase("behemothhit")||
-           p[0].equalsIgnoreCase("petdamage")){
-            int damage=p.length>=2?parseInt(p[1],0):0;
-
-            return one(
-                applyDamage(
-                    damage,
-                    System.currentTimeMillis(),
-                    serverPackets,
-                    "MANUAL_BEHEMOTH_HIT"));
-        }
-
-        if(p[0].equalsIgnoreCase("evilwolperproc")){
-            NpcEntity pet=npcs.pet();
-
-            if(pet==null||
-               !(pet.definitionId==6991||
-                 (pet.definitionId>=8124&&
-                  pet.definitionId<=8126))){
-                return one(
-                    "V59_EVIL_WOLPER_PROC result=REJECTED_ACTIVE_PET_NOT_EVIL_WOLPER");
-            }
-
-            int state=p.length>=2?parseInt(p[1],1):1;
-            if(state<1||state>3)state=1;
-
-            String nativeState=npcs.setPetNativeState(
-                state,serverPackets);
-
-            serverPackets.varShort(
-                81,
-                CombatSync.player81GfxOnly(
-                    PetPresentationProfile.OWNER_BOOST_GFX,
-                    0,
-                    0));
-
-            return one(
-                "V593_EVIL_WOLPER_PROC state="+nativeState+
-                " ownerBoost=GFX1310_ONLY nativeIcon=sprite53 physicalBodyAnimation=UNRESOLVED_USE_pettest_anim");
-        }
-
-        if(p[0].equalsIgnoreCase("temporossproc")){
-            int state=p.length>=2?parseInt(p[1],1):1;
-            NpcEntity pet=npcs.pet();
-
-            if(pet==null||
-               PetPresentationProfile.nativeStateFamily(
-                   pet.definitionId)!=
-                   PetPresentationProfile.NativeStateFamily.TEMPOROSS_DEBUFF){
-                return one(
-                    "V59_TEMPOROSS_PROC result=REJECTED_ACTIVE_PET_NOT_TEMPOROSS");
-            }
-
-            String animation=npcs.animatePet(
-                PetPresentationProfile.TEMPOROSS_ACTIVATION_ANIMATION_CANDIDATE,
-                0,
-                serverPackets);
-            String nativeState=npcs.setPetNativeState(
-                state,serverPackets);
-
-            return one(
-                "V59_TEMPOROSS_PROC anim="+animation+
-                " state="+nativeState+
-                " anim15562Evidence=EXACT_CACHE_NAME_CANDIDATE nativeStateRenderer=EXACT_CLIENT");
         }
 
         if(p[0].equalsIgnoreCase("petnpc")&&p.length>=2){

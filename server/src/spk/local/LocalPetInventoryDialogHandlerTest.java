@@ -9,8 +9,12 @@ public final class LocalPetInventoryDialogHandlerTest {
         PetState petState=player.petState();
         MiniPetService miniPets=player.miniPets();
         MovementState movement=player.movement();
-        NpcRegistry npcs=new NpcRegistry(new DevAuthorityWorkbench());
-        PetAccessoryState accessory=new PetAccessoryState();
+        DevAuthorityWorkbench dev=
+            new DevAuthorityWorkbench();
+        NpcRegistry npcs=
+            new NpcRegistry(dev);
+        PetAccessoryState accessory=
+            new PetAccessoryState();
 
         LocalPetInventoryDialogHandler handler=
             new LocalPetInventoryDialogHandler(
@@ -111,8 +115,875 @@ public final class LocalPetInventoryDialogHandlerTest {
            handler.hasAnyOpen())
             throw new AssertionError("close state");
 
+        testPetAccessoryPublicationAtomicity();
+        testPetDialogOpenAtomicity();
+        testPetDialogActionCloseAtomicity();
+
         System.out.println(
-            "LOCAL_PET_INVENTORY_DIALOG_HANDLER_PASS mini=true color=true compat=true pendingStateOwned=true");
+            "LOCAL_PET_INVENTORY_DIALOG_HANDLER_PASS mini=true color=true compat=true pendingStateOwned=true accessoryNoPetAtomic=true accessoryActivePetAtomic=true accessoryDetachAtomic=true accessoryDialogFailurePreserved=true petDialogOpenFailureAtomic=true petDialogReplacementPreservesPrior=true petDialogRetryExact=true miniConfigureCloseAtomic=true miniDisableCloseAtomic=true petColorCloseAtomic=true");
+    }
+
+    private static void testPetDialogActionCloseAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        PetState petState=player.petState();
+        MovementState movement=player.movement();
+        DevAuthorityWorkbench dev=
+            new DevAuthorityWorkbench();
+        NpcRegistry npcs=
+            new NpcRegistry(dev);
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                player.miniPets(),
+                petState,
+                npcs,
+                movement,
+                new PetAccessoryState()
+            );
+
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{61,62,63,64}
+                )
+            );
+
+        PetDefinitionRepository.Def petDef=
+            PetDefinitionRepository.all()
+                .iterator()
+                .next();
+
+        String mainSpawn=
+            npcs.spawnPet(
+                petDef,
+                movement,
+                healthy
+            );
+
+        if(mainSpawn==null||
+           !mainSpawn.contains("PET_SPAWN_OK")||
+           npcs.pet()==null)
+            throw new AssertionError(
+                "mini close-atomic fixture main pet failed result="+
+                mainSpawn
+            );
+
+        bank.spawnItem(
+            22088,
+            1,
+            healthy
+        );
+        int miniSlot=findSlot(
+            bank,
+            22088
+        );
+
+        LocalPetInventoryDialogHandler.Result miniOpen=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                healthy
+            );
+
+        if(miniOpen==null||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "mini configure dialog fixture did not open"
+            );
+
+        boolean configureFailed=false;
+        try{
+            handler.handleWidget(
+                2482,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{65,66,67,68}
+                )
+            );
+        }catch(java.io.IOException expected){
+            configureFailed=true;
+        }
+
+        if(!configureFailed||
+           petState.miniConfigured()||
+           npcs.miniPet()!=null||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "failed mini configure+close changed canonical/dialog state"
+            );
+
+        LocalPetInventoryDialogHandler.Result configured=
+            handler.handleWidget(
+                2482,
+                healthy
+            );
+
+        if(configured==null||
+           !"MINIPET_CONFIGURE".equals(
+                configured.saveReason
+           )||
+           !petState.miniConfigured()||
+           petState.miniItemId()!=22088||
+           npcs.miniPet()==null||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "mini configure+close retry failed"
+            );
+
+        NpcEntity configuredMini=
+            npcs.miniPet();
+
+        LocalPetInventoryDialogHandler.Result disableOpen=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                healthy
+            );
+
+        if(disableOpen==null||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "mini disable dialog fixture did not open"
+            );
+
+        boolean disableFailed=false;
+        try{
+            handler.handleWidget(
+                2483,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{69,70,71,72}
+                )
+            );
+        }catch(java.io.IOException expected){
+            disableFailed=true;
+        }
+
+        if(!disableFailed||
+           !petState.miniConfigured()||
+           petState.miniItemId()!=22088||
+           npcs.miniPet()!=configuredMini||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "failed mini disable+close changed canonical/dialog state"
+            );
+
+        LocalPetInventoryDialogHandler.Result disabled=
+            handler.handleWidget(
+                2483,
+                healthy
+            );
+
+        if(disabled==null||
+           !"MINIPET_DISABLE".equals(
+                disabled.saveReason
+           )||
+           petState.miniConfigured()||
+           npcs.miniPet()!=null||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "mini disable+close retry failed"
+            );
+
+        WorldPlayer colorPlayer=
+            new WorldPlayer();
+        BankState colorBank=
+            colorPlayer.bank();
+        LocalPetInventoryDialogHandler colorHandler=
+            new LocalPetInventoryDialogHandler(
+                colorBank,
+                colorPlayer.miniPets(),
+                colorPlayer.petState(),
+                new NpcRegistry(
+                    new DevAuthorityWorkbench()
+                ),
+                colorPlayer.movement(),
+                new PetAccessoryState()
+            );
+
+        ServerPacketWriter colorHealthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{73,74,75,76}
+                )
+            );
+
+        colorBank.spawnItem(
+            24016,
+            1,
+            colorHealthy
+        );
+        int colorSlot=findSlot(
+            colorBank,
+            24016
+        );
+
+        LocalPetInventoryDialogHandler.Result colorOpen=
+            colorHandler.handleItemAction(
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    colorSlot,
+                    24016,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                colorHealthy
+            );
+
+        if(colorOpen==null||
+           !colorHandler.hasAnyOpen())
+            throw new AssertionError(
+                "pet color close-atomic fixture did not open"
+            );
+
+        boolean colorFailed=false;
+        try{
+            colorHandler.handleWidget(
+                2483,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{77,78,79,80}
+                )
+            );
+        }catch(java.io.IOException expected){
+            colorFailed=true;
+        }
+
+        if(!colorFailed||
+           colorBank.inventoryAt(colorSlot)==null||
+           colorBank.inventoryAt(colorSlot).itemId!=24016||
+           !colorHandler.hasAnyOpen())
+            throw new AssertionError(
+                "failed pet color transform+close changed canonical/dialog state"
+            );
+
+        LocalPetInventoryDialogHandler.Result colorRetry=
+            colorHandler.handleWidget(
+                2483,
+                colorHealthy
+            );
+
+        if(colorRetry==null||
+           !"PET_SWITCH_COLOR".equals(
+                colorRetry.saveReason
+           )||
+           colorBank.inventoryAt(colorSlot)==null||
+           colorBank.inventoryAt(colorSlot).itemId!=24017||
+           colorHandler.hasAnyOpen())
+            throw new AssertionError(
+                "pet color transform+close retry failed"
+            );
+    }
+
+    private static void testPetDialogOpenAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        DevAuthorityWorkbench dev=
+            new DevAuthorityWorkbench();
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                player.miniPets(),
+                player.petState(),
+                new NpcRegistry(dev),
+                player.movement(),
+                new PetAccessoryState()
+            );
+
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{45,46,47,48}
+                )
+            );
+
+        bank.spawnItem(22088,1,healthy);
+        bank.spawnItem(20543,1,healthy);
+        bank.spawnItem(24016,1,healthy);
+
+        int miniSlot=findSlot(bank,22088);
+        int accessorySlot=findSlot(bank,20543);
+        int colorSlot=findSlot(bank,24016);
+
+        boolean miniFailed=false;
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                queueWriter(
+                    fullQueue(),
+                    new int[]{49,50,51,52}
+                )
+            );
+        }catch(java.io.IOException expected){
+            miniFailed=true;
+        }
+
+        LocalPetInventoryDialogHandler.CloseState afterMiniFailure=
+            handler.clearAll();
+
+        if(!miniFailed||
+           afterMiniFailure.hadAny())
+            throw new AssertionError(
+                "failed mini dialog open created hidden authority"
+            );
+
+        LocalPetInventoryDialogHandler.Result miniOpened=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                healthy
+            );
+
+        if(miniOpened==null||
+           miniOpened.keyAction!=
+                LocalPetInventoryDialogHandler
+                    .KeyAction.PUBLISH_2482_2485)
+            throw new AssertionError(
+                "mini dialog retry did not open"
+            );
+
+        boolean accessoryReplaceFailed=false;
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    accessorySlot,
+                    20543,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                queueWriter(
+                    fullQueue(),
+                    new int[]{53,54,55,56}
+                )
+            );
+        }catch(java.io.IOException expected){
+            accessoryReplaceFailed=true;
+        }
+
+        LocalPetInventoryDialogHandler.CloseState afterAccessoryFailure=
+            handler.clearAll();
+
+        if(!accessoryReplaceFailed||
+           !afterAccessoryFailure.miniConfigWasOpen||
+           afterAccessoryFailure.petAccessoryWasOpen||
+           afterAccessoryFailure.petColorWasOpen)
+            throw new AssertionError(
+                "failed accessory replacement did not preserve prior mini dialog"
+            );
+
+        openAccessory(
+            handler,
+            accessorySlot,
+            20543,
+            healthy
+        );
+
+        boolean colorReplaceFailed=false;
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    colorSlot,
+                    24016,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                queueWriter(
+                    fullQueue(),
+                    new int[]{57,58,59,60}
+                )
+            );
+        }catch(java.io.IOException expected){
+            colorReplaceFailed=true;
+        }
+
+        LocalPetInventoryDialogHandler.CloseState afterColorFailure=
+            handler.clearAll();
+
+        if(!colorReplaceFailed||
+           afterColorFailure.miniConfigWasOpen||
+           !afterColorFailure.petAccessoryWasOpen||
+           afterColorFailure.petColorWasOpen)
+            throw new AssertionError(
+                "failed color replacement did not preserve prior accessory dialog"
+            );
+
+        LocalPetInventoryDialogHandler.Result colorOpened=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    colorSlot,
+                    24016,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                healthy
+            );
+
+        if(colorOpened==null||
+           colorOpened.keyAction!=
+                LocalPetInventoryDialogHandler
+                    .KeyAction.PUBLISH_2482_2485)
+            throw new AssertionError(
+                "color dialog retry did not open"
+            );
+
+        LocalPetInventoryDialogHandler.CloseState finalState=
+            handler.clearAll();
+
+        if(finalState.miniConfigWasOpen||
+           finalState.petAccessoryWasOpen||
+           !finalState.petColorWasOpen)
+            throw new AssertionError(
+                "successful dialog replacement did not leave exact color authority"
+            );
+    }
+
+    private static void testPetAccessoryPublicationAtomicity()
+        throws Exception
+    {
+        noPetAccessoryAtomicity();
+        activePetAccessoryAtomicity();
+    }
+
+    private static void noPetAccessoryAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        MovementState movement=player.movement();
+        DevAuthorityWorkbench dev=
+            new DevAuthorityWorkbench();
+        NpcRegistry npcs=
+            new NpcRegistry(dev);
+        PetAccessoryState accessory=
+            new PetAccessoryState();
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                player.miniPets(),
+                player.petState(),
+                npcs,
+                movement,
+                accessory
+            );
+
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{21,22,23,24}
+                )
+            );
+
+        bank.spawnItem(
+            20543,
+            1,
+            healthy
+        );
+        int slot=findSlot(
+            bank,
+            20543
+        );
+
+        openAccessory(
+            handler,
+            slot,
+            20543,
+            healthy
+        );
+
+        OutboundPacketQueue activateQueue=
+            fullQueue();
+        boolean activateFailed=false;
+
+        try{
+            handler.handleWidget(
+                2482,
+                queueWriter(
+                    activateQueue,
+                    new int[]{25,26,27,28}
+                )
+            );
+        }catch(java.io.IOException expected){
+            activateFailed=true;
+        }
+
+        if(!activateFailed||
+           accessory.activeItem()!=0||
+           dev.petParticleSelector()!=null||
+           !handler.hasAnyOpen()||
+           activateQueue.queuedBytes()!=1024)
+            throw new AssertionError(
+                "failed no-pet accessory activate changed state"
+            );
+
+        LocalPetInventoryDialogHandler.Result activated=
+            handler.handleWidget(
+                2482,
+                healthy
+            );
+
+        if(activated==null||
+           !"PET_ACCESSORY_ACTIVATE".equals(
+                activated.saveReason
+           )||
+           accessory.activeItem()!=20543||
+           !Integer.valueOf(2).equals(
+                dev.petParticleSelector()
+           )||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "no-pet accessory activate retry failed"
+            );
+
+        openAccessory(
+            handler,
+            slot,
+            20543,
+            healthy
+        );
+
+        OutboundPacketQueue detachQueue=
+            fullQueue();
+        boolean detachFailed=false;
+
+        try{
+            handler.handleWidget(
+                2483,
+                queueWriter(
+                    detachQueue,
+                    new int[]{29,30,31,32}
+                )
+            );
+        }catch(java.io.IOException expected){
+            detachFailed=true;
+        }
+
+        if(!detachFailed||
+           accessory.activeItem()!=20543||
+           !Integer.valueOf(2).equals(
+                dev.petParticleSelector()
+           )||
+           !handler.hasAnyOpen()||
+           detachQueue.queuedBytes()!=1024)
+            throw new AssertionError(
+                "failed no-pet accessory detach changed state"
+            );
+
+        LocalPetInventoryDialogHandler.Result detached=
+            handler.handleWidget(
+                2483,
+                healthy
+            );
+
+        if(detached==null||
+           !"PET_ACCESSORY_DETACH".equals(
+                detached.saveReason
+           )||
+           accessory.activeItem()!=0||
+           dev.petParticleSelector()!=null||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "no-pet accessory detach retry failed"
+            );
+    }
+
+    private static void activePetAccessoryAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        MovementState movement=player.movement();
+        DevAuthorityWorkbench dev=
+            new DevAuthorityWorkbench();
+        NpcRegistry npcs=
+            new NpcRegistry(dev);
+        PetAccessoryState accessory=
+            new PetAccessoryState();
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                player.miniPets(),
+                player.petState(),
+                npcs,
+                movement,
+                accessory
+            );
+
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{33,34,35,36}
+                )
+            );
+
+        PetDefinitionRepository.Def petDef=
+            PetDefinitionRepository.all()
+                .iterator()
+                .next();
+
+        String spawned=
+            npcs.spawnPet(
+                petDef,
+                movement,
+                healthy
+            );
+
+        if(spawned==null||
+           !spawned.contains(
+                "PET_SPAWN_OK"
+           )||
+           npcs.pet()==null)
+            throw new AssertionError(
+                "active-pet accessory fixture spawn failed result="+
+                spawned
+            );
+
+        NpcEntity canonicalPet=
+            npcs.pet();
+
+        bank.spawnItem(
+            20543,
+            1,
+            healthy
+        );
+        bank.spawnItem(
+            20544,
+            1,
+            healthy
+        );
+
+        int redSlot=findSlot(
+            bank,
+            20543
+        );
+        int greenSlot=findSlot(
+            bank,
+            20544
+        );
+
+        openAccessory(
+            handler,
+            redSlot,
+            20543,
+            healthy
+        );
+        handler.handleWidget(
+            2482,
+            healthy
+        );
+
+        if(accessory.activeItem()!=20543||
+           !Integer.valueOf(2).equals(
+                dev.petParticleSelector()
+           )||
+           npcs.pet()!=canonicalPet)
+            throw new AssertionError(
+                "active-pet baseline accessory activation failed"
+            );
+
+        openAccessory(
+            handler,
+            greenSlot,
+            20544,
+            healthy
+        );
+
+        OutboundPacketQueue replaceQueue=
+            fullQueue();
+        boolean replaceFailed=false;
+
+        try{
+            handler.handleWidget(
+                2482,
+                queueWriter(
+                    replaceQueue,
+                    new int[]{37,38,39,40}
+                )
+            );
+        }catch(java.io.IOException expected){
+            replaceFailed=true;
+        }
+
+        if(!replaceFailed||
+           accessory.activeItem()!=20543||
+           !Integer.valueOf(2).equals(
+                dev.petParticleSelector()
+           )||
+           npcs.pet()!=canonicalPet||
+           !handler.hasAnyOpen()||
+           replaceQueue.queuedBytes()!=1024)
+            throw new AssertionError(
+                "failed active-pet accessory replacement changed canonical state"
+            );
+
+        LocalPetInventoryDialogHandler.Result replaced=
+            handler.handleWidget(
+                2482,
+                healthy
+            );
+
+        if(replaced==null||
+           !"PET_ACCESSORY_ACTIVATE".equals(
+                replaced.saveReason
+           )||
+           accessory.activeItem()!=20544||
+           !Integer.valueOf(3).equals(
+                dev.petParticleSelector()
+           )||
+           npcs.pet()!=canonicalPet||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "active-pet accessory replacement retry failed"
+            );
+
+        openAccessory(
+            handler,
+            greenSlot,
+            20544,
+            healthy
+        );
+
+        OutboundPacketQueue detachQueue=
+            fullQueue();
+        boolean detachFailed=false;
+
+        try{
+            handler.handleWidget(
+                2483,
+                queueWriter(
+                    detachQueue,
+                    new int[]{41,42,43,44}
+                )
+            );
+        }catch(java.io.IOException expected){
+            detachFailed=true;
+        }
+
+        if(!detachFailed||
+           accessory.activeItem()!=20544||
+           !Integer.valueOf(3).equals(
+                dev.petParticleSelector()
+           )||
+           npcs.pet()!=canonicalPet||
+           !handler.hasAnyOpen()||
+           detachQueue.queuedBytes()!=1024)
+            throw new AssertionError(
+                "failed active-pet accessory detach changed canonical state"
+            );
+
+        LocalPetInventoryDialogHandler.Result detached=
+            handler.handleWidget(
+                2483,
+                healthy
+            );
+
+        if(detached==null||
+           !"PET_ACCESSORY_DETACH".equals(
+                detached.saveReason
+           )||
+           accessory.activeItem()!=0||
+           dev.petParticleSelector()!=null||
+           npcs.pet()!=canonicalPet||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "active-pet accessory detach retry failed"
+            );
+    }
+
+    private static void openAccessory(
+        LocalPetInventoryDialogHandler handler,
+        int slot,
+        int itemId,
+        ServerPacketWriter writer
+    )throws Exception{
+        LocalPetInventoryDialogHandler.Result opened=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    slot,
+                    itemId,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                writer
+            );
+
+        if(opened==null||
+           opened.keyAction!=
+                LocalPetInventoryDialogHandler
+                    .KeyAction.PUBLISH_2482_2485||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "pet accessory dialog did not open item="+
+                itemId
+            );
+    }
+
+    private static OutboundPacketQueue fullQueue()
+        throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        queue.offer(
+            new byte[1024]
+        );
+        return queue;
+    }
+
+    private static ServerPacketWriter queueWriter(
+        OutboundPacketQueue queue,
+        int[] seed
+    ){
+        return new ServerPacketWriter(
+            queue,
+            new IsaacCipher(seed)
+        );
     }
 
     private static int findSlot(BankState bank,int itemId){

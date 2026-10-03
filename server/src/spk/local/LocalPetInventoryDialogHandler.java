@@ -212,9 +212,60 @@ final class LocalPetInventoryDialogHandler {
             }
 
             if(widget==2482){
-                String result=miniPets.configure(
-                    item,petState,npcs,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                MiniPetService.PreparedConfigure prepared=
+                    miniPets.prepareConfigure(
+                        item,
+                        petState,
+                        npcs,
+                        movement
+                    );
+
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String actorResult;
+
+                try{
+                    actorResult=
+                        miniPets.publishPreparedConfigure(
+                            prepared,
+                            npcs,
+                            movement,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                String result=
+                    miniPets.commitPreparedConfigure(
+                        prepared,
+                        petState,
+                        npcs,
+                        serverPackets,
+                        actorResult
+                    );
                 clearMiniConfigureDialog();
 
                 return Result.saveClose(
@@ -225,9 +276,56 @@ final class LocalPetInventoryDialogHandler {
             }
 
             if(widget==2483){
-                String result=miniPets.off(
-                    petState,npcs,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                MiniPetService.PreparedOff prepared=
+                    miniPets.prepareOff(
+                        petState,
+                        npcs
+                    );
+
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String actorResult;
+
+                try{
+                    actorResult=
+                        miniPets.publishPreparedOff(
+                            prepared,
+                            npcs,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                String result=
+                    miniPets.commitPreparedOff(
+                        prepared,
+                        petState,
+                        npcs,
+                        actorResult
+                    );
                 clearMiniConfigureDialog();
 
                 return Result.saveClose(
@@ -263,11 +361,52 @@ final class LocalPetInventoryDialogHandler {
                         " action=ACTIVATE result=REJECTED_ITEM_MOVED");
                 }
 
-                petAccessoryState.setActiveItem(item);
-                Integer selector=PetAccessoryAuthority.selector(item);
-                String visual=npcs.devSetParticleSelector(
-                    selector,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                Integer selector=
+                    PetAccessoryAuthority.selector(item);
+
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String visual;
+
+                try{
+                    visual=
+                        npcs.publishPetParticleSelector(
+                            selector,
+                            movement,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                petAccessoryState.setActiveItem(
+                    item
+                );
+                npcs.commitPetParticleSelector(
+                    selector
+                );
                 clearPetAccessoryDialog();
 
                 return Result.saveClose(
@@ -281,10 +420,47 @@ final class LocalPetInventoryDialogHandler {
             }
 
             if(widget==2483){
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String visual;
+
+                try{
+                    visual=
+                        npcs.publishPetParticleSelector(
+                            null,
+                            movement,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }
+
                 petAccessoryState.clear();
-                String visual=npcs.devSetParticleSelector(
-                    null,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                npcs.commitPetParticleSelector(
+                    null
+                );
                 clearPetAccessoryDialog();
 
                 return Result.saveClose(
@@ -344,16 +520,59 @@ final class LocalPetInventoryDialogHandler {
                 }
 
                 int replacement=pendingPetColorItems[choice];
-                String result=
+                BankState.PreparedInventoryTransform prepared=
                     current==replacement
-                        ?"INVENTORY_TRANSFORM_NOOP"
-                        :bank.transformInventoryOne(
+                        ?null
+                        :bank.prepareInventoryTransformOne(
                             pendingPetColorSlot,
                             current,
-                            replacement,
-                            serverPackets);
+                            replacement
+                        );
 
-                serverPackets.fixed(219,new byte[0]);
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String result;
+
+                try{
+                    result=
+                        prepared==null
+                            ?"INVENTORY_TRANSFORM_NOOP"
+                            :bank.publishPreparedInventoryTransform(
+                                prepared,
+                                serverPackets
+                            );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                if(prepared!=null&&prepared.accepted())
+                    result=
+                        bank.commitPreparedInventoryTransform(
+                            prepared
+                        );
+
                 clearPetColorDialog();
 
                 String saveReason=
@@ -442,32 +661,60 @@ final class LocalPetInventoryDialogHandler {
         int itemId,
         ServerPacketWriter writer
     )throws IOException{
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2481,"Configure mini-pet"));
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2482,"Activate this mini-pet"));
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2483,"Disable current mini-pet"));
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2484,"Cancel"));
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2485,"Close"));
+            writer.fixed(
+                164,
+                BootstrapPackets.chatboxInterface164(2480));
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        clearPetColorDialog();
+        clearPetAccessoryDialog();
+        clearMiniConfigureDialog();
         pendingMiniConfigureSlot=slot;
         pendingMiniConfigureItem=itemId;
-
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2481,"Configure mini-pet"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2482,"Activate this mini-pet"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2483,"Disable current mini-pet"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2484,"Cancel"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2485,"Close"));
-        writer.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(2480));
     }
 
     private void clearMiniConfigureDialog(){
@@ -480,33 +727,61 @@ final class LocalPetInventoryDialogHandler {
         int itemId,
         ServerPacketWriter writer
     )throws IOException{
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2481,"Pet accessory"));
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2482,
+                    "Activate "+PetAccessoryAuthority.name(itemId)));
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2483,"Remove active pet accessory"));
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2484,"Cancel"));
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2485,"Close"));
+            writer.fixed(
+                164,
+                BootstrapPackets.chatboxInterface164(2480));
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        clearPetColorDialog();
+        clearMiniConfigureDialog();
+        clearPetAccessoryDialog();
         pendingPetAccessorySlot=slot;
         pendingPetAccessoryItem=itemId;
-
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2481,"Pet accessory"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2482,
-                "Activate "+PetAccessoryAuthority.name(itemId)));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2483,"Remove active pet accessory"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2484,"Cancel"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2485,"Close"));
-        writer.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(2480));
     }
 
     private void clearPetAccessoryDialog(){
@@ -520,14 +795,16 @@ final class LocalPetInventoryDialogHandler {
         String name,
         ServerPacketWriter writer
     )throws IOException{
-        pendingPetColorSlot=slot;
-        pendingPetColorItems=family.clone();
-        pendingPetColorFamily=name;
+        int[] nextFamily=family.clone();
 
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2481,"Select a color"));
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    2481,"Select a color"));
 
         if("SCOOBY_BEHEMOTH".equals(name)&&family.length==4){
             writer.varShort(
@@ -565,9 +842,37 @@ final class LocalPetInventoryDialogHandler {
                     2485,"Cancel"));
         }
 
-        writer.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(2480));
+            writer.fixed(
+                164,
+                BootstrapPackets.chatboxInterface164(2480));
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        clearMiniConfigureDialog();
+        clearPetAccessoryDialog();
+        clearPetColorDialog();
+        pendingPetColorSlot=slot;
+        pendingPetColorItems=nextFamily;
+        pendingPetColorFamily=name;
     }
 
     private void clearPetColorDialog(){

@@ -23,7 +23,11 @@ public final class LocalPetRealtimeSchedulerTest {
     private static final class SchedulerBridge
         implements LocalPetRealtimeScheduler.SessionBridge
     {
+        final LocalSession.WorldTickGate gate=
+            new LocalSession.WorldTickGate();
         ServerPacketWriter writer;
+        int rejectedCallbacks;
+        int acceptedCallbacks;
 
         @Override public ServerPacketWriter sessionPackets(){
             return writer;
@@ -31,6 +35,25 @@ public final class LocalPetRealtimeSchedulerTest {
 
         @Override public String sessionTag(){
             return "[pet-realtime-test] ";
+        }
+
+        @Override public boolean
+            runIfSessionWorldCallbackActive(
+                Runnable action
+            )
+        {
+            boolean accepted=
+                gate.runRunnableIfActiveAndWriterLive(
+                    writer,
+                    action
+                );
+
+            if(accepted)
+                acceptedCallbacks++;
+            else
+                rejectedCallbacks++;
+
+            return accepted;
         }
     }
 
@@ -96,6 +119,7 @@ public final class LocalPetRealtimeSchedulerTest {
             SchedulerBridge schedulerBridge=
                 new SchedulerBridge();
             schedulerBridge.writer=writer;
+            schedulerBridge.gate.activate();
 
             LocalPetRealtimeScheduler scheduler=
                 new LocalPetRealtimeScheduler(
@@ -245,11 +269,218 @@ public final class LocalPetRealtimeSchedulerTest {
                     world.realtime().size()
                 );
 
+            int wireBeforeTeardown=
+                wire.size();
+            NpcEntity petBeforeTeardown=
+                npcs.pet();
+            int petXBeforeTeardown=
+                petBeforeTeardown==null
+                    ?Integer.MIN_VALUE
+                    :petBeforeTeardown.x;
+            int petYBeforeTeardown=
+                petBeforeTeardown==null
+                    ?Integer.MIN_VALUE
+                    :petBeforeTeardown.y;
+            int petNativeStateBeforeTeardown=
+                npcs.petNativeState();
+
+            schedulerBridge.gate.disableAndAwait();
+
+            int drainedAfterDisable=
+                world.realtime().runDue(
+                    Long.MAX_VALUE
+                );
+
+            if(drainedAfterDisable!=3)
+                throw new AssertionError(
+                    "expected three due realtime wrappers after teardown disable, got "+
+                    drainedAfterDisable
+                );
+
+            if(schedulerBridge.rejectedCallbacks!=3)
+                throw new AssertionError(
+                    "teardown gate did not reject every realtime callback rejected="+
+                    schedulerBridge.rejectedCallbacks
+                );
+
+            if(wire.size()!=wireBeforeTeardown)
+                throw new AssertionError(
+                    "teardown-rejected realtime callback emitted wire bytes before="+
+                    wireBeforeTeardown+
+                    " after="+
+                    wire.size()
+                );
+
+            NpcEntity petAfterTeardown=
+                npcs.pet();
+
+            if(petAfterTeardown!=petBeforeTeardown||
+               (petAfterTeardown!=null&&
+                (petAfterTeardown.x!=
+                    petXBeforeTeardown||
+                 petAfterTeardown.y!=
+                    petYBeforeTeardown))||
+               npcs.petNativeState()!=
+                    petNativeStateBeforeTeardown)
+                throw new AssertionError(
+                    "teardown-rejected realtime callback mutated pet presentation state"
+                );
+
+            if(scheduler.followScheduled())
+                throw new AssertionError(
+                    "gate-rejected follow callback left scheduled latch armed"
+                );
+
+            if(scheduler.testSequenceScheduled())
+                throw new AssertionError(
+                    "gate-rejected test callback left scheduled latch armed"
+                );
+
+            schedulerBridge.gate.activate();
+
+            scheduler.ensureFollowScheduled(
+                2_000L
+            );
+            scheduler.ensureTestSequenceScheduled(
+                System.currentTimeMillis()
+            );
+
+            if(!scheduler.followScheduled()||
+               !scheduler.testSequenceScheduled())
+                throw new AssertionError(
+                    "gate-rejected pet realtime work did not re-arm after activation"
+                );
+
+            if(world.realtime().size()!=2)
+                throw new AssertionError(
+                    "expected follow + test recovery wrappers after activation size="+
+                    world.realtime().size()
+                );
+
+            /*
+             * Let the recovered wrappers enter the now-active gate without
+             * allowing either fixture to recursively schedule more work.
+             */
+            npcs.devFollowFreeze(true);
+            runtime.failSequence();
+
+            int recoveredDue=
+                world.realtime().runDue(
+                    Long.MAX_VALUE
+                );
+
+            if(recoveredDue!=2)
+                throw new AssertionError(
+                    "recovered pet realtime wrappers did not drain count="+
+                    recoveredDue
+                );
+
+            if(schedulerBridge.acceptedCallbacks!=2)
+                throw new AssertionError(
+                    "recovered pet realtime wrappers did not enter active gate accepted="+
+                    schedulerBridge.acceptedCallbacks
+                );
+
+            if(scheduler.followScheduled()||
+               scheduler.testSequenceScheduled())
+                throw new AssertionError(
+                    "recovered pet realtime latches did not settle after accepted callbacks"
+                );
+
+            System.out.println(
+                "LOCAL_PET_REALTIME_GATE_REJECTION_RECOVERY_PASS "+
+                "followLatchRecovered=true "+
+                "testLatchRecovered=true "+
+                "rescheduledAfterActivation=true"
+            );
+
+            npcs.devFollowFreeze(false);
+
+            /*
+             * Separate terminal-entry case: arm a fresh realtime follow while
+             * the writer is still live, then latch that exact writer terminal
+             * before the due wrapper reaches the session callback gate.
+             */
+            scheduler.resetFollowRuntime();
+            schedulerBridge.gate.activate();
+
+            scheduler.ensureFollowScheduled(
+                2_000L
+            );
+
+            if(world.realtime().size()!=1)
+                throw new AssertionError(
+                    "terminal realtime entry fixture did not arm one follow task size="+
+                    world.realtime().size()
+                );
+
+            int terminalWireBefore=
+                wire.size();
+            NpcEntity terminalPetBefore=
+                npcs.pet();
+            int terminalPetXBefore=
+                terminalPetBefore==null
+                    ?Integer.MIN_VALUE
+                    :terminalPetBefore.x;
+            int terminalPetYBefore=
+                terminalPetBefore==null
+                    ?Integer.MIN_VALUE
+                    :terminalPetBefore.y;
+            int terminalNativeStateBefore=
+                npcs.petNativeState();
+
+            writer.markTerminal();
+
+            int terminalDue=
+                world.realtime().runDue(
+                    Long.MAX_VALUE
+                );
+
+            if(terminalDue!=1)
+                throw new AssertionError(
+                    "terminal realtime entry fixture did not drain one wrapper count="+
+                    terminalDue
+                );
+
+            if(schedulerBridge.rejectedCallbacks!=4)
+                throw new AssertionError(
+                    "terminal writer did not reject realtime callback rejected="+
+                    schedulerBridge.rejectedCallbacks
+                );
+
+            if(scheduler.followScheduled())
+                throw new AssertionError(
+                    "terminal-writer rejection left follow scheduled latch armed"
+                );
+
+            if(wire.size()!=terminalWireBefore)
+                throw new AssertionError(
+                    "terminal-writer realtime callback emitted wire bytes"
+                );
+
+            NpcEntity terminalPetAfter=
+                npcs.pet();
+
+            if(terminalPetAfter!=terminalPetBefore||
+               (terminalPetAfter!=null&&
+                (terminalPetAfter.x!=
+                    terminalPetXBefore||
+                 terminalPetAfter.y!=
+                    terminalPetYBefore))||
+               npcs.petNativeState()!=
+                    terminalNativeStateBefore)
+                throw new AssertionError(
+                    "terminal-writer realtime callback mutated pet presentation state"
+                );
+
             System.out.println(
                 "LOCAL_PET_REALTIME_SCHEDULER_PASS "+
                 "emptyFollowFailClosed=true followArm=true "+
                 "transientFollowArm=true "+
-                "resetState=true testSequenceArm=true"
+                "resetState=true testSequenceArm=true "+
+                "teardownGateRejectsRealtimeCallbacks=true "+
+                "gateRejectionLatchRecovery=true "+
+                "terminalWriterRejectsRealtimeCallback=true"
             );
         }finally{
             world.close();

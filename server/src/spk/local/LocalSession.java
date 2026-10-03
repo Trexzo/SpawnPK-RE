@@ -5,10 +5,136 @@ import java.net.*;
 import java.time.Instant;
 
 final class LocalSession implements Runnable {
+    @FunctionalInterface
+    interface MonsterSpawnerUiFactory {
+        LocalMonsterSpawnerUiHandler create(
+            World world,
+            WorldPlayer player,
+            String canonicalUsername
+        ) throws Exception;
+
+        default void onCommittedResult(
+            World world,
+            WorldPlayer player,
+            String canonicalUsername,
+            LocalMonsterSpawnerUiHandler.Result result,
+            ServerPacketWriter writer,
+            String tag
+        ) throws Exception{}
+
+        default void onSessionClosed(
+            World world,
+            WorldPlayer player,
+            long expectedGeneration,
+            String canonicalUsername
+        ) throws Exception{}
+    }
+
+    @FunctionalInterface
+    interface MonsterSpawnerOpenAction {
+        boolean open() throws IOException;
+    }
+
+    @FunctionalInterface
+    interface WorldTickGateAction {
+        void run() throws Exception;
+    }
+
+    static final class WorldTickGate {
+        private boolean active;
+
+        synchronized void activate(){
+            active=true;
+        }
+
+        synchronized void disableAndAwait(){
+            active=false;
+        }
+
+        synchronized boolean runIfActive(
+            WorldTickGateAction action
+        )throws Exception{
+            if(action==null)
+                throw new NullPointerException(
+                    "world tick gate action"
+                );
+
+            if(!active)
+                return false;
+
+            action.run();
+            return true;
+        }
+
+        synchronized boolean runIfActiveAndWriterLive(
+            ServerPacketWriter writer,
+            WorldTickGateAction action
+        )throws Exception{
+            if(action==null)
+                throw new NullPointerException(
+                    "world command gate action"
+                );
+
+            if(!active)
+                return false;
+
+            if(writer==null)
+                return false;
+
+            if(writer.terminal())
+                throw new IOException(
+                    "terminal session packet writer"
+                );
+
+            action.run();
+            return true;
+        }
+
+        synchronized boolean runRunnableIfActive(
+            Runnable action
+        ){
+            if(action==null)
+                throw new NullPointerException(
+                    "world callback gate action"
+                );
+
+            if(!active)
+                return false;
+
+            action.run();
+            return true;
+        }
+
+        synchronized boolean
+            runRunnableIfActiveAndWriterLive(
+                ServerPacketWriter writer,
+                Runnable action
+            )
+        {
+            if(action==null)
+                throw new NullPointerException(
+                    "world callback gate action"
+                );
+
+            if(!active||
+               writer==null||
+               writer.terminal())
+                return false;
+
+            action.run();
+            return true;
+        }
+
+        synchronized boolean active(){
+            return active;
+        }
+    }
+
     private final Socket socket;
     private final boolean bootstrap;
     private final boolean movementEnabled;
     private final World world;
+    private final MonsterSpawnerUiFactory monsterSpawnerUiFactory;
     private final WorldPlayer worldPlayer;
     private final MovementState movement;
     private final BankState bank;
@@ -45,6 +171,7 @@ final class LocalSession implements Runnable {
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     private final LocalGenericInteractionHandler genericInteractionHandler;
     private final LocalPlayerInteractionHandler playerInteractions;
+    private final LocalCanonicalNpcAttackHandler canonicalNpcAttack;
     private final LocalEquipmentItemActionHandler equipmentItemActions;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
@@ -81,6 +208,10 @@ final class LocalSession implements Runnable {
     private boolean worldRegistered;
     private long worldPlayerGeneration;
     private boolean worldTickAttached;
+    private final WorldTickGate worldTickGate=
+        new WorldTickGate();
+    private final WorldTickGate worldCommandGate=
+        new WorldTickGate();
     private String username = AccountStore.CANONICAL_USERNAME;
     private String loginAlias = "localtest";
     private boolean persistentAccount;
@@ -88,14 +219,52 @@ final class LocalSession implements Runnable {
     private final PetAccessoryState petAccessoryState;
     private volatile boolean logoutRequested;
 
-    LocalSession(Socket socket, boolean bootstrap) { this(socket, bootstrap, false, World.shared()); }
-    LocalSession(Socket socket, boolean bootstrap, boolean movementEnabled) { this(socket, bootstrap, movementEnabled, World.shared()); }
-    LocalSession(Socket socket, boolean bootstrap, boolean movementEnabled, World world) {
+    LocalSession(Socket socket, boolean bootstrap) {
+        this(socket,bootstrap,false,World.shared(),null);
+    }
+
+    LocalSession(
+        Socket socket,
+        boolean bootstrap,
+        boolean movementEnabled
+    ){
+        this(
+            socket,
+            bootstrap,
+            movementEnabled,
+            World.shared(),
+            null
+        );
+    }
+
+    LocalSession(
+        Socket socket,
+        boolean bootstrap,
+        boolean movementEnabled,
+        World world
+    ){
+        this(
+            socket,
+            bootstrap,
+            movementEnabled,
+            world,
+            null
+        );
+    }
+
+    LocalSession(
+        Socket socket,
+        boolean bootstrap,
+        boolean movementEnabled,
+        World world,
+        MonsterSpawnerUiFactory monsterSpawnerUiFactory
+    ){
         VoidglassR3CustomContent.ensureRuntimePetMapping();
         this.socket = socket;
         this.bootstrap = bootstrap;
         this.movementEnabled = movementEnabled;
         this.world = java.util.Objects.requireNonNull(world,"world");
+        this.monsterSpawnerUiFactory=monsterSpawnerUiFactory;
         this.playerPresentation =
             new PlayerPresentationService(
                 this.world,
@@ -170,6 +339,26 @@ final class LocalSession implements Runnable {
             equipment,
             ()->LocalSession.this.worldPlayerGeneration
         );
+        this.canonicalNpcAttack=
+            new LocalCanonicalNpcAttackHandler(
+                world,
+                worldPlayer,
+                ()->LocalSession.this.worldPlayerGeneration,
+                equipment,
+                combatStyles,
+                npcs,
+                (target,generation)->{},
+                target->
+                    LocalSession.this.world
+                        .finalizeMonsterSpawnerPvmIfOwned(
+                            target
+                        ),
+                target->
+                    LocalSession.this.world
+                        .retryMonsterSpawnerPvmFinalizationIfPending(
+                            target
+                        )
+            );
         this.equipmentItemActions = new LocalEquipmentItemActionHandler(
             bank,equipment,playerState,playerPresentation,combatStyles);
         this.petDialogs = new LocalPetInventoryDialogHandler(
@@ -290,6 +479,29 @@ final class LocalSession implements Runnable {
                 ){
                     LocalSession.this.saveAccountQuiet(tag,reason);
                 }
+
+                @Override public LocalDevPanelAmountHandler.Outcome
+                    handleRootReplacingAmount(
+                        LocalDevPanelCoordinator
+                            .RootReplacingAmountAction action
+                    )throws IOException{
+                    final LocalDevPanelAmountHandler.Outcome[]
+                        outcome={null};
+
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithItemLibraryRootCommand(
+                                ()->{
+                                    outcome[0]=
+                                        action.handle();
+                                    return true;
+                                }
+                            );
+
+                    return result==null
+                        ?null
+                        :outcome[0];
+                }
             });
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
@@ -333,9 +545,73 @@ final class LocalSession implements Runnable {
                 @Override public void openDevPanel(
                     ServerPacketWriter writer
                 )throws IOException{
-                    LocalSession.this.devPanelCoordinator.open(
-                        DevControlCenter.Page.MAIN,
-                        writer
+                    openDevPanelForCurrentSession(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        LocalSession.this.uiActions,
+                        ()->{
+                            LocalSession.this.devPanelCoordinator.open(
+                                DevControlCenter.Page.MAIN,
+                                writer
+                            );
+                            return "DEV_PANEL_ROOT_OPENED";
+                        }
+                    );
+                }
+
+                @Override public boolean openMonsterSpawner(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    return openMonsterSpawnerForCurrentSession(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        ()->
+                            LocalSession.this.uiActions
+                                .openMonsterSpawnerIfConfigured(
+                                    writer
+                                )
+                    );
+                }
+
+                @Override public LocalCommandDispatcher
+                    .RootReplacingCommandDispatch
+                    handleRootReplacingCommand(
+                        LocalCommandDispatcher
+                            .RootReplacingCommandAction action
+                    )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithItemLibraryRootCommand(
+                                ()->
+                                    action.handle()
+                            );
+
+                    if(result==null)
+                        return LocalCommandDispatcher
+                            .RootReplacingCommandDispatch
+                            .rejected();
+
+                    if("ROOT_COMMAND_HANDLED".equals(
+                            result))
+                        return LocalCommandDispatcher
+                            .RootReplacingCommandDispatch
+                            .admitted(
+                                true
+                            );
+
+                    if("ROOT_COMMAND_NOT_HANDLED".equals(
+                            result))
+                        return LocalCommandDispatcher
+                            .RootReplacingCommandDispatch
+                            .admitted(
+                                false
+                            );
+
+                    throw new IllegalStateException(
+                        "Unexpected root command result="+
+                        result
                     );
                 }
 
@@ -401,10 +677,115 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public LocalSessionUiActionHandler
+                    .MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+                        LocalMonsterSpawnerUiHandler handler,
+                        int widget,
+                        ServerPacketWriter writer,
+                        String tag
+                    )throws IOException{
+                    return dispatchMonsterSpawnerWidgetForCurrentSession(
+                        LocalSession.this.monsterSpawnerUiFactory,
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        LocalSession.this.username,
+                        handler,
+                        widget,
+                        writer,
+                        tag
+                    );
+                }
+
+                @Override public LocalSessionUiActionHandler
+                    .MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+                        LocalMonsterSpawnerUiHandler handler,
+                        int widget,
+                        ServerPacketWriter writer,
+                        String tag,
+                        java.util.function.BooleanSupplier uiOpen
+                    )throws IOException{
+                    return dispatchMonsterSpawnerWidgetForCurrentSession(
+                        LocalSession.this.monsterSpawnerUiFactory,
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        LocalSession.this.username,
+                        handler,
+                        widget,
+                        writer,
+                        tag,
+                        uiOpen
+                    );
+                }
+
+                @Override public boolean closeMonsterSpawnerUi(
+                    java.util.function.BooleanSupplier closeAction
+                )throws IOException{
+                    return closeMonsterSpawnerUiForCurrentSession(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        closeAction
+                    );
+                }
+
+                @Override public String replaceMonsterSpawnerRoot(
+                    LocalSessionUiActionHandler.RootInterfaceAction action
+                )throws IOException{
+                    return replaceMonsterSpawnerRootForCurrentSession(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        action
+                    );
+                }
+
+                @Override public boolean retireMakeoverDesignerRoot(){
+                    LocalMakeoverMageHandler makeover=
+                        LocalSession.this.routedNpcHandler
+                            .makeoverMage();
+
+                    return makeover!=null&&
+                        makeover.retireDesignerRoot();
+                }
+
+                @Override public void handleMonsterSpawnerResult(
+                    LocalMonsterSpawnerUiHandler.Result result,
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    forwardMonsterSpawnerUiResult(
+                        LocalSession.this.monsterSpawnerUiFactory,
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        LocalSession.this.username,
+                        result,
+                        writer,
+                        tag
+                    );
+                }
+
                 @Override public void requestLogout(){
                     LocalSession.this.logoutRequested=true;
                 }
             });
+
+        this.bankObjectHandler.installRootOwner(
+            action->
+                this.uiActions.replaceMonsterSpawnerWithBankRoot(
+                    ()->action.open()
+                )
+        );
+
+        this.routedNpcHandler.installBankRootOwner(
+            action->
+                this.uiActions.replaceMonsterSpawnerWithBankRoot(
+                    ()->action.open()
+                )
+        );
+
         this.petDropPickup = new LocalPetDropPickupHandler(
             world,
             bank,
@@ -440,12 +821,52 @@ final class LocalSession implements Runnable {
                     LocalSession.this.saveAccountQuiet(tag,reason);
                 }
 
-                @Override public int syncScopesightPassive(
+                @Override public PlayerState.PreparedScopesightMaintenance
+                    prepareScopesightPassive(
+                        boolean active
+                    ){
+                    return playerState
+                        .prepareScopesightMaintenance(
+                            active
+                        );
+                }
+
+                @Override public void publishScopesightPassive(
+                    PlayerState.PreparedScopesightMaintenance prepared,
                     ServerPacketWriter writer
                 )throws IOException{
-                    return LocalSession.this.syncScopesightPassive(
-                        writer
-                    );
+                    if(prepared==null)
+                        throw new NullPointerException(
+                            "prepared"
+                        );
+
+                    for(int skill=0;
+                        skill<PlayerState.COMBAT_SKILL_COUNT;
+                        skill++){
+                        if((prepared.changedMask&
+                            (1<<skill))==0)
+                            continue;
+
+                        writer.fixed(
+                            134,
+                            BootstrapPackets.skill134(
+                                skill,
+                                playerState.xp(skill),
+                                prepared.levelForSkill(
+                                    skill
+                                )
+                            )
+                        );
+                    }
+                }
+
+                @Override public void commitScopesightPassive(
+                    PlayerState.PreparedScopesightMaintenance prepared
+                ){
+                    playerState
+                        .commitScopesightMaintenance(
+                            prepared
+                        );
                 }
 
                 @Override public void resetPetFollowDeadline(){
@@ -476,6 +897,19 @@ final class LocalSession implements Runnable {
                     return "[session "+
                         LocalSession.this.socket.getRemoteSocketAddress()+
                         "] ";
+                }
+
+                @Override public boolean
+                    runIfSessionWorldCallbackActive(
+                        Runnable action
+                    )
+                {
+                    return LocalSession.this
+                        .worldTickGate
+                        .runRunnableIfActiveAndWriterLive(
+                            LocalSession.this.sessionPackets,
+                            action
+                        );
                 }
             });
         this.movementRequests = new LocalMovementRequestHandler(
@@ -733,6 +1167,21 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public LocalCanonicalNpcAttackHandler.Result
+                    handleCanonicalNpcAttack(
+                        NpcAction action,
+                        NpcEntity clicked,
+                        ServerPacketWriter writer
+                    )throws IOException{
+                    return LocalSession.this
+                        .canonicalNpcAttack
+                        .handle(
+                            action,
+                            clicked,
+                            writer
+                        );
+                }
+
                 @Override public void handleDevPanelAmount(
                     int value,
                     ServerPacketWriter writer,
@@ -781,12 +1230,675 @@ final class LocalSession implements Runnable {
             npcs,
             movement,
             bank,
-            (tag,reason)->LocalSession.this.saveAccountQuiet(
-                tag,
-                reason
-            )
+            new LocalSessionRuntimeBindings.SessionBridge(){
+                @Override public void saveAccount(
+                    String tag,
+                    String reason
+                ){
+                    LocalSession.this.saveAccountQuiet(
+                        tag,
+                        reason
+                    );
+                }
+
+                @Override public void publishTradeRoot(
+                    TradeService.RootPublication action
+                )throws IOException{
+                    LocalSession.this.uiActions
+                        .publishTradeRootForOwnedSession(
+                            ()->{
+                                action.publish();
+                                return "TRADE_ROOT_PUBLISHED";
+                            }
+                        );
+                }
+            }
         );
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
+    }
+
+    static boolean openMonsterSpawnerForCurrentSession(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        MonsterSpawnerOpenAction action
+    )throws IOException{
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        MonsterSpawnerOpenAction checkedAction=
+            java.util.Objects.requireNonNull(
+                action,
+                "action"
+            );
+        final boolean[] opened={false};
+        final boolean[] published={false};
+
+        try{
+            boolean worldOpen=
+                checkedWorld
+                    .withOpenLifecycleOwnership(
+                        ()->
+                            published[0]=
+                                TradeService.publishCompetingRoot(
+                                    checkedPlayer,
+                                    ()->{
+                                        boolean delivered=
+                                            checkedWorld
+                                                .withOpenPlayerMutationOwnershipIfCurrent(
+                                                    checkedPlayer,
+                                                    expectedGeneration,
+                                                    ()->
+                                                        opened[0]=
+                                                            checkedAction.open()
+                                                );
+
+                                        return delivered&&
+                                            opened[0];
+                                    }
+                                )
+                    );
+
+            return worldOpen&&
+                published[0]&&
+                opened[0];
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IOException(
+                "Monster Spawner UI open failed",
+                failure
+            );
+        }
+    }
+
+    static boolean closeMonsterSpawnerUiForCurrentSession(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        java.util.function.BooleanSupplier closeAction
+    )throws IOException{
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        java.util.function.BooleanSupplier checkedAction=
+            java.util.Objects.requireNonNull(
+                closeAction,
+                "closeAction"
+            );
+        final boolean[] wasOpen={false};
+
+        try{
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        expectedGeneration,
+                        ()->
+                            wasOpen[0]=
+                                checkedAction.getAsBoolean()
+                    );
+
+            return delivered&&
+                wasOpen[0];
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IOException(
+                "Monster Spawner UI close failed",
+                failure
+            );
+        }
+    }
+
+    static String openDevPanelForCurrentSession(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        LocalSessionUiActionHandler uiActions,
+        LocalSessionUiActionHandler.RootInterfaceAction action
+    )throws IOException{
+        LocalSessionUiActionHandler checkedUi=
+            java.util.Objects.requireNonNull(
+                uiActions,
+                "uiActions"
+            );
+        LocalSessionUiActionHandler.RootInterfaceAction checkedAction=
+            java.util.Objects.requireNonNull(
+                action,
+                "action"
+            );
+
+        return replaceMonsterSpawnerRootForCurrentSession(
+            world,
+            player,
+            expectedGeneration,
+            ()->
+                checkedUi.publishDevPanelRootForOwnedSession(
+                    checkedAction
+                )
+        );
+    }
+
+    static String replaceMonsterSpawnerRootForCurrentSession(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        LocalSessionUiActionHandler.RootInterfaceAction action
+    )throws IOException{
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        LocalSessionUiActionHandler.RootInterfaceAction checkedAction=
+            java.util.Objects.requireNonNull(
+                action,
+                "action"
+            );
+        final String[] result={null};
+        final boolean[] published={false};
+
+        try{
+            boolean worldOpen=
+                checkedWorld
+                    .withOpenLifecycleOwnership(
+                        ()->
+                            published[0]=
+                                TradeService.publishCompetingRoot(
+                                    checkedPlayer,
+                                    ()->
+                                        checkedWorld
+                                            .withOpenPlayerMutationOwnershipIfCurrent(
+                                                checkedPlayer,
+                                                expectedGeneration,
+                                                ()->
+                                                    result[0]=
+                                                        checkedAction.publish()
+                                            )
+                                )
+                    );
+
+            return worldOpen&&
+                published[0]
+                ?result[0]
+                :null;
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IOException(
+                "Monster Spawner root replacement failed",
+                failure
+            );
+        }
+    }
+
+    static LocalSessionUiActionHandler.MonsterSpawnerDispatch
+        dispatchMonsterSpawnerWidgetForCurrentSession(
+            MonsterSpawnerUiFactory factory,
+            World world,
+            WorldPlayer player,
+            long expectedGeneration,
+            String canonicalUsername,
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter writer,
+            String tag
+        )throws IOException{
+        return dispatchMonsterSpawnerWidgetForCurrentSession(
+            factory,
+            world,
+            player,
+            expectedGeneration,
+            canonicalUsername,
+            handler,
+            widget,
+            writer,
+            tag,
+            ()->true
+        );
+    }
+
+    static LocalSessionUiActionHandler.MonsterSpawnerDispatch
+        dispatchMonsterSpawnerWidgetForCurrentSession(
+            MonsterSpawnerUiFactory factory,
+            World world,
+            WorldPlayer player,
+            long expectedGeneration,
+            String canonicalUsername,
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter writer,
+            String tag,
+            java.util.function.BooleanSupplier uiOpen
+        )throws IOException{
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        LocalMonsterSpawnerUiHandler checkedHandler=
+            java.util.Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+        java.util.Objects.requireNonNull(
+            writer,
+            "writer"
+        );
+        java.util.Objects.requireNonNull(
+            tag,
+            "tag"
+        );
+        java.util.function.BooleanSupplier checkedUiOpen=
+            java.util.Objects.requireNonNull(
+                uiOpen,
+                "uiOpen"
+            );
+
+        if(!checkedHandler.isBoundToOwner(
+                username
+            )||
+           !checkedHandler.isBoundTo(
+                checkedWorld
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner widget handler differs from exact session context owner="+
+                username
+            );
+
+        final LocalMonsterSpawnerUiHandler.Result[]
+            committed={null};
+        final boolean[] closedUi={false};
+
+        try{
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        expectedGeneration,
+                        ()->{
+                            if(!checkedUiOpen.getAsBoolean()){
+                                closedUi[0]=true;
+                                return;
+                            }
+
+                            committed[0]=
+                                checkedHandler.handle(
+                                    widget,
+                                    writer
+                                );
+
+                            if(committed[0]!=null)
+                                invokeMonsterSpawnerCommittedResult(
+                                    factory,
+                                    checkedWorld,
+                                    checkedPlayer,
+                                    username,
+                                    committed[0],
+                                    writer,
+                                    tag
+                                );
+                        }
+                    );
+
+            if(!delivered)
+                return LocalSessionUiActionHandler
+                    .MonsterSpawnerDispatch
+                    .rejected();
+
+            if(closedUi[0])
+                return LocalSessionUiActionHandler
+                    .MonsterSpawnerDispatch
+                    .closedUi();
+
+            return LocalSessionUiActionHandler
+                .MonsterSpawnerDispatch
+                .admitted(
+                    committed[0]
+                );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Monster Spawner widget transaction failed owner="+
+                username+
+                " widget="+
+                widget,
+                failure
+            );
+        }
+    }
+
+    static void forwardMonsterSpawnerUiResult(
+        MonsterSpawnerUiFactory factory,
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        String canonicalUsername,
+        LocalMonsterSpawnerUiHandler.Result result,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(factory==null)
+            return;
+
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+
+        try{
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        expectedGeneration,
+                        ()->invokeMonsterSpawnerCommittedResult(
+                            factory,
+                            checkedWorld,
+                            checkedPlayer,
+                            username,
+                            result,
+                            writer,
+                            tag
+                        )
+                    );
+
+            if(!delivered)
+                throw new IllegalStateException(
+                    "Monster Spawner callback rejected by World/player ownership fence owner="+
+                    username+
+                    " expectedGeneration="+
+                    expectedGeneration
+                );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Monster Spawner post-commit callback failed owner="+
+                username+
+                " status="+
+                java.util.Objects.requireNonNull(
+                    result,
+                    "result"
+                ).status,
+                failure
+            );
+        }
+    }
+
+    private static void invokeMonsterSpawnerCommittedResult(
+        MonsterSpawnerUiFactory factory,
+        World world,
+        WorldPlayer player,
+        String canonicalUsername,
+        LocalMonsterSpawnerUiHandler.Result result,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(factory==null)
+            return;
+
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+        LocalMonsterSpawnerUiHandler.Result checkedResult=
+            java.util.Objects.requireNonNull(
+                result,
+                "result"
+            );
+        java.util.Objects.requireNonNull(
+            writer,
+            "writer"
+        );
+        java.util.Objects.requireNonNull(
+            tag,
+            "tag"
+        );
+
+        if(!checkedResult.session.ownerRef.equals(
+                username
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner committed result owner differs from canonical session account expected="+
+                username+
+                " actual="+
+                checkedResult.session.ownerRef
+            );
+
+        try{
+            factory.onCommittedResult(
+                java.util.Objects.requireNonNull(
+                    world,
+                    "world"
+                ),
+                java.util.Objects.requireNonNull(
+                    player,
+                    "player"
+                ),
+                username,
+                checkedResult,
+                writer,
+                tag
+            );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Monster Spawner post-commit callback failed owner="+
+                username+
+                " status="+
+                checkedResult.status,
+                failure
+            );
+        }
+    }
+
+    static void notifyMonsterSpawnerSessionClosed(
+        MonsterSpawnerUiFactory factory,
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        String canonicalUsername
+    )throws Exception{
+        if(factory==null)
+            return;
+
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+
+        boolean delivered=
+            checkedWorld
+                .withOpenPlayerMutationOwnershipIfCurrent(
+                    checkedPlayer,
+                    expectedGeneration,
+                    ()->factory.onSessionClosed(
+                        checkedWorld,
+                        checkedPlayer,
+                        expectedGeneration,
+                        username
+                    )
+                );
+
+        if(!delivered)
+            throw new IllegalStateException(
+                "Monster Spawner session-close callback rejected by World/player ownership fence owner="+
+                username+
+                " expectedGeneration="+
+                expectedGeneration
+            );
+    }
+
+    static LocalMonsterSpawnerUiHandler
+        resolveMonsterSpawnerUiAfterLogin(
+            MonsterSpawnerUiFactory factory,
+            World world,
+            WorldPlayer player,
+            String canonicalUsername
+        )throws Exception{
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+
+        return resolveMonsterSpawnerUiAfterLogin(
+            factory,
+            world,
+            checkedPlayer,
+            checkedPlayer.generation(),
+            canonicalUsername
+        );
+    }
+
+    static LocalMonsterSpawnerUiHandler
+        resolveMonsterSpawnerUiAfterLogin(
+            MonsterSpawnerUiFactory factory,
+            World world,
+            WorldPlayer player,
+            long expectedGeneration,
+            String canonicalUsername
+        )throws Exception{
+        if(factory==null)
+            return null;
+
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+        final LocalMonsterSpawnerUiHandler[] resolved={
+            null
+        };
+
+        boolean delivered=
+            checkedWorld
+                .withOpenPlayerMutationOwnershipIfCurrent(
+                    checkedPlayer,
+                    expectedGeneration,
+                    ()->{
+                        LocalMonsterSpawnerUiHandler adapter=
+                            factory.create(
+                                checkedWorld,
+                                checkedPlayer,
+                                username
+                            );
+
+                        if(adapter==null)
+                            return;
+
+                        if(!adapter.isBoundToOwner(
+                                username
+                            ))
+                            throw new IllegalArgumentException(
+                                "Monster Spawner UI owner differs from canonical session account "+
+                                username
+                            );
+
+                        if(!adapter.isBoundTo(
+                                checkedWorld
+                            ))
+                            throw new IllegalArgumentException(
+                                "Monster Spawner UI service belongs to another World account="+
+                                username
+                            );
+
+                        resolved[0]=adapter;
+                    }
+                );
+
+        if(!delivered)
+            throw new IllegalStateException(
+                "Monster Spawner UI factory rejected by World/player ownership fence owner="+
+                username+
+                " expectedGeneration="+
+                expectedGeneration
+            );
+
+        return resolved[0];
     }
 
     @Override public void run() {
@@ -808,6 +1920,27 @@ final class LocalSession implements Runnable {
             persistentAccount=playerInit.persistentAccount;
             worldPlayerGeneration=playerInit.worldPlayerGeneration;
             worldRegistered=true;
+
+            /*
+             * Session-owned World commands are valid before the regular tick
+             * target is attached, so they have an independent callback
+             * lifetime. Activate immediately after exact player registration.
+             */
+            worldCommandGate.activate();
+
+            LocalMonsterSpawnerUiHandler monsterSpawnerUi=
+                resolveMonsterSpawnerUiAfterLogin(
+                    monsterSpawnerUiFactory,
+                    world,
+                    worldPlayer,
+                    worldPlayerGeneration,
+                    username
+                );
+
+            if(monsterSpawnerUi!=null)
+                uiActions.installMonsterSpawnerUiHandler(
+                    monsterSpawnerUi
+                );
 
             LocalLoginTransport.Ciphers loginCiphers=
                 LocalLoginTransport.ciphers(frame);
@@ -881,6 +2014,9 @@ final class LocalSession implements Runnable {
             }
 
             if(logoutRequested){
+                requireLiveSessionWriter(
+                    serverPackets
+                );
                 serverPackets.flush();
                 drainOutbound(out);
                 System.out.println(tag+"V5124_LOGOUT_SOCKET_END requested=true phase=PRE_TICK_ATTACH");
@@ -888,12 +2024,28 @@ final class LocalSession implements Runnable {
             }
 
             final long attachedGeneration=worldPlayerGeneration;
-            world.attachTickTarget(new WorldTickTarget(){
-                public EntityId ownerId(){return worldPlayer.id();}
-                public long ownerGeneration(){return attachedGeneration;}
-                public void onWorldTick(long tick,long nowMillis)throws Exception{LocalSession.this.onWorldTick(tick,nowMillis);}
-            });
-            worldTickAttached=true;
+
+            /*
+             * Activate before publication into World.tickTargets so there is
+             * no attached-but-inactive window which could drop the first
+             * legitimate callback. If attachment itself fails, roll the
+             * session-local gate back immediately.
+             */
+            worldTickGate.activate();
+            try{
+                world.attachTickTarget(new WorldTickTarget(){
+                    public EntityId ownerId(){return worldPlayer.id();}
+                    public long ownerGeneration(){return attachedGeneration;}
+                    public void onWorldTick(long tick,long nowMillis)throws Exception{LocalSession.this.onWorldTick(tick,nowMillis);}
+                });
+                worldTickAttached=true;
+            }catch(Throwable attachFailure){
+                worldTickGate.disableAndAwait();
+                throw attachFailure;
+            }
+            requireLiveSessionWriter(
+                serverPackets
+            );
             serverPackets.flush();
             drainOutbound(out);
             System.out.println(tag+"V512_WORLD_TICK_ATTACH playerId="+worldPlayer.id()+" generation="+attachedGeneration+" worldTick="+world.clock().tick()+" members="+world.players().size());
@@ -901,6 +2053,9 @@ final class LocalSession implements Runnable {
             socket.setSoTimeout(100);
             while (true) {
                 long now = System.currentTimeMillis();
+                requireLiveSessionWriter(
+                    serverPackets
+                );
                 if(outboundPackets.overflowed())throw new IOException("outbound packet queue overflowed");
                 drainOutbound(out);
 
@@ -930,7 +2085,26 @@ final class LocalSession implements Runnable {
         } catch (Throwable t) {
             System.err.println(tag + "closed: " + t);
         } finally {
+            /*
+             * Stop session-owned World commands first. A command which is
+             * already active keeps this session-local monitor until its whole
+             * gameplay action exits; a queued/dequeued command entering later
+             * observes inactive and becomes a no-op. No World/service lock is
+             * held while teardown waits here.
+             */
+            worldCommandGate.disableAndAwait();
+
             if(worldTickAttached){
+                /*
+                 * Quiesce the LocalSession callback lifetime before any
+                 * runtime binding is cleared. disableAndAwait() acquires only
+                 * the session-local gate: it waits for an active callback to
+                 * leave, then makes already-snapshotted late callbacks return
+                 * without touching runtime/gameplay state. Release this gate
+                 * before entering World/service teardown.
+                 */
+                worldTickGate.disableAndAwait();
+
                 LocalSessionTeardown.run(
                     tag,
                     "DETACH_TICK_TARGET",
@@ -942,6 +2116,35 @@ final class LocalSession implements Runnable {
                             );
                         }finally{
                             worldTickAttached=false;
+                        }
+                    }
+                );
+            }
+
+            if(monsterSpawnerUiFactory!=null&&
+               worldRegistered){
+                LocalSessionTeardown.run(
+                    tag,
+                    "MONSTER_SPAWNER_SESSION_CLOSE",
+                    ()->{
+                        try{
+                            notifyMonsterSpawnerSessionClosed(
+                                monsterSpawnerUiFactory,
+                                world,
+                                worldPlayer,
+                                worldPlayerGeneration,
+                                username
+                            );
+                        }catch(RuntimeException failure){
+                            throw failure;
+                        }catch(Error failure){
+                            throw failure;
+                        }catch(Exception failure){
+                            throw new IllegalStateException(
+                                "Monster Spawner session-close callback failed owner="+
+                                username,
+                                failure
+                            );
                         }
                     }
                 );
@@ -1084,10 +2287,11 @@ final class LocalSession implements Runnable {
         );
 
         try{
-            regionStreams.completeRegionLoad(
+            worldTicks.completeRegionLoad(
                 completion,
                 sessionPackets,
-                tag
+                tag,
+                System.currentTimeMillis()
             );
         }catch(IOException e){
             throw new IllegalStateException(
@@ -1107,17 +2311,64 @@ final class LocalSession implements Runnable {
         world.submitAndWait(
             worldPlayer,
             worldPlayerGeneration,
-            ()->pendingRequests.drain(
-                clientPackets,
-                serverPackets,
-                tag
-            ),
+            ()->worldCommandGate
+                .runIfActiveAndWriterLive(
+                    serverPackets,
+                    ()->pendingRequests.drain(
+                        clientPackets,
+                        serverPackets,
+                        tag
+                    )
+                ),
             5_000L
         );
     }
 
+    static void requireLiveSessionWriter(
+        ServerPacketWriter writer
+    )throws IOException{
+        if(writer!=null&&writer.terminal())
+            throw new IOException(
+                "terminal session packet writer"
+            );
+    }
+
     private void drainOutbound(OutputStream out)throws IOException{
-        if(outboundPackets!=null)outboundPackets.drainTo(out,256*1024);
+        drainSessionOutbound(
+            outboundPackets,
+            sessionPackets,
+            out,
+            256*1024
+        );
+    }
+
+    static int drainSessionOutbound(
+        OutboundPacketQueue packets,
+        ServerPacketWriter writer,
+        OutputStream out,
+        int maxBytesPerDrain
+    )throws IOException{
+        if(packets==null)
+            return 0;
+
+        try{
+            return packets.drainTo(
+                out,
+                maxBytesPerDrain
+            );
+        }catch(IOException failure){
+            /*
+             * The queue -> socket handoff is no longer retractable once the
+             * network OutputStream rejects a drain. Latch the exact session
+             * writer before the failure escapes so an already-snapshotted
+             * WorldPulse target stops at onWorldTick's terminal gate.
+             * Normal LocalSession finally teardown still owns runtime/world
+             * cleanup.
+             */
+            if(writer!=null)
+                writer.markTerminal();
+            throw failure;
+        }
     }
 
     /** Existing certified per-player gameplay tick, now invoked only by the one shared WorldPulse. */
@@ -1125,19 +2376,89 @@ final class LocalSession implements Runnable {
         long worldTick,
         long now
     )throws Exception{
+        worldTickGate.runIfActive(
+            ()->onWorldTickActive(
+                worldTick,
+                now
+            )
+        );
+    }
+
+    private void onWorldTickActive(
+        long worldTick,
+        long now
+    )throws Exception{
         sessionWorldTick=worldTick;
-        if(!bootstrap||sessionPackets==null)return;
+        if(!bootstrap||
+           sessionPackets==null||
+           sessionPackets.terminal())
+            return;
 
         sessionPackets.beginBatch();
+        boolean batchCommitted=false;
+
         try{
-            worldTicks.tick(
-                worldTick,
-                now,
-                sessionPackets,
-                "[session "+socket.getRemoteSocketAddress()+"] "
-            );
+            try{
+                worldTicks.tick(
+                    worldTick,
+                    now,
+                    sessionPackets,
+                    "[session "+socket.getRemoteSocketAddress()+"] "
+                );
+            }finally{
+                endWorldTickBatch(
+                    sessionPackets
+                );
+                batchCommitted=true;
+            }
         }finally{
-            sessionPackets.endBatch();
+            if(batchCommitted)
+                worldTicks
+                    .commitGroundPresentationBatch(
+                        System.currentTimeMillis()
+                    );
+            else
+                worldTicks
+                    .abortGroundPresentationBatch();
+        }
+    }
+
+    static void endWorldTickBatch(
+        ServerPacketWriter writer
+    )throws IOException{
+        try{
+            writer.endBatch();
+        }catch(IOException failure){
+            abortWorldTickBatchAfterCommitFailure(
+                writer,
+                failure
+            );
+            throw failure;
+        }catch(RuntimeException failure){
+            abortWorldTickBatchAfterCommitFailure(
+                writer,
+                failure
+            );
+            throw failure;
+        }catch(Error failure){
+            abortWorldTickBatchAfterCommitFailure(
+                writer,
+                failure
+            );
+            throw failure;
+        }
+    }
+
+    private static void abortWorldTickBatchAfterCommitFailure(
+        ServerPacketWriter writer,
+        Throwable primary
+    ){
+        try{
+            writer.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
         }
     }
 
@@ -1276,54 +2597,163 @@ final class LocalSession implements Runnable {
         return result;
     }
 
-    private WorldPlayerPersistence.CapturedSave
-        captureAccountSaveDeferred(
+    private WorldPlayerPersistence.SaveTicket
+        captureFinalSaveAndUnregister(
             String tag,
-            String reason
+            String reason,
+            WorldPlayerPersistence.FinalSaveReservation
+                reservation
         )throws Exception{
-        if(!persistentAccount)
+        if(!persistentAccount||
+           !worldRegistered)
             return null;
 
+        if(reservation==null)
+            throw new NullPointerException(
+                "final save reservation"
+            );
+
         if(world.pulse().inExecutionContext())
-            return world.persistence()
-                .captureDeferredFinalSave(
-                    username,
-                    worldPlayer,
-                    worldPlayerGeneration,
-                    petAccessoryState.activeItem(),
-                    tag,
-                    reason
-                );
+            throw new IllegalStateException(
+                "final session teardown cannot run on World execution context"
+            );
 
         final java.util.concurrent.atomic.AtomicReference<
-            WorldPlayerPersistence.CapturedSave
-        > captured=
+            WorldPlayerPersistence.SaveTicket
+        > ticket=
             new java.util.concurrent.atomic.AtomicReference<>();
 
-        world.submitAndWait(
-            worldPlayer,
-            worldPlayerGeneration,
-            ()->captured.set(
-                world.persistence()
-                    .captureDeferredFinalSave(
-                        username,
-                        worldPlayer,
-                        worldPlayerGeneration,
-                        petAccessoryState.activeItem(),
-                        tag,
-                        reason
-                    )
-            ),
-            5_000L
+        final java.util.concurrent.atomic.AtomicBoolean
+            removed=
+                new java.util.concurrent.atomic.AtomicBoolean();
+
+        java.util.concurrent.CompletableFuture<Void>
+            finalWorldAction=
+                world.submit(
+                    worldPlayer,
+                    worldPlayerGeneration,
+                    ()->{
+                        WorldPlayerPersistence.CapturedSave
+                            finalCapture=
+                                world.persistence()
+                                    .captureDeferredFinalSave(
+                                        username,
+                                        worldPlayer,
+                                        worldPlayerGeneration,
+                                        petAccessoryState.activeItem(),
+                                        tag,
+                                        reason
+                                    );
+
+                        boolean unregistered=
+                            world.unregisterPlayer(
+                                worldPlayer,
+                                worldPlayerGeneration
+                            );
+
+                        if(!unregistered){
+                            world.persistence()
+                                .releaseCheckpointSuppression(
+                                    worldPlayer.id(),
+                                    worldPlayerGeneration
+                                );
+
+                            throw new IllegalStateException(
+                                "final save capture could not unregister exact player generation id="+
+                                worldPlayer.id()+
+                                " generation="+
+                                worldPlayerGeneration
+                            );
+                        }
+
+                        removed.set(
+                            true
+                        );
+
+                        /*
+                         * Publish while the exact World command still owns the
+                         * capture/retirement transition. A caller-side timeout
+                         * therefore cannot invalidate a snapshot that this
+                         * already-started action may still commit.
+                         */
+                        ticket.set(
+                            reservation.publish(
+                                finalCapture
+                            )
+                        );
+                    }
+                );
+
+        /*
+         * Once submitted, the command future owns reservation failure
+         * settlement. If outer teardown unregisters first, command cancellation
+         * aborts the reserved worker slot. If this action wins, it publishes the
+         * final snapshot before completing successfully.
+         */
+        finalWorldAction.whenComplete(
+            (ignored,failure)->{
+                if(failure!=null)
+                    reservation.abort(
+                        failure
+                    );
+            }
         );
 
-        WorldPlayerPersistence.CapturedSave result=
-            captured.get();
+        try{
+            finalWorldAction.get(
+                5,
+                java.util.concurrent.TimeUnit.SECONDS
+            );
+        }catch(java.util.concurrent.TimeoutException pending){
+            /*
+             * Do not abort here. submit/get timeout does not cancel an already
+             * dequeued World command. Outer teardown will either unregister
+             * first (causing command failure -> reservation abort) or wait for
+             * this action to retire+publish the exact generation.
+             */
+            System.err.println(
+                tag+
+                "V5123_ACCOUNT_FINAL_WORLD_ACTION_PENDING reason="+
+                reason+
+                " playerId="+
+                worldPlayer.id()+
+                " generation="+
+                worldPlayerGeneration
+            );
+            return null;
+        }catch(java.util.concurrent.ExecutionException failure){
+            Throwable cause=
+                failure.getCause();
+
+            if(cause instanceof Exception)
+                throw (Exception)cause;
+            if(cause instanceof Error)
+                throw (Error)cause;
+
+            throw new RuntimeException(
+                cause
+            );
+        }
+
+        if(!removed.get())
+            throw new IllegalStateException(
+                "world final-save teardown did not remove player generation"
+            );
+
+        WorldPlayerPersistence.SaveTicket result=
+            ticket.get();
 
         if(result==null)
             throw new IllegalStateException(
-                "world final-save capture produced no snapshot"
+                "world final-save teardown produced no published save ticket"
             );
+
+        /*
+         * World ownership ended and the captured final save was published in
+         * the same exact-player action. The outer finally must not attempt a
+         * second unregister.
+         */
+        worldRegistered=false;
 
         return result;
     }
@@ -1362,28 +2792,50 @@ final class LocalSession implements Runnable {
            !worldRegistered)
             return;
 
+        WorldPlayerPersistence.FinalSaveReservation
+            reservation=null;
+
         try{
-            WorldPlayerPersistence.CapturedSave captured=
-                captureAccountSaveDeferred(
-                    tag,
-                    reason
-                );
-
-            if(captured==null)
-                return;
-
-            WorldPlayerPersistence.SaveTicket ticket=
+            /*
+             * Reserve persistence FIFO position before final capture. Queue
+             * saturation may wait here, off the World thread, while the player
+             * remains live so every later mutation is included in the eventual
+             * snapshot.
+             */
+            reservation=
                 world.persistence()
-                    .submitCapturedWithBackpressure(
-                        captured,
+                    .reserveFinalSaveWithBackpressure(
+                        worldPlayer,
+                        worldPlayerGeneration,
                         5_000L
                     );
+
+            /*
+             * Capture, exact-generation unregister and reservation publication
+             * are one World-owned action. A bounded caller wait may time out,
+             * but reservation settlement then remains owned by that command
+             * future rather than being aborted underneath an in-flight action.
+             */
+            WorldPlayerPersistence.SaveTicket ticket=
+                captureFinalSaveAndUnregister(
+                    tag,
+                    reason,
+                    reservation
+                );
+
+            if(ticket==null)
+                return;
 
             ticket.completion.get(
                 5,
                 java.util.concurrent.TimeUnit.SECONDS
             );
         }catch(Throwable e){
+            if(reservation!=null)
+                reservation.abort(
+                    e
+                );
+
             System.err.println(
                 tag+
                 "V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED reason="+

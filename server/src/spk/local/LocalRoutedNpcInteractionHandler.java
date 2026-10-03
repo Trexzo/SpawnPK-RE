@@ -13,12 +13,27 @@ import spk.content.builtin.LocalLabCoreContentModule;
  * decoded NPC actions are routed here through exact-current NPC definitions.
  */
 final class LocalRoutedNpcInteractionHandler {
+    @FunctionalInterface
+    interface BankRootOpenAction {
+        String open() throws IOException;
+    }
+
+    @FunctionalInterface
+    interface BankRootOwner {
+        String publish(
+            BankRootOpenAction action
+        ) throws IOException;
+    }
+
     private final NpcRegistry npcs;
     private final BankState bank;
     private final MovementState movement;
     private final InteractionApproachResolver approach;
     private final ContentRegistry contentRegistry;
     private final LocalMakeoverMageHandler makeoverMage;
+    private BankRootOwner bankRootOwner=
+        action->action.open();
+    private boolean bankRootOwnerInstalled;
 
     private Integer pendingBankScene;
     private NpcEntity pendingBankNpc;
@@ -84,6 +99,24 @@ final class LocalRoutedNpcInteractionHandler {
                     npcs,
                     contentRegistry
                 );
+    }
+
+    void installBankRootOwner(
+        BankRootOwner owner
+    ){
+        BankRootOwner checked=
+            java.util.Objects.requireNonNull(
+                owner,
+                "owner"
+            );
+
+        if(bankRootOwnerInstalled)
+            throw new IllegalStateException(
+                "NPC bank root owner already installed"
+            );
+
+        bankRootOwner=checked;
+        bankRootOwnerInstalled=true;
     }
 
     LocalMakeoverMageHandler makeoverMage(){
@@ -359,17 +392,21 @@ final class LocalRoutedNpcInteractionHandler {
         ServerPacketWriter serverPackets,
         String reason
     )throws IOException{
-        bank.open(serverPackets);
-        return "V511_BANK_OPEN_NPC npc="+npc.definitionId+
-            " scene="+npc.sceneIndex+
-            " world="+npc.x+","+npc.y+
-            " request="+request+
-            " route="+route+
-            " authorityWorld="+movement.x()+","+movement.y()+
-            " distance="+chebyshev(
-                movement.x(),movement.y(),npc.x,npc.y)+
-            " root="+BankState.BANK_ROOT+
-            " action="+reason;
+        return bankRootOwner.publish(
+            ()->{
+                bank.open(serverPackets);
+                return "V511_BANK_OPEN_NPC npc="+npc.definitionId+
+                    " scene="+npc.sceneIndex+
+                    " world="+npc.x+","+npc.y+
+                    " request="+request+
+                    " route="+route+
+                    " authorityWorld="+movement.x()+","+movement.y()+
+                    " distance="+chebyshev(
+                        movement.x(),movement.y(),npc.x,npc.y)+
+                    " root="+BankState.BANK_ROOT+
+                    " action="+reason;
+            }
+        );
     }
 
     private boolean adjacentTo(int x,int y){

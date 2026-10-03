@@ -14,6 +14,22 @@ public final class LocalSessionRuntimeBindingsFailureAtomicityTest {
         ){}
     }
 
+    private static boolean containsMessage(
+        Throwable failure,
+        String expected
+    ){
+        for(
+            Throwable current=failure;
+            current!=null;
+            current=current.getCause()
+        )
+            if(current.getMessage()!=null&&
+               current.getMessage().contains(expected))
+                return true;
+
+        return false;
+    }
+
     private static final class FailingOutputStream
         extends OutputStream {
 
@@ -103,10 +119,13 @@ public final class LocalSessionRuntimeBindingsFailureAtomicityTest {
                 );
             }catch(IOException expected){
                 failed=
-                    expected.getMessage()
-                        .contains(
-                            "forced runtime binding write failure"
-                        );
+                    expected instanceof
+                        Player81WorldSync
+                            .TerminalPlayerOptionsException&&
+                    containsMessage(
+                        expected,
+                        "forced runtime binding write failure"
+                    );
             }
 
             if(!failed)

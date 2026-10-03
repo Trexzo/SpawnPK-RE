@@ -13,11 +13,61 @@ import spk.content.api.ContentResult;
  * exposed through a narrow bridge rather than implemented here.
  */
 final class LocalCommandDispatcher {
+    @FunctionalInterface
+    interface RootReplacingCommandAction {
+        boolean handle() throws IOException;
+    }
+
+    static final class RootReplacingCommandDispatch {
+        final boolean admitted;
+        final boolean handled;
+
+        private RootReplacingCommandDispatch(
+            boolean admitted,
+            boolean handled
+        ){
+            this.admitted=admitted;
+            this.handled=handled;
+        }
+
+        static RootReplacingCommandDispatch admitted(
+            boolean handled
+        ){
+            return new RootReplacingCommandDispatch(
+                true,
+                handled
+            );
+        }
+
+        static RootReplacingCommandDispatch rejected(){
+            return new RootReplacingCommandDispatch(
+                false,
+                false
+            );
+        }
+    }
+
     interface SessionBridge {
         SceneUpdatePublisher scenePublisher();
         void replaceScenePublisher(SceneUpdatePublisher scenePublisher);
         void saveAccount(String tag,String reason);
         void openDevPanel(ServerPacketWriter serverPackets)throws IOException;
+        default boolean openMonsterSpawner(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default RootReplacingCommandDispatch
+            handleRootReplacingCommand(
+                RootReplacingCommandAction action
+            )throws IOException{
+            return RootReplacingCommandDispatch.admitted(
+                Objects.requireNonNull(
+                    action,
+                    "action"
+                ).handle()
+            );
+        }
         void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
     }
 
@@ -137,10 +187,54 @@ final class LocalCommandDispatcher {
 
             if(content!=null){
                 if(content.hasAction()){
+                    String contentActionKey=
+                        content.actionKey();
                     LocalContentCommandActionExecutor.Outcome
+                        action;
+
+                    if(isItemLibraryRootAction(
+                            contentActionKey
+                        )){
+                        final LocalContentCommandActionExecutor.Outcome[]
+                            rootAction={null};
+
+                        RootReplacingCommandDispatch rootDispatch=
+                            bridge.handleRootReplacingCommand(
+                                ()->{
+                                    rootAction[0]=
+                                        contentCommandActions
+                                            .executeOutcome(
+                                                contentActionKey,
+                                                command,
+                                                username,
+                                                loginAlias,
+                                                persistentAccount,
+                                                bridge.scenePublisher(),
+                                                serverPackets
+                                            );
+                                    return true;
+                                }
+                            );
+
+                        if(!rootDispatch.admitted){
+                            System.out.println(
+                                tag+
+                                "V5150_ITEM_LIBRARY_DEV_OPEN "+
+                                "result=LIFECYCLE_REJECTED"
+                            );
+                            return true;
+                        }
+
+                        action=rootAction[0];
+
+                        if(action==null)
+                            throw new IllegalStateException(
+                                "Item Library root action produced no runtime outcome"
+                            );
+                    }else{
                         action=
                             contentCommandActions.executeOutcome(
-                                content.actionKey(),
+                                contentActionKey,
                                 command,
                                 username,
                                 loginAlias,
@@ -148,6 +242,7 @@ final class LocalCommandDispatcher {
                                 bridge.scenePublisher(),
                                 serverPackets
                             );
+                    }
 
                     if(action.dialogResult!=null){
                         bridge.applyPetDialog(
@@ -199,6 +294,58 @@ final class LocalCommandDispatcher {
                 tag+"V5172_DEV_PANEL_OPEN route="+p[0]+
                 " authority="+ContentAuthorityRepository.summary()+
                 " runtimeWeaponProfiles="+V913WeaponRuntimeAuthority.count());
+            return true;
+        }
+
+        if(isMonsterSpawnerRoute(p)){
+            boolean opened=
+                bridge.openMonsterSpawner(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "MONSTER_SPAWNER_UI_COMMAND "+
+                "route="+p[0]+
+                " opened="+opened+
+                " presentationAuthority="+
+                MonsterSpawnerPresentation.PRESENTATION_AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"
+            );
+            return true;
+        }
+
+        if(diagnosticCommands.itemLibrarySearchWillOpen(
+                p
+            )){
+            RootReplacingCommandDispatch rootDispatch=
+                bridge.handleRootReplacingCommand(
+                    ()->
+                        diagnosticCommands.handle(
+                            p,
+                            serverPackets,
+                            tag,
+                            username,
+                            loginAlias,
+                            persistentAccount,
+                            bridge.scenePublisher()
+                        )
+                );
+
+            if(!rootDispatch.admitted){
+                System.out.println(
+                    tag+
+                    "V5150_ITEM_LIBRARY_IGSEARCH "+
+                    "result=LIFECYCLE_REJECTED"
+                );
+                return true;
+            }
+
+            if(!rootDispatch.handled)
+                throw new IllegalStateException(
+                    "known Item Library root command was not handled"
+                );
+
             return true;
         }
 
@@ -309,6 +456,17 @@ final class LocalCommandDispatcher {
         return clean.split("\\s+");
     }
 
+    static boolean isItemLibraryRootAction(
+        String actionKey
+    ){
+        return actionKey!=null&&
+            actionKey.startsWith(
+                LocalDiagnosticContentModule
+                    .ITEMLIB_OPEN_ACTION_PREFIX+
+                ":"
+            );
+    }
+
     static boolean isDevPanelRoute(String[] p){
         return p!=null&&
             p.length>=1&&
@@ -320,6 +478,19 @@ final class LocalCommandDispatcher {
                     p[0].equalsIgnoreCase("dev")&&
                     p.length>=2&&
                     p[1].equalsIgnoreCase("panel")
+                )
+            );
+    }
+
+    static boolean isMonsterSpawnerRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "monsterspawner"
+                )||
+                p[0].equalsIgnoreCase(
+                    "mspawn"
                 )
             );
     }

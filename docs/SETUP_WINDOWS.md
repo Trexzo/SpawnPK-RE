@@ -51,8 +51,26 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 ```
 
 Bootstrap selects Java, verifies external runtime hashes, builds the server,
-backs up and patches local config metadata, verifies the patch, and runs the
-current regression harness.
+leaves the authorized live `.spawnpk\configs` tree untouched, and runs the
+inherited exact-v308 179/179 R8.5 development compatibility selftest when the
+exact client fixture is available.
+
+Direct live `i.bin` / `e.bin` mutation is retired. Custom-asset work uses an
+isolated cache/profile copy through `scripts\Run-R13AssetAcceptance.ps1` or
+`tools\custom-assets\build_r13_isolated_profile.py`; normal bootstrap does not
+rewrite the user's live client configs. The legacy `-SkipConfigPatch` bootstrap
+switch remains accepted only as a compatibility no-op.
+
+That bootstrap selftest is **not** the complete current cumulative release
+certificate. For full release acceptance, run:
+
+```powershell
+.\RUN_CURRENT_RELEASE_ACCEPTANCE.ps1 -V308ClientPath .\evidence\client(6).jar
+```
+
+The full release path delegates to the canonical exact-current cumulative
+certification/evidence wrapper and then loopback-smokes the server output left
+by that certification.
 
 ## Launch
 
