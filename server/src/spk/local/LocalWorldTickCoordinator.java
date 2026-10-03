@@ -57,6 +57,7 @@ final class LocalWorldTickCoordinator {
     private long legacyTickCount;
     private long movementTickCount;
     private boolean deferredGroundTakeEligible;
+    private boolean deferredPetPickupEligible;
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -163,6 +164,7 @@ final class LocalWorldTickCoordinator {
         String tag
     )throws Exception{
         deferredGroundTakeEligible=false;
+        deferredPetPickupEligible=false;
 
         PlayerStatusService.TickResult statusTick=
             statuses.tick(worldTick);
@@ -354,11 +356,12 @@ final class LocalWorldTickCoordinator {
          */
         deferredGroundTakeEligible=true;
 
-        petDropPickup.tick(
-            writer,
-            tag,
-            now
-        );
+        /*
+         * Movement-deferred pet pickup owns a standalone packet/domain
+         * transaction. Like deferred ground Take, never execute it while the
+         * LocalSession outer world-tick batch is still provisional.
+         */
+        deferredPetPickupEligible=true;
 
         if(movementTick!=null)
             updatePetFollowAfterOwnerMovement(
@@ -553,11 +556,12 @@ final class LocalWorldTickCoordinator {
             regionStreams.regionLoadPending()
         );
 
-        petDropPickup.tick(
-            writer,
-            tag,
-            now
-        );
+        /*
+         * Movement-deferred pet pickup owns a standalone packet/domain
+         * transaction. Like deferred ground Take, never execute it while the
+         * LocalSession outer world-tick batch is still provisional.
+         */
+        deferredPetPickupEligible=true;
 
         if(movementTick!=null)
             updatePetFollowAfterOwnerMovement(
@@ -759,6 +763,31 @@ final class LocalWorldTickCoordinator {
 
     boolean deferredGroundTakeEligible(){
         return deferredGroundTakeEligible;
+    }
+
+    void settleDeferredPetPickupAfterWorldTick(
+        long now,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(!deferredPetPickupEligible)
+            return;
+
+        deferredPetPickupEligible=false;
+
+        petDropPickup.tick(
+            writer,
+            tag,
+            now
+        );
+    }
+
+    void abortDeferredPetPickupAfterWorldTick(){
+        deferredPetPickupEligible=false;
+    }
+
+    boolean deferredPetPickupEligible(){
+        return deferredPetPickupEligible;
     }
 
     boolean commitHomePresentationBatch(){
