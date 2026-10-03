@@ -151,10 +151,16 @@ final class LocalBankObjectInteractionHandler {
             return null;
         }
 
+        String result=
+            openNow(
+                request,
+                serverPackets,
+                "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
+            );
+
         pending=null;
         movement.clearQueuedPath();
-        return openNow(
-            request,serverPackets,"OPENED_AFTER_AUTHORITATIVE_ARRIVAL");
+        return result;
     }
 
     boolean hasPending(){
