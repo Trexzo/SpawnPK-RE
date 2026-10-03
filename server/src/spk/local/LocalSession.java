@@ -35,6 +35,42 @@ final class LocalSession implements Runnable {
         boolean open() throws IOException;
     }
 
+    @FunctionalInterface
+    interface WorldTickGateAction {
+        void run() throws Exception;
+    }
+
+    static final class WorldTickGate {
+        private boolean active;
+
+        synchronized void activate(){
+            active=true;
+        }
+
+        synchronized void disableAndAwait(){
+            active=false;
+        }
+
+        synchronized boolean runIfActive(
+            WorldTickGateAction action
+        )throws Exception{
+            if(action==null)
+                throw new NullPointerException(
+                    "world tick gate action"
+                );
+
+            if(!active)
+                return false;
+
+            action.run();
+            return true;
+        }
+
+        synchronized boolean active(){
+            return active;
+        }
+    }
+
     private final Socket socket;
     private final boolean bootstrap;
     private final boolean movementEnabled;
@@ -113,6 +149,8 @@ final class LocalSession implements Runnable {
     private boolean worldRegistered;
     private long worldPlayerGeneration;
     private boolean worldTickAttached;
+    private final WorldTickGate worldTickGate=
+        new WorldTickGate();
     private String username = AccountStore.CANONICAL_USERNAME;
     private String loginAlias = "localtest";
     private boolean persistentAccount;
@@ -1910,6 +1948,13 @@ final class LocalSession implements Runnable {
                 public long ownerGeneration(){return attachedGeneration;}
                 public void onWorldTick(long tick,long nowMillis)throws Exception{LocalSession.this.onWorldTick(tick,nowMillis);}
             });
+            /*
+             * Activate only after the target is installed. A callback
+             * snapshotted in this tiny attach/activate window is allowed to
+             * skip one tick; it must never run before the session declares
+             * its callback lifetime active.
+             */
+            worldTickGate.activate();
             worldTickAttached=true;
             requireLiveSessionWriter(
                 serverPackets
@@ -1954,6 +1999,16 @@ final class LocalSession implements Runnable {
             System.err.println(tag + "closed: " + t);
         } finally {
             if(worldTickAttached){
+                /*
+                 * Quiesce the LocalSession callback lifetime before any
+                 * runtime binding is cleared. disableAndAwait() acquires only
+                 * the session-local gate: it waits for an active callback to
+                 * leave, then makes already-snapshotted late callbacks return
+                 * without touching runtime/gameplay state. Release this gate
+                 * before entering World/service teardown.
+                 */
+                worldTickGate.disableAndAwait();
+
                 LocalSessionTeardown.run(
                     tag,
                     "DETACH_TICK_TARGET",
@@ -2223,6 +2278,18 @@ final class LocalSession implements Runnable {
 
     /** Existing certified per-player gameplay tick, now invoked only by the one shared WorldPulse. */
     private void onWorldTick(
+        long worldTick,
+        long now
+    )throws Exception{
+        worldTickGate.runIfActive(
+            ()->onWorldTickActive(
+                worldTick,
+                now
+            )
+        );
+    }
+
+    private void onWorldTickActive(
         long worldTick,
         long now
     )throws Exception{
