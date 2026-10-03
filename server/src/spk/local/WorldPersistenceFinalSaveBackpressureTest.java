@@ -310,6 +310,7 @@ public final class WorldPersistenceFinalSaveBackpressureTest {
         assertReservedFinalRetiresBeforeIoAndOrdersLoad();
         assertTimedOutFinalWorldActionOwnsReservation();
         assertQueuedCheckpointCannotOverwriteReservedFinal();
+        assertOrdinarySaveAdmissionFencedByFinalReservation();
     }
 
     private static void assertReservedFinalRetiresBeforeIoAndOrdersLoad()
@@ -1154,6 +1155,322 @@ public final class WorldPersistenceFinalSaveBackpressureTest {
                 "finalSnapshotRemainsAuthoritative=true"
             );
         }finally{
+            if(player.registered())
+                world.unregisterPlayer(
+                    player,
+                    player.generation()
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertOrdinarySaveAdmissionFencedByFinalReservation()
+        throws Exception
+    {
+        BlockingFirstRepository repository=
+            new BlockingFirstRepository();
+        World world=
+            World.isolatedForTest(
+                60_000L,
+                repository
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+
+        try{
+            long generation=
+                world.registerPlayer(
+                    player,
+                    LocalAccountProfiles.PRIMARY
+                );
+
+            world.start();
+
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > blocker=
+                new AtomicReference<>();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(
+                            10
+                        );
+
+                    blocker.set(
+                        world.persistence()
+                            .captureAndSave(
+                                LocalAccountProfiles.PRIMARY,
+                                player,
+                                generation,
+                                0,
+                                "[final-ordinary-fence-test] ",
+                                "BLOCKER"
+                            )
+                    );
+                },
+                5_000L
+            );
+
+            if(!repository.firstStarted.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "ordinary-save fence blocker did not start"
+                );
+
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > preReservation=
+                new AtomicReference<>();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(
+                            20
+                        );
+
+                    preReservation.set(
+                        world.persistence()
+                            .captureAndSave(
+                                LocalAccountProfiles.PRIMARY,
+                                player,
+                                generation,
+                                0,
+                                "[final-ordinary-fence-test] ",
+                                "PRE_RESERVATION"
+                            )
+                    );
+                },
+                5_000L
+            );
+
+            WorldPlayerPersistence.SaveTicket
+                preTicket=
+                    preReservation.get();
+
+            if(preTicket==null||
+               preTicket.completion.isDone())
+                throw new AssertionError(
+                    "pre-reservation ordinary save was not retained ahead of final slot"
+                );
+
+            WorldPlayerPersistence.FinalSaveReservation
+                reservation=
+                    world.persistence()
+                        .reserveFinalSaveWithBackpressure(
+                            player,
+                            generation,
+                            5_000L
+                        );
+
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > postReservation=
+                new AtomicReference<>();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(
+                            41
+                        );
+
+                    postReservation.set(
+                        world.persistence()
+                            .captureAndSave(
+                                LocalAccountProfiles.PRIMARY,
+                                player,
+                                generation,
+                                0,
+                                "[final-ordinary-fence-test] ",
+                                "POST_RESERVATION"
+                            )
+                    );
+                },
+                5_000L
+            );
+
+            WorldPlayerPersistence.SaveTicket
+                postTicket=
+                    postReservation.get();
+
+            if(postTicket==null||
+               !postTicket.completion.isCompletedExceptionally())
+                throw new AssertionError(
+                    "post-reservation ordinary save was admitted behind final slot"
+                );
+
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > finalTicket=
+                new AtomicReference<>();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(
+                            99
+                        );
+
+                    WorldPlayerPersistence.CapturedSave
+                        captured=
+                            world.persistence()
+                                .captureDeferredFinalSave(
+                                    LocalAccountProfiles.PRIMARY,
+                                    player,
+                                    generation,
+                                    0,
+                                    "[final-ordinary-fence-test] ",
+                                    "SESSION_END"
+                                );
+
+                    if(!world.unregisterPlayer(
+                            player,
+                            generation))
+                        throw new AssertionError(
+                            "ordinary-save fence final action could not retire exact generation"
+                        );
+
+                    finalTicket.set(
+                        reservation.publish(
+                            captured
+                        )
+                    );
+                },
+                5_000L
+            );
+
+            repository.releaseFirst.countDown();
+
+            WorldPlayerPersistence.SaveTicket
+                blockerTicket=
+                    blocker.get();
+            WorldPlayerPersistence.SaveTicket
+                finalSaveTicket=
+                    finalTicket.get();
+
+            if(blockerTicket==null||
+               finalSaveTicket==null)
+                throw new AssertionError(
+                    "ordinary-save fence tickets missing"
+                );
+
+            blockerTicket.completion.get(
+                5,
+                TimeUnit.SECONDS
+            );
+            preTicket.completion.get(
+                5,
+                TimeUnit.SECONDS
+            );
+            finalSaveTicket.completion.get(
+                5,
+                TimeUnit.SECONDS
+            );
+
+            try{
+                postTicket.completion.get(
+                    1,
+                    TimeUnit.SECONDS
+                );
+                throw new AssertionError(
+                    "post-reservation ordinary save unexpectedly completed"
+                );
+            }catch(ExecutionException expected){
+                if(!(expected.getCause() instanceof
+                        RejectedExecutionException))
+                    throw new AssertionError(
+                        "post-reservation ordinary save failed with wrong cause",
+                        expected
+                    );
+            }
+
+            Optional<PlayerSnapshot> loaded=
+                world.persistence()
+                    .load(
+                        LocalAccountProfiles.PRIMARY
+                    );
+
+            if(!loaded.isPresent()||
+               !"99".equals(
+                   loaded.get().value(
+                       "movement.runEnergy"
+                   )))
+                throw new AssertionError(
+                    "post-reservation ordinary save overwrote final snapshot"
+                );
+
+            long replacementGeneration=
+                world.registerPlayer(
+                    player,
+                    LocalAccountProfiles.PRIMARY
+                );
+
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > replacement=
+                new AtomicReference<>();
+
+            world.submitAndWait(
+                player,
+                replacementGeneration,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(
+                            77
+                        );
+
+                    replacement.set(
+                        world.persistence()
+                            .captureAndSave(
+                                LocalAccountProfiles.PRIMARY,
+                                player,
+                                replacementGeneration,
+                                0,
+                                "[final-ordinary-fence-test] ",
+                                "REPLACEMENT_GENERATION"
+                            )
+                    );
+                },
+                5_000L
+            );
+
+            WorldPlayerPersistence.SaveTicket
+                replacementTicket=
+                    replacement.get();
+
+            if(replacementTicket==null)
+                throw new AssertionError(
+                    "replacement-generation ordinary save ticket missing"
+                );
+
+            replacementTicket.completion.get(
+                5,
+                TimeUnit.SECONDS
+            );
+
+            System.out.println(
+                "WORLD_PERSISTENCE_FINAL_ORDINARY_SAVE_FENCE_PASS "+
+                "preReservationSavePreserved=true "+
+                "postReservationSaveRejected=true "+
+                "replacementGenerationSaveAccepted=true "+
+                "finalSnapshotRemainsAuthoritative=true"
+            );
+        }finally{
+            repository.releaseFirst.countDown();
+
             if(player.registered())
                 world.unregisterPlayer(
                     player,

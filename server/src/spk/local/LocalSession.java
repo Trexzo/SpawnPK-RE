@@ -2750,6 +2750,8 @@ final class LocalSession implements Runnable {
             reservation=
                 world.persistence()
                     .reserveFinalSaveWithBackpressure(
+                        worldPlayer,
+                        worldPlayerGeneration,
                         5_000L
                     );
 
