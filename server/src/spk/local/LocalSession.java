@@ -2542,14 +2542,21 @@ final class LocalSession implements Runnable {
         return result;
     }
 
-    private WorldPlayerPersistence.CapturedSave
+    private WorldPlayerPersistence.SaveTicket
         captureFinalSaveAndUnregister(
             String tag,
-            String reason
+            String reason,
+            WorldPlayerPersistence.FinalSaveReservation
+                reservation
         )throws Exception{
         if(!persistentAccount||
            !worldRegistered)
             return null;
+
+        if(reservation==null)
+            throw new NullPointerException(
+                "final save reservation"
+            );
 
         if(world.pulse().inExecutionContext())
             throw new IllegalStateException(
@@ -2557,78 +2564,139 @@ final class LocalSession implements Runnable {
             );
 
         final java.util.concurrent.atomic.AtomicReference<
-            WorldPlayerPersistence.CapturedSave
-        > captured=
+            WorldPlayerPersistence.SaveTicket
+        > ticket=
             new java.util.concurrent.atomic.AtomicReference<>();
 
         final java.util.concurrent.atomic.AtomicBoolean
             removed=
                 new java.util.concurrent.atomic.AtomicBoolean();
 
-        world.submitAndWait(
-            worldPlayer,
-            worldPlayerGeneration,
-            ()->{
-                WorldPlayerPersistence.CapturedSave
-                    finalCapture=
-                        world.persistence()
-                            .captureDeferredFinalSave(
-                                username,
+        java.util.concurrent.CompletableFuture<Void>
+            finalWorldAction=
+                world.submit(
+                    worldPlayer,
+                    worldPlayerGeneration,
+                    ()->{
+                        WorldPlayerPersistence.CapturedSave
+                            finalCapture=
+                                world.persistence()
+                                    .captureDeferredFinalSave(
+                                        username,
+                                        worldPlayer,
+                                        worldPlayerGeneration,
+                                        petAccessoryState.activeItem(),
+                                        tag,
+                                        reason
+                                    );
+
+                        boolean unregistered=
+                            world.unregisterPlayer(
                                 worldPlayer,
-                                worldPlayerGeneration,
-                                petAccessoryState.activeItem(),
-                                tag,
-                                reason
+                                worldPlayerGeneration
                             );
 
-                boolean unregistered=
-                    world.unregisterPlayer(
-                        worldPlayer,
-                        worldPlayerGeneration
-                    );
+                        if(!unregistered){
+                            world.persistence()
+                                .releaseCheckpointSuppression(
+                                    worldPlayer.id(),
+                                    worldPlayerGeneration
+                                );
 
-                if(!unregistered){
-                    world.persistence()
-                        .releaseCheckpointSuppression(
-                            worldPlayer.id(),
-                            worldPlayerGeneration
+                            throw new IllegalStateException(
+                                "final save capture could not unregister exact player generation id="+
+                                worldPlayer.id()+
+                                " generation="+
+                                worldPlayerGeneration
+                            );
+                        }
+
+                        removed.set(
+                            true
                         );
 
-                    throw new IllegalStateException(
-                        "final save capture could not unregister exact player generation id="+
-                        worldPlayer.id()+
-                        " generation="+
-                        worldPlayerGeneration
-                    );
-                }
+                        /*
+                         * Publish while the exact World command still owns the
+                         * capture/retirement transition. A caller-side timeout
+                         * therefore cannot invalidate a snapshot that this
+                         * already-started action may still commit.
+                         */
+                        ticket.set(
+                            reservation.publish(
+                                finalCapture
+                            )
+                        );
+                    }
+                );
 
-                captured.set(
-                    finalCapture
-                );
-                removed.set(
-                    true
-                );
-            },
-            5_000L
+        /*
+         * Once submitted, the command future owns reservation failure
+         * settlement. If outer teardown unregisters first, command cancellation
+         * aborts the reserved worker slot. If this action wins, it publishes the
+         * final snapshot before completing successfully.
+         */
+        finalWorldAction.whenComplete(
+            (ignored,failure)->{
+                if(failure!=null)
+                    reservation.abort(
+                        failure
+                    );
+            }
         );
+
+        try{
+            finalWorldAction.get(
+                5,
+                java.util.concurrent.TimeUnit.SECONDS
+            );
+        }catch(java.util.concurrent.TimeoutException pending){
+            /*
+             * Do not abort here. submit/get timeout does not cancel an already
+             * dequeued World command. Outer teardown will either unregister
+             * first (causing command failure -> reservation abort) or wait for
+             * this action to retire+publish the exact generation.
+             */
+            System.err.println(
+                tag+
+                "V5123_ACCOUNT_FINAL_WORLD_ACTION_PENDING reason="+
+                reason+
+                " playerId="+
+                worldPlayer.id()+
+                " generation="+
+                worldPlayerGeneration
+            );
+            return null;
+        }catch(java.util.concurrent.ExecutionException failure){
+            Throwable cause=
+                failure.getCause();
+
+            if(cause instanceof Exception)
+                throw (Exception)cause;
+            if(cause instanceof Error)
+                throw (Error)cause;
+
+            throw new RuntimeException(
+                cause
+            );
+        }
 
         if(!removed.get())
             throw new IllegalStateException(
                 "world final-save teardown did not remove player generation"
             );
 
-        WorldPlayerPersistence.CapturedSave result=
-            captured.get();
+        WorldPlayerPersistence.SaveTicket result=
+            ticket.get();
 
         if(result==null)
             throw new IllegalStateException(
-                "world final-save capture produced no snapshot"
+                "world final-save teardown produced no published save ticket"
             );
 
         /*
-         * World ownership ended in the same exact-player action as snapshot
-         * capture, before any persistence I/O wait. The outer finally must not
-         * attempt a second unregister.
+         * World ownership ended and the captured final save was published in
+         * the same exact-player action. The outer finally must not attempt a
+         * second unregister.
          */
         worldRegistered=false;
 
@@ -2686,29 +2754,20 @@ final class LocalSession implements Runnable {
                     );
 
             /*
-             * Capture and exact-generation unregister are one World-owned
-             * action. Once this returns, no NPC/command/realtime gameplay can
-             * legally mutate the captured player generation.
+             * Capture, exact-generation unregister and reservation publication
+             * are one World-owned action. A bounded caller wait may time out,
+             * but reservation settlement then remains owned by that command
+             * future rather than being aborted underneath an in-flight action.
              */
-            WorldPlayerPersistence.CapturedSave captured=
+            WorldPlayerPersistence.SaveTicket ticket=
                 captureFinalSaveAndUnregister(
                     tag,
-                    reason
+                    reason,
+                    reservation
                 );
 
-            if(captured==null){
-                reservation.abort(
-                    new IllegalStateException(
-                        "final save capture unavailable"
-                    )
-                );
+            if(ticket==null)
                 return;
-            }
-
-            WorldPlayerPersistence.SaveTicket ticket=
-                reservation.publish(
-                    captured
-                );
 
             ticket.completion.get(
                 5,
