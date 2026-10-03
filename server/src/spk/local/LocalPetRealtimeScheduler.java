@@ -133,10 +133,15 @@ final class LocalPetRealtimeScheduler {
                 at,
                 worldPlayer,
                 ownerGeneration.getAsLong(),
-                ()->bridge
-                    .runIfSessionWorldCallbackActive(
-                        this::runPetFollowRealtime
-                    )
+                ()->{
+                    boolean accepted=
+                        bridge.runIfSessionWorldCallbackActive(
+                            this::runPetFollowRealtime
+                        );
+
+                    if(!accepted)
+                        petFollowRealtimeScheduled=false;
+                }
             );
         }catch(RuntimeException failure){
             petFollowRealtimeScheduled=false;
@@ -169,10 +174,15 @@ final class LocalPetRealtimeScheduler {
                 at,
                 worldPlayer,
                 ownerGeneration.getAsLong(),
-                ()->bridge
-                    .runIfSessionWorldCallbackActive(
-                        this::runPetTestSequenceRealtime
-                    )
+                ()->{
+                    boolean accepted=
+                        bridge.runIfSessionWorldCallbackActive(
+                            this::runPetTestSequenceRealtime
+                        );
+
+                    if(!accepted)
+                        petTestRealtimeScheduled=false;
+                }
             );
         }catch(RuntimeException failure){
             petTestRealtimeScheduled=false;
