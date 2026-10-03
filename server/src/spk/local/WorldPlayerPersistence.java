@@ -96,6 +96,18 @@ final class WorldPlayerPersistence
                 "captured"
             );
 
+            if(!captured.finalDisconnect){
+                IllegalArgumentException failure=
+                    new IllegalArgumentException(
+                        "final save reservation requires final disconnect capture"
+                    );
+
+                abort(
+                    failure
+                );
+                throw failure;
+            }
+
             synchronized(this){
                 if(settled)
                     throw new IllegalStateException(
@@ -104,12 +116,14 @@ final class WorldPlayerPersistence
                 settled=true;
             }
 
-            if(!captured.finalDisconnect)
-                throw new IllegalArgumentException(
-                    "final save reservation requires final disconnect capture"
+            try{
+                captured.markSubmitted();
+            }catch(RuntimeException|Error failure){
+                task.abort(
+                    failure
                 );
-
-            captured.markSubmitted();
+                throw failure;
+            }
 
             if(!task.publish(captured)){
                 RejectedExecutionException failure=
