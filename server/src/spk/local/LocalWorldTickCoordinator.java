@@ -557,11 +557,12 @@ final class LocalWorldTickCoordinator {
             regionStreams.regionLoadPending()
         );
 
-        petDropPickup.tick(
-            writer,
-            tag,
-            now
-        );
+        /*
+         * Transient-region ticks use the same outer LocalSession writer batch.
+         * Preserve the old deferred-pickup opportunity, but settle it only
+         * after that outer transport commits.
+         */
+        deferredPetPickupEligible=true;
 
         if(movementTick!=null)
             updatePetFollowAfterOwnerMovement(
