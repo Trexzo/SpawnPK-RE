@@ -2228,7 +2228,15 @@ final class NpcRegistry {
         for(NpcEntity n:visible) retained.add(NpcSyncEncoder.Update.retain(n));
         w.varShort(65,NpcSyncEncoder.encode(retained,Collections.singletonList(oldPet),movement.x(),movement.y(),spawnPresentationFor(oldPet)));
         visible.add(oldPet); pet=oldPet;
-        if(miniPet!=null) sendMask(miniPet,NpcSyncEncoder.Mask.interactionTarget(pet.sceneIndex),w);
+        if(miniPet!=null)
+            publishFollowerMaskAndDeferRelay(
+                miniPet,
+                NpcSyncEncoder.Mask.interactionTarget(
+                    pet.sceneIndex
+                ),
+                w,
+                deferredMasks
+            );
         return "PET_TELEPORT_TO_OWNER sceneIndex="+pet.sceneIndex+" npc="+pet.definitionId+" distBefore="+distBefore+" world="+pet.x+","+pet.y+" owner="+movement.x()+","+movement.y()+" targetAuthority="+(safe!=null?"OWNER_CURRENT_ROUTE":"FALLBACK_ADJACENT");
     }
 
