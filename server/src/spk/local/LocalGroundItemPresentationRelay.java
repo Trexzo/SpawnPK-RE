@@ -238,6 +238,12 @@ final class LocalGroundItemPresentationRelay {
         );
     }
 
+    /*
+     * The method name is retained for the existing region-load call site, but
+     * snapshot-covered events are only staged here. The enclosing LocalSession
+     * world-tick batch owns the actual delivery commit through
+     * commitStagedDeliveries(...).
+     */
     int consumeSnapshotCovered(
         long now
     ){
@@ -259,25 +265,40 @@ final class LocalGroundItemPresentationRelay {
                         now
                     );
 
-        int consumed=0;
+        int staged=0;
 
         for(WorldGroundItemPresentationEvents.Event event:
-                pending)
-            if(event.tile.plane==
-                    movement.plane()&&
-               movement.insideCurrentLoadedRegion(
+                pending){
+            if(stagedSequences.contains(
+                    event.sequence))
+                continue;
+
+            if(event.tile.plane!=
+                    movement.plane()||
+               !movement.insideCurrentLoadedRegion(
                     event.tile.x,
                     event.tile.y
-                )&&
-               world.groundItemPresentationEvents()
-                    .markDelivered(
-                        event.sequence,
-                        viewer.id(),
-                        generation,
-                        now
-                    ))
-                consumed++;
+                ))
+                continue;
 
-        return consumed;
+            if(!stagedSequences.add(
+                    event.sequence))
+                throw new IllegalStateException(
+                    "ground snapshot event already staged sequence="+
+                    event.sequence
+                );
+
+            stagedDeliveryAcks.add(
+                new PendingDeliveryAck(
+                    event.sequence,
+                    viewer.id(),
+                    generation
+                )
+            );
+
+            staged++;
+        }
+
+        return staged;
     }
 }

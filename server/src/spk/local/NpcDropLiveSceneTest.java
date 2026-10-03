@@ -772,6 +772,21 @@ public final class NpcDropLiveSceneTest {
                     now,
                     true
                 )==1&&
+                relay.stagedDeliveryCount()==1&&
+                world.groundItemPresentationEvents()
+                    .pendingFor(
+                        killer.id(),
+                        generation,
+                        now
+                    )
+                    .size()==1,
+                "successful snapshot did not stage covered event"
+            );
+
+            require(
+                relay.commitStagedDeliveries(
+                    now
+                )==1&&
                 world.groundItemPresentationEvents()
                     .pendingFor(
                         killer.id(),
@@ -779,7 +794,7 @@ public final class NpcDropLiveSceneTest {
                         now
                     )
                     .isEmpty(),
-                "successful snapshot did not consume covered event"
+                "successful snapshot settlement did not consume covered event"
             );
 
             int afterSnapshot=wire.size();
