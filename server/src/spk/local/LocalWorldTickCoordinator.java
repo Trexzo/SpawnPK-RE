@@ -57,6 +57,7 @@ final class LocalWorldTickCoordinator {
     private long legacyTickCount;
     private long movementTickCount;
     private boolean deferredGroundTakeEligible;
+    private boolean deferredPetPickupEligible;
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -163,6 +164,7 @@ final class LocalWorldTickCoordinator {
         String tag
     )throws Exception{
         deferredGroundTakeEligible=false;
+        deferredPetPickupEligible=false;
 
         PlayerStatusService.TickResult statusTick=
             statuses.tick(worldTick);
@@ -354,11 +356,13 @@ final class LocalWorldTickCoordinator {
          */
         deferredGroundTakeEligible=true;
 
-        petDropPickup.tick(
-            writer,
-            tag,
-            now
-        );
+        /*
+         * Pet pickup is also a self-contained packet/domain transaction.
+         * Keep it outside the provisional LocalSession world-tick batch just
+         * like deferred ground Take; post-commit settlement preserves the
+         * established Take -> pet-pickup ordering.
+         */
+        deferredPetPickupEligible=true;
 
         if(movementTick!=null)
             updatePetFollowAfterOwnerMovement(
@@ -759,6 +763,30 @@ final class LocalWorldTickCoordinator {
 
     boolean deferredGroundTakeEligible(){
         return deferredGroundTakeEligible;
+    }
+
+    void settleDeferredPetPickupAfterWorldTick(
+        ServerPacketWriter writer,
+        String tag,
+        long now
+    )throws IOException{
+        if(!deferredPetPickupEligible)
+            return;
+
+        deferredPetPickupEligible=false;
+        petDropPickup.tick(
+            writer,
+            tag,
+            now
+        );
+    }
+
+    void abortDeferredPetPickupAfterWorldTick(){
+        deferredPetPickupEligible=false;
+    }
+
+    boolean deferredPetPickupEligible(){
+        return deferredPetPickupEligible;
     }
 
     boolean commitHomePresentationBatch(){
