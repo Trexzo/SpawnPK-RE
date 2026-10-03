@@ -3,6 +3,7 @@ package spk.local;
 public final class TradeServiceGenerationOwnershipFenceTest {
     public static void main(String[] args)throws Exception{
         assertFinalCommitDoesNotAcquireParticipantMutationLock();
+        assertTerminalCleanupLatchInsideRegistryFence();
         assertCancellationCloseSerializesGenerationChange();
         assertTerminalPeerCloseSerializesGenerationChange();
         assertCompetingRootPeerCloseSerializesGenerationChange();
@@ -358,6 +359,8 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 "terminalPeerCloseRegistryLinearized=true "+
                 "competingRootPeerCloseRegistryLinearized=true "+
                 "replacementOldPeerCloseGenerationSerialized=true "+
+                "terminalCleanupLatchedInsideRegistry=true "+
+                "terminalCleanupWriterNotReusable=true "+
                 "cleanupGenerationFenceUsesRegistry=true "+
                 "finalCommitMutationLockFree=true "+
                 "postCommitSavesOutsideTradeLocks=true "+
@@ -724,6 +727,213 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 world.unregisterPlayer(
                     b,
                     generationB
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertTerminalCleanupLatchInsideRegistryFence()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                605L
+            );
+        WorldPlayer participant=
+            new WorldPlayer();
+        WorldPlayer peer=
+            new WorldPlayer();
+
+        long participantGeneration=
+            world.registerPlayer(
+                participant,
+                "trade-terminal-latch-a"
+            );
+        long peerGeneration=
+            world.registerPlayer(
+                peer,
+                "trade-terminal-latch-b"
+            );
+
+        SwitchableFailOutputStream participantOut=
+            new SwitchableFailOutputStream();
+        ServerPacketWriter participantWriter=
+            new ServerPacketWriter(
+                participantOut,
+                new IsaacCipher(
+                    new int[]{61,62,63,64}
+                )
+            );
+
+        OutboundPacketQueue peerOut=
+            new OutboundPacketQueue();
+        ServerPacketWriter peerWriter=
+            writer(
+                peerOut,
+                65
+            );
+
+        long replacementGeneration=0L;
+
+        try{
+            TradeService.register(
+                world,
+                participant,
+                participantGeneration,
+                participant.bank(),
+                participantWriter,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                peer,
+                peerGeneration,
+                peer.bank(),
+                peerWriter,
+                ()->{}
+            );
+
+            requireContains(
+                TradeService.start(
+                    world,
+                    participant,
+                    peer
+                ),
+                "TRADE_UI_OPEN",
+                "terminal cleanup latch trade open"
+            );
+
+            int attemptsBeforeFailure=
+                participantOut.attempts;
+            int peerBytesBefore=
+                peerOut.queuedBytes();
+
+            participantOut.fail=true;
+
+            String cancelled=
+                TradeService.handleWidget(
+                    participant,
+                    TradeService.FIRST_DECLINE
+                );
+
+            requireContains(
+                cancelled,
+                "TRADE_CANCELLED_DECLINE",
+                "terminal cleanup latch cancellation"
+            );
+
+            if(!participantWriter.terminal())
+                throw new AssertionError(
+                    "terminal cleanup failure did not latch exact writer"
+                );
+
+            if(participantOut.attempts!=
+                    attemptsBeforeFailure+1)
+                throw new AssertionError(
+                    "terminal cleanup failure transport attempts changed expected="+
+                    (attemptsBeforeFailure+1)+
+                    " actual="+
+                    participantOut.attempts
+                );
+
+            if(peerOut.queuedBytes()!=
+                    peerBytesBefore+1)
+                throw new AssertionError(
+                    "terminal cleanup healthy peer did not receive exactly one close"
+                );
+
+            participantOut.fail=false;
+            int attemptsBeforeProbe=
+                participantOut.attempts;
+            boolean probeRejected=false;
+
+            try{
+                participantWriter.fixed(
+                    97,
+                    new byte[0]
+                );
+            }catch(java.io.IOException expected){
+                probeRejected=true;
+            }
+
+            if(!probeRejected)
+                throw new AssertionError(
+                    "terminal cleanup writer accepted later direct publication"
+                );
+
+            if(participantOut.attempts!=
+                    attemptsBeforeProbe)
+                throw new AssertionError(
+                    "terminal cleanup writer retouched underlying transport"
+                );
+
+            if(!world.unregisterPlayer(
+                    participant,
+                    participantGeneration
+                ))
+                throw new AssertionError(
+                    "terminal cleanup generation unregister failed"
+                );
+
+            replacementGeneration=
+                world.registerPlayer(
+                    participant,
+                    "trade-terminal-latch-a"
+                );
+
+            boolean reuseRejected=false;
+
+            try{
+                Player81WorldSync
+                    .preparePlayerOptionsForRegistration(
+                        world,
+                        participant,
+                        participantWriter
+                    );
+            }catch(
+                Player81WorldSync
+                    .TerminalPlayerOptionsException expected
+            ){
+                reuseRejected=
+                    expected.owner==participant&&
+                    expected.writer==participantWriter;
+            }
+
+            if(!reuseRejected)
+                throw new AssertionError(
+                    "replacement generation reused terminal Trade cleanup writer"
+                );
+        }finally{
+            participantOut.fail=false;
+
+            TradeService.unregister(
+                participant,
+                participantWriter
+            );
+            TradeService.unregister(
+                peer,
+                peerWriter
+            );
+            Player81WorldSync.unregister(
+                participantWriter
+            );
+            Player81WorldSync.unregister(
+                peerWriter
+            );
+
+            if(participant.registered())
+                world.unregisterPlayer(
+                    participant,
+                    replacementGeneration!=0L
+                        ?replacementGeneration
+                        :participant.generation()
+                );
+
+            if(peer.registered())
+                world.unregisterPlayer(
+                    peer,
+                    peerGeneration
                 );
 
             world.close();
@@ -1743,6 +1953,35 @@ public final class TradeServiceGenerationOwnershipFenceTest {
                 phase+
                 " did not terminate"
             );
+    }
+
+    private static final class SwitchableFailOutputStream
+        extends java.io.OutputStream {
+
+        int attempts;
+        boolean fail;
+
+        @Override public void write(
+            int value
+        )throws java.io.IOException{
+            attempts++;
+            if(fail)
+                throw new java.io.IOException(
+                    "EXPECTED_TRADE_TERMINAL_LATCH_FAILURE"
+                );
+        }
+
+        @Override public void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws java.io.IOException{
+            attempts++;
+            if(fail)
+                throw new java.io.IOException(
+                    "EXPECTED_TRADE_TERMINAL_LATCH_FAILURE"
+                );
+        }
     }
 
     private static ServerPacketWriter writer(
