@@ -2425,16 +2425,25 @@ final class LocalSession implements Runnable {
                         System.currentTimeMillis()
                     );
 
-                if(tickCompleted)
+                if(tickCompleted){
                     worldTicks
                         .settleDeferredGroundTakeAfterWorldTick(
                             System.currentTimeMillis(),
                             sessionPackets,
                             tickTag
                         );
-                else
+                    worldTicks
+                        .settleDeferredPetPickupAfterWorldTick(
+                            sessionPackets,
+                            tickTag,
+                            System.currentTimeMillis()
+                        );
+                }else{
                     worldTicks
                         .abortDeferredGroundTakeAfterWorldTick();
+                    worldTicks
+                        .abortDeferredPetPickupAfterWorldTick();
+                }
             }else{
                 worldTicks
                     .abortHomePresentationBatch();
@@ -2442,6 +2451,8 @@ final class LocalSession implements Runnable {
                     .abortGroundPresentationBatch();
                 worldTicks
                     .abortDeferredGroundTakeAfterWorldTick();
+                worldTicks
+                    .abortDeferredPetPickupAfterWorldTick();
             }
         }
     }
