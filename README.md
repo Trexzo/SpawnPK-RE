@@ -1,14 +1,63 @@
-<img width="246" height="449" alt="image" src="https://github.com/user-attachments/assets/543ea4c9-38ac-44f1-8af8-98045a8d315d" />
+# SpawnPK-RE
 
-<img width="500" height="449" alt="image" src="https://github.com/user-attachments/assets/835f4622-855b-4ff5-a9ad-64c3ea46814f" />
+[![Server build](https://github.com/Trexzo/SpawnPK-RE/actions/workflows/gradle-server-build.yml/badge.svg)](https://github.com/Trexzo/SpawnPK-RE/actions/workflows/gradle-server-build.yml)
+![Java 11 bytecode](https://img.shields.io/badge/bytecode-Java%2011-007396)
+![Client v308](https://img.shields.io/badge/exact%20client-v308-4c8bf5)
+![Network](https://img.shields.io/badge/runtime-loopback--only-2ea44f)
 
-# SpawnPK-Src
+**Evidence-first SpawnPK client research, protocol reconstruction, and LocalLab server development.**
 
-Unofficial **SpawnPK client research, reconstruction, and LocalLab server-development environment**.
+SpawnPK-RE is an unofficial clean-room research and engineering project for understanding the current SpawnPK client/cache surface and building a reproducible, loopback-only Java LocalLab around evidence that can actually be proven.
 
-The project combines exact-current client/cache archaeology with a loopback-only Java server, protocol reconstruction, reusable gameplay/domain systems, provenance-tracked research, and regression infrastructure.
+> **This repository is not presented as the original SpawnPK server source.**
+> Client-visible behavior, recovered protocol facts, inferred behavior, and LocalLab-created systems remain explicitly separated by provenance.
 
-It is **not** presented as the original SpawnPK server source.
+## Why this project exists
+
+Most reconstruction projects blur together what was observed, what was inferred, and what was invented to make a local environment usable. SpawnPK-RE treats that distinction as part of the architecture.
+
+The repository combines:
+
+- exact-current client and cache archaeology;
+- login, ISAAC, C2S/S2C and application-protocol reconstruction;
+- a loopback-only Java server and auxiliary endpoint;
+- typed world/domain systems for gameplay experimentation;
+- provenance-tagged research and authority classes;
+- regression, acceptance and release-certification tooling.
+
+The goal is a **reviewable reconstruction environment**: every important claim should have a source, every uncertain behavior should remain visibly uncertain, and LocalLab-created functionality should never be mislabeled as recovered production behavior.
+
+## At a glance
+
+| | Current mainline |
+| --- | --- |
+| **Canonical client pin** | SpawnPK **v308** |
+| **Exact client SHA-256** | `854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6` |
+| **Certified foundation** | LocalLab **v5.18.5 / Engine R8.5** |
+| **Bytecode target** | Java 11 / class major 55 |
+| **Development compiler** | JDK 21 with `javac --release 11` |
+| **Local endpoints** | `127.0.0.1:43594` game · `127.0.0.1:43595` auxiliary |
+| **Authority model** | Exact client/cache → runtime proof → corroboration → inference → unknown → custom LocalLab |
+
+## Start here
+
+- **Run/setup:** [Windows setup](docs/SETUP_WINDOWS.md) · [external runtime](docs/EXTERNAL_RUNTIME.md)
+- **Trust model:** [authority model](docs/AUTHORITY_MODEL.md)
+- **Current exact-client acceptance:** [v308 acceptance evidence](evidence/V308_ACCEPTANCE_2026-09-22.md)
+- **Protocol research:** [protocol/](protocol/)
+- **Current client/cache research:** [research/](research/)
+- **Server implementation:** [server/src/](server/src/)
+- **Contribution rules:** [CONTRIBUTING.md](CONTRIBUTING.md)
+
+<details>
+<summary><strong>Screenshots</strong></summary>
+<br>
+
+<img width="246" height="449" alt="SpawnPK LocalLab screenshot" src="https://github.com/user-attachments/assets/543ea4c9-38ac-44f1-8af8-98045a8d315d" />
+
+<img width="500" height="449" alt="SpawnPK LocalLab screenshot" src="https://github.com/user-attachments/assets/835f4622-855b-4ff5-a9ad-64c3ea46814f" />
+
+</details>
 
 ## Project state
 
