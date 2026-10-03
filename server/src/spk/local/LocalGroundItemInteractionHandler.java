@@ -131,12 +131,20 @@ final class LocalGroundItemInteractionHandler {
             return null;
         }
 
-        clearPendingTake();
         movement.clearQueuedPath();
-        return takeNow(
-            ground,scenePublisher,serverPackets,
-            "TAKE_AFTER_EXACT_TILE_ARRIVAL"
-        );
+
+        Result result=
+            takeNow(
+                ground,scenePublisher,serverPackets,
+                "TAKE_AFTER_EXACT_TILE_ARRIVAL"
+            );
+
+        /*
+         * Clear only after the standalone Take transaction returns normally.
+         * Transport failure leaves the exact pending identity retryable.
+         */
+        clearPendingTake();
+        return result;
     }
 
     boolean hasPendingTake(){
