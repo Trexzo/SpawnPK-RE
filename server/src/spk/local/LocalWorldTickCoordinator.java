@@ -56,6 +56,7 @@ final class LocalWorldTickCoordinator {
 
     private long legacyTickCount;
     private long movementTickCount;
+    private boolean deferredBankInteractionEligible;
     private boolean deferredGroundTakeEligible;
     private boolean deferredPetPickupEligible;
 
@@ -163,6 +164,7 @@ final class LocalWorldTickCoordinator {
         ServerPacketWriter writer,
         String tag
     )throws Exception{
+        deferredBankInteractionEligible=false;
         deferredGroundTakeEligible=false;
         deferredPetPickupEligible=false;
 
@@ -311,25 +313,12 @@ final class LocalWorldTickCoordinator {
                 tag+playerAttackTick
             );
 
-        String bankObjectTick=
-            bankObjectHandler.tick(
-                now,
-                writer
-            );
-        if(bankObjectTick!=null)
-            System.out.println(
-                tag+bankObjectTick
-            );
-
-        String routedNpcTick=
-            routedNpcHandler.tick(
-                now,
-                writer
-            );
-        if(routedNpcTick!=null)
-            System.out.println(
-                tag+routedNpcTick
-            );
+        /*
+         * Deferred Bank object/banker arrival owns a root publication
+         * transaction whose nested packet batch must not settle semantics
+         * inside LocalSession's still-provisional outer world-tick batch.
+         */
+        deferredBankInteractionEligible=true;
 
         String makeoverTick=
             routedNpcHandler.tickMakeover(
@@ -736,6 +725,45 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    void settleDeferredBankInteractionsAfterWorldTick(
+        long now,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(!deferredBankInteractionEligible)
+            return;
+
+        deferredBankInteractionEligible=false;
+
+        String bankObjectTick=
+            bankObjectHandler.tick(
+                now,
+                writer
+            );
+        if(bankObjectTick!=null)
+            System.out.println(
+                tag+bankObjectTick
+            );
+
+        String routedNpcTick=
+            routedNpcHandler.tick(
+                now,
+                writer
+            );
+        if(routedNpcTick!=null)
+            System.out.println(
+                tag+routedNpcTick
+            );
+    }
+
+    void abortDeferredBankInteractionsAfterWorldTick(){
+        deferredBankInteractionEligible=false;
+    }
+
+    boolean deferredBankInteractionEligible(){
+        return deferredBankInteractionEligible;
     }
 
     void settleDeferredGroundTakeAfterWorldTick(
