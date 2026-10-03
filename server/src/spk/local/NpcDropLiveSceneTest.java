@@ -159,6 +159,15 @@ public final class NpcDropLiveSceneTest {
                 )==1&&
                 wire.size()>before&&
                 world.groundItemPresentationEvents()
+                    .size()==1,
+                "spawn packet staging"
+            );
+
+            require(
+                relay.commitStagedDeliveries(
+                    System.currentTimeMillis()
+                )==1&&
+                world.groundItemPresentationEvents()
                     .size()==0,
                 "spawn packet publication"
             );
@@ -220,6 +229,15 @@ public final class NpcDropLiveSceneTest {
                     publisher
                 )==1&&
                 wire.size()>beforeAmount&&
+                world.groundItemPresentationEvents()
+                    .size()==1,
+                "amount packet staging"
+            );
+
+            require(
+                relay.commitStagedDeliveries(
+                    System.currentTimeMillis()
+                )==1&&
                 world.groundItemPresentationEvents()
                     .size()==0,
                 "amount packet publication"
@@ -558,6 +576,15 @@ public final class NpcDropLiveSceneTest {
                     )
                 )==1&&
                 wire.size()>0&&
+                world.groundItemPresentationEvents()
+                    .size()==1,
+                "scene publication retry staging"
+            );
+
+            require(
+                relay.commitStagedDeliveries(
+                    System.currentTimeMillis()
+                )==1&&
                 world.groundItemPresentationEvents()
                     .size()==0,
                 "scene publication retry"
