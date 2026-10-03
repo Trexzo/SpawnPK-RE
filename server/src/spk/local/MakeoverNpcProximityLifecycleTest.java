@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 public final class MakeoverNpcProximityLifecycleTest {
     public static void main(String[] args)throws Exception{
@@ -162,10 +163,147 @@ public final class MakeoverNpcProximityLifecycleTest {
                 "manual movement cancellation failed"
             );
 
+        WorldPlayer retryPlayer=
+            new WorldPlayer();
+        MovementState retryMovement=
+            retryPlayer.movement();
+        NpcRegistry retryNpcs=
+            new NpcRegistry();
+        LocalMakeoverMageHandler retryHandler=
+            new LocalMakeoverMageHandler(
+                retryPlayer,
+                retryPlayer.equipment(),
+                retryMovement,
+                retryNpcs
+            );
+        OutboundPacketQueue retryQueue=
+            new OutboundPacketQueue(
+                1024
+            );
+        ServerPacketWriter retryPackets=
+            new ServerPacketWriter(
+                retryQueue,
+                new IsaacCipher(
+                    new int[]{55,66,77,88}
+                )
+            );
+        int[] retryTarget=
+            findRoutableTarget(
+                retryMovement
+            );
+        NpcEntity retryMage=
+            retryNpcs.spawnMirroredNpc(
+                LocalMakeoverMageHandler.NPC_ID,
+                retryTarget[0],
+                retryTarget[1],
+                null,
+                retryMovement,
+                retryPackets
+            );
+
+        drain(
+            retryQueue
+        );
+
+        if(!retryHandler.beginIfSupported(
+                new NpcAction(
+                    155,
+                    retryMage.sceneIndex
+                ),
+                retryMage,
+                retryPackets,
+                "[makeover-retry-test] "
+            )||
+           !retryHandler.pending()||
+           retryHandler.active())
+            throw new AssertionError(
+                "retry fixture did not defer Make-over dialogue"
+            );
+
+        for(int i=0;
+            i<64&&
+            Math.max(
+                Math.abs(
+                    retryMovement.x()-retryMage.x
+                ),
+                Math.abs(
+                    retryMovement.y()-retryMage.y
+                )
+            )>1;
+            i++)
+            retryMovement.advance();
+
+        if(Math.max(
+                Math.abs(
+                    retryMovement.x()-retryMage.x
+                ),
+                Math.abs(
+                    retryMovement.y()-retryMage.y
+                )
+            )>1)
+            throw new AssertionError(
+                "retry fixture did not reach Make-over adjacency"
+            );
+
+        OutboundPacketQueue.BatchReservation
+            pressure=
+                OutboundPacketQueue.reserveBatch(
+                    retryQueue,
+                    1024
+                );
+
+        boolean publicationFailed=false;
+
+        try{
+            retryHandler.tick(
+                System.currentTimeMillis(),
+                retryPackets,
+                "[makeover-retry-test] "
+            );
+        }catch(IOException expected){
+            publicationFailed=true;
+        }finally{
+            pressure.release();
+        }
+
+        if(!publicationFailed||
+           !retryHandler.pending()||
+           retryHandler.active()||
+           retryQueue.queuedBytes()!=0)
+            throw new AssertionError(
+                "failed deferred Make-over publication changed preimage"
+            );
+
+        retryHandler.tick(
+            System.currentTimeMillis(),
+            retryPackets,
+            "[makeover-retry-test] "
+        );
+
+        if(retryHandler.pending()||
+           !retryHandler.active()||
+           retryQueue.queuedBytes()<=0)
+            throw new AssertionError(
+                "deferred Make-over publication did not retry successfully"
+            );
+
         System.out.println(
             "MAKEOVER_NPC_PROXIMITY_LIFECYCLE_PASS "+
             "farDeferred=true authoritativeArrival=true "+
-            "exactTargetLossClose=true manualMovementClose=true"
+            "exactTargetLossClose=true manualMovementClose=true "+
+            "deferredPublicationFailureRetainsPending=true"
+        );
+    }
+
+    private static void drain(
+        OutboundPacketQueue queue
+    )throws Exception{
+        ByteArrayOutputStream out=
+            new ByteArrayOutputStream();
+
+        queue.drainTo(
+            out,
+            1<<20
         );
     }
 
