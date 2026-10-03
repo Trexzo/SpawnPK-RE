@@ -219,6 +219,24 @@ final class LocalSession implements Runnable {
     private final PetAccessoryState petAccessoryState;
     private volatile boolean logoutRequested;
 
+    static SceneCoordinateContext.Snapshot snapshotWorldTickSceneContext(
+        SceneUpdatePublisher publisher
+    ){
+        return publisher==null
+            ?null
+            :publisher.context().snapshot();
+    }
+
+    static void restoreWorldTickSceneContext(
+        SceneUpdatePublisher publisher,
+        SceneCoordinateContext.Snapshot snapshot
+    ){
+        if(publisher!=null&&snapshot!=null)
+            publisher.context().restore(
+                snapshot
+            );
+    }
+
     LocalSession(Socket socket, boolean bootstrap) {
         this(socket,bootstrap,false,World.shared(),null);
     }
@@ -2397,6 +2415,14 @@ final class LocalSession implements Runnable {
         String tickTag=
             "[session "+socket.getRemoteSocketAddress()+"] ";
 
+        SceneUpdatePublisher worldTickScenePublisher=
+            scenePublisher;
+        SceneCoordinateContext.Snapshot
+            worldTickSceneSnapshot=
+                snapshotWorldTickSceneContext(
+                    worldTickScenePublisher
+                );
+
         sessionPackets.beginBatch();
         boolean batchCommitted=false;
         boolean tickCompleted=false;
@@ -2436,6 +2462,10 @@ final class LocalSession implements Runnable {
                     worldTicks
                         .abortDeferredGroundTakeAfterWorldTick();
             }else{
+                restoreWorldTickSceneContext(
+                    worldTickScenePublisher,
+                    worldTickSceneSnapshot
+                );
                 worldTicks
                     .abortHomePresentationBatch();
                 worldTicks
