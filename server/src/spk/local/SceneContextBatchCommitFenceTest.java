@@ -58,7 +58,7 @@ public final class SceneContextBatchCommitFenceTest {
             );
 
         queue.offer(
-            new byte[1020]
+            new byte[1023]
         );
 
         writer.beginBatch();
@@ -105,7 +105,7 @@ public final class SceneContextBatchCommitFenceTest {
         );
 
         require(
-            queue.queuedBytes()==1020,
+            queue.queuedBytes()==1023,
             "failed batch leaked scene bytes"
         );
 
@@ -212,7 +212,7 @@ public final class SceneContextBatchCommitFenceTest {
             );
 
         invalidateQueue.offer(
-            new byte[1020]
+            new byte[1023]
         );
         invalidateWriter.beginBatch();
         invalidatePublisher.clear8x8(
