@@ -21,6 +21,49 @@ final class LocalRegionStreamHandler {
         void resetPetFollowRuntime();
     }
 
+    static final class AutoStreamPlan {
+        enum Kind {
+            WINDOW_REBASE,
+            HOME_REATTACH
+        }
+
+        final Kind kind;
+        final int regionId;
+        final String regionName;
+        final int chunkX,chunkY;
+        final int baseX,baseY;
+        final boolean leavingHome;
+        final String reason;
+
+        AutoStreamPlan(
+            Kind kind,
+            int regionId,
+            String regionName,
+            int chunkX,
+            int chunkY,
+            int baseX,
+            int baseY,
+            boolean leavingHome,
+            String reason
+        ){
+            this.kind=Objects.requireNonNull(
+                kind,
+                "kind"
+            );
+            this.regionId=regionId;
+            this.regionName=regionName;
+            this.chunkX=chunkX;
+            this.chunkY=chunkY;
+            this.baseX=baseX;
+            this.baseY=baseY;
+            this.leavingHome=leavingHome;
+            this.reason=Objects.requireNonNull(
+                reason,
+                "reason"
+            );
+        }
+    }
+
     private final boolean movementEnabled;
     private final World world;
     private final WorldPlayer worldPlayer;
@@ -85,41 +128,48 @@ final class LocalRegionStreamHandler {
         this.bridge=Objects.requireNonNull(bridge,"bridge");
     }
 
-    boolean maybeStream(
-        ServerPacketWriter writer,
+    AutoStreamPlan prepareAutoStream(
         String tag
-    )throws IOException{
-        if(!movementEnabled||world.players().size()!=1)
-            return false;
+    ){
+        if(!movementEnabled||
+           world.players().size()!=1)
+            return null;
 
         if(regionLoads.pending())
-            return false;
+            return null;
 
         if(movement.transientRegion()&&
-           movement.insideHomeInnerCore(16)){
-            reattachHome(
-                writer,
-                tag,
+           movement.insideHomeInnerCore(16))
+            return new AutoStreamPlan(
+                AutoStreamPlan.Kind.HOME_REATTACH,
+                -1,
+                "HOME",
+                385,
+                436,
+                MovementState.REGION_BASE_X,
+                MovementState.REGION_BASE_Y,
                 false,
                 "AUTO_HOME_REATTACH"
             );
-            return true;
-        }
 
         if(!movement.nearLoadedEdge(16))
-            return false;
+            return null;
 
         int regionId=
             ((movement.x()>>6)<<8)|
             (movement.y()>>6);
 
         WorldRegionAuthorityRepository.Region region=
-            WorldRegionAuthorityRepository.get(regionId);
+            WorldRegionAuthorityRepository.get(
+                regionId
+            );
 
         if(region==null||
            !region.mapPresent||
            !region.terrainParseOk||
-           !WorldCollisionAuthority.hasRegion(regionId)){
+           !WorldCollisionAuthority.hasRegion(
+                regionId
+           )){
             System.out.println(
                 tag+
                 "V5181_WORLD_AUTO_REBASE result=FAIL_CLOSED region="+
@@ -134,9 +184,11 @@ final class LocalRegionStreamHandler {
                     :"map="+region.mapPresent+
                         " terrain="+region.terrainParseOk+
                         " collision="+
-                        WorldCollisionAuthority.hasRegion(regionId))
+                        WorldCollisionAuthority.hasRegion(
+                            regionId
+                        ))
             );
-            return false;
+            return null;
         }
 
         int chunkX=movement.x()>>3;
@@ -145,70 +197,192 @@ final class LocalRegionStreamHandler {
         int baseY=(chunkY-6)<<3;
 
         if(baseX==movement.loadedBaseX()&&
-           baseY==movement.loadedBaseY()){
+           baseY==movement.loadedBaseY())
+            return null;
+
+        return new AutoStreamPlan(
+            AutoStreamPlan.Kind.WINDOW_REBASE,
+            regionId,
+            region.name,
+            chunkX,
+            chunkY,
+            baseX,
+            baseY,
+            !movement.transientRegion(),
+            "AUTO_WINDOW_REBASE"
+        );
+    }
+
+    boolean settlePreparedAutoStream(
+        AutoStreamPlan plan,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(plan==null)
             return false;
+
+        if(regionLoads.pending())
+            throw new IllegalStateException(
+                "region stream became pending before prepared settlement"
+            );
+
+        if(plan.kind==
+                AutoStreamPlan.Kind.HOME_REATTACH){
+            if(!movement.transientRegion()||
+               !movement.insideHomeInnerCore(16))
+                throw new IllegalStateException(
+                    "prepared HOME reattach preimage changed"
+                );
+        }else{
+            int chunkX=movement.x()>>3;
+            int chunkY=movement.y()>>3;
+
+            if(chunkX!=plan.chunkX||
+               chunkY!=plan.chunkY||
+               movement.loadedBaseX()==plan.baseX&&
+               movement.loadedBaseY()==plan.baseY)
+                throw new IllegalStateException(
+                    "prepared region rebase preimage changed"
+                );
         }
 
-        boolean leavingHome=!movement.transientRegion();
-        int removed=0;
+        NpcRegistry.PreparedRegionViewDetach detach=
+            (plan.kind==
+                AutoStreamPlan.Kind.HOME_REATTACH||
+             plan.leavingHome)
+                ?npcs.prepareRegionViewDetachPreservingFollowers()
+                :null;
 
-        if(leavingHome){
-            removed=
-                npcs.detachRegionViewPreservingFollowers(
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            if(detach!=null)
+                npcs.publishPreparedRegionViewDetach(
+                    detach,
                     writer
                 );
 
-            bridge.resetPetFollowRuntime();
-            TradeService.cancelIfActive(
-                worldPlayer,
-                "AUTO_REGION_REBASE"
+            writer.fixed(
+                219,
+                new byte[0]
             );
-            playerInteractions.clearTargets();
-            combat.cancelForManualMovement();
+            writer.fixed(
+                73,
+                BootstrapPackets.region73(
+                    plan.chunkX,
+                    plan.chunkY
+                )
+            );
+
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    writer,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    writer,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    writer,
+                    failure
+                );
+            throw failure;
         }
 
-        movement.rebaseLoadedWindow(
-            baseX,
-            baseY,
-            true
-        );
+        int removed=
+            detach==null
+                ?0
+                :npcs.commitPreparedRegionViewDetach(
+                    detach
+                );
 
-        writer.fixed(219,new byte[0]);
-        writer.fixed(
-            73,
-            BootstrapPackets.region73(chunkX,chunkY)
-        );
+        if(plan.kind==
+                AutoStreamPlan.Kind.HOME_REATTACH){
+            movement.restoreHomeWindowAtCurrentPosition();
+        }else{
+            if(plan.leavingHome){
+                bridge.resetPetFollowRuntime();
+                TradeService.cancelIfActive(
+                    worldPlayer,
+                    "AUTO_REGION_REBASE"
+                );
+                playerInteractions.clearTargets();
+                combat.cancelForManualMovement();
+            }
+
+            movement.rebaseLoadedWindow(
+                plan.baseX,
+                plan.baseY,
+                true
+            );
+        }
+
         RegionLoadLifecycle.Begin regionLoad=
             regionLoads.begin(
-                chunkX,
-                chunkY,
-                baseX,
-                baseY,
-                "AUTO_WINDOW_REBASE"
+                plan.chunkX,
+                plan.chunkY,
+                plan.baseX,
+                plan.baseY,
+                plan.reason
             );
 
         bridge.replaceScenePublisher(
             new SceneUpdatePublisher(
                 writer,
                 new SceneCoordinateContext(
-                    baseX,
-                    baseY,
+                    plan.baseX,
+                    plan.baseY,
                     movement.plane()
                 )
             )
         );
 
+        if(plan.kind==
+                AutoStreamPlan.Kind.HOME_REATTACH){
+            bridge.resetPetFollowRuntime();
+
+            System.out.println(
+                tag+
+                "V5181_WORLD_AUTO_HOME_REATTACH world="+
+                movement.x()+","+
+                movement.y()+",0"+
+                " base="+
+                MovementState.REGION_BASE_X+","+
+                MovementState.REGION_BASE_Y+
+                " packet73=385,436"+
+                " regionLoadSeq="+
+                regionLoad.sequence+
+                " placement=CLIENT_PACKET73_REBASE_PRESERVES_WORLD"+
+                " transientNpcPruned="+removed+
+                " homeSceneReplay=DEFERRED_UNTIL_OPCODE121"+
+                " dynamicOutsideHome=false"
+            );
+
+            return true;
+        }
+
         System.out.println(
             tag+
             "V5181_WORLD_AUTO_REBASE result=OK region="+
-            regionId+
-            " name=["+region.name+"]"+
+            plan.regionId+
+            " name=["+plan.regionName+"]"+
             " world="+
             movement.x()+","+
             movement.y()+","+
             movement.plane()+
-            " base="+baseX+","+baseY+
-            " packet73="+chunkX+","+chunkY+
+            " base="+plan.baseX+","+plan.baseY+
+            " packet73="+plan.chunkX+","+plan.chunkY+
             " regionLoadSeq="+regionLoad.sequence+
             " placement=CLIENT_PACKET73_REBASE_PRESERVES_WORLD"+
             " removedHomeNpcView="+removed+
@@ -216,6 +390,35 @@ final class LocalRegionStreamHandler {
         );
 
         return true;
+    }
+
+    boolean maybeStream(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        AutoStreamPlan plan=
+            prepareAutoStream(
+                tag
+            );
+
+        return settlePreparedAutoStream(
+            plan,
+            writer,
+            tag
+        );
+    }
+
+    private static void abortFailedPacketBatch(
+        ServerPacketWriter writer,
+        Throwable primary
+    ){
+        try{
+            writer.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
+        }
     }
 
     boolean completeRegionLoad(
