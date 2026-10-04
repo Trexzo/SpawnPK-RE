@@ -614,16 +614,75 @@ final class NpcRegistry {
         return "PET_FORCE_TEXT_OK item="+pet.petItemId+" npc="+pet.definitionId+" text="+text;
     }
 
-    String setPetNativeState(int state,ServerPacketWriter w) throws IOException {
-        if(pet==null) return "REJECTED_NO_ACTIVE_PET";
-        if(state<0||state>3) return "REJECTED_STATE_RANGE expected=0..3";
-        PetPresentationProfile.NativeStateFamily family=PetPresentationProfile.nativeStateFamily(pet.definitionId);
+    String publishPetNativeState(
+        NpcEntity expectedPet,
+        int state,
+        ServerPacketWriter w
+    )throws IOException{
+        if(pet==null||pet!=expectedPet)
+            return "REJECTED_NO_ACTIVE_PET";
+        if(state<0||state>3)
+            return "REJECTED_STATE_RANGE expected=0..3";
+        PetPresentationProfile.NativeStateFamily family=
+            PetPresentationProfile.nativeStateFamily(
+                pet.definitionId
+            );
         if(family==PetPresentationProfile.NativeStateFamily.NONE)
-            return "REJECTED_PET_HAS_NO_NUMERIC_NATIVE_STATE item="+pet.petItemId+" npc="+pet.definitionId;
-        sendMask(pet,NpcSyncEncoder.Mask.forceText(Integer.toString(state)),w);
+            return "REJECTED_PET_HAS_NO_NUMERIC_NATIVE_STATE item="+
+                pet.petItemId+
+                " npc="+pet.definitionId;
+
+        sendMask(
+            pet,
+            NpcSyncEncoder.Mask.forceText(
+                Integer.toString(state)
+            ),
+            w
+        );
+
+        return "PET_NATIVE_STATE_OK item="+
+            pet.petItemId+
+            " npc="+pet.definitionId+
+            " family="+family+
+            " state="+state+
+            " visual="+
+            PetPresentationProfile.nativeStateVisual(
+                pet.definitionId,
+                state
+            );
+    }
+
+    void commitPetNativeState(
+        NpcEntity expectedPet,
+        int expectedState,
+        int state
+    ){
+        if(pet==null||
+           pet!=expectedPet||
+           petNativeState!=expectedState)
+            throw new IllegalStateException(
+                "pet native state changed before prepared commit"
+            );
         petNativeState=state;
-        return "PET_NATIVE_STATE_OK item="+pet.petItemId+" npc="+pet.definitionId+" family="+family+
-            " state="+state+" visual="+PetPresentationProfile.nativeStateVisual(pet.definitionId,state);
+    }
+
+    String setPetNativeState(int state,ServerPacketWriter w) throws IOException {
+        NpcEntity expectedPet=pet;
+        int expectedState=petNativeState;
+        String result=
+            publishPetNativeState(
+                expectedPet,
+                state,
+                w
+            );
+        if(result.startsWith(
+                "PET_NATIVE_STATE_OK"))
+            commitPetNativeState(
+                expectedPet,
+                expectedState,
+                state
+            );
+        return result;
     }
 
     String animatePet(int animationId,int delay,ServerPacketWriter w) throws IOException {
