@@ -354,6 +354,100 @@ public final class MovementWorldTickCommitFenceTest {
                     "same-writer movement retry did not commit once"
                 );
 
+            drain(queue);
+
+            int committedStartX=
+                movement.x();
+
+            String tailFailureRoute=
+                movement.accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{committedStartX+1},
+                        new int[]{movement.y()},
+                        new byte[0]
+                    )
+                );
+
+            if(!tailFailureRoute.startsWith("ACCEPTED")||
+               movement.queued()!=1)
+                throw new AssertionError(
+                    "tail-failure movement fixture rejected: "+
+                    tailFailureRoute
+                );
+
+            writer.beginBatch();
+
+            coordinator.tick(
+                72L,
+                21_200L,
+                writer,
+                "[movement-tail-failure] "
+            );
+
+            if(!coordinator.deferredMovementEligible()||
+               movement.x()!=committedStartX+1||
+               movement.queued()!=0)
+                throw new AssertionError(
+                    "tail-failure source movement was not staged"
+                );
+
+            LocalSession.endWorldTickBatch(
+                writer
+            );
+
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                21_200L
+            );
+
+            /*
+             * The first S2C81 movement batch is already admitted. Drain it to
+             * model transport handoff, then make only the second/tail batch
+             * fail queue admission.
+             */
+            drain(queue);
+
+            OutboundPacketQueue.BatchReservation
+                tailPressure=
+                    OutboundPacketQueue.reserveBatch(
+                        queue,
+                        QUEUE_CAPACITY
+                    );
+
+            boolean tailFailed=false;
+            try{
+                coordinator.settleDeferredMovementAfterWorldTick(
+                    writer,
+                    "[movement-tail-failure] "
+                );
+            }catch(IOException expected){
+                tailFailed=true;
+            }finally{
+                tailPressure.release();
+            }
+
+            if(!tailFailed||
+               !writer.terminal()||
+               coordinator.deferredMovementEligible()||
+               movement.x()!=committedStartX+1||
+               movement.queued()!=0||
+               queue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "post-movement tail failure did not terminal-retire coherently"
+                );
+
+            System.out.println(
+                "MOVEMENT_TAIL_FAILURE_POLICY_PASS "+
+                "movementTransportCommitted=true "+
+                "tailAdmissionFailureTerminal=true "+
+                "tailBytesRetracted=true "+
+                "movementNotRolledBack=true "+
+                "retryTokenNotRequired=true"
+            );
+
             System.out.println(
                 "MOVEMENT_WORLD_TICK_COMMIT_FENCE_PASS "+
                 "abortRestoresPosition=true "+
