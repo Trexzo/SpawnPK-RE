@@ -67,6 +67,84 @@ final class NpcRegistry {
         }
     }
 
+    static final class RegionViewSnapshot {
+        final ArrayList<NpcEntity> visible;
+        final ArrayDeque<int[]> ownerTrail;
+        final ArrayDeque<int[]> miniTrail;
+        final LinkedHashSet<Integer> devOwnedSceneIndexes;
+        final NpcEntity pet;
+        final int petNativeState;
+        final NpcEntity miniPet;
+        final boolean recentOwnerRunning;
+        final boolean hasLastOwnerAnchor;
+        final int lastOwnerAnchorX;
+        final int lastOwnerAnchorY;
+        final int lastOwnerFacingDir;
+        final int miniTrailX;
+        final int miniTrailY;
+        final boolean hasMiniTrail;
+        final boolean suppressNextOwnerBreadcrumb;
+        final int petDiscontinuityTicks;
+        final int miniDiscontinuityTicks;
+
+        private RegionViewSnapshot(
+            NpcRegistry source
+        ){
+            visible=
+                new ArrayList<>(
+                    source.visible
+                );
+            ownerTrail=
+                copyTrail(
+                    source.ownerTrail
+                );
+            miniTrail=
+                copyTrail(
+                    source.miniTrail
+                );
+            devOwnedSceneIndexes=
+                new LinkedHashSet<>(
+                    source.devOwnedSceneIndexes
+                );
+            pet=source.pet;
+            petNativeState=source.petNativeState;
+            miniPet=source.miniPet;
+            recentOwnerRunning=
+                source.recentOwnerRunning;
+            hasLastOwnerAnchor=
+                source.hasLastOwnerAnchor;
+            lastOwnerAnchorX=
+                source.lastOwnerAnchorX;
+            lastOwnerAnchorY=
+                source.lastOwnerAnchorY;
+            lastOwnerFacingDir=
+                source.lastOwnerFacingDir;
+            miniTrailX=source.miniTrailX;
+            miniTrailY=source.miniTrailY;
+            hasMiniTrail=source.hasMiniTrail;
+            suppressNextOwnerBreadcrumb=
+                source.suppressNextOwnerBreadcrumb;
+            petDiscontinuityTicks=
+                source.petDiscontinuityTicks;
+            miniDiscontinuityTicks=
+                source.miniDiscontinuityTicks;
+        }
+
+        private static ArrayDeque<int[]> copyTrail(
+            ArrayDeque<int[]> source
+        ){
+            ArrayDeque<int[]> copy=
+                new ArrayDeque<>();
+
+            for(int[] tile:source)
+                copy.addLast(
+                    tile.clone()
+                );
+
+            return copy;
+        }
+    }
+
     private HomePresentationSnapshot stagedHomePresentation;
     private boolean homePresentationResyncRequired;
 
@@ -147,6 +225,71 @@ final class NpcRegistry {
     }
     int visibleCount(){return visible.size();}
     List<NpcEntity> snapshot(){return new ArrayList<>(visible);}
+
+    RegionViewSnapshot snapshotRegionView(){
+        refreshCanonicalActorProjections();
+        return new RegionViewSnapshot(
+            this
+        );
+    }
+
+    void restoreRegionView(
+        RegionViewSnapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "region view snapshot"
+            );
+
+        visible.clear();
+        visible.addAll(
+            snapshot.visible
+        );
+
+        ownerTrail.clear();
+        for(int[] tile:snapshot.ownerTrail)
+            ownerTrail.addLast(
+                tile.clone()
+            );
+
+        miniTrail.clear();
+        for(int[] tile:snapshot.miniTrail)
+            miniTrail.addLast(
+                tile.clone()
+            );
+
+        devOwnedSceneIndexes.clear();
+        devOwnedSceneIndexes.addAll(
+            snapshot.devOwnedSceneIndexes
+        );
+
+        pet=snapshot.pet;
+        petNativeState=
+            snapshot.petNativeState;
+        miniPet=snapshot.miniPet;
+        recentOwnerRunning=
+            snapshot.recentOwnerRunning;
+        hasLastOwnerAnchor=
+            snapshot.hasLastOwnerAnchor;
+        lastOwnerAnchorX=
+            snapshot.lastOwnerAnchorX;
+        lastOwnerAnchorY=
+            snapshot.lastOwnerAnchorY;
+        lastOwnerFacingDir=
+            snapshot.lastOwnerFacingDir;
+        miniTrailX=snapshot.miniTrailX;
+        miniTrailY=snapshot.miniTrailY;
+        hasMiniTrail=
+            snapshot.hasMiniTrail;
+        suppressNextOwnerBreadcrumb=
+            snapshot.suppressNextOwnerBreadcrumb;
+        petDiscontinuityTicks=
+            snapshot.petDiscontinuityTicks;
+        miniDiscontinuityTicks=
+            snapshot.miniDiscontinuityTicks;
+
+        assertUniqueSceneIndexes();
+    }
 
     /**
      * Remove region-local NPC view members while preserving this player's
