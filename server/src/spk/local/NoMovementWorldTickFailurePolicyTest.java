@@ -39,6 +39,7 @@ public final class NoMovementWorldTickFailurePolicyTest {
         int saveCalls;
         int followScheduleCalls;
         int testScheduleCalls;
+        boolean failTestSchedule;
         long petDeadline=Long.MAX_VALUE;
 
         @Override public Player81WorldSync.Context player81Sync(){return null;}
@@ -58,7 +59,13 @@ public final class NoMovementWorldTickFailurePolicyTest {
         @Override public long petFollowDeadline(){return petDeadline;}
         @Override public void setPetFollowDeadline(long value){petDeadline=value;}
         @Override public void ensurePetFollowScheduled(long now){followScheduleCalls++;}
-        @Override public void ensurePetTestSequenceScheduled(long now){testScheduleCalls++;}
+        @Override public void ensurePetTestSequenceScheduled(long now){
+            testScheduleCalls++;
+            if(failTestSchedule)
+                throw new IllegalStateException(
+                    "injected late no-movement tail failure"
+                );
+        }
     }
 
     private static final class Fixture implements AutoCloseable {
@@ -230,12 +237,17 @@ public final class NoMovementWorldTickFailurePolicyTest {
 
     public static void main(String[] args)throws Exception{
         noMovementTailFailureRetires();
+        tickBodyFailureAbortsAndRetires();
         movementSourceFailureRemainsRetryable();
 
         System.out.println(
             "NO_MOVEMENT_WORLD_TICK_FAILURE_POLICY_PASS "+
             "semanticTailExecuted=true "+
             "admissionFailureRetiresWriter=true "+
+            "tickBodyFailed=true "+
+            "outerBatchAborted=true "+
+            "partialBatchNotCommitted=true "+
+            "noMovementTailFailureRetiresWriter=true "+
             "movementRollbackPolicyUnaffected=true "+
             "laterPublicationRejected=true"
         );
@@ -352,6 +364,115 @@ public final class NoMovementWorldTickFailurePolicyTest {
             if(!terminalRejected)
                 throw new AssertionError(
                     "terminal no-movement writer accepted later publication"
+                );
+        }
+    }
+
+    private static void tickBodyFailureAbortsAndRetires()
+        throws Exception{
+        try(Fixture f=new Fixture(false)){
+            f.tickBridge.failTestSchedule=true;
+
+            SceneCoordinateContext.Snapshot sceneBefore=
+                f.publisher.context().snapshot();
+
+            f.writer.beginBatch();
+
+            IllegalStateException bodyFailure=null;
+            try{
+                f.coordinator.tick(
+                    82L,
+                    31_200L,
+                    f.writer,
+                    "[no-move-body-failure] "
+                );
+            }catch(IllegalStateException expected){
+                bodyFailure=expected;
+                LocalSession
+                    .abortWorldTickBatchAfterTickFailure(
+                        f.writer,
+                        expected
+                    );
+            }
+
+            if(bodyFailure==null)
+                throw new AssertionError(
+                    "late no-movement tick-body failure did not escape"
+                );
+
+            if(!f.coordinator
+                    .noMovementSemanticTailEntered()||
+               f.coordinator
+                    .noMovementSemanticTailCompleted()||
+               f.tickBridge.followScheduleCalls!=1||
+               f.tickBridge.testScheduleCalls!=1)
+                throw new AssertionError(
+                    "tick-body failure did not occur after semantic-tail entry"
+                );
+
+            f.coordinator
+                .abortDeferredMovementAfterWorldTick();
+            f.coordinator
+                .abortRegionStreamBatch();
+            f.publisher.context().restore(
+                sceneBefore
+            );
+            f.coordinator
+                .abortHomePresentationBatch();
+            f.coordinator
+                .abortGroundPresentationBatch();
+            f.coordinator
+                .abortDeferredRespawnAfterWorldTick();
+            f.coordinator
+                .abortDeferredBankInteractionsAfterWorldTick();
+            f.coordinator
+                .abortDeferredMakeoverInteractionsAfterWorldTick();
+            f.coordinator
+                .abortDeferredGroundTakeAfterWorldTick();
+            f.coordinator
+                .abortDeferredPetPickupAfterWorldTick();
+            f.coordinator
+                .abortDeferredPetEffectTimeoutAfterWorldTick();
+            f.coordinator
+                .abortDeferredPetChargeIncrementAfterWorldTick(
+                    f.writer
+                );
+
+            if(!f.coordinator
+                    .retireAfterFailedNoMovementSemanticTail(
+                        f.writer
+                    ))
+                throw new AssertionError(
+                    "entered failed no-movement tail did not request retirement"
+                );
+
+            if(!f.writer.terminal()||
+               f.coordinator
+                    .noMovementSemanticTailEntered()||
+               f.coordinator
+                    .noMovementSemanticTailCompleted()||
+               f.queue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "failed tick body committed partial batch or remained live"
+                );
+
+            boolean terminalRejected=false;
+            try{
+                f.writer.fixed(
+                    134,
+                    BootstrapPackets.skill134(
+                        PlayerState.HITPOINTS,
+                        0,
+                        1
+                    )
+                );
+            }catch(IOException expected){
+                terminalRejected=true;
+            }
+
+            if(!terminalRejected)
+                throw new AssertionError(
+                    "failed tick-body writer accepted later publication"
                 );
         }
     }
