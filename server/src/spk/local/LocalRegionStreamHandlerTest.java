@@ -422,5 +422,166 @@ public final class LocalRegionStreamHandlerTest {
         }finally{
             rebaseWorld.close();
         }
+
+        World atomicWorld=World.isolatedForTest(50L);
+        try{
+            WorldPlayer player=new WorldPlayer();
+            atomicWorld.registerPlayer(
+                player,
+                "opensrc"
+            );
+
+            MovementState movement=
+                player.movement();
+            movement.enterTransientRegion(
+                4064,
+                4192,
+                0,
+                4064,
+                4192
+            );
+
+            OutboundPacketQueue queue=
+                new OutboundPacketQueue(
+                    1024
+                );
+            ServerPacketWriter atomicWriter=
+                new ServerPacketWriter(
+                    queue,
+                    new IsaacCipher(
+                        new int[]{41,42,43,44}
+                    )
+                );
+            DevAuthorityWorkbench dev=
+                new DevAuthorityWorkbench();
+            NpcRegistry npcs=
+                new NpcRegistry(dev);
+            HomeWorldRuntimePlan home=
+                new HomeWorldRuntimePlan();
+            Bridge bridge=
+                new Bridge();
+            SceneUpdatePublisher beforePublisher=
+                new SceneUpdatePublisher(
+                    atomicWriter,
+                    new SceneCoordinateContext(
+                        4064,
+                        4192,
+                        0
+                    )
+                );
+            bridge.publisher=beforePublisher;
+            RegionLoadLifecycle lifecycle=
+                new RegionLoadLifecycle();
+
+            LocalRegionStreamHandler h=
+                new LocalRegionStreamHandler(
+                    true,
+                    atomicWorld,
+                    player,
+                    movement,
+                    home,
+                    npcs,
+                    new LocalPlayerInteractionHandler(
+                        atomicWorld,
+                        player,
+                        movement,
+                        player.equipment()
+                    ),
+                    new CombatEngine(dev),
+                    lifecycle,
+                    bridge
+                );
+
+            LocalRegionStreamHandler.AutoStreamPlan
+                plan=
+                    h.prepareAutoStream(
+                        "[region-batch-test] "
+                    );
+
+            if(plan==null||
+               movement.loadedBaseX()!=4064||
+               movement.loadedBaseY()!=4192||
+               !movement.transientRegion()||
+               lifecycle.pending()||
+               bridge.publisher!=beforePublisher)
+                throw new AssertionError(
+                    "region rebase prepare mutated semantic preimage"
+                );
+
+            OutboundPacketQueue.BatchReservation pressure=
+                OutboundPacketQueue.reserveBatch(
+                    queue,
+                    1024
+                );
+            boolean failed=false;
+
+            try{
+                h.settlePreparedAutoStream(
+                    plan,
+                    atomicWriter,
+                    "[region-batch-test] "
+                );
+            }catch(IOException expected){
+                failed=true;
+            }finally{
+                pressure.release();
+            }
+
+            if(!failed||
+               queue.queuedBytes()!=0||
+               movement.loadedBaseX()!=4064||
+               movement.loadedBaseY()!=4192||
+               !movement.transientRegion()||
+               lifecycle.pending()||
+               bridge.publisher!=beforePublisher)
+                throw new AssertionError(
+                    "failed region rebase settlement changed semantic preimage"
+                );
+
+            if(!h.settlePreparedAutoStream(
+                    plan,
+                    atomicWriter,
+                    "[region-batch-test] "
+                ))
+                throw new AssertionError(
+                    "region rebase retry was not handled"
+                );
+
+            if(queue.queuedBytes()<=0||
+               movement.loadedBaseX()!=4016||
+               movement.loadedBaseY()!=4144||
+               !movement.transientRegion()||
+               !lifecycle.pending()||
+               bridge.publisher==beforePublisher)
+                throw new AssertionError(
+                    "region rebase retry did not commit exact postimage"
+                );
+
+            drain(
+                queue
+            );
+
+            System.out.println(
+                "REGION_REBASE_BATCH_COMMIT_FENCE_PASS "+
+                "abortRestoresLoadedWindow=true "+
+                "abortClearsStalePending=true "+
+                "retryReemitsRegion73=true "+
+                "commitAdvancesRegionState=true"
+            );
+        }finally{
+            atomicWorld.close();
+        }
+    }
+
+    private static void drain(
+        OutboundPacketQueue queue
+    )throws Exception{
+        ByteArrayOutputStream out=
+            new ByteArrayOutputStream();
+
+        queue.drainTo(
+            out,
+            1<<20
+        );
     }
 }
