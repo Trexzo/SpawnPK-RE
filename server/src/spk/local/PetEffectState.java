@@ -24,6 +24,41 @@ final class PetEffectState {
         }
     }
 
+    static final class PreparedDamage {
+        final int itemId;
+        final int npcId;
+        final int beforeAccumulatedDamage;
+        final int beforeCharge;
+        final long beforeLastDamageAtMs;
+        final int afterAccumulatedDamage;
+        final int afterCharge;
+        final long afterLastDamageAtMs;
+
+        PreparedDamage(
+            int itemId,
+            int npcId,
+            int beforeAccumulatedDamage,
+            int beforeCharge,
+            long beforeLastDamageAtMs,
+            int afterAccumulatedDamage,
+            int afterCharge,
+            long afterLastDamageAtMs
+        ){
+            this.itemId=itemId;
+            this.npcId=npcId;
+            this.beforeAccumulatedDamage=beforeAccumulatedDamage;
+            this.beforeCharge=beforeCharge;
+            this.beforeLastDamageAtMs=beforeLastDamageAtMs;
+            this.afterAccumulatedDamage=afterAccumulatedDamage;
+            this.afterCharge=afterCharge;
+            this.afterLastDamageAtMs=afterLastDamageAtMs;
+        }
+
+        boolean chargeChanged(){
+            return beforeCharge!=afterCharge;
+        }
+    }
+
     private int itemId=-1,npcId=-1;
     private int accumulatedDamage;
     private int charge;
@@ -41,18 +76,97 @@ final class PetEffectState {
     int threshold(){ return PetPresentationProfile.damagePerCharge(itemId,npcId); }
     long resetMs(){ return PetPresentationProfile.chargeResetMs(itemId,npcId); }
 
+    PreparedDamage prepareDamage(
+        int damage,
+        long now
+    ){
+        if(damage<=0 || !chargePet())
+            return null;
+
+        int nextAccumulated=
+            accumulatedDamage;
+        int nextCharge=
+            charge;
+
+        long timeout=resetMs();
+        if(lastDamageAtMs>0&&
+           timeout>0&&
+           now-lastDamageAtMs>=timeout){
+            nextAccumulated=0;
+            nextCharge=0;
+        }
+
+        long next=
+            (long)nextAccumulated+
+            damage;
+        nextAccumulated=
+            (int)Math.min(
+                Integer.MAX_VALUE,
+                next
+            );
+
+        int t=threshold();
+        nextCharge=
+            t<=0
+                ?0
+                :Math.min(
+                    3,
+                    nextAccumulated/t
+                );
+
+        return new PreparedDamage(
+            itemId,
+            npcId,
+            accumulatedDamage,
+            charge,
+            lastDamageAtMs,
+            nextAccumulated,
+            nextCharge,
+            now
+        );
+    }
+
+    void commitPreparedDamage(
+        PreparedDamage prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException("prepared");
+
+        if(itemId!=prepared.itemId||
+           npcId!=prepared.npcId||
+           accumulatedDamage!=
+                prepared.beforeAccumulatedDamage||
+           charge!=prepared.beforeCharge||
+           lastDamageAtMs!=
+                prepared.beforeLastDamageAtMs)
+            throw new IllegalStateException(
+                "pet effect state changed before damage commit"
+            );
+
+        accumulatedDamage=
+            prepared.afterAccumulatedDamage;
+        charge=
+            prepared.afterCharge;
+        lastDamageAtMs=
+            prepared.afterLastDamageAtMs;
+    }
+
     /** Returns true if the externally rendered charge changed. */
     boolean recordDamage(int damage,long now){
-        if(damage<=0 || !chargePet()) return false;
-        int before=charge;
-        long timeout=resetMs();
-        if(lastDamageAtMs>0 && timeout>0 && now-lastDamageAtMs>=timeout){ accumulatedDamage=0; charge=0; }
-        lastDamageAtMs=now;
-        long next=(long)accumulatedDamage+damage;
-        accumulatedDamage=(int)Math.min(Integer.MAX_VALUE,next);
-        int t=threshold();
-        charge=t<=0?0:Math.min(3,accumulatedDamage/t);
-        return charge!=before;
+        PreparedDamage prepared=
+            prepareDamage(
+                damage,
+                now
+            );
+
+        if(prepared==null)
+            return false;
+
+        commitPreparedDamage(
+            prepared
+        );
+
+        return prepared.chargeChanged();
     }
 
     PreparedTimeoutReset prepareTimeoutReset(long now){
