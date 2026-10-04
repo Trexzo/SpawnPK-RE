@@ -1997,6 +1997,7 @@ def currentTrainFocusedTests = [
     'spk.local.RegionAckReplayCommitFenceTest',
     'spk.local.PetEffectTimeoutFailureAtomicityTest',
     'spk.local.PlayerRespawnCommitFenceTest',
+    'spk.local.MovementWorldTickCommitFenceTest',
     'spk.local.SharedNpcRelayBatchCommitFenceTest',
     'spk.local.LocalPetRealtimeSchedulerTest',
     'spk.local.PetFollowTransportAtomicityTest',
@@ -2030,10 +2031,10 @@ def currentTrainFocusedTests = [
     'spk.local.BloodDiamondFuserServiceTest'
 ]
 
-if (currentTrainFocusedTests.size() != 185 ||
-    currentTrainFocusedTests.toSet().size() != 185) {
+if (currentTrainFocusedTests.size() != 186 ||
+    currentTrainFocusedTests.toSet().size() != 186) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 185 unique tests, found " +
+        "Current-train focused manifest drift: expected 186 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
