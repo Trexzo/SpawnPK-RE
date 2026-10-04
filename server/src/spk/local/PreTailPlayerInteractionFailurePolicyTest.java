@@ -101,9 +101,12 @@ public final class PreTailPlayerInteractionFailurePolicyTest {
                 )
             );
 
+        final ByteArrayOutputStream targetWire=
+            new ByteArrayOutputStream();
+
         final ServerPacketWriter targetWriter=
             new ServerPacketWriter(
-                new ByteArrayOutputStream(),
+                targetWire,
                 new IsaacCipher(
                     new int[]{1005,1006,1007,1008}
                 )
@@ -448,6 +451,11 @@ public final class PreTailPlayerInteractionFailurePolicyTest {
             if(f.playerInteractions.activeTrade()!=null)
                 throw new AssertionError(
                     "prepareTick did not dispatch/consume the adjacent deferred Trade"
+                );
+
+            if(f.targetWire.size()<=0)
+                throw new AssertionError(
+                    "pre-tail Trade request produced no peer-visible notification"
                 );
 
             if(f.coordinator
