@@ -2428,6 +2428,9 @@ final class LocalSession implements Runnable {
             }
         }finally{
             if(batchCommitted){
+                worldTicks
+                    .commitRegionStreamBatch();
+
                 if(relayMaskBatchActive)
                     SharedNpcWorldRelay
                         .commitSourceMaskBatch(
@@ -2482,6 +2485,9 @@ final class LocalSession implements Runnable {
                         .abortSourceMaskBatch(
                             sessionPackets
                         );
+
+                worldTicks
+                    .abortRegionStreamBatch();
 
                 scenePublisher=
                     sceneBatch.abortAndRestore();
