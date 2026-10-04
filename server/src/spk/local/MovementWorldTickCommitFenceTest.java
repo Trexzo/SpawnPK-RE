@@ -354,6 +354,113 @@ public final class MovementWorldTickCommitFenceTest {
                     "same-writer movement retry did not commit once"
                 );
 
+            drain(queue);
+
+            int tailStartX=movement.x();
+            int tailStartY=movement.y();
+
+            String tailAccepted=
+                movement.accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{tailStartX+1},
+                        new int[]{tailStartY},
+                        new byte[0]
+                    )
+                );
+
+            if(!tailAccepted.startsWith("ACCEPTED")||
+               movement.queued()!=1)
+                throw new AssertionError(
+                    "tail-failure route fixture failed: "+
+                    tailAccepted
+                );
+
+            writer.beginBatch();
+
+            coordinator.tick(
+                72L,
+                21_200L,
+                writer,
+                "[movement-tail-terminal] "
+            );
+
+            if(!coordinator.deferredMovementEligible()||
+               movement.x()!=tailStartX+1||
+               movement.y()!=tailStartY)
+                throw new AssertionError(
+                    "tail-failure movement was not staged"
+                );
+
+            LocalSession.endWorldTickBatch(
+                writer
+            );
+
+            int committedMovementBytes=
+                queue.queuedBytes();
+
+            if(committedMovementBytes<=0)
+                throw new AssertionError(
+                    "movement transport did not commit before tail pressure"
+                );
+
+            OutboundPacketQueue.BatchReservation tailPressure=
+                OutboundPacketQueue.reserveBatch(
+                    queue,
+                    QUEUE_CAPACITY-
+                        committedMovementBytes
+                );
+
+            boolean tailFailed=false;
+            try{
+                try{
+                    coordinator
+                        .settleDeferredMovementAfterWorldTick(
+                            writer,
+                            "[movement-tail-terminal] "
+                        );
+                }catch(IOException expected){
+                    tailFailed=true;
+                }
+
+                if(!tailFailed)
+                    throw new AssertionError(
+                        "forced post-movement tail admission failure did not escape"
+                    );
+            }finally{
+                tailPressure.release();
+            }
+
+            if(!writer.terminal()||
+               coordinator.deferredMovementEligible()||
+               movement.x()!=tailStartX+1||
+               movement.y()!=tailStartY||
+               queue.queuedBytes()!=
+                   committedMovementBytes)
+                throw new AssertionError(
+                    "tail failure did not retire writer while preserving committed movement"
+                );
+
+            boolean terminalRejected=false;
+            try{
+                writer.fixed(
+                    134,
+                    BootstrapPackets.skill134(
+                        PlayerState.HITPOINTS,
+                        0,
+                        1
+                    )
+                );
+            }catch(IOException expected){
+                terminalRejected=true;
+            }
+
+            if(!terminalRejected)
+                throw new AssertionError(
+                    "retired writer accepted post-failure publication"
+                );
+
             System.out.println(
                 "MOVEMENT_WORLD_TICK_COMMIT_FENCE_PASS "+
                 "abortRestoresPosition=true "+
@@ -361,7 +468,9 @@ public final class MovementWorldTickCommitFenceTest {
                 "abortSuppressesSave=true "+
                 "abortSuppressesTail=true "+
                 "sameWriterRetryCommitsOnce=true "+
-                "runTwoStepPreserved=true"
+                "runTwoStepPreserved=true "+
+                "movementTransportCommitted=true "+
+                "tailAdmissionFailureRetiresWriter=true"
             );
         }finally{
             if(player.registered())
