@@ -240,6 +240,7 @@ public final class NoMovementWorldTickFailurePolicyTest {
         tickBodyFailureAbortsAndRetires();
         transientTailBodyFailureRetires();
         transientTailAdmissionFailureRetires();
+        transientMovementSourceFailureRemainsRetryable();
         movementSourceFailureRemainsRetryable();
 
         System.out.println(
@@ -659,6 +660,121 @@ public final class NoMovementWorldTickFailurePolicyTest {
             .abortDeferredPetChargeIncrementAfterWorldTick(
                 f.writer
             );
+    }
+
+    private static void transientMovementSourceFailureRemainsRetryable()
+        throws Exception{
+        try(Fixture f=new Fixture(true)){
+            f.movement.enterTransientRegion(
+                MovementState.INITIAL_X,
+                MovementState.INITIAL_Y,
+                0,
+                MovementState.REGION_BASE_X,
+                MovementState.REGION_BASE_Y
+            );
+
+            int startX=f.movement.x();
+            int startY=f.movement.y();
+
+            String accepted=
+                f.movement.accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{startX+1},
+                        new int[]{startY},
+                        new byte[0]
+                    )
+                );
+
+            if(!accepted.startsWith("ACCEPTED")||
+               f.movement.queued()!=1)
+                throw new AssertionError(
+                    "transient movement-policy fixture rejected: "+
+                    accepted
+                );
+
+            f.writer.beginBatch();
+
+            f.coordinator.tick(
+                85L,
+                33_000L,
+                f.writer,
+                "[transient-movement-policy-control] "
+            );
+
+            if(!f.coordinator.deferredMovementEligible()||
+               f.coordinator
+                    .noMovementSemanticTailEntered()||
+               f.coordinator
+                    .noMovementSemanticTailCompleted()||
+               f.movement.x()!=startX+1||
+               f.movement.queued()!=0)
+                throw new AssertionError(
+                    "transient movement source unexpectedly entered no-movement policy"
+                );
+
+            OutboundPacketQueue.BatchReservation pressure=
+                OutboundPacketQueue.reserveBatch(
+                    f.queue,
+                    QUEUE_CAPACITY
+                );
+
+            try{
+                boolean failed=false;
+                try{
+                    LocalSession.endWorldTickBatch(
+                        f.writer
+                    );
+                }catch(IOException expected){
+                    failed=true;
+                }
+
+                if(!failed)
+                    throw new AssertionError(
+                        "forced transient movement source admission failure did not escape"
+                    );
+
+                if(!f.coordinator
+                        .abortDeferredMovementAfterWorldTick())
+                    throw new AssertionError(
+                        "transient movement rollback token missing"
+                    );
+
+                if(f.coordinator
+                        .retireAfterFailedNoMovementSemanticTail(
+                            f.writer
+                        ))
+                    throw new AssertionError(
+                        "transient movement-source failure invoked no-movement retirement"
+                    );
+            }finally{
+                pressure.release();
+            }
+
+            if(f.writer.terminal()||
+               f.movement.x()!=startX||
+               f.movement.y()!=startY||
+               f.movement.queued()!=1||
+               f.coordinator.deferredMovementEligible())
+                throw new AssertionError(
+                    "transient movement source rollback/retry policy changed"
+                );
+
+            f.writer.fixed(
+                134,
+                BootstrapPackets.skill134(
+                    PlayerState.HITPOINTS,
+                    0,
+                    1
+                )
+            );
+
+            if(f.queue.queuedBytes()<=0)
+                throw new AssertionError(
+                    "transient movement-source writer was not reusable"
+                );
+        }
     }
 
     private static void movementSourceFailureRemainsRetryable()
