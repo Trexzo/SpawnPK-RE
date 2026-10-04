@@ -1902,6 +1902,7 @@ def currentTrainFocusedTests = [
     'spk.local.PlayerRegistryIdentityValidationTest',
     'spk.local.WorldNpcRegistryTest',
     'spk.local.WorldPetNpcReplacementAtomicityTest',
+    'spk.local.PetReplacementRuntimeTest',
     'spk.local.WorldPersistenceFinalCheckpointQuiesceTest',
     'spk.local.WorldCommandCloseAdmissionFenceTest',
     'spk.local.WorldRealtimeCloseAdmissionFenceTest',
