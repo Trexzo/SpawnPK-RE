@@ -257,6 +257,21 @@ final class PlayerLifecycleService {
         }
     }
 
+    void requirePreparedRespawnCurrent(
+        PreparedRespawn prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        synchronized(player.mutationLock()){
+            requirePreparedRespawnCurrentLocked(
+                prepared
+            );
+        }
+    }
+
     void commitPreparedRespawn(
         PreparedRespawn prepared
     ){
@@ -266,24 +281,8 @@ final class PlayerLifecycleService {
             );
 
         synchronized(player.mutationLock()){
-            if(!lifecycle.dead()||
-               lifecycle.deathSequence()!=
-                    prepared.deathSequence||
-               lifecycle.deathTick()!=
-                    prepared.deathTick||
-               lifecycle.respawnTick()!=
-                    prepared.respawnTick||
-               !lifecycle.dueRespawn(
-                    prepared.worldTick)||
-               state.currentLevel(
-                    PlayerState.HITPOINTS
-                )!=prepared.hpBefore)
-                throw new IllegalStateException(
-                    "player respawn preimage changed before commit"
-                );
-
-            validateRestoredHitpoints(
-                prepared.restoredHitpoints
+            requirePreparedRespawnCurrentLocked(
+                prepared
             );
 
             state.setCurrentLevel(
@@ -294,6 +293,30 @@ final class PlayerLifecycleService {
             combat.clear();
             lifecycle.markRespawned();
         }
+    }
+
+    private void requirePreparedRespawnCurrentLocked(
+        PreparedRespawn prepared
+    ){
+        if(!lifecycle.dead()||
+           lifecycle.deathSequence()!=
+                prepared.deathSequence||
+           lifecycle.deathTick()!=
+                prepared.deathTick||
+           lifecycle.respawnTick()!=
+                prepared.respawnTick||
+           !lifecycle.dueRespawn(
+                prepared.worldTick)||
+           state.currentLevel(
+                PlayerState.HITPOINTS
+            )!=prepared.hpBefore)
+            throw new IllegalStateException(
+                "player respawn preimage changed before commit"
+            );
+
+        validateRestoredHitpoints(
+            prepared.restoredHitpoints
+        );
     }
 
     TickResult tick(
