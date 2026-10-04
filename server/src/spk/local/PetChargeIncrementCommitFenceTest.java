@@ -86,8 +86,9 @@ public final class PetChargeIncrementCommitFenceTest {
 
         System.out.println(
             "PET_CHARGE_INCREMENT_COMMIT_FENCE_PASS "+
-            "sourceDamagePreserved=true "+
-            "outerAbortPolicyExplicit=true "+
+            "provisionalEffectUnchanged=true "+
+            "sourceFailureRetiresWriter=true "+
+            "nativeSettlementFailureRetiresWriter=true "+
             "nativeStateAfterBytes=true "+
             "effectStateAfterBytes=true "+
             "standaloneCompatibility=true"
