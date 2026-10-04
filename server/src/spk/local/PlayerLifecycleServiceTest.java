@@ -184,13 +184,66 @@ public final class PlayerLifecycleServiceTest {
                 "lifecycle provenance mismatch"
             );
 
+        WorldPlayer stalePlayer=
+            new WorldPlayer();
+        PlayerLifecycleService staleLifecycle=
+            new PlayerLifecycleService(
+                stalePlayer
+            );
+
+        staleLifecycle.applyDamage(
+            500,
+            30L,
+            "STALE_PREPARED_RESPAWN_A",
+            0L
+        );
+
+        PlayerLifecycleService.PreparedRespawn stalePrepared=
+            staleLifecycle.prepareRespawn(
+                30L
+            );
+
+        if(stalePrepared==null)
+            throw new AssertionError(
+                "stale prepared respawn fixture missing"
+            );
+
+        staleLifecycle.commitPreparedRespawn(
+            stalePrepared
+        );
+
+        staleLifecycle.applyDamage(
+            500,
+            31L,
+            "STALE_PREPARED_RESPAWN_B",
+            0L
+        );
+
+        boolean staleRejected=false;
+
+        try{
+            staleLifecycle.commitPreparedRespawn(
+                stalePrepared
+            );
+        }catch(IllegalStateException expected){
+            staleRejected=true;
+        }
+
+        if(!staleRejected||
+           !stalePlayer.lifecycle().dead()||
+           stalePlayer.playerState().currentLevel(
+                PlayerState.HITPOINTS)!=0)
+            throw new AssertionError(
+                "stale prepared respawn did not fail closed"
+            );
+
         System.out.println(
             "PLAYER_LIFECYCLE_SERVICE_PASS "+
             "nonlethal=99->79 "+
             "lethal=79->0 "+
             "deathTick=20 respawnTick=25 "+
             "combatCleanup=true movementCleanup=true "+
-            "respawnHome=true authority="+
+            "respawnHome=true stalePreparedRejected=true authority="+
             PlayerLifecycleService.AUTHORITY
         );
     }
