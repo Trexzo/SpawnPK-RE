@@ -2047,7 +2047,7 @@ if (currentTrainFocusedTests.size() != 190 ||
 
 tasks.register('currentTrainFocusedRegression') {
     group = 'verification'
-    description = 'Runs the frozen #431 focused release-safety regression manifest separately from the inherited 179-test R8.5 suite.'
+    description = 'Runs the current-train focused release-safety regression manifest separately from the inherited 179-test R8.5 suite.'
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
 
     doLast {
