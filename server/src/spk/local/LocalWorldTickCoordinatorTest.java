@@ -812,13 +812,15 @@ public final class LocalWorldTickCoordinatorTest {
 
             if(!makeover.pending()||
                makeover.active()||
-               !coordinator
+               !coordinator.deferredMovementEligible()||
+               coordinator
                     .deferredMakeoverInteractionEligible())
                 throw new AssertionError(
-                    "deferred Make-over settled inside outer world-tick batch"
+                    "movement-dependent Make-over tail ran before movement commit"
                 );
 
             deferredMakeover.writer.abortBatch();
+            coordinator.abortDeferredMovementAfterWorldTick();
             coordinator.abortHomePresentationBatch();
             coordinator.abortGroundPresentationBatch();
             coordinator.abortDeferredBankInteractionsAfterWorldTick();
@@ -828,6 +830,7 @@ public final class LocalWorldTickCoordinatorTest {
 
             if(!makeover.pending()||
                makeover.active()||
+               coordinator.deferredMovementEligible()||
                coordinator
                     .deferredMakeoverInteractionEligible())
                 throw new AssertionError(
@@ -846,10 +849,26 @@ public final class LocalWorldTickCoordinatorTest {
             LocalSession.endWorldTickBatch(
                 deferredMakeover.writer
             );
-            coordinator.commitHomePresentationBatch();
-            coordinator.commitGroundPresentationBatch(
-                5_400L
+
+            if(!coordinator.deferredMovementEligible()||
+               coordinator
+                    .deferredMakeoverInteractionEligible())
+                throw new AssertionError(
+                    "movement tail became eligible before movement settlement"
+                );
+
+            coordinator.settleDeferredMovementAfterWorldTick(
+                deferredMakeover.writer,
+                "[tick-makeover-commit] "
             );
+
+            if(coordinator.deferredMovementEligible()||
+               !coordinator
+                    .deferredMakeoverInteractionEligible())
+                throw new AssertionError(
+                    "committed movement did not release Make-over tail"
+                );
+
             coordinator.settleDeferredBankInteractionsAfterWorldTick(
                 5_400L,
                 deferredMakeover.writer,
@@ -951,12 +970,14 @@ public final class LocalWorldTickCoordinatorTest {
                     ground.id
                 )!=ground||
                !deferredTake.groundItems.hasPendingTake()||
-               !coordinator.deferredGroundTakeEligible())
+               !coordinator.deferredMovementEligible()||
+               coordinator.deferredGroundTakeEligible())
                 throw new AssertionError(
-                    "deferred Take committed inside outer world-tick batch"
+                    "movement-dependent Take tail ran before movement commit"
                 );
 
             deferredTake.writer.abortBatch();
+            coordinator.abortDeferredMovementAfterWorldTick();
             coordinator.abortHomePresentationBatch();
             coordinator.abortGroundPresentationBatch();
             coordinator.abortDeferredBankInteractionsAfterWorldTick();
@@ -967,6 +988,7 @@ public final class LocalWorldTickCoordinatorTest {
                     ground.id
                 )!=ground||
                !deferredTake.groundItems.hasPendingTake()||
+               coordinator.deferredMovementEligible()||
                coordinator.deferredGroundTakeEligible())
                 throw new AssertionError(
                     "outer world-tick abort changed deferred Take state"
@@ -984,10 +1006,24 @@ public final class LocalWorldTickCoordinatorTest {
             LocalSession.endWorldTickBatch(
                 deferredTake.writer
             );
-            coordinator.commitHomePresentationBatch();
-            coordinator.commitGroundPresentationBatch(
-                5_600L
+
+            if(!coordinator.deferredMovementEligible()||
+               coordinator.deferredGroundTakeEligible())
+                throw new AssertionError(
+                    "Take tail became eligible before movement settlement"
+                );
+
+            coordinator.settleDeferredMovementAfterWorldTick(
+                deferredTake.writer,
+                "[tick-ground-take-commit] "
             );
+
+            if(coordinator.deferredMovementEligible()||
+               !coordinator.deferredGroundTakeEligible())
+                throw new AssertionError(
+                    "committed movement did not release Take tail"
+                );
+
             coordinator.settleDeferredBankInteractionsAfterWorldTick(
                 5_600L,
                 deferredTake.writer,
@@ -1350,6 +1386,8 @@ public final class LocalWorldTickCoordinatorTest {
             "respawnLifecycle=true "+
             "respawnOuterAbortPreservesDead=true "+
             "respawnPostCommitSettles=true "+
+            "movementTailAfterCommit=true "+
+            "movementAbortRestoresPreimage=true "+
             "transientMovementSave=false "+
             "deferredBankOuterAbortPreservesState=true "+
             "deferredBankPostCommitSettles=true "+
