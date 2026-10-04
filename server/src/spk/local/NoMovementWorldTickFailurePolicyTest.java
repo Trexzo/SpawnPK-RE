@@ -665,12 +665,57 @@ public final class NoMovementWorldTickFailurePolicyTest {
     private static void transientMovementSourceFailureRemainsRetryable()
         throws Exception{
         try(Fixture f=new Fixture(true)){
+            Tile start=
+                WorldCollisionAuthority.safeTile(
+                    16193,
+                    0
+                );
+
+            if(start==null)
+                throw new AssertionError(
+                    "transient movement-policy safe tile missing"
+                );
+
+            int targetX=-1;
+            int targetY=-1;
+
+            for(int dx=-1;dx<=1&&targetX<0;dx++)
+                for(int dy=-1;dy<=1;dy++){
+                    if(dx==0&&dy==0)
+                        continue;
+
+                    int nx=start.x+dx;
+                    int ny=start.y+dy;
+
+                    if(CollisionStepAuthority.canStep(
+                            CollisionStepAuthority.Policy.WORLD_STATIC,
+                            start.x,
+                            start.y,
+                            0,
+                            nx,
+                            ny)){
+                        targetX=nx;
+                        targetY=ny;
+                        break;
+                    }
+                }
+
+            if(targetX<0)
+                throw new AssertionError(
+                    "transient movement-policy safe tile has no traversable neighbor"
+                );
+
+            int chunkX=start.x>>3;
+            int chunkY=start.y>>3;
+            int baseX=(chunkX-6)<<3;
+            int baseY=(chunkY-6)<<3;
+
             f.movement.enterTransientRegion(
-                MovementState.INITIAL_X,
-                MovementState.INITIAL_Y,
+                start.x,
+                start.y,
                 0,
-                MovementState.REGION_BASE_X,
-                MovementState.REGION_BASE_Y
+                baseX,
+                baseY
             );
 
             int startX=f.movement.x();
@@ -681,8 +726,8 @@ public final class NoMovementWorldTickFailurePolicyTest {
                     new MovementRequest(
                         164,
                         false,
-                        new int[]{startX+1},
-                        new int[]{startY},
+                        new int[]{targetX},
+                        new int[]{targetY},
                         new byte[0]
                     )
                 );
