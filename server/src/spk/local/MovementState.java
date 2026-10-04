@@ -132,6 +132,17 @@ final class MovementState {
         loadedBaseX=REGION_BASE_X;loadedBaseY=REGION_BASE_Y;transientRegion=false;
     }
 
+    /**
+     * Presentation-only HOME window staging for a prepared respawn. The
+     * canonical world position remains unchanged until PlayerLifecycleService
+     * commits the exact prepared respawn after packet settlement.
+     */
+    void stageHomeWindowForPreparedRespawn(){
+        loadedBaseX=REGION_BASE_X;
+        loadedBaseY=REGION_BASE_Y;
+        transientRegion=false;
+    }
+
     boolean nearLoadedEdge(int margin){
         int lx=x-loadedBaseX,ly=y-loadedBaseY;
         return lx<margin||ly<margin||lx>=REGION_SIZE-margin||ly>=REGION_SIZE-margin;
