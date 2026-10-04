@@ -2580,6 +2580,8 @@ final class LocalSession implements Runnable {
                 worldTicks
                     .abortGroundPresentationBatch();
                 worldTicks
+                    .abortDeferredRespawnAfterWorldTick();
+                worldTicks
                     .abortDeferredBankInteractionsAfterWorldTick();
                 worldTicks
                     .abortDeferredMakeoverInteractionsAfterWorldTick();
@@ -2587,6 +2589,8 @@ final class LocalSession implements Runnable {
                     .abortDeferredGroundTakeAfterWorldTick();
                 worldTicks
                     .abortDeferredPetPickupAfterWorldTick();
+                worldTicks
+                    .abortDeferredPetEffectTimeoutAfterWorldTick();
             }
         }
     }
