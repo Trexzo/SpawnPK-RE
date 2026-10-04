@@ -19,6 +19,31 @@ final class LocalPetRuntimeCommandHandler {
     private final NpcRegistry npcs;
     private final MovementState movement;
 
+    static final class PreparedDamageSettlement {
+        final NpcEntity expectedPet;
+        final int expectedNativeState;
+        final PetEffectState.PreparedDamage effect;
+        final int damage;
+        final String source;
+
+        PreparedDamageSettlement(
+            NpcEntity expectedPet,
+            int expectedNativeState,
+            PetEffectState.PreparedDamage effect,
+            int damage,
+            String source
+        ){
+            this.expectedPet=expectedPet;
+            this.expectedNativeState=expectedNativeState;
+            this.effect=effect;
+            this.damage=damage;
+            this.source=source;
+        }
+    }
+
+    private PreparedDamageSettlement
+        preparedCombatDamage;
+
     private int sequenceStep=-1;
     private long sequenceAt=Long.MAX_VALUE;
 
@@ -533,6 +558,45 @@ final class LocalPetRuntimeCommandHandler {
                 " result=NO_ACTIVE_CHARGE_PET";
         }
 
+        if("COMBAT_M2".equals(source)&&
+           serverPackets.batchActive()){
+            if(preparedCombatDamage!=null)
+                throw new IllegalStateException(
+                    "pet combat damage settlement already prepared"
+                );
+
+            PetEffectState.PreparedDamage prepared=
+                petEffects.prepareDamage(
+                    damage,
+                    now
+                );
+
+            if(prepared==null)
+                throw new IllegalStateException(
+                    "charge pet produced no prepared damage"
+                );
+
+            preparedCombatDamage=
+                new PreparedDamageSettlement(
+                    pet,
+                    npcs.petNativeState(),
+                    prepared,
+                    damage,
+                    source
+                );
+
+            return "V59_PET_DAMAGE source="+source+
+                " damage="+damage+
+                " chargeChanged="+
+                prepared.chargeChanged()+
+                " presentation=DEFERRED_UNTIL_SOURCE_COMMIT"+
+                " projectedCharge="+
+                prepared.afterCharge+
+                " projectedDamage="+
+                prepared.afterAccumulatedDamage+
+                " modifiersRecordedOnly=true combatM2FormulaStillFixture=true";
+        }
+
         boolean changed=petEffects.recordDamage(
             damage,now);
         String presentation="UNCHANGED";
@@ -549,6 +613,182 @@ final class LocalPetRuntimeCommandHandler {
             " presentation="+presentation+
             " effectState={"+petEffects.summary()+"}"+
             " modifiersRecordedOnly=true combatM2FormulaStillFixture=true";
+    }
+
+    boolean preparedCombatDamagePending(){
+        return preparedCombatDamage!=null;
+    }
+
+    boolean abortPreparedCombatDamageAfterSourceFailure(
+        ServerPacketWriter writer
+    ){
+        if(preparedCombatDamage==null)
+            return false;
+
+        preparedCombatDamage=null;
+        writer.markTerminal();
+        return true;
+    }
+
+    String settlePreparedCombatDamageAfterSourceCommit(
+        ServerPacketWriter writer
+    )throws IOException{
+        PreparedDamageSettlement prepared=
+            preparedCombatDamage;
+
+        if(prepared==null)
+            return null;
+
+        preparedCombatDamage=null;
+
+        if(npcs.pet()!=prepared.expectedPet||
+           npcs.petNativeState()!=
+                prepared.expectedNativeState){
+            writer.markTerminal();
+            throw new IllegalStateException(
+                "pet charge presentation changed before damage settlement"
+            );
+        }
+
+        if(!prepared.effect.chargeChanged()){
+            try{
+                petEffects.commitPreparedDamage(
+                    prepared.effect
+                );
+            }catch(RuntimeException failure){
+                writer.markTerminal();
+                throw failure;
+            }
+
+            return "V59_PET_DAMAGE source="+
+                prepared.source+
+                " damage="+prepared.damage+
+                " chargeChanged=false"+
+                " presentation=UNCHANGED"+
+                " effectState={"+
+                petEffects.summary()+"}"+
+                " modifiersRecordedOnly=true combatM2FormulaStillFixture=true";
+        }
+
+        boolean writerBatchActive=false;
+        boolean relayBatchActive=false;
+        boolean packetCommitted=false;
+
+        try{
+            writer.beginBatch();
+            writerBatchActive=true;
+
+            relayBatchActive=
+                SharedNpcWorldRelay.beginSourceMaskBatch(
+                    writer
+                );
+
+            String presentation=
+                npcs.publishPetNativeState(
+                    prepared.expectedPet,
+                    prepared.effect.afterCharge,
+                    writer
+                );
+
+            if(!presentation.startsWith(
+                    "PET_NATIVE_STATE_OK"))
+                throw new IllegalStateException(
+                    "prepared pet charge publication rejected: "+
+                    presentation
+                );
+
+            writer.endBatch();
+            writerBatchActive=false;
+            packetCommitted=true;
+
+            if(relayBatchActive)
+                SharedNpcWorldRelay
+                    .commitSourceMaskBatch(
+                        writer
+                    );
+
+            npcs.commitPetNativeState(
+                prepared.expectedPet,
+                prepared.expectedNativeState,
+                prepared.effect.afterCharge
+            );
+            petEffects.commitPreparedDamage(
+                prepared.effect
+            );
+
+            return "V59_PET_DAMAGE source="+
+                prepared.source+
+                " damage="+prepared.damage+
+                " chargeChanged=true"+
+                " presentation="+presentation+
+                " effectState={"+
+                petEffects.summary()+"}"+
+                " modifiersRecordedOnly=true combatM2FormulaStillFixture=true";
+        }catch(IOException failure){
+            abortPreparedDamageSettlement(
+                writer,
+                writerBatchActive,
+                relayBatchActive,
+                packetCommitted,
+                failure
+            );
+            throw failure;
+        }catch(RuntimeException failure){
+            abortPreparedDamageSettlement(
+                writer,
+                writerBatchActive,
+                relayBatchActive,
+                packetCommitted,
+                failure
+            );
+            throw failure;
+        }catch(Error failure){
+            abortPreparedDamageSettlement(
+                writer,
+                writerBatchActive,
+                relayBatchActive,
+                packetCommitted,
+                failure
+            );
+            throw failure;
+        }
+    }
+
+    private static void abortPreparedDamageSettlement(
+        ServerPacketWriter writer,
+        boolean writerBatchActive,
+        boolean relayBatchActive,
+        boolean packetCommitted,
+        Throwable primary
+    ){
+        if(!packetCommitted&&writerBatchActive)
+            try{
+                writer.abortBatch();
+            }catch(Throwable abortFailure){
+                primary.addSuppressed(
+                    abortFailure
+                );
+            }
+
+        if(!packetCommitted&&relayBatchActive)
+            try{
+                SharedNpcWorldRelay
+                    .abortSourceMaskBatch(
+                        writer
+                    );
+            }catch(Throwable relayFailure){
+                primary.addSuppressed(
+                    relayFailure
+                );
+            }
+
+        try{
+            writer.markTerminal();
+        }catch(Throwable terminalFailure){
+            primary.addSuppressed(
+                terminalFailure
+            );
+        }
     }
 
     void armSequence(long now){
