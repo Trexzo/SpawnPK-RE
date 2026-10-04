@@ -238,6 +238,8 @@ public final class NoMovementWorldTickFailurePolicyTest {
     public static void main(String[] args)throws Exception{
         noMovementTailFailureRetires();
         tickBodyFailureAbortsAndRetires();
+        transientTailBodyFailureRetires();
+        transientTailAdmissionFailureRetires();
         movementSourceFailureRemainsRetryable();
 
         System.out.println(
@@ -248,6 +250,9 @@ public final class NoMovementWorldTickFailurePolicyTest {
             "outerBatchAborted=true "+
             "partialBatchNotCommitted=true "+
             "noMovementTailFailureRetiresWriter=true "+
+            "transientTailBodyFailureRetiresWriter=true "+
+            "transientTailAdmissionFailureRetiresWriter=true "+
+            "transientMovementPolicyUnaffected=true "+
             "movementRollbackPolicyUnaffected=true "+
             "laterPublicationRejected=true"
         );
@@ -475,6 +480,185 @@ public final class NoMovementWorldTickFailurePolicyTest {
                     "failed tick-body writer accepted later publication"
                 );
         }
+    }
+
+    private static void transientTailBodyFailureRetires()
+        throws Exception{
+        try(Fixture f=new Fixture(false)){
+            f.movement.enterTransientRegion(
+                MovementState.INITIAL_X,
+                MovementState.INITIAL_Y,
+                0,
+                MovementState.REGION_BASE_X,
+                MovementState.REGION_BASE_Y
+            );
+            f.tickBridge.failTestSchedule=true;
+
+            SceneCoordinateContext.Snapshot sceneBefore=
+                f.publisher.context().snapshot();
+
+            f.writer.beginBatch();
+
+            IllegalStateException bodyFailure=null;
+            try{
+                f.coordinator.tick(
+                    83L,
+                    31_800L,
+                    f.writer,
+                    "[transient-no-move-body-failure] "
+                );
+            }catch(IllegalStateException expected){
+                bodyFailure=expected;
+                LocalSession
+                    .abortWorldTickBatchAfterTickFailure(
+                        f.writer,
+                        expected
+                    );
+            }
+
+            if(bodyFailure==null||
+               !f.coordinator
+                    .noMovementSemanticTailEntered()||
+               f.coordinator
+                    .noMovementSemanticTailCompleted()||
+               f.tickBridge.followScheduleCalls!=1||
+               f.tickBridge.testScheduleCalls!=1)
+                throw new AssertionError(
+                    "transient tick-body failure did not occur after semantic-tail entry"
+                );
+
+            cleanupFailedTick(
+                f,
+                sceneBefore
+            );
+
+            if(!f.coordinator
+                    .retireAfterFailedNoMovementSemanticTail(
+                        f.writer
+                    ))
+                throw new AssertionError(
+                    "failed transient no-movement tail did not request retirement"
+                );
+
+            if(!f.writer.terminal()||
+               f.queue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "failed transient no-movement body remained live"
+                );
+        }
+    }
+
+    private static void transientTailAdmissionFailureRetires()
+        throws Exception{
+        try(Fixture f=new Fixture(false)){
+            f.movement.enterTransientRegion(
+                MovementState.INITIAL_X,
+                MovementState.INITIAL_Y,
+                0,
+                MovementState.REGION_BASE_X,
+                MovementState.REGION_BASE_Y
+            );
+
+            SceneCoordinateContext.Snapshot sceneBefore=
+                f.publisher.context().snapshot();
+
+            f.writer.beginBatch();
+
+            f.coordinator.tick(
+                84L,
+                32_400L,
+                f.writer,
+                "[transient-no-move-admission-failure] "
+            );
+
+            if(!f.coordinator
+                    .noMovementSemanticTailCompleted()||
+               f.coordinator.deferredMovementEligible()||
+               f.coordinator.movementTickCount()!=0L||
+               f.tickBridge.followScheduleCalls!=1||
+               f.tickBridge.testScheduleCalls!=1)
+                throw new AssertionError(
+                    "transient no-movement semantic tail did not complete"
+                );
+
+            OutboundPacketQueue.BatchReservation pressure=
+                OutboundPacketQueue.reserveBatch(
+                    f.queue,
+                    QUEUE_CAPACITY
+                );
+
+            try{
+                boolean failed=false;
+                try{
+                    LocalSession.endWorldTickBatch(
+                        f.writer
+                    );
+                }catch(IOException expected){
+                    failed=true;
+                }
+
+                if(!failed)
+                    throw new AssertionError(
+                        "transient no-movement final admission failure did not escape"
+                    );
+
+                cleanupFailedTick(
+                    f,
+                    sceneBefore
+                );
+
+                if(!f.coordinator
+                        .retireAfterFailedNoMovementSemanticTail(
+                            f.writer
+                        ))
+                    throw new AssertionError(
+                        "completed transient no-movement tail did not request retirement"
+                    );
+            }finally{
+                pressure.release();
+            }
+
+            if(!f.writer.terminal()||
+               f.coordinator
+                    .noMovementSemanticTailCompleted()||
+               f.queue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "failed transient no-movement admission remained live"
+                );
+        }
+    }
+
+    private static void cleanupFailedTick(
+        Fixture f,
+        SceneCoordinateContext.Snapshot sceneBefore
+    ){
+        f.coordinator
+            .abortDeferredMovementAfterWorldTick();
+        f.coordinator
+            .abortRegionStreamBatch();
+        f.publisher.context().restore(
+            sceneBefore
+        );
+        f.coordinator
+            .abortHomePresentationBatch();
+        f.coordinator
+            .abortGroundPresentationBatch();
+        f.coordinator
+            .abortDeferredRespawnAfterWorldTick();
+        f.coordinator
+            .abortDeferredBankInteractionsAfterWorldTick();
+        f.coordinator
+            .abortDeferredMakeoverInteractionsAfterWorldTick();
+        f.coordinator
+            .abortDeferredGroundTakeAfterWorldTick();
+        f.coordinator
+            .abortDeferredPetPickupAfterWorldTick();
+        f.coordinator
+            .abortDeferredPetEffectTimeoutAfterWorldTick();
+        f.coordinator
+            .abortDeferredPetChargeIncrementAfterWorldTick(
+                f.writer
+            );
     }
 
     private static void movementSourceFailureRemainsRetryable()
