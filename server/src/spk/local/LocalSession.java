@@ -2497,6 +2497,9 @@ final class LocalSession implements Runnable {
         }finally{
             if(batchCommitted){
                 worldTicks
+                    .clearNoMovementSemanticTailAfterCommit();
+
+                worldTicks
                     .commitRegionStreamBatch();
 
                 if(relayMaskBatchActive)
@@ -2612,6 +2615,11 @@ final class LocalSession implements Runnable {
                     .abortDeferredPetEffectTimeoutAfterWorldTick();
                 worldTicks
                     .abortDeferredPetChargeIncrementAfterWorldTick(
+                        sessionPackets
+                    );
+
+                worldTicks
+                    .retireAfterFailedNoMovementSemanticTail(
                         sessionPackets
                     );
             }
