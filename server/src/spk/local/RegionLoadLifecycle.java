@@ -167,13 +167,11 @@ final class RegionLoadLifecycle {
         );
     }
 
-    synchronized Completion complete(){
+    synchronized Completion prepareComplete(){
         Pending current=pending;
 
         if(current==null)
             return Completion.unmatched();
-
-        pending=null;
 
         return new Completion(
             true,
@@ -184,6 +182,43 @@ final class RegionLoadLifecycle {
             current.baseY,
             current.reason
         );
+    }
+
+    synchronized boolean commitCompletion(
+        Completion completion
+    ){
+        if(completion==null)
+            throw new NullPointerException(
+                "completion"
+            );
+
+        if(!completion.matched)
+            return false;
+
+        Pending current=pending;
+
+        if(current==null||
+           current.sequence!=
+                completion.sequence)
+            return false;
+
+        pending=null;
+        return true;
+    }
+
+    synchronized Completion complete(){
+        Completion completion=
+            prepareComplete();
+
+        if(completion.matched&&
+           !commitCompletion(
+                completion
+           ))
+            throw new IllegalStateException(
+                "region completion identity changed"
+            );
+
+        return completion;
     }
 
     synchronized boolean pending(){
