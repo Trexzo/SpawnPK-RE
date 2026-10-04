@@ -537,6 +537,101 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture deferredRegion=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredRegion.coordinator(
+                    true,
+                    bridge
+                );
+
+            deferredRegion.movement.enterTransientRegion(
+                4064,
+                4192,
+                0,
+                4064,
+                4192
+            );
+
+            SceneUpdatePublisher beforePublisher=
+                deferredRegion.regionBridge.publisher;
+
+            deferredRegion.writer.beginBatch();
+
+            coordinator.tick(
+                12L,
+                3_000L,
+                deferredRegion.writer,
+                "[tick-region-abort] "
+            );
+
+            if(!coordinator.deferredRegionStreamEligible()||
+               deferredRegion.movement.loadedBaseX()!=4064||
+               deferredRegion.movement.loadedBaseY()!=4192||
+               deferredRegion.regionBridge.publisher!=
+                    beforePublisher)
+                throw new AssertionError(
+                    "region rebase settled inside outer world-tick batch"
+                );
+
+            deferredRegion.writer.abortBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredRegionStreamAfterWorldTick();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredMakeoverInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+
+            if(coordinator.deferredRegionStreamEligible()||
+               deferredRegion.movement.loadedBaseX()!=4064||
+               deferredRegion.movement.loadedBaseY()!=4192||
+               deferredRegion.regionBridge.publisher!=
+                    beforePublisher)
+                throw new AssertionError(
+                    "outer world-tick abort changed prepared region state"
+                );
+
+            deferredRegion.writer.beginBatch();
+
+            coordinator.tick(
+                13L,
+                3_600L,
+                deferredRegion.writer,
+                "[tick-region-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredRegion.writer
+            );
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_600L
+            );
+
+            if(deferredRegion.movement.loadedBaseX()!=4064||
+               deferredRegion.movement.loadedBaseY()!=4192||
+               deferredRegion.regionBridge.publisher!=
+                    beforePublisher)
+                throw new AssertionError(
+                    "region rebase settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredRegionStreamAfterWorldTick(
+                deferredRegion.writer,
+                "[tick-region-commit] "
+            );
+
+            if(deferredRegion.movement.loadedBaseX()!=4016||
+               deferredRegion.movement.loadedBaseY()!=4144||
+               deferredRegion.regionBridge.publisher==
+                    beforePublisher||
+               coordinator.deferredRegionStreamEligible())
+                throw new AssertionError(
+                    "post-commit region rebase settlement failed"
+                );
+        }
+
         try(Fixture deferredBank=new Fixture()){
             TickBridge bridge=new TickBridge();
             LocalWorldTickCoordinator coordinator=
@@ -1147,6 +1242,8 @@ public final class LocalWorldTickCoordinatorTest {
             "tickCountersOwned=true schedulerHooks=true "+
             "respawnLifecycle=true "+
             "transientMovementSave=false "+
+            "deferredRegionOuterAbortPreservesState=true "+
+            "deferredRegionPostCommitSettles=true "+
             "deferredBankOuterAbortPreservesState=true "+
             "deferredBankPostCommitSettles=true "+
             "deferredMakeoverOuterAbortPreservesState=true "+
