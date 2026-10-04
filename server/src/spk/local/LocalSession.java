@@ -2514,6 +2514,11 @@ final class LocalSession implements Runnable {
 
                 if(tickCompleted){
                     worldTicks
+                        .settleDeferredMovementAfterWorldTick(
+                            sessionPackets,
+                            tickTag
+                        );
+                    worldTicks
                         .settleDeferredRespawnAfterWorldTick(
                             sessionPackets,
                             tickTag
@@ -2550,6 +2555,8 @@ final class LocalSession implements Runnable {
                         );
                 }else{
                     worldTicks
+                        .abortDeferredMovementAfterWorldTick();
+                    worldTicks
                         .abortDeferredRespawnAfterWorldTick();
                     worldTicks
                         .abortDeferredBankInteractionsAfterWorldTick();
@@ -2568,6 +2575,9 @@ final class LocalSession implements Runnable {
                         .abortSourceMaskBatch(
                             sessionPackets
                         );
+
+                worldTicks
+                    .abortDeferredMovementAfterWorldTick();
 
                 worldTicks
                     .abortRegionStreamBatch();
