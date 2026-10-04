@@ -64,6 +64,15 @@ final class LocalWorldTickCoordinator {
     private NpcEntity deferredPetEffectPet;
     private int deferredPetEffectNativeState;
     private PlayerLifecycleService.PreparedRespawn deferredRespawn;
+    private MovementState.Snapshot deferredMovementPreimage;
+    private LocalPlayerInteractionHandler.Snapshot deferredMovementInteractionPreimage;
+    private CombatEngine.MovementFacingSnapshot deferredMovementFacingPreimage;
+    private MovementState.Tick deferredMovementTick;
+    private Player81WorldSync.Context deferredMovementPlayerSync;
+    private Integer deferredMovementFacingTarget;
+    private long deferredMovementWorldTick;
+    private long deferredMovementNow;
+    private boolean deferredMovementTransient;
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -169,6 +178,11 @@ final class LocalWorldTickCoordinator {
         ServerPacketWriter writer,
         String tag
     )throws Exception{
+        if(deferredMovementTick!=null)
+            throw new IllegalStateException(
+                "deferred movement settlement still active"
+            );
+
         deferredBankInteractionEligible=false;
         deferredMakeoverInteractionEligible=false;
         deferredGroundTakeEligible=false;
@@ -216,6 +230,24 @@ final class LocalWorldTickCoordinator {
             return;
         }
 
+        boolean movementFence=
+            writer.batchActive();
+
+        MovementState.Snapshot movementBefore=
+            movementFence
+                ?movement.snapshot()
+                :null;
+        LocalPlayerInteractionHandler.Snapshot
+            interactionsBefore=
+                movementFence
+                    ?playerInteractions.snapshot()
+                    :null;
+        CombatEngine.MovementFacingSnapshot
+            combatFacingBefore=
+                movementFence
+                    ?combat.snapshotMovementFacing()
+                    :null;
+
         Player81WorldSync.Context playerSync=
             bridge.player81Sync();
 
@@ -249,15 +281,253 @@ final class LocalWorldTickCoordinator {
                 ?measuredApproachTarget
                 :playerApproachTarget;
 
+        if(movementTick!=null&&movementFence)
+            stageDeferredMovement(
+                movementBefore,
+                interactionsBefore,
+                combatFacingBefore,
+                movementTick,
+                playerSync,
+                movementFacingTarget,
+                worldTick,
+                now,
+                false
+            );
+
         publishMovement(
             movementTick,
             movementFacingTarget,
-            worldTick,
             writer
         );
 
+        if(movementTick!=null&&movementFence)
+            return;
+
         if(movementTick!=null)
-            bridge.saveAccount(tag,"POSITION_TICK");
+            commitHomeMovementAccounting(
+                movementTick,
+                movementFacingTarget,
+                worldTick
+            );
+
+        runHomeTickTail(
+            worldTick,
+            now,
+            writer,
+            tag,
+            playerSync,
+            movementTick
+        );
+    }
+
+    private void tickTransientRegion(
+        long worldTick,
+        long now,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        boolean movementFence=
+            writer.batchActive();
+        MovementState.Snapshot movementBefore=
+            movementFence
+                ?movement.snapshot()
+                :null;
+
+        MovementState.Tick movementTick=
+            movementEnabled
+                ?movement.advance()
+                :null;
+
+        if(movementTick!=null&&movementFence)
+            stageDeferredMovement(
+                movementBefore,
+                null,
+                null,
+                movementTick,
+                null,
+                null,
+                worldTick,
+                now,
+                true
+            );
+
+        publishTransientMovement(
+            movementTick,
+            writer
+        );
+
+        if(movementTick!=null&&movementFence)
+            return;
+
+        if(movementTick!=null)
+            movementTickCount++;
+
+        runTransientTickTail(
+            worldTick,
+            now,
+            writer,
+            tag,
+            movementTick
+        );
+    }
+
+    void completeRegionLoad(
+        RegionLoadLifecycle.Completion completion,
+        ServerPacketWriter writer,
+        String tag,
+        long now
+    )throws IOException{
+        boolean groundSnapshotPublished=
+            regionStreams.completeRegionLoad(
+                completion,
+                writer,
+                tag
+            );
+
+        groundItemPresentationRelay
+            .consumeSnapshotCoveredAfterSnapshot(
+                now,
+                groundSnapshotPublished
+            );
+    }
+
+    private void publishMovement(
+        MovementState.Tick movementTick,
+        Integer movementFacingTarget,
+        ServerPacketWriter writer
+    )throws IOException{
+        if(movementTick==null){
+            writer.varShort(
+                81,
+                BootstrapPackets.player81Idle()
+            );
+            return;
+        }
+
+        if(movementTick.running){
+            writer.varShort(
+                81,
+                movementFacingTarget==null
+                    ?BootstrapPackets.player81RunSteps(
+                        movementTick.dir1,
+                        movementTick.dir2
+                    )
+                    :Player81MeasuredSync.runStepsAndInteraction(
+                        movementTick.dir1,
+                        movementTick.dir2,
+                        movementFacingTarget.intValue()
+                    )
+            );
+            return;
+        }
+
+        writer.varShort(
+            81,
+            movementFacingTarget==null
+                ?BootstrapPackets.player81WalkStep(
+                    movementTick.dir1
+                )
+                :Player81MeasuredSync.walkStepAndInteraction(
+                    movementTick.dir1,
+                    movementFacingTarget.intValue()
+                )
+        );
+    }
+
+    private void publishTransientMovement(
+        MovementState.Tick movementTick,
+        ServerPacketWriter writer
+    )throws IOException{
+        if(movementTick==null){
+            writer.varShort(
+                81,
+                BootstrapPackets.player81Idle()
+            );
+        }else if(movementTick.running){
+            writer.varShort(
+                81,
+                BootstrapPackets.player81RunSteps(
+                    movementTick.dir1,
+                    movementTick.dir2
+                )
+            );
+        }else{
+            writer.varShort(
+                81,
+                BootstrapPackets.player81WalkStep(
+                    movementTick.dir1
+                )
+            );
+        }
+    }
+
+    private void commitHomeMovementAccounting(
+        MovementState.Tick movementTick,
+        Integer movementFacingTarget,
+        long worldTick
+    ){
+        movementTickCount++;
+
+        System.out.println(
+            "[world player="+worldPlayer.id()+
+            "] M5_AUTHORITATIVE_TICK mode="+
+            (movementTick.running
+                ?"RUN tiles=2"
+                :"WALK tiles=1")+
+            " from="+
+            movementTick.fromX+","+
+            movementTick.fromY+
+            " to="+
+            movementTick.toX+","+
+            movementTick.toY+
+            (movementTick.running
+                ?" dirs="+movementTick.dir1+
+                    ","+movementTick.dir2
+                :" dir="+movementTick.dir1)+
+            " combatFacing="+
+            (movementFacingTarget==null
+                ?"NONE"
+                :movementFacingTarget)+
+            " remaining="+movementTick.remaining+
+            " movementTick="+movementTickCount+
+            " worldTick="+worldTick
+        );
+    }
+
+    private void updatePetFollowAfterOwnerMovement(
+        MovementState.Tick movementTick,
+        long now
+    ){
+        if(!petDropPickup.pickupPending()){
+            npcs.queueOwnerMovement(movementTick);
+
+            if(npcs.needsFollow(movement)&&
+               bridge.petFollowDeadline()==Long.MAX_VALUE){
+                bridge.setPetFollowDeadline(
+                    now+200L
+                );
+            }
+            return;
+        }
+
+        bridge.setPetFollowDeadline(
+            Long.MAX_VALUE
+        );
+    }
+
+    private void runHomeTickTail(
+        long worldTick,
+        long now,
+        ServerPacketWriter writer,
+        String tag,
+        Player81WorldSync.Context playerSync,
+        MovementState.Tick movementTick
+    )throws IOException{
+        if(movementTick!=null)
+            bridge.saveAccount(
+                tag,
+                "POSITION_TICK"
+            );
 
         if(movementTick!=null){
             String playerTradeTick=
@@ -281,19 +551,7 @@ final class LocalWorldTickCoordinator {
                 tag+playerAttackTick
             );
 
-        /*
-         * Deferred Bank object/banker arrival owns a root publication
-         * transaction whose nested packet batch must not settle semantics
-         * inside LocalSession's still-provisional outer world-tick batch.
-         */
         deferredBankInteractionEligible=true;
-
-        /*
-         * Deferred Make-over Mage dialogue open/close owns semantic state that
-         * must not settle while LocalSession's outer packet batch is still
-         * provisional. Preserve Bank -> Make-over -> Take -> pet ordering by
-         * settling this exact handler after outer transport commit.
-         */
         deferredMakeoverInteractionEligible=true;
 
         groundItemPresentationRelay.publishPendingIfSceneReady(
@@ -302,20 +560,7 @@ final class LocalWorldTickCoordinator {
             regionStreams.regionLoadPending()
         );
 
-        /*
-         * Deferred exact-tile Take owns its own already-certified packet/domain
-         * transaction. Do not run that nested transaction while LocalSession's
-         * outer world-tick packet batch is still provisional. The session
-         * settles it only after the outer batch commits.
-         */
         deferredGroundTakeEligible=true;
-
-        /*
-         * Pet pickup is also a self-contained packet/domain transaction.
-         * Keep it outside the provisional LocalSession world-tick batch just
-         * like deferred ground Take; post-commit settlement preserves the
-         * established Take -> pet-pickup ordering.
-         */
         deferredPetPickupEligible=true;
 
         if(movementTick!=null)
@@ -338,7 +583,9 @@ final class LocalWorldTickCoordinator {
                 worldTick
             );
 
-        SharedNpcWorldRelay.syncRemotePets(writer);
+        SharedNpcWorldRelay.syncRemotePets(
+            writer
+        );
 
         if(npcPulse!=null&&
            (
@@ -347,12 +594,13 @@ final class LocalWorldTickCoordinator {
                !npcPulse.contains(
                    "worldAdd=0 worldRemove=0 worldWalk=0"
                )
-           )){
+           ))
             System.out.println(
-                tag+"WORLD_R7_"+npcPulse+
-                " sharedWorldTick="+worldTick
+                tag+"WORLD_R7_"+
+                npcPulse+
+                " sharedWorldTick="+
+                worldTick
             );
-        }
 
         SceneUpdatePublisher scenePublisher=
             bridge.scenePublisher();
@@ -374,46 +622,39 @@ final class LocalWorldTickCoordinator {
 
         if(combatTick!=null){
             System.out.println(
-                tag+"V56_COMBAT "+combatTick+
-                " sharedWorldTick="+worldTick
+                tag+
+                "V56_COMBAT "+
+                combatTick+
+                " sharedWorldTick="+
+                worldTick
             );
 
-            if(combatTick.startsWith("TARGET_CLEARED")){
+            if(combatTick.startsWith(
+                    "TARGET_CLEARED"))
                 bridge.clearOpponentOverlay(
                     writer,
                     tag,
                     "COMBAT_TARGET_CLEARED"
                 );
-            }
         }
 
-        int dealt=combat.consumeLastDamage();
+        int dealt=
+            combat.consumeLastDamage();
 
         if(dealt>0){
             NpcEntity overlayTarget=
                 npcs.scene(
-                    combat.state().targetSceneIndex
+                    combat.state()
+                        .targetSceneIndex
                 );
 
-            if(overlayTarget!=null){
+            if(overlayTarget!=null)
                 bridge.publishOpponentOverlay(
                     overlayTarget,
                     writer,
                     tag,
                     "HIT_UPDATE"
                 );
-
-                int baseline=
-                    combat.state().context==
-                        CombatContext.PLAYER_PVP
-                        ?100
-                        :200;
-
-                int remoteHitType=
-                    dealt>=baseline
-                        ?6
-                        :1;
-            }
 
             String petDamage=
                 petRuntimeCommands.applyDamage(
@@ -450,84 +691,53 @@ final class LocalWorldTickCoordinator {
                 deferredPetEffectNativeState=
                     npcs.petNativeState();
             }else{
-                /*
-                 * No native presentation exists to settle. Preserve the old
-                 * state-only timeout behavior without introducing a packet
-                 * dependency where none exists.
-                 */
                 petEffects.commitTimeoutReset(
                     petEffectTimeout
                 );
             }
         }
 
-        bridge.ensurePetFollowScheduled(now);
-        bridge.ensurePetTestSequenceScheduled(now);
+        bridge.ensurePetFollowScheduled(
+            now
+        );
+        bridge.ensurePetTestSequenceScheduled(
+            now
+        );
 
         if(legacyTickCount==1||
-           legacyTickCount%25==0){
+           legacyTickCount%25==0)
             System.out.println(
                 tag+
-                "V5121_WORLD_PULSE tick="+worldTick+
-                " playerAgeTicks="+legacyTickCount+
-                " playerId="+worldPlayer.id()+
+                "V5121_WORLD_PULSE tick="+
+                worldTick+
+                " playerAgeTicks="+
+                legacyTickCount+
+                " playerId="+
+                worldPlayer.id()+
                 " world="+
-                movement.x()+","+movement.y()+
-                " queued="+movement.queued()+
-                " members="+world.players().size()+
+                movement.x()+","+
+                movement.y()+
+                " queued="+
+                movement.queued()+
+                " members="+
+                world.players().size()+
                 " certification=M4_CERTIFIED M5_WEAPONS_ACTIVE ENGINE_R2_WORLD_PULSE"
             );
-        }
     }
 
-    private void tickTransientRegion(
+    private void runTransientTickTail(
         long worldTick,
         long now,
         ServerPacketWriter writer,
-        String tag
+        String tag,
+        MovementState.Tick movementTick
     )throws IOException{
-        MovementState.Tick movementTick=
-            movementEnabled
-                ?movement.advance()
-                :null;
-
-        if(movementTick==null){
-            writer.varShort(
-                81,
-                BootstrapPackets.player81Idle()
-            );
-        }else if(movementTick.running){
-            writer.varShort(
-                81,
-                BootstrapPackets.player81RunSteps(
-                    movementTick.dir1,
-                    movementTick.dir2
-                )
-            );
-        }else{
-            writer.varShort(
-                81,
-                BootstrapPackets.player81WalkStep(
-                    movementTick.dir1
-                )
-            );
-        }
-
-        if(movementTick!=null){
-            movementTickCount++;
-        }
-
         groundItemPresentationRelay.publishPendingIfSceneReady(
             now,
             bridge.scenePublisher(),
             regionStreams.regionLoadPending()
         );
 
-        /*
-         * Transient-region ticks use the same outer LocalSession writer batch.
-         * Preserve the old deferred-pickup opportunity, but settle it only
-         * after that outer transport commits.
-         */
         deferredPetPickupEligible=true;
 
         if(movementTick!=null)
@@ -536,13 +746,17 @@ final class LocalWorldTickCoordinator {
                 now
             );
 
-        bridge.ensurePetFollowScheduled(now);
-        bridge.ensurePetTestSequenceScheduled(now);
+        bridge.ensurePetFollowScheduled(
+            now
+        );
+        bridge.ensurePetTestSequenceScheduled(
+            now
+        );
 
         legacyTickCount++;
 
         if(legacyTickCount==1||
-           legacyTickCount%25==0){
+           legacyTickCount%25==0)
             System.out.println(
                 tag+
                 "V5160_TRANSIENT_REGION_PULSE tick="+
@@ -554,137 +768,280 @@ final class LocalWorldTickCoordinator {
                 " base="+
                 movement.loadedBaseX()+","+
                 movement.loadedBaseY()+
-                " queued="+movement.queued()+
+                " queued="+
+                movement.queued()+
                 " staticCollision=true homeWorldNpcSystemsSuspended=true petLifecycleActive=true transientPositionSave=false"
             );
-        }
     }
 
-    void completeRegionLoad(
-        RegionLoadLifecycle.Completion completion,
-        ServerPacketWriter writer,
-        String tag,
-        long now
-    )throws IOException{
-        boolean groundSnapshotPublished=
-            regionStreams.completeRegionLoad(
-                completion,
-                writer,
-                tag
-            );
-
-        groundItemPresentationRelay
-            .consumeSnapshotCoveredAfterSnapshot(
-                now,
-                groundSnapshotPublished
-            );
-    }
-
-    private void publishMovement(
+    private void stageDeferredMovement(
+        MovementState.Snapshot movementBefore,
+        LocalPlayerInteractionHandler.Snapshot
+            interactionsBefore,
+        CombatEngine.MovementFacingSnapshot
+            combatFacingBefore,
         MovementState.Tick movementTick,
+        Player81WorldSync.Context playerSync,
         Integer movementFacingTarget,
         long worldTick,
-        ServerPacketWriter writer
-    )throws IOException{
-        if(movementTick==null){
-            writer.varShort(
-                81,
-                BootstrapPackets.player81Idle()
-            );
-            return;
-        }
-
-        if(movementTick.running){
-            writer.varShort(
-                81,
-                movementFacingTarget==null
-                    ?BootstrapPackets.player81RunSteps(
-                        movementTick.dir1,
-                        movementTick.dir2
-                    )
-                    :Player81MeasuredSync.runStepsAndInteraction(
-                        movementTick.dir1,
-                        movementTick.dir2,
-                        movementFacingTarget.intValue()
-                    )
+        long now,
+        boolean transientRegion
+    ){
+        if(deferredMovementTick!=null)
+            throw new IllegalStateException(
+                "deferred movement already staged"
             );
 
-            movementTickCount++;
-
-            System.out.println(
-                "[world player="+worldPlayer.id()+
-                "] M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from="+
-                movementTick.fromX+","+
-                movementTick.fromY+
-                " to="+
-                movementTick.toX+","+
-                movementTick.toY+
-                " dirs="+
-                movementTick.dir1+","+
-                movementTick.dir2+
-                " combatFacing="+
-                (movementFacingTarget==null
-                    ?"NONE"
-                    :movementFacingTarget)+
-                " remaining="+movementTick.remaining+
-                " movementTick="+movementTickCount+
-                " worldTick="+worldTick
+        deferredMovementPreimage=
+            Objects.requireNonNull(
+                movementBefore,
+                "movementBefore"
             );
-            return;
-        }
-
-        writer.varShort(
-            81,
-            movementFacingTarget==null
-                ?BootstrapPackets.player81WalkStep(
-                    movementTick.dir1
-                )
-                :Player81MeasuredSync.walkStepAndInteraction(
-                    movementTick.dir1,
-                    movementFacingTarget.intValue()
-                )
-        );
-
-        movementTickCount++;
-
-        System.out.println(
-            "[world player="+worldPlayer.id()+
-            "] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from="+
-            movementTick.fromX+","+
-            movementTick.fromY+
-            " to="+
-            movementTick.toX+","+
-            movementTick.toY+
-            " dir="+movementTick.dir1+
-            " combatFacing="+
-            (movementFacingTarget==null
-                ?"NONE"
-                :movementFacingTarget)+
-            " remaining="+movementTick.remaining+
-            " movementTick="+movementTickCount+
-            " worldTick="+worldTick
-        );
+        deferredMovementInteractionPreimage=
+            interactionsBefore;
+        deferredMovementFacingPreimage=
+            combatFacingBefore;
+        deferredMovementTick=
+            Objects.requireNonNull(
+                movementTick,
+                "movementTick"
+            );
+        deferredMovementPlayerSync=
+            playerSync;
+        deferredMovementFacingTarget=
+            movementFacingTarget;
+        deferredMovementWorldTick=
+            worldTick;
+        deferredMovementNow=
+            now;
+        deferredMovementTransient=
+            transientRegion;
     }
 
-    private void updatePetFollowAfterOwnerMovement(
-        MovementState.Tick movementTick,
-        long now
-    ){
-        if(!petDropPickup.pickupPending()){
-            npcs.queueOwnerMovement(movementTick);
+    void settleDeferredMovementAfterWorldTick(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        MovementState.Tick movementTick=
+            deferredMovementTick;
 
-            if(npcs.needsFollow(movement)&&
-               bridge.petFollowDeadline()==Long.MAX_VALUE){
-                bridge.setPetFollowDeadline(
-                    now+200L
+        if(movementTick==null)
+            return;
+
+        Player81WorldSync.Context playerSync=
+            deferredMovementPlayerSync;
+        Integer movementFacingTarget=
+            deferredMovementFacingTarget;
+        long worldTick=
+            deferredMovementWorldTick;
+        long now=
+            deferredMovementNow;
+        boolean transientRegion=
+            deferredMovementTransient;
+
+        clearDeferredMovementToken();
+
+        if(transientRegion)
+            movementTickCount++;
+        else
+            commitHomeMovementAccounting(
+                movementTick,
+                movementFacingTarget,
+                worldTick
+            );
+
+        SceneUpdatePublisher tailPublisher=
+            bridge.scenePublisher();
+        SceneCoordinateContext.Snapshot
+            tailSceneContext=
+                tailPublisher==null
+                    ?null
+                    :tailPublisher.context()
+                        .snapshot();
+
+        boolean writerBatchActive=false;
+        boolean relayBatchActive=false;
+        boolean tailCommitted=false;
+
+        try{
+            writer.beginBatch();
+            writerBatchActive=true;
+
+            relayBatchActive=
+                SharedNpcWorldRelay.beginSourceMaskBatch(
+                    writer
+                );
+
+            if(transientRegion)
+                runTransientTickTail(
+                    worldTick,
+                    now,
+                    writer,
+                    tag,
+                    movementTick
+                );
+            else
+                runHomeTickTail(
+                    worldTick,
+                    now,
+                    writer,
+                    tag,
+                    playerSync,
+                    movementTick
+                );
+
+            writer.endBatch();
+            writerBatchActive=false;
+            tailCommitted=true;
+
+            if(relayBatchActive)
+                SharedNpcWorldRelay
+                    .commitSourceMaskBatch(
+                        writer
+                    );
+
+            commitHomePresentationBatch();
+            commitGroundPresentationBatch(
+                System.currentTimeMillis()
+            );
+        }catch(IOException failure){
+            if(!tailCommitted)
+                abortMovementTail(
+                    writer,
+                    writerBatchActive,
+                    relayBatchActive,
+                    tailPublisher,
+                    tailSceneContext,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!tailCommitted)
+                abortMovementTail(
+                    writer,
+                    writerBatchActive,
+                    relayBatchActive,
+                    tailPublisher,
+                    tailSceneContext,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(!tailCommitted)
+                abortMovementTail(
+                    writer,
+                    writerBatchActive,
+                    relayBatchActive,
+                    tailPublisher,
+                    tailSceneContext,
+                    failure
+                );
+            throw failure;
+        }
+    }
+
+    private void abortMovementTail(
+        ServerPacketWriter writer,
+        boolean writerBatchActive,
+        boolean relayBatchActive,
+        SceneUpdatePublisher tailPublisher,
+        SceneCoordinateContext.Snapshot
+            tailSceneContext,
+        Throwable primary
+    ){
+        if(writerBatchActive)
+            try{
+                writer.abortBatch();
+            }catch(Throwable abortFailure){
+                primary.addSuppressed(
+                    abortFailure
                 );
             }
-            return;
+
+        if(relayBatchActive)
+            try{
+                SharedNpcWorldRelay
+                    .abortSourceMaskBatch(
+                        writer
+                    );
+            }catch(Throwable relayFailure){
+                primary.addSuppressed(
+                    relayFailure
+                );
+            }
+
+        if(tailPublisher!=null&&
+           tailSceneContext!=null)
+            try{
+                tailPublisher.context()
+                    .restore(
+                        tailSceneContext
+                    );
+            }catch(Throwable sceneFailure){
+                primary.addSuppressed(
+                    sceneFailure
+                );
+            }
+
+        try{
+            abortHomePresentationBatch();
+        }catch(Throwable homeFailure){
+            primary.addSuppressed(
+                homeFailure
+            );
         }
 
-        bridge.setPetFollowDeadline(
-            Long.MAX_VALUE
+        try{
+            abortGroundPresentationBatch();
+        }catch(Throwable groundFailure){
+            primary.addSuppressed(
+                groundFailure
+            );
+        }
+
+        abortDeferredBankInteractionsAfterWorldTick();
+        abortDeferredMakeoverInteractionsAfterWorldTick();
+        abortDeferredGroundTakeAfterWorldTick();
+        abortDeferredPetPickupAfterWorldTick();
+        abortDeferredPetEffectTimeoutAfterWorldTick();
+    }
+
+    boolean abortDeferredMovementAfterWorldTick(){
+        if(deferredMovementTick==null)
+            return false;
+
+        movement.restore(
+            deferredMovementPreimage
         );
+
+        if(deferredMovementInteractionPreimage!=null)
+            playerInteractions.restore(
+                deferredMovementInteractionPreimage
+            );
+
+        if(deferredMovementFacingPreimage!=null)
+            combat.restoreMovementFacing(
+                deferredMovementFacingPreimage
+            );
+
+        clearDeferredMovementToken();
+        return true;
+    }
+
+    boolean deferredMovementEligible(){
+        return deferredMovementTick!=null;
+    }
+
+    private void clearDeferredMovementToken(){
+        deferredMovementPreimage=null;
+        deferredMovementInteractionPreimage=null;
+        deferredMovementFacingPreimage=null;
+        deferredMovementTick=null;
+        deferredMovementPlayerSync=null;
+        deferredMovementFacingTarget=null;
+        deferredMovementWorldTick=0L;
+        deferredMovementNow=0L;
+        deferredMovementTransient=false;
     }
 
     private void applyGroundItemResult(
