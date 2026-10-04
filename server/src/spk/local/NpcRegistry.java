@@ -157,9 +157,28 @@ final class NpcRegistry {
      * prevents later pet packets from retaining HOME NPCs the client has
      * already removed from its scene list.
      */
-    int detachRegionViewPreservingFollowers(
-        ServerPacketWriter w
-    )throws IOException{
+    static final class PreparedRegionViewDetach {
+        final ArrayList<NpcEntity> expectedVisible;
+        final byte[] packet65;
+        final int removed;
+
+        PreparedRegionViewDetach(
+            List<NpcEntity> expectedVisible,
+            byte[] packet65,
+            int removed
+        ){
+            this.expectedVisible=
+                new ArrayList<>(
+                    expectedVisible
+                );
+            this.packet65=packet65;
+            this.removed=removed;
+        }
+    }
+
+    PreparedRegionViewDetach
+        prepareRegionViewDetachPreservingFollowers()
+    {
         refreshCanonicalActorProjections();
 
         ArrayList<NpcSyncEncoder.Update> updates=
@@ -167,11 +186,11 @@ final class NpcRegistry {
         int removed=0;
 
         for(NpcEntity n:visible){
-            if(n==pet||n==miniPet){
+            if(n==pet||n==miniPet)
                 updates.add(
                     NpcSyncEncoder.Update.retain(n)
                 );
-            }else{
+            else{
                 updates.add(
                     NpcSyncEncoder.Update.remove(n)
                 );
@@ -179,17 +198,62 @@ final class NpcRegistry {
             }
         }
 
-        if(removed>0){
-            w.varShort(
-                65,
-                NpcSyncEncoder.encode(
+        byte[] packet65=
+            removed==0
+                ?null
+                :NpcSyncEncoder.encode(
                     updates,
                     Collections.emptyList(),
                     0,
                     0
-                )
+                );
+
+        return new PreparedRegionViewDetach(
+            visible,
+            packet65,
+            removed
+        );
+    }
+
+    void publishPreparedRegionViewDetach(
+        PreparedRegionViewDetach prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
             );
 
+        if(prepared.packet65!=null)
+            w.varShort(
+                65,
+                prepared.packet65
+            );
+    }
+
+    int commitPreparedRegionViewDetach(
+        PreparedRegionViewDetach prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        if(visible.size()!=
+                prepared.expectedVisible.size())
+            throw new IllegalStateException(
+                "region-view projection changed before detach commit"
+            );
+
+        for(int i=0;i<visible.size();i++)
+            if(visible.get(i)!=
+                    prepared.expectedVisible.get(i))
+                throw new IllegalStateException(
+                    "region-view projection identity changed before detach commit index="+
+                    i
+                );
+
+        if(prepared.removed>0){
             visible.removeIf(
                 n->n!=pet&&n!=miniPet
             );
@@ -206,7 +270,23 @@ final class NpcRegistry {
         miniDiscontinuityTicks=0;
 
         assertUniqueSceneIndexes();
-        return removed;
+        return prepared.removed;
+    }
+
+    int detachRegionViewPreservingFollowers(
+        ServerPacketWriter w
+    )throws IOException{
+        PreparedRegionViewDetach prepared=
+            prepareRegionViewDetachPreservingFollowers();
+
+        publishPreparedRegionViewDetach(
+            prepared,
+            w
+        );
+
+        return commitPreparedRegionViewDetach(
+            prepared
+        );
     }
 
     /**
