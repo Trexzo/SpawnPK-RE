@@ -129,7 +129,8 @@ final class LocalRegionStreamHandler {
                 writer,
                 tag,
                 false,
-                "AUTO_HOME_REATTACH"
+                "AUTO_HOME_REATTACH",
+                false
             );
             return true;
         }
@@ -439,7 +440,7 @@ final class LocalRegionStreamHandler {
         return regionLoads.pending();
     }
 
-    void reattachHomeForRespawn(
+    void stageHomeForPreparedRespawn(
         ServerPacketWriter writer,
         String tag
     )throws IOException{
@@ -447,7 +448,8 @@ final class LocalRegionStreamHandler {
             writer,
             tag,
             true,
-            "RESPAWN_REATTACH"
+            "RESPAWN_REATTACH",
+            true
         );
     }
 
@@ -455,7 +457,8 @@ final class LocalRegionStreamHandler {
         ServerPacketWriter writer,
         String tag,
         boolean emitPlacement,
-        String reason
+        String reason,
+        boolean preparedRespawn
     )throws IOException{
         beginRegionBatchIfNeeded(
             writer
@@ -466,7 +469,19 @@ final class LocalRegionStreamHandler {
                 writer
             );
 
-        movement.restoreHomeWindowAtCurrentPosition();
+        if(preparedRespawn)
+            movement.stageHomeWindowForPreparedRespawn();
+        else
+            movement.restoreHomeWindowAtCurrentPosition();
+
+        int placementX=
+            preparedRespawn
+                ?MovementState.INITIAL_X
+                :movement.x();
+        int placementY=
+            preparedRespawn
+                ?MovementState.INITIAL_Y
+                :movement.y();
 
         writer.fixed(219,new byte[0]);
         writer.fixed(
@@ -487,8 +502,8 @@ final class LocalRegionStreamHandler {
                 81,
                 BootstrapPackets.player81TeleportNoAppearance(
                     0,
-                    movement.y()-MovementState.REGION_BASE_Y,
-                    movement.x()-MovementState.REGION_BASE_X
+                    placementY-MovementState.REGION_BASE_Y,
+                    placementX-MovementState.REGION_BASE_X
                 )
             );
         }
@@ -509,8 +524,8 @@ final class LocalRegionStreamHandler {
         System.out.println(
             tag+
             "V5181_WORLD_AUTO_HOME_REATTACH world="+
-            movement.x()+","+
-            movement.y()+",0"+
+            placementX+","+
+            placementY+",0"+
             " base="+
             MovementState.REGION_BASE_X+","+
             MovementState.REGION_BASE_Y+
