@@ -36,19 +36,25 @@ final class LocalRegionStreamHandler {
         final MovementState.LoadedWindowSnapshot movementWindow;
         final RegionLoadLifecycle.Snapshot regionLoad;
         final NpcRegistry.RegionViewSnapshot npcView;
+        final HomeWorldRuntimePlan.ViewerPresentationSnapshot homePresentation;
         final SceneUpdatePublisher scenePublisher;
+        final SceneCoordinateContext.Snapshot sceneContext;
         boolean petFollowResetPending;
 
         RegionBatchSnapshot(
             MovementState.LoadedWindowSnapshot movementWindow,
             RegionLoadLifecycle.Snapshot regionLoad,
             NpcRegistry.RegionViewSnapshot npcView,
-            SceneUpdatePublisher scenePublisher
+            HomeWorldRuntimePlan.ViewerPresentationSnapshot homePresentation,
+            SceneUpdatePublisher scenePublisher,
+            SceneCoordinateContext.Snapshot sceneContext
         ){
             this.movementWindow=movementWindow;
             this.regionLoad=regionLoad;
             this.npcView=npcView;
+            this.homePresentation=homePresentation;
             this.scenePublisher=scenePublisher;
+            this.sceneContext=sceneContext;
         }
     }
 
@@ -283,6 +289,10 @@ final class LocalRegionStreamHandler {
                 "HOME post-ACK replay has no scene publisher"
             );
 
+        beginRegionBatchIfNeeded(
+            writer
+        );
+
         HomeObjectOverlayReplayer.Stats scene=
             homeWorld.replayScene(
                 writer,
@@ -339,12 +349,19 @@ final class LocalRegionStreamHandler {
                 "region stream batch already staged"
             );
 
+        SceneUpdatePublisher publisher=
+            bridge.scenePublisher();
+
         stagedRegionBatch=
             new RegionBatchSnapshot(
                 movement.snapshotLoadedWindow(),
                 regionLoads.snapshot(),
                 npcs.snapshotRegionView(),
-                bridge.scenePublisher()
+                homeWorld.snapshotViewerPresentation(),
+                publisher,
+                publisher==null
+                    ?null
+                    :publisher.context().snapshot()
             );
     }
 
@@ -381,6 +398,17 @@ final class LocalRegionStreamHandler {
         npcs.restoreRegionView(
             snapshot.npcView
         );
+        homeWorld.restoreViewerPresentation(
+            snapshot.homePresentation
+        );
+
+        if(snapshot.scenePublisher!=null&&
+           snapshot.sceneContext!=null)
+            snapshot.scenePublisher
+                .context()
+                .restore(
+                    snapshot.sceneContext
+                );
 
         if(bridge.scenePublisher()!=
                 snapshot.scenePublisher)
