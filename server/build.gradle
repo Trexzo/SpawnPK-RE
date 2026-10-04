@@ -6100,7 +6100,7 @@ tasks.register('localAuxArchiveAccessRegression', JavaExec) {
 
 tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
     group = 'verification'
-    description = 'Locks the Gradle-owned cumulative server-JAR SHA handoff used by the canonical wrapper and final smoke.'
+    description = 'Locks the Gradle-owned cumulative server-JAR SHA and focused-manifest count handoff used by the canonical wrapper and final smoke.'
 
     doLast {
         File buildFile = new File(repoRoot, 'server/build.gradle')
@@ -6196,7 +6196,7 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
 
         logger.lifecycle(
             'CHAT1_CUMULATIVE_SERVER_IDENTITY_CONTRACT_PASS ' +
-            'gradleOwned=true serverSha256=true'
+            'gradleOwned=true serverSha256=true focusedManifestDerived=true'
         )
     }
 }
