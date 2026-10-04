@@ -64,6 +64,31 @@ final class PlayerLifecycleService {
         RESPAWNED
     }
 
+    static final class PreparedRespawn {
+        final long worldTick;
+        final long deathSequence;
+        final long deathTick;
+        final long respawnTick;
+        final int hpBefore;
+        final int restoredHitpoints;
+
+        PreparedRespawn(
+            long worldTick,
+            long deathSequence,
+            long deathTick,
+            long respawnTick,
+            int hpBefore,
+            int restoredHitpoints
+        ){
+            this.worldTick=worldTick;
+            this.deathSequence=deathSequence;
+            this.deathTick=deathTick;
+            this.respawnTick=respawnTick;
+            this.hpBefore=hpBefore;
+            this.restoredHitpoints=restoredHitpoints;
+        }
+    }
+
     private final WorldPlayer player;
     private final PlayerState state;
     private final PlayerLifecycleState lifecycle;
@@ -197,6 +222,80 @@ final class PlayerLifecycleService {
         }
     }
 
+    PreparedRespawn prepareRespawn(
+        long worldTick
+    ){
+        return prepareRespawn(
+            worldTick,
+            LOCALLAB_RESTORED_HITPOINTS
+        );
+    }
+
+    PreparedRespawn prepareRespawn(
+        long worldTick,
+        int restoredHitpoints
+    ){
+        synchronized(player.mutationLock()){
+            if(!lifecycle.dueRespawn(
+                    worldTick))
+                return null;
+
+            validateRestoredHitpoints(
+                restoredHitpoints
+            );
+
+            return new PreparedRespawn(
+                worldTick,
+                lifecycle.deathSequence(),
+                lifecycle.deathTick(),
+                lifecycle.respawnTick(),
+                state.currentLevel(
+                    PlayerState.HITPOINTS
+                ),
+                restoredHitpoints
+            );
+        }
+    }
+
+    void commitPreparedRespawn(
+        PreparedRespawn prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        synchronized(player.mutationLock()){
+            if(!lifecycle.dead()||
+               lifecycle.deathSequence()!=
+                    prepared.deathSequence||
+               lifecycle.deathTick()!=
+                    prepared.deathTick||
+               lifecycle.respawnTick()!=
+                    prepared.respawnTick||
+               !lifecycle.dueRespawn(
+                    prepared.worldTick)||
+               state.currentLevel(
+                    PlayerState.HITPOINTS
+                )!=prepared.hpBefore)
+                throw new IllegalStateException(
+                    "player respawn preimage changed before commit"
+                );
+
+            validateRestoredHitpoints(
+                prepared.restoredHitpoints
+            );
+
+            state.setCurrentLevel(
+                PlayerState.HITPOINTS,
+                prepared.restoredHitpoints
+            );
+            movement.returnHome();
+            combat.clear();
+            lifecycle.markRespawned();
+        }
+    }
+
     TickResult tick(
         long worldTick
     ){
@@ -210,30 +309,32 @@ final class PlayerLifecycleService {
         long worldTick,
         int restoredHitpoints
     ){
-        synchronized(player.mutationLock()){
-            if(!lifecycle.dueRespawn(
-                    worldTick))
-                return TickResult.NONE;
-
-            if(restoredHitpoints<1||
-               restoredHitpoints>255)
-                throw new IllegalArgumentException(
-                    "restored hitpoints out of range value="+
-                    restoredHitpoints+
-                    " authority="+
-                    respawnAuthority
-                );
-
-            state.setCurrentLevel(
-                PlayerState.HITPOINTS,
+        PreparedRespawn prepared=
+            prepareRespawn(
+                worldTick,
                 restoredHitpoints
             );
-            movement.returnHome();
-            combat.clear();
-            lifecycle.markRespawned();
 
-            return TickResult.RESPAWNED;
-        }
+        if(prepared==null)
+            return TickResult.NONE;
+
+        commitPreparedRespawn(
+            prepared
+        );
+        return TickResult.RESPAWNED;
+    }
+
+    private void validateRestoredHitpoints(
+        int restoredHitpoints
+    ){
+        if(restoredHitpoints<1||
+           restoredHitpoints>255)
+            throw new IllegalArgumentException(
+                "restored hitpoints out of range value="+
+                restoredHitpoints+
+                " authority="+
+                respawnAuthority
+            );
     }
 
     private void validateRespawnDelay(
