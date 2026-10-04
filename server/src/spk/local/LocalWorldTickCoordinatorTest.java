@@ -476,6 +476,9 @@ public final class LocalWorldTickCoordinatorTest {
 
             respawning.movement.advance();
 
+            int deadX=respawning.movement.x();
+            int deadY=respawning.movement.y();
+
             PlayerLifecycleService lifecycle=
                 new PlayerLifecycleService(
                     respawning.player
@@ -497,22 +500,86 @@ public final class LocalWorldTickCoordinatorTest {
 
             int before=respawning.wire.size();
 
+            respawning.writer.beginBatch();
+
             coordinator.tick(
                 15L,
                 3_000L,
                 respawning.writer,
-                "[tick-test] "
+                "[tick-respawn-abort] "
             );
 
-            if(respawning.player.lifecycle().dead())
+            if(!respawning.player.lifecycle().dead()||
+               respawning.player.playerState().currentLevel(
+                    PlayerState.HITPOINTS)!=0||
+               respawning.movement.x()!=deadX||
+               respawning.movement.y()!=deadY||
+               !coordinator.deferredRespawnEligible())
                 throw new AssertionError(
-                    "world tick did not respawn player"
+                    "respawn committed inside outer world-tick batch"
                 );
 
-            if(respawning.player.playerState().currentLevel(
+            respawning.writer.abortBatch();
+            coordinator.abortRegionStreamBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredRespawnAfterWorldTick();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredMakeoverInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+            coordinator.abortDeferredPetEffectTimeoutAfterWorldTick();
+
+            if(!respawning.player.lifecycle().dead()||
+               respawning.player.playerState().currentLevel(
+                    PlayerState.HITPOINTS)!=0||
+               respawning.movement.x()!=deadX||
+               respawning.movement.y()!=deadY||
+               coordinator.deferredRespawnEligible()||
+               respawning.wire.size()!=before)
+                throw new AssertionError(
+                    "outer abort changed prepared respawn preimage"
+                );
+
+            respawning.writer.beginBatch();
+
+            coordinator.tick(
+                16L,
+                3_600L,
+                respawning.writer,
+                "[tick-respawn-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                respawning.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_600L
+            );
+
+            if(!respawning.player.lifecycle().dead()||
+               respawning.player.playerState().currentLevel(
+                    PlayerState.HITPOINTS)!=0||
+               respawning.movement.x()!=deadX||
+               respawning.movement.y()!=deadY||
+               !coordinator.deferredRespawnEligible())
+                throw new AssertionError(
+                    "respawn settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredRespawnAfterWorldTick(
+                respawning.writer,
+                "[tick-respawn-commit] "
+            );
+
+            if(!respawning.player.lifecycle().alive()||
+               !respawning.player.playerState().alive()||
+               respawning.player.playerState().currentLevel(
                     PlayerState.HITPOINTS)!=99)
                 throw new AssertionError(
-                    "world tick did not restore HP"
+                    "post-commit respawn HP/lifecycle mismatch"
                 );
 
             if(respawning.movement.x()!=
@@ -521,7 +588,7 @@ public final class LocalWorldTickCoordinatorTest {
                     MovementState.INITIAL_Y||
                !respawning.movement.inHomeWindow())
                 throw new AssertionError(
-                    "world tick did not restore HOME"
+                    "post-commit respawn did not restore HOME"
                 );
 
             if(!"PLAYER_RESPAWN".equals(
@@ -533,7 +600,7 @@ public final class LocalWorldTickCoordinatorTest {
 
             if(respawning.wire.size()<=before)
                 throw new AssertionError(
-                    "respawn emitted no client packets"
+                    "post-commit respawn emitted no client packets"
                 );
         }
 
@@ -1281,6 +1348,8 @@ public final class LocalWorldTickCoordinatorTest {
             "idlePulse=true authoritativeMove=true "+
             "tickCountersOwned=true schedulerHooks=true "+
             "respawnLifecycle=true "+
+            "respawnOuterAbortPreservesDead=true "+
+            "respawnPostCommitSettles=true "+
             "transientMovementSave=false "+
             "deferredBankOuterAbortPreservesState=true "+
             "deferredBankPostCommitSettles=true "+
