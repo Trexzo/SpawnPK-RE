@@ -2514,6 +2514,11 @@ final class LocalSession implements Runnable {
 
                 if(tickCompleted){
                     worldTicks
+                        .settleDeferredPetEffectTimeoutAfterWorldTick(
+                            sessionPackets,
+                            tickTag
+                        );
+                    worldTicks
                         .settleDeferredBankInteractionsAfterWorldTick(
                             System.currentTimeMillis(),
                             sessionPackets,
@@ -2546,6 +2551,8 @@ final class LocalSession implements Runnable {
                         .abortDeferredGroundTakeAfterWorldTick();
                     worldTicks
                         .abortDeferredPetPickupAfterWorldTick();
+                    worldTicks
+                        .abortDeferredPetEffectTimeoutAfterWorldTick();
                 }
             }else{
                 if(relayMaskBatchActive)
@@ -2572,6 +2579,8 @@ final class LocalSession implements Runnable {
                     .abortDeferredGroundTakeAfterWorldTick();
                 worldTicks
                     .abortDeferredPetPickupAfterWorldTick();
+                worldTicks
+                    .abortDeferredPetEffectTimeoutAfterWorldTick();
             }
         }
     }
