@@ -56,6 +56,7 @@ final class LocalWorldTickCoordinator {
 
     private long legacyTickCount;
     private long movementTickCount;
+    private boolean deferredRegionLegacyTickIncrement;
     private boolean deferredBankInteractionEligible;
     private boolean deferredMakeoverInteractionEligible;
     private boolean deferredGroundTakeEligible;
@@ -220,7 +221,15 @@ final class LocalWorldTickCoordinator {
         }
 
         if(regionStreams.maybeStream(writer,tag)){
-            legacyTickCount++;
+            if(writer.batchActive()){
+                if(deferredRegionLegacyTickIncrement)
+                    throw new IllegalStateException(
+                        "deferred region tick accounting still active"
+                    );
+                deferredRegionLegacyTickIncrement=true;
+            }else{
+                legacyTickCount++;
+            }
             return;
         }
 
@@ -1663,13 +1672,32 @@ final class LocalWorldTickCoordinator {
     }
 
     boolean commitRegionStreamBatch(){
-        return regionStreams
-            .commitRegionStreamBatch();
+        boolean committed=
+            regionStreams
+                .commitRegionStreamBatch();
+
+        if(committed&&
+           deferredRegionLegacyTickIncrement){
+            legacyTickCount++;
+            deferredRegionLegacyTickIncrement=false;
+        }
+
+        return committed;
     }
 
     boolean abortRegionStreamBatch(){
-        return regionStreams
-            .abortRegionStreamBatch();
+        boolean aborted=
+            regionStreams
+                .abortRegionStreamBatch();
+
+        if(aborted)
+            deferredRegionLegacyTickIncrement=false;
+
+        return aborted;
+    }
+
+    boolean deferredRegionTickAccounting(){
+        return deferredRegionLegacyTickIncrement;
     }
 
     boolean regionStreamBatchStaged(){
