@@ -73,6 +73,7 @@ final class LocalWorldTickCoordinator {
     private long deferredMovementWorldTick;
     private long deferredMovementNow;
     private boolean deferredMovementTransient;
+    private boolean noMovementSemanticTailEntered;
     private boolean noMovementSemanticTailCompleted;
 
     LocalWorldTickCoordinator(
@@ -192,6 +193,7 @@ final class LocalWorldTickCoordinator {
         deferredPetEffectPet=null;
         deferredPetEffectNativeState=0;
         deferredRespawn=null;
+        noMovementSemanticTailEntered=false;
         noMovementSemanticTailCompleted=false;
 
         PlayerStatusService.TickResult statusTick=
@@ -339,6 +341,9 @@ final class LocalWorldTickCoordinator {
                 movementFacingTarget,
                 worldTick
             );
+
+        if(movementTick==null&&movementFence)
+            noMovementSemanticTailEntered=true;
 
         runHomeTickTail(
             worldTick,
@@ -1129,20 +1134,26 @@ final class LocalWorldTickCoordinator {
         return deferredMovementTick!=null;
     }
 
+    boolean noMovementSemanticTailEntered(){
+        return noMovementSemanticTailEntered;
+    }
+
     boolean noMovementSemanticTailCompleted(){
         return noMovementSemanticTailCompleted;
     }
 
     void clearNoMovementSemanticTailAfterCommit(){
+        noMovementSemanticTailEntered=false;
         noMovementSemanticTailCompleted=false;
     }
 
     boolean retireAfterFailedNoMovementSemanticTail(
         ServerPacketWriter writer
     ){
-        if(!noMovementSemanticTailCompleted)
+        if(!noMovementSemanticTailEntered)
             return false;
 
+        noMovementSemanticTailEntered=false;
         noMovementSemanticTailCompleted=false;
         writer.markTerminal();
         return true;
