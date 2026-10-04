@@ -260,7 +260,8 @@ public final class LocalRegionStreamHandlerTest {
                 "disabledFailClosed=true homeReattach=true "+
                 "homeMargin16=true positionPreserved=true "+
                 "sceneReplaced=true overlayAfter121=true "+
-                "groundSnapshotCompletionFact=true"
+                "groundSnapshotCompletionFact=true "+
+                "standalonePetFollowReset=true"
             );
         }finally{
             enabledWorld.close();
