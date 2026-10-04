@@ -32,6 +32,27 @@ final class LocalRegionStreamHandler {
     private final RegionLoadLifecycle regionLoads;
     private final SessionBridge bridge;
 
+    private static final class RegionBatchSnapshot {
+        final MovementState.LoadedWindowSnapshot movementWindow;
+        final RegionLoadLifecycle.Snapshot regionLoad;
+        final NpcRegistry.RegionViewSnapshot npcView;
+        final SceneUpdatePublisher scenePublisher;
+
+        RegionBatchSnapshot(
+            MovementState.LoadedWindowSnapshot movementWindow,
+            RegionLoadLifecycle.Snapshot regionLoad,
+            NpcRegistry.RegionViewSnapshot npcView,
+            SceneUpdatePublisher scenePublisher
+        ){
+            this.movementWindow=movementWindow;
+            this.regionLoad=regionLoad;
+            this.npcView=npcView;
+            this.scenePublisher=scenePublisher;
+        }
+    }
+
+    private RegionBatchSnapshot stagedRegionBatch;
+
     LocalRegionStreamHandler(
         boolean movementEnabled,
         World world,
@@ -148,6 +169,10 @@ final class LocalRegionStreamHandler {
            baseY==movement.loadedBaseY()){
             return false;
         }
+
+        beginRegionBatchIfNeeded(
+            writer
+        );
 
         boolean leavingHome=!movement.transientRegion();
         int removed=0;
@@ -301,6 +326,67 @@ final class LocalRegionStreamHandler {
         return true;
     }
 
+    private void beginRegionBatchIfNeeded(
+        ServerPacketWriter writer
+    ){
+        if(writer==null||
+           !writer.batchActive())
+            return;
+
+        if(stagedRegionBatch!=null)
+            throw new IllegalStateException(
+                "region stream batch already staged"
+            );
+
+        stagedRegionBatch=
+            new RegionBatchSnapshot(
+                movement.snapshotLoadedWindow(),
+                regionLoads.snapshot(),
+                npcs.snapshotRegionView(),
+                bridge.scenePublisher()
+            );
+    }
+
+    boolean commitRegionStreamBatch(){
+        if(stagedRegionBatch==null)
+            return false;
+
+        stagedRegionBatch=null;
+        return true;
+    }
+
+    boolean abortRegionStreamBatch(){
+        RegionBatchSnapshot snapshot=
+            stagedRegionBatch;
+
+        if(snapshot==null)
+            return false;
+
+        stagedRegionBatch=null;
+
+        movement.restoreLoadedWindow(
+            snapshot.movementWindow
+        );
+        regionLoads.restore(
+            snapshot.regionLoad
+        );
+        npcs.restoreRegionView(
+            snapshot.npcView
+        );
+
+        if(bridge.scenePublisher()!=
+                snapshot.scenePublisher)
+            bridge.replaceScenePublisher(
+                snapshot.scenePublisher
+            );
+
+        return true;
+    }
+
+    boolean regionStreamBatchStaged(){
+        return stagedRegionBatch!=null;
+    }
+
     boolean regionLoadPending(){
         return regionLoads.pending();
     }
@@ -323,6 +409,10 @@ final class LocalRegionStreamHandler {
         boolean emitPlacement,
         String reason
     )throws IOException{
+        beginRegionBatchIfNeeded(
+            writer
+        );
+
         int prunedTransientNpcView=
             npcs.detachRegionViewPreservingFollowers(
                 writer
