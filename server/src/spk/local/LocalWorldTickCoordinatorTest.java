@@ -1116,6 +1116,141 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture petTimeout=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                petTimeout.coordinator(false,bridge);
+
+            PetDefinitionRepository.Def def=
+                PetDefinitionRepository.get(24019);
+
+            if(def==null)
+                throw new AssertionError(
+                    "pet timeout fixture definition missing"
+                );
+
+            String spawn=
+                petTimeout.npcs.spawnPet(
+                    def,
+                    petTimeout.movement,
+                    petTimeout.writer
+                );
+
+            if(!spawn.startsWith("PET_SPAWN_OK"))
+                throw new AssertionError(
+                    "pet timeout fixture spawn failed: "+
+                    spawn
+                );
+
+            petTimeout.petState.activate(def);
+            petTimeout.petEffects.onPetChanged(
+                def.itemId,
+                def.npcId
+            );
+            petTimeout.petEffects.forceCharge(
+                1,
+                10_000L
+            );
+
+            String charged=
+                petTimeout.npcs.setPetNativeState(
+                    1,
+                    petTimeout.writer
+                );
+
+            if(!charged.startsWith(
+                    "PET_NATIVE_STATE_OK")||
+               petTimeout.petEffects.charge()!=1||
+               petTimeout.npcs.petNativeState()!=1)
+                throw new AssertionError(
+                    "pet timeout fixture charge not armed"
+                );
+
+            long timeoutAt=
+                10_000L+
+                petTimeout.petEffects.resetMs();
+
+            petTimeout.writer.beginBatch();
+
+            coordinator.tick(
+                40L,
+                timeoutAt,
+                petTimeout.writer,
+                "[tick-pet-timeout-abort] "
+            );
+
+            if(petTimeout.petEffects.charge()!=1||
+               petTimeout.petEffects.lastDamageAtMs()!=10_000L||
+               petTimeout.npcs.petNativeState()!=1||
+               !coordinator
+                    .deferredPetEffectTimeoutEligible())
+                throw new AssertionError(
+                    "pet timeout committed inside outer world-tick batch"
+                );
+
+            petTimeout.writer.abortBatch();
+            coordinator.abortRegionStreamBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredMakeoverInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+            coordinator.abortDeferredPetEffectTimeoutAfterWorldTick();
+
+            if(petTimeout.petEffects.charge()!=1||
+               petTimeout.petEffects.lastDamageAtMs()!=10_000L||
+               petTimeout.npcs.petNativeState()!=1||
+               coordinator
+                    .deferredPetEffectTimeoutEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed pet timeout state"
+                );
+
+            petTimeout.writer.beginBatch();
+
+            coordinator.tick(
+                41L,
+                timeoutAt+600L,
+                petTimeout.writer,
+                "[tick-pet-timeout-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                petTimeout.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                timeoutAt+600L
+            );
+
+            if(petTimeout.petEffects.charge()!=1||
+               petTimeout.npcs.petNativeState()!=1||
+               !coordinator
+                    .deferredPetEffectTimeoutEligible())
+                throw new AssertionError(
+                    "pet timeout settled before post-commit hook"
+                );
+
+            coordinator
+                .settleDeferredPetEffectTimeoutAfterWorldTick(
+                    petTimeout.writer,
+                    "[tick-pet-timeout-commit] ",
+                    41L
+                );
+
+            if(petTimeout.petEffects.charge()!=0||
+               petTimeout.petEffects.accumulatedDamage()!=0||
+               petTimeout.petEffects.lastDamageAtMs()!=0L||
+               petTimeout.npcs.petNativeState()!=0||
+               coordinator
+                    .deferredPetEffectTimeoutEligible())
+                throw new AssertionError(
+                    "post-commit pet timeout settlement failed"
+                );
+        }
+
         try(Fixture reconnect=new Fixture()){
             reconnect.npcs.tickHome(
                 reconnect.movement,
@@ -1155,6 +1290,8 @@ public final class LocalWorldTickCoordinatorTest {
             "deferredTakePostCommitSettles=true "+
             "deferredPetPickupOuterAbortPreservesState=true "+
             "deferredPetPickupPostCommitSettles=true "+
+            "petEffectTimeoutOuterAbortPreservesState=true "+
+            "petEffectTimeoutPostCommitSettles=true "+
             "sharedHomeClockReconnect=true"
         );
     }
