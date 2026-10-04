@@ -614,6 +614,103 @@ final class NpcRegistry {
         return "PET_FORCE_TEXT_OK item="+pet.petItemId+" npc="+pet.definitionId+" text="+text;
     }
 
+    static final class PreparedPetNativeState {
+        final NpcEntity expectedPet;
+        final int expectedNativeState;
+        final int state;
+        final PetPresentationProfile.NativeStateFamily family;
+
+        PreparedPetNativeState(
+            NpcEntity expectedPet,
+            int expectedNativeState,
+            int state,
+            PetPresentationProfile.NativeStateFamily family
+        ){
+            this.expectedPet=expectedPet;
+            this.expectedNativeState=expectedNativeState;
+            this.state=state;
+            this.family=family;
+        }
+    }
+
+    PreparedPetNativeState preparePetNativeState(
+        int state
+    ){
+        NpcEntity current=pet();
+
+        if(current==null||
+           state<0||
+           state>3)
+            return null;
+
+        PetPresentationProfile.NativeStateFamily family=
+            PetPresentationProfile.nativeStateFamily(
+                current.definitionId
+            );
+
+        if(family==
+                PetPresentationProfile.NativeStateFamily.NONE)
+            return null;
+
+        return new PreparedPetNativeState(
+            current,
+            petNativeState,
+            state,
+            family
+        );
+    }
+
+    boolean canCommitPetNativeState(
+        PreparedPetNativeState prepared
+    ){
+        return prepared!=null&&
+            pet()==prepared.expectedPet&&
+            petNativeState==
+                prepared.expectedNativeState;
+    }
+
+    String publishPreparedPetNativeState(
+        PreparedPetNativeState prepared,
+        ServerPacketWriter writer
+    )throws IOException{
+        if(!canCommitPetNativeState(prepared))
+            throw new IllegalStateException(
+                "pet native state changed before prepared publication"
+            );
+
+        sendMaskLocal(
+            prepared.expectedPet,
+            NpcSyncEncoder.Mask.forceText(
+                Integer.toString(
+                    prepared.state
+                )
+            ),
+            writer
+        );
+
+        return "PET_NATIVE_STATE_OK item="+
+            prepared.expectedPet.petItemId+
+            " npc="+
+            prepared.expectedPet.definitionId+
+            " family="+prepared.family+
+            " state="+prepared.state+
+            " visual="+
+            PetPresentationProfile.nativeStateVisual(
+                prepared.expectedPet.definitionId,
+                prepared.state
+            );
+    }
+
+    boolean commitPreparedPetNativeState(
+        PreparedPetNativeState prepared
+    ){
+        if(!canCommitPetNativeState(prepared))
+            return false;
+
+        petNativeState=prepared.state;
+        return true;
+    }
+
     String setPetNativeState(int state,ServerPacketWriter w) throws IOException {
         if(pet==null) return "REJECTED_NO_ACTIVE_PET";
         if(state<0||state>3) return "REJECTED_STATE_RANGE expected=0..3";
