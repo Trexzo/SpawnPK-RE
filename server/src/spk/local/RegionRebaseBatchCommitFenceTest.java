@@ -12,6 +12,7 @@ public final class RegionRebaseBatchCommitFenceTest {
         implements LocalRegionStreamHandler.SessionBridge
     {
         SceneUpdatePublisher publisher;
+        int petFollowResets;
 
         @Override public String username(){
             return "region-batch";
@@ -27,7 +28,9 @@ public final class RegionRebaseBatchCommitFenceTest {
             publisher=replacement;
         }
 
-        @Override public void resetPetFollowRuntime(){}
+        @Override public void resetPetFollowRuntime(){
+            petFollowResets++;
+        }
     }
 
     public static void main(String[] args)throws Exception{
@@ -292,12 +295,152 @@ public final class RegionRebaseBatchCommitFenceTest {
                 "retry emitted unexpected extra region bytes"
             );
 
+            /*
+             * AUTO_HOME_REATTACH also requests a pet-follow runtime reset.
+             * That reset must remain provisional with packet 73: abort drops
+             * it, commit performs it exactly once, and unbatched publication
+             * retains the historical immediate behavior.
+             */
+            lifecycle.complete();
+            drain(
+                queue
+            );
+
+            movement.enterTransientRegion(
+                MovementState.INITIAL_X,
+                MovementState.INITIAL_Y,
+                0,
+                4064,
+                4192
+            );
+
+            OutboundPacketQueue.BatchReservation
+                homePressure=
+                    OutboundPacketQueue.reserveBatch(
+                        queue,
+                        QUEUE_CAPACITY
+                    );
+
+            writer.beginBatch();
+
+            require(
+                handler.maybeStream(
+                    writer,
+                    "[region-home-abort] "
+                ),
+                "AUTO_HOME_REATTACH was not staged"
+            );
+            require(
+                bridge.petFollowResets==0,
+                "provisional HOME reattach reset pet runtime early count="+
+                bridge.petFollowResets
+            );
+
+            boolean homeFailed=false;
+            try{
+                LocalSession.endWorldTickBatch(
+                    writer
+                );
+            }catch(IOException expected){
+                homeFailed=true;
+            }finally{
+                homePressure.release();
+            }
+
+            require(
+                homeFailed,
+                "forced HOME reattach admission failure did not escape"
+            );
+            require(
+                handler.abortRegionStreamBatch(),
+                "HOME reattach region snapshot did not abort"
+            );
+            require(
+                bridge.petFollowResets==0,
+                "HOME reattach abort mutated pet runtime count="+
+                bridge.petFollowResets
+            );
+            require(
+                movement.transientRegion(),
+                "HOME reattach abort did not restore transient region"
+            );
+            require(
+                !lifecycle.pending(),
+                "HOME reattach abort left stale region lifecycle"
+            );
+
+            writer.beginBatch();
+
+            require(
+                handler.maybeStream(
+                    writer,
+                    "[region-home-commit] "
+                ),
+                "AUTO_HOME_REATTACH retry was blocked"
+            );
+            require(
+                bridge.petFollowResets==0,
+                "HOME reattach retry reset before packet commit"
+            );
+
+            LocalSession.endWorldTickBatch(
+                writer
+            );
+
+            require(
+                handler.commitRegionStreamBatch(),
+                "HOME reattach retry did not commit region transaction"
+            );
+            require(
+                bridge.petFollowResets==1,
+                "HOME reattach commit did not reset exactly once count="+
+                bridge.petFollowResets
+            );
+            require(
+                !movement.transientRegion()&&
+                movement.inHomeWindow(),
+                "HOME reattach commit did not retain HOME window"
+            );
+
+            lifecycle.complete();
+            drain(
+                queue
+            );
+
+            movement.enterTransientRegion(
+                MovementState.INITIAL_X,
+                MovementState.INITIAL_Y,
+                0,
+                4064,
+                4192
+            );
+
+            require(
+                handler.maybeStream(
+                    writer,
+                    "[region-home-standalone] "
+                ),
+                "standalone AUTO_HOME_REATTACH was not handled"
+            );
+            require(
+                bridge.petFollowResets==2,
+                "standalone HOME reattach did not reset immediately count="+
+                bridge.petFollowResets
+            );
+
             System.out.println(
                 "REGION_REBASE_BATCH_COMMIT_FENCE_PASS "+
                 "abortRestoresLoadedWindow=true "+
                 "abortClearsStalePending=true "+
                 "retryReemitsRegion73=true "+
                 "commitAdvancesRegionState=true"
+            );
+
+            System.out.println(
+                "REGION_PET_FOLLOW_RESET_COMMIT_FENCE_PASS "+
+                "abortPreservesRuntime=true "+
+                "commitResetsOnce=true "+
+                "standaloneImmediate=true"
             );
         }finally{
             if(player.registered())
