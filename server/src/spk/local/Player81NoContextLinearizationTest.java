@@ -7,6 +7,7 @@ import java.nio.file.Path;
 
 public final class Player81NoContextLinearizationTest {
     public static void main(String[] args)throws Exception{
+        assertSourceTextNormalization();
         assertNoContextSourceContract();
         assertRegistrationAffectsNextPacketOnly();
         assertStagedNoContextStaysLocalOnly();
@@ -21,19 +22,61 @@ public final class Player81NoContextLinearizationTest {
         );
     }
 
+    private static void assertSourceTextNormalization(){
+        String windows=
+            "PreparedBatchStartStatus\r\n"+
+            "                        .NO_CONTEXT){\r\n"+
+            "batchContainsPlayer81=\r\n"+
+            "                        prepared!=null;\r\n";
+
+        String normalized=
+            normalizeSourceText(
+                windows
+            );
+
+        if(normalized.indexOf('\r')>=0||
+           !normalized.contains(
+                "PreparedBatchStartStatus\n"+
+                "                        .NO_CONTEXT){"
+           )||
+           !normalized.contains(
+                "batchContainsPlayer81=\n"+
+                "                        prepared!=null;"
+           ))
+            throw new AssertionError(
+                "source-contract CRLF normalization failed"
+            );
+    }
+
+    private static String normalizeSourceText(
+        String source
+    ){
+        return source
+            .replace(
+                "\r\n",
+                "\n"
+            )
+            .replace(
+                '\r',
+                '\n'
+            );
+    }
+
     private static void assertNoContextSourceContract()
         throws Exception
     {
         String source=
-            Files.readString(
-                Path.of(
-                    "server",
-                    "src",
-                    "spk",
-                    "local",
-                    "ServerPacketWriter.java"
-                ),
-                StandardCharsets.UTF_8
+            normalizeSourceText(
+                Files.readString(
+                    Path.of(
+                        "server",
+                        "src",
+                        "spk",
+                        "local",
+                        "ServerPacketWriter.java"
+                    ),
+                    StandardCharsets.UTF_8
+                )
             );
 
         String marker=
