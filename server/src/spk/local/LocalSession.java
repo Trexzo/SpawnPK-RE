@@ -2514,6 +2514,11 @@ final class LocalSession implements Runnable {
 
                 if(tickCompleted){
                     worldTicks
+                        .settleDeferredRespawnAfterWorldTick(
+                            sessionPackets,
+                            tickTag
+                        );
+                    worldTicks
                         .settleDeferredBankInteractionsAfterWorldTick(
                             System.currentTimeMillis(),
                             sessionPackets,
@@ -2544,6 +2549,8 @@ final class LocalSession implements Runnable {
                             worldTick
                         );
                 }else{
+                    worldTicks
+                        .abortDeferredRespawnAfterWorldTick();
                     worldTicks
                         .abortDeferredBankInteractionsAfterWorldTick();
                     worldTicks
