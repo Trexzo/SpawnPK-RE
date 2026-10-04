@@ -37,6 +37,7 @@ final class LocalRegionStreamHandler {
         final RegionLoadLifecycle.Snapshot regionLoad;
         final NpcRegistry.RegionViewSnapshot npcView;
         final SceneUpdatePublisher scenePublisher;
+        boolean petFollowResetRequired;
 
         RegionBatchSnapshot(
             MovementState.LoadedWindowSnapshot movementWindow,
@@ -183,7 +184,7 @@ final class LocalRegionStreamHandler {
                     writer
                 );
 
-            bridge.resetPetFollowRuntime();
+            requestPetFollowRuntimeReset();
             TradeService.cancelIfActive(
                 worldPlayer,
                 "AUTO_REGION_REBASE"
@@ -326,6 +327,15 @@ final class LocalRegionStreamHandler {
         return true;
     }
 
+    private void requestPetFollowRuntimeReset(){
+        if(stagedRegionBatch!=null){
+            stagedRegionBatch.petFollowResetRequired=true;
+            return;
+        }
+
+        bridge.resetPetFollowRuntime();
+    }
+
     private void beginRegionBatchIfNeeded(
         ServerPacketWriter writer
     ){
@@ -348,10 +358,17 @@ final class LocalRegionStreamHandler {
     }
 
     boolean commitRegionStreamBatch(){
-        if(stagedRegionBatch==null)
+        RegionBatchSnapshot snapshot=
+            stagedRegionBatch;
+
+        if(snapshot==null)
             return false;
 
         stagedRegionBatch=null;
+
+        if(snapshot.petFollowResetRequired)
+            bridge.resetPetFollowRuntime();
+
         return true;
     }
 
@@ -456,7 +473,7 @@ final class LocalRegionStreamHandler {
             );
         bridge.replaceScenePublisher(replacement);
 
-        bridge.resetPetFollowRuntime();
+        requestPetFollowRuntimeReset();
 
         System.out.println(
             tag+
