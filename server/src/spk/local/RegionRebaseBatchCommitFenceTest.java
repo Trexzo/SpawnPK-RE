@@ -12,6 +12,7 @@ public final class RegionRebaseBatchCommitFenceTest {
         implements LocalRegionStreamHandler.SessionBridge
     {
         SceneUpdatePublisher publisher;
+        int petFollowResets;
 
         @Override public String username(){
             return "region-batch";
@@ -27,7 +28,9 @@ public final class RegionRebaseBatchCommitFenceTest {
             publisher=replacement;
         }
 
-        @Override public void resetPetFollowRuntime(){}
+        @Override public void resetPetFollowRuntime(){
+            petFollowResets++;
+        }
     }
 
     public static void main(String[] args)throws Exception{
@@ -298,6 +301,111 @@ public final class RegionRebaseBatchCommitFenceTest {
                 "abortClearsStalePending=true "+
                 "retryReemitsRegion73=true "+
                 "commitAdvancesRegionState=true"
+            );
+
+            lifecycle.complete();
+            movement.enterTransientRegion(
+                MovementState.INITIAL_X,
+                3527,
+                0,
+                3040,
+                3480
+            );
+
+            SceneUpdatePublisher transientPublisher=
+                new SceneUpdatePublisher(
+                    writer,
+                    new SceneCoordinateContext(
+                        3040,
+                        3480,
+                        0
+                    )
+                );
+            bridge.publisher=
+                transientPublisher;
+            bridge.petFollowResets=0;
+
+            OutboundPacketQueue.BatchReservation
+                homePressure=
+                    OutboundPacketQueue.reserveBatch(
+                        queue,
+                        QUEUE_CAPACITY
+                    );
+
+            writer.beginBatch();
+
+            require(
+                handler.maybeStream(
+                    writer,
+                    "[region-home-reset-abort] "
+                ),
+                "HOME reattach was not staged"
+            );
+            require(
+                bridge.petFollowResets==0,
+                "prospective HOME reattach reset pet realtime before commit"
+            );
+
+            boolean homeFailed=false;
+
+            try{
+                LocalSession.endWorldTickBatch(
+                    writer
+                );
+            }catch(IOException expected){
+                homeFailed=true;
+            }finally{
+                homePressure.release();
+            }
+
+            require(
+                homeFailed,
+                "forced HOME reattach admission failure did not escape"
+            );
+            require(
+                handler.abortRegionStreamBatch(),
+                "HOME reattach rollback snapshot did not abort"
+            );
+            require(
+                bridge.petFollowResets==0&&
+                movement.transientRegion()&&
+                movement.loadedBaseX()==3040&&
+                movement.loadedBaseY()==3480,
+                "aborted HOME reattach mutated pet realtime/window state"
+            );
+
+            writer.beginBatch();
+
+            require(
+                handler.maybeStream(
+                    writer,
+                    "[region-home-reset-retry] "
+                ),
+                "HOME reattach retry was blocked"
+            );
+            require(
+                bridge.petFollowResets==0,
+                "HOME retry reset pet realtime before source commit"
+            );
+
+            LocalSession.endWorldTickBatch(
+                writer
+            );
+
+            require(
+                handler.commitRegionStreamBatch(),
+                "HOME retry region snapshot did not commit"
+            );
+            require(
+                bridge.petFollowResets==1&&
+                movement.inHomeWindow(),
+                "HOME retry did not reset pet realtime exactly at commit"
+            );
+
+            System.out.println(
+                "REGION_PET_FOLLOW_RESET_COMMIT_FENCE_PASS "+
+                "abortPreservesRuntime=true "+
+                "commitResetsOnce=true"
             );
         }finally{
             if(player.registered())
