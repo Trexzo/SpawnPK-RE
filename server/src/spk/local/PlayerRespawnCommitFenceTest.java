@@ -247,6 +247,13 @@ public final class PlayerRespawnCommitFenceTest {
                     "respawn fence death fixture failed"
                 );
 
+            long deathSequenceBeforeFailure=
+                player.lifecycle().deathSequence();
+            long deathTickBeforeFailure=
+                player.lifecycle().deathTick();
+            long respawnTickBeforeFailure=
+                player.lifecycle().respawnTick();
+
             writer.beginBatch();
             coordinator.tick(
                 100L,
@@ -303,6 +310,12 @@ public final class PlayerRespawnCommitFenceTest {
 
             if(writer.terminal()||
                !player.lifecycle().dead()||
+               player.lifecycle().deathSequence()!=
+                    deathSequenceBeforeFailure||
+               player.lifecycle().deathTick()!=
+                    deathTickBeforeFailure||
+               player.lifecycle().respawnTick()!=
+                    respawnTickBeforeFailure||
                player.playerState().currentLevel(
                     PlayerState.HITPOINTS)!=0||
                movement.x()!=transientX||
@@ -312,7 +325,9 @@ public final class PlayerRespawnCommitFenceTest {
                !movement.transientRegion()||
                regionStreams.regionLoadPending()||
                regionBridge.publisher!=beforePublisher||
-               regionBridge.resetCalls!=0)
+               regionBridge.resetCalls!=0||
+               tickBridge.saveCalls!=0||
+               queue.queuedBytes()!=0)
                 throw new AssertionError(
                     "failed respawn publication changed exact preimage"
                 );
@@ -364,6 +379,8 @@ public final class PlayerRespawnCommitFenceTest {
                     "same-writer respawn retry did not settle exactly once"
                 );
 
+            assertStalePreparedRespawnRejected();
+
             System.out.println(
                 "PLAYER_RESPAWN_COMMIT_FENCE_PASS "+
                 "outerCommitDefersSemantic=true "+
@@ -380,6 +397,75 @@ public final class PlayerRespawnCommitFenceTest {
                 );
             world.close();
         }
+    }
+
+    private static void assertStalePreparedRespawnRejected(){
+        WorldPlayer stalePlayer=
+            new WorldPlayer();
+        PlayerLifecycleService staleLifecycle=
+            new PlayerLifecycleService(
+                stalePlayer
+            );
+
+        staleLifecycle.applyDamage(
+            500,
+            200L,
+            "RESPAWN_FENCE_STALE_A",
+            0L
+        );
+
+        PlayerLifecycleService.PreparedRespawn stalePrepared=
+            staleLifecycle.prepareRespawn(
+                200L
+            );
+
+        if(stalePrepared==null)
+            throw new AssertionError(
+                "stale prepared respawn fixture missing"
+            );
+
+        staleLifecycle.commitPreparedRespawn(
+            stalePrepared
+        );
+
+        staleLifecycle.applyDamage(
+            500,
+            201L,
+            "RESPAWN_FENCE_STALE_B",
+            0L
+        );
+
+        long replacementSequence=
+            stalePlayer.lifecycle().deathSequence();
+        long replacementDeathTick=
+            stalePlayer.lifecycle().deathTick();
+        long replacementRespawnTick=
+            stalePlayer.lifecycle().respawnTick();
+
+        boolean rejected=false;
+        try{
+            staleLifecycle.commitPreparedRespawn(
+                stalePrepared
+            );
+        }catch(IllegalStateException expected){
+            rejected=true;
+        }
+
+        if(!rejected||
+           !stalePlayer.lifecycle().dead()||
+           stalePlayer.playerState().currentLevel(
+                PlayerState.HITPOINTS)!=0||
+           stalePlayer.lifecycle().deathSequence()!=
+                replacementSequence||
+           replacementSequence==
+                stalePrepared.deathSequence||
+           stalePlayer.lifecycle().deathTick()!=
+                replacementDeathTick||
+           stalePlayer.lifecycle().respawnTick()!=
+                replacementRespawnTick)
+            throw new AssertionError(
+                "stale prepared respawn did not fail closed"
+            );
     }
 
     private static void drain(
