@@ -38,6 +38,43 @@ final class MovementState {
 
     int loadedBaseX(){return loadedBaseX;} int loadedBaseY(){return loadedBaseY;}
     boolean transientRegion(){return transientRegion;}
+
+    static final class LoadedWindowSnapshot {
+        final int baseX;
+        final int baseY;
+        final boolean transientRegion;
+
+        private LoadedWindowSnapshot(
+            int baseX,
+            int baseY,
+            boolean transientRegion
+        ){
+            this.baseX=baseX;
+            this.baseY=baseY;
+            this.transientRegion=transientRegion;
+        }
+    }
+
+    LoadedWindowSnapshot snapshotLoadedWindow(){
+        return new LoadedWindowSnapshot(
+            loadedBaseX,
+            loadedBaseY,
+            transientRegion
+        );
+    }
+
+    void restoreLoadedWindow(
+        LoadedWindowSnapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "loaded window snapshot"
+            );
+
+        loadedBaseX=snapshot.baseX;
+        loadedBaseY=snapshot.baseY;
+        transientRegion=snapshot.transientRegion;
+    }
     boolean inHomeWindow(){return loadedBaseX==REGION_BASE_X && loadedBaseY==REGION_BASE_Y && !transientRegion;}
 
     void restoreAccountState(
