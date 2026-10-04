@@ -1078,6 +1078,18 @@ final class LocalWorldTickCoordinator {
         abortDeferredGroundTakeAfterWorldTick();
         abortDeferredPetPickupAfterWorldTick();
         abortDeferredPetEffectTimeoutAfterWorldTick();
+
+        /*
+         * The source movement packet has already committed before this
+         * standalone tail transaction begins.  Tail code can mutate several
+         * gameplay authorities before its final queue admission, so a
+         * recoverable admission failure cannot safely resume this live
+         * session without either replaying or rolling back every one of
+         * those authorities.  Retire the writer instead: teardown may persist
+         * the resulting authoritative state, but no live client can continue
+         * after missing the corresponding tail presentation.
+         */
+        writer.markTerminal();
     }
 
     boolean abortDeferredMovementAfterWorldTick(){
