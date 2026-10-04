@@ -2258,7 +2258,7 @@ final class LocalSession implements Runnable {
         String tag
     ){
         RegionLoadLifecycle.Completion completion=
-            regionLoads.complete();
+            regionLoads.prepareComplete();
 
         if(!completion.matched){
             System.out.println(
@@ -2270,35 +2270,103 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        System.out.println(
-            tag+
-            "V5182_REGION_LOAD_COMPLETE seq="+
-            completion.sequence+
-            " center="+
-            completion.centerX+","+
-            completion.centerY+
-            " base="+
-            completion.baseX+","+
-            completion.baseY+
-            " reason="+
-            completion.reason+
-            " opcode=121"+
-            " authority=V308_RUNTIME_PROBE_RS_CLIENT_BW"
-        );
+        long now=
+            System.currentTimeMillis();
+        boolean packetCommitted=false;
+
+        sessionPackets.beginBatch();
 
         try{
             worldTicks.completeRegionLoad(
                 completion,
                 sessionPackets,
                 tag,
-                System.currentTimeMillis()
+                now
             );
-        }catch(IOException e){
+
+            sessionPackets.endBatch();
+            packetCommitted=true;
+
+            worldTicks
+                .commitRegionStreamBatch();
+            worldTicks
+                .commitGroundPresentationBatch(
+                    now
+                );
+
+            if(!regionLoads.commitCompletion(
+                    completion
+                ))
+                throw new IllegalStateException(
+                    "region ACK completion identity changed seq="+
+                    completion.sequence
+                );
+
+            System.out.println(
+                tag+
+                "V5182_REGION_LOAD_COMPLETE seq="+
+                completion.sequence+
+                " center="+
+                completion.centerX+","+
+                completion.centerY+
+                " base="+
+                completion.baseX+","+
+                completion.baseY+
+                " reason="+
+                completion.reason+
+                " opcode=121"+
+                " authority=V308_RUNTIME_PROBE_RS_CLIENT_BW"
+            );
+        }catch(IOException failure){
+            if(!packetCommitted)
+                abortRegionAckReplay(
+                    failure
+                );
             throw new IllegalStateException(
                 "post-region-load scene replay failed seq="+
                 completion.sequence+
                 " reason="+completion.reason,
-                e
+                failure
+            );
+        }catch(RuntimeException failure){
+            if(!packetCommitted)
+                abortRegionAckReplay(
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(!packetCommitted)
+                abortRegionAckReplay(
+                    failure
+                );
+            throw failure;
+        }
+    }
+
+    private void abortRegionAckReplay(
+        Throwable primary
+    ){
+        try{
+            sessionPackets.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
+        }
+
+        try{
+            worldTicks.abortRegionStreamBatch();
+        }catch(Throwable restoreFailure){
+            primary.addSuppressed(
+                restoreFailure
+            );
+        }
+
+        try{
+            worldTicks.abortGroundPresentationBatch();
+        }catch(Throwable groundFailure){
+            primary.addSuppressed(
+                groundFailure
             );
         }
     }
