@@ -78,8 +78,62 @@ final class RegionLoadLifecycle {
         }
     }
 
+    static final class Snapshot {
+        final long nextSequence;
+        final Pending pending;
+
+        private Snapshot(
+            long nextSequence,
+            Pending pending
+        ){
+            this.nextSequence=nextSequence;
+            this.pending=pending;
+        }
+    }
+
     private long nextSequence=1L;
     private Pending pending;
+
+    synchronized Snapshot snapshot(){
+        Pending copy=
+            pending==null
+                ?null
+                :new Pending(
+                    pending.sequence,
+                    pending.centerX,
+                    pending.centerY,
+                    pending.baseX,
+                    pending.baseY,
+                    pending.reason
+                );
+
+        return new Snapshot(
+            nextSequence,
+            copy
+        );
+    }
+
+    synchronized void restore(
+        Snapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "region load snapshot"
+            );
+
+        nextSequence=snapshot.nextSequence;
+        pending=
+            snapshot.pending==null
+                ?null
+                :new Pending(
+                    snapshot.pending.sequence,
+                    snapshot.pending.centerX,
+                    snapshot.pending.centerY,
+                    snapshot.pending.baseX,
+                    snapshot.pending.baseY,
+                    snapshot.pending.reason
+                );
+    }
 
     synchronized Begin begin(
         int centerX,
