@@ -890,15 +890,19 @@ final class LocalWorldTickCoordinator {
                 "pet timeout presentation changed before settlement"
             );
 
-        boolean relayBatchActive=
-            SharedNpcWorldRelay.beginSourceMaskBatch(
-                writer
-            );
+        boolean relayBatchActive=false;
+        boolean writerBatchActive=false;
         boolean packetCommitted=false;
 
-        writer.beginBatch();
-
         try{
+            writer.beginBatch();
+            writerBatchActive=true;
+
+            relayBatchActive=
+                SharedNpcWorldRelay.beginSourceMaskBatch(
+                    writer
+                );
+
             String reset=
                 npcs.publishPetNativeState(
                     expectedPet,
@@ -914,6 +918,7 @@ final class LocalWorldTickCoordinator {
                 );
 
             writer.endBatch();
+            writerBatchActive=false;
             packetCommitted=true;
 
             if(relayBatchActive)
@@ -942,6 +947,7 @@ final class LocalWorldTickCoordinator {
             if(!packetCommitted)
                 abortPetEffectTimeoutPacket(
                     writer,
+                    writerBatchActive,
                     relayBatchActive,
                     failure
                 );
@@ -950,6 +956,7 @@ final class LocalWorldTickCoordinator {
             if(!packetCommitted)
                 abortPetEffectTimeoutPacket(
                     writer,
+                    writerBatchActive,
                     relayBatchActive,
                     failure
                 );
@@ -958,6 +965,7 @@ final class LocalWorldTickCoordinator {
             if(!packetCommitted)
                 abortPetEffectTimeoutPacket(
                     writer,
+                    writerBatchActive,
                     relayBatchActive,
                     failure
                 );
@@ -967,16 +975,18 @@ final class LocalWorldTickCoordinator {
 
     private static void abortPetEffectTimeoutPacket(
         ServerPacketWriter writer,
+        boolean writerBatchActive,
         boolean relayBatchActive,
         Throwable primary
     ){
-        try{
-            writer.abortBatch();
-        }catch(Throwable abortFailure){
-            primary.addSuppressed(
-                abortFailure
-            );
-        }
+        if(writerBatchActive)
+            try{
+                writer.abortBatch();
+            }catch(Throwable abortFailure){
+                primary.addSuppressed(
+                    abortFailure
+                );
+            }
 
         if(relayBatchActive)
             try{
