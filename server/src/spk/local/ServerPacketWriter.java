@@ -160,6 +160,10 @@ final class ServerPacketWriter {
         return terminal;
     }
 
+    synchronized boolean batchActive(){
+        return batchDepth>0;
+    }
+
     private void requireLiveLocked()throws IOException{
         if(terminal)
             throw new IOException(
