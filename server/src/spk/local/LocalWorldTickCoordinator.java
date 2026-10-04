@@ -292,30 +292,33 @@ final class LocalWorldTickCoordinator {
                 writer
             );
         }catch(IOException failure){
-            restorePreparedMovement(
+            handlePreparedMovementPublicationFailure(
                 movementTick,
                 movementFence,
                 movementBefore,
                 interactionsBefore,
-                combatFacingBefore
+                combatFacingBefore,
+                writer
             );
             throw failure;
         }catch(RuntimeException failure){
-            restorePreparedMovement(
+            handlePreparedMovementPublicationFailure(
                 movementTick,
                 movementFence,
                 movementBefore,
                 interactionsBefore,
-                combatFacingBefore
+                combatFacingBefore,
+                writer
             );
             throw failure;
         }catch(Error failure){
-            restorePreparedMovement(
+            handlePreparedMovementPublicationFailure(
                 movementTick,
                 movementFence,
                 movementBefore,
                 interactionsBefore,
-                combatFacingBefore
+                combatFacingBefore,
+                writer
             );
             throw failure;
         }
@@ -841,6 +844,40 @@ final class LocalWorldTickCoordinator {
                 movement.queued()+
                 " staticCollision=true homeWorldNpcSystemsSuspended=true petLifecycleActive=true transientPositionSave=false"
             );
+    }
+
+    private void handlePreparedMovementPublicationFailure(
+        MovementState.Tick movementTick,
+        boolean movementFence,
+        MovementState.Snapshot movementBefore,
+        LocalPlayerInteractionHandler.Snapshot
+            interactionsBefore,
+        CombatEngine.MovementFacingSnapshot
+            combatFacingBefore,
+        ServerPacketWriter writer
+    ){
+        restorePreparedMovement(
+            movementTick,
+            movementFence,
+            movementBefore,
+            interactionsBefore,
+            combatFacingBefore
+        );
+
+        /*
+         * prepareTick(...) runs before S2C81 publication and can dispatch
+         * shared Trade semantics when a deferred target becomes adjacent.
+         * With no actual movement there is no prepared-movement token whose
+         * local rollback is sufficient to reconstruct that shared authority.
+         * If idle S2C81 publication now fails, fail closed: LocalSession will
+         * abort the open packet batch, while this terminal latch prevents the
+         * same live client from continuing after pre-tail interaction state
+         * may already have advanced.
+         *
+         * Actual movement keeps #1812's exact snapshot rollback/retry policy.
+         */
+        if(movementTick==null&&movementFence)
+            writer.markTerminal();
     }
 
     private void restorePreparedMovement(
