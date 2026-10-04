@@ -309,6 +309,14 @@ public final class SharedNpcRelayBatchCommitFenceTest {
              * descriptor may still resolve to the same canonical HOME id, but
              * the staged relay belongs to the exact old source NpcEntity.
              */
+            EntityId sourceNpcId=
+                sourceNpc.canonicalId();
+
+            require(
+                sourceNpcId!=null,
+                "shared source NPC lost canonical identity"
+            );
+
             sourceNpcs.bootstrapHome(
                 sourceWriter,
                 sourceMovement,
@@ -340,6 +348,17 @@ public final class SharedNpcRelayBatchCommitFenceTest {
             drain(sourceQueue);
             drain(viewerQueue);
 
+            NpcEntity currentSourceNpc=
+                sourceNpcs.canonical(
+                    sourceNpcId
+                );
+
+            require(
+                currentSourceNpc!=null&&
+                currentSourceNpc!=sourceNpc,
+                "source projection replacement fixture did not produce a current exact target"
+            );
+
             require(
                 SharedNpcWorldRelay
                     .beginSourceMaskBatch(
@@ -350,7 +369,7 @@ public final class SharedNpcRelayBatchCommitFenceTest {
 
             sourceWriter.beginBatch();
             sourceNpcs.sendMask(
-                sourceNpc,
+                currentSourceNpc,
                 NpcSyncEncoder.Mask.gfx(
                     100,
                     0,
