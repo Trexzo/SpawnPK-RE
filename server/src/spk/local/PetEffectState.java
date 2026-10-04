@@ -33,12 +33,81 @@ final class PetEffectState {
         return charge!=before;
     }
 
-    /** Returns true if a timeout reset occurred. */
-    boolean tick(long now){
-        if(charge<=0 || lastDamageAtMs<=0) return false;
+    static final class PreparedTimeoutReset {
+        final int itemId;
+        final int npcId;
+        final int accumulatedDamage;
+        final int charge;
+        final long lastDamageAtMs;
+
+        PreparedTimeoutReset(
+            int itemId,
+            int npcId,
+            int accumulatedDamage,
+            int charge,
+            long lastDamageAtMs
+        ){
+            this.itemId=itemId;
+            this.npcId=npcId;
+            this.accumulatedDamage=accumulatedDamage;
+            this.charge=charge;
+            this.lastDamageAtMs=lastDamageAtMs;
+        }
+    }
+
+    PreparedTimeoutReset prepareTimeoutReset(
+        long now
+    ){
+        if(charge<=0||lastDamageAtMs<=0)
+            return null;
+
         long timeout=resetMs();
-        if(timeout>0 && now-lastDamageAtMs>=timeout){ accumulatedDamage=0; charge=0; lastDamageAtMs=0L; return true; }
-        return false;
+
+        if(timeout<=0||
+           now-lastDamageAtMs<timeout)
+            return null;
+
+        return new PreparedTimeoutReset(
+            itemId,
+            npcId,
+            accumulatedDamage,
+            charge,
+            lastDamageAtMs
+        );
+    }
+
+    boolean canCommitTimeoutReset(
+        PreparedTimeoutReset prepared
+    ){
+        return prepared!=null&&
+            itemId==prepared.itemId&&
+            npcId==prepared.npcId&&
+            accumulatedDamage==
+                prepared.accumulatedDamage&&
+            charge==prepared.charge&&
+            lastDamageAtMs==
+                prepared.lastDamageAtMs;
+    }
+
+    boolean commitTimeoutReset(
+        PreparedTimeoutReset prepared
+    ){
+        if(!canCommitTimeoutReset(prepared))
+            return false;
+
+        accumulatedDamage=0;
+        charge=0;
+        lastDamageAtMs=0L;
+        return true;
+    }
+
+    /** Legacy direct seam retained for non-world-tick callers. */
+    boolean tick(long now){
+        PreparedTimeoutReset prepared=
+            prepareTimeoutReset(now);
+
+        return prepared!=null&&
+            commitTimeoutReset(prepared);
     }
 
     void forceCharge(int value,long now){
