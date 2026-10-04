@@ -4032,7 +4032,7 @@ tasks.register('pluginRuntimeFailureCascadeRegression') {
 
 tasks.register('issue4FinalCertification') {
     group = 'verification'
-    description = 'Runs every Issue #4 plugin gate plus the frozen 175-test and exact-v308 179-test release-safety suites.'
+    description = 'Runs every Issue #4 plugin gate plus the current focused manifest and exact-v308 179-test release-safety suite.'
 
     dependsOn(
         tasks.named('pluginDeveloperApiArtifactRegression'),
@@ -4051,7 +4051,7 @@ tasks.register('issue4FinalCertification') {
     doLast {
         logger.lifecycle(
             'SPAWNPK_ISSUE4_FINAL_CERTIFICATION_PASS ' +
-            'pluginGates=9 focused=175 exactV308=179 ' +
+            'pluginGates=9 focused=' + currentTrainFocusedTests.size() + ' exactV308=179 ' +
             'bytecodeMajor=55 canonicalPromoted=true'
         )
     }
@@ -5080,7 +5080,7 @@ tasks.register('issue5KotlinScriptingCertification') {
             'dslNamespaceExact=true ' +
             'dslClassIdentity=true ' +
             'rawWidgetIds=false ' +
-            'focused=175 ' +
+            'focused=' + currentTrainFocusedTests.size() + ' ' +
             'exactV308=179 ' +
             'canonicalPromoted=true ' +
             'bytecodeMajor=55'
@@ -6105,6 +6105,14 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
     doLast {
         File buildFile = new File(repoRoot, 'server/build.gradle')
         String buildText = buildFile.getText('UTF-8')
+
+        def staleFocusedLiteral =
+            buildText =~ /focused=\d+/
+        if(staleFocusedLiteral.find())
+            throw new GradleException(
+                'Private certification focused-count claims must derive from currentTrainFocusedTests.size(), not a numeric literal.'
+            )
+
         String taskAnchor = "tasks.register('chat1CurrentCumulativeCertification')"
         int taskIndex = buildText.lastIndexOf(taskAnchor)
         if(taskIndex < 0)
@@ -6155,7 +6163,7 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
         }
 
         [
-            "'focused=175 '",
+            "'focused=' + currentTrainFocusedTests.size() + ' '",
             "'exactV308=179 '",
             "'bytecodeMajor=55'"
         ].each { required ->
@@ -6195,7 +6203,7 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
 
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
-    description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, Issue #9 R13 source gates, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
+    description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, Issue #9 R13 source gates, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, the current focused manifest and canonical exact-v308 179.'
 
     dependsOn(
         tasks.named('chat1CumulativeWrapperContractRegression'),
@@ -6272,7 +6280,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'localAuxRequestBounded=true ' +
             'localAuxArchivePathSafe=true ' +
             'localAuxArchiveAccessSafe=true ' +
-            'focused=175 ' +
+            'focused=' + currentTrainFocusedTests.size() + ' ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
             'serverSha256=' + certifiedServerSha256 + ' ' +
