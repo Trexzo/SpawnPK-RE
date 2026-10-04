@@ -60,6 +60,11 @@ final class LocalWorldTickCoordinator {
     private boolean deferredMakeoverInteractionEligible;
     private boolean deferredGroundTakeEligible;
     private boolean deferredPetPickupEligible;
+    private PetEffectState.PreparedTimeoutReset
+        deferredPetEffectTimeout;
+    private NpcRegistry.PreparedPetNativeState
+        deferredPetNativeState;
+    private long deferredPetEffectTimeoutWorldTick;
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -169,6 +174,9 @@ final class LocalWorldTickCoordinator {
         deferredMakeoverInteractionEligible=false;
         deferredGroundTakeEligible=false;
         deferredPetPickupEligible=false;
+        deferredPetEffectTimeout=null;
+        deferredPetNativeState=null;
+        deferredPetEffectTimeoutWorldTick=0L;
 
         PlayerStatusService.TickResult statusTick=
             statuses.tick(worldTick);
@@ -463,24 +471,35 @@ final class LocalWorldTickCoordinator {
                 );
         }
 
-        if(petEffects.tick(now)&&
-           npcs.pet()!=null&&
-           PetPresentationProfile.supportsNativeState(
-               npcs.pet().definitionId
-           )){
-            String reset=
-                npcs.setPetNativeState(
-                    0,
-                    writer
+        PetEffectState.PreparedTimeoutReset
+            timeoutReset=
+                petEffects.prepareTimeoutReset(
+                    now
                 );
 
-            System.out.println(
-                tag+
-                "V59_PET_CHARGE_TIMEOUT_RESET "+
-                reset+
-                " state="+petEffects.summary()+
-                " sharedWorldTick="+worldTick
-            );
+        if(timeoutReset!=null){
+            NpcEntity timeoutPet=
+                npcs.pet();
+
+            if(timeoutPet!=null&&
+               PetPresentationProfile.supportsNativeState(
+                   timeoutPet.definitionId
+               )){
+                NpcRegistry.PreparedPetNativeState
+                    nativeReset=
+                        npcs.preparePetNativeState(
+                            0
+                        );
+
+                if(nativeReset!=null){
+                    deferredPetEffectTimeout=
+                        timeoutReset;
+                    deferredPetNativeState=
+                        nativeReset;
+                    deferredPetEffectTimeoutWorldTick=
+                        worldTick;
+                }
+            }
         }
 
         bridge.ensurePetFollowScheduled(now);
@@ -845,6 +864,124 @@ final class LocalWorldTickCoordinator {
 
     boolean deferredPetPickupEligible(){
         return deferredPetPickupEligible;
+    }
+
+    boolean deferredPetEffectTimeoutEligible(){
+        return deferredPetEffectTimeout!=null&&
+            deferredPetNativeState!=null;
+    }
+
+    void abortDeferredPetEffectTimeoutAfterWorldTick(){
+        deferredPetEffectTimeout=null;
+        deferredPetNativeState=null;
+        deferredPetEffectTimeoutWorldTick=0L;
+    }
+
+    void settleDeferredPetEffectTimeoutAfterWorldTick(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        PetEffectState.PreparedTimeoutReset
+            effect=
+                deferredPetEffectTimeout;
+        NpcRegistry.PreparedPetNativeState
+            nativeState=
+                deferredPetNativeState;
+
+        if(effect==null||
+           nativeState==null)
+            return;
+
+        if(!petEffects.canCommitTimeoutReset(
+                effect
+            )||
+           !npcs.canCommitPetNativeState(
+                nativeState
+           )){
+            abortDeferredPetEffectTimeoutAfterWorldTick();
+            System.err.println(
+                tag+
+                "V59_PET_CHARGE_TIMEOUT_RESET_REJECTED reason=STALE_PREPARED_STATE"
+            );
+            return;
+        }
+
+        writer.beginBatch();
+        boolean ended=false;
+        String reset;
+
+        try{
+            reset=
+                npcs.publishPreparedPetNativeState(
+                    nativeState,
+                    writer
+                );
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            abortPetEffectTimeoutPacketBatch(
+                writer,
+                ended,
+                failure
+            );
+            throw failure;
+        }catch(RuntimeException failure){
+            abortPetEffectTimeoutPacketBatch(
+                writer,
+                ended,
+                failure
+            );
+            throw failure;
+        }catch(Error failure){
+            abortPetEffectTimeoutPacketBatch(
+                writer,
+                ended,
+                failure
+            );
+            throw failure;
+        }
+
+        if(!npcs.commitPreparedPetNativeState(
+                nativeState
+            )||
+           !petEffects.commitTimeoutReset(
+                effect
+           )){
+            writer.markTerminal();
+            throw new IllegalStateException(
+                "pet timeout semantic identity changed after committed reset bytes"
+            );
+        }
+
+        long worldTick=
+            deferredPetEffectTimeoutWorldTick;
+
+        abortDeferredPetEffectTimeoutAfterWorldTick();
+
+        System.out.println(
+            tag+
+            "V59_PET_CHARGE_TIMEOUT_RESET "+
+            reset+
+            " state="+petEffects.summary()+
+            " sharedWorldTick="+worldTick
+        );
+    }
+
+    private static void abortPetEffectTimeoutPacketBatch(
+        ServerPacketWriter writer,
+        boolean ended,
+        Throwable primary
+    ){
+        if(ended)
+            return;
+
+        try{
+            writer.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
+        }
     }
 
     boolean commitRegionStreamBatch(){
