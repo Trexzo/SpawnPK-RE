@@ -2,6 +2,28 @@ package spk.local;
 
 /** Per-session pet proc/charge state. Combat modifiers remain separate from the M2 fixture formula. */
 final class PetEffectState {
+    static final class PreparedTimeoutReset {
+        final int itemId;
+        final int npcId;
+        final int accumulatedDamage;
+        final int charge;
+        final long lastDamageAtMs;
+
+        PreparedTimeoutReset(
+            int itemId,
+            int npcId,
+            int accumulatedDamage,
+            int charge,
+            long lastDamageAtMs
+        ){
+            this.itemId=itemId;
+            this.npcId=npcId;
+            this.accumulatedDamage=accumulatedDamage;
+            this.charge=charge;
+            this.lastDamageAtMs=lastDamageAtMs;
+        }
+    }
+
     private int itemId=-1,npcId=-1;
     private int accumulatedDamage;
     private int charge;
@@ -33,12 +55,44 @@ final class PetEffectState {
         return charge!=before;
     }
 
-    /** Returns true if a timeout reset occurred. */
-    boolean tick(long now){
-        if(charge<=0 || lastDamageAtMs<=0) return false;
+    PreparedTimeoutReset prepareTimeoutReset(long now){
+        if(charge<=0 || lastDamageAtMs<=0) return null;
         long timeout=resetMs();
-        if(timeout>0 && now-lastDamageAtMs>=timeout){ accumulatedDamage=0; charge=0; lastDamageAtMs=0L; return true; }
-        return false;
+        if(timeout<=0 || now-lastDamageAtMs<timeout) return null;
+        return new PreparedTimeoutReset(
+            itemId,
+            npcId,
+            accumulatedDamage,
+            charge,
+            lastDamageAtMs
+        );
+    }
+
+    void commitTimeoutReset(
+        PreparedTimeoutReset prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException("prepared");
+        if(itemId!=prepared.itemId||
+           npcId!=prepared.npcId||
+           accumulatedDamage!=prepared.accumulatedDamage||
+           charge!=prepared.charge||
+           lastDamageAtMs!=prepared.lastDamageAtMs)
+            throw new IllegalStateException(
+                "pet effect state changed before timeout reset commit"
+            );
+        accumulatedDamage=0;
+        charge=0;
+        lastDamageAtMs=0L;
+    }
+
+    /** Compatibility helper for standalone state-only tests. */
+    boolean tick(long now){
+        PreparedTimeoutReset prepared=
+            prepareTimeoutReset(now);
+        if(prepared==null) return false;
+        commitTimeoutReset(prepared);
+        return true;
     }
 
     void forceCharge(int value,long now){
