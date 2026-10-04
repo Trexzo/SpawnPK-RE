@@ -1078,6 +1078,22 @@ final class LocalWorldTickCoordinator {
         abortDeferredGroundTakeAfterWorldTick();
         abortDeferredPetPickupAfterWorldTick();
         abortDeferredPetEffectTimeoutAfterWorldTick();
+
+        /*
+         * Movement transport is already committed before this tail begins.
+         * If the tail packet transaction now fails, its semantic work may
+         * already include non-retractable Trade/PvP/combat effects. Do not
+         * let a live source session continue after retracting the tail bytes:
+         * retire the exact writer coherently and let normal session teardown
+         * own cleanup.
+         */
+        try{
+            writer.markTerminal();
+        }catch(Throwable terminalFailure){
+            primary.addSuppressed(
+                terminalFailure
+            );
+        }
     }
 
     boolean abortDeferredMovementAfterWorldTick(){
