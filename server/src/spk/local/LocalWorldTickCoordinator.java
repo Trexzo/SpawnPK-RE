@@ -73,6 +73,7 @@ final class LocalWorldTickCoordinator {
     private long deferredMovementWorldTick;
     private long deferredMovementNow;
     private boolean deferredMovementTransient;
+    private boolean noMovementSemanticTailCompleted;
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -191,6 +192,7 @@ final class LocalWorldTickCoordinator {
         deferredPetEffectPet=null;
         deferredPetEffectNativeState=0;
         deferredRespawn=null;
+        noMovementSemanticTailCompleted=false;
 
         PlayerStatusService.TickResult statusTick=
             statuses.tick(worldTick);
@@ -346,6 +348,9 @@ final class LocalWorldTickCoordinator {
             playerSync,
             movementTick
         );
+
+        if(movementTick==null&&movementFence)
+            noMovementSemanticTailCompleted=true;
     }
 
     private void tickTransientRegion(
@@ -1122,6 +1127,25 @@ final class LocalWorldTickCoordinator {
 
     boolean deferredMovementEligible(){
         return deferredMovementTick!=null;
+    }
+
+    boolean noMovementSemanticTailCompleted(){
+        return noMovementSemanticTailCompleted;
+    }
+
+    void clearNoMovementSemanticTailAfterCommit(){
+        noMovementSemanticTailCompleted=false;
+    }
+
+    boolean retireAfterFailedNoMovementSemanticTail(
+        ServerPacketWriter writer
+    ){
+        if(!noMovementSemanticTailCompleted)
+            return false;
+
+        noMovementSemanticTailCompleted=false;
+        writer.markTerminal();
+        return true;
     }
 
     private void clearDeferredMovementToken(){
