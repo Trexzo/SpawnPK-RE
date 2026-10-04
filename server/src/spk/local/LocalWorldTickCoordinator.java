@@ -56,6 +56,8 @@ final class LocalWorldTickCoordinator {
 
     private long legacyTickCount;
     private long movementTickCount;
+    private LocalRegionStreamHandler.AutoStreamPlan
+        deferredRegionStreamPlan;
     private boolean deferredBankInteractionEligible;
     private boolean deferredMakeoverInteractionEligible;
     private boolean deferredGroundTakeEligible;
@@ -165,6 +167,7 @@ final class LocalWorldTickCoordinator {
         ServerPacketWriter writer,
         String tag
     )throws Exception{
+        deferredRegionStreamPlan=null;
         deferredBankInteractionEligible=false;
         deferredMakeoverInteractionEligible=false;
         deferredGroundTakeEligible=false;
@@ -235,8 +238,15 @@ final class LocalWorldTickCoordinator {
             return;
         }
 
-        if(regionStreams.maybeStream(writer,tag)){
-            legacyTickCount++;
+        LocalRegionStreamHandler.AutoStreamPlan
+            regionStreamPlan=
+                regionStreams.prepareAutoStream(
+                    tag
+                );
+
+        if(regionStreamPlan!=null){
+            deferredRegionStreamPlan=
+                regionStreamPlan;
             return;
         }
 
@@ -724,6 +734,34 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    void settleDeferredRegionStreamAfterWorldTick(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        LocalRegionStreamHandler.AutoStreamPlan plan=
+            deferredRegionStreamPlan;
+
+        if(plan==null)
+            return;
+
+        deferredRegionStreamPlan=null;
+
+        if(regionStreams.settlePreparedAutoStream(
+                plan,
+                writer,
+                tag
+            ))
+            legacyTickCount++;
+    }
+
+    void abortDeferredRegionStreamAfterWorldTick(){
+        deferredRegionStreamPlan=null;
+    }
+
+    boolean deferredRegionStreamEligible(){
+        return deferredRegionStreamPlan!=null;
     }
 
     void settleDeferredBankInteractionsAfterWorldTick(
