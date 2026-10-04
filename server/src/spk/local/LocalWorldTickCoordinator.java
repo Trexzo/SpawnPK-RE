@@ -818,6 +818,21 @@ final class LocalWorldTickCoordinator {
         return deferredPetPickupEligible;
     }
 
+    boolean commitRegionStreamBatch(){
+        return regionStreams
+            .commitRegionStreamBatch();
+    }
+
+    boolean abortRegionStreamBatch(){
+        return regionStreams
+            .abortRegionStreamBatch();
+    }
+
+    boolean regionStreamBatchStaged(){
+        return regionStreams
+            .regionStreamBatchStaged();
+    }
+
     boolean commitHomePresentationBatch(){
         return npcs
             .commitHomePresentationBatch();
