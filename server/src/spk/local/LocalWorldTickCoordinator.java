@@ -720,30 +720,33 @@ final class LocalWorldTickCoordinator {
                 );
         }
 
-        PetEffectState.PreparedTimeoutReset
-            petEffectTimeout=
-                petEffects.prepareTimeoutReset(
-                    now
-                );
+        if(!petRuntimeCommands
+                .preparedCombatDamagePending()){
+            PetEffectState.PreparedTimeoutReset
+                petEffectTimeout=
+                    petEffects.prepareTimeoutReset(
+                        now
+                    );
 
-        if(petEffectTimeout!=null){
-            NpcEntity effectPet=
-                npcs.pet();
+            if(petEffectTimeout!=null){
+                NpcEntity effectPet=
+                    npcs.pet();
 
-            if(effectPet!=null&&
-               PetPresentationProfile.supportsNativeState(
-                   effectPet.definitionId
-               )){
-                deferredPetEffectTimeout=
-                    petEffectTimeout;
-                deferredPetEffectPet=
-                    effectPet;
-                deferredPetEffectNativeState=
-                    npcs.petNativeState();
-            }else{
-                petEffects.commitTimeoutReset(
-                    petEffectTimeout
-                );
+                if(effectPet!=null&&
+                   PetPresentationProfile.supportsNativeState(
+                       effectPet.definitionId
+                   )){
+                    deferredPetEffectTimeout=
+                        petEffectTimeout;
+                    deferredPetEffectPet=
+                        effectPet;
+                    deferredPetEffectNativeState=
+                        npcs.petNativeState();
+                }else{
+                    petEffects.commitTimeoutReset(
+                        petEffectTimeout
+                    );
+                }
             }
         }
 
@@ -1078,6 +1081,9 @@ final class LocalWorldTickCoordinator {
         abortDeferredGroundTakeAfterWorldTick();
         abortDeferredPetPickupAfterWorldTick();
         abortDeferredPetEffectTimeoutAfterWorldTick();
+        abortDeferredPetChargeIncrementAfterWorldTick(
+            writer
+        );
 
         /*
          * The source movement packet has already committed before this
@@ -1546,6 +1552,36 @@ final class LocalWorldTickCoordinator {
 
     boolean deferredPetEffectTimeoutEligible(){
         return deferredPetEffectTimeout!=null;
+    }
+
+    void settleDeferredPetChargeIncrementAfterWorldTick(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        String result=
+            petRuntimeCommands
+                .settlePreparedCombatDamageAfterSourceCommit(
+                    writer
+                );
+
+        if(result!=null)
+            System.out.println(
+                tag+result
+            );
+    }
+
+    boolean abortDeferredPetChargeIncrementAfterWorldTick(
+        ServerPacketWriter writer
+    ){
+        return petRuntimeCommands
+            .abortPreparedCombatDamageAfterSourceFailure(
+                writer
+            );
+    }
+
+    boolean deferredPetChargeIncrementEligible(){
+        return petRuntimeCommands
+            .preparedCombatDamagePending();
     }
 
     boolean commitRegionStreamBatch(){
