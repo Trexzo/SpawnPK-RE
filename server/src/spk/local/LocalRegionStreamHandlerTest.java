@@ -571,6 +571,169 @@ public final class LocalRegionStreamHandlerTest {
         }finally{
             atomicWorld.close();
         }
+
+        World homeAtomicWorld=
+            World.isolatedForTest(
+                50L
+            );
+        try{
+            WorldPlayer player=
+                new WorldPlayer();
+            homeAtomicWorld.registerPlayer(
+                player,
+                "opensrc"
+            );
+
+            MovementState movement=
+                player.movement();
+            movement.enterTransientRegion(
+                MovementState.INITIAL_X,
+                3527,
+                0,
+                3040,
+                3480
+            );
+
+            OutboundPacketQueue queue=
+                new OutboundPacketQueue(
+                    1024
+                );
+            ServerPacketWriter homeWriter=
+                new ServerPacketWriter(
+                    queue,
+                    new IsaacCipher(
+                        new int[]{51,52,53,54}
+                    )
+                );
+            DevAuthorityWorkbench dev=
+                new DevAuthorityWorkbench();
+            NpcRegistry npcs=
+                new NpcRegistry(dev);
+            HomeWorldRuntimePlan home=
+                new HomeWorldRuntimePlan();
+
+            npcs.bootstrapHome(
+                homeWriter,
+                movement,
+                new PetState(),
+                home
+            );
+            drain(
+                queue
+            );
+
+            int visibleBefore=
+                npcs.visibleCount();
+
+            Bridge bridge=
+                new Bridge();
+            SceneUpdatePublisher beforePublisher=
+                new SceneUpdatePublisher(
+                    homeWriter,
+                    new SceneCoordinateContext(
+                        3040,
+                        3480,
+                        0
+                    )
+                );
+            bridge.publisher=beforePublisher;
+            RegionLoadLifecycle lifecycle=
+                new RegionLoadLifecycle();
+
+            LocalRegionStreamHandler h=
+                new LocalRegionStreamHandler(
+                    true,
+                    homeAtomicWorld,
+                    player,
+                    movement,
+                    home,
+                    npcs,
+                    new LocalPlayerInteractionHandler(
+                        homeAtomicWorld,
+                        player,
+                        movement,
+                        player.equipment()
+                    ),
+                    new CombatEngine(dev),
+                    lifecycle,
+                    bridge
+                );
+
+            LocalRegionStreamHandler.AutoStreamPlan
+                plan=
+                    h.prepareAutoStream(
+                        "[region-home-batch-test] "
+                    );
+
+            if(plan==null||
+               plan.kind!=
+                    LocalRegionStreamHandler
+                        .AutoStreamPlan.Kind.HOME_REATTACH)
+                throw new AssertionError(
+                    "HOME reattach plan missing"
+                );
+
+            OutboundPacketQueue.BatchReservation pressure=
+                OutboundPacketQueue.reserveBatch(
+                    queue,
+                    1024
+                );
+            boolean failed=false;
+
+            try{
+                h.settlePreparedAutoStream(
+                    plan,
+                    homeWriter,
+                    "[region-home-batch-test] "
+                );
+            }catch(IOException expected){
+                failed=true;
+            }finally{
+                pressure.release();
+            }
+
+            if(!failed||
+               queue.queuedBytes()!=0||
+               !movement.transientRegion()||
+               movement.loadedBaseX()!=3040||
+               movement.loadedBaseY()!=3480||
+               lifecycle.pending()||
+               bridge.publisher!=beforePublisher||
+               bridge.petFollowResets!=0||
+               npcs.visibleCount()!=visibleBefore)
+                throw new AssertionError(
+                    "failed HOME reattach changed semantic preimage"
+                );
+
+            if(!h.settlePreparedAutoStream(
+                    plan,
+                    homeWriter,
+                    "[region-home-batch-test] "
+                ))
+                throw new AssertionError(
+                    "HOME reattach retry was not handled"
+                );
+
+            if(queue.queuedBytes()<=0||
+               !movement.inHomeWindow()||
+               !lifecycle.pending()||
+               bridge.publisher==beforePublisher||
+               bridge.petFollowResets!=1||
+               npcs.visibleCount()>=visibleBefore)
+                throw new AssertionError(
+                    "HOME reattach retry did not commit exact postimage"
+                );
+
+            System.out.println(
+                "REGION_HOME_REATTACH_BATCH_COMMIT_FENCE_PASS "+
+                "abortPreservesTransientWindow=true "+
+                "abortPreservesNpcProjection=true "+
+                "abortPreservesPetRuntime=true "+
+                "retryCommitsHomeWindow=true"
+            );
+        }finally{
+            homeAtomicWorld.close();
+        }
     }
 
     private static void drain(
