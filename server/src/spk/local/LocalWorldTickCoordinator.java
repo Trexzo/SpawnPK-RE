@@ -281,7 +281,42 @@ final class LocalWorldTickCoordinator {
                 ?measuredApproachTarget
                 :playerApproachTarget;
 
-        if(movementTick!=null&&movementFence)
+        try{
+            publishMovement(
+                movementTick,
+                movementFacingTarget,
+                writer
+            );
+        }catch(IOException failure){
+            restorePreparedMovement(
+                movementTick,
+                movementFence,
+                movementBefore,
+                interactionsBefore,
+                combatFacingBefore
+            );
+            throw failure;
+        }catch(RuntimeException failure){
+            restorePreparedMovement(
+                movementTick,
+                movementFence,
+                movementBefore,
+                interactionsBefore,
+                combatFacingBefore
+            );
+            throw failure;
+        }catch(Error failure){
+            restorePreparedMovement(
+                movementTick,
+                movementFence,
+                movementBefore,
+                interactionsBefore,
+                combatFacingBefore
+            );
+            throw failure;
+        }
+
+        if(movementTick!=null&&movementFence){
             stageDeferredMovement(
                 movementBefore,
                 interactionsBefore,
@@ -293,15 +328,8 @@ final class LocalWorldTickCoordinator {
                 now,
                 false
             );
-
-        publishMovement(
-            movementTick,
-            movementFacingTarget,
-            writer
-        );
-
-        if(movementTick!=null&&movementFence)
             return;
+        }
 
         if(movementTick!=null)
             commitHomeMovementAccounting(
@@ -338,7 +366,35 @@ final class LocalWorldTickCoordinator {
                 ?movement.advance()
                 :null;
 
-        if(movementTick!=null&&movementFence)
+        try{
+            publishTransientMovement(
+                movementTick,
+                writer
+            );
+        }catch(IOException failure){
+            if(movementTick!=null&&
+               movementFence)
+                movement.restore(
+                    movementBefore
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(movementTick!=null&&
+               movementFence)
+                movement.restore(
+                    movementBefore
+                );
+            throw failure;
+        }catch(Error failure){
+            if(movementTick!=null&&
+               movementFence)
+                movement.restore(
+                    movementBefore
+                );
+            throw failure;
+        }
+
+        if(movementTick!=null&&movementFence){
             stageDeferredMovement(
                 movementBefore,
                 null,
@@ -350,14 +406,8 @@ final class LocalWorldTickCoordinator {
                 now,
                 true
             );
-
-        publishTransientMovement(
-            movementTick,
-            writer
-        );
-
-        if(movementTick!=null&&movementFence)
             return;
+        }
 
         if(movementTick!=null)
             movementTickCount++;
@@ -772,6 +822,30 @@ final class LocalWorldTickCoordinator {
                 movement.queued()+
                 " staticCollision=true homeWorldNpcSystemsSuspended=true petLifecycleActive=true transientPositionSave=false"
             );
+    }
+
+    private void restorePreparedMovement(
+        MovementState.Tick movementTick,
+        boolean movementFence,
+        MovementState.Snapshot movementBefore,
+        LocalPlayerInteractionHandler.Snapshot
+            interactionsBefore,
+        CombatEngine.MovementFacingSnapshot
+            combatFacingBefore
+    ){
+        if(movementTick==null||
+           !movementFence)
+            return;
+
+        movement.restore(
+            movementBefore
+        );
+        playerInteractions.restore(
+            interactionsBefore
+        );
+        combat.restoreMovementFacing(
+            combatFacingBefore
+        );
     }
 
     private void stageDeferredMovement(
