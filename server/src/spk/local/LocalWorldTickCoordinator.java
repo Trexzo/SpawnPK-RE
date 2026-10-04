@@ -422,6 +422,9 @@ final class LocalWorldTickCoordinator {
         if(movementTick!=null)
             movementTickCount++;
 
+        if(movementTick==null&&movementFence)
+            noMovementSemanticTailEntered=true;
+
         runTransientTickTail(
             worldTick,
             now,
@@ -429,6 +432,9 @@ final class LocalWorldTickCoordinator {
             tag,
             movementTick
         );
+
+        if(movementTick==null&&movementFence)
+            noMovementSemanticTailCompleted=true;
     }
 
     void completeRegionLoad(
