@@ -63,6 +63,7 @@ final class LocalWorldTickCoordinator {
     private PetEffectState.PreparedTimeoutReset deferredPetEffectTimeout;
     private NpcEntity deferredPetEffectPet;
     private int deferredPetEffectNativeState;
+    private PlayerLifecycleService.PreparedRespawn deferredRespawn;
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -175,6 +176,7 @@ final class LocalWorldTickCoordinator {
         deferredPetEffectTimeout=null;
         deferredPetEffectPet=null;
         deferredPetEffectNativeState=0;
+        deferredRespawn=null;
 
         PlayerStatusService.TickResult statusTick=
             statuses.tick(worldTick);
@@ -188,56 +190,14 @@ final class LocalWorldTickCoordinator {
             );
         }
 
-        PlayerLifecycleService.TickResult lifecycleTick=
-            lifecycle.tick(worldTick);
-
-        if(lifecycleTick==PlayerLifecycleService.TickResult.RESPAWNED){
-            playerInteractions.clearTargets();
-            TradeService.cancelIfActive(
-                worldPlayer,
-                "PLAYER_RESPAWN"
+        PlayerLifecycleService.PreparedRespawn preparedRespawn=
+            lifecycle.prepareRespawn(
+                worldTick
             );
 
-            writer.fixed(
-                134,
-                BootstrapPackets.skill134(
-                    PlayerState.HITPOINTS,
-                    worldPlayer.playerState().xp(
-                        PlayerState.HITPOINTS
-                    ),
-                    worldPlayer.playerState().currentLevel(
-                        PlayerState.HITPOINTS
-                    )
-                )
-            );
-
-            regionStreams.reattachHomeForRespawn(
-                writer,
-                tag
-            );
-
-            bridge.saveAccount(
-                tag,
-                "PLAYER_RESPAWN"
-            );
-
-            legacyTickCount++;
-
-            System.out.println(
-                tag+
-                "PLAYER_RESPAWN_APPLIED tick="+
-                worldTick+
-                " hp="+
-                worldPlayer.playerState().currentLevel(
-                    PlayerState.HITPOINTS
-                )+
-                " world="+
-                movement.x()+","+
-                movement.y()+","+
-                movement.plane()+
-                " authority="+
-                PlayerLifecycleService.AUTHORITY
-            );
+        if(preparedRespawn!=null){
+            deferredRespawn=
+                preparedRespawn;
             return;
         }
 
@@ -742,6 +702,140 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    void settleDeferredRespawnAfterWorldTick(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        PlayerLifecycleService.PreparedRespawn prepared=
+            deferredRespawn;
+
+        deferredRespawn=null;
+
+        if(prepared==null)
+            return;
+
+        lifecycle.requirePreparedRespawnCurrent(
+            prepared
+        );
+
+        boolean writerBatchActive=false;
+        boolean packetCommitted=false;
+
+        try{
+            writer.beginBatch();
+            writerBatchActive=true;
+
+            writer.fixed(
+                134,
+                BootstrapPackets.skill134(
+                    PlayerState.HITPOINTS,
+                    worldPlayer.playerState().xp(
+                        PlayerState.HITPOINTS
+                    ),
+                    prepared.restoredHitpoints
+                )
+            );
+
+            regionStreams.stageHomeForPreparedRespawn(
+                writer,
+                tag
+            );
+
+            writer.endBatch();
+            writerBatchActive=false;
+            packetCommitted=true;
+
+            regionStreams.commitRegionStreamBatch();
+            lifecycle.commitPreparedRespawn(
+                prepared
+            );
+
+            playerInteractions.clearTargets();
+            TradeService.cancelIfActive(
+                worldPlayer,
+                "PLAYER_RESPAWN"
+            );
+
+            bridge.saveAccount(
+                tag,
+                "PLAYER_RESPAWN"
+            );
+
+            legacyTickCount++;
+
+            System.out.println(
+                tag+
+                "PLAYER_RESPAWN_APPLIED tick="+
+                prepared.worldTick+
+                " hp="+
+                worldPlayer.playerState().currentLevel(
+                    PlayerState.HITPOINTS
+                )+
+                " world="+
+                movement.x()+","+
+                movement.y()+","+
+                movement.plane()+
+                " authority="+
+                PlayerLifecycleService.AUTHORITY
+            );
+        }catch(IOException failure){
+            if(!packetCommitted)
+                abortPreparedRespawnPacket(
+                    writer,
+                    writerBatchActive,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!packetCommitted)
+                abortPreparedRespawnPacket(
+                    writer,
+                    writerBatchActive,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(!packetCommitted)
+                abortPreparedRespawnPacket(
+                    writer,
+                    writerBatchActive,
+                    failure
+                );
+            throw failure;
+        }
+    }
+
+    private void abortPreparedRespawnPacket(
+        ServerPacketWriter writer,
+        boolean writerBatchActive,
+        Throwable primary
+    ){
+        if(writerBatchActive)
+            try{
+                writer.abortBatch();
+            }catch(Throwable abortFailure){
+                primary.addSuppressed(
+                    abortFailure
+                );
+            }
+
+        try{
+            regionStreams.abortRegionStreamBatch();
+        }catch(Throwable restoreFailure){
+            primary.addSuppressed(
+                restoreFailure
+            );
+        }
+    }
+
+    void abortDeferredRespawnAfterWorldTick(){
+        deferredRespawn=null;
+    }
+
+    boolean deferredRespawnEligible(){
+        return deferredRespawn!=null;
     }
 
     void settleDeferredBankInteractionsAfterWorldTick(
