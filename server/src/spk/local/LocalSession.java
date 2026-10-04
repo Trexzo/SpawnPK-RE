@@ -2488,12 +2488,24 @@ final class LocalSession implements Runnable {
                     tickTag
                 );
                 tickCompleted=true;
-            }finally{
-                endWorldTickBatch(
-                    sessionPackets
+            }catch(Exception failure){
+                abortWorldTickBatchAfterTickFailure(
+                    sessionPackets,
+                    failure
                 );
-                batchCommitted=true;
+                throw failure;
+            }catch(Error failure){
+                abortWorldTickBatchAfterTickFailure(
+                    sessionPackets,
+                    failure
+                );
+                throw failure;
             }
+
+            endWorldTickBatch(
+                sessionPackets
+            );
+            batchCommitted=true;
         }finally{
             if(batchCommitted){
                 worldTicks
@@ -2682,6 +2694,19 @@ final class LocalSession implements Runnable {
                 failure
             );
             throw failure;
+        }
+    }
+
+    static void abortWorldTickBatchAfterTickFailure(
+        ServerPacketWriter writer,
+        Throwable primary
+    ){
+        try{
+            writer.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
         }
     }
 
