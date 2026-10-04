@@ -2443,6 +2443,11 @@ final class LocalSession implements Runnable {
 
                 if(tickCompleted){
                     worldTicks
+                        .settleDeferredRegionStreamAfterWorldTick(
+                            sessionPackets,
+                            tickTag
+                        );
+                    worldTicks
                         .settleDeferredBankInteractionsAfterWorldTick(
                             System.currentTimeMillis(),
                             sessionPackets,
@@ -2468,6 +2473,8 @@ final class LocalSession implements Runnable {
                         );
                 }else{
                     worldTicks
+                        .abortDeferredRegionStreamAfterWorldTick();
+                    worldTicks
                         .abortDeferredBankInteractionsAfterWorldTick();
                     worldTicks
                         .abortDeferredMakeoverInteractionsAfterWorldTick();
@@ -2490,6 +2497,8 @@ final class LocalSession implements Runnable {
                     .abortHomePresentationBatch();
                 worldTicks
                     .abortGroundPresentationBatch();
+                worldTicks
+                    .abortDeferredRegionStreamAfterWorldTick();
                 worldTicks
                     .abortDeferredBankInteractionsAfterWorldTick();
                 worldTicks
