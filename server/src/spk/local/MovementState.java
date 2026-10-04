@@ -39,6 +39,80 @@ final class MovementState {
     int loadedBaseX(){return loadedBaseX;} int loadedBaseY(){return loadedBaseY;}
     boolean transientRegion(){return transientRegion;}
 
+    static final class Snapshot {
+        final int x;
+        final int y;
+        final int plane;
+        final ArrayDeque<Step> queue;
+        final boolean runByPacket;
+        final boolean persistentRun;
+        final int runEnergy;
+        final long acceptedPaths;
+        final long rejectedPaths;
+        final int loadedBaseX;
+        final int loadedBaseY;
+        final boolean transientRegion;
+
+        private Snapshot(
+            MovementState source
+        ){
+            x=source.x;
+            y=source.y;
+            plane=source.plane;
+            queue=new ArrayDeque<>();
+            for(Step step:source.queue)
+                queue.addLast(
+                    new Step(
+                        step.x,
+                        step.y,
+                        step.dir
+                    )
+                );
+            runByPacket=source.runByPacket;
+            persistentRun=source.persistentRun;
+            runEnergy=source.runEnergy;
+            acceptedPaths=source.acceptedPaths;
+            rejectedPaths=source.rejectedPaths;
+            loadedBaseX=source.loadedBaseX;
+            loadedBaseY=source.loadedBaseY;
+            transientRegion=source.transientRegion;
+        }
+    }
+
+    Snapshot snapshot(){
+        return new Snapshot(this);
+    }
+
+    void restore(
+        Snapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "movement snapshot"
+            );
+
+        x=snapshot.x;
+        y=snapshot.y;
+        plane=snapshot.plane;
+        queue.clear();
+        for(Step step:snapshot.queue)
+            queue.addLast(
+                new Step(
+                    step.x,
+                    step.y,
+                    step.dir
+                )
+            );
+        runByPacket=snapshot.runByPacket;
+        persistentRun=snapshot.persistentRun;
+        runEnergy=snapshot.runEnergy;
+        acceptedPaths=snapshot.acceptedPaths;
+        rejectedPaths=snapshot.rejectedPaths;
+        loadedBaseX=snapshot.loadedBaseX;
+        loadedBaseY=snapshot.loadedBaseY;
+        transientRegion=snapshot.transientRegion;
+    }
+
     static final class LoadedWindowSnapshot {
         final int baseX;
         final int baseY;
