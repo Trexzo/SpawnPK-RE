@@ -268,13 +268,13 @@ final class LocalMakeoverMageHandler {
                     target.x,
                     target.y)){
                 movement.clearQueuedPath();
-                clearPending(false);
                 openIntro(
                     target,
                     packets,
                     tag,
                     "SERVER_ARRIVAL"
                 );
+                clearPending(false);
                 return null;
             }
 
@@ -322,8 +322,9 @@ final class LocalMakeoverMageHandler {
                         ?-1
                         :distanceTo(target);
 
-                StandardDialoguePresentationAdapter
-                    .close(packets);
+                publishDialogueClose(
+                    packets
+                );
                 clearActive();
 
                 return "MAKEOVER_MAGE_DIALOG_CANCEL scene="+
@@ -788,12 +789,40 @@ final class LocalMakeoverMageHandler {
                 DIALOGUE_KEY
             );
 
-        MakeoverMageDialogueContent
-            .presentIntro(
-                ContentRuntimeAdapters
-                    .presentation(packets)
-                    .dialogue()
-            );
+        packets.beginBatch();
+        boolean ended=false;
+
+        try{
+            MakeoverMageDialogueContent
+                .presentIntro(
+                    ContentRuntimeAdapters
+                        .presentation(packets)
+                        .dialogue()
+                );
+            packets.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }
 
         DialogueSessionService.Snapshot begun=
             dialogue.commitPreparedBegin(
@@ -825,6 +854,54 @@ final class LocalMakeoverMageHandler {
             " action="+reason+
             " authority=EXACT_CURRENT_CLIENT_UI+HISTORICAL_SCREENSHOT+LOCAL_LAB_INTERACTION_RANGE"
         );
+    }
+
+    private static void publishDialogueClose(
+        ServerPacketWriter packets
+    )throws IOException{
+        packets.beginBatch();
+        boolean ended=false;
+
+        try{
+            StandardDialoguePresentationAdapter
+                .close(packets);
+            packets.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }
+    }
+
+    private static void abortFailedPacketBatch(
+        ServerPacketWriter packets,
+        Throwable primary
+    ){
+        try{
+            packets.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
+        }
     }
 
     private NpcEntity exactTarget(
