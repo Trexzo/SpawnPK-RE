@@ -2036,10 +2036,10 @@ def currentTrainFocusedTests = [
     'spk.local.BloodDiamondFuserServiceTest'
 ]
 
-if (currentTrainFocusedTests.size() != 190 ||
-    currentTrainFocusedTests.toSet().size() != 190) {
+if (currentTrainFocusedTests.size() != 191 ||
+    currentTrainFocusedTests.toSet().size() != 191) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 190 unique tests, found " +
+        "Current-train focused manifest drift: expected 191 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
