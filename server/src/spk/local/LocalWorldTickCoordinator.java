@@ -166,6 +166,7 @@ final class LocalWorldTickCoordinator {
         String tag
     )throws Exception{
         deferredBankInteractionEligible=false;
+        deferredMakeoverInteractionEligible=false;
         deferredGroundTakeEligible=false;
         deferredPetPickupEligible=false;
 
