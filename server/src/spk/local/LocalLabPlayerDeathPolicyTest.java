@@ -5,6 +5,7 @@ import java.util.Arrays;
 public final class LocalLabPlayerDeathPolicyTest {
     public static void main(String[] args) {
         exactRepositoryClassification();
+        attributedKillerOwnership();
         crossPlayerRejected();
 
         System.out.println(
@@ -13,6 +14,7 @@ public final class LocalLabPlayerDeathPolicyTest {
             "explicitAutoLoss=true " +
             "standardUnresolvedKept=true " +
             "victimOwnedReclaim=true " +
+            "attributedKillerOwned=true " +
             "deathTileCaptured=true " +
             "valueOrderingInvented=false " +
             "keepCountInvented=false"
@@ -179,6 +181,79 @@ public final class LocalLabPlayerDeathPolicyTest {
                 995,
                 100,
                 0
+            );
+        } finally {
+            cleanup(
+                world
+            );
+        }
+    }
+
+    private static void attributedKillerOwnership() {
+        World world =
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer attacker =
+            new WorldPlayer();
+        WorldPlayer victim =
+            new WorldPlayer();
+
+        world.registerPlayer(
+            attacker,
+            "policy-killer"
+        );
+        world.registerPlayer(
+            victim,
+            "policy-victim"
+        );
+
+        try {
+            new PlayerLifecycleService(
+                victim
+            ).applyDamage(
+                500,
+                55L,
+                "PVP_POLICY_TEST",
+                5L
+            );
+
+            world.pvpDeathLedger()
+                .onCombatOutcome(
+                    new CombatOutcome(
+                        attacker.id().toString(),
+                        victim.id().toString(),
+                        CombatOutcomeType.PLAYER_KILL,
+                        CombatOutcomeContext.PLAYER_PVP,
+                        55L,
+                        PlayerLifecycleService.AUTHORITY
+                    )
+                );
+
+            PlayerDeathItemResolutionService.DeathPreview preview =
+                new PlayerDeathItemResolutionService(
+                    victim,
+                    LocalLabPlayerDeathPolicy.AUTHORITY
+                ).previewCurrentDeath();
+
+            LocalLabPlayerDeathPolicy.Plan plan =
+                new LocalLabPlayerDeathPolicy()
+                    .plan(
+                        victim,
+                        preview,
+                        world.pvpDeathLedger()
+                    );
+
+            require(
+                "policy-killer".equals(
+                    plan.recipientRef
+                ) &&
+                LocalLabPlayerDeathPolicy
+                    .PVP_KILLER_RECIPIENT_POLICY
+                    .equals(
+                        plan.recipientPolicy
+                    ),
+                "attributed killer recipient"
             );
         } finally {
             cleanup(
