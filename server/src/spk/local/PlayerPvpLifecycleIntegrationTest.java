@@ -1,6 +1,5 @@
 package spk.local;
 
-import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,10 +12,10 @@ public final class PlayerPvpLifecycleIntegrationTest {
         world.registerPlayer(attacker,"attacker");
         world.registerPlayer(target,"target");
 
-        ByteArrayOutputStream attackerWire=
-            new ByteArrayOutputStream();
-        ByteArrayOutputStream targetWire=
-            new ByteArrayOutputStream();
+        OutboundPacketQueue attackerWire=
+            new OutboundPacketQueue(1<<20);
+        OutboundPacketQueue targetWire=
+            new OutboundPacketQueue(1<<20);
 
         ServerPacketWriter attackerWriter=
             new ServerPacketWriter(
@@ -140,7 +139,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 );
 
             int targetBytesBefore=
-                targetWire.size();
+                targetWire.queuedBytes();
 
             long targetConsumedBefore=
                 Player81WorldSync.consumedEventSequence(
@@ -237,7 +236,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     outcomes
                 );
 
-            if(targetWire.size()<=targetBytesBefore)
+            if(targetWire.queuedBytes()<=targetBytesBefore)
                 throw new AssertionError(
                     "target received no HP skill packet"
                 );
