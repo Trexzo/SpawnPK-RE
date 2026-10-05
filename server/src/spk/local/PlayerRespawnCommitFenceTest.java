@@ -432,6 +432,56 @@ public final class PlayerRespawnCommitFenceTest {
                     "same-writer respawn retry did not settle exactly once"
                 );
 
+            BankState.PreparedInventoryMutation teardownCoins=
+                player.bank().prepareAddInventoryAmount(
+                    995,
+                    5
+                );
+            if(!teardownCoins.accepted())
+                throw new AssertionError(
+                    "teardown death coin fixture rejected"
+                );
+            player.bank().commitPreparedInventoryMutation(
+                teardownCoins
+            );
+
+            PlayerLifecycleService.DamageResult teardownDeath=
+                lifecycle.applyDamage(
+                    500,
+                    150L,
+                    "DISCONNECT_DEATH_SETTLEMENT_TEST",
+                    5L
+                );
+            if(!teardownDeath.died||
+               !player.lifecycle().dead())
+                throw new AssertionError(
+                    "teardown death fixture failed"
+                );
+
+            coordinator
+                .settleCurrentDeathForSessionTeardown(
+                    "[respawn-fence-teardown] "
+                );
+
+            GroundItem teardownGround=
+                world.groundItems().find(
+                    995,
+                    MovementState.INITIAL_X,
+                    MovementState.INITIAL_Y,
+                    0
+                );
+            if(player.bank().inventoryCount(995)!=0||
+               teardownGround==null||
+               teardownGround.amount!=5||
+               teardownGround.owner!=null||
+               coordinator.deferredDeathSettlementEligible()||
+               tickBridge.saveCalls!=3||
+               !"PLAYER_DEATH_SETTLEMENT".equals(
+                    tickBridge.lastSaveReason))
+                throw new AssertionError(
+                    "synchronous teardown death settlement failed"
+                );
+
             assertStalePreparedRespawnRejected();
 
             System.out.println(
@@ -442,6 +492,7 @@ public final class PlayerRespawnCommitFenceTest {
                 "deathSettlementBeforeRespawn=true "+
                 "deathSettlementReplaySafe=true "+
                 "deathSettlementCheckpointed=true "+
+                "disconnectDeathSettlement=true "+
                 "sameWriterRetryCommitsOnce=true "+
                 "stalePreparedRejected=true"
             );
