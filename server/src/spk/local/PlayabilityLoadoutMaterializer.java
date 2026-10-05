@@ -81,6 +81,15 @@ final class PlayabilityLoadoutMaterializer {
                 "loadout"
             );
 
+        if("EXACT_CURRENT_CLIENT".equalsIgnoreCase(
+                checked.sourceAuthority)||
+           "UNKNOWN_SERVER_AUTHORITY".equalsIgnoreCase(
+                checked.sourceAuthority))
+            throw new IllegalArgumentException(
+                "loadout gameplay authority unavailable source="+
+                checked.sourceAuthority
+            );
+
         if(checked.hasSkillProfile())
             throw new IllegalArgumentException(
                 "skill profile apply adapter unavailable"
