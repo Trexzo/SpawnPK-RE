@@ -43,6 +43,7 @@ final class LocalWorldTickCoordinator {
     private final PlayerLifecycleService lifecycle;
     private final PlayerDeathItemResolutionService deathItemResolution;
     private final PlayerDeathGroundSettlementService deathGroundSettlement;
+    private final PlayerDeathLootOwnerResolver deathLootOwnerResolver;
     private final LocalLabDeathDispositionPolicy deathDispositionPolicy;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
@@ -166,6 +167,8 @@ final class LocalWorldTickCoordinator {
                 worldPlayer,
                 LocalLabDeathDispositionPolicy.AUTHORITY
             );
+        this.deathLootOwnerResolver=
+            new PlayerDeathLootOwnerResolver();
         this.deathDispositionPolicy=
             new LocalLabDeathDispositionPolicy();
         this.npcs=Objects.requireNonNull(npcs,"npcs");
@@ -1326,15 +1329,17 @@ final class LocalWorldTickCoordinator {
                 "death settlement missing disposition plan"
             );
 
-        String lootOwner=
-            resolveDeathLootOwner(
+        PlayerDeathLootOwnerResolver.Result lootOwner=
+            deathLootOwnerResolver.resolve(
+                world,
+                worldPlayer,
                 resolution
             );
 
         PlayerDeathGroundSettlementService.Settlement settlement=
             deathGroundSettlement.settle(
                 resolution,
-                lootOwner
+                lootOwner.lootOwner
             );
 
         bridge.saveAccount(
@@ -1366,45 +1371,11 @@ final class LocalWorldTickCoordinator {
             (settlement.lootOwner==null
                 ?"PUBLIC"
                 :settlement.lootOwner)+
+            " lootOwnerReason="+
+            lootOwner.reason+
             " authority="+
             LocalLabDeathDispositionPolicy.AUTHORITY
         );
-    }
-
-    private String resolveDeathLootOwner(
-        PlayerDeathItemResolutionService.Resolution resolution
-    ){
-        PlayerLifecycleState.DeathAttribution attribution=
-            worldPlayer.lifecycle()
-                .deathAttribution();
-
-        if(attribution==null||
-           attribution.deathSequence!=
-                resolution.deathSequence||
-           !"PLAYER_PVP".equals(
-                attribution.context
-            ))
-            return null;
-
-        WorldPlayer attacker=
-            world.players().byId(
-                attribution.attackerId
-            );
-
-        if(attacker==null||
-           !world.players().owns(
-                attacker,
-                attribution.attackerGeneration
-            ))
-            return null;
-
-        String username=
-            attacker.username();
-
-        return username==null||
-               username.trim().isEmpty()
-            ?null
-            :username;
     }
 
     void abortDeferredDeathSettlementAfterWorldTick(){
