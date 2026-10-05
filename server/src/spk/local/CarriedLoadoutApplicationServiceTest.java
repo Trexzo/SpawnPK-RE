@@ -12,6 +12,7 @@ public final class CarriedLoadoutApplicationServiceTest {
     public static void main(String[] args){
         appliesAtomicCarriedState();
         stalePreimageFailsClosed();
+        crossPlayerPlanFailsClosed();
         planningFailuresDoNotMutate();
         unsupportedExtensionsFailClosed();
         authorityAndProtocolBoundary();
@@ -22,6 +23,7 @@ public final class CarriedLoadoutApplicationServiceTest {
             "stackableMaterialization=true "+
             "nonStackableExpansion=true "+
             "exactPreimageCas=true "+
+            "exactPlayerIdentity=true "+
             "inventoryEquipmentAtomic=true "+
             "stalePlanRejected=true "+
             "unsupportedExtensionsRejected=true "+
@@ -229,6 +231,46 @@ public final class CarriedLoadoutApplicationServiceTest {
             player.equipment().weapon()==
                 EquipmentState.BLOODREND_ID,
             "stale rejection mutated equipment"
+        );
+    }
+
+    private static void crossPlayerPlanFailsClosed(){
+        WorldPlayer first=
+            new WorldPlayer();
+        WorldPlayer second=
+            new WorldPlayer();
+
+        CarriedLoadoutApplicationService firstService=
+            new CarriedLoadoutApplicationService(
+                first,
+                POLICY
+            );
+        CarriedLoadoutApplicationService secondService=
+            new CarriedLoadoutApplicationService(
+                second,
+                POLICY
+            );
+
+        CarriedLoadoutApplicationService.Plan plan=
+            firstService.plan(
+                basicLoadout(),
+                CarriedLoadoutApplicationServiceTest
+                    ::resolveItem,
+                CarriedLoadoutApplicationServiceTest
+                    ::resolveSlot
+            );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->secondService.commit(plan),
+            "cross-player plan"
+        );
+
+        require(
+            second.bank().inventorySlots()==0&&
+            second.equipment().weapon()==
+                EquipmentState.BLOODREND_ID,
+            "cross-player rejection mutated target"
         );
     }
 
