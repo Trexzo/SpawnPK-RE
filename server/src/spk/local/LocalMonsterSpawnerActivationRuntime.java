@@ -276,6 +276,10 @@ final class LocalMonsterSpawnerActivationRuntime
         return runtime;
     }
 
+    MonsterSpawnerPvmSpawnExecutor executor(){
+        return executor;
+    }
+
     private static void rethrowCreateFailure(
         Throwable failure
     )throws Exception{
