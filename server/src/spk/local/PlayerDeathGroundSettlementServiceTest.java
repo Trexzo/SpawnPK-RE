@@ -10,6 +10,7 @@ public final class PlayerDeathGroundSettlementServiceTest {
 
     public static void main(String[] args){
         exactSettlementAndReplay();
+        publicLivePresentation();
         staleCarriedStateFailsClosed();
         crossPlayerResolutionRejected();
         postRespawnReplayRejected();
@@ -22,6 +23,7 @@ public final class PlayerDeathGroundSettlementServiceTest {
             "equipmentLoss=true "+
             "partialKeep=true "+
             "groundBatch=true "+
+            "publicLivePresentation=true "+
             "lootOwnerCallerOwned=true "+
             "sameDeathReplayIdempotent=true "+
             "staleStateRejected=true "+
@@ -202,6 +204,97 @@ public final class PlayerDeathGroundSettlementServiceTest {
             )==20,
             "same-death replay"
         );
+    }
+
+    private static void publicLivePresentation(){
+        World world=World.isolatedForTest(600L);
+        WorldPlayer dead=configuredPlayer();
+        WorldPlayer viewer=new WorldPlayer();
+        long deadGeneration=
+            world.registerPlayer(
+                dead,
+                "dead"
+            );
+        long viewerGeneration=
+            world.registerPlayer(
+                viewer,
+                "viewer"
+            );
+
+        try{
+            kill(
+                dead,
+                81L,
+                "PUBLIC_PRESENTATION_TEST",
+                5L
+            );
+
+            PlayerDeathItemResolutionService resolver=
+                new PlayerDeathItemResolutionService(
+                    dead,
+                    "CUSTOM_LOCALLAB_DEATH_POLICY_TEST"
+                );
+            PlayerDeathItemResolutionService.DeathPreview preview=
+                resolver.previewCurrentDeath();
+            PlayerDeathItemResolutionService.Resolution resolution=
+                resolver.resolveCurrentDeath(
+                    preview,
+                    keepNone(
+                        preview.carried
+                    )
+                );
+
+            PlayerDeathGroundSettlementService service=
+                new PlayerDeathGroundSettlementService(
+                    world,
+                    dead,
+                    AUTHORITY
+                );
+
+            service.settle(
+                resolution,
+                null
+            );
+
+            List<WorldGroundItemPresentationEvents.Event>
+                viewerEvents=
+                    world.groundItemPresentationEvents()
+                        .pendingFor(
+                            viewer.id(),
+                            viewerGeneration,
+                            System.currentTimeMillis()
+                        );
+
+            require(
+                !viewerEvents.isEmpty(),
+                "public death loot viewer events"
+            );
+
+            for(WorldGroundItemPresentationEvents.Event event:
+                    viewerEvents)
+                require(
+                    event.owner==null&&
+                    preview.deathTile.equals(
+                        event.tile
+                    )&&
+                    event.recipientId.equals(
+                        viewer.id()
+                    )&&
+                    event.recipientGeneration==
+                        viewerGeneration,
+                    "public death loot event identity"
+                );
+        }finally{
+            world.unregisterPlayer(
+                dead,
+                deadGeneration
+            );
+            world.unregisterPlayer(
+                viewer,
+                viewerGeneration
+            );
+            world.close();
+        }
     }
 
     private static void staleCarriedStateFailsClosed(){
