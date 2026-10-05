@@ -226,6 +226,26 @@ public final class PlayerRespawnCommitFenceTest {
                     tickBridge
                 );
 
+            if(DeathPolicyRepository.get(995).kind!=
+                    DeathPolicyRepository.Kind.STANDARD_UNRESOLVED)
+                throw new AssertionError(
+                    "coin fixture must exercise LocalLab standard-loss policy"
+                );
+
+            BankState.PreparedInventoryMutation deathCoins=
+                player.bank().prepareAddInventoryAmount(
+                    995,
+                    10
+                );
+            if(!deathCoins.accepted())
+                throw new AssertionError(
+                    "death coin fixture rejected "+
+                    deathCoins.result
+                );
+            player.bank().commitPreparedInventoryMutation(
+                deathCoins
+            );
+
             PlayerLifecycleService lifecycle=
                 new PlayerLifecycleService(
                     player
@@ -271,12 +291,20 @@ public final class PlayerRespawnCommitFenceTest {
             );
 
             if(!coordinator.deferredRespawnEligible()||
+               !coordinator.deferredDeathSettlementEligible()||
+               player.bank().inventoryCount(995)!=10||
+               world.groundItems().find(
+                    995,
+                    transientX,
+                    transientY,
+                    0
+               )!=null||
                !player.lifecycle().dead()||
                movement.x()!=transientX||
                movement.y()!=transientY||
                !movement.transientRegion())
                 throw new AssertionError(
-                    "respawn did not remain prepared after outer commit"
+                    "respawn/death settlement did not remain prepared after outer commit"
                 );
 
             drain(queue);
@@ -326,10 +354,28 @@ public final class PlayerRespawnCommitFenceTest {
                regionStreams.regionLoadPending()||
                regionBridge.publisher!=beforePublisher||
                regionBridge.resetCalls!=0||
-               tickBridge.saveCalls!=0||
+               tickBridge.saveCalls!=1||
+               !"PLAYER_DEATH_SETTLEMENT".equals(
+                    tickBridge.lastSaveReason)||
                queue.queuedBytes()!=0)
                 throw new AssertionError(
-                    "failed respawn publication changed exact preimage"
+                    "failed respawn publication changed exact respawn preimage"
+                );
+
+            GroundItem settledCoins=
+                world.groundItems().find(
+                    995,
+                    transientX,
+                    transientY,
+                    0
+                );
+            if(player.bank().inventoryCount(995)!=0||
+               settledCoins==null||
+               settledCoins.amount!=10||
+               settledCoins.owner!=null||
+               coordinator.deferredDeathSettlementEligible())
+                throw new AssertionError(
+                    "death settlement did not commit exactly once before failed respawn publication"
                 );
 
             writer.beginBatch();
@@ -373,10 +419,67 @@ public final class PlayerRespawnCommitFenceTest {
                regionBridge.resetCalls!=1||
                !"PLAYER_RESPAWN".equals(
                     tickBridge.lastSaveReason)||
-               tickBridge.saveCalls!=1||
-               queue.queuedBytes()<=0)
+               tickBridge.saveCalls!=2||
+               queue.queuedBytes()<=0||
+               world.groundItems().find(
+                    995,
+                    transientX,
+                    transientY,
+                    0
+               )!=settledCoins||
+               settledCoins.amount!=10)
                 throw new AssertionError(
                     "same-writer respawn retry did not settle exactly once"
+                );
+
+            BankState.PreparedInventoryMutation teardownCoins=
+                player.bank().prepareAddInventoryAmount(
+                    995,
+                    5
+                );
+            if(!teardownCoins.accepted())
+                throw new AssertionError(
+                    "teardown death coin fixture rejected"
+                );
+            player.bank().commitPreparedInventoryMutation(
+                teardownCoins
+            );
+
+            PlayerLifecycleService.DamageResult teardownDeath=
+                lifecycle.applyDamage(
+                    500,
+                    150L,
+                    "DISCONNECT_DEATH_SETTLEMENT_TEST",
+                    5L
+                );
+            if(!teardownDeath.died||
+               !player.lifecycle().dead())
+                throw new AssertionError(
+                    "teardown death fixture failed"
+                );
+
+            coordinator
+                .settleCurrentDeathForSessionTeardown(
+                    "[respawn-fence-teardown] "
+                );
+
+            GroundItem teardownGround=
+                world.groundItems().find(
+                    995,
+                    MovementState.INITIAL_X,
+                    MovementState.INITIAL_Y,
+                    0
+                );
+            if(player.bank().inventoryCount(995)!=0||
+               teardownGround==null||
+               teardownGround.amount!=5||
+               teardownGround.owner!=null||
+               coordinator.deferredDeathSettlementEligible()||
+               tickBridge.saveCalls!=3||
+               !"PLAYER_DEATH_SETTLEMENT".equals(
+                    tickBridge.lastSaveReason))
+                throw new AssertionError(
+                    "synchronous teardown death settlement failed"
                 );
 
             assertStalePreparedRespawnRejected();
@@ -386,6 +489,10 @@ public final class PlayerRespawnCommitFenceTest {
                 "outerCommitDefersSemantic=true "+
                 "admissionFailureRetainsDeath=true "+
                 "admissionFailureRestoresRegion=true "+
+                "deathSettlementBeforeRespawn=true "+
+                "deathSettlementReplaySafe=true "+
+                "deathSettlementCheckpointed=true "+
+                "disconnectDeathSettlement=true "+
                 "sameWriterRetryCommitsOnce=true "+
                 "stalePreparedRejected=true"
             );
