@@ -221,11 +221,11 @@ final class LocalWorldTickCoordinator {
 
         if(lifecycle.dead()&&
            pvpDeathSettlement.get(
-                lifecycle.state().deathSequence()
+                worldPlayer.lifecycle().deathSequence()
             )==null&&
            world.playerDeathAttributions().get(
                 worldPlayer.id(),
-                lifecycle.state().deathSequence()
+                worldPlayer.lifecycle().deathSequence()
             )!=null)
             deferredPvpDeathSettlement=
                 pvpDeathSettlement.prepareCurrentPvpDeath();
