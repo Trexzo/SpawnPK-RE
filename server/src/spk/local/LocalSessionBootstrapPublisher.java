@@ -355,7 +355,11 @@ final class LocalSessionBootstrapPublisher {
             "V522_EQUIPMENT_BOOTSTRAP weaponSlot="+
             EquipmentState.WEAPON_SLOT+
             " itemId="+equipment.weapon()+
-            " item=Scythe_of_bloodrend appearanceValue="+
+            " item="+
+            ItemCatalog.name(
+                equipment.weapon()
+            ).replace(' ','_')+
+            " appearanceValue="+
             (512+equipment.weapon())+
             " pose="+bootPose.name+
             " pose7="+Arrays.toString(bootPose.toArray())+
