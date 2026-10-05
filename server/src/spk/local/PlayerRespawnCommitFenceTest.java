@@ -354,7 +354,9 @@ public final class PlayerRespawnCommitFenceTest {
                regionStreams.regionLoadPending()||
                regionBridge.publisher!=beforePublisher||
                regionBridge.resetCalls!=0||
-               tickBridge.saveCalls!=0||
+               tickBridge.saveCalls!=1||
+               !"PLAYER_DEATH_SETTLEMENT".equals(
+                    tickBridge.lastSaveReason)||
                queue.queuedBytes()!=0)
                 throw new AssertionError(
                     "failed respawn publication changed exact respawn preimage"
@@ -417,7 +419,7 @@ public final class PlayerRespawnCommitFenceTest {
                regionBridge.resetCalls!=1||
                !"PLAYER_RESPAWN".equals(
                     tickBridge.lastSaveReason)||
-               tickBridge.saveCalls!=1||
+               tickBridge.saveCalls!=2||
                queue.queuedBytes()<=0||
                world.groundItems().find(
                     995,
@@ -439,6 +441,7 @@ public final class PlayerRespawnCommitFenceTest {
                 "admissionFailureRestoresRegion=true "+
                 "deathSettlementBeforeRespawn=true "+
                 "deathSettlementReplaySafe=true "+
+                "deathSettlementCheckpointed=true "+
                 "sameWriterRetryCommitsOnce=true "+
                 "stalePreparedRejected=true"
             );
