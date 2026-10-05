@@ -13,14 +13,44 @@ final class MonsterSpawnerPvmRuntime {
     enum State {
         ACTIVE,
         FINALIZATION_PENDING,
-        SETTLEMENT_PENDING
+        SETTLEMENT_PENDING,
+        TERMINAL_PENDING
     }
 
     enum FinalizeStatus {
         NOT_OWNED,
         FINALIZED,
         FINALIZATION_PENDING,
-        SETTLEMENT_PENDING
+        SETTLEMENT_PENDING,
+        TERMINAL_PENDING
+    }
+
+    interface TerminalPolicy {
+        void onSettled(TerminalContext context);
+        Tile replacementTile(TerminalContext context);
+        String authority();
+    }
+
+    static final class TerminalContext {
+        final String ownerRef;
+        final String recipientRef;
+        final MonsterSpawnerNpcDeathFinalizationService.Result finalization;
+        final NpcDropGroundSettlementService.Receipt settlement;
+        final MonsterSpawnerService.SessionSnapshot session;
+
+        TerminalContext(
+            String ownerRef,
+            String recipientRef,
+            MonsterSpawnerNpcDeathFinalizationService.Result finalization,
+            NpcDropGroundSettlementService.Receipt settlement,
+            MonsterSpawnerService.SessionSnapshot session
+        ){
+            this.ownerRef=ownerRef;
+            this.recipientRef=recipientRef;
+            this.finalization=Objects.requireNonNull(finalization,"finalization");
+            this.settlement=Objects.requireNonNull(settlement,"settlement");
+            this.session=Objects.requireNonNull(session,"session");
+        }
     }
 
     static final class Snapshot {
@@ -70,12 +100,29 @@ final class MonsterSpawnerPvmRuntime {
         final Snapshot runtime;
         final MonsterSpawnerNpcDeathFinalizationService.Result finalization;
         final NpcDropGroundSettlementService.Receipt settlement;
+        final SpawnResult replacement;
 
         private FinalizeResult(
             FinalizeStatus status,
             Snapshot runtime,
             MonsterSpawnerNpcDeathFinalizationService.Result finalization,
             NpcDropGroundSettlementService.Receipt settlement
+        ){
+            this(
+                status,
+                runtime,
+                finalization,
+                settlement,
+                null
+            );
+        }
+
+        private FinalizeResult(
+            FinalizeStatus status,
+            Snapshot runtime,
+            MonsterSpawnerNpcDeathFinalizationService.Result finalization,
+            NpcDropGroundSettlementService.Receipt settlement,
+            SpawnResult replacement
         ){
             this.status=Objects.requireNonNull(
                 status,
@@ -84,6 +131,7 @@ final class MonsterSpawnerPvmRuntime {
             this.runtime=runtime;
             this.finalization=finalization;
             this.settlement=settlement;
+            this.replacement=replacement;
         }
     }
 
@@ -96,6 +144,8 @@ final class MonsterSpawnerPvmRuntime {
         boolean terminalInProgress;
         MonsterSpawnerNpcDeathFinalizationService.Result
             finalization;
+        NpcDropGroundSettlementService.Receipt settlement;
+        boolean terminalPolicyApplied;
 
         Entry(
             WorldNpc npc,
@@ -129,6 +179,7 @@ final class MonsterSpawnerPvmRuntime {
     private final MonsterSpawnerNpcDeathFinalizationService
         finalizer;
     private final NpcDropGroundSettlementService settlement;
+    private final TerminalPolicy terminalPolicy;
 
     private final LinkedHashMap<EntityId,Entry>
         entries=new LinkedHashMap<>();
@@ -138,6 +189,22 @@ final class MonsterSpawnerPvmRuntime {
         MonsterSpawnerNpcLifecycleBindingService lifecycleBinding,
         MonsterSpawnerNpcDeathFinalizationService finalizer,
         NpcDropGroundSettlementService settlement
+    ){
+        this(
+            world,
+            lifecycleBinding,
+            finalizer,
+            settlement,
+            null
+        );
+    }
+
+    MonsterSpawnerPvmRuntime(
+        World world,
+        MonsterSpawnerNpcLifecycleBindingService lifecycleBinding,
+        MonsterSpawnerNpcDeathFinalizationService finalizer,
+        NpcDropGroundSettlementService settlement,
+        TerminalPolicy terminalPolicy
     ){
         this.world=Objects.requireNonNull(
             world,
@@ -155,6 +222,12 @@ final class MonsterSpawnerPvmRuntime {
             settlement,
             "settlement"
         );
+        this.terminalPolicy=terminalPolicy;
+
+        if(terminalPolicy!=null)
+            requireServerAuthority(
+                terminalPolicy.authority()
+            );
 
         this.combat=
             this.lifecycleBinding.combatAuthority();
@@ -349,7 +422,9 @@ final class MonsterSpawnerPvmRuntime {
                 );
 
             if(entry.state==
-                    State.SETTLEMENT_PENDING){
+                    State.SETTLEMENT_PENDING||
+               entry.state==
+                    State.TERMINAL_PENDING){
                 // Retry outside the runtime monitor.
             }else{
                 entry.terminalInProgress=true;
@@ -359,6 +434,13 @@ final class MonsterSpawnerPvmRuntime {
         if(entry.state==
                 State.SETTLEMENT_PENDING)
             return settlePending(entry);
+
+        if(entry.state==
+                State.TERMINAL_PENDING)
+            return completeTerminal(
+                entry,
+                false
+            );
 
         MonsterSpawnerNpcDeathFinalizationService.Result
             finalized;
@@ -464,7 +546,9 @@ final class MonsterSpawnerPvmRuntime {
         synchronized(this){
             for(Entry entry:entries.values())
                 if(entry.state==
-                        State.SETTLEMENT_PENDING)
+                        State.SETTLEMENT_PENDING||
+                   entry.state==
+                        State.TERMINAL_PENDING)
                     pending.add(
                         entry
                     );
@@ -474,10 +558,16 @@ final class MonsterSpawnerPvmRuntime {
 
         for(Entry entry:pending){
             FinalizeResult result=
-                settlePending(
-                    entry,
-                    true
-                );
+                entry.state==
+                    State.SETTLEMENT_PENDING
+                    ?settlePending(
+                        entry,
+                        true
+                    )
+                    :completeTerminal(
+                        entry,
+                        true
+                    );
 
             if(result!=null)
                 attempts++;
@@ -630,6 +720,29 @@ final class MonsterSpawnerPvmRuntime {
                     "ground settlement receipt"
                 );
 
+        MonsterSpawnerService.SessionSnapshot
+            postTeardownSession=
+                finalized.teardown.session;
+
+        if(terminalPolicy!=null){
+            synchronized(this){
+                if(entries.get(entry.npc.id)!=entry)
+                    throw new IllegalStateException(
+                        "Monster Spawner PvM ownership changed during settlement id="+
+                        entry.npc.id
+                    );
+
+                entry.settlement=settled;
+                entry.state=State.TERMINAL_PENDING;
+                entry.terminalInProgress=false;
+            }
+
+            return completeTerminal(
+                entry,
+                false
+            );
+        }
+
         synchronized(this){
             if(entries.get(entry.npc.id)!=entry)
                 throw new IllegalStateException(
@@ -643,23 +756,10 @@ final class MonsterSpawnerPvmRuntime {
             entry.terminalInProgress=false;
         }
 
-        MonsterSpawnerService.SessionSnapshot
-            postTeardownSession=
-                finalized.teardown.session;
-
-        if(postTeardownSession.spawnedNpcIds.isEmpty())
-            world.runIfOpen(
-                ()->{
-                    if(world.players().byName(
-                            entry.ownerRef
-                        )==null)
-                        combat
-                            .retireSessionIfCurrentAndNoTrackedNpcs(
-                                entry.ownerRef,
-                                postTeardownSession
-                            );
-                }
-            );
+        retireOfflineEmptySession(
+            entry,
+            postTeardownSession
+        );
 
         return new FinalizeResult(
             FinalizeStatus.FINALIZED,
@@ -667,6 +767,250 @@ final class MonsterSpawnerPvmRuntime {
             finalized,
             settled
         );
+    }
+
+    private FinalizeResult completeTerminal(
+        Entry entry,
+        boolean skipUnavailable
+    ){
+        final MonsterSpawnerNpcDeathFinalizationService.Result finalized;
+        final NpcDropGroundSettlementService.Receipt settled;
+        final MonsterSpawnerService.SessionSnapshot session;
+        boolean applyPolicy;
+
+        synchronized(this){
+            if(entries.get(entry.npc.id)!=entry){
+                if(skipUnavailable)
+                    return null;
+                return new FinalizeResult(
+                    FinalizeStatus.NOT_OWNED,
+                    null,
+                    null,
+                    null
+                );
+            }
+
+            if(entry.state!=State.TERMINAL_PENDING||
+               entry.finalization==null||
+               entry.settlement==null){
+                if(skipUnavailable)
+                    return null;
+                throw new IllegalStateException(
+                    "Monster Spawner PvM terminal completion not pending id="+
+                    entry.npc.id
+                );
+            }
+
+            if(entry.terminalInProgress){
+                if(skipUnavailable)
+                    return null;
+                throw new IllegalStateException(
+                    "Monster Spawner PvM terminal completion already in progress id="+
+                    entry.npc.id
+                );
+            }
+
+            entry.terminalInProgress=true;
+            finalized=entry.finalization;
+            settled=entry.settlement;
+            session=finalized.teardown.session;
+            applyPolicy=!entry.terminalPolicyApplied;
+        }
+
+        TerminalContext context=
+            new TerminalContext(
+                entry.ownerRef,
+                entry.recipientRef,
+                finalized,
+                settled,
+                session
+            );
+
+        if(applyPolicy){
+            try{
+                terminalPolicy.onSettled(
+                    context
+                );
+            }catch(RuntimeException failure){
+                synchronized(this){
+                    if(entries.get(entry.npc.id)==entry)
+                        entry.terminalInProgress=false;
+                }
+
+                return new FinalizeResult(
+                    FinalizeStatus.TERMINAL_PENDING,
+                    entry.snapshot(),
+                    finalized,
+                    settled
+                );
+            }catch(Error failure){
+                synchronized(this){
+                    if(entries.get(entry.npc.id)==entry)
+                        entry.terminalInProgress=false;
+                }
+                throw failure;
+            }
+
+            synchronized(this){
+                if(entries.get(entry.npc.id)!=entry)
+                    throw new IllegalStateException(
+                        "Monster Spawner PvM ownership changed during terminal policy id="+
+                        entry.npc.id
+                    );
+                entry.terminalPolicyApplied=true;
+            }
+        }
+
+        final Tile replacementTile;
+
+        try{
+            replacementTile=
+                terminalPolicy.replacementTile(
+                    context
+                );
+        }catch(RuntimeException failure){
+            synchronized(this){
+                if(entries.get(entry.npc.id)==entry)
+                    entry.terminalInProgress=false;
+            }
+
+            return new FinalizeResult(
+                FinalizeStatus.TERMINAL_PENDING,
+                entry.snapshot(),
+                finalized,
+                settled
+            );
+        }
+
+        if(replacementTile==null||
+           !session.active||
+           session.remainingSpawnBudget<=0){
+            synchronized(this){
+                if(entries.get(entry.npc.id)!=entry)
+                    throw new IllegalStateException(
+                        "Monster Spawner PvM ownership changed before terminal retirement id="+
+                        entry.npc.id
+                    );
+                entries.remove(
+                    entry.npc.id
+                );
+                entry.terminalInProgress=false;
+            }
+
+            retireOfflineEmptySession(
+                entry,
+                session
+            );
+
+            return new FinalizeResult(
+                FinalizeStatus.FINALIZED,
+                null,
+                finalized,
+                settled
+            );
+        }
+
+        final SpawnResult replacement;
+
+        try{
+            replacement=
+                spawnAndBindIfCurrent(
+                    entry.ownerRef,
+                    entry.recipientRef,
+                    session,
+                    replacementTile.x,
+                    replacementTile.y,
+                    replacementTile.plane
+                );
+        }catch(MonsterSpawnerService.StaleSessionException stale){
+            synchronized(this){
+                if(entries.get(entry.npc.id)==entry){
+                    entries.remove(
+                        entry.npc.id
+                    );
+                    entry.terminalInProgress=false;
+                }
+            }
+
+            return new FinalizeResult(
+                FinalizeStatus.FINALIZED,
+                null,
+                finalized,
+                settled
+            );
+        }catch(Exception failure){
+            synchronized(this){
+                if(entries.get(entry.npc.id)==entry)
+                    entry.terminalInProgress=false;
+            }
+
+            return new FinalizeResult(
+                FinalizeStatus.TERMINAL_PENDING,
+                entry.snapshot(),
+                finalized,
+                settled
+            );
+        }
+
+        synchronized(this){
+            if(entries.get(entry.npc.id)!=entry)
+                throw new IllegalStateException(
+                    "Monster Spawner PvM ownership changed after replacement id="+
+                    entry.npc.id
+                );
+
+            entries.remove(
+                entry.npc.id
+            );
+            entry.terminalInProgress=false;
+        }
+
+        return new FinalizeResult(
+            FinalizeStatus.FINALIZED,
+            null,
+            finalized,
+            settled,
+            replacement
+        );
+    }
+
+    private void retireOfflineEmptySession(
+        Entry entry,
+        MonsterSpawnerService.SessionSnapshot session
+    ){
+        if(!session.spawnedNpcIds.isEmpty())
+            return;
+
+        world.runIfOpen(
+            ()->{
+                if(world.players().byName(
+                        entry.ownerRef
+                    )==null)
+                    combat
+                        .retireSessionIfCurrentAndNoTrackedNpcs(
+                            entry.ownerRef,
+                            session
+                        );
+            }
+        );
+    }
+
+    private static String requireServerAuthority(
+        String value
+    ){
+        String clean=requireRef(
+            value,
+            "authority"
+        );
+
+        if("EXACT_CURRENT_CLIENT".equals(clean)||
+           "UNKNOWN_SERVER_AUTHORITY".equals(clean))
+            throw new IllegalArgumentException(
+                "client/unknown authority cannot own Monster Spawner terminal policy actual="+
+                clean
+            );
+
+        return clean;
     }
 
     synchronized Snapshot get(
