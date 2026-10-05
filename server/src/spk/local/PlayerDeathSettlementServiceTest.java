@@ -128,6 +128,45 @@ public final class PlayerDeathSettlementServiceTest {
             "ambiguous auto-loss destination widened"
         );
 
+        PlayerSnapshot persisted=
+            PlayerSnapshotCodec.capture(
+                "death-settlement",
+                player
+            );
+        WorldPlayer restored=
+            new WorldPlayer();
+        PlayerSnapshotCodec.applyValidated(
+            persisted,
+            restored
+        );
+
+        require(
+            restored.bank().inventoryAt(0)==null,
+            "destroyed inventory item resurrected after persistence"
+        );
+        require(
+            restored.bank().inventoryAt(1)!=null&&
+            restored.bank().inventoryAt(1).itemId==24254,
+            "deferred auto-loss missing after persistence"
+        );
+        require(
+            restored.bank().inventoryAt(2)!=null&&
+            restored.bank().inventoryAt(2).itemId==26113,
+            "explicit keep missing after persistence"
+        );
+        require(
+            restored.equipment().itemAt(
+                EquipmentSlot.WEAPON
+            )==-1,
+            "destroyed equipment resurrected after persistence"
+        );
+        require(
+            restored.equipment().itemAt(
+                EquipmentSlot.HEAD
+            )==1163,
+            "standard equipment missing after persistence"
+        );
+
         System.out.println(
             "PLAYER_DEATH_CONSERVATIVE_SETTLEMENT_PASS "+
             "destroyExplicitOnly=true "+
@@ -136,6 +175,7 @@ public final class PlayerDeathSettlementServiceTest {
             "standardUnresolvedPreserved=true "+
             "explicitKeepPreserved=true "+
             "retryIdempotent=true "+
+            "snapshotRoundTrip=true "+
             "authority="+
             PlayerDeathSettlementService.POLICY_AUTHORITY
         );
