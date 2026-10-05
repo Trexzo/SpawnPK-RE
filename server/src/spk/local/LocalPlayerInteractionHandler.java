@@ -641,6 +641,13 @@ final class LocalPlayerInteractionHandler {
             resolution.nextAttackDelayTicks;
 
         if(resolution.lifecycle.died){
+            world.playerDeathAttributions().record(
+                owner,
+                ownerGeneration.getAsLong(),
+                target,
+                targetGeneration
+            );
+
             clearAttack();
             movement.clearQueuedPath();
         }
