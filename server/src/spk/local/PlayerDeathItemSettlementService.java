@@ -279,6 +279,10 @@ final class PlayerDeathItemSettlementService {
             );
 
         synchronized(mutationLock){
+            requireExactCurrentDeath(
+                checked
+            );
+
             Receipt existing=
                 receiptsByDeathSequence.get(
                     checked.deathSequence
@@ -295,9 +299,6 @@ final class PlayerDeathItemSettlementService {
                 return existing;
             }
 
-            requireExactCurrentDeath(
-                checked
-            );
             requireCurrentPreimage(
                 prepared
             );
