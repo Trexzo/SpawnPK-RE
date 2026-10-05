@@ -147,13 +147,17 @@ public final class PlayerDeathItemSettlementServiceTest {
             GroundItem coinsGround=
                 world.groundItems().findOwned(
                     995,
-                    receipt.deathTile,
+                    receipt.deathTile.x,
+                    receipt.deathTile.y,
+                    receipt.deathTile.plane,
                     "killer"
                 );
             GroundItem ammoGround=
                 world.groundItems().findOwned(
                     892,
-                    receipt.deathTile,
+                    receipt.deathTile.x,
+                    receipt.deathTile.y,
+                    receipt.deathTile.plane,
                     "killer"
                 );
 
@@ -299,7 +303,9 @@ public final class PlayerDeathItemSettlementServiceTest {
                 world.groundItems()
                     .findOwned(
                         995,
-                        tile,
+                        tile.x,
+                        tile.y,
+                        tile.plane,
                         "killer-overflow"
                     ).amount==Integer.MAX_VALUE&&
                 settlement.size()==0,
