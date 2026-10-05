@@ -150,6 +150,32 @@ final class LocalPlayerInteractionHandler {
         CombatSystemHooks systemHooks,
         LongSupplier ownerGeneration
     ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
+            combatStyles,
+            damageRules,
+            timingRules,
+            systemHooks,
+            ownerGeneration,
+            outcome->{}
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatSystemHooks systemHooks,
+        LongSupplier ownerGeneration,
+        CombatOutcomeObserver outcomeObserver
+    ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.owner=java.util.Objects.requireNonNull(owner,"owner");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
@@ -177,6 +203,10 @@ final class LocalPlayerInteractionHandler {
                 java.util.Objects.requireNonNull(
                     systemHooks,
                     "systemHooks"
+                ),
+                java.util.Objects.requireNonNull(
+                    outcomeObserver,
+                    "outcomeObserver"
                 )
             );
     }
