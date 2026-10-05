@@ -2121,6 +2121,17 @@ final class LocalSession implements Runnable {
                 );
             }
 
+            if(worldRegistered){
+                LocalSessionTeardown.run(
+                    tag,
+                    "PLAYER_DEATH_SETTLEMENT",
+                    ()->worldTicks
+                        .settleCurrentDeathForSessionTeardown(
+                            tag
+                        )
+                );
+            }
+
             if(monsterSpawnerUiFactory!=null&&
                worldRegistered){
                 LocalSessionTeardown.run(
