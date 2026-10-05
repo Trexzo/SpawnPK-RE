@@ -15,10 +15,14 @@ public final class PlayerPvpLifecycleIntegrationTest {
             new ByteArrayOutputStream();
         ByteArrayOutputStream targetWire=
             new ByteArrayOutputStream();
+        OutboundPacketQueue attackerQueue=
+            new OutboundPacketQueue();
+        OutboundPacketQueue targetQueue=
+            new OutboundPacketQueue();
 
         ServerPacketWriter attackerWriter=
             new ServerPacketWriter(
-                attackerWire,
+                attackerQueue,
                 new IsaacCipher(
                     new int[]{1,2,3,4}
                 )
@@ -26,7 +30,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
 
         ServerPacketWriter targetWriter=
             new ServerPacketWriter(
-                targetWire,
+                targetQueue,
                 new IsaacCipher(
                     new int[]{5,6,7,8}
                 )
@@ -131,6 +135,15 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     "PvP request authority missing "+
                     request
                 );
+
+            drain(
+                attackerQueue,
+                attackerWire
+            );
+            drain(
+                targetQueue,
+                targetWire
+            );
 
             int targetBytesBefore=
                 targetWire.size();
@@ -243,6 +256,15 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     targetAfterDuplicate
                 );
 
+            drain(
+                attackerQueue,
+                attackerWire
+            );
+            drain(
+                targetQueue,
+                targetWire
+            );
+
             if(targetWire.size()<=targetBytesBefore)
                 throw new AssertionError(
                     "target received no HP skill packet"
@@ -261,6 +283,10 @@ public final class PlayerPvpLifecycleIntegrationTest {
             targetWriter.varShort(
                 81,
                 BootstrapPackets.player81Idle()
+            );
+            drain(
+                targetQueue,
+                targetWire
             );
 
             long targetConsumedAfter=
@@ -301,4 +327,15 @@ public final class PlayerPvpLifecycleIntegrationTest {
             world.close();
         }
     }
+
+    private static void drain(
+        OutboundPacketQueue queue,
+        ByteArrayOutputStream wire
+    )throws IOException{
+        queue.drainTo(
+            wire,
+            1<<20
+        );
+    }
+
 }
