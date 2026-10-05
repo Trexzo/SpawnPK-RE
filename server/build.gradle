@@ -4975,7 +4975,18 @@ tasks.register('playerDeathItemSettlementRegression', JavaExec) {
     mainClass = 'spk.local.PlayerDeathItemSettlementServiceTest'
 }
 
+tasks.register('pvpDeathSettlementRuntimeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves mandatory PvP death settlement gates respawn and applies the explicit LocalLab DROP_STANDARD_V1 policy.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PvpDeathSettlementRuntimeTest'
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('pvpDeathSettlementRuntimeRegression')
     dependsOn tasks.named('playerDeathItemSettlementRegression')
     dependsOn tasks.named('pvpRecordServiceRegression')
     dependsOn tasks.named('playerPvpRecordLifecycleRegression')
