@@ -56,6 +56,62 @@ public final class PlayerPvpLifecycleIntegrationTest {
 
             target.movement().advance();
 
+            BankState.Stack[] targetBank=
+                new BankState.Stack[
+                    BankState.BANK_CAPACITY
+                ];
+            BankState.Stack[] targetInventory=
+                new BankState.Stack[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            targetInventory[0]=
+                new BankState.Stack(
+                    995,
+                    100
+                );
+            targetInventory[1]=
+                new BankState.Stack(
+                    20466,
+                    1
+                );
+            target.bank().restoreAccountState(
+                targetBank,
+                targetInventory,
+                false
+            );
+
+            int[] targetEquipment=
+                new int[
+                    EquipmentState.EQUIPMENT_SLOTS
+                ];
+            int[] targetEquipmentQty=
+                new int[
+                    EquipmentState.EQUIPMENT_SLOTS
+                ];
+            java.util.Arrays.fill(
+                targetEquipment,
+                -1
+            );
+            targetEquipment[
+                EquipmentSlot.WEAPON
+                    .equipmentIndex
+            ]=4151;
+            targetEquipmentQty[
+                EquipmentSlot.WEAPON
+                    .equipmentIndex
+            ]=1;
+            target.equipment().restoreAccountState(
+                targetEquipment,
+                targetEquipmentQty
+            );
+
+            Tile deathTile=
+                new Tile(
+                    target.movement().x(),
+                    target.movement().y(),
+                    target.movement().plane()
+                );
+
             attacker.equipment().setWeapon(4151);
 
             if(!target.playerState().setCurrentLevel(
@@ -158,7 +214,9 @@ public final class PlayerPvpLifecycleIntegrationTest {
                !attack.contains(
                     "targetDied=true")||
                !attack.contains(
-                    "targetHpPacket134=true"))
+                    "targetHpPacket134=true")||
+               !attack.contains(
+                    "deathLoot=SETTLED"))
                 throw new AssertionError(
                     "PvP attack did not resolve canonically "+
                     attack
@@ -182,6 +240,63 @@ public final class PlayerPvpLifecycleIntegrationTest {
             if(interactions.activeAttack()!=null)
                 throw new AssertionError(
                     "lethal PvP attack remained active"
+                );
+
+            BankState.Stack kept=
+                target.bank()
+                    .inventoryAt(1);
+
+            if(target.bank().inventoryAt(0)!=null||
+               kept==null||
+               kept.itemId!=20466||
+               kept.qty!=1||
+               target.equipment().itemAt(
+                    EquipmentSlot.WEAPON
+                )!=-1)
+                throw new AssertionError(
+                    "PvP death carried postimage mismatch"
+                );
+
+            GroundItem coinLoot=
+                world.groundItems()
+                    .findOwned(
+                        995,
+                        deathTile.x,
+                        deathTile.y,
+                        deathTile.plane,
+                        "attacker"
+                    );
+            GroundItem weaponLoot=
+                world.groundItems()
+                    .findOwned(
+                        4151,
+                        deathTile.x,
+                        deathTile.y,
+                        deathTile.plane,
+                        "attacker"
+                    );
+            GroundItem autoKeepLoot=
+                world.groundItems()
+                    .findOwned(
+                        20466,
+                        deathTile.x,
+                        deathTile.y,
+                        deathTile.plane,
+                        "attacker"
+                    );
+
+            if(coinLoot==null||
+               coinLoot.amount!=100||
+               weaponLoot==null||
+               weaponLoot.amount!=1||
+               autoKeepLoot!=null)
+                throw new AssertionError(
+                    "PvP death loot settlement mismatch coins="+
+                    coinLoot+
+                    " weapon="+
+                    weaponLoot+
+                    " autoKeep="+
+                    autoKeepLoot
                 );
 
             if(targetWire.size()<=targetBytesBefore)
@@ -225,6 +340,9 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "deathTick=20 respawnTick=25 "+
                 "hpPacket134=true "+
                 "remoteAttackPresentation=true "+
+                "deathLootSettled=true "+
+                "standardLoss=true "+
+                "exactAutoKeep=true "+
                 "authority=CUSTOM_LOCALLAB"
             );
 
