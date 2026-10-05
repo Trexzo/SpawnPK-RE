@@ -668,5 +668,4 @@ final class G1DefaultLoadoutRegearService {
         return normalized;
     }
 
-    private G1DefaultLoadoutRegearService(){}
 }
