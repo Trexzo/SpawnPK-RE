@@ -256,23 +256,31 @@ final class LocalGroundItemInteractionHandler {
             );
 
         int crossViewerRemoves=0;
+        int pickerFallbackQueued=0;
 
-        if(ground.owner==null)
-            try{
+        try{
+            if(ground.owner==null)
                 crossViewerRemoves=
                     enqueuePublicRemoveForOtherViewers(
                         ground,
                         username,
                         System.currentTimeMillis()
                     );
-            }catch(RuntimeException presentationFailure){
-                System.err.println(
-                    "[ground-take] public remove presentation enqueue failed item="+
-                    ground.id+
-                    " error="+
-                    presentationFailure
-                );
-            }
+            else
+                pickerFallbackQueued=
+                    enqueuePrivatePickupPublicFallback(
+                        ground,
+                        username,
+                        System.currentTimeMillis()
+                    );
+        }catch(RuntimeException presentationFailure){
+            System.err.println(
+                "[ground-take] post-commit presentation enqueue failed item="+
+                ground.id+
+                " error="+
+                presentationFailure
+            );
+        }
 
         return new Result(
             "V511_GROUND_TAKE id="+ground.id+
@@ -282,9 +290,69 @@ final class LocalGroundItemInteractionHandler {
             " world="+ground.tile+
             " crossViewerRemoveQueued="+
             crossViewerRemoves+
+            " pickerFallbackQueued="+
+            pickerFallbackQueued+
             " result="+reason,
             "GROUND_TAKE"
         );
+    }
+
+    private int enqueuePrivatePickupPublicFallback(
+        GroundItem removedPrivate,
+        String pickerUsername,
+        long now
+    ){
+        if(pickerUsername==null)
+            return 0;
+
+        GroundItem publicFallback=
+            world.groundItems()
+                .findOwned(
+                    removedPrivate.itemId,
+                    removedPrivate.tile.x,
+                    removedPrivate.tile.y,
+                    removedPrivate.tile.plane,
+                    null
+                );
+
+        if(publicFallback==null)
+            return 0;
+
+        WorldPlayer picker=
+            world.players().byName(
+                pickerUsername
+            );
+
+        if(picker==null)
+            return 0;
+
+        long generation=
+            picker.generation();
+
+        MovementState pickerMovement=
+            picker.movement();
+
+        if(!world.players().owns(
+                picker,
+                generation)||
+           pickerMovement.plane()!=
+                removedPrivate.tile.plane||
+           !pickerMovement
+                .insideCurrentLoadedRegion(
+                    removedPrivate.tile.x,
+                    removedPrivate.tile.y
+                ))
+            return 0;
+
+        return world.groundItemPresentationEvents()
+                .enqueueSpawnSnapshot(
+                    now,
+                    publicFallback,
+                    picker,
+                    generation
+                )
+            ?1
+            :0;
     }
 
     private int enqueuePublicRemoveForOtherViewers(
