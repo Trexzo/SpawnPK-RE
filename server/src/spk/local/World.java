@@ -33,6 +33,7 @@ final class World implements AutoCloseable {
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
     private final PvpRecordService pvpRecords;
+    private final PvmRecordService pvmRecords;
     private final PlayerPrivilegeService playerPrivileges=
         new PlayerPrivilegeService(
             AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
@@ -131,6 +132,10 @@ final class World implements AutoCloseable {
             );
         pvpRecords=
             new PvpRecordService(
+                this
+            );
+        pvmRecords=
+            new PvmRecordService(
                 this
             );
         content=
@@ -322,6 +327,7 @@ final class World implements AutoCloseable {
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
     PvpRecordService pvpRecords(){return pvpRecords;}
+    PvmRecordService pvmRecords(){return pvmRecords;}
     PlayerPrivilegeService playerPrivileges(){return playerPrivileges;}
     PlayerAppearanceRoleProjection appearanceRoles(){return appearanceRoles;}
     LoadoutService loadouts(){return loadouts;}
