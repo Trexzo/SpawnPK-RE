@@ -6532,3 +6532,17 @@ tasks.named('check') {
     dependsOn tasks.named('playerDeathGroundSettlementRegression')
 }
 
+tasks.register('localLabPlayerDeathPolicyRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves the conservative live death policy honors only explicit auto-keep/auto-loss authority and keeps unresolved standard items.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalLabPlayerDeathPolicyTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('localLabPlayerDeathPolicyRegression')
+}
+
