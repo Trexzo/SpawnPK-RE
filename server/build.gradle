@@ -4965,7 +4965,18 @@ tasks.register('playerPvpRecordLifecycleRegression', JavaExec) {
     mainClass = 'spk.local.PlayerPvpLifecycleIntegrationTest'
 }
 
+tasks.register('playerDeathItemSettlementRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves resolved player-death item dispositions settle atomically into carried state and owner-scoped ground items.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayerDeathItemSettlementServiceTest'
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('playerDeathItemSettlementRegression')
     dependsOn tasks.named('pvpRecordServiceRegression')
     dependsOn tasks.named('playerPvpRecordLifecycleRegression')
     dependsOn tasks.named('walkHereFallbackClientPatchRegression')
