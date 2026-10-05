@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class PlayerPvpLifecycleIntegrationTest {
     public static void main(String[] args)throws Exception{
@@ -98,6 +100,9 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     "target not visible to attacker"
                 );
 
+            List<CombatOutcome> outcomes=
+                new ArrayList<>();
+
             LocalPlayerInteractionHandler interactions=
                 new LocalPlayerInteractionHandler(
                     world,
@@ -107,7 +112,9 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     attacker.combatStyles(),
                     CombatDamageRules.localLabFallback(),
                     CombatAttackTimingRules.recoveredCompatibility(),
-                    CombatSystemHooks.forPlayer(attacker)
+                    CombatSystemHooks.forPlayer(attacker),
+                    attacker::generation,
+                    outcomes::add
                 );
 
             String request=
@@ -184,6 +191,28 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     "lethal PvP attack remained active"
                 );
 
+            if(outcomes.size()!=2||
+               outcomes.get(0).type()!=
+                    CombatOutcomeType.PLAYER_KILL||
+               outcomes.get(1).type()!=
+                    CombatOutcomeType.PLAYER_DEATH||
+               outcomes.get(0).context()!=
+                    CombatOutcomeContext.PLAYER_PVP||
+               outcomes.get(1).context()!=
+                    CombatOutcomeContext.PLAYER_PVP||
+               !outcomes.get(0).attacker().equals(
+                    attacker.id().toString())||
+               !outcomes.get(0).victim().equals(
+                    target.id().toString())||
+               !outcomes.get(1).attacker().equals(
+                    attacker.id().toString())||
+               !outcomes.get(1).victim().equals(
+                    target.id().toString()))
+                throw new AssertionError(
+                    "live PvP outcome observer mismatch "+
+                    outcomes
+                );
+
             if(targetWire.size()<=targetBytesBefore)
                 throw new AssertionError(
                     "target received no HP skill packet"
@@ -225,6 +254,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "deathTick=20 respawnTick=25 "+
                 "hpPacket134=true "+
                 "remoteAttackPresentation=true "+
+                "combatOutcomes=PLAYER_KILL,PLAYER_DEATH "+
                 "authority=CUSTOM_LOCALLAB"
             );
 
