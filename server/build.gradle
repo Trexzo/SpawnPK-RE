@@ -6478,3 +6478,29 @@ tasks.register('localSessionRuntimeBindingsSharedNpcRetentionRegression', JavaEx
 tasks.named('check') {
     dependsOn tasks.named('localSessionRuntimeBindingsSharedNpcRetentionRegression')
 }
+
+tasks.register('playerPvpDelayedHitServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves delayed player-to-player hit delivery is generation-fenced, due-tick authoritative and lethal-outcome exact.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayerPvpDelayedHitServiceTest'
+}
+
+tasks.register('playerPvpDelayedRuntimeIntegrationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves live Player Attack scheduling leaves HP untouched until the due tick and publishes HP/death on delivery.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayerPvpDelayedRuntimeIntegrationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('playerPvpDelayedHitServiceRegression')
+    dependsOn tasks.named('playerPvpDelayedRuntimeIntegrationRegression')
+}
+
