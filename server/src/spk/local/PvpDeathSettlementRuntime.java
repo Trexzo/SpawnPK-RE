@@ -68,6 +68,38 @@ final class PvpDeathSettlementRuntime {
         }
     }
 
+    static final class PresentationDebt {
+        final WorldPlayer victim;
+        final long victimGeneration;
+        final long deathSequence;
+
+        PresentationDebt(
+            WorldPlayer victim,
+            long victimGeneration,
+            long deathSequence
+        ){
+            this.victim=
+                Objects.requireNonNull(
+                    victim,
+                    "victim"
+                );
+            this.victimGeneration=
+                victimGeneration;
+            this.deathSequence=
+                deathSequence;
+        }
+
+        boolean same(
+            WorldPlayer otherVictim,
+            long otherGeneration,
+            long otherSequence
+        ){
+            return victim==otherVictim&&
+                victimGeneration==otherGeneration&&
+                deathSequence==otherSequence;
+        }
+    }
+
     static final class SettlementResult {
         final Pending pending;
         final LocalLabPvpDeathPolicy.Result policy;
@@ -118,6 +150,9 @@ final class PvpDeathSettlementRuntime {
         new HashMap<>();
     private final Map<EntityId,PlayerDeathItemSettlementService>
         settlementByVictim=
+            new HashMap<>();
+    private final Map<EntityId,PresentationDebt>
+        presentationDebtByVictim=
             new HashMap<>();
 
     PvpDeathSettlementRuntime(
@@ -246,6 +281,12 @@ final class PvpDeathSettlementRuntime {
                 victim
             );
 
+        if(hasPresentationDebt(victim))
+            return new RespawnGateResult(
+                settlement,
+                null
+            );
+
         PlayerLifecycleService.PreparedRespawn
             prepared=
                 lifecycle.prepareRespawn(
@@ -368,6 +409,34 @@ final class PvpDeathSettlementRuntime {
                     "pending PvP death changed during settlement"
                 );
 
+            if(receipt.lostTotalQuantity>0){
+                PresentationDebt existingDebt=
+                    presentationDebtByVictim.get(
+                        checked.id()
+                    );
+
+                if(existingDebt!=null&&
+                   !existingDebt.same(
+                        checked,
+                        pending.victimGeneration,
+                        pending.deathSequence
+                    ))
+                    throw new IllegalStateException(
+                        "conflicting PvP death presentation debt victim="+
+                        checked.id()
+                    );
+
+                if(existingDebt==null)
+                    presentationDebtByVictim.put(
+                        checked.id(),
+                        new PresentationDebt(
+                            checked,
+                            pending.victimGeneration,
+                            pending.deathSequence
+                        )
+                    );
+            }
+
             pendingByVictim.remove(
                 checked.id()
             );
@@ -396,6 +465,62 @@ final class PvpDeathSettlementRuntime {
         return pending(victim)!=null;
     }
 
+    synchronized PresentationDebt presentationDebt(
+        WorldPlayer victim
+    ){
+        return victim==null
+            ?null
+            :presentationDebtByVictim.get(
+                victim.id()
+            );
+    }
+
+    synchronized boolean hasPresentationDebt(
+        WorldPlayer victim
+    ){
+        return presentationDebt(victim)!=null;
+    }
+
+    synchronized void markPresentationCommitted(
+        WorldPlayer victim,
+        long expectedGeneration,
+        long deathSequence
+    ){
+        if(victim==null)
+            throw new NullPointerException(
+                "victim"
+            );
+
+        PresentationDebt debt=
+            presentationDebtByVictim.get(
+                victim.id()
+            );
+
+        if(debt==null)
+            throw new IllegalStateException(
+                "no PvP death presentation debt victim="+
+                victim.id()
+            );
+
+        if(!debt.same(
+                victim,
+                expectedGeneration,
+                deathSequence
+            ))
+            throw new IllegalStateException(
+                "PvP death presentation debt identity changed victim="+
+                victim.id()
+            );
+
+        presentationDebtByVictim.remove(
+            victim.id()
+        );
+    }
+
+    synchronized int presentationDebtCount(){
+        return presentationDebtByVictim.size();
+    }
+
     synchronized void retirePlayer(
         WorldPlayer player,
         long expectedGeneration
@@ -419,6 +544,19 @@ final class PvpDeathSettlementRuntime {
         settlementByVictim.remove(
             player.id()
         );
+
+        PresentationDebt debt=
+            presentationDebtByVictim.get(
+                player.id()
+            );
+
+        if(debt!=null&&
+           debt.victim==player&&
+           debt.victimGeneration==
+                expectedGeneration)
+            presentationDebtByVictim.remove(
+                player.id()
+            );
     }
 
     synchronized int pendingCount(){
