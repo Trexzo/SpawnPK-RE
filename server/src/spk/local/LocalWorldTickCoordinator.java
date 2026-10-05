@@ -41,6 +41,7 @@ final class LocalWorldTickCoordinator {
     private final PetEffectState petEffects;
     private final PlayerStatusService statuses;
     private final PlayerLifecycleService lifecycle;
+    private final PlayerDeathWorldSettlementService pvpDeathSettlement;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -65,6 +66,7 @@ final class LocalWorldTickCoordinator {
     private NpcEntity deferredPetEffectPet;
     private int deferredPetEffectNativeState;
     private PlayerLifecycleService.PreparedRespawn deferredRespawn;
+    private PlayerDeathWorldSettlementService.Prepared deferredPvpDeathSettlement;
     private MovementState.Snapshot deferredMovementPreimage;
     private LocalPlayerInteractionHandler.Snapshot deferredMovementInteractionPreimage;
     private CombatEngine.MovementFacingSnapshot deferredMovementFacingPreimage;
@@ -150,6 +152,13 @@ final class LocalWorldTickCoordinator {
         this.petEffects=Objects.requireNonNull(petEffects,"petEffects");
         this.statuses=Objects.requireNonNull(statuses,"statuses");
         this.lifecycle=new PlayerLifecycleService(worldPlayer);
+        this.pvpDeathSettlement=
+            new PlayerDeathWorldSettlementService(
+                this.world,
+                this.worldPlayer,
+                GameplayG1PvpDeathPolicy.INSTANCE,
+                GameplayG1PvpDeathPolicy.INSTANCE
+            );
         this.npcs=Objects.requireNonNull(npcs,"npcs");
         this.homeWorld=Objects.requireNonNull(homeWorld,"homeWorld");
         this.combat=Objects.requireNonNull(combat,"combat");
@@ -194,6 +203,7 @@ final class LocalWorldTickCoordinator {
         deferredPetEffectPet=null;
         deferredPetEffectNativeState=0;
         deferredRespawn=null;
+        deferredPvpDeathSettlement=null;
         noMovementSemanticTailEntered=false;
         noMovementSemanticTailCompleted=false;
 
@@ -208,6 +218,17 @@ final class LocalWorldTickCoordinator {
                 " sharedWorldTick="+worldTick
             );
         }
+
+        if(lifecycle.dead()&&
+           pvpDeathSettlement.get(
+                lifecycle.state().deathSequence()
+            )==null&&
+           world.playerDeathAttributions().get(
+                worldPlayer.id(),
+                lifecycle.state().deathSequence()
+            )!=null)
+            deferredPvpDeathSettlement=
+                pvpDeathSettlement.prepareCurrentPvpDeath();
 
         PlayerLifecycleService.PreparedRespawn preparedRespawn=
             lifecycle.prepareRespawn(
@@ -1238,6 +1259,50 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    void settleDeferredPvpDeathAfterWorldTick(
+        String tag
+    ){
+        PlayerDeathWorldSettlementService.Prepared prepared=
+            deferredPvpDeathSettlement;
+
+        deferredPvpDeathSettlement=null;
+
+        if(prepared==null)
+            return;
+
+        PlayerDeathWorldSettlementService.Receipt receipt=
+            pvpDeathSettlement.commitPrepared(
+                prepared
+            );
+
+        bridge.saveAccount(
+            tag,
+            "PLAYER_PVP_DEATH_SETTLEMENT"
+        );
+
+        System.out.println(
+            tag+
+            "PLAYER_PVP_DEATH_SETTLEMENT_APPLIED deathSequence="+
+            receipt.deathSequence+
+            " attacker="+
+            receipt.attackerId+
+            " victim="+
+            receipt.victimId+
+            " groundStacks="+
+            receipt.ground.size()+
+            " policy="+
+            receipt.carriedPolicyAuthority
+        );
+    }
+
+    void abortDeferredPvpDeathAfterWorldTick(){
+        deferredPvpDeathSettlement=null;
+    }
+
+    boolean deferredPvpDeathSettlementEligible(){
+        return deferredPvpDeathSettlement!=null;
     }
 
     void settleDeferredRespawnAfterWorldTick(
