@@ -299,6 +299,16 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     autoKeepLoot
                 );
 
+            if(world.playerCarriedPresentationEvents()
+                    .pendingFor(
+                        target.id(),
+                        target.generation(),
+                        System.currentTimeMillis()
+                    ).size()!=1)
+                throw new AssertionError(
+                    "PvP death did not queue victim carried postimage"
+                );
+
             if(targetQueue.queuedBytes()<=targetBytesBefore)
                 throw new AssertionError(
                     "target received no HP skill packet"
@@ -343,6 +353,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "deathLootSettled=true "+
                 "standardLoss=true "+
                 "exactAutoKeep=true "+
+                "victimCarriedPostimageQueued=true "+
                 "authority=CUSTOM_LOCALLAB"
             );
 
