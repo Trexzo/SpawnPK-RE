@@ -11,14 +11,14 @@ public final class PlayerPvpLifecycleIntegrationTest {
         world.registerPlayer(attacker,"attacker");
         world.registerPlayer(target,"target");
 
-        ByteArrayOutputStream attackerWire=
-            new ByteArrayOutputStream();
-        ByteArrayOutputStream targetWire=
-            new ByteArrayOutputStream();
+        OutboundPacketQueue attackerQueue=
+            new OutboundPacketQueue();
+        OutboundPacketQueue targetQueue=
+            new OutboundPacketQueue();
 
         ServerPacketWriter attackerWriter=
             new ServerPacketWriter(
-                attackerWire,
+                attackerQueue,
                 new IsaacCipher(
                     new int[]{1,2,3,4}
                 )
@@ -26,7 +26,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
 
         ServerPacketWriter targetWriter=
             new ServerPacketWriter(
-                targetWire,
+                targetQueue,
                 new IsaacCipher(
                     new int[]{5,6,7,8}
                 )
@@ -189,7 +189,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 );
 
             int targetBytesBefore=
-                targetWire.size();
+                targetQueue.queuedBytes();
 
             long targetConsumedBefore=
                 Player81WorldSync.consumedEventSequence(
@@ -299,7 +299,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     autoKeepLoot
                 );
 
-            if(targetWire.size()<=targetBytesBefore)
+            if(targetQueue.queuedBytes()<=targetBytesBefore)
                 throw new AssertionError(
                     "target received no HP skill packet"
                 );
