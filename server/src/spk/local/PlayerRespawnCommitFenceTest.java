@@ -41,9 +41,19 @@ public final class PlayerRespawnCommitFenceTest {
         SceneUpdatePublisher publisher;
         String lastSaveReason;
         int saveCalls;
+        int appearancePublishes;
+        int[] lastAppearance;
 
         @Override public Player81WorldSync.Context player81Sync(){return null;}
         @Override public SceneUpdatePublisher scenePublisher(){return publisher;}
+        @Override public void publishPlayerAppearanceSnapshot(
+            int[] appearanceItems,
+            ServerPacketWriter writer
+        ){
+            appearancePublishes++;
+            lastAppearance=
+                appearanceItems.clone();
+        }
         @Override public void saveAccount(String tag,String reason){
             lastSaveReason=reason;
             saveCalls++;
@@ -430,7 +440,16 @@ public final class PlayerRespawnCommitFenceTest {
                     transientY,
                     0
                )!=settledCoins||
-               settledCoins.amount!=10)
+               settledCoins.amount!=10||
+               player.equipment().weapon()!=
+                    EquipmentState.BLOODREND_ID||
+               player.bank().inventoryCount(
+                    G1DefaultLoadoutRegearService.STARTER_FOOD
+               )!=0||
+               tickBridge.lastAppearance==null||
+               tickBridge.lastAppearance[
+                    EquipmentSlot.WEAPON.appearanceIndex
+               ]!=EquipmentState.BLOODREND_ID)
                 throw new AssertionError(
                     "same-writer respawn retry did not settle exactly once"
                 );
@@ -522,6 +541,9 @@ public final class PlayerRespawnCommitFenceTest {
                 "disconnectDeathSettlement=true "+
                 "killerScopedLoot=true "+
                 "publicFallbackLoot=true "+
+                "safeStandardCarriedRetained=true "+
+                "starterRegearSkippedWhenCarried=true "+
+                "retainedAppearancePublished=true "+
                 "sameWriterRetryCommitsOnce=true "+
                 "stalePreparedRejected=true"
             );
