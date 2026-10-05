@@ -36,6 +36,13 @@ final class World implements AutoCloseable {
         new PlayerPrivilegeService(
             AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
         );
+    private final LoadoutService loadouts=
+        new LoadoutService();
+    private final DefaultLoadoutService defaultLoadouts=
+        new DefaultLoadoutService(
+            loadouts,
+            "LOCAL_LAB_POLICY_DEFAULT_LOADOUT_RUNTIME_V1"
+        );
     private final PlayerAppearanceRoleProjection appearanceRoles=
         new PlayerAppearanceRoleProjection(
             AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
@@ -183,6 +190,8 @@ final class World implements AutoCloseable {
     GroundItemRegistry groundItems(){return groundItems;}
     WorldObjectRegistry objects(){return objects;}
     PlayerRegistry players(){return players;}
+    LoadoutService loadouts(){return loadouts;}
+    DefaultLoadoutService defaultLoadouts(){return defaultLoadouts;}
     WorldNpcRegistry npcs(){return npcs;}
     NpcLifecycleService npcLifecycle(){return npcLifecycle;}
     WorldHomeNpcService homeNpcs(){return homeNpcs;}
