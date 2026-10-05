@@ -78,6 +78,40 @@ final class PlayerDeathGroundLootSettlementService {
         }
     }
 
+    static final class CanonicalCommit {
+        final Receipt receipt;
+        final String recipientRef;
+        private final List<GroundItemRegistry.BatchMutation>
+            mutations;
+        private final boolean publishNeeded;
+
+        private CanonicalCommit(
+            Receipt receipt,
+            String recipientRef,
+            List<GroundItemRegistry.BatchMutation> mutations,
+            boolean publishNeeded
+        ){
+            this.receipt=
+                Objects.requireNonNull(
+                    receipt,
+                    "receipt"
+                );
+            this.recipientRef=
+                requireText(
+                    recipientRef,
+                    "recipientRef"
+                );
+            this.mutations=
+                Collections.unmodifiableList(
+                    new ArrayList<>(
+                        mutations
+                    )
+                );
+            this.publishNeeded=
+                publishNeeded;
+        }
+    }
+
     static final class PreparedLoot {
         private final PlayerDeathItemResolutionService.Resolution
             resolution;
@@ -316,7 +350,7 @@ final class PlayerDeathGroundLootSettlementService {
         }
     }
 
-    Receipt commitPrepared(
+    CanonicalCommit commitPreparedCanonical(
         PreparedLoot prepared,
         PlayerDeathItemSettlementService.Settlement settlement
     ){
@@ -337,10 +371,6 @@ final class PlayerDeathGroundLootSettlementService {
             checkedSettlement
         );
 
-        List<GroundItemRegistry.BatchMutation>
-            mutations;
-        Receipt receipt;
-
         synchronized(groundItems){
             Receipt existing=
                 existingReceipt(
@@ -350,29 +380,65 @@ final class PlayerDeathGroundLootSettlementService {
                 );
 
             if(existing!=null)
-                return existing;
+                return new CanonicalCommit(
+                    existing,
+                    checkedPrepared.recipientRef,
+                    Collections.emptyList(),
+                    false
+                );
 
-            mutations=
-                groundItems
-                    .commitPreparedAddBatch(
-                        checkedPrepared.groundBatch
-                    );
+            List<GroundItemRegistry.BatchMutation>
+                mutations=
+                    groundItems
+                        .commitPreparedAddBatch(
+                            checkedPrepared.groundBatch
+                        );
 
-            receipt=
+            Receipt receipt=
                 recordReceipt(
                     checkedSettlement,
                     checkedPrepared.deathTile,
                     checkedPrepared.recipientRef,
                     mutations
                 );
+
+            return new CanonicalCommit(
+                receipt,
+                checkedPrepared.recipientRef,
+                mutations,
+                true
+            );
         }
+    }
 
-        publishLiveOwnerScene(
-            checkedPrepared.recipientRef,
-            mutations
+    Receipt publishCommitted(
+        CanonicalCommit committed
+    ){
+        CanonicalCommit checked=
+            Objects.requireNonNull(
+                committed,
+                "committed"
+            );
+
+        if(checked.publishNeeded)
+            publishLiveOwnerScene(
+                checked.recipientRef,
+                checked.mutations
+            );
+
+        return checked.receipt;
+    }
+
+    Receipt commitPrepared(
+        PreparedLoot prepared,
+        PlayerDeathItemSettlementService.Settlement settlement
+    ){
+        return publishCommitted(
+            commitPreparedCanonical(
+                prepared,
+                settlement
+            )
         );
-
-        return receipt;
     }
 
     /**
