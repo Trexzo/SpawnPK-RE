@@ -297,8 +297,17 @@ public final class G1DefaultLoadoutRegearServiceTest {
                 G1DefaultLoadoutRegearService.STARTER_FOOD_COUNT,
             "starter food missing"
         );
+        int occupied=0;
+        for(int slot=0;
+            slot<BankState.INVENTORY_CAPACITY;
+            slot++)
+            if(player.bank()
+                    .inventorySlotSnapshot(slot)
+                    .occupied)
+                occupied++;
+
         require(
-            player.bank().inventoryOccupiedSlots()==
+            occupied==
                 G1DefaultLoadoutRegearService.STARTER_FOOD_COUNT,
             "starter non-stackable food did not expand by slot"
         );
