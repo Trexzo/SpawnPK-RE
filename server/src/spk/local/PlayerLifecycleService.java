@@ -133,11 +133,12 @@ final class PlayerLifecycleService {
         long worldTick,
         String cause
     ){
-        return applyDamage(
+        return applyDamageInternal(
             amount,
             worldTick,
             cause,
-            LOCALLAB_RESPAWN_DELAY_TICKS
+            LOCALLAB_RESPAWN_DELAY_TICKS,
+            null
         );
     }
 
@@ -146,6 +147,40 @@ final class PlayerLifecycleService {
         long worldTick,
         String cause,
         long respawnDelayTicks
+    ){
+        return applyDamageInternal(
+            amount,
+            worldTick,
+            cause,
+            respawnDelayTicks,
+            null
+        );
+    }
+
+    DamageResult applyDamageFromPlayer(
+        int amount,
+        long worldTick,
+        String cause,
+        EntityId responsiblePlayerId
+    ){
+        return applyDamageInternal(
+            amount,
+            worldTick,
+            cause,
+            LOCALLAB_RESPAWN_DELAY_TICKS,
+            Objects.requireNonNull(
+                responsiblePlayerId,
+                "responsiblePlayerId"
+            )
+        );
+    }
+
+    private DamageResult applyDamageInternal(
+        int amount,
+        long worldTick,
+        String cause,
+        long respawnDelayTicks,
+        EntityId responsiblePlayerId
     ){
         synchronized(player.mutationLock()){
             int requested=
@@ -203,7 +238,8 @@ final class PlayerLifecycleService {
                 lifecycle.markDead(
                     worldTick,
                     respawnDelayTicks,
-                    normalizedCause
+                    normalizedCause,
+                    responsiblePlayerId
                 );
                 combat.clear();
                 movement.clearQueuedPath();
