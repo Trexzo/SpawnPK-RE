@@ -50,6 +50,7 @@ final class LocalWorldTickCoordinator {
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     private final LocalGroundItemInteractionHandler groundItemHandler;
     private final LocalGroundItemPresentationRelay groundItemPresentationRelay;
+    private final PvpDeathPresentationService pvpDeathPresentation;
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final SessionBridge bridge;
@@ -168,6 +169,12 @@ final class LocalWorldTickCoordinator {
                 this.worldPlayer,
                 this.movement
             );
+        this.pvpDeathPresentation=
+            new PvpDeathPresentationService(
+                this.world.pvpDeaths(),
+                this.worldPlayer,
+                this.equipment
+            );
         this.petDropPickup=Objects.requireNonNull(
             petDropPickup,"petDropPickup");
         this.petRuntimeCommands=Objects.requireNonNull(
@@ -184,6 +191,10 @@ final class LocalWorldTickCoordinator {
         if(deferredMovementTick!=null)
             throw new IllegalStateException(
                 "deferred movement settlement still active"
+            );
+        if(pvpDeathPresentation.staged())
+            throw new IllegalStateException(
+                "deferred PvP death presentation settlement still active"
             );
 
         deferredBankInteractionEligible=false;
@@ -237,6 +248,23 @@ final class LocalWorldTickCoordinator {
                 LocalLabPvpDeathPolicy.POLICY_ID+
                 " authority="+
                 PvpDeathSettlementRuntime.AUTHORITY
+            );
+        }
+
+        PvpDeathSettlementRuntime.PresentationDebt
+            pvpDeathPresentationDebt=
+                pvpDeathPresentation.stage(
+                    writer
+                );
+
+        if(pvpDeathPresentationDebt!=null){
+            System.out.println(
+                tag+
+                "PVP_DEATH_PRESENTATION_STAGED sequence="+
+                pvpDeathPresentationDebt.deathSequence+
+                " inventory53=true equipment53=true"+
+                " authority="+
+                PvpDeathPresentationService.AUTHORITY
             );
         }
 
@@ -1267,6 +1295,14 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    void settleDeferredPvpDeathPresentationAfterWorldTick(){
+        pvpDeathPresentation.commitStaged();
+    }
+
+    void abortDeferredPvpDeathPresentationAfterWorldTick(){
+        pvpDeathPresentation.abortStaged();
     }
 
     void settleDeferredRespawnAfterWorldTick(
