@@ -5,6 +5,7 @@ import java.io.IOException;
 
 public final class PlayerRespawnCommitFenceTest {
     private static final int QUEUE_CAPACITY=1<<20;
+    private static final int EXPLICIT_LOSS_ITEM=24254;
 
     private static final class PetBridge
         implements LocalPetDropPickupHandler.SessionBridge
@@ -226,20 +227,22 @@ public final class PlayerRespawnCommitFenceTest {
                     tickBridge
                 );
 
-            if(DeathPolicyRepository.get(995).kind!=
-                    DeathPolicyRepository.Kind.STANDARD_UNRESOLVED)
+            if(DeathPolicyRepository.get(
+                    EXPLICIT_LOSS_ITEM
+               ).kind!=
+                    DeathPolicyRepository.Kind.AUTO_LOSS_EXPLICIT)
                 throw new AssertionError(
-                    "coin fixture must exercise LocalLab standard-loss policy"
+                    "respawn fence fixture must use explicit auto-loss policy"
                 );
 
             BankState.PreparedInventoryMutation deathCoins=
                 player.bank().prepareAddInventoryAmount(
-                    995,
+                    EXPLICIT_LOSS_ITEM,
                     10
                 );
             if(!deathCoins.accepted())
                 throw new AssertionError(
-                    "death coin fixture rejected "+
+                    "death explicit-loss fixture rejected "+
                     deathCoins.result
                 );
             player.bank().commitPreparedInventoryMutation(
@@ -292,9 +295,9 @@ public final class PlayerRespawnCommitFenceTest {
 
             if(!coordinator.deferredRespawnEligible()||
                !coordinator.deferredDeathSettlementEligible()||
-               player.bank().inventoryCount(995)!=10||
+               player.bank().inventoryCount(EXPLICIT_LOSS_ITEM)!=10||
                world.groundItems().find(
-                    995,
+                    EXPLICIT_LOSS_ITEM,
                     transientX,
                     transientY,
                     0
@@ -364,12 +367,12 @@ public final class PlayerRespawnCommitFenceTest {
 
             GroundItem settledCoins=
                 world.groundItems().find(
-                    995,
+                    EXPLICIT_LOSS_ITEM,
                     transientX,
                     transientY,
                     0
                 );
-            if(player.bank().inventoryCount(995)!=0||
+            if(player.bank().inventoryCount(EXPLICIT_LOSS_ITEM)!=0||
                settledCoins==null||
                settledCoins.amount!=10||
                settledCoins.owner!=null||
@@ -422,7 +425,7 @@ public final class PlayerRespawnCommitFenceTest {
                tickBridge.saveCalls!=2||
                queue.queuedBytes()<=0||
                world.groundItems().find(
-                    995,
+                    EXPLICIT_LOSS_ITEM,
                     transientX,
                     transientY,
                     0
@@ -434,12 +437,12 @@ public final class PlayerRespawnCommitFenceTest {
 
             BankState.PreparedInventoryMutation teardownCoins=
                 player.bank().prepareAddInventoryAmount(
-                    995,
+                    EXPLICIT_LOSS_ITEM,
                     5
                 );
             if(!teardownCoins.accepted())
                 throw new AssertionError(
-                    "teardown death coin fixture rejected"
+                    "teardown death explicit-loss fixture rejected"
                 );
             player.bank().commitPreparedInventoryMutation(
                 teardownCoins
@@ -482,13 +485,13 @@ public final class PlayerRespawnCommitFenceTest {
 
             GroundItem teardownGround=
                 world.groundItems().findOwned(
-                    995,
+                    EXPLICIT_LOSS_ITEM,
                     MovementState.INITIAL_X,
                     MovementState.INITIAL_Y,
                     0,
                     "teardown-killer"
                 );
-            if(player.bank().inventoryCount(995)!=0||
+            if(player.bank().inventoryCount(EXPLICIT_LOSS_ITEM)!=0||
                teardownGround==null||
                teardownGround.amount!=5||
                !"teardown-killer".equals(
