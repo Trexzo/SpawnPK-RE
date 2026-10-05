@@ -514,6 +514,7 @@ public final class LocalWorldTickCoordinatorTest {
                     PlayerState.HITPOINTS)!=0||
                respawning.movement.x()!=deadX||
                respawning.movement.y()!=deadY||
+               !coordinator.deferredDeathItemsEligible()||
                !coordinator.deferredRespawnEligible())
                 throw new AssertionError(
                     "respawn committed inside outer world-tick batch"
@@ -523,6 +524,7 @@ public final class LocalWorldTickCoordinatorTest {
             coordinator.abortRegionStreamBatch();
             coordinator.abortHomePresentationBatch();
             coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredDeathItemsAfterWorldTick();
             coordinator.abortDeferredRespawnAfterWorldTick();
             coordinator.abortDeferredBankInteractionsAfterWorldTick();
             coordinator.abortDeferredMakeoverInteractionsAfterWorldTick();
@@ -535,6 +537,7 @@ public final class LocalWorldTickCoordinatorTest {
                     PlayerState.HITPOINTS)!=0||
                respawning.movement.x()!=deadX||
                respawning.movement.y()!=deadY||
+               coordinator.deferredDeathItemsEligible()||
                coordinator.deferredRespawnEligible()||
                respawning.wire.size()!=before)
                 throw new AssertionError(
@@ -564,9 +567,21 @@ public final class LocalWorldTickCoordinatorTest {
                     PlayerState.HITPOINTS)!=0||
                respawning.movement.x()!=deadX||
                respawning.movement.y()!=deadY||
+               !coordinator.deferredDeathItemsEligible()||
                !coordinator.deferredRespawnEligible())
                 throw new AssertionError(
-                    "respawn settled before post-commit hook"
+                    "respawn/death settlement settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredDeathItemsAfterWorldTick(
+                respawning.writer,
+                "[tick-respawn-death-commit] "
+            );
+
+            if(coordinator.deferredDeathItemsEligible()||
+               !respawning.player.lifecycle().dead())
+                throw new AssertionError(
+                    "death settlement did not precede respawn"
                 );
 
             coordinator.settleDeferredRespawnAfterWorldTick(
@@ -1354,6 +1369,191 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture deathItems=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deathItems.coordinator(false,bridge);
+
+            synchronized(deathItems.player.mutationLock()){
+                BankState.Stack[] bank=
+                    new BankState.Stack[
+                        BankState.BANK_CAPACITY
+                    ];
+                BankState.Stack[] inventory=
+                    new BankState.Stack[
+                        BankState.INVENTORY_CAPACITY
+                    ];
+
+                inventory[0]=
+                    new BankState.Stack(
+                        20466,
+                        2
+                    );
+                inventory[1]=
+                    new BankState.Stack(
+                        24254,
+                        3
+                    );
+                inventory[2]=
+                    new BankState.Stack(
+                        995,
+                        100
+                    );
+
+                deathItems.bank.restoreAccountState(
+                    bank,
+                    inventory,
+                    false
+                );
+
+                int[] equipmentItems=
+                    new int[
+                        EquipmentState.EQUIPMENT_SLOTS
+                    ];
+                int[] equipmentQuantities=
+                    new int[
+                        EquipmentState.EQUIPMENT_SLOTS
+                    ];
+
+                java.util.Arrays.fill(
+                    equipmentItems,
+                    -1
+                );
+
+                deathItems.equipment
+                    .restoreAccountState(
+                        equipmentItems,
+                        equipmentQuantities
+                    );
+            }
+
+            int deathX=deathItems.movement.x();
+            int deathY=deathItems.movement.y();
+            int deathPlane=deathItems.movement.plane();
+
+            PlayerLifecycleService.DamageResult lethal=
+                new PlayerLifecycleService(
+                    deathItems.player
+                ).applyDamage(
+                    500,
+                    80L,
+                    "LIVE_DEATH_SETTLEMENT_TEST",
+                    0L
+                );
+
+            if(!lethal.died)
+                throw new AssertionError(
+                    "live death settlement fixture did not die"
+                );
+
+            deathItems.writer.beginBatch();
+
+            coordinator.tick(
+                80L,
+                8_000L,
+                deathItems.writer,
+                "[tick-death-items-abort] "
+            );
+
+            if(!coordinator.deferredDeathItemsEligible()||
+               !coordinator.deferredRespawnEligible()||
+               deathItems.bank.inventoryAt(1)==null||
+               deathItems.world.groundItems().size()!=0)
+                throw new AssertionError(
+                    "death items mutated before outer commit"
+                );
+
+            deathItems.writer.abortBatch();
+            coordinator.abortRegionStreamBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredDeathItemsAfterWorldTick();
+            coordinator.abortDeferredRespawnAfterWorldTick();
+
+            if(deathItems.bank.inventoryAt(0)==null||
+               deathItems.bank.inventoryAt(0).qty!=2||
+               deathItems.bank.inventoryAt(1)==null||
+               deathItems.bank.inventoryAt(1).qty!=3||
+               deathItems.bank.inventoryAt(2)==null||
+               deathItems.bank.inventoryAt(2).qty!=100||
+               deathItems.world.groundItems().size()!=0||
+               !deathItems.player.lifecycle().dead())
+                throw new AssertionError(
+                    "outer abort changed death item preimage"
+                );
+
+            deathItems.writer.beginBatch();
+
+            coordinator.tick(
+                81L,
+                8_600L,
+                deathItems.writer,
+                "[tick-death-items-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deathItems.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                8_600L
+            );
+
+            coordinator
+                .settleDeferredDeathItemsAfterWorldTick(
+                    deathItems.writer,
+                    "[tick-death-items-commit] "
+                );
+
+            BankState.Stack explicitKeep=
+                deathItems.bank.inventoryAt(0);
+            BankState.Stack explicitLoss=
+                deathItems.bank.inventoryAt(1);
+            BankState.Stack unresolved=
+                deathItems.bank.inventoryAt(2);
+            GroundItem lostGround=
+                deathItems.world.groundItems()
+                    .findOwned(
+                        24254,
+                        deathX,
+                        deathY,
+                        deathPlane,
+                        "opensrc"
+                    );
+
+            if(explicitKeep==null||
+               explicitKeep.itemId!=20466||
+               explicitKeep.qty!=2||
+               explicitLoss!=null||
+               unresolved==null||
+               unresolved.itemId!=995||
+               unresolved.qty!=100||
+               lostGround==null||
+               lostGround.amount!=3||
+               !deathItems.player.lifecycle().dead()||
+               coordinator.deferredDeathItemsEligible()||
+               !"PLAYER_DEATH_ITEMS".equals(
+                    bridge.lastSaveReason))
+                throw new AssertionError(
+                    "live conservative death item settlement mismatch"
+                );
+
+            coordinator
+                .settleDeferredRespawnAfterWorldTick(
+                    deathItems.writer,
+                    "[tick-death-items-respawn] "
+                );
+
+            if(!deathItems.player.lifecycle().alive()||
+               !"PLAYER_RESPAWN".equals(
+                    bridge.lastSaveReason)||
+               bridge.saveCalls!=2)
+                throw new AssertionError(
+                    "live death settlement did not compose with respawn"
+                );
+        }
+
         try(Fixture reconnect=new Fixture()){
             reconnect.npcs.tickHome(
                 reconnect.movement,
@@ -1386,6 +1586,11 @@ public final class LocalWorldTickCoordinatorTest {
             "respawnLifecycle=true "+
             "respawnOuterAbortPreservesDead=true "+
             "respawnPostCommitSettles=true "+
+            "deathPolicyExplicitAutoLoss=true "+
+            "deathPolicyUnresolvedKeep=true "+
+            "deathGroundVictimOwned=true "+
+            "deathOuterAbortPreservesState=true "+
+            "deathSettlementBeforeRespawn=true "+
             "movementTailAfterCommit=true "+
             "movementAbortRestoresPreimage=true "+
             "transientMovementSave=false "+
