@@ -244,6 +244,27 @@ public final class LocalLabPvpRegionPolicyTest {
                 pkRegion.y0
             );
 
+            Player81WorldSync.unregister(
+                attackerWriter
+            );
+            Player81WorldSync.unregister(
+                targetWriter
+            );
+
+            attackerSync=
+                Player81WorldSync.register(
+                    attackerWriter,
+                    world,
+                    attacker,
+                    new DevAuthorityWorkbench()
+                );
+            Player81WorldSync.register(
+                targetWriter,
+                world,
+                target,
+                new DevAuthorityWorkbench()
+            );
+
             Player81WorldSync.transformForTest(
                 attackerSync,
                 BootstrapPackets.player81Idle()
@@ -351,6 +372,27 @@ public final class LocalLabPvpRegionPolicyTest {
                 attacker,
                 pkTile,
                 pkRegion
+            );
+
+            Player81WorldSync.unregister(
+                attackerWriter
+            );
+            Player81WorldSync.unregister(
+                targetWriter
+            );
+
+            attackerSync=
+                Player81WorldSync.register(
+                    attackerWriter,
+                    world,
+                    attacker,
+                    new DevAuthorityWorkbench()
+                );
+            Player81WorldSync.register(
+                targetWriter,
+                world,
+                target,
+                new DevAuthorityWorkbench()
             );
 
             Player81WorldSync.transformForTest(
