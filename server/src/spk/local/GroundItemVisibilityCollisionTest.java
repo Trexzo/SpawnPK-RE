@@ -9,6 +9,7 @@ public final class GroundItemVisibilityCollisionTest {
 
         publicizationCollisionRetriesSameId();
         persistentCollisionExpiresPrivateOnly();
+        publicLifecycleExpiryRestoresPrivateOverlay();
         publicPickupRestoresPrivateOverlay();
 
         System.out.println(
@@ -20,6 +21,7 @@ public final class GroundItemVisibilityCollisionTest {
             "persistentCollisionExpiresPrivateOnly=true "+
             "publicStackPreserved=true "+
             "privateOwnerRemoveThenPublicRestore=true "+
+            "publicLifecycleRemoveThenPrivateRestore=true "+
             "publicPickupRemoveThenPrivateRestore=true "+
             "crossProvenanceMerge=false"
         );
@@ -329,6 +331,160 @@ public final class GroundItemVisibilityCollisionTest {
                         expiresAt
                     ).isEmpty(),
                 "blocked private expiry leaked to unrelated viewer"
+            );
+        }finally{
+            if(owner.registered())
+                world.unregisterPlayer(
+                    owner,
+                    ownerGeneration
+                );
+            if(other.registered())
+                world.unregisterPlayer(
+                    other,
+                    otherGeneration
+                );
+            world.close();
+        }
+    }
+
+    private static void publicLifecycleExpiryRestoresPrivateOverlay()
+        throws Exception {
+
+        World world=
+            World.isolatedForTest(600L);
+        WorldPlayer owner=
+            new WorldPlayer();
+        WorldPlayer other=
+            new WorldPlayer();
+
+        long ownerGeneration=
+            world.registerPlayer(
+                owner,
+                "killer"
+            );
+        long otherGeneration=
+            world.registerPlayer(
+                other,
+                "other"
+            );
+
+        try{
+            Tile tile=
+                new Tile(
+                    owner.movement().x(),
+                    owner.movement().y(),
+                    owner.movement().plane()
+                );
+
+            GroundItem publicItem=
+                world.groundItems().add(
+                    1337,5,tile,null,7L,false
+                );
+            GroundItem privateItem=
+                world.groundItems().add(
+                    1337,2,tile,"killer",8L,false
+                );
+
+            PlayerDeathLootLifecycleService lifecycle=
+                world.deathLootLifecycle();
+
+            long publicStart=20_000L;
+            long privateStart=
+                publicStart+
+                70_000L;
+
+            lifecycle.registerGroundItem(
+                publicItem.id,
+                publicStart
+            );
+            lifecycle.registerGroundItem(
+                privateItem.id,
+                privateStart
+            );
+
+            long publicExpiresAt=
+                publicStart+
+                PlayerDeathLootLifecycleService
+                    .PUBLIC_VISIBILITY_MS;
+
+            PlayerDeathLootLifecycleService.TickResult
+                publicExpired=
+                    lifecycle.tick(
+                        publicExpiresAt
+                    );
+
+            require(
+                publicExpired.expired==1&&
+                world.groundItems().byId(
+                    publicItem.id
+                )==null&&
+                world.groundItems().byId(
+                    privateItem.id
+                )==privateItem&&
+                "killer".equals(
+                    privateItem.owner
+                ),
+                "public lifecycle expiry changed private canonical stack"
+            );
+
+            List<WorldGroundItemPresentationEvents.Event>
+                ownerPending=
+                    world.groundItemPresentationEvents()
+                        .pendingFor(
+                            owner.id(),
+                            ownerGeneration,
+                            publicExpiresAt
+                        );
+
+            require(
+                ownerPending.size()==2&&
+                ownerPending.get(0).kind==
+                    WorldGroundItemPresentationEvents.Kind.REMOVE&&
+                ownerPending.get(0).groundItemId==
+                    publicItem.id&&
+                ownerPending.get(1).kind==
+                    WorldGroundItemPresentationEvents.Kind.SPAWN&&
+                ownerPending.get(1).groundItemId==
+                    privateItem.id,
+                "public lifecycle expiry did not restore private overlay"
+            );
+
+            List<WorldGroundItemPresentationEvents.Event>
+                otherPending=
+                    world.groundItemPresentationEvents()
+                        .pendingFor(
+                            other.id(),
+                            otherGeneration,
+                            publicExpiresAt
+                        );
+
+            require(
+                otherPending.size()==1&&
+                otherPending.get(0).kind==
+                    WorldGroundItemPresentationEvents.Kind.REMOVE&&
+                otherPending.get(0).groundItemId==
+                    publicItem.id,
+                "ordinary viewer public lifecycle remove changed"
+            );
+
+            long privatePublicAt=
+                privateStart+
+                PlayerDeathLootLifecycleService
+                    .PRIVATE_VISIBILITY_MS;
+
+            PlayerDeathLootLifecycleService.TickResult
+                privatePublicized=
+                    lifecycle.tick(
+                        privatePublicAt
+                    );
+
+            require(
+                privatePublicized.publicized==1&&
+                privateItem.owner==null&&
+                world.groundItems().byId(
+                    privateItem.id
+                )==privateItem,
+                "private stack did not publicize after public expiry"
             );
         }finally{
             if(owner.registered())
