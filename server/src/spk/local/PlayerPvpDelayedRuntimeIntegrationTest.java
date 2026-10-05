@@ -1,7 +1,5 @@
 package spk.local;
 
-import java.io.ByteArrayOutputStream;
-
 public final class PlayerPvpDelayedRuntimeIntegrationTest {
     public static void main(String[] args)
         throws Exception {
@@ -24,21 +22,25 @@ public final class PlayerPvpDelayedRuntimeIntegrationTest {
             "delayed-runtime-target"
         );
 
-        ByteArrayOutputStream attackerWire =
-            new ByteArrayOutputStream();
-        ByteArrayOutputStream targetWire =
-            new ByteArrayOutputStream();
+        OutboundPacketQueue attackerQueue =
+            new OutboundPacketQueue(
+                1 << 20
+            );
+        OutboundPacketQueue targetQueue =
+            new OutboundPacketQueue(
+                1 << 20
+            );
 
         ServerPacketWriter attackerWriter =
             new ServerPacketWriter(
-                attackerWire,
+                attackerQueue,
                 new IsaacCipher(
                     new int[]{1,2,3,4}
                 )
             );
         ServerPacketWriter targetWriter =
             new ServerPacketWriter(
-                targetWire,
+                targetQueue,
                 new IsaacCipher(
                     new int[]{5,6,7,8}
                 )
@@ -153,7 +155,7 @@ public final class PlayerPvpDelayedRuntimeIntegrationTest {
             );
 
             int targetBytesBefore =
-                targetWire.size();
+                targetQueue.queuedBytes();
 
             String scheduled =
                 interactions.tickAttack(
@@ -183,7 +185,7 @@ public final class PlayerPvpDelayedRuntimeIntegrationTest {
                     ) == 9 &&
                 !target.lifecycle().dead() &&
                 interactions.nextAttackTick() == 4L &&
-                targetWire.size() ==
+                targetQueue.queuedBytes() ==
                     targetBytesBefore,
                 "attack tick leaked delayed damage"
             );
@@ -198,7 +200,7 @@ public final class PlayerPvpDelayedRuntimeIntegrationTest {
                         PlayerState.HITPOINTS
                     ) == 9 &&
                 !target.lifecycle().dead() &&
-                targetWire.size() ==
+                targetQueue.queuedBytes() ==
                     targetBytesBefore,
                 "pre-due tick leaked damage"
             );
@@ -214,7 +216,7 @@ public final class PlayerPvpDelayedRuntimeIntegrationTest {
                     ) == 0 &&
                 target.lifecycle().dead() &&
                 target.lifecycle().deathTick() == 2L &&
-                targetWire.size() >
+                targetQueue.queuedBytes() >
                     targetBytesBefore,
                 "due hit did not reach live target"
             );
