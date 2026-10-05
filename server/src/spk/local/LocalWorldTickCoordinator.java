@@ -26,9 +26,9 @@ final class LocalWorldTickCoordinator {
             String tag,
             String reason
         )throws IOException;
-        void publishPlayerAppearance(
+        default void publishPlayerAppearance(
             ServerPacketWriter writer
-        )throws IOException;
+        )throws IOException{}
         long petFollowDeadline();
         void setPetFollowDeadline(long value);
         void ensurePetFollowScheduled(long now);
