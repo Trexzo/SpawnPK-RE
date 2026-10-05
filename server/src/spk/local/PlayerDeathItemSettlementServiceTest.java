@@ -27,6 +27,7 @@ public final class PlayerDeathItemSettlementServiceTest {
             "equipmentLoss=true "+
             "lostLinesReturned=true "+
             "replayIdempotent=true "+
+            "replayRequiresCurrentDeath=true "+
             "stateDriftRejected=true "+
             "staleDeathRejected=true "+
             "crossPlayerRejected=true "+
@@ -168,6 +169,34 @@ public final class PlayerDeathItemSettlementServiceTest {
             replay==receipt&&
             service.size()==1,
             "settlement replay"
+        );
+
+        PlayerLifecycleService lifecycle=
+            new PlayerLifecycleService(
+                player,
+                AUTHORITY
+            );
+        require(
+            lifecycle.tick(
+                82L,
+                99
+            )==
+                PlayerLifecycleService.TickResult
+                    .RESPAWNED,
+            "settled death respawn fixture"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.settle(
+                resolution
+            ),
+            "settled replay after respawn"
+        );
+
+        require(
+            service.size()==1,
+            "stale settled replay changed receipt history"
         );
     }
 
