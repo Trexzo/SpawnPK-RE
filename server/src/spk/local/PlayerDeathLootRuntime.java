@@ -216,6 +216,14 @@ final class PlayerDeathLootRuntime {
                     entry.recipientRef
                 );
 
+            world.playerCarriedPresentationEvents()
+                .enqueueDeathPostimage(
+                    System.currentTimeMillis(),
+                    checkedVictim,
+                    victimGeneration,
+                    deathSequence
+                );
+
             pending.remove(
                 checkedVictim.id()
             );
