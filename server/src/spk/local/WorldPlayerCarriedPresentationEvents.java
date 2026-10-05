@@ -11,8 +11,6 @@ import java.util.*;
  */
 final class WorldPlayerCarriedPresentationEvents
     implements AutoCloseable {
-    static final long EVENT_TTL_MS=10000L;
-
     static final class Event {
         final long sequence;
         final long createdAt;
@@ -112,7 +110,6 @@ final class WorldPlayerCarriedPresentationEvents
                 "deathSequence="+deathSequence
             );
 
-        pruneExpired(now);
 
         LastDeath last=
             lastDeaths.get(
@@ -166,7 +163,6 @@ final class WorldPlayerCarriedPresentationEvents
         if(closed||recipientId==null)
             return Collections.emptyList();
 
-        pruneExpired(now);
 
         ArrayList<Event> out=
             new ArrayList<>();
@@ -207,11 +203,9 @@ final class WorldPlayerCarriedPresentationEvents
                 return false;
 
             it.remove();
-            pruneExpired(now);
             return true;
         }
 
-        pruneExpired(now);
         return false;
     }
 
@@ -230,16 +224,5 @@ final class WorldPlayerCarriedPresentationEvents
         closed=true;
         events.clear();
         lastDeaths.clear();
-    }
-
-    private void pruneExpired(
-        long now
-    ){
-        for(Iterator<Event> it=
-                events.iterator();
-                it.hasNext();)
-            if(now-it.next().createdAt>
-                    EVENT_TTL_MS)
-                it.remove();
     }
 }
