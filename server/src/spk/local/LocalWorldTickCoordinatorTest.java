@@ -55,6 +55,18 @@ public final class LocalWorldTickCoordinatorTest {
             return publisher;
         }
 
+        @Override public void publishPlayerAppearanceSnapshot(
+            int[] appearanceItems,
+            ServerPacketWriter writer
+        ){
+            if(appearanceItems==null||
+               appearanceItems.length!=
+                    EquipmentState.APPEARANCE_SLOTS)
+                throw new AssertionError(
+                    "invalid respawn appearance snapshot"
+                );
+        }
+
         @Override public void saveAccount(
             String tag,
             String reason
