@@ -15,6 +15,14 @@ final class LocalWorldTickCoordinator {
         Player81WorldSync.Context player81Sync();
         SceneUpdatePublisher scenePublisher();
         void saveAccount(String tag,String reason);
+        default boolean saveOwnedPlayerAccount(
+            WorldPlayer player,
+            long expectedGeneration,
+            String tag,
+            String reason
+        ){
+            return false;
+        }
         void publishOpponentOverlay(
             NpcEntity target,
             ServerPacketWriter writer,
@@ -45,6 +53,7 @@ final class LocalWorldTickCoordinator {
     private final PlayerDeathGroundSettlementService deathGroundSettlement;
     private final PlayerDeathLootOwnerResolver deathLootOwnerResolver;
     private final LocalLabDeathDispositionPolicy deathDispositionPolicy;
+    private final PlayerPvpKillRewardService pvpKillRewards;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -171,6 +180,10 @@ final class LocalWorldTickCoordinator {
             new PlayerDeathLootOwnerResolver();
         this.deathDispositionPolicy=
             new LocalLabDeathDispositionPolicy();
+        this.pvpKillRewards=
+            new PlayerPvpKillRewardService(
+                worldPlayer
+            );
         this.npcs=Objects.requireNonNull(npcs,"npcs");
         this.homeWorld=Objects.requireNonNull(homeWorld,"homeWorld");
         this.combat=Objects.requireNonNull(combat,"combat");
@@ -1337,6 +1350,8 @@ final class LocalWorldTickCoordinator {
             );
 
         PlayerDeathGroundSettlementService.Settlement settlement;
+        PlayerPvpKillRewardService.Result killReward=null;
+        boolean killRewardPersistenceRequested=false;
         String lootOwnerReason=
             lootOwner.reason;
 
@@ -1348,6 +1363,11 @@ final class LocalWorldTickCoordinator {
             final PlayerDeathGroundSettlementService.Settlement[]
                 committed=
                     new PlayerDeathGroundSettlementService.Settlement[1];
+            final PlayerPvpKillRewardService.Result[]
+                rewarded=
+                    new PlayerPvpKillRewardService.Result[1];
+            final boolean[] rewardSaveRequested=
+                new boolean[1];
 
             boolean attackerStillCurrent=false;
             if(attacker!=null)
@@ -1356,11 +1376,28 @@ final class LocalWorldTickCoordinator {
                         world.withOpenPlayerOwnershipIfCurrent(
                             attacker,
                             lootOwner.attackerGeneration,
-                            ()->committed[0]=
-                                deathGroundSettlement.settle(
-                                    resolution,
-                                    lootOwner.lootOwner
-                                )
+                            ()->{
+                                committed[0]=
+                                    deathGroundSettlement.settle(
+                                        resolution,
+                                        lootOwner.lootOwner
+                                    );
+
+                                rewarded[0]=
+                                    pvpKillRewards.settle(
+                                        attacker,
+                                        resolution.deathSequence
+                                    );
+
+                                if(rewarded[0].applied)
+                                    rewardSaveRequested[0]=
+                                        bridge.saveOwnedPlayerAccount(
+                                            attacker,
+                                            lootOwner.attackerGeneration,
+                                            tag,
+                                            "PLAYER_PVP_KILL_REWARD"
+                                        );
+                            }
                         );
                 }catch(IOException impossible){
                     throw new IllegalStateException(
@@ -1375,6 +1412,9 @@ final class LocalWorldTickCoordinator {
                         "killer-scoped death settlement produced no receipt"
                     );
                 settlement=committed[0];
+                killReward=rewarded[0];
+                killRewardPersistenceRequested=
+                    rewardSaveRequested[0];
             }else{
                 lootOwnerReason=
                     "PUBLIC_ATTACKER_GENERATION_CHANGED_BEFORE_COMMIT";
@@ -1396,6 +1436,27 @@ final class LocalWorldTickCoordinator {
             tag,
             "PLAYER_DEATH_SETTLEMENT"
         );
+
+        if(killReward!=null)
+            System.out.println(
+                tag+
+                "PLAYER_PVP_KILL_REWARD deathSequence="+
+                killReward.deathSequence+
+                " applied="+
+                killReward.applied+
+                " replayed="+
+                killReward.replayed+
+                " reason="+
+                killReward.reason+
+                " kills="+
+                killReward.kills+
+                " points="+
+                killReward.points+
+                " persistenceRequested="+
+                killRewardPersistenceRequested+
+                " authority="+
+                PlayerPvpKillRewardService.AUTHORITY
+            );
 
         System.out.println(
             tag+
