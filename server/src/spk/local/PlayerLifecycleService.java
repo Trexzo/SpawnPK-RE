@@ -239,7 +239,12 @@ final class PlayerLifecycleService {
                     worldTick,
                     respawnDelayTicks,
                     normalizedCause,
-                    responsiblePlayerId
+                    responsiblePlayerId,
+                    new Tile(
+                        movement.x(),
+                        movement.y(),
+                        movement.plane()
+                    )
                 );
                 combat.clear();
                 movement.clearQueuedPath();
