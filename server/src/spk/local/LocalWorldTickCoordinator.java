@@ -1336,11 +1336,61 @@ final class LocalWorldTickCoordinator {
                 resolution
             );
 
-        PlayerDeathGroundSettlementService.Settlement settlement=
-            deathGroundSettlement.settle(
-                resolution,
-                lootOwner.lootOwner
-            );
+        PlayerDeathGroundSettlementService.Settlement settlement;
+        String lootOwnerReason=
+            lootOwner.reason;
+
+        if(lootOwner.killerScoped()){
+            WorldPlayer attacker=
+                world.players().byId(
+                    lootOwner.attackerId
+                );
+            final PlayerDeathGroundSettlementService.Settlement[]
+                committed=
+                    new PlayerDeathGroundSettlementService.Settlement[1];
+
+            boolean attackerStillCurrent=false;
+            if(attacker!=null)
+                try{
+                    attackerStillCurrent=
+                        world.withOpenPlayerOwnershipIfCurrent(
+                            attacker,
+                            lootOwner.attackerGeneration,
+                            ()->committed[0]=
+                                deathGroundSettlement.settle(
+                                    resolution,
+                                    lootOwner.lootOwner
+                                )
+                        );
+                }catch(IOException impossible){
+                    throw new IllegalStateException(
+                        "death loot ownership settlement raised unexpected IO failure",
+                        impossible
+                    );
+                }
+
+            if(attackerStillCurrent){
+                if(committed[0]==null)
+                    throw new IllegalStateException(
+                        "killer-scoped death settlement produced no receipt"
+                    );
+                settlement=committed[0];
+            }else{
+                lootOwnerReason=
+                    "PUBLIC_ATTACKER_GENERATION_CHANGED_BEFORE_COMMIT";
+                settlement=
+                    deathGroundSettlement.settle(
+                        resolution,
+                        null
+                    );
+            }
+        }else{
+            settlement=
+                deathGroundSettlement.settle(
+                    resolution,
+                    null
+                );
+        }
 
         bridge.saveAccount(
             tag,
@@ -1372,7 +1422,7 @@ final class LocalWorldTickCoordinator {
                 ?"PUBLIC"
                 :settlement.lootOwner)+
             " lootOwnerReason="+
-            lootOwner.reason+
+            lootOwnerReason+
             " authority="+
             LocalLabDeathDispositionPolicy.AUTHORITY
         );
