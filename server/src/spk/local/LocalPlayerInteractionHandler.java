@@ -610,7 +610,23 @@ final class LocalPlayerInteractionHandler {
             worldTick+
             resolution.nextAttackDelayTicks;
 
+        String deathLoot="NOT_APPLICABLE";
+
         if(resolution.lifecycle.died){
+            PlayerDeathLootRuntime.Result loot=
+                world.playerDeathLoot()
+                    .settlePvp(
+                        owner,
+                        target
+                    );
+
+            deathLoot=
+                loot.status.name()+
+                ":deathSequence="+
+                loot.deathSequence+
+                ":recipient="+
+                loot.recipientRef;
+
             clearAttack();
             movement.clearQueuedPath();
         }
@@ -632,6 +648,7 @@ final class LocalPlayerInteractionHandler {
             "->"+resolution.lifecycle.hpAfter+
             " targetDied="+resolution.lifecycle.died+
             " targetHpPacket134="+hpPublished+
+            " deathLoot="+deathLoot+
             " systemHooks="+resolution.hooks+
             " remoteMaskRelay=true nextAttackTick="+
             (activeAttack==null?"CLEARED_ON_DEATH":Long.toString(nextAttackTick));
