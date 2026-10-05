@@ -16,6 +16,7 @@ final class WorldPlayer {
     private final CombatStyleState combatStyles=new CombatStyleState();
     private final CombatState combatState=new CombatState();
     private final PlayerLifecycleState lifecycle=new PlayerLifecycleState();
+    private final LocalRiskZoneState riskZone=new LocalRiskZoneState();
     private final PlayerStatusState statusState=new PlayerStatusState();
     private final SemanticTimedEffectService timedEffects=new SemanticTimedEffectService();
     private final PetEffectState petEffects=new PetEffectState();
@@ -39,6 +40,7 @@ final class WorldPlayer {
     CombatStyleState combatStyles(){return combatStyles;}
     CombatState combatState(){return combatState;}
     PlayerLifecycleState lifecycle(){return lifecycle;}
+    LocalRiskZoneState riskZone(){return riskZone;}
     PlayerStatusState statusState(){return statusState;}
     SemanticTimedEffectService timedEffects(){return timedEffects;}
     PetEffectState petEffects(){return petEffects;}
