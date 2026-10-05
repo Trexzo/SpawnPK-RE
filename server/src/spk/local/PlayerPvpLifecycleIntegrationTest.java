@@ -173,9 +173,12 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 );
 
             if(target.lifecycle().deathTick()!=20L||
-               target.lifecycle().respawnTick()!=25L)
+               target.lifecycle().respawnTick()!=25L||
+               !attacker.id().equals(
+                    target.lifecycle().responsiblePlayerId()
+               ))
                 throw new AssertionError(
-                    "PvP death timing mismatch "+
+                    "PvP death timing/attribution mismatch "+
                     target.lifecycle()
                 );
 
@@ -225,6 +228,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "deathTick=20 respawnTick=25 "+
                 "hpPacket134=true "+
                 "remoteAttackPresentation=true "+
+                "typedKiller=true "+
                 "authority=CUSTOM_LOCALLAB"
             );
 
