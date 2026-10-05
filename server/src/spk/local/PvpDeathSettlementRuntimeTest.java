@@ -22,6 +22,7 @@ public final class PvpDeathSettlementRuntimeTest {
             "pendingExactDeath=true "+
             "settlesBeforeRespawn=true "+
             "failedSettlementBlocksRespawn=true "+
+            "presentationDebtBlocksRespawn=true "+
             "retryable=true "+
             "unregisterCleanup=true "+
             "policy="+
@@ -155,7 +156,9 @@ public final class PvpDeathSettlementRuntimeTest {
                 early.settlement!=null&&
                 early.preparedRespawn==null&&
                 !world.pvpDeaths()
-                    .hasPending(victim),
+                    .hasPending(victim)&&
+                world.pvpDeaths()
+                    .hasPresentationDebt(victim),
                 "early settlement gate"
             );
 
@@ -191,6 +194,30 @@ public final class PvpDeathSettlementRuntimeTest {
                 standardGround.amount==100,
                 "standard loss ground"
             );
+
+            PvpDeathSettlementRuntime.RespawnGateResult
+                blockedByPresentation=
+                    world.pvpDeaths()
+                        .settleAndPrepareRespawn(
+                            victim,
+                            lifecycle,
+                            15L
+                        );
+
+            require(
+                blockedByPresentation.settlement==null&&
+                blockedByPresentation.preparedRespawn==null&&
+                world.pvpDeaths()
+                    .hasPresentationDebt(victim),
+                "presentation debt did not block respawn"
+            );
+
+            world.pvpDeaths()
+                .markPresentationCommitted(
+                    victim,
+                    victimGeneration,
+                    pending.deathSequence
+                );
 
             PvpDeathSettlementRuntime.RespawnGateResult
                 due=
@@ -327,9 +354,11 @@ public final class PvpDeathSettlementRuntimeTest {
 
             require(
                 retry.settlement!=null&&
-                retry.preparedRespawn!=null&&
+                retry.preparedRespawn==null&&
                 !world.pvpDeaths()
                     .hasPending(victim)&&
+                world.pvpDeaths()
+                    .hasPresentationDebt(victim)&&
                 victim.bank()
                     .inventoryCount(
                         STANDARD_ITEM
@@ -337,8 +366,31 @@ public final class PvpDeathSettlementRuntimeTest {
                 "settlement retry"
             );
 
+            world.pvpDeaths()
+                .markPresentationCommitted(
+                    victim,
+                    victimGeneration,
+                    retry.settlement
+                        .pending
+                        .deathSequence
+                );
+
+            PvpDeathSettlementRuntime.RespawnGateResult
+                retryDue=
+                    world.pvpDeaths()
+                        .settleAndPrepareRespawn(
+                            victim,
+                            lifecycle,
+                            20L
+                        );
+
+            require(
+                retryDue.preparedRespawn!=null,
+                "presentation commit did not release respawn"
+            );
+
             lifecycle.commitPreparedRespawn(
-                retry.preparedRespawn
+                retryDue.preparedRespawn
             );
 
             require(
