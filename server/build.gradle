@@ -6320,6 +6320,32 @@ tasks.named('check') {
 }
 
 
+tasks.register('playabilityAccountProfilesRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves arbitrary local usernames persist through traversal-safe profile storage while preserving legacy opensrc/src paths.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAccountProfilesTest'
+}
+
+tasks.register('playabilityPlayerInitializerPersistenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves arbitrary login aliases are persistence-eligible and load through the repository before World registration.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalSessionPlayerInitializerTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('playabilityAccountProfilesRegression')
+    dependsOn tasks.named('playabilityPlayerInitializerPersistenceRegression')
+}
+
+
 tasks.register('player81BatchAbortAtomicityRegression', JavaExec) {
     group = 'verification'
     description = 'Proves batched packet81 presentation state and NPC relay barriers commit only after transport admission and survive abort.'
