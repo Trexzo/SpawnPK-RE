@@ -409,6 +409,133 @@ final class GroundItemRegistry {
         );
     }
 
+    /**
+     * Validate one complete ground-item bundle without mutating registry state.
+     *
+     * Callers that need a cross-domain commit fence may hold this registry's
+     * monitor across this preflight and a later addBatchDetailed invocation.
+     */
+    synchronized void validateBatchAdd(
+        List<AddRequest> requests
+    ){
+        Objects.requireNonNull(
+            requests,
+            "requests"
+        );
+
+        LinkedHashMap<StackKey,Long>
+            requestedAmounts=
+                new LinkedHashMap<>();
+
+        for(AddRequest request:requests){
+            AddRequest checked=
+                Objects.requireNonNull(
+                    request,
+                    "request"
+                );
+
+            if(checked.itemId<0||
+               checked.amount<=0||
+               checked.tile==null)
+                throw new IllegalArgumentException(
+                    "invalid ground-item batch request"
+                );
+
+            StackKey key=
+                new StackKey(
+                    checked.itemId,
+                    checked.tile,
+                    checked.owner,
+                    checked.devOwned
+                );
+
+            long prior=
+                requestedAmounts.getOrDefault(
+                    key,
+                    0L
+                );
+
+            long combined=
+                Math.addExact(
+                    prior,
+                    (long)checked.amount
+                );
+
+            if(combined>Integer.MAX_VALUE)
+                throw new IllegalStateException(
+                    "ground amount overflow"
+                );
+
+            requestedAmounts.put(
+                key,
+                combined
+            );
+        }
+
+        if(requestedAmounts.isEmpty())
+            return;
+
+        LinkedHashMap<StackKey,GroundItem>
+            existing=
+                new LinkedHashMap<>();
+
+        for(GroundItem item:byId.values()){
+            StackKey key=
+                new StackKey(
+                    item.itemId,
+                    item.tile,
+                    item.owner,
+                    item.devOwned
+                );
+
+            if(requestedAmounts.containsKey(
+                    key))
+                existing.put(
+                    key,
+                    item
+                );
+        }
+
+        for(Map.Entry<StackKey,Long> entry:
+                requestedAmounts.entrySet()){
+            GroundItem current=
+                existing.get(
+                    entry.getKey()
+                );
+
+            if(current==null)
+                continue;
+
+            long combined=
+                Math.addExact(
+                    (long)current.amount,
+                    entry.getValue()
+                );
+
+            if(combined>Integer.MAX_VALUE)
+                throw new IllegalStateException(
+                    "ground amount overflow"
+                );
+        }
+
+        long newStacks=
+            requestedAmounts.size()-
+            existing.size();
+
+        if(newStacks>0L){
+            long lastId=
+                Math.addExact(
+                    ids.get(),
+                    newStacks
+                );
+
+            if(lastId<=0L)
+                throw new IllegalStateException(
+                    "ground item id sequence exhausted"
+                );
+        }
+    }
+
     synchronized List<BatchMutation> addBatchDetailed(
         List<AddRequest> requests
     ){
