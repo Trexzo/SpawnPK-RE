@@ -107,7 +107,9 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     attacker.combatStyles(),
                     CombatDamageRules.localLabFallback(),
                     CombatAttackTimingRules.recoveredCompatibility(),
-                    CombatSystemHooks.forPlayer(attacker)
+                    CombatSystemHooks.forPlayer(attacker),
+                    attacker::generation,
+                    world.pvpDeathLedger()
                 );
 
             String request=
@@ -179,6 +181,25 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     target.lifecycle()
                 );
 
+            PlayerPvpDeathLedger.Entry ledgerEntry=
+                world.pvpDeathLedger().get(
+                    target.id(),
+                    target.lifecycle().deathSequence()
+                );
+
+            if(ledgerEntry==null||
+               !ledgerEntry.attackerId.equals(attacker.id())||
+               !ledgerEntry.victimId.equals(target.id())||
+               ledgerEntry.attackerGeneration!=attacker.generation()||
+               ledgerEntry.victimGeneration!=target.generation()||
+               !"attacker".equals(ledgerEntry.attackerUsername)||
+               !"target".equals(ledgerEntry.victimUsername)||
+               ledgerEntry.deathSequence!=target.lifecycle().deathSequence()||
+               ledgerEntry.deathTick!=20L)
+                throw new AssertionError(
+                    "live PvP killer attribution missing/mismatched"
+                );
+
             if(interactions.activeAttack()!=null)
                 throw new AssertionError(
                     "lethal PvP attack remained active"
@@ -225,6 +246,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "deathTick=20 respawnTick=25 "+
                 "hpPacket134=true "+
                 "remoteAttackPresentation=true "+
+                "deathLedger=true "+
                 "authority=CUSTOM_LOCALLAB"
             );
 
