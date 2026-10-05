@@ -178,6 +178,14 @@ final class BankState {
     int inventoryCapacity() { return INVENTORY_CAPACITY; }
     Stack bankAt(int slot) { return slot>=0 && slot<bank.length ? bank[slot] : null; }
     Stack inventoryAt(int slot) { return slot>=0 && slot<inventory.length ? inventory[slot] : null; }
+
+    /**
+     * Package-local immutable-by-copy account snapshots. Callers coordinating
+     * multi-container gameplay mutations must hold the owning WorldPlayer
+     * mutation lock across snapshot, validation, and restore.
+     */
+    Stack[] bankSnapshot() { return copyStacks(bank); }
+    Stack[] inventorySnapshot() { return copyStacks(inventory); }
     int inventoryCount(int itemId) {
         long total=0;
         for(Stack st:inventory) if(st!=null && st.itemId==itemId) total+=st.qty;
