@@ -270,7 +270,8 @@ public final class PlayerRespawnCommitFenceTest {
                 10_000L
             );
 
-            if(!coordinator.deferredRespawnEligible()||
+            if(!coordinator.deferredDeathItemsEligible()||
+               !coordinator.deferredRespawnEligible()||
                !player.lifecycle().dead()||
                movement.x()!=transientX||
                movement.y()!=transientY||
@@ -288,6 +289,17 @@ public final class PlayerRespawnCommitFenceTest {
                 OutboundPacketQueue.reserveBatch(
                     queue,
                     QUEUE_CAPACITY
+                );
+
+            coordinator
+                .settleDeferredDeathItemsAfterWorldTick(
+                    writer,
+                    "[respawn-fence-death] "
+                );
+
+            if(coordinator.deferredDeathItemsEligible())
+                throw new AssertionError(
+                    "death items remained deferred before respawn"
                 );
 
             boolean failed=false;
@@ -348,12 +360,18 @@ public final class PlayerRespawnCommitFenceTest {
                 10_600L
             );
 
-            if(!coordinator.deferredRespawnEligible()||
+            if(!coordinator.deferredDeathItemsEligible()||
+               !coordinator.deferredRespawnEligible()||
                !player.lifecycle().dead())
                 throw new AssertionError(
                     "failed respawn was not re-prepared"
                 );
 
+            coordinator
+                .settleDeferredDeathItemsAfterWorldTick(
+                    writer,
+                    "[respawn-fence-retry-death] "
+                );
             coordinator
                 .settleDeferredRespawnAfterWorldTick(
                     writer,
@@ -384,6 +402,7 @@ public final class PlayerRespawnCommitFenceTest {
             System.out.println(
                 "PLAYER_RESPAWN_COMMIT_FENCE_PASS "+
                 "outerCommitDefersSemantic=true "+
+                "deathSettlementBeforeRespawn=true "+
                 "admissionFailureRetainsDeath=true "+
                 "admissionFailureRestoresRegion=true "+
                 "sameWriterRetryCommitsOnce=true "+
