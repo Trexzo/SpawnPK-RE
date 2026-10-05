@@ -21,7 +21,7 @@ try {
 
     Push-Location $repo
     try {
-        & $java.Path -jar $jar --bootstrap --movement
+        & $java.Path "-Dspk.playability.enabled=true" -jar $jar --bootstrap --movement
         $serverExit = $LASTEXITCODE
 
         if ($serverExit -ne 0) {
