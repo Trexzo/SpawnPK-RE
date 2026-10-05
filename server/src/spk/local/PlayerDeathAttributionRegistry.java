@@ -17,8 +17,10 @@ final class PlayerDeathAttributionRegistry {
     static final class Attribution {
         final EntityId attackerId;
         final long attackerGeneration;
+        final String attackerRef;
         final EntityId victimId;
         final long victimGeneration;
+        final String victimRef;
         final long deathTick;
         final long deathSequence;
         final String authority;
@@ -31,8 +33,16 @@ final class PlayerDeathAttributionRegistry {
         ){
             this.attackerId=attacker.id();
             this.attackerGeneration=attackerGeneration;
+            this.attackerRef=requirePlayerRef(
+                attacker.username(),
+                "attacker"
+            );
             this.victimId=victim.id();
             this.victimGeneration=victimGeneration;
+            this.victimRef=requirePlayerRef(
+                victim.username(),
+                "victim"
+            );
             this.deathTick=victim.lifecycle().deathTick();
             this.deathSequence=victim.lifecycle().deathSequence();
             this.authority=AUTHORITY;
@@ -145,5 +155,23 @@ final class PlayerDeathAttributionRegistry {
         long deathSequence
     ){
         return victimId.toString()+"#"+deathSequence;
+    }
+
+    private static String requirePlayerRef(
+        String value,
+        String label
+    ){
+        if(value==null)
+            throw new IllegalStateException(
+                label+" player has no username"
+            );
+
+        String clean=value.trim();
+        if(clean.isEmpty())
+            throw new IllegalStateException(
+                label+" player has blank username"
+            );
+
+        return clean;
     }
 }
