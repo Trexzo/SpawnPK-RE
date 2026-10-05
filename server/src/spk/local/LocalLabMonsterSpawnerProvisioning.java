@@ -27,7 +27,12 @@ final class LocalLabMonsterSpawnerProvisioning {
     static final String REQUEST_AUTHORITY=
         "CUSTOM_LOCALLAB_MONSTER_SPAWNER_REQUEST";
 
-    static final int NPC_DEFINITION_ID=1530;
+    /*
+     * Exact current client corpus: definition 1 ("Man") exposes option-2
+     * Attack (opcode 72) and is not one of the max-hit dummy definitions.
+     * Combat/drop/HP balance below remains explicit CUSTOM_LOCALLAB policy.
+     */
+    static final int NPC_DEFINITION_ID=1;
     static final int NPC_HITPOINTS=10;
     static final int ACTIVATION_BUDGET=1;
 
