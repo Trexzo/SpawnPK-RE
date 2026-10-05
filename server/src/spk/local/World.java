@@ -16,6 +16,8 @@ final class World implements AutoCloseable {
     private final GameClock clock=new GameClock();
     private final WorldEventQueue events=new WorldEventQueue();
     private final GroundItemRegistry groundItems=new GroundItemRegistry();
+    private final PlayerDeathAttributionRegistry playerDeathAttributions=
+        new PlayerDeathAttributionRegistry();
     private final WorldObjectRegistry objects=new WorldObjectRegistry();
     private final PlayerRegistry players=new PlayerRegistry();
     private final WorldRealtimeQueue realtime;
@@ -181,6 +183,9 @@ final class World implements AutoCloseable {
     WorldEventQueue events(){return events;}
     WorldRealtimeQueue realtime(){return realtime;}
     GroundItemRegistry groundItems(){return groundItems;}
+    PlayerDeathAttributionRegistry playerDeathAttributions(){
+        return playerDeathAttributions;
+    }
     WorldObjectRegistry objects(){return objects;}
     PlayerRegistry players(){return players;}
     WorldNpcRegistry npcs(){return npcs;}
