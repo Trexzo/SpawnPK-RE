@@ -349,12 +349,13 @@ final class PlayerCombatResolutionService {
         long worldTick,
         Prepared prepared
     ){
-        return new PlayerLifecycleService(target).applyDamage(
+        return new PlayerLifecycleService(target).applyDamageFromPlayer(
             prepared.damage.damage,
             worldTick,
             "PVP_ATTACK attacker="+owner.id()+
             " weapon="+weaponId+
-            " damageAuthority="+prepared.damage.authority
+            " damageAuthority="+prepared.damage.authority,
+            owner.id()
         );
     }
 
