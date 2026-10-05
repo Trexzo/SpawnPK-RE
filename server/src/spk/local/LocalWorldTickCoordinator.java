@@ -52,6 +52,7 @@ final class LocalWorldTickCoordinator {
     private final PlayerDeathLootOwnerResolver deathLootOwnerResolver;
     private final LocalLabDeathDispositionPolicy deathDispositionPolicy;
     private final PvpKillRewardService pvpKillRewards;
+    private final G1DefaultLoadoutRegearService g1Regear;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -180,6 +181,11 @@ final class LocalWorldTickCoordinator {
             new LocalLabDeathDispositionPolicy();
         this.pvpKillRewards=
             new PvpKillRewardService(
+                worldPlayer
+            );
+        this.g1Regear=
+            new G1DefaultLoadoutRegearService(
+                world,
                 worldPlayer
             );
         this.npcs=Objects.requireNonNull(npcs,"npcs");
@@ -1498,6 +1504,12 @@ final class LocalWorldTickCoordinator {
             prepared
         );
 
+        G1DefaultLoadoutRegearService.Prepared
+            preparedRegear=
+                g1Regear.prepareDefault(
+                    worldPlayer.username()
+                );
+
         boolean writerBatchActive=false;
         boolean packetCommitted=false;
 
@@ -1521,6 +1533,11 @@ final class LocalWorldTickCoordinator {
                 tag
             );
 
+            g1Regear.publishPrepared(
+                preparedRegear,
+                writer
+            );
+
             writer.endBatch();
             writerBatchActive=false;
             packetCommitted=true;
@@ -1529,6 +1546,12 @@ final class LocalWorldTickCoordinator {
             lifecycle.commitPreparedRespawn(
                 prepared
             );
+
+            G1DefaultLoadoutRegearService.Result
+                regearResult=
+                    g1Regear.commitPreparedAfterRespawn(
+                        preparedRegear
+                    );
 
             playerInteractions.clearTargets();
             TradeService.cancelIfActive(
@@ -1540,6 +1563,13 @@ final class LocalWorldTickCoordinator {
                 tag,
                 "PLAYER_RESPAWN"
             );
+
+            if(regearResult!=null)
+                System.out.println(
+                    tag+
+                    "G1_RESPAWN_REGEAR "+
+                    regearResult
+                );
 
             legacyTickCount++;
 
