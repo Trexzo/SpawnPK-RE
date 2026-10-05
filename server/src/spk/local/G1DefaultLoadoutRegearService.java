@@ -18,7 +18,7 @@ final class G1DefaultLoadoutRegearService {
     static final PlayerLoadoutId STARTER_ID=
         PlayerLoadoutId.of("g1:starter");
     static final int STARTER_WEAPON=4151;
-    static final int STARTER_FOOD=385;
+    static final int STARTER_FOOD=15272;
     static final int STARTER_FOOD_COUNT=10;
 
     static final class Prepared {
