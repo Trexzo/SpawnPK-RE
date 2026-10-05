@@ -246,7 +246,7 @@ final class PlayerDeathGroundSettlementService {
                         new GroundItemRegistry.AddRequest(
                             line.itemId,
                             disposition.lostAmount,
-                            checkedDeathTile(checked),
+                            checked.deathTile,
                             lootOwner,
                             checked.deathTick,
                             false
@@ -296,7 +296,7 @@ final class PlayerDeathGroundSettlementService {
             Settlement settlement=
                 new Settlement(
                     checked,
-                    checkedDeathTile(checked),
+                    checked.deathTile,
                     lootOwner,
                     drops,
                     settlementAuthority
@@ -324,22 +324,6 @@ final class PlayerDeathGroundSettlementService {
         }
     }
 
-    private Tile checkedDeathTile(
-        PlayerDeathItemResolutionService.Resolution resolution
-    ){
-        /*
-         * Resolution intentionally keeps protocol identity out. The exact
-         * death tile is bound by the corresponding immutable preview and
-         * therefore reconstructed from the still-current dead player's
-         * movement only before the first settlement.
-         */
-        return new Tile(
-            player.movement().x(),
-            player.movement().y(),
-            player.movement().plane()
-        );
-    }
-
     private void requireExactCurrentDeath(
         PlayerDeathItemResolutionService.Resolution resolution
     ){
@@ -363,9 +347,15 @@ final class PlayerDeathGroundSettlementService {
            !safeCause(
                 lifecycle.cause()
             ).equals(
-                resolution.deathCause))
+                resolution.deathCause)||
+           player.movement().x()!=
+                resolution.deathTile.x||
+           player.movement().y()!=
+                resolution.deathTile.y||
+           player.movement().plane()!=
+                resolution.deathTile.plane)
             throw new IllegalStateException(
-                "player death identity changed before settlement id="+
+                "player death identity/tile changed before settlement id="+
                 player.id()
             );
     }
