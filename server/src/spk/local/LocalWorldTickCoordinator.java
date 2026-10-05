@@ -209,6 +209,31 @@ final class LocalWorldTickCoordinator {
             );
         }
 
+        PvpDeathSettlementRuntime.SettlementResult
+            pvpDeathSettlement=
+                world.pvpDeaths()
+                    .settlePendingBeforeRespawn(
+                        worldPlayer
+                    );
+
+        if(pvpDeathSettlement!=null){
+            System.out.println(
+                tag+
+                "PVP_DEATH_SETTLED sequence="+
+                pvpDeathSettlement.pending.deathSequence+
+                " owner="+
+                pvpDeathSettlement.pending.lootOwner+
+                " kept="+
+                pvpDeathSettlement.receipt.keptTotalQuantity+
+                " lost="+
+                pvpDeathSettlement.receipt.lostTotalQuantity+
+                " policy="+
+                LocalLabPvpDeathPolicy.POLICY_ID+
+                " authority="+
+                PvpDeathSettlementRuntime.AUTHORITY
+            );
+        }
+
         PlayerLifecycleService.PreparedRespawn preparedRespawn=
             lifecycle.prepareRespawn(
                 worldTick
