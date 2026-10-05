@@ -428,6 +428,11 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     tickBridge.respawnSaves
                 );
 
+            int groundStacksBeforeReplay=
+                world.groundItems().size();
+            long coinGroundId=drop.id;
+            int coinAmountBeforeReplay=drop.amount;
+
             coordinator.settleCurrentDeathForSessionTeardown(
                 "[g1.1-live-pvp-replay] "
             );
@@ -440,12 +445,14 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     0,
                     "attacker"
                 );
-            if(replayDrop!=drop||
-               world.groundItems().size()!=1||
+            if(replayDrop==null||
+               replayDrop.id!=coinGroundId||
+               replayDrop.amount!=coinAmountBeforeReplay||
+               world.groundItems().size()!=groundStacksBeforeReplay||
                tickBridge.deathSettlementSaves!=1||
                tickBridge.respawnSaves!=1)
                 throw new AssertionError(
-                    "post-respawn settlement replay was not idempotent"
+                    "post-respawn settlement replay changed settled postimage"
                 );
 
             System.out.println(
