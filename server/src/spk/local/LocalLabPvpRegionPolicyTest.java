@@ -1,7 +1,7 @@
 package spk.local;
 
 public final class LocalLabPvpRegionPolicyTest {
-    public static void main(String[] args){
+    public static void main(String[] args)throws Exception{
         World world=
             World.isolatedForTest(600L);
         WorldPlayer attacker=
@@ -23,6 +23,107 @@ public final class LocalLabPvpRegionPolicyTest {
         try{
             PlayerPvpEligibilityPolicy policy=
                 LocalLabPvpRegionPolicy.INSTANCE;
+
+            java.io.ByteArrayOutputStream attackerWire=
+                new java.io.ByteArrayOutputStream();
+            java.io.ByteArrayOutputStream targetWire=
+                new java.io.ByteArrayOutputStream();
+
+            ServerPacketWriter attackerWriter=
+                new ServerPacketWriter(
+                    attackerWire,
+                    new IsaacCipher(
+                        new int[]{91,92,93,94}
+                    )
+                );
+            ServerPacketWriter targetWriter=
+                new ServerPacketWriter(
+                    targetWire,
+                    new IsaacCipher(
+                        new int[]{95,96,97,98}
+                    )
+                );
+
+            Player81WorldSync.Context attackerSync=
+                Player81WorldSync.register(
+                    attackerWriter,
+                    world,
+                    attacker,
+                    new DevAuthorityWorkbench()
+                );
+            Player81WorldSync.register(
+                targetWriter,
+                world,
+                target,
+                new DevAuthorityWorkbench()
+            );
+
+            Player81WorldSync.transformForTest(
+                attackerSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            int targetIndex=
+                attackerSync.clientIndexFor(
+                    target
+                );
+
+            require(
+                targetIndex>=0,
+                "HOME target fixture not visible"
+            );
+
+            LocalPlayerInteractionHandler interactions=
+                new LocalPlayerInteractionHandler(
+                    world,
+                    attacker,
+                    attacker.movement(),
+                    attacker.equipment(),
+                    attacker::generation,
+                    policy
+                );
+
+            String homeAttack=
+                interactions.handleResolved(
+                    new PlayerAction(
+                        128,
+                        1,
+                        targetIndex,
+                        "Attack"
+                    ),
+                    target,
+                    attackerSync
+                );
+
+            require(
+                homeAttack!=null&&
+                homeAttack.contains(
+                    "reason=PVP_REGION_POLICY")&&
+                interactions.activeAttack()==null,
+                "HOME handler attack was not rejected by region policy"
+            );
+
+            String homeFollow=
+                interactions.handleResolved(
+                    new PlayerAction(
+                        153,
+                        2,
+                        targetIndex,
+                        "Follow"
+                    ),
+                    target,
+                    attackerSync
+                );
+
+            require(
+                homeFollow!=null&&
+                homeFollow.contains(
+                    "PLAYER_FOLLOW_REQUEST")&&
+                interactions.activeFollow()!=null,
+                "HOME follow was incorrectly blocked"
+            );
+
+            interactions.cancelActive();
 
             PlayerPvpEligibilityPolicy.Result home=
                 policy.evaluate(
@@ -92,10 +193,47 @@ public final class LocalLabPvpRegionPolicyTest {
                 pkTile,
                 pkRegion
             );
-            enter(
-                target,
-                pkTile,
-                pkRegion
+            target.movement().enterTransientRegion(
+                pkTile.x+1,
+                pkTile.y,
+                pkTile.plane,
+                pkRegion.x0,
+                pkRegion.y0
+            );
+
+            Player81WorldSync.transformForTest(
+                attackerSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            targetIndex=
+                attackerSync.clientIndexFor(
+                    target
+                );
+
+            require(
+                targetIndex>=0,
+                "PK target fixture not visible"
+            );
+
+            String pkAttack=
+                interactions.handleResolved(
+                    new PlayerAction(
+                        128,
+                        1,
+                        targetIndex,
+                        "Attack"
+                    ),
+                    target,
+                    attackerSync
+                );
+
+            require(
+                pkAttack!=null&&
+                pkAttack.contains(
+                    "PLAYER_ATTACK_REQUEST")&&
+                interactions.activeAttack()!=null,
+                "PK handler attack was not accepted"
             );
 
             PlayerPvpEligibilityPolicy.Result bothPk=
@@ -112,6 +250,21 @@ public final class LocalLabPvpRegionPolicyTest {
             );
 
             target.movement().returnHome();
+
+            String cancelledAfterTargetLeave=
+                interactions.tickAttack(
+                    1L,
+                    attackerWriter,
+                    attackerSync
+                );
+
+            require(
+                cancelledAfterTargetLeave!=null&&
+                cancelledAfterTargetLeave.contains(
+                    "PLAYER_ATTACK_CANCELLED")&&
+                interactions.activeAttack()==null,
+                "active attack survived target leaving PK"
+            );
 
             PlayerPvpEligibilityPolicy.Result targetLeft=
                 policy.evaluate(
@@ -142,11 +295,22 @@ public final class LocalLabPvpRegionPolicyTest {
                 "attacker leaving PK remained eligible"
             );
 
+            Player81WorldSync.unregister(
+                attackerWriter
+            );
+            Player81WorldSync.unregister(
+                targetWriter
+            );
+
             System.out.println(
                 "LOCAL_LAB_PVP_REGION_POLICY_PASS "+
                 "homeRejected=true "+
                 "nonPkDestinationRejected=true "+
                 "bothPkEligible=true "+
+                "handlerHomeRejected=true "+
+                "handlerPkAccepted=true "+
+                "activeAttackCancelledOnExit=true "+
+                "followOutsidePkUnaffected=true "+
                 "targetLeaveRejected=true "+
                 "attackerLeaveRejected=true "+
                 "serverRegionAuthority=true "+
