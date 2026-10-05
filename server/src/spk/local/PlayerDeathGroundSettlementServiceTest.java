@@ -28,7 +28,7 @@ public final class PlayerDeathGroundSettlementServiceTest {
     }
 
     private static void riskLossSettlesExactlyOnce(){
-        World world=new World();
+        World world=new World(600L);
         WorldPlayer player=configuredPlayer();
         PlayerLifecycleService lifecycle=
             new PlayerLifecycleService(player);
@@ -179,7 +179,7 @@ public final class PlayerDeathGroundSettlementServiceTest {
     }
 
     private static void safeKeepAllCreatesNoGround(){
-        World world=new World();
+        World world=new World(600L);
         WorldPlayer player=configuredPlayer();
         PlayerLifecycleService lifecycle=
             new PlayerLifecycleService(player);
@@ -248,7 +248,7 @@ public final class PlayerDeathGroundSettlementServiceTest {
     }
 
     private static void overflowFailureLeavesCarriedUntouched(){
-        World world=new World();
+        World world=new World(600L);
         WorldPlayer player=configuredPlayer();
         PlayerLifecycleService lifecycle=
             new PlayerLifecycleService(player);
