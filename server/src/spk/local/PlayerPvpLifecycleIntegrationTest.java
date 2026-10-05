@@ -184,6 +184,65 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     "lethal PvP attack remained active"
                 );
 
+            PvpRecordService.Record attackerRecord=
+                world.pvpRecords().snapshot(
+                    attacker
+                );
+            PvpRecordService.Record targetRecord=
+                world.pvpRecords().snapshot(
+                    target
+                );
+
+            if(attackerRecord.kills!=1L||
+               attackerRecord.deaths!=0L||
+               attackerRecord.currentStreak!=1L||
+               attackerRecord.bestStreak!=1L)
+                throw new AssertionError(
+                    "attacker PvP record mismatch "+
+                    attackerRecord
+                );
+
+            if(targetRecord.kills!=0L||
+               targetRecord.deaths!=1L||
+               targetRecord.currentStreak!=0L||
+               targetRecord.bestStreak!=0L)
+                throw new AssertionError(
+                    "target PvP record mismatch "+
+                    targetRecord
+                );
+
+            String duplicate=
+                interactions.tickAttack(
+                    21L,
+                    attackerWriter,
+                    attackerSync
+                );
+
+            if(duplicate!=null)
+                throw new AssertionError(
+                    "cleared lethal attack produced duplicate tick "+
+                    duplicate
+                );
+
+            PvpRecordService.Record attackerAfterDuplicate=
+                world.pvpRecords().snapshot(
+                    attacker
+                );
+            PvpRecordService.Record targetAfterDuplicate=
+                world.pvpRecords().snapshot(
+                    target
+                );
+
+            if(attackerAfterDuplicate.kills!=1L||
+               attackerAfterDuplicate.currentStreak!=1L||
+               targetAfterDuplicate.deaths!=1L)
+                throw new AssertionError(
+                    "cleared attack duplicated PvP records attacker="+
+                    attackerAfterDuplicate+
+                    " target="+
+                    targetAfterDuplicate
+                );
+
             if(targetWire.size()<=targetBytesBefore)
                 throw new AssertionError(
                     "target received no HP skill packet"
@@ -225,6 +284,8 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "deathTick=20 respawnTick=25 "+
                 "hpPacket134=true "+
                 "remoteAttackPresentation=true "+
+                "pvpRecordKill=1 pvpRecordDeath=1 "+
+                "pvpRecordStreak=1 duplicateRecord=false "+
                 "authority=CUSTOM_LOCALLAB"
             );
 
