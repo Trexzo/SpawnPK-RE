@@ -26,10 +26,17 @@ final class LocalLabMonsterSpawnerProvisioning {
         "CUSTOM_LOCALLAB_MONSTER_SPAWNER_SETTLEMENT";
     static final String REQUEST_AUTHORITY=
         "CUSTOM_LOCALLAB_MONSTER_SPAWNER_REQUEST";
+    static final String TERMINAL_AUTHORITY=
+        "LOCAL_LAB_POLICY_G1_PVM_TERMINAL_V1";
 
     static final int NPC_DEFINITION_ID=1530;
     static final int NPC_HITPOINTS=10;
-    static final int ACTIVATION_BUDGET=1;
+    /*
+     * Explicit G1.5 two-life session policy: activation consumes the first
+     * spawn, leaving one canonical budget unit for one replacement after
+     * successful death/drop/progression settlement.
+     */
+    static final int ACTIVATION_BUDGET=2;
 
     static LocalMonsterSpawnerActivationRuntime create(
         World world
@@ -134,12 +141,58 @@ final class LocalLabMonsterSpawnerProvisioning {
                     .OWNER_SCOPED_DEATH_TILE
             );
 
+        G1PvmProgressionService progression=
+            new G1PvmProgressionService(
+                checkedWorld
+            );
+
         MonsterSpawnerPvmRuntime runtime=
             new MonsterSpawnerPvmRuntime(
                 checkedWorld,
                 lifecycleBinding,
                 finalizer,
-                settlement
+                settlement,
+                new MonsterSpawnerPvmRuntime.TerminalPolicy(){
+                    @Override public void onSettled(
+                        MonsterSpawnerPvmRuntime.TerminalContext context
+                    ){
+                        G1PvmProgressionService.Result result=
+                            progression.settle(
+                                context.recipientRef,
+                                context.finalization.npcId,
+                                context.finalization.deathTick
+                            );
+
+                        System.out.println(
+                            "[g1-pvm] G1_PVM_PROGRESSION "+
+                            result+
+                            " npc="+
+                            context.finalization.npcId+
+                            " deathTick="+
+                            context.finalization.deathTick+
+                            " authority="+
+                            G1PvmProgressionService.AUTHORITY
+                        );
+                    }
+
+                    @Override public Tile replacementTile(
+                        MonsterSpawnerPvmRuntime.TerminalContext context
+                    ){
+                        if(!context.session.active||
+                           context.session.remainingSpawnBudget<=0)
+                            return null;
+
+                        return new Tile(
+                            MovementState.INITIAL_X+1,
+                            MovementState.INITIAL_Y,
+                            0
+                        );
+                    }
+
+                    @Override public String authority(){
+                        return TERMINAL_AUTHORITY;
+                    }
+                }
             );
 
         MonsterSpawnerPvmSpawnExecutor executor=
