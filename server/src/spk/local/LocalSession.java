@@ -1051,6 +1051,17 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public void publishPlayerAppearance(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    LocalSession.this.playerPresentation.refresh(
+                        LocalSession.this.username,
+                        LocalSession.this.equipment,
+                        LocalSession.this.playerState,
+                        writer
+                    );
+                }
+
                 @Override public long petFollowDeadline(){
                     return LocalSession.this.petFollowDeadline();
                 }
