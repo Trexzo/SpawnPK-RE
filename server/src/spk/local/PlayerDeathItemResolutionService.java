@@ -54,6 +54,7 @@ final class PlayerDeathItemResolutionService {
         final long deathTick;
         final long deathSequence;
         final String deathCause;
+        final EntityId responsiblePlayerId;
         final List<CarriedLine> carried;
 
         private DeathPreview(
@@ -61,12 +62,14 @@ final class PlayerDeathItemResolutionService {
             long deathTick,
             long deathSequence,
             String deathCause,
+            EntityId responsiblePlayerId,
             List<CarriedLine> carried
         ){
             this.playerId=playerId;
             this.deathTick=deathTick;
             this.deathSequence=deathSequence;
             this.deathCause=deathCause;
+            this.responsiblePlayerId=responsiblePlayerId;
             this.carried=
                 Collections.unmodifiableList(
                     new ArrayList<>(
@@ -119,6 +122,7 @@ final class PlayerDeathItemResolutionService {
         final long deathTick;
         final long deathSequence;
         final String deathCause;
+        final EntityId responsiblePlayerId;
         final List<Disposition> dispositions;
         final String policyAuthority;
 
@@ -131,6 +135,7 @@ final class PlayerDeathItemResolutionService {
             this.deathTick=preview.deathTick;
             this.deathSequence=preview.deathSequence;
             this.deathCause=preview.deathCause;
+            this.responsiblePlayerId=preview.responsiblePlayerId;
             this.dispositions=
                 Collections.unmodifiableList(
                     new ArrayList<>(
@@ -326,6 +331,7 @@ final class PlayerDeathItemResolutionService {
             safeCause(
                 lifecycle.cause()
             ),
+            lifecycle.responsiblePlayerId(),
             snapshotCarriedLocked()
         );
     }
@@ -350,7 +356,10 @@ final class PlayerDeathItemResolutionService {
            !safeCause(
                 lifecycle.cause()
             ).equals(
-                expected.deathCause))
+                expected.deathCause)||
+           !Objects.equals(
+                lifecycle.responsiblePlayerId(),
+                expected.responsiblePlayerId))
             throw new IllegalStateException(
                 "player death identity changed after preview id="+
                 player.id()
