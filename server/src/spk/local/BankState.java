@@ -559,6 +559,25 @@ final class BankState {
      * Protocol-independent exact-slot inventory snapshot for gameplay/domain
      * services. No widget/container/presentation identity escapes this seam.
      */
+    Stack[] inventoryContainerSnapshot(){
+        return copyStacks(inventory);
+    }
+
+    void restoreInventoryContainerSnapshot(
+        Stack[] snapshot
+    ){
+        if(snapshot==null||
+           snapshot.length!=INVENTORY_CAPACITY)
+            throw new IllegalArgumentException(
+                "inventory snapshot length"
+            );
+
+        replaceStacks(
+            inventory,
+            snapshot
+        );
+    }
+
     InventorySlotSnapshot inventorySlotSnapshot(int slot){
         if(!validSlot(inventory,slot))
             throw new IllegalArgumentException("inventory slot 0..27");
