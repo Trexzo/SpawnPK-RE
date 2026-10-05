@@ -244,7 +244,8 @@ final class PlayerLifecycleService {
                         movement.x(),
                         movement.y(),
                         movement.plane()
-                    )
+                    ),
+                    player.riskZone().snapshot()
                 );
                 combat.clear();
                 movement.clearQueuedPath();
@@ -333,6 +334,7 @@ final class PlayerLifecycleService {
             movement.returnHome();
             combat.clear();
             lifecycle.markRespawned();
+            player.riskZone().returnHome();
         }
     }
 
