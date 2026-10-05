@@ -273,7 +273,8 @@ final class LocalWorldTickCoordinator {
                 deathPlan=
                     deathPolicy.plan(
                         worldPlayer,
-                        deathPreview
+                        deathPreview,
+                        world.pvpDeathLedger()
                     );
             PlayerDeathItemResolutionService.Resolution
                 deathResolution=
