@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.util.SortedMap;
 
 public final class PlayerPvpDeathSettlementIntegrationTest {
     private static final int QUEUE_CAPACITY=1<<20;
@@ -37,6 +38,9 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
         SceneUpdatePublisher publisher;
         int deathSettlementSaves;
         int respawnSaves;
+        int killRewardSaves;
+        WorldPlayer rewardPlayer;
+        long rewardGeneration;
 
         @Override public Player81WorldSync.Context player81Sync(){return null;}
         @Override public SceneUpdatePublisher scenePublisher(){return publisher;}
@@ -45,6 +49,23 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 deathSettlementSaves++;
             if("PLAYER_RESPAWN".equals(reason))
                 respawnSaves++;
+        }
+        @Override public boolean saveOwnedPlayerAccount(
+            WorldPlayer player,
+            long expectedGeneration,
+            String tag,
+            String reason
+        ){
+            if(!"PLAYER_PVP_KILL_REWARD".equals(reason))
+                throw new AssertionError(
+                    "unexpected owned-player save reason "+
+                    reason
+                );
+
+            killRewardSaves++;
+            rewardPlayer=player;
+            rewardGeneration=expectedGeneration;
+            return true;
         }
         @Override public void publishOpponentOverlay(
             NpcEntity target,
@@ -419,13 +440,51 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     "live PvP respawn postimage incorrect"
                 );
 
-            if(tickBridge.deathSettlementSaves!=1||
-               tickBridge.respawnSaves!=1)
+            SortedMap<String,String> rewardState=
+                attacker.snapshotExtensions()
+                    .namespace(
+                        PlayerPvpKillRewardService
+                            .NAMESPACE
+                    );
+
+            if(!"1".equals(
+                    rewardState.get(
+                        "kills"
+                    )
+                )||
+               !"1".equals(
+                    rewardState.get(
+                        "points"
+                    )
+                )||
+               !PlayerPvpKillRewardService.AUTHORITY
+                    .equals(
+                        rewardState.get(
+                            "authority"
+                        )
+                    ))
                 throw new AssertionError(
-                    "live PvP persistence count mismatch death="+
+                    "live PvP reward state incorrect "+
+                    rewardState
+                );
+
+            if(tickBridge.deathSettlementSaves!=1||
+               tickBridge.respawnSaves!=1||
+               tickBridge.killRewardSaves!=1||
+               tickBridge.rewardPlayer!=attacker||
+               tickBridge.rewardGeneration!=
+                    attackerGeneration)
+                throw new AssertionError(
+                    "live PvP persistence count/owner mismatch death="+
                     tickBridge.deathSettlementSaves+
                     " respawn="+
-                    tickBridge.respawnSaves
+                    tickBridge.respawnSaves+
+                    " reward="+
+                    tickBridge.killRewardSaves+
+                    " rewardPlayer="+
+                    tickBridge.rewardPlayer+
+                    " rewardGeneration="+
+                    tickBridge.rewardGeneration
                 );
 
             int groundStacksBeforeReplay=
@@ -450,7 +509,18 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                replayDrop.amount!=coinAmountBeforeReplay||
                world.groundItems().size()!=groundStacksBeforeReplay||
                tickBridge.deathSettlementSaves!=1||
-               tickBridge.respawnSaves!=1)
+               tickBridge.respawnSaves!=1||
+               tickBridge.killRewardSaves!=1||
+               !"1".equals(
+                    attacker.snapshotExtensions()
+                        .namespace(
+                            PlayerPvpKillRewardService
+                                .NAMESPACE
+                        )
+                        .get(
+                            "kills"
+                        )
+                ))
                 throw new AssertionError(
                     "post-respawn settlement replay changed settled postimage"
                 );
@@ -464,6 +534,9 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 "groundDropExactlyOnce=true "+
                 "deathSettlementPersistedOnce=true "+
                 "respawnPersistedOnce=true "+
+                "killRewardApplied=true "+
+                "killerRewardPersistRequested=true "+
+                "killRewardReplaySafe=true "+
                 "attributionClearedOnRespawn=true "+
                 "replayIdempotent=true "+
                 "authority="+
