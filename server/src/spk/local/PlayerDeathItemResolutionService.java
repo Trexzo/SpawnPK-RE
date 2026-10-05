@@ -56,6 +56,9 @@ final class PlayerDeathItemResolutionService {
         final String deathCause;
         final EntityId responsiblePlayerId;
         final Tile deathTile;
+        final boolean riskAtDeath;
+        final TeleportNavigationService.EntryKind riskSourceKind;
+        final long riskRevision;
         final List<CarriedLine> carried;
 
         private DeathPreview(
@@ -65,6 +68,9 @@ final class PlayerDeathItemResolutionService {
             String deathCause,
             EntityId responsiblePlayerId,
             Tile deathTile,
+            boolean riskAtDeath,
+            TeleportNavigationService.EntryKind riskSourceKind,
+            long riskRevision,
             List<CarriedLine> carried
         ){
             this.playerId=playerId;
@@ -73,6 +79,9 @@ final class PlayerDeathItemResolutionService {
             this.deathCause=deathCause;
             this.responsiblePlayerId=responsiblePlayerId;
             this.deathTile=deathTile;
+            this.riskAtDeath=riskAtDeath;
+            this.riskSourceKind=riskSourceKind;
+            this.riskRevision=riskRevision;
             this.carried=
                 Collections.unmodifiableList(
                     new ArrayList<>(
@@ -127,6 +136,9 @@ final class PlayerDeathItemResolutionService {
         final String deathCause;
         final EntityId responsiblePlayerId;
         final Tile deathTile;
+        final boolean riskAtDeath;
+        final TeleportNavigationService.EntryKind riskSourceKind;
+        final long riskRevision;
         final List<Disposition> dispositions;
         final String policyAuthority;
 
@@ -141,6 +153,9 @@ final class PlayerDeathItemResolutionService {
             this.deathCause=preview.deathCause;
             this.responsiblePlayerId=preview.responsiblePlayerId;
             this.deathTile=preview.deathTile;
+            this.riskAtDeath=preview.riskAtDeath;
+            this.riskSourceKind=preview.riskSourceKind;
+            this.riskRevision=preview.riskRevision;
             this.dispositions=
                 Collections.unmodifiableList(
                     new ArrayList<>(
@@ -329,6 +344,9 @@ final class PlayerDeathItemResolutionService {
                 player.id()
             );
 
+        LocalRiskZoneState.Snapshot risk=
+            lifecycle.deathRiskSnapshot();
+
         return new DeathPreview(
             player.id(),
             deathTick,
@@ -338,6 +356,13 @@ final class PlayerDeathItemResolutionService {
             ),
             lifecycle.responsiblePlayerId(),
             lifecycle.deathTile(),
+            risk!=null&&risk.risk(),
+            risk==null
+                ?null
+                :risk.sourceKind,
+            risk==null
+                ?-1L
+                :risk.revision,
             snapshotCarriedLocked()
         );
     }
@@ -368,11 +393,28 @@ final class PlayerDeathItemResolutionService {
                 expected.responsiblePlayerId)||
            !Objects.equals(
                 lifecycle.deathTile(),
-                expected.deathTile))
+                expected.deathTile)||
+           !sameRiskSnapshot(
+                lifecycle.deathRiskSnapshot(),
+                expected))
             throw new IllegalStateException(
                 "player death identity changed after preview id="+
                 player.id()
             );
+    }
+
+    private static boolean sameRiskSnapshot(
+        LocalRiskZoneState.Snapshot current,
+        DeathPreview expected
+    ){
+        if(current==null)
+            return !expected.riskAtDeath&&
+                expected.riskSourceKind==null&&
+                expected.riskRevision==-1L;
+
+        return current.risk()==expected.riskAtDeath&&
+            current.sourceKind==expected.riskSourceKind&&
+            current.revision==expected.riskRevision;
     }
 
     private List<CarriedLine>
