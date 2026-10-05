@@ -14,6 +14,10 @@ final class LocalWorldTickCoordinator {
     interface SessionBridge {
         Player81WorldSync.Context player81Sync();
         SceneUpdatePublisher scenePublisher();
+        void publishPlayerAppearanceSnapshot(
+            int[] appearanceItems,
+            ServerPacketWriter writer
+        )throws IOException;
         void saveAccount(String tag,String reason);
         void publishOpponentOverlay(
             NpcEntity target,
@@ -50,6 +54,7 @@ final class LocalWorldTickCoordinator {
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     private final LocalGroundItemInteractionHandler groundItemHandler;
     private final LocalGroundItemPresentationRelay groundItemPresentationRelay;
+    private final LocalPlayerCarriedPresentationRelay carriedPresentationRelay;
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final SessionBridge bridge;
@@ -167,6 +172,11 @@ final class LocalWorldTickCoordinator {
                 this.world,
                 this.worldPlayer,
                 this.movement
+            );
+        this.carriedPresentationRelay=
+            new LocalPlayerCarriedPresentationRelay(
+                this.world,
+                this.worldPlayer
             );
         this.petDropPickup=Objects.requireNonNull(
             petDropPickup,"petDropPickup");
@@ -638,6 +648,12 @@ final class LocalWorldTickCoordinator {
             regionStreams.regionLoadPending()
         );
 
+        carriedPresentationRelay.publishPending(
+            now,
+            writer,
+            bridge::publishPlayerAppearanceSnapshot
+        );
+
         deferredGroundTakeEligible=true;
         deferredPetPickupEligible=true;
 
@@ -817,6 +833,12 @@ final class LocalWorldTickCoordinator {
             now,
             bridge.scenePublisher(),
             regionStreams.regionLoadPending()
+        );
+
+        carriedPresentationRelay.publishPending(
+            now,
+            writer,
+            bridge::publishPlayerAppearanceSnapshot
         );
 
         deferredPetPickupEligible=true;
@@ -1043,6 +1065,9 @@ final class LocalWorldTickCoordinator {
             commitGroundPresentationBatch(
                 System.currentTimeMillis()
             );
+            commitCarriedPresentationBatch(
+                System.currentTimeMillis()
+            );
         }catch(IOException failure){
             if(!tailCommitted)
                 abortMovementTail(
@@ -1135,6 +1160,14 @@ final class LocalWorldTickCoordinator {
         }catch(Throwable groundFailure){
             primary.addSuppressed(
                 groundFailure
+            );
+        }
+
+        try{
+            abortCarriedPresentationBatch();
+        }catch(Throwable carriedFailure){
+            primary.addSuppressed(
+                carriedFailure
             );
         }
 
@@ -1734,6 +1767,25 @@ final class LocalWorldTickCoordinator {
     int stagedGroundPresentationCount(){
         return groundItemPresentationRelay
             .stagedDeliveryCount();
+    }
+
+    int commitCarriedPresentationBatch(
+        long now
+    ){
+        return carriedPresentationRelay
+            .commitStaged(
+                now
+            );
+    }
+
+    int abortCarriedPresentationBatch(){
+        return carriedPresentationRelay
+            .abortStaged();
+    }
+
+    int stagedCarriedPresentationCount(){
+        return carriedPresentationRelay
+            .stagedCount();
     }
 
     long legacyTickCount(){
