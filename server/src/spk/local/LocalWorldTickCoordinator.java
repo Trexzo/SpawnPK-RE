@@ -151,7 +151,10 @@ final class LocalWorldTickCoordinator {
         this.petEffects=Objects.requireNonNull(petEffects,"petEffects");
         this.statuses=Objects.requireNonNull(statuses,"statuses");
         this.lifecycle=new PlayerLifecycleService(worldPlayer);
-        this.deathLoop=new LocalDeathLoopService(worldPlayer);
+        this.deathLoop=new LocalDeathLoopService(
+            this.world,
+            worldPlayer
+        );
         this.npcs=Objects.requireNonNull(npcs,"npcs");
         this.homeWorld=Objects.requireNonNull(homeWorld,"homeWorld");
         this.combat=Objects.requireNonNull(combat,"combat");
