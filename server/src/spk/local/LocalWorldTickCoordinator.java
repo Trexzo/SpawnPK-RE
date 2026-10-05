@@ -1468,10 +1468,18 @@ final class LocalWorldTickCoordinator {
             plan.autoKeptLines+
             " explicitLostLines="+
             plan.explicitLostLines+
+            " standardKeptLines="+
+            plan.standardKeptLines+
             " standardLostLines="+
             plan.standardLostLines+
+            " riskClass="+
+            plan.riskClass+
+            " deathRegionId="+
+            plan.deathRegionId+
             " standardPolicy="+
-            LocalLabDeathDispositionPolicy.STANDARD_POLICY+
+            plan.standardPolicy+
+            " riskAuthority="+
+            plan.riskAuthority+
             " lootOwner="+
             (settlement.lootOwner==null
                 ?"PUBLIC"

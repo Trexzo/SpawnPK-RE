@@ -135,10 +135,28 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
             );
             drain(targetQueue);
 
-            int deathX=3200;
-            int deathY=3200;
-            int baseX=3150;
-            int baseY=3150;
+            LocalTeleportDestinationCatalog.Destination
+                pkDestination=
+                    LocalTeleportDestinationCatalog.get(
+                        TeleportNavigationService.EntryKind.PK
+                    );
+            Tile pkTile=
+                WorldCollisionAuthority.safeTile(
+                    pkDestination.regionId,
+                    pkDestination.plane
+                );
+
+            if(pkTile==null)
+                throw new AssertionError(
+                    "PK destination has no safe tile"
+                );
+
+            int deathX=pkTile.x;
+            int deathY=pkTile.y;
+            int chunkX=deathX>>3;
+            int chunkY=deathY>>3;
+            int baseX=(chunkX-6)<<3;
+            int baseY=(chunkY-6)<<3;
 
             targetMovement.enterTransientRegion(
                 deathX,
@@ -540,6 +558,7 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
             System.out.println(
                 "PLAYER_PVP_DEATH_SETTLEMENT_INTEGRATION_PASS "+
                 "liveAttack=true "+
+                "pkRegionRisk=true "+
                 "deathSequence="+deathSequence+" "+
                 "killerScopedLoot=true "+
                 "carriedStateAtomic=true "+
