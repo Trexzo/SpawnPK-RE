@@ -41,6 +41,7 @@ final class LocalWorldTickCoordinator {
     private final PetEffectState petEffects;
     private final PlayerStatusService statuses;
     private final PlayerLifecycleService lifecycle;
+    private final LocalDeathLoopService deathLoop;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -150,6 +151,7 @@ final class LocalWorldTickCoordinator {
         this.petEffects=Objects.requireNonNull(petEffects,"petEffects");
         this.statuses=Objects.requireNonNull(statuses,"statuses");
         this.lifecycle=new PlayerLifecycleService(worldPlayer);
+        this.deathLoop=new LocalDeathLoopService(worldPlayer);
         this.npcs=Objects.requireNonNull(npcs,"npcs");
         this.homeWorld=Objects.requireNonNull(homeWorld,"homeWorld");
         this.combat=Objects.requireNonNull(combat,"combat");
@@ -215,6 +217,23 @@ final class LocalWorldTickCoordinator {
             );
 
         if(preparedRespawn!=null){
+            PlayerDeathItemResolutionService.Resolution deathResolution=
+                deathLoop.ensureCurrentDeathResolved();
+
+            System.out.println(
+                tag+
+                "PLAYER_DEATH_DISPOSITION_RESOLVED sequence="+
+                deathResolution.deathSequence+
+                " carried="+
+                deathResolution.dispositions.size()+
+                " kept="+
+                deathResolution.keptTotalQuantity()+
+                " lost="+
+                deathResolution.lostTotalQuantity()+
+                " authority="+
+                deathResolution.policyAuthority
+            );
+
             deferredRespawn=
                 preparedRespawn;
             return;
@@ -1253,6 +1272,9 @@ final class LocalWorldTickCoordinator {
             return;
 
         lifecycle.requirePreparedRespawnCurrent(
+            prepared
+        );
+        deathLoop.requireResolvedForRespawn(
             prepared
         );
 
