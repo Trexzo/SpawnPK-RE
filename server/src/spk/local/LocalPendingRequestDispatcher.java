@@ -245,8 +245,9 @@ final class LocalPendingRequestDispatcher {
                 continue;
             }
 
-            if(worldPlayer.lifecycle().dead()&&
-               !allowedWhileDead(request)){
+            if(rejectWhileDead(
+                    worldPlayer,
+                    request)){
                 System.out.println(
                     tag+
                     "PLAYER_DEAD_REQUEST_REJECTED type="+
@@ -1313,6 +1314,22 @@ final class LocalPendingRequestDispatcher {
                 clicked.definitionId
             );
     }
+    static boolean rejectWhileDead(
+        WorldPlayer player,
+        ClientRequest request
+    ){
+        return Objects.requireNonNull(
+                player,
+                "player"
+            ).lifecycle().dead()&&
+            !allowedWhileDead(
+                Objects.requireNonNull(
+                    request,
+                    "request"
+                )
+            );
+    }
+
     static boolean allowedWhileDead(
         ClientRequest request
     ){
