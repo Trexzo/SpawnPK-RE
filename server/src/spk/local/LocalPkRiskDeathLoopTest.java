@@ -6,6 +6,8 @@ import java.util.List;
 /** End-to-end LocalLab PK-risk death/drop policy regression. */
 public final class LocalPkRiskDeathLoopTest {
     public static void main(String[] args){
+        riskTransitionPolicy();
+
         World world=
             World.isolatedForTest(
                 600L
@@ -221,6 +223,7 @@ public final class LocalPkRiskDeathLoopTest {
 
             System.out.println(
                 "LOCAL_PK_RISK_DEATH_LOOP_PASS "+
+                "teleportRiskTransitions=true "+
                 "riskBoundAtDeath=true "+
                 "dropAll=true "+
                 "killerOwnerScoped=true "+
@@ -241,6 +244,67 @@ public final class LocalPkRiskDeathLoopTest {
             );
             world.close();
         }
+    }
+
+    private static void riskTransitionPolicy(){
+        LocalRiskZoneState risk=
+            new LocalRiskZoneState();
+
+        require(
+            !risk.risk(),
+            "initial SAFE risk state"
+        );
+
+        risk.onSuccessfulTeleport(
+            TeleportNavigationService.EntryKind.PK
+        );
+        require(
+            risk.risk(),
+            "PK arms risk"
+        );
+
+        risk.onSuccessfulTeleport(
+            TeleportNavigationService.EntryKind.TRAINING
+        );
+        require(
+            !risk.risk(),
+            "TRAINING clears risk"
+        );
+
+        risk.onSuccessfulTeleport(
+            TeleportNavigationService.EntryKind.BOUNTY
+        );
+        require(
+            risk.risk(),
+            "BOUNTY arms risk"
+        );
+
+        long beforeRevision=
+            risk.snapshot().revision;
+        boolean houseRejected=false;
+
+        try{
+            risk.onSuccessfulTeleport(
+                TeleportNavigationService.EntryKind.HOUSE
+            );
+        }catch(IllegalArgumentException expected){
+            houseRejected=true;
+        }
+
+        require(
+            houseRejected&&
+            risk.risk()&&
+            risk.snapshot().revision==beforeRevision,
+            "failed HOUSE preserves risk"
+        );
+
+        risk.returnHome();
+        require(
+            !risk.risk()&&
+            risk.snapshot().sourceKind==
+                TeleportNavigationService.EntryKind.HOME,
+            "HOME clears risk"
+        );
     }
 
     private static void offlineKillerFallsBackKeepAll(){
