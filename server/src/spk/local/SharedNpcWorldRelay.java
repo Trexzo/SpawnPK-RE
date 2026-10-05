@@ -1391,6 +1391,9 @@ final class SharedNpcWorldRelay {
                 int petY=canonicalSource
                     ?canonicalPet.y()
                     :fallbackPet.y;
+                int petPlane=canonicalSource
+                    ?canonicalPet.plane()
+                    :src.movement.plane();
                 EntityId petCanonicalId=canonicalSource
                     ?canonicalPet.id
                     :null;
@@ -1416,6 +1419,11 @@ final class SharedNpcWorldRelay {
                         ?canonicalMini.y()
                         :fallbackMini.y)
                     :0;
+                int miniPlane=miniPresent
+                    ?(canonicalMiniSource
+                        ?canonicalMini.plane()
+                        :src.movement.plane())
+                    :-1;
                 EntityId miniCanonicalId=
                     canonicalMiniSource
                         ?canonicalMini.id
@@ -1496,6 +1504,7 @@ final class SharedNpcWorldRelay {
                     t.mainY,
                     petX,
                     petY,
+                    petPlane,
                     32768+playerIndex,
                     selector,
                     petCanonicalId
@@ -1584,6 +1593,7 @@ final class SharedNpcWorldRelay {
                         t.miniY,
                         miniX,
                         miniY,
+                        miniPlane,
                         t.mainScene,
                         null,
                         miniCanonicalId
@@ -2047,11 +2057,17 @@ final class SharedNpcWorldRelay {
             int oldY,
             int x,
             int y,
+            int sourcePlane,
             int interactionTarget,
             Integer particleSelector,
             EntityId canonicalId
         )throws IOException{
-            if(Math.abs(x-movement.x())>15||
+            if(sourcePlane!=movement.plane()||
+               !movement.insideCurrentLoadedRegion(
+                    x,
+                    y
+               )||
+               Math.abs(x-movement.x())>15||
                Math.abs(y-movement.y())>15){
                 if(scene>=0&&
                    removeMirror(scene)!=
@@ -2182,6 +2198,7 @@ final class SharedNpcWorldRelay {
                     y,
                     x,
                     y,
+                    sourcePlane,
                     interactionTarget,
                     particleSelector,
                     canonicalId

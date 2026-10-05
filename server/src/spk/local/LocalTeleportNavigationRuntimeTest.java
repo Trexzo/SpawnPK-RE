@@ -175,12 +175,26 @@ public final class LocalTeleportNavigationRuntimeTest {
                     "teleport-other"
                 );
 
-            int xBefore=
-                player.movement().x();
-            int yBefore=
-                player.movement().y();
-            int planeBefore=
-                player.movement().plane();
+            int otherXBefore=
+                other.movement().x();
+            int otherYBefore=
+                other.movement().y();
+            int otherPlaneBefore=
+                other.movement().plane();
+            int otherBaseXBefore=
+                other.movement().loadedBaseX();
+            int otherBaseYBefore=
+                other.movement().loadedBaseY();
+
+            LocalTeleportDestinationCatalog.Destination pk=
+                LocalTeleportDestinationCatalog.get(
+                    TeleportNavigationService.EntryKind.PK
+                );
+            Tile expectedPkLanding=
+                WorldCollisionAuthority.safeTile(
+                    pk.regionId,
+                    pk.plane
+                );
 
             LocalTeleportNavigationRuntime.Result
                 multiplayer=
@@ -192,19 +206,53 @@ public final class LocalTeleportNavigationRuntimeTest {
                     );
 
             require(
-                !multiplayer.succeeded()&&
+                multiplayer.succeeded()&&
                 multiplayer.relocation!=null&&
-                multiplayer.relocation.logText.contains(
-                    "REJECTED_MULTIPLAYER")&&
-                multiplayer.navigation.detail.contains(
-                    "REJECTED_MULTIPLAYER")&&
-                player.movement().x()==xBefore&&
-                player.movement().y()==yBefore&&
-                player.movement().plane()==planeBefore&&
+                multiplayer.relocation.logText.startsWith(
+                    "V5160_REGION_LOAD OK ")&&
+                player.movement().x()==expectedPkLanding.x&&
+                player.movement().y()==expectedPkLanding.y&&
+                player.movement().plane()==expectedPkLanding.plane&&
                 runtime.snapshot(
                     "teleport-runtime"
-                ).totalSuccessfulRequests==1L,
-                "multiplayer rejection mutated relocation or success ledger"
+                ).successful(
+                    TeleportNavigationService.EntryKind.PK
+                )==1L&&
+                runtime.snapshot(
+                    "teleport-runtime"
+                ).totalSuccessfulRequests==2L,
+                "multiplayer PK relocation failed"
+            );
+
+            require(
+                other.movement().x()==otherXBefore&&
+                other.movement().y()==otherYBefore&&
+                other.movement().plane()==otherPlaneBefore&&
+                other.movement().loadedBaseX()==otherBaseXBefore&&
+                other.movement().loadedBaseY()==otherBaseYBefore&&
+                !other.movement().transientRegion(),
+                "other player state changed during per-session relocation"
+            );
+
+            LocalRegionDevCommandHandler.Result home=
+                relocation.returnHomeForPanel(
+                    "teleport-runtime",
+                    multiplayer.relocation.scenePublisher,
+                    writer
+                );
+
+            require(
+                home!=null&&
+                home.logText.startsWith(
+                    "V5160_REGION_HOME OK ")&&
+                !player.movement().transientRegion()&&
+                player.movement().x()==MovementState.INITIAL_X&&
+                player.movement().y()==MovementState.INITIAL_Y&&
+                other.movement().x()==otherXBefore&&
+                other.movement().y()==otherYBefore&&
+                other.movement().loadedBaseX()==otherBaseXBefore&&
+                other.movement().loadedBaseY()==otherBaseYBefore,
+                "multiplayer return-home was not session isolated"
             );
 
             require(
@@ -219,8 +267,9 @@ public final class LocalTeleportNavigationRuntimeTest {
                 "semanticLedgerExactlyOnce=true "+
                 "houseUnconfigured=true "+
                 "homeCanonical=true "+
-                "multiplayerRejected=true "+
-                "multiplayerStateUnchanged=true "+
+                "multiplayerRelocation=true "+
+                "otherPlayerStateUnchanged=true "+
+                "multiplayerReturnHome=true "+
                 "policy="+
                 LocalTeleportDestinationCatalog.POLICY_AUTHORITY
             );

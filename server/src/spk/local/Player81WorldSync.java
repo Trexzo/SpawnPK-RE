@@ -891,6 +891,7 @@ final class Player81WorldSync {
             if(p==owner)return LOCAL_PLAYER_INDEX;
             Track t=visible.get(p.id());
             return t!=null&&
+                isVisible(p)&&
                 state.world.players().owns(
                     p,
                     t.generation

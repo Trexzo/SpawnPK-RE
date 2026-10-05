@@ -221,16 +221,6 @@ final class LocalRegionDevCommandHandler {
         SceneUpdatePublisher currentScenePublisher,
         ServerPacketWriter writer
     )throws IOException{
-        if(world.players().size()!=1){
-            return new Result(
-                "V5160_REGION_LOAD REJECTED_MULTIPLAYER members="+
-                world.players().size()+
-                " reason=PER_VIEW_REGION_MEMBERSHIP_NOT_YET_PROMOTED",
-                null,
-                currentScenePublisher
-            );
-        }
-
         WorldRegionAuthorityRepository.Region region=
             WorldRegionAuthorityRepository.get(regionId);
 
@@ -377,15 +367,6 @@ final class LocalRegionDevCommandHandler {
             return new Result(
                 "V5160_REGION_HOME ALREADY_HOME world="+
                 movement.x()+","+movement.y(),
-                null,
-                currentScenePublisher
-            );
-        }
-
-        if(world.players().size()!=1){
-            return new Result(
-                "V5160_REGION_HOME REJECTED_MULTIPLAYER members="+
-                world.players().size(),
                 null,
                 currentScenePublisher
             );
