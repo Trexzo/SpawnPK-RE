@@ -1323,6 +1323,11 @@ final class LocalWorldTickCoordinator {
                 null
             );
 
+        bridge.saveAccount(
+            tag,
+            "PLAYER_DEATH_SETTLEMENT"
+        );
+
         System.out.println(
             tag+
             "PLAYER_DEATH_GROUND_SETTLED deathSequence="+
