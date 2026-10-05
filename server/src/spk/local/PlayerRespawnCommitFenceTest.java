@@ -71,6 +71,11 @@ public final class PlayerRespawnCommitFenceTest {
             player,
             "respawn-fence"
         );
+        WorldPlayer attacker=new WorldPlayer();
+        long attackerGeneration=world.registerPlayer(
+            attacker,
+            "respawn-fence-attacker"
+        );
 
         try{
             MovementState movement=player.movement();
@@ -231,6 +236,19 @@ public final class PlayerRespawnCommitFenceTest {
                     player
                 );
 
+            synchronized(player.mutationLock()){
+                BankState.Stack[] bank=
+                    player.bank().bankSnapshot();
+                BankState.Stack[] inventory=
+                    player.bank().inventorySnapshot();
+                inventory[0]=new BankState.Stack(995,25);
+                player.bank().restoreAccountState(
+                    bank,
+                    inventory,
+                    player.bank().isOpen()
+                );
+            }
+
             PlayerLifecycleService.DamageResult lethal=
                 lifecycle.applyDamage(
                     500,
@@ -238,6 +256,13 @@ public final class PlayerRespawnCommitFenceTest {
                     "RESPAWN_FENCE_TEST",
                     0L
                 );
+
+            world.playerDeathAttributions().record(
+                attacker,
+                attackerGeneration,
+                player,
+                generation
+            );
 
             if(!lethal.died||
                !player.lifecycle().dead()||
@@ -271,6 +296,11 @@ public final class PlayerRespawnCommitFenceTest {
             );
 
             if(!coordinator.deferredRespawnEligible()||
+               !coordinator.deferredPvpDeathSettlementEligible()||
+               player.bank().inventoryAt(0)==null||
+               player.bank().inventoryAt(0).itemId!=995||
+               player.bank().inventoryAt(0).qty!=25||
+               world.groundItems().size()!=0||
                !player.lifecycle().dead()||
                movement.x()!=transientX||
                movement.y()!=transientY||
@@ -283,6 +313,31 @@ public final class PlayerRespawnCommitFenceTest {
 
             SceneUpdatePublisher beforePublisher=
                 regionBridge.publisher;
+
+            coordinator.settleDeferredPvpDeathAfterWorldTick(
+                "[respawn-fence-death-settle] "
+            );
+
+            GroundItem deathCoins=
+                world.groundItems().findVisible(
+                    995,
+                    transientX,
+                    transientY,
+                    0,
+                    attacker.username()
+                );
+
+            if(coordinator.deferredPvpDeathSettlementEligible()||
+               player.bank().inventoryAt(0)!=null||
+               deathCoins==null||
+               deathCoins.amount!=25||
+               !attacker.username().equals(deathCoins.owner)||
+               tickBridge.saveCalls!=1||
+               !"PLAYER_PVP_DEATH_SETTLEMENT".equals(
+                    tickBridge.lastSaveReason))
+                throw new AssertionError(
+                    "PvP death settlement did not commit before respawn"
+                );
 
             OutboundPacketQueue.BatchReservation pressure=
                 OutboundPacketQueue.reserveBatch(
@@ -326,7 +381,9 @@ public final class PlayerRespawnCommitFenceTest {
                regionStreams.regionLoadPending()||
                regionBridge.publisher!=beforePublisher||
                regionBridge.resetCalls!=0||
-               tickBridge.saveCalls!=0||
+               tickBridge.saveCalls!=1||
+               !"PLAYER_PVP_DEATH_SETTLEMENT".equals(
+                    tickBridge.lastSaveReason)||
                queue.queuedBytes()!=0)
                 throw new AssertionError(
                     "failed respawn publication changed exact preimage"
@@ -349,9 +406,17 @@ public final class PlayerRespawnCommitFenceTest {
             );
 
             if(!coordinator.deferredRespawnEligible()||
-               !player.lifecycle().dead())
+               coordinator.deferredPvpDeathSettlementEligible()||
+               !player.lifecycle().dead()||
+               world.groundItems().findVisible(
+                    995,
+                    transientX,
+                    transientY,
+                    0,
+                    attacker.username()
+               ).amount!=25)
                 throw new AssertionError(
-                    "failed respawn was not re-prepared"
+                    "failed respawn was not re-prepared without duplicate death loot"
                 );
 
             coordinator
@@ -373,7 +438,7 @@ public final class PlayerRespawnCommitFenceTest {
                regionBridge.resetCalls!=1||
                !"PLAYER_RESPAWN".equals(
                     tickBridge.lastSaveReason)||
-               tickBridge.saveCalls!=1||
+               tickBridge.saveCalls!=2||
                queue.queuedBytes()<=0)
                 throw new AssertionError(
                     "same-writer respawn retry did not settle exactly once"
@@ -383,6 +448,9 @@ public final class PlayerRespawnCommitFenceTest {
 
             System.out.println(
                 "PLAYER_RESPAWN_COMMIT_FENCE_PASS "+
+                "pvpDeathSettlementPreparedNoMutation=true "+
+                "pvpDeathSettlementBeforeRespawn=true "+
+                "pvpDeathReplayNoDuplicate=true "+
                 "outerCommitDefersSemantic=true "+
                 "admissionFailureRetainsDeath=true "+
                 "admissionFailureRestoresRegion=true "+
@@ -394,6 +462,11 @@ public final class PlayerRespawnCommitFenceTest {
                 world.unregisterPlayer(
                     player,
                     generation
+                );
+            if(attacker.registered())
+                world.unregisterPlayer(
+                    attacker,
+                    attackerGeneration
                 );
             world.close();
         }
