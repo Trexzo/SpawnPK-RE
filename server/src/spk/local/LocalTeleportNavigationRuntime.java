@@ -95,11 +95,22 @@ final class LocalTeleportNavigationRuntime {
         invocation=active;
 
         try{
-            TeleportNavigationService.RequestResult result=
-                navigation.request(
-                    playerRef,
-                    kind
-                );
+            TeleportNavigationService.RequestResult result;
+            try{
+                result=
+                    navigation.request(
+                        playerRef,
+                        kind
+                    );
+            }catch(RuntimeException failure){
+                IOException io=
+                    unwrapIo(
+                        failure
+                    );
+                if(io!=null)
+                    throw io;
+                throw failure;
+            }
 
             return new Result(
                 result,
