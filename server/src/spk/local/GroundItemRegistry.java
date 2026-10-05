@@ -194,6 +194,57 @@ final class GroundItemRegistry {
         }
     }
 
+
+    static final class PreparedBatchAdd {
+        private final LinkedHashMap<StackKey,AddRequest>
+            firstRequest;
+        private final LinkedHashMap<StackKey,Integer>
+            requestedAmounts;
+        private final LinkedHashMap<StackKey,GroundItem>
+            expectedExisting;
+        private final LinkedHashMap<StackKey,Integer>
+            expectedOldAmounts;
+        private final long expectedIdSequence;
+        private final int newStacks;
+
+        private PreparedBatchAdd(
+            LinkedHashMap<StackKey,AddRequest> firstRequest,
+            LinkedHashMap<StackKey,Integer> requestedAmounts,
+            LinkedHashMap<StackKey,GroundItem> expectedExisting,
+            LinkedHashMap<StackKey,Integer> expectedOldAmounts,
+            long expectedIdSequence,
+            int newStacks
+        ){
+            this.firstRequest=
+                new LinkedHashMap<>(
+                    firstRequest
+                );
+            this.requestedAmounts=
+                new LinkedHashMap<>(
+                    requestedAmounts
+                );
+            this.expectedExisting=
+                new LinkedHashMap<>(
+                    expectedExisting
+                );
+            this.expectedOldAmounts=
+                new LinkedHashMap<>(
+                    expectedOldAmounts
+                );
+            this.expectedIdSequence=
+                expectedIdSequence;
+            this.newStacks=newStacks;
+        }
+
+        int canonicalStackCount(){
+            return requestedAmounts.size();
+        }
+
+        boolean empty(){
+            return requestedAmounts.isEmpty();
+        }
+    }
+
     synchronized PreparedAdd prepareAdd(
         int itemId,
         int amount,
@@ -409,7 +460,7 @@ final class GroundItemRegistry {
         );
     }
 
-    synchronized List<BatchMutation> addBatchDetailed(
+    synchronized PreparedBatchAdd prepareAddBatchDetailed(
         List<AddRequest> requests
     ){
         Objects.requireNonNull(
@@ -421,7 +472,7 @@ final class GroundItemRegistry {
             firstRequest=
                 new LinkedHashMap<>();
         LinkedHashMap<StackKey,Long>
-            requestedAmounts=
+            requestedLong=
                 new LinkedHashMap<>();
 
         for(AddRequest request:requests){
@@ -431,11 +482,6 @@ final class GroundItemRegistry {
                     "request"
                 );
 
-            /*
-             * Revalidate even though AddRequest validates construction.
-             * This keeps the registry boundary authoritative if the request
-             * representation changes later.
-             */
             if(checked.itemId<0||
                checked.amount<=0||
                checked.tile==null)
@@ -457,11 +503,10 @@ final class GroundItemRegistry {
             );
 
             long prior=
-                requestedAmounts.getOrDefault(
+                requestedLong.getOrDefault(
                     key,
                     0L
                 );
-
             long combined=
                 Math.addExact(
                     prior,
@@ -474,37 +519,56 @@ final class GroundItemRegistry {
                     "ground amount overflow"
                 );
 
-            requestedAmounts.put(
+            requestedLong.put(
                 key,
                 combined
             );
         }
 
-        if(firstRequest.isEmpty())
-            return Collections.emptyList();
+        LinkedHashMap<StackKey,Integer>
+            requestedAmounts=
+                new LinkedHashMap<>();
+
+        for(Map.Entry<StackKey,Long> entry:
+                requestedLong.entrySet())
+            requestedAmounts.put(
+                entry.getKey(),
+                Math.toIntExact(
+                    entry.getValue()
+                )
+            );
 
         LinkedHashMap<StackKey,GroundItem>
             existing=
                 new LinkedHashMap<>();
+        LinkedHashMap<StackKey,Integer>
+            oldAmounts=
+                new LinkedHashMap<>();
 
-        for(GroundItem item:byId.values()){
-            StackKey key=
-                new StackKey(
-                    item.itemId,
-                    item.tile,
-                    item.owner,
-                    item.devOwned
-                );
+        if(!requestedAmounts.isEmpty())
+            for(GroundItem item:byId.values()){
+                StackKey key=
+                    new StackKey(
+                        item.itemId,
+                        item.tile,
+                        item.owner,
+                        item.devOwned
+                    );
 
-            if(requestedAmounts.containsKey(
-                    key))
-                existing.put(
-                    key,
-                    item
-                );
-        }
+                if(requestedAmounts.containsKey(
+                        key)){
+                    existing.put(
+                        key,
+                        item
+                    );
+                    oldAmounts.put(
+                        key,
+                        item.amount
+                    );
+                }
+            }
 
-        for(Map.Entry<StackKey,Long> entry:
+        for(Map.Entry<StackKey,Integer> entry:
                 requestedAmounts.entrySet()){
             GroundItem current=
                 existing.get(
@@ -517,7 +581,7 @@ final class GroundItemRegistry {
             long combined=
                 Math.addExact(
                     (long)current.amount,
-                    entry.getValue()
+                    (long)entry.getValue()
                 );
 
             if(combined>
@@ -527,15 +591,102 @@ final class GroundItemRegistry {
                 );
         }
 
-        long newStacks=
+        int newStacks=
             requestedAmounts.size()-
             existing.size();
+        long expectedIds=ids.get();
 
-        if(newStacks>0L){
+        if(newStacks>0){
+            long lastId=
+                Math.addExact(
+                    expectedIds,
+                    (long)newStacks
+                );
+
+            if(lastId<=0L)
+                throw new IllegalStateException(
+                    "ground item id sequence exhausted"
+                );
+        }
+
+        return new PreparedBatchAdd(
+            firstRequest,
+            requestedAmounts,
+            existing,
+            oldAmounts,
+            expectedIds,
+            newStacks
+        );
+    }
+
+    synchronized List<BatchMutation> commitPreparedAddBatch(
+        PreparedBatchAdd prepared
+    ){
+        PreparedBatchAdd checked=
+            Objects.requireNonNull(
+                prepared,
+                "prepared"
+            );
+
+        if(checked.empty())
+            return Collections.emptyList();
+
+        if(ids.get()!=
+                checked.expectedIdSequence)
+            throw new IllegalStateException(
+                "ground batch id preimage changed before commit"
+            );
+
+        for(Map.Entry<StackKey,Integer> entry:
+                checked.requestedAmounts.entrySet()){
+            StackKey key=entry.getKey();
+            GroundItem expected=
+                checked.expectedExisting.get(
+                    key
+                );
+
+            if(expected!=null){
+                GroundItem current=
+                    byId.get(
+                        expected.id
+                    );
+                Integer expectedOld=
+                    checked.expectedOldAmounts.get(
+                        key
+                    );
+
+                if(current!=expected||
+                   expectedOld==null||
+                   current.amount!=
+                        expectedOld.intValue())
+                    throw new IllegalStateException(
+                        "ground batch stack preimage changed before commit"
+                    );
+                continue;
+            }
+
+            for(GroundItem current:
+                    byId.values()){
+                StackKey currentKey=
+                    new StackKey(
+                        current.itemId,
+                        current.tile,
+                        current.owner,
+                        current.devOwned
+                    );
+
+                if(currentKey.equals(key))
+                    throw new IllegalStateException(
+                        "ground batch new-stack preimage changed before commit"
+                    );
+            }
+        }
+
+        if(checked.newStacks>0){
             long lastId=
                 Math.addExact(
                     ids.get(),
-                    newStacks
+                    (long)checked.newStacks
                 );
 
             if(lastId<=0L)
@@ -546,24 +697,22 @@ final class GroundItemRegistry {
 
         ArrayList<BatchMutation> out=
             new ArrayList<>(
-                requestedAmounts.size()
+                checked.requestedAmounts.size()
             );
 
-        for(Map.Entry<StackKey,Long> entry:
-                requestedAmounts.entrySet()){
+        for(Map.Entry<StackKey,Integer> entry:
+                checked.requestedAmounts.entrySet()){
             StackKey key=entry.getKey();
             int requested=
-                Math.toIntExact(
-                    entry.getValue()
-                );
-
+                entry.getValue();
             GroundItem current=
-                existing.get(key);
+                checked.expectedExisting.get(
+                    key
+                );
 
             if(current!=null){
                 int oldAmount=
                     current.amount;
-
                 current.amount=
                     Math.addExact(
                         current.amount,
@@ -580,8 +729,9 @@ final class GroundItemRegistry {
             }
 
             AddRequest first=
-                firstRequest.get(key);
-
+                checked.firstRequest.get(
+                    key
+                );
             long id=
                 ids.incrementAndGet();
 
@@ -616,6 +766,16 @@ final class GroundItemRegistry {
 
         return Collections.unmodifiableList(
             out
+        );
+    }
+
+    synchronized List<BatchMutation> addBatchDetailed(
+        List<AddRequest> requests
+    ){
+        return commitPreparedAddBatch(
+            prepareAddBatchDetailed(
+                requests
+            )
         );
     }
 
