@@ -455,6 +455,20 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     "live PvP respawn did not apply G1 default loadout"
                 );
 
+            int trackedDeathLoot=
+                world.deathLootLifecycle()
+                    .trackedCount();
+
+            if(trackedDeathLoot<=0||
+               trackedDeathLoot!=
+                    world.groundItems().size())
+                throw new AssertionError(
+                    "live PvP settlement did not register exact death-loot lifecycle tracked="+
+                    trackedDeathLoot+
+                    " ground="+
+                    world.groundItems().size()
+                );
+
             int weaponAppearanceIndex=
                 EquipmentSlot.WEAPON.appearanceIndex;
 
@@ -541,6 +555,7 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 G1DefaultLoadoutRegearService.STARTER_FOOD+"x"+
                 G1DefaultLoadoutRegearService.STARTER_FOOD_COUNT+" "+
                 "respawnAppearancePublished=true "+
+                "deathLootLifecycleRegistered=true "+
                 "attributionClearedOnRespawn=true "+
                 "replayIdempotent=true "+
                 "authority="+
