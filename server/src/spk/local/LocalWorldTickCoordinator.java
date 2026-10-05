@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -11,6 +12,42 @@ import java.util.Objects;
  * ordering that runs only on the shared WorldPulse execution context.
  */
 final class LocalWorldTickCoordinator {
+    static final String RETAINED_CARRIED_AUTHORITY=
+        "LOCAL_LAB_POLICY_RETAIN_KEPT_CARRIED_V1";
+
+    private static final class RetainedCarriedSnapshot {
+        final int[] inventoryItems;
+        final int[] inventoryQuantities;
+        final int[] equipmentItems;
+        final int[] equipmentQuantities;
+        final int[] appearanceItems;
+        final int inventorySlots;
+        final int equipmentSlots;
+
+        RetainedCarriedSnapshot(
+            int[] inventoryItems,
+            int[] inventoryQuantities,
+            int[] equipmentItems,
+            int[] equipmentQuantities,
+            int[] appearanceItems,
+            int inventorySlots,
+            int equipmentSlots
+        ){
+            this.inventoryItems=inventoryItems;
+            this.inventoryQuantities=inventoryQuantities;
+            this.equipmentItems=equipmentItems;
+            this.equipmentQuantities=equipmentQuantities;
+            this.appearanceItems=appearanceItems;
+            this.inventorySlots=inventorySlots;
+            this.equipmentSlots=equipmentSlots;
+        }
+
+        boolean hasAny(){
+            return inventorySlots>0||
+                equipmentSlots>0;
+        }
+    }
+
     interface SessionBridge {
         Player81WorldSync.Context player81Sync();
         SceneUpdatePublisher scenePublisher();
@@ -1520,11 +1557,16 @@ final class LocalWorldTickCoordinator {
             prepared
         );
 
+        RetainedCarriedSnapshot retainedCarried=
+            snapshotRetainedCarried();
+
         G1DefaultLoadoutRegearService.Prepared
             preparedRegear=
-                g1Regear.prepareDefault(
-                    worldPlayer.username()
-                );
+                retainedCarried.hasAny()
+                    ?null
+                    :g1Regear.prepareDefault(
+                        worldPlayer.username()
+                    );
 
         boolean writerBatchActive=false;
         boolean packetCommitted=false;
@@ -1549,16 +1591,28 @@ final class LocalWorldTickCoordinator {
                 tag
             );
 
-            g1Regear.publishPrepared(
-                preparedRegear,
-                writer
-            );
-
-            if(preparedRegear!=null)
+            if(preparedRegear!=null){
+                g1Regear.publishPrepared(
+                    preparedRegear,
+                    writer
+                );
                 bridge.publishPlayerAppearanceSnapshot(
                     preparedRegear.appearanceItems(),
                     writer
                 );
+            }else if(retainedCarried.hasAny()){
+                publishRetainedCarried(
+                    retainedCarried,
+                    writer
+                );
+                bridge.publishPlayerAppearanceSnapshot(
+                    retainedCarried.appearanceItems,
+                    writer
+                );
+                requireRetainedCarriedCurrent(
+                    retainedCarried
+                );
+            }
 
             writer.endBatch();
             writerBatchActive=false;
@@ -1591,6 +1645,18 @@ final class LocalWorldTickCoordinator {
                     tag+
                     "G1_RESPAWN_REGEAR "+
                     regearResult
+                );
+            else if(retainedCarried.hasAny())
+                System.out.println(
+                    tag+
+                    "RESPAWN_CARRIED_RETAINED "+
+                    "inventorySlots="+
+                    retainedCarried.inventorySlots+
+                    " equipmentSlots="+
+                    retainedCarried.equipmentSlots+
+                    " starterRegearSkipped=true "+
+                    "authority="+
+                    RETAINED_CARRIED_AUTHORITY
                 );
 
             legacyTickCount++;
@@ -1635,6 +1701,158 @@ final class LocalWorldTickCoordinator {
                 );
             throw failure;
         }
+    }
+
+    private RetainedCarriedSnapshot snapshotRetainedCarried(){
+        int[] inventoryItems=
+            new int[
+                BankState.INVENTORY_CAPACITY
+            ];
+        int[] inventoryQuantities=
+            new int[
+                BankState.INVENTORY_CAPACITY
+            ];
+        Arrays.fill(
+            inventoryItems,
+            -1
+        );
+
+        int inventorySlots=0;
+
+        for(int slot=0;
+            slot<BankState.INVENTORY_CAPACITY;
+            slot++){
+            BankState.InventorySlotSnapshot item=
+                worldPlayer.bank()
+                    .inventorySlotSnapshot(
+                        slot
+                    );
+
+            if(!item.occupied)
+                continue;
+
+            inventoryItems[slot]=
+                item.itemId;
+            inventoryQuantities[slot]=
+                item.quantity;
+            inventorySlots++;
+        }
+
+        int[] equipmentItems=
+            worldPlayer.equipment()
+                .containerItems();
+        int[] equipmentQuantities=
+            worldPlayer.equipment()
+                .containerQuantities();
+        int equipmentSlots=0;
+
+        for(int item:equipmentItems)
+            if(item>=0)
+                equipmentSlots++;
+
+        int[] appearanceItems=
+            appearanceFromEquipment(
+                equipmentItems
+            );
+
+        return new RetainedCarriedSnapshot(
+            inventoryItems,
+            inventoryQuantities,
+            equipmentItems,
+            equipmentQuantities,
+            appearanceItems,
+            inventorySlots,
+            equipmentSlots
+        );
+    }
+
+    private void publishRetainedCarried(
+        RetainedCarriedSnapshot snapshot,
+        ServerPacketWriter writer
+    )throws IOException{
+        writer.varShort(
+            53,
+            BootstrapPackets.itemContainer53(
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                snapshot.inventoryItems,
+                snapshot.inventoryQuantities
+            )
+        );
+        writer.varShort(
+            53,
+            BootstrapPackets.equipmentContainer53(
+                snapshot.equipmentItems,
+                snapshot.equipmentQuantities
+            )
+        );
+    }
+
+    private void requireRetainedCarriedCurrent(
+        RetainedCarriedSnapshot expected
+    ){
+        for(int slot=0;
+            slot<BankState.INVENTORY_CAPACITY;
+            slot++){
+            BankState.InventorySlotSnapshot current=
+                worldPlayer.bank()
+                    .inventorySlotSnapshot(
+                        slot
+                    );
+
+            int item=
+                current.occupied
+                    ?current.itemId
+                    :-1;
+            int quantity=
+                current.occupied
+                    ?current.quantity
+                    :0;
+
+            if(item!=expected.inventoryItems[slot]||
+               quantity!=
+                    expected.inventoryQuantities[slot])
+                throw new IllegalStateException(
+                    "retained carried inventory changed before respawn packet commit slot="+
+                    slot
+                );
+        }
+
+        if(!Arrays.equals(
+                worldPlayer.equipment()
+                    .containerItems(),
+                expected.equipmentItems)||
+           !Arrays.equals(
+                worldPlayer.equipment()
+                    .containerQuantities(),
+                expected.equipmentQuantities))
+            throw new IllegalStateException(
+                "retained carried equipment changed before respawn packet commit"
+            );
+    }
+
+    private static int[] appearanceFromEquipment(
+        int[] equipmentItems
+    ){
+        int[] appearance=
+            new int[
+                EquipmentState.APPEARANCE_SLOTS
+            ];
+        Arrays.fill(
+            appearance,
+            -1
+        );
+
+        for(EquipmentSlot slot:
+                EquipmentSlot.values())
+            if(slot.appearanceIndex>=0)
+                appearance[
+                    slot.appearanceIndex
+                ]=
+                    equipmentItems[
+                        slot.equipmentIndex
+                    ];
+
+        return appearance;
     }
 
     private void abortPreparedRespawnPacket(
