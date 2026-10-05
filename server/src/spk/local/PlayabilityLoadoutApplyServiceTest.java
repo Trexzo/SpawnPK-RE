@@ -354,7 +354,18 @@ public final class PlayabilityLoadoutApplyServiceTest {
             );
 
         ExecutorService executor=
-            Executors.newFixedThreadPool(2);
+            Executors.newFixedThreadPool(
+                2,
+                runnable->{
+                    Thread thread=
+                        new Thread(
+                            runnable,
+                            "playability-loadout-apply-test"
+                        );
+                    thread.setDaemon(true);
+                    return thread;
+                }
+            );
 
         try{
             Future<PlayabilityLoadoutApplyService.Result>
@@ -443,6 +454,12 @@ public final class PlayabilityLoadoutApplyServiceTest {
         }finally{
             blocked.release.countDown();
             executor.shutdownNow();
+            if(!executor.awaitTermination(
+                    3,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "loadout concurrency executor did not terminate"
+                );
         }
     }
 
