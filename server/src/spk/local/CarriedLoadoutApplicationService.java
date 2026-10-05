@@ -39,6 +39,7 @@ final class CarriedLoadoutApplicationService {
     }
 
     static final class Plan {
+        final EntityId playerId;
         final PlayerLoadoutId loadoutId;
         final PlayerLoadoutVersion loadoutVersion;
         final String ownerRef;
@@ -56,6 +57,7 @@ final class CarriedLoadoutApplicationService {
         final int[] nextEquipmentQuantities;
 
         private Plan(
+            EntityId playerId,
             PlayerLoadout loadout,
             String policyAuthority,
             int[] expectedInventoryItems,
@@ -67,6 +69,11 @@ final class CarriedLoadoutApplicationService {
             int[] nextEquipmentItems,
             int[] nextEquipmentQuantities
         ){
+            this.playerId=
+                Objects.requireNonNull(
+                    playerId,
+                    "playerId"
+                );
             this.loadoutId=loadout.id;
             this.loadoutVersion=loadout.version;
             this.ownerRef=loadout.ownerRef;
@@ -361,6 +368,7 @@ final class CarriedLoadoutApplicationService {
             }
 
             return new Plan(
+                player.id(),
                 checked,
                 policyAuthority,
                 expectedInventoryItems,
@@ -380,6 +388,15 @@ final class CarriedLoadoutApplicationService {
             Objects.requireNonNull(
                 plan,
                 "plan"
+            );
+
+        if(!player.id().equals(
+                checked.playerId))
+            throw new IllegalArgumentException(
+                "carried loadout plan belongs to another player expected="+
+                player.id()+
+                " actual="+
+                checked.playerId
             );
 
         if(!policyAuthority.equals(
