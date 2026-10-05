@@ -14,6 +14,8 @@ public final class LocalSessionUiActionHandlerTest {
         int devPanelWidgets;
         int petDialogResults;
         int homeTeleportRequests;
+        int navigationRequests;
+        TeleportNavigationService.EntryKind lastNavigationKind;
         int monsterSpawnerResults;
         int monsterSpawnerWidgetTransactions;
         int monsterSpawnerRootReplacements;
@@ -51,6 +53,15 @@ public final class LocalSessionUiActionHandlerTest {
             String tag
         ){
             homeTeleportRequests++;
+        }
+
+        @Override public void handleTeleportNavigation(
+            TeleportNavigationService.EntryKind kind,
+            ServerPacketWriter serverPackets,
+            String tag
+        ){
+            navigationRequests++;
+            lastNavigationKind=kind;
         }
 
         @Override public LocalSessionUiActionHandler
@@ -205,6 +216,30 @@ public final class LocalSessionUiActionHandlerTest {
         if(wire.size()!=homeBefore)
             throw new AssertionError(
                 "routing-only test unexpectedly emitted Home Teleport packets"
+            );
+
+        int navigationBefore=wire.size();
+        h.handleWidget(
+            1170,
+            w,
+            "[ui-test] "
+        );
+        if(bridge.navigationRequests!=1||
+           bridge.lastNavigationKind!=
+                TeleportNavigationService.EntryKind.BOSS)
+            throw new AssertionError(
+                "Boss Teleport semantic navigation bridge mismatch requests="+
+                bridge.navigationRequests+
+                " kind="+
+                bridge.lastNavigationKind
+            );
+        if(bridge.homeTeleportRequests!=1)
+            throw new AssertionError(
+                "Boss Teleport leaked into Home Teleport bridge"
+            );
+        if(wire.size()!=navigationBefore)
+            throw new AssertionError(
+                "semantic teleport route emitted packets before session execution"
             );
 
         int absentSpawnerBefore=wire.size();
