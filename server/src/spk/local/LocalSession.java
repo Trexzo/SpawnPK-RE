@@ -1013,6 +1013,19 @@ final class LocalSession implements Runnable {
                     return LocalSession.this.scenePublisher;
                 }
 
+                @Override public void publishPlayerAppearanceSnapshot(
+                    int[] appearanceItems,
+                    ServerPacketWriter writer
+                )throws IOException{
+                    LocalSession.this.playerPresentation
+                        .refreshSnapshot(
+                            LocalSession.this.username,
+                            appearanceItems,
+                            LocalSession.this.playerState,
+                            writer
+                        );
+                }
+
                 @Override public void saveAccount(
                     String tag,
                     String reason

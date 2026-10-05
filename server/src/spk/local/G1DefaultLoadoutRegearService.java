@@ -47,6 +47,27 @@ final class G1DefaultLoadoutRegearService {
             this.equipmentItems=equipmentItems;
             this.equipmentQuantities=equipmentQuantities;
         }
+
+        int[] appearanceItems(){
+            int[] out=
+                new int[
+                    EquipmentState.APPEARANCE_SLOTS
+                ];
+            Arrays.fill(
+                out,
+                -1
+            );
+
+            for(EquipmentSlot slot:
+                    EquipmentSlot.values())
+                if(slot.appearanceIndex>=0)
+                    out[slot.appearanceIndex]=
+                        equipmentItems[
+                            slot.equipmentIndex
+                        ];
+
+            return out;
+        }
     }
 
     static final class Result {

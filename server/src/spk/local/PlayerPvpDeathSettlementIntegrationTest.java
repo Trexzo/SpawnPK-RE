@@ -38,9 +38,19 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
         int deathSettlementSaves;
         int respawnSaves;
         int killerRewardSaves;
+        int respawnAppearancePublishes;
+        int[] respawnAppearanceItems;
 
         @Override public Player81WorldSync.Context player81Sync(){return null;}
         @Override public SceneUpdatePublisher scenePublisher(){return publisher;}
+        @Override public void publishPlayerAppearanceSnapshot(
+            int[] appearanceItems,
+            ServerPacketWriter writer
+        ){
+            respawnAppearancePublishes++;
+            respawnAppearanceItems=
+                appearanceItems.clone();
+        }
         @Override public void saveAccount(String tag,String reason){
             if("PLAYER_DEATH_SETTLEMENT".equals(reason))
                 deathSettlementSaves++;
@@ -445,6 +455,20 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     "live PvP respawn did not apply G1 default loadout"
                 );
 
+            int weaponAppearanceIndex=
+                EquipmentSlot.WEAPON.appearanceIndex;
+
+            if(tickBridge.respawnAppearancePublishes!=1||
+               tickBridge.respawnAppearanceItems==null||
+               weaponAppearanceIndex<0||
+               tickBridge.respawnAppearanceItems[
+                    weaponAppearanceIndex
+               ]!=
+                    G1DefaultLoadoutRegearService.STARTER_WEAPON)
+                throw new AssertionError(
+                    "live PvP respawn did not publish exact starter appearance"
+                );
+
             PvpKillRewardService.Counters killerReward=
                 PvpKillRewardService.counters(
                     attacker
@@ -516,6 +540,7 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 "starterFood="+
                 G1DefaultLoadoutRegearService.STARTER_FOOD+"x"+
                 G1DefaultLoadoutRegearService.STARTER_FOOD_COUNT+" "+
+                "respawnAppearancePublished=true "+
                 "attributionClearedOnRespawn=true "+
                 "replayIdempotent=true "+
                 "authority="+

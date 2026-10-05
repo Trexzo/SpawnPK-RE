@@ -28,6 +28,36 @@ final class PlayerPresentationService {
         );
     }
 
+    void refreshSnapshot(
+        String username,
+        int[] appearanceItems,
+        PlayerState player,
+        ServerPacketWriter packets
+    )throws IOException{
+        if(appearanceItems==null||
+           appearanceItems.length!=
+                EquipmentState.APPEARANCE_SLOTS)
+            throw new IllegalArgumentException(
+                "appearanceItems must have "+
+                EquipmentState.APPEARANCE_SLOTS+
+                " slots"
+            );
+
+        packets.varShort(
+            81,
+            BootstrapPackets.player81AppearanceOnly(
+                username,
+                appearanceItems.clone(),
+                player,
+                dev.playerNpcTransformId(),
+                world.appearanceRoleFor(
+                    username,
+                    player
+                )
+            )
+        );
+    }
+
     private void publishAppearance(
         String username,
         EquipmentState equipment,

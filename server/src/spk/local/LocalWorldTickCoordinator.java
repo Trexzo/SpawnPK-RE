@@ -14,6 +14,14 @@ final class LocalWorldTickCoordinator {
     interface SessionBridge {
         Player81WorldSync.Context player81Sync();
         SceneUpdatePublisher scenePublisher();
+        default void publishPlayerAppearanceSnapshot(
+            int[] appearanceItems,
+            ServerPacketWriter writer
+        )throws IOException{
+            throw new IllegalStateException(
+                "respawn regear appearance publisher not bound"
+            );
+        }
         void saveAccount(String tag,String reason);
         default void savePlayerAccount(
             WorldPlayer player,
@@ -1537,6 +1545,12 @@ final class LocalWorldTickCoordinator {
                 preparedRegear,
                 writer
             );
+
+            if(preparedRegear!=null)
+                bridge.publishPlayerAppearanceSnapshot(
+                    preparedRegear.appearanceItems(),
+                    writer
+                );
 
             writer.endBatch();
             writerBatchActive=false;
