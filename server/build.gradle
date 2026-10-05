@@ -6504,3 +6504,17 @@ tasks.named('check') {
     dependsOn tasks.named('playerPvpDelayedRuntimeIntegrationRegression')
 }
 
+tasks.register('playerDeathItemCommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves resolved player death items commit atomically across inventory/equipment and expose semantic lost-item lines only.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayerDeathItemCommitServiceTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('playerDeathItemCommitRegression')
+}
+
