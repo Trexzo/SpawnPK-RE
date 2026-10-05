@@ -6355,6 +6355,20 @@ tasks.named('check') {
     dependsOn tasks.named('playabilityAccountLoadOutcomeRegression')
 }
 
+tasks.register('playabilityLoadoutApplyRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves version-stable failure-atomic semantic loadout regear across live inventory/equipment publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayabilityLoadoutApplyServiceTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('playabilityLoadoutApplyRegression')
+}
+
 
 tasks.register('player81BatchAbortAtomicityRegression', JavaExec) {
     group = 'verification'
