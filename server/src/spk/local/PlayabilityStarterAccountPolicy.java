@@ -13,6 +13,17 @@ import java.util.Objects;
 final class PlayabilityStarterAccountPolicy {
     static final String AUTHORITY=
         "CUSTOM_LOCALLAB_PLAYABILITY";
+    static final String ENABLE_PROPERTY=
+        "spk.playability.enabled";
+
+    static boolean enabled(){
+        return Boolean.parseBoolean(
+            System.getProperty(
+                ENABLE_PROPERTY,
+                "false"
+            )
+        );
+    }
 
     static final int STARTER_WEAPON=4151;
     static final int FOOD_ITEM=15272;
