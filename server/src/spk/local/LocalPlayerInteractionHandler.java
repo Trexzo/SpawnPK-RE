@@ -17,6 +17,7 @@ final class LocalPlayerInteractionHandler {
     private final CombatStyleState combatStyles;
     private final LongSupplier ownerGeneration;
     private final PlayerCombatResolutionService pvpCombat;
+    private final PlayerPvpDeathSettlementService pvpDeath;
 
     private EntityId activeFollow;
     private long activeFollowGeneration;
@@ -178,6 +179,10 @@ final class LocalPlayerInteractionHandler {
                     systemHooks,
                     "systemHooks"
                 )
+            );
+        this.pvpDeath=
+            new PlayerPvpDeathSettlementService(
+                world
             );
     }
 
@@ -610,7 +615,32 @@ final class LocalPlayerInteractionHandler {
             worldTick+
             resolution.nextAttackDelayTicks;
 
+        PlayerPvpDeathSettlementService.Result
+            deathSettlement=null;
+
         if(resolution.lifecycle.died){
+            String recipient=
+                owner.username();
+
+            if(recipient==null||
+               recipient.trim().isEmpty())
+                throw new IllegalStateException(
+                    "lethal PvP attacker missing registered username id="+
+                    owner.id()
+                );
+
+            deathSettlement=
+                pvpDeath.settle(
+                    target,
+                    targetGeneration,
+                    new Tile(
+                        target.movement().x(),
+                        target.movement().y(),
+                        target.movement().plane()
+                    ),
+                    recipient
+                );
+
             clearAttack();
             movement.clearQueuedPath();
         }
@@ -632,6 +662,18 @@ final class LocalPlayerInteractionHandler {
             "->"+resolution.lifecycle.hpAfter+
             " targetDied="+resolution.lifecycle.died+
             " targetHpPacket134="+hpPublished+
+            " deathPolicy="+
+            (deathSettlement==null
+                ?"NONE"
+                :deathSettlement.policyAuthority)+
+            " deathItemsLost="+
+            (deathSettlement==null
+                ?0
+                :deathSettlement.items.lostTotalQuantity)+
+            " deathGroundStacks="+
+            (deathSettlement==null
+                ?0
+                :deathSettlement.ground.groundItems.size())+
             " systemHooks="+resolution.hooks+
             " remoteMaskRelay=true nextAttackTick="+
             (activeAttack==null?"CLEARED_ON_DEATH":Long.toString(nextAttackTick));
