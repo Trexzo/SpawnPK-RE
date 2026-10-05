@@ -1,16 +1,21 @@
 package spk.local;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.*;
 
 /**
- * v5.12.3 two-profile localhost persistence.
+ * Local player-profile persistence.
  *
- * opensrc remains byte-for-byte compatible with the historical AccountStore.
- * src uses an adjacent src.properties file with the same property schema and
- * atomic-save discipline. No credentials are stored here; this is gameplay state.
+ * The historical opensrc/src profiles retain their exact legacy filenames for
+ * compatibility. Every other non-empty local username receives a deterministic
+ * storage file beneath accounts/profiles. The real username remains inside the
+ * PlayerSnapshot; the SHA-256 filename is only a path-safe storage identity.
+ *
+ * No credentials are stored here; this is gameplay state only.
  *
  * Legacy profile I/O stays here as a compatibility adapter. Schema-v1 gameplay
  * encoding is owned by PlayerSnapshotSchemaV1.
@@ -18,12 +23,14 @@ import java.util.*;
 final class LocalAccountProfiles {
     static final String PRIMARY="opensrc";
     static final String SECONDARY="src";
+    private static final String GENERAL_PROFILE_DIR="profiles";
+    private static final String GENERAL_PROFILE_PREFIX="profile-";
     private static final int FORMAT_VERSION=PlayerSnapshot.CURRENT_VERSION;
 
     private LocalAccountProfiles(){}
 
     static boolean isPersistent(String username){
-        return PRIMARY.equalsIgnoreCase(clean(username)) || SECONDARY.equalsIgnoreCase(clean(username));
+        return !clean(username).isEmpty();
     }
 
     static String chooseForLogin(World world,String loginAlias){
@@ -47,12 +54,56 @@ final class LocalAccountProfiles {
 
     static Path accountFile(String username){
         String u=clean(username);
-        if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.accountFile();
-        if(!SECONDARY.equalsIgnoreCase(u)) throw new IllegalArgumentException("not a persistent local profile: "+username);
+        if(u.isEmpty())
+            throw new IllegalArgumentException(
+                "empty local profile"
+            );
+
+        if(PRIMARY.equalsIgnoreCase(u))
+            return AccountStore.accountFile();
+
         Path primary=AccountStore.accountFile();
         Path parent=primary.getParent();
-        if(parent==null) throw new IllegalStateException("primary account path has no parent: "+primary);
-        return parent.resolve(SECONDARY+".properties").toAbsolutePath().normalize();
+        if(parent==null)
+            throw new IllegalStateException(
+                "primary account path has no parent: "+
+                primary
+            );
+
+        Path accountRoot=
+            parent.toAbsolutePath().normalize();
+
+        if(SECONDARY.equalsIgnoreCase(u))
+            return accountRoot
+                .resolve(SECONDARY+".properties")
+                .toAbsolutePath()
+                .normalize();
+
+        Path profilesRoot=
+            accountRoot
+                .resolve(GENERAL_PROFILE_DIR)
+                .toAbsolutePath()
+                .normalize();
+
+        Path file=
+            profilesRoot
+                .resolve(
+                    GENERAL_PROFILE_PREFIX+
+                    storageKey(u)+
+                    ".properties"
+                )
+                .toAbsolutePath()
+                .normalize();
+
+        if(!file.getParent().equals(profilesRoot))
+            throw new IllegalStateException(
+                "profile path escaped canonical root username="+
+                u+
+                " path="+file+
+                " root="+profilesRoot
+            );
+
+        return file;
     }
 
     static String load(String username,BankState bank,EquipmentState equipment,MovementState movement,PetState pet,PlayerState player)throws IOException{
@@ -126,6 +177,42 @@ final class LocalAccountProfiles {
         }
 
         return summary("ACCOUNT_SAVED",file,u,bank,equipment,movement,pet,player);
+    }
+
+    private static String storageKey(String username){
+        final byte[] digest;
+
+        try{
+            digest=
+                MessageDigest
+                    .getInstance("SHA-256")
+                    .digest(
+                        username.getBytes(
+                            StandardCharsets.UTF_8
+                        )
+                    );
+        }catch(java.security.NoSuchAlgorithmException impossible){
+            throw new IllegalStateException(
+                "SHA-256 unavailable",
+                impossible
+            );
+        }
+
+        StringBuilder hex=
+            new StringBuilder(
+                digest.length*2
+            );
+
+        for(byte value:digest)
+            hex.append(
+                String.format(
+                    Locale.ROOT,
+                    "%02x",
+                    value&255
+                )
+            );
+
+        return hex.toString();
     }
 
     private static String summary(String verb,Path file,String u,BankState bank,EquipmentState equipment,MovementState movement,PetState pet,PlayerState player){
