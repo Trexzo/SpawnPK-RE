@@ -216,8 +216,8 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
 
             require(
                 after!=null&&
-                !after.active&&
-                after.remainingSpawnBudget==0&&
+                after.active&&
+                after.remainingSpawnBudget==1&&
                 after.spawnedNpcIds.size()==1&&
                 world.npcs().size()==1&&
                 factory.runtime().size()==1,
@@ -255,7 +255,8 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
                 "rowLabelsPublished=true "+
                 "customPolicy=true "+
                 "activationSpawn=true "+
-                "oneShotBudget=true "+
+                "twoLifeBudget=true "+
+                "replacementBudgetRemaining=true "+
                 "homeSafePlacement=true"
             );
         }finally{
