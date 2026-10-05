@@ -40,6 +40,13 @@ final class World implements AutoCloseable {
         new PlayerAppearanceRoleProjection(
             AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
         );
+    private final LoadoutService loadouts=
+        new LoadoutService();
+    private final DefaultLoadoutService defaultLoadouts=
+        new DefaultLoadoutService(
+            loadouts,
+            G1DefaultLoadoutRegearService.POLICY_AUTHORITY
+        );
     private final ContentRegistry content;
     private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
@@ -311,6 +318,8 @@ final class World implements AutoCloseable {
     WorldPlayerPersistence persistence(){return persistence;}
     PlayerPrivilegeService playerPrivileges(){return playerPrivileges;}
     PlayerAppearanceRoleProjection appearanceRoles(){return appearanceRoles;}
+    LoadoutService loadouts(){return loadouts;}
+    DefaultLoadoutService defaultLoadouts(){return defaultLoadouts;}
     int appearanceRoleFor(String playerRef){
         return appearanceRoles.project(
             playerPrivileges.snapshot(playerRef)
