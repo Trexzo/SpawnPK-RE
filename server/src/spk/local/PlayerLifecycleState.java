@@ -20,6 +20,7 @@ final class PlayerLifecycleState {
     private long deathSequence;
     private String cause="NONE";
     private EntityId responsiblePlayerId;
+    private Tile deathTile;
 
     Phase phase(){return phase;}
     boolean alive(){return phase==Phase.ALIVE;}
@@ -29,6 +30,7 @@ final class PlayerLifecycleState {
     long deathSequence(){return deathSequence;}
     String cause(){return cause;}
     EntityId responsiblePlayerId(){return responsiblePlayerId;}
+    Tile deathTile(){return deathTile;}
 
     void markDead(
         long worldTick,
@@ -39,6 +41,7 @@ final class PlayerLifecycleState {
             worldTick,
             respawnDelayTicks,
             cause,
+            null,
             null
         );
     }
@@ -48,6 +51,22 @@ final class PlayerLifecycleState {
         long respawnDelayTicks,
         String cause,
         EntityId responsiblePlayerId
+    ){
+        markDead(
+            worldTick,
+            respawnDelayTicks,
+            cause,
+            responsiblePlayerId,
+            null
+        );
+    }
+
+    void markDead(
+        long worldTick,
+        long respawnDelayTicks,
+        String cause,
+        EntityId responsiblePlayerId,
+        Tile deathTile
     ){
         if(respawnDelayTicks<0)
             throw new IllegalArgumentException(
@@ -78,6 +97,8 @@ final class PlayerLifecycleState {
                 :cause;
         this.responsiblePlayerId=
             responsiblePlayerId;
+        this.deathTile=
+            deathTile;
     }
 
     boolean dueRespawn(long worldTick){
@@ -90,6 +111,7 @@ final class PlayerLifecycleState {
         respawnTick=-1L;
         cause="NONE";
         responsiblePlayerId=null;
+        deathTile=null;
     }
 
     @Override public String toString(){
@@ -99,6 +121,7 @@ final class PlayerLifecycleState {
             ",deathSequence="+deathSequence+
             ",cause="+cause+
             ",responsiblePlayerId="+responsiblePlayerId+
+            ",deathTile="+deathTile+
             ",authority="+AUTHORITY+"}";
     }
 }
