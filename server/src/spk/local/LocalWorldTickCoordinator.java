@@ -14,10 +14,14 @@ final class LocalWorldTickCoordinator {
     interface SessionBridge {
         Player81WorldSync.Context player81Sync();
         SceneUpdatePublisher scenePublisher();
-        void publishPlayerAppearanceSnapshot(
+        default void publishPlayerAppearanceSnapshot(
             int[] appearanceItems,
             ServerPacketWriter writer
-        )throws IOException;
+        )throws IOException{
+            throw new IllegalStateException(
+                "carried presentation appearance publisher not bound"
+            );
+        }
         void saveAccount(String tag,String reason);
         void publishOpponentOverlay(
             NpcEntity target,
