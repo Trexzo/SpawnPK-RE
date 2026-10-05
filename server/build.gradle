@@ -6371,6 +6371,20 @@ tasks.named('check') {
     dependsOn tasks.named('playabilityLoadoutApplyRegression')
 }
 
+tasks.register('playabilityLoadoutEditorWireSemanticRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact-v308 loadout editor wire snapshots map to semantic inventory/equipment without inventing target identity.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LoadoutEditorWireSemanticAdapterTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('playabilityLoadoutEditorWireSemanticRegression')
+}
+
 
 tasks.register('player81BatchAbortAtomicityRegression', JavaExec) {
     group = 'verification'
