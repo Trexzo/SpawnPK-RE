@@ -19,6 +19,7 @@ final class PlayerLifecycleState {
     private long respawnTick=-1L;
     private long deathSequence;
     private String cause="NONE";
+    private EntityId responsiblePlayerId;
 
     Phase phase(){return phase;}
     boolean alive(){return phase==Phase.ALIVE;}
@@ -27,11 +28,26 @@ final class PlayerLifecycleState {
     long respawnTick(){return respawnTick;}
     long deathSequence(){return deathSequence;}
     String cause(){return cause;}
+    EntityId responsiblePlayerId(){return responsiblePlayerId;}
 
     void markDead(
         long worldTick,
         long respawnDelayTicks,
         String cause
+    ){
+        markDead(
+            worldTick,
+            respawnDelayTicks,
+            cause,
+            null
+        );
+    }
+
+    void markDead(
+        long worldTick,
+        long respawnDelayTicks,
+        String cause,
+        EntityId responsiblePlayerId
     ){
         if(respawnDelayTicks<0)
             throw new IllegalArgumentException(
@@ -60,6 +76,8 @@ final class PlayerLifecycleState {
             cause==null||cause.isEmpty()
                 ?"UNSPECIFIED"
                 :cause;
+        this.responsiblePlayerId=
+            responsiblePlayerId;
     }
 
     boolean dueRespawn(long worldTick){
@@ -71,6 +89,7 @@ final class PlayerLifecycleState {
         deathTick=-1L;
         respawnTick=-1L;
         cause="NONE";
+        responsiblePlayerId=null;
     }
 
     @Override public String toString(){
@@ -79,6 +98,7 @@ final class PlayerLifecycleState {
             ",respawnTick="+respawnTick+
             ",deathSequence="+deathSequence+
             ",cause="+cause+
+            ",responsiblePlayerId="+responsiblePlayerId+
             ",authority="+AUTHORITY+"}";
     }
 }
