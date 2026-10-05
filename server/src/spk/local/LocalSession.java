@@ -814,6 +814,19 @@ final class LocalSession implements Runnable {
                     return LocalSession.this.scenePublisher;
                 }
 
+                @Override public void publishPlayerAppearanceSnapshot(
+                    int[] appearanceItems,
+                    ServerPacketWriter writer
+                )throws IOException{
+                    LocalSession.this.playerPresentation
+                        .refreshSnapshot(
+                            LocalSession.this.username,
+                            appearanceItems,
+                            LocalSession.this.playerState,
+                            writer
+                        );
+                }
+
                 @Override public void saveAccount(
                     String tag,
                     String reason
@@ -2527,6 +2540,11 @@ final class LocalSession implements Runnable {
                         System.currentTimeMillis()
                     );
 
+                worldTicks
+                    .commitCarriedPresentationBatch(
+                        System.currentTimeMillis()
+                    );
+
                 if(tickCompleted){
                     worldTicks
                         .settleDeferredMovementAfterWorldTick(
@@ -2613,6 +2631,9 @@ final class LocalSession implements Runnable {
                     .abortHomePresentationBatch();
                 worldTicks
                     .abortGroundPresentationBatch();
+
+                worldTicks
+                    .abortCarriedPresentationBatch();
                 worldTicks
                     .abortDeferredRespawnAfterWorldTick();
                 worldTicks
