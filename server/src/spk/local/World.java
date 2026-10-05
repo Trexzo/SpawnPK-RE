@@ -33,6 +33,7 @@ final class World implements AutoCloseable {
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
     private final PvpRecordService pvpRecords;
+    private final PvpDeathSettlementRuntime pvpDeaths;
     private final PlayerPrivilegeService playerPrivileges=
         new PlayerPrivilegeService(
             AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
@@ -124,6 +125,10 @@ final class World implements AutoCloseable {
             );
         pvpRecords=
             new PvpRecordService(
+                this
+            );
+        pvpDeaths=
+            new PvpDeathSettlementRuntime(
                 this
             );
         content=
@@ -315,6 +320,7 @@ final class World implements AutoCloseable {
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
     PvpRecordService pvpRecords(){return pvpRecords;}
+    PvpDeathSettlementRuntime pvpDeaths(){return pvpDeaths;}
     PlayerPrivilegeService playerPrivileges(){return playerPrivileges;}
     PlayerAppearanceRoleProjection appearanceRoles(){return appearanceRoles;}
     int appearanceRoleFor(String playerRef){
@@ -723,6 +729,11 @@ final class World implements AutoCloseable {
                     ()->petNpcs.removeMainAndMini(
                         player.id()
                     )
+                );
+
+                pvpDeaths.retirePlayer(
+                    player,
+                    expectedGeneration
                 );
 
                 return true;
