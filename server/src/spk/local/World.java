@@ -40,6 +40,7 @@ final class World implements AutoCloseable {
         new PlayerAppearanceRoleProjection(
             AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
         );
+    private final PlayerDeathLootRuntime playerDeathLoot;
     private final ContentRegistry content;
     private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
@@ -120,6 +121,10 @@ final class World implements AutoCloseable {
             new WorldPlayerPersistence(
                 this,
                 repository
+            );
+        playerDeathLoot=
+            new PlayerDeathLootRuntime(
+                this
             );
         content=
             new ContentRegistry(this);
@@ -309,6 +314,7 @@ final class World implements AutoCloseable {
     DomainEventBus domainEvents(){return domainEvents;}
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
+    PlayerDeathLootRuntime playerDeathLoot(){return playerDeathLoot;}
     PlayerPrivilegeService playerPrivileges(){return playerPrivileges;}
     PlayerAppearanceRoleProjection appearanceRoles(){return appearanceRoles;}
     int appearanceRoleFor(String playerRef){
