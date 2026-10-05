@@ -1100,7 +1100,7 @@ final class WorldPlayerPersistence
     }
 
     /**
-     * World-tick autosave. Only the two persistent localhost profiles are
+     * World-tick autosave. Every persistence-eligible local profile is
      * checkpointed. At most one worker task per player is queued/in-flight;
      * additional due snapshots replace the pending snapshot with the newest
      * immutable state.
