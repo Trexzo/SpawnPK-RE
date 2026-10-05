@@ -177,7 +177,8 @@ final class LocalPlayerInteractionHandler {
                 java.util.Objects.requireNonNull(
                     systemHooks,
                     "systemHooks"
-                )
+                ),
+                world.pvpRecords()
             );
     }
 
