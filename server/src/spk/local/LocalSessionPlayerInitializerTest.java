@@ -22,6 +22,17 @@ public final class LocalSessionPlayerInitializerTest {
     private static void testMissingSnapshotAppliesStarter()
         throws Exception{
         final String[] loadedUsername={null};
+        String oldPlayability=
+            System.getProperty(
+                PlayabilityStarterAccountPolicy
+                    .ENABLE_PROPERTY
+            );
+
+        System.setProperty(
+            PlayabilityStarterAccountPolicy
+                .ENABLE_PROPERTY,
+            "true"
+        );
 
         PlayerRepository repository=
             new PlayerRepository(){
@@ -102,6 +113,18 @@ public final class LocalSessionPlayerInitializerTest {
                     "new account unexpectedly loaded accessory"
                 );
         }finally{
+            if(oldPlayability==null)
+                System.clearProperty(
+                    PlayabilityStarterAccountPolicy
+                        .ENABLE_PROPERTY
+                );
+            else
+                System.setProperty(
+                    PlayabilityStarterAccountPolicy
+                        .ENABLE_PROPERTY,
+                    oldPlayability
+                );
+
             world.close();
         }
     }
