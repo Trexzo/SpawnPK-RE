@@ -26,6 +26,8 @@ final class World implements AutoCloseable {
     private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
     private final WorldGroundItemPresentationEvents groundItemPresentationEvents=
         new WorldGroundItemPresentationEvents();
+    private final WorldPlayerCarriedPresentationEvents playerCarriedPresentationEvents=
+        new WorldPlayerCarriedPresentationEvents();
     private final WorldCommandInbox commands;
     private final DomainEventBus domainEvents;
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
@@ -309,6 +311,9 @@ final class World implements AutoCloseable {
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldGroundItemPresentationEvents groundItemPresentationEvents(){
         return groundItemPresentationEvents;
+    }
+    WorldPlayerCarriedPresentationEvents playerCarriedPresentationEvents(){
+        return playerCarriedPresentationEvents;
     }
     WorldCommandInbox commands(){return commands;}
     DomainEventBus domainEvents(){return domainEvents;}
@@ -1104,6 +1109,7 @@ final class World implements AutoCloseable {
                     ),
                     npcPresentationEvents::close,
                     groundItemPresentationEvents::close,
+                    playerCarriedPresentationEvents::close,
                     domainEvents::close,
                     commands::close,
                     realtime::close,
