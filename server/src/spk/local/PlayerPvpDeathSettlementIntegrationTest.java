@@ -83,6 +83,12 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
         long targetGeneration=
             world.registerPlayer(target,"target");
 
+        G1DefaultLoadoutRegearService
+            .ensureStarterDefault(
+                world,
+                "target"
+            );
+
         OutboundPacketQueue attackerQueue=
             new OutboundPacketQueue(QUEUE_CAPACITY);
         OutboundPacketQueue targetQueue=
@@ -429,6 +435,16 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     "live PvP respawn postimage incorrect"
                 );
 
+            if(target.equipment().weapon()!=
+                    G1DefaultLoadoutRegearService.STARTER_WEAPON||
+               target.bank().inventoryCount(
+                    G1DefaultLoadoutRegearService.STARTER_FOOD
+                )!=
+                    G1DefaultLoadoutRegearService.STARTER_FOOD_COUNT)
+                throw new AssertionError(
+                    "live PvP respawn did not apply G1 default loadout"
+                );
+
             PvpKillRewardService.Counters killerReward=
                 PvpKillRewardService.counters(
                     attacker
@@ -494,6 +510,12 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 "respawnPersistedOnce=true "+
                 "killerReward=true "+
                 "killerRewardPersistRequestedOnce=true "+
+                "defaultRegearApplied=true "+
+                "starterWeapon="+
+                G1DefaultLoadoutRegearService.STARTER_WEAPON+" "+
+                "starterFood="+
+                G1DefaultLoadoutRegearService.STARTER_FOOD+"x"+
+                G1DefaultLoadoutRegearService.STARTER_FOOD_COUNT+" "+
                 "attributionClearedOnRespawn=true "+
                 "replayIdempotent=true "+
                 "authority="+
