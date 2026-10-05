@@ -219,7 +219,7 @@ final class LocalWorldTickCoordinator {
             );
         }
 
-        if(lifecycle.dead()&&
+        if(worldPlayer.lifecycle().dead()&&
            pvpDeathSettlement.get(
                 worldPlayer.lifecycle().deathSequence()
             )==null&&
