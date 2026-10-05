@@ -6375,6 +6375,7 @@ tasks.register('playabilityLoadoutEditorWireSemanticRegression', JavaExec) {
     group = 'verification'
     description = 'Proves exact-v308 loadout editor wire snapshots map to semantic inventory/equipment without inventing target identity.'
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    timeout = java.time.Duration.ofSeconds(60)
 
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
