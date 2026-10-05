@@ -245,6 +245,19 @@ final class LocalPendingRequestDispatcher {
                 continue;
             }
 
+            if(worldPlayer.lifecycle().dead()&&
+               !allowedWhileDead(request)){
+                System.out.println(
+                    tag+
+                    "PLAYER_DEAD_REQUEST_REJECTED type="+
+                    request.getClass().getSimpleName()+
+                    " deathSequence="+
+                    worldPlayer.lifecycle().deathSequence()+
+                    " authority=CUSTOM_LOCALLAB_G1_DEATH_FREEZE"
+                );
+                continue;
+            }
+
             if(request instanceof
                     DialogueContinueClientRequest){
                 DialogueContinueClientRequest dialogue=
@@ -1300,4 +1313,15 @@ final class LocalPendingRequestDispatcher {
                 clicked.definitionId
             );
     }
+    static boolean allowedWhileDead(
+        ClientRequest request
+    ){
+        return request instanceof InterfaceCloseClientRequest||
+            request instanceof PublicChatClientRequest||
+            request instanceof PrivateMessageClientRequest||
+            request instanceof ChatModeClientRequest||
+            request instanceof ReportAbuseClientRequest||
+            request instanceof SocialListClientRequest;
+    }
+
 }
