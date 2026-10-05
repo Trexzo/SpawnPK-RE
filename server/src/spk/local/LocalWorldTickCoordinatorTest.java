@@ -1446,6 +1446,26 @@ public final class LocalWorldTickCoordinatorTest {
                     "live death settlement fixture did not die"
                 );
 
+            WorldPlayer killer=
+                new WorldPlayer();
+
+            deathItems.world.registerPlayer(
+                killer,
+                "death-killer"
+            );
+
+            deathItems.world.pvpDeathLedger()
+                .onCombatOutcome(
+                    new CombatOutcome(
+                        killer.id().toString(),
+                        deathItems.player.id().toString(),
+                        CombatOutcomeType.PLAYER_KILL,
+                        CombatOutcomeContext.PLAYER_PVP,
+                        80L,
+                        PlayerLifecycleService.AUTHORITY
+                    )
+                );
+
             deathItems.writer.beginBatch();
 
             coordinator.tick(
@@ -1519,7 +1539,7 @@ public final class LocalWorldTickCoordinatorTest {
                         deathX,
                         deathY,
                         deathPlane,
-                        "opensrc"
+                        "death-killer"
                     );
 
             if(explicitKeep==null||
@@ -1588,7 +1608,7 @@ public final class LocalWorldTickCoordinatorTest {
             "respawnPostCommitSettles=true "+
             "deathPolicyExplicitAutoLoss=true "+
             "deathPolicyUnresolvedKeep=true "+
-            "deathGroundVictimOwned=true "+
+            "deathGroundKillerOwned=true "+
             "deathOuterAbortPreservesState=true "+
             "deathSettlementBeforeRespawn=true "+
             "movementTailAfterCommit=true "+
