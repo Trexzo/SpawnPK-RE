@@ -191,6 +191,30 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     "lethal PvP attack remained active"
                 );
 
+            PlayerDeathAttributionRegistry.Attribution attribution=
+                world.playerDeathAttributions().get(
+                    target.id(),
+                    target.lifecycle().deathSequence()
+                );
+
+            if(attribution==null||
+               !attribution.attackerId.equals(
+                    attacker.id())||
+               attribution.attackerGeneration!=
+                    attacker.generation()||
+               !attribution.victimId.equals(
+                    target.id())||
+               attribution.victimGeneration!=
+                    target.generation()||
+               attribution.deathTick!=20L||
+               attribution.deathSequence!=
+                    target.lifecycle().deathSequence()||
+               !PlayerDeathAttributionRegistry.AUTHORITY.equals(
+                    attribution.authority))
+                throw new AssertionError(
+                    "typed PvP death attribution mismatch"
+                );
+
             if(outcomes.size()!=2||
                outcomes.get(0).type()!=
                     CombatOutcomeType.PLAYER_KILL||
@@ -255,6 +279,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "hpPacket134=true "+
                 "remoteAttackPresentation=true "+
                 "combatOutcomes=PLAYER_KILL,PLAYER_DEATH "+
+                "typedDeathAttribution=true "+
                 "authority=CUSTOM_LOCALLAB"
             );
 
