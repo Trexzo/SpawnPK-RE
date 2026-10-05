@@ -176,6 +176,18 @@ final class LocalLabMonsterSpawnerProvisioning {
                 }
             );
 
+        G1MonsterSpawnerPvmLoopService loop=
+            new G1MonsterSpawnerPvmLoopService(
+                checkedWorld,
+                service,
+                executor,
+                checkedWorld.pvmRecords()
+            );
+
+        runtime.installTerminalObserver(
+            loop::onFinalized
+        );
+
         return new LocalMonsterSpawnerActivationRuntime(
             checkedWorld,
             service,
