@@ -87,7 +87,10 @@ final class LocalAccountLifecycle {
         String tag
     ){
         if(!selection.persistent)
-            return new LoadResult(0,false);
+            return new LoadResult(
+                0,
+                LoadStatus.NOT_PERSISTENT
+            );
 
         try{
             java.util.Optional<PlayerSnapshot> loaded=
@@ -103,7 +106,10 @@ final class LocalAccountLifecycle {
                     " repository="+
                     source.name()
                 );
-                return new LoadResult(0,false);
+                return new LoadResult(
+                    0,
+                    LoadStatus.MISSING
+                );
             }
 
             PlayerSnapshot sourceSnapshot=
@@ -147,7 +153,7 @@ final class LocalAccountLifecycle {
 
             return new LoadResult(
                 accessoryItem,
-                true
+                LoadStatus.LOADED
             );
         }catch(Throwable e){
             System.err.println(
@@ -157,9 +163,12 @@ final class LocalAccountLifecycle {
                 " repository="+
                 source.name()+
                 " error="+e+
-                " action=KEEP_DEFAULTS"
+                " action=REJECT_SESSION"
             );
-            return new LoadResult(0,false);
+            return new LoadResult(
+                0,
+                LoadStatus.FAILED
+            );
         }
     }
 
@@ -173,21 +182,57 @@ final class LocalAccountLifecycle {
         IntPredicate accessoryAllowed,
         String tag
     ){
-        if(!selection.persistent)return new LoadResult(0,false);
+        if(!selection.persistent)
+            return new LoadResult(
+                0,
+                LoadStatus.NOT_PERSISTENT
+            );
 
         try{
-            System.out.println(tag+"V5123_ACCOUNT "+
-                LocalAccountProfiles.load(selection.username,bank,equipment,movement,petState,playerState));
+            String loadResult=
+                LocalAccountProfiles.load(
+                    selection.username,
+                    bank,
+                    equipment,
+                    movement,
+                    petState,
+                    playerState
+                );
+
+            System.out.println(
+                tag+"V5123_ACCOUNT "+
+                loadResult
+            );
+
+            boolean missing=
+                loadResult.startsWith(
+                    "ACCOUNT_DEFAULTS_NO_FILE"
+                )||
+                loadResult.startsWith(
+                    "NEW_ACCOUNT_DEFAULTS"
+                );
+
+            if(missing)
+                return new LoadResult(
+                    0,
+                    LoadStatus.MISSING
+                );
 
             int persistedAccessory=PetAccessoryPersistence.load(selection.username);
             int accessoryItem=accessoryAllowed.test(persistedAccessory)?persistedAccessory:0;
             System.out.println(tag+"V5131_PET_ACCESSORY_PERSIST_LOAD item="+
                 (accessoryItem==0?"NONE":accessoryItem)+" authority=ACCOUNT_SEMANTIC_STATE");
-            return new LoadResult(accessoryItem,true);
+            return new LoadResult(
+                accessoryItem,
+                LoadStatus.LOADED
+            );
         }catch(Throwable e){
             System.err.println(tag+"V5123_ACCOUNT_LOAD_FAILED file="+LocalAccountProfiles.accountFile(selection.username)+
-                " profile="+selection.username+" error="+e+" action=KEEP_DEFAULTS");
-            return new LoadResult(0,false);
+                " profile="+selection.username+" error="+e+" action=REJECT_SESSION");
+            return new LoadResult(
+                0,
+                LoadStatus.FAILED
+            );
         }
     }
 
@@ -300,12 +345,35 @@ final class LocalAccountLifecycle {
         }
     }
 
+    enum LoadStatus{
+        NOT_PERSISTENT,
+        MISSING,
+        LOADED,
+        FAILED
+    }
+
     static final class LoadResult{
         final int accessoryItem;
+        final LoadStatus status;
         final boolean loaded;
-        LoadResult(int accessoryItem,boolean loaded){
+        final boolean missing;
+        final boolean failed;
+
+        LoadResult(
+            int accessoryItem,
+            LoadStatus status
+        ){
             this.accessoryItem=accessoryItem;
-            this.loaded=loaded;
+            this.status=java.util.Objects.requireNonNull(
+                status,
+                "status"
+            );
+            this.loaded=
+                status==LoadStatus.LOADED;
+            this.missing=
+                status==LoadStatus.MISSING;
+            this.failed=
+                status==LoadStatus.FAILED;
         }
     }
 
