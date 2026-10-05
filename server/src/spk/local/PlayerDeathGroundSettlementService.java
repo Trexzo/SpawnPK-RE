@@ -72,6 +72,7 @@ final class PlayerDeathGroundSettlementService {
         }
     }
 
+    private final World world;
     private final WorldPlayer player;
     private final GroundItemRegistry groundItems;
     private final String settlementAuthority;
@@ -79,18 +80,19 @@ final class PlayerDeathGroundSettlementService {
         new LinkedHashMap<>();
 
     PlayerDeathGroundSettlementService(
+        World world,
         WorldPlayer player,
-        GroundItemRegistry groundItems,
         String settlementAuthority
     ){
+        this.world=Objects.requireNonNull(
+            world,
+            "world"
+        );
         this.player=Objects.requireNonNull(
             player,
             "player"
         );
-        this.groundItems=Objects.requireNonNull(
-            groundItems,
-            "groundItems"
-        );
+        this.groundItems=this.world.groundItems();
         this.settlementAuthority=
             requireGameplayAuthority(
                 settlementAuthority
@@ -106,6 +108,10 @@ final class PlayerDeathGroundSettlementService {
                 resolution,
                 "resolution"
             );
+
+        Settlement settlement;
+        List<GroundItemRegistry.BatchMutation>
+            groundMutations;
 
         synchronized(player.mutationLock()){
             requireExactCurrentDeath(checked);
@@ -260,11 +266,10 @@ final class PlayerDeathGroundSettlementService {
              * While player.mutationLock is held, no carried-state writer may
              * change the source slots between validation and commit.
              */
-            List<GroundItemRegistry.BatchMutation>
-                groundMutations=
-                    groundItems.addBatchDetailed(
-                        groundRequests
-                    );
+            groundMutations=
+                groundItems.addBatchDetailed(
+                    groundRequests
+                );
 
             player.bank()
                 .replaceInventorySemantic(
@@ -293,7 +298,7 @@ final class PlayerDeathGroundSettlementService {
                     )
                 );
 
-            Settlement settlement=
+            settlement=
                 new Settlement(
                     checked,
                     checked.deathTile,
@@ -306,8 +311,14 @@ final class PlayerDeathGroundSettlementService {
                 checked.deathSequence,
                 settlement
             );
-            return settlement;
         }
+
+        publishLiveScene(
+            groundMutations,
+            settlement.deathTile,
+            settlement.lootOwner
+        );
+        return settlement;
     }
 
     Settlement get(long deathSequence){
@@ -358,6 +369,91 @@ final class PlayerDeathGroundSettlementService {
                 "player death identity/tile changed before settlement id="+
                 player.id()
             );
+    }
+
+    private void publishLiveScene(
+        List<GroundItemRegistry.BatchMutation> mutations,
+        Tile deathTile,
+        String lootOwner
+    ){
+        if(mutations.isEmpty())
+            return;
+
+        long now=System.currentTimeMillis();
+
+        if(lootOwner!=null){
+            WorldPlayer recipient=
+                world.players().byName(
+                    lootOwner
+                );
+            if(recipient==null)
+                return;
+
+            publishForRecipient(
+                mutations,
+                deathTile,
+                recipient,
+                recipient.generation(),
+                now
+            );
+            return;
+        }
+
+        for(WorldPlayer recipient:
+                world.players().snapshot()){
+            long generation=
+                recipient.generation();
+
+            if(!world.players().owns(
+                    recipient,
+                    generation))
+                continue;
+
+            publishForRecipient(
+                mutations,
+                deathTile,
+                recipient,
+                generation,
+                now
+            );
+        }
+    }
+
+    private void publishForRecipient(
+        List<GroundItemRegistry.BatchMutation> mutations,
+        Tile deathTile,
+        WorldPlayer recipient,
+        long generation,
+        long now
+    ){
+        MovementState movement=
+            recipient.movement();
+
+        if(movement.plane()!=deathTile.plane||
+           !movement.insideCurrentLoadedRegion(
+                deathTile.x,
+                deathTile.y
+            ))
+            return;
+
+        for(GroundItemRegistry.BatchMutation mutation:
+                mutations)
+            if(mutation.created())
+                world.groundItemPresentationEvents()
+                    .enqueueSpawn(
+                        now,
+                        mutation,
+                        recipient,
+                        generation
+                    );
+            else
+                world.groundItemPresentationEvents()
+                    .enqueueAmount(
+                        now,
+                        mutation,
+                        recipient,
+                        generation
+                    );
     }
 
     private static String safeCause(String value){
