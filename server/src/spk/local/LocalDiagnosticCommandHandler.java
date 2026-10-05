@@ -21,6 +21,21 @@ final class LocalDiagnosticCommandHandler {
         this.itemLibrary=java.util.Objects.requireNonNull(itemLibrary,"itemLibrary");
     }
 
+    boolean itemLibrarySearchWillOpen(
+        String[] p
+    ){
+        if(p==null||p.length==0||
+           !p[0].equalsIgnoreCase("igsearch"))
+            return false;
+
+        return ItemAuthorityRepository.byExactName(
+            joinTokens(
+                p,
+                1
+            )
+        )!=null;
+    }
+
     boolean handle(
         String[] p,
         ServerPacketWriter serverPackets,

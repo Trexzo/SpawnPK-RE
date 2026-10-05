@@ -72,6 +72,87 @@ final class BankState {
         }
     }
 
+    static final class PreparedInventoryMutation {
+        final Stack[] expectedInventory;
+        final Stack[] postimage;
+        final boolean expectedOpen;
+        final int result;
+        final String rejection;
+
+        PreparedInventoryMutation(
+            Stack[] expectedInventory,
+            Stack[] postimage,
+            boolean expectedOpen,
+            int result,
+            String rejection
+        ){
+            this.expectedInventory=expectedInventory;
+            this.postimage=postimage;
+            this.expectedOpen=expectedOpen;
+            this.result=result;
+            this.rejection=rejection;
+        }
+
+        boolean accepted(){
+            return rejection==null;
+        }
+    }
+
+    static final class PreparedPetInventoryMutation {
+        final Stack[] expectedInventory;
+        final Stack[] postimage;
+        final boolean expectedOpen;
+        final int newPetSlot;
+        final int oldPetReturnedSlot;
+        final String rejection;
+
+        PreparedPetInventoryMutation(
+            Stack[] expectedInventory,
+            Stack[] postimage,
+            boolean expectedOpen,
+            int newPetSlot,
+            int oldPetReturnedSlot,
+            String rejection
+        ){
+            this.expectedInventory=expectedInventory;
+            this.postimage=postimage;
+            this.expectedOpen=expectedOpen;
+            this.newPetSlot=newPetSlot;
+            this.oldPetReturnedSlot=oldPetReturnedSlot;
+            this.rejection=rejection;
+        }
+
+        boolean accepted(){
+            return rejection==null;
+        }
+    }
+
+    static final class PreparedInventoryTransform {
+        final int slot;
+        final int expectedItemId;
+        final int replacementItemId;
+        final Stack[] postimage;
+        final String rejection;
+
+        PreparedInventoryTransform(
+            int slot,
+            int expectedItemId,
+            int replacementItemId,
+            Stack[] postimage,
+            String rejection
+        ){
+            this.slot=slot;
+            this.expectedItemId=expectedItemId;
+            this.replacementItemId=replacementItemId;
+            this.postimage=postimage;
+            this.rejection=rejection;
+        }
+
+        boolean accepted(){
+            return rejection==null;
+        }
+    }
+
     private final Stack[] bank = new Stack[BANK_CAPACITY];
     private final Stack[] inventory = new Stack[INVENTORY_CAPACITY];
     private boolean open;
@@ -104,20 +185,111 @@ final class BankState {
     }
 
     void open(ServerPacketWriter w) throws IOException {
+        byte[] root=
+            BootstrapPackets.interfaceOverlay248(
+                BANK_ROOT,
+                BANK_INVENTORY_ROOT
+            );
+        byte[] bankPayload=
+            containerPayload(
+                BANK_CONTAINER,
+                bank
+            );
+        byte[] inventoryPayload=
+            containerPayload(
+                BANK_INVENTORY_CONTAINER,
+                inventory
+            );
+
+        w.beginBatch();
+        boolean ended=false;
+
+        try{
+            w.fixed(
+                248,
+                root
+            );
+            w.varShort(
+                53,
+                bankPayload
+            );
+            w.varShort(
+                53,
+                inventoryPayload
+            );
+            w.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    w.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    w.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    w.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
         open = true;
         pendingX = null;
-        w.fixed(248, BootstrapPackets.interfaceOverlay248(BANK_ROOT, BANK_INVENTORY_ROOT));
-        sendContainers(w);
     }
 
     void close(ServerPacketWriter w) throws IOException {
         if (!open) return;
+
+        byte[] normalInventory=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                inventory
+            );
+
+        w.beginBatch();
+        boolean ended=false;
+
+        try{
+            w.fixed(
+                219,
+                new byte[0]
+            );
+            // The bank overlay uses widget 5064 while normal inventory uses 3214.
+            // Re-send 3214 on close so withdrawn items remain visible after leaving bank.
+            w.varShort(
+                53,
+                normalInventory
+            );
+            w.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    w.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    w.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    w.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
         open = false;
         pendingX = null;
-        w.fixed(219, new byte[0]);
-        // The bank overlay uses widget 5064 while normal inventory uses 3214.
-        // Re-send 3214 on close so withdrawn items remain visible after leaving bank.
-        sendNormalInventory(w);
     }
 
     boolean clientClosed() {
@@ -134,30 +306,111 @@ final class BankState {
 
     String togglePlaceholders(ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
-        placeholdersEnabled = !placeholdersEnabled;
-        if (!placeholdersEnabled) {
-            for (int i=0;i<bank.length;i++) if (bank[i] != null && bank[i].qty == 0) bank[i]=null;
+
+        boolean nextEnabled=
+            !placeholdersEnabled;
+        Stack[] nextBank=
+            copyStacks(bank);
+
+        if (!nextEnabled) {
+            for (int i=0;i<nextBank.length;i++)
+                if (nextBank[i] != null &&
+                    nextBank[i].qty == 0)
+                    nextBank[i]=null;
         }
-        sendContainers(w);
-        return "PLACEHOLDERS_"+(placeholdersEnabled?"ENABLED":"DISABLED")+" occupied="+bankSlots();
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            inventory
+        );
+        replaceStacks(
+            bank,
+            nextBank
+        );
+        placeholdersEnabled=
+            nextEnabled;
+
+        return "PLACEHOLDERS_"+
+            (placeholdersEnabled
+                ?"ENABLED"
+                :"DISABLED")+
+            " occupied="+
+            bankSlots();
     }
 
     String depositInventory(ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
-        int moved=0;
-        for (int i=0;i<inventory.length;i++) {
-            Stack s=inventory[i];
+
+        Stack[] nextBank=
+            copyStacks(bank);
+        Stack[] nextInventory=
+            copyStacks(inventory);
+
+        long moved=0L;
+        boolean partial=false;
+
+        for (int i=0;i<nextInventory.length;i++) {
+            Stack s=nextInventory[i];
             if (s==null || s.qty<=0) continue;
-            int dst=findItem(bank,s.itemId);
-            if (dst<0) dst=firstEmpty(bank);
-            if (dst<0) return "PARTIAL_BANK_FULL movedQty="+moved;
-            if (bank[dst]==null) bank[dst]=new Stack(s.itemId,0);
-            bank[dst].qty += s.qty;
-            moved += s.qty;
-            inventory[i]=null;
+
+            int dst=findItem(
+                nextBank,
+                s.itemId
+            );
+            if (dst<0)
+                dst=firstEmpty(nextBank);
+
+            if (dst<0) {
+                partial=true;
+                break;
+            }
+
+            if (nextBank[dst]==null)
+                nextBank[dst]=
+                    new Stack(
+                        s.itemId,
+                        0
+                    );
+
+            long merged=
+                (long)nextBank[dst].qty+
+                (long)s.qty;
+            if(merged>Integer.MAX_VALUE)
+                return "REJECTED_QUANTITY_OVERFLOW item="+
+                    s.itemId+
+                    " destination=BANK"+
+                    " current="+nextBank[dst].qty+
+                    " incoming="+s.qty;
+
+            nextBank[dst].qty=(int)merged;
+            moved+=(long)s.qty;
+            nextInventory[i]=null;
         }
-        sendContainers(w);
-        return "DEPOSITED_ALL movedQty="+moved+" bankOccupied="+bankSlots()+" inventoryOccupied="+inventorySlots();
+
+        if(moved==0&&partial)
+            return "PARTIAL_BANK_FULL movedQty=0";
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            nextInventory
+        );
+        replaceStacks(
+            bank,
+            nextBank
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
+        if(partial)
+            return "PARTIAL_BANK_FULL movedQty="+moved;
+
+        return "DEPOSITED_ALL movedQty="+moved+
+            " bankOccupied="+occupied(bank)+
+            " inventoryOccupied="+occupied(inventory);
     }
 
     void sendNormalInventory(ServerPacketWriter w) throws IOException {
@@ -235,6 +488,72 @@ final class BankState {
         w.varShort(53, BootstrapPackets.itemContainer53(COSMETIC_WIDGET,new int[]{item},new int[]{qty}));
     }
 
+    private void publishCosmeticInventoryPostimage(
+        ServerPacketWriter writer,
+        Stack[] inventoryPostimage,
+        int cosmeticItemId,
+        boolean includeBankMirror
+    )throws IOException{
+        byte[] normalInventoryPayload=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                inventoryPostimage
+            );
+        byte[] cosmeticPayload=
+            BootstrapPackets.itemContainer53(
+                COSMETIC_WIDGET,
+                new int[]{cosmeticItemId},
+                new int[]{cosmeticItemId>=0?1:0}
+            );
+        byte[] bankPayload=
+            includeBankMirror
+                ?containerPayload(
+                    BANK_CONTAINER,
+                    bank
+                )
+                :null;
+        byte[] bankInventoryPayload=
+            includeBankMirror
+                ?containerPayload(
+                    BANK_INVENTORY_CONTAINER,
+                    inventoryPostimage
+                )
+                :null;
+
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                53,
+                normalInventoryPayload
+            );
+            writer.varShort(
+                53,
+                cosmeticPayload
+            );
+
+            if(includeBankMirror){
+                writer.varShort(
+                    53,
+                    bankPayload
+                );
+                writer.varShort(
+                    53,
+                    bankInventoryPayload
+                );
+            }
+
+            writer.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+        }
+    }
+
 
     /**
      * Protocol-independent exact-slot inventory snapshot for gameplay/domain
@@ -248,6 +567,77 @@ final class BankState {
         return st==null
             ?new InventorySlotSnapshot(slot,false,-1,0)
             :new InventorySlotSnapshot(slot,true,st.itemId,st.qty);
+    }
+
+    /**
+     * Commit one prevalidated complete inventory postimage without publishing.
+     *
+     * Two-session transactions use this only after their presentation admission
+     * has committed. Unchanged item ids retain their existing Stack object/tab;
+     * replaced slots receive ordinary inventory stacks.
+     */
+    void replaceInventorySemantic(
+        int[] itemIds,
+        int[] quantities
+    ){
+        if(itemIds==null||
+           quantities==null||
+           itemIds.length!=inventory.length||
+           quantities.length!=inventory.length)
+            throw new IllegalArgumentException(
+                "inventory postimage length"
+            );
+
+        for(int slot=0;
+            slot<inventory.length;
+            slot++){
+            int itemId=itemIds[slot];
+            int quantity=quantities[slot];
+
+            if(itemId<0){
+                if(quantity!=0)
+                    throw new IllegalArgumentException(
+                        "empty inventory postimage quantity slot="+
+                        slot
+                    );
+                continue;
+            }
+
+            if(quantity<=0)
+                throw new IllegalArgumentException(
+                    "inventory postimage quantity slot="+
+                    slot+
+                    " item="+itemId+
+                    " qty="+quantity
+                );
+        }
+
+        for(int slot=0;
+            slot<inventory.length;
+            slot++){
+            int itemId=itemIds[slot];
+            int quantity=quantities[slot];
+
+            if(itemId<0){
+                inventory[slot]=null;
+                continue;
+            }
+
+            Stack existing=
+                inventory[slot];
+
+            if(existing!=null&&
+               existing.itemId==itemId){
+                existing.qty=quantity;
+                continue;
+            }
+
+            inventory[slot]=
+                new Stack(
+                    itemId,
+                    quantity
+                );
+        }
     }
 
     /**
@@ -302,17 +692,243 @@ final class BankState {
         );
     }
 
+    PreparedPetInventoryMutation preparePetDropInventory(
+        int slot,
+        int newItemId,
+        Integer oldItemId
+    ){
+        Stack[] expected=
+            copyStacks(inventory);
+
+        if(!validSlot(expected,slot)||
+           expected[slot]==null)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                slot,
+                -1,
+                "REJECTED_INVENTORY_SLOT"
+            );
+
+        Stack clicked=expected[slot];
+
+        if(clicked.itemId!=newItemId)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                slot,
+                -1,
+                "REJECTED_INVENTORY_ITEM_MISMATCH expected="+
+                    clicked.itemId
+            );
+
+        if(clicked.qty<=0)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                slot,
+                -1,
+                "REJECTED_INVENTORY_QTY"
+            );
+
+        Stack[] next=
+            copyStacks(expected);
+        next[slot].qty--;
+        if(next[slot].qty==0)
+            next[slot]=null;
+
+        int restored=-1;
+
+        if(oldItemId!=null&&oldItemId>=0){
+            int old=oldItemId;
+            int dst=-1;
+
+            if(validSlot(next,slot)){
+                Stack at=next[slot];
+                if(at==null)
+                    dst=slot;
+                else if(isStackable(old)&&
+                        at.itemId==old&&
+                        at.qty<Integer.MAX_VALUE)
+                    dst=slot;
+            }
+
+            if(dst<0&&isStackable(old))
+                dst=findItem(next,old);
+
+            if(dst<0)
+                dst=firstEmpty(next);
+
+            if(dst<0)
+                return new PreparedPetInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    slot,
+                    -1,
+                    "REJECTED_INVENTORY_FULL_FOR_OLD_PET"
+                );
+
+            if(next[dst]!=null&&
+               (next[dst].itemId!=old||
+                next[dst].qty==Integer.MAX_VALUE))
+                return new PreparedPetInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    slot,
+                    -1,
+                    "REJECTED_INVENTORY_FULL_FOR_OLD_PET"
+                );
+
+            if(next[dst]==null)
+                next[dst]=
+                    new Stack(
+                        old,
+                        0
+                    );
+
+            next[dst].qty++;
+            restored=dst;
+        }
+
+        return new PreparedPetInventoryMutation(
+            expected,
+            next,
+            open,
+            slot,
+            restored,
+            null
+        );
+    }
+
+    PreparedPetInventoryMutation preparePetPickupInventory(
+        int itemId
+    ){
+        Stack[] expected=
+            copyStacks(inventory);
+        Stack[] next=
+            copyStacks(expected);
+
+        int dst=
+            isStackable(itemId)
+                ?findItem(next,itemId)
+                :-1;
+
+        if(dst<0)
+            dst=firstEmpty(next);
+
+        if(dst<0)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                -1,
+                "REJECTED_INVENTORY_FULL"
+            );
+
+        if(next[dst]!=null&&
+           next[dst].qty==Integer.MAX_VALUE)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                -1,
+                "REJECTED_INVENTORY_QTY_OVERFLOW"
+            );
+
+        if(next[dst]==null)
+            next[dst]=
+                new Stack(
+                    itemId,
+                    0
+                );
+
+        next[dst].qty++;
+
+        return new PreparedPetInventoryMutation(
+            expected,
+            next,
+            open,
+            -1,
+            dst,
+            null
+        );
+    }
+
+    void publishPreparedPetInventory(
+        PreparedPetInventoryMutation prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared pet inventory required"
+            );
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            prepared.postimage,
+            prepared.expectedOpen
+        );
+    }
+
+    void commitPreparedPetInventory(
+        PreparedPetInventoryMutation prepared
+    ){
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared pet inventory required"
+            );
+
+        if(open!=prepared.expectedOpen||
+           !sameStacks(
+                inventory,
+                prepared.expectedInventory
+           ))
+            throw new IllegalStateException(
+                "pet inventory preimage changed before commit"
+            );
+
+        replaceStacks(
+            inventory,
+            prepared.postimage
+        );
+    }
+
     /** Remove exactly one item from a concrete inventory slot (pet Drop path). */
     String consumeInventoryOne(int slot, int itemId, ServerPacketWriter w) throws IOException {
         if (!validSlot(inventory,slot) || inventory[slot]==null) return "REJECTED_INVENTORY_SLOT";
         Stack st=inventory[slot];
         if (st.itemId!=itemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
         if (st.qty<=0) return "REJECTED_INVENTORY_QTY";
-        st.qty--;
-        if (st.qty==0) inventory[slot]=null;
-        sendNormalInventory(w);
-        if (open) sendContainers(w);
-        return "INVENTORY_CONSUME_OK item="+itemId+" slot="+slot+" remaining="+(inventory[slot]==null?0:inventory[slot].qty);
+
+        Stack[] nextInventory=copyStacks(inventory);
+        Stack next=nextInventory[slot];
+        next.qty--;
+        if(next.qty==0)
+            nextInventory[slot]=null;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
+        return "INVENTORY_CONSUME_OK item="+itemId+
+            " slot="+slot+
+            " remaining="+
+            (inventory[slot]==null?0:inventory[slot].qty);
     }
 
     boolean canAddInventoryOne(int itemId) {
@@ -325,11 +941,24 @@ final class BankState {
         int dst = isStackable(itemId) ? findItem(inventory,itemId) : -1;
         if (dst<0) dst=firstEmpty(inventory);
         if (dst<0) return -1;
-        if (inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-        if (inventory[dst].qty==Integer.MAX_VALUE) return -1;
-        inventory[dst].qty++;
-        sendNormalInventory(w);
-        if (open) sendContainers(w);
+        if (inventory[dst]!=null &&
+            inventory[dst].qty==Integer.MAX_VALUE)
+            return -1;
+
+        Stack[] nextInventory=copyStacks(inventory);
+        if(nextInventory[dst]==null)
+            nextInventory[dst]=new Stack(itemId,0);
+        nextInventory[dst].qty++;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
         return dst;
     }
 
@@ -348,19 +977,229 @@ final class BankState {
         if(dst<0 && isStackable(itemId)) dst=findItem(inventory,itemId);
         if(dst<0) dst=firstEmpty(inventory);
         if(dst<0) return -1;
-        if(inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-        if(inventory[dst].itemId!=itemId || inventory[dst].qty==Integer.MAX_VALUE) return -1;
-        inventory[dst].qty++;
-        sendNormalInventory(w);
-        if(open) sendContainers(w);
+        if(inventory[dst]!=null &&
+           (inventory[dst].itemId!=itemId ||
+            inventory[dst].qty==Integer.MAX_VALUE))
+            return -1;
+
+        Stack[] nextInventory=copyStacks(inventory);
+        if(nextInventory[dst]==null)
+            nextInventory[dst]=new Stack(itemId,0);
+        nextInventory[dst].qty++;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
         return dst;
+    }
+
+    PreparedInventoryMutation prepareConsumeInventoryAll(
+        int slot,
+        int itemId
+    ){
+        Stack[] expected=
+            copyStacks(inventory);
+
+        if(!validSlot(expected,slot)||
+           expected[slot]==null)
+            return new PreparedInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                "REJECTED_INVENTORY_SLOT"
+            );
+
+        Stack st=expected[slot];
+
+        if(st.itemId!=itemId||
+           st.qty<=0)
+            return new PreparedInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                "REJECTED_INVENTORY_ITEM"
+            );
+
+        int qty=st.qty;
+        Stack[] next=
+            copyStacks(expected);
+        next[slot]=null;
+
+        return new PreparedInventoryMutation(
+            expected,
+            next,
+            open,
+            qty,
+            null
+        );
+    }
+
+    PreparedInventoryMutation prepareAddInventoryAmount(
+        int itemId,
+        int amount
+    ){
+        Stack[] expected=
+            copyStacks(inventory);
+
+        if(amount<=0)
+            return new PreparedInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                "REJECTED_AMOUNT"
+            );
+
+        Stack[] next=
+            copyStacks(expected);
+        int first=-1;
+
+        if(isStackable(itemId)){
+            int dst=findItem(
+                next,
+                itemId
+            );
+            if(dst<0)
+                dst=firstEmpty(next);
+
+            if(dst<0)
+                return new PreparedInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    -1,
+                    "REJECTED_INVENTORY_FULL"
+                );
+
+            if(next[dst]==null)
+                next[dst]=
+                    new Stack(
+                        itemId,
+                        0
+                    );
+
+            long merged=
+                (long)next[dst].qty+
+                amount;
+
+            if(merged>Integer.MAX_VALUE)
+                return new PreparedInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    -1,
+                    "REJECTED_INVENTORY_QTY_OVERFLOW"
+                );
+
+            next[dst].qty=
+                (int)merged;
+            first=dst;
+        }else{
+            int free=0;
+            for(Stack stack:next)
+                if(stack==null)
+                    free++;
+
+            if(free<amount)
+                return new PreparedInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    -1,
+                    "REJECTED_INVENTORY_FULL"
+                );
+
+            for(int n=0;n<amount;n++){
+                int dst=firstEmpty(next);
+                if(first<0)
+                    first=dst;
+                next[dst]=
+                    new Stack(
+                        itemId,
+                        1
+                    );
+            }
+        }
+
+        return new PreparedInventoryMutation(
+            expected,
+            next,
+            open,
+            first,
+            null
+        );
+    }
+
+    void publishPreparedInventoryMutation(
+        PreparedInventoryMutation prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared inventory mutation required"
+            );
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            prepared.postimage,
+            prepared.expectedOpen
+        );
+    }
+
+    int commitPreparedInventoryMutation(
+        PreparedInventoryMutation prepared
+    ){
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared inventory mutation required"
+            );
+
+        if(open!=prepared.expectedOpen||
+           !sameStacks(
+                inventory,
+                prepared.expectedInventory
+           ))
+            throw new IllegalStateException(
+                "inventory preimage changed before prepared commit"
+            );
+
+        replaceStacks(
+            inventory,
+            prepared.postimage
+        );
+        return prepared.result;
     }
 
     /** Consume the entire concrete inventory stack. Used by ordinary ground Drop. */
     int consumeInventoryAll(int slot,int itemId,ServerPacketWriter w) throws IOException {
         if(!validSlot(inventory,slot)||inventory[slot]==null)return -1;
-        Stack st=inventory[slot]; if(st.itemId!=itemId||st.qty<=0)return -1;
-        int qty=st.qty; inventory[slot]=null; sendNormalInventory(w); if(open)sendContainers(w); return qty;
+        Stack st=inventory[slot];
+        if(st.itemId!=itemId||st.qty<=0)return -1;
+        int qty=st.qty;
+
+        Stack[] nextInventory=copyStacks(inventory);
+        nextInventory[slot]=null;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        return qty;
     }
 
     boolean canAddInventoryAmount(int itemId,int amount){
@@ -377,56 +1216,370 @@ final class BankState {
     /** Add a positive amount atomically after canAddInventoryAmount preflight. Returns first destination slot or -1. */
     int addInventoryAmount(int itemId,int amount,ServerPacketWriter w)throws IOException{
         if(!canAddInventoryAmount(itemId,amount))return -1;
+
+        Stack[] nextInventory=copyStacks(inventory);
         int first=-1;
         if(isStackable(itemId)){
-            int dst=findItem(inventory,itemId); if(dst<0)dst=firstEmpty(inventory); first=dst;
-            if(inventory[dst]==null)inventory[dst]=new Stack(itemId,0);
-            inventory[dst].qty+=amount;
+            int dst=findItem(nextInventory,itemId);
+            if(dst<0)dst=firstEmpty(nextInventory);
+            first=dst;
+            if(nextInventory[dst]==null)
+                nextInventory[dst]=new Stack(itemId,0);
+            nextInventory[dst].qty+=amount;
         }else{
-            for(int n=0;n<amount;n++){int dst=firstEmpty(inventory);if(first<0)first=dst;inventory[dst]=new Stack(itemId,1);}
+            for(int n=0;n<amount;n++){
+                int dst=firstEmpty(nextInventory);
+                if(first<0)first=dst;
+                nextInventory[dst]=new Stack(itemId,1);
+            }
         }
-        sendNormalInventory(w); if(open)sendContainers(w); return first;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        return first;
     }
 
     /** Equip a native icon into the dedicated COSMETIC channel, never AMMO. */
     String equipCosmeticFromInventory(int slot,int itemId,CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
         if(cosmetic==null)return "REJECTED_NO_COSMETIC_STATE";
         if(!ItemCatalog.isNativePlayerIcon(itemId))return "REJECTED_NOT_NATIVE_COSMETIC item="+itemId;
-        if(!validSlot(inventory,slot)||inventory[slot]==null||inventory[slot].itemId!=itemId||inventory[slot].qty<=0)return "REJECTED_INVENTORY_MISMATCH";
+        if(!validSlot(inventory,slot)||
+           inventory[slot]==null||
+           inventory[slot].itemId!=itemId||
+           inventory[slot].qty<=0)
+            return "REJECTED_INVENTORY_MISMATCH";
+
         int old=cosmetic.itemId();
-        // Consuming one from the selected slot always creates capacity for a previous non-stackable cosmetic.
-        Stack st=inventory[slot]; st.qty--; if(st.qty==0)inventory[slot]=null;
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack source=
+            nextInventory[slot];
+
+        source.qty--;
+        if(source.qty==0)
+            nextInventory[slot]=null;
+
         if(old>=0){
-            int dst=(inventory[slot]==null)?slot:(isStackable(old)?findItem(inventory,old):-1);
-            if(dst<0)dst=firstEmpty(inventory);
-            if(dst<0){ // rollback
-                if(inventory[slot]==null)inventory[slot]=new Stack(itemId,1); else inventory[slot].qty++;
+            int dst=
+                nextInventory[slot]==null
+                    ?slot
+                    :isStackable(old)
+                        ?findItem(nextInventory,old)
+                        :-1;
+
+            if(dst<0)
+                dst=firstEmpty(nextInventory);
+
+            if(dst<0)
                 return "REJECTED_INVENTORY_FULL_ROLLBACK";
-            }
-            if(inventory[dst]==null)inventory[dst]=new Stack(old,0); inventory[dst].qty++;
+
+            if(nextInventory[dst]==null)
+                nextInventory[dst]=
+                    new Stack(
+                        old,
+                        0
+                    );
+
+            if(nextInventory[dst].itemId!=old||
+               nextInventory[dst].qty==Integer.MAX_VALUE)
+                return "REJECTED_INVENTORY_FULL_ROLLBACK";
+
+            nextInventory[dst].qty++;
         }
-        cosmetic.set(itemId); sendNormalInventory(w); if(open)sendContainers(w);
+
+        publishCosmeticInventoryPostimage(
+            w,
+            nextInventory,
+            itemId,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        cosmetic.set(itemId);
+
         return "COSMETIC_EQUIP_OK item="+itemId+" old="+old+" slot="+slot+" channel=DEDICATED_BS ammoIndependent=true";
     }
 
+    String overrideCosmeticFromInventory(
+        int slot,
+        int itemId,
+        CosmeticState cosmetic,
+        ServerPacketWriter w
+    )throws IOException{
+        if(cosmetic==null)
+            return "REJECTED_NO_COSMETIC_STATE";
+        if(!validSlot(inventory,slot)||
+           inventory[slot]==null||
+           inventory[slot].itemId!=itemId||
+           inventory[slot].qty<=0)
+            return "REJECTED_INVENTORY_MISMATCH";
+
+        int old=cosmetic.itemId();
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack source=
+            nextInventory[slot];
+
+        source.qty--;
+        if(source.qty==0)
+            nextInventory[slot]=null;
+
+        int returnedSlot=-1;
+
+        if(old>=0){
+            returnedSlot=
+                preferredAddDestination(
+                    nextInventory,
+                    old,
+                    slot
+                );
+
+            if(returnedSlot<0){
+                int rollbackSlot=
+                    preferredAddDestination(
+                        nextInventory,
+                        itemId,
+                        slot
+                    );
+
+                return "REJECTED_INVENTORY_FULL_ROLLBACK old="+
+                    old+
+                    " rollbackSlot="+
+                    rollbackSlot;
+            }
+
+            if(nextInventory[returnedSlot]==null)
+                nextInventory[returnedSlot]=
+                    new Stack(
+                        old,
+                        0
+                    );
+
+            nextInventory[returnedSlot].qty++;
+        }
+
+        publishCosmeticInventoryPostimage(
+            w,
+            nextInventory,
+            itemId,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        cosmetic.set(itemId);
+
+        return "COSMETIC_OVERRIDE_OK item="+
+            itemId+
+            " previous="+
+            old+
+            " sourceSlot="+
+            slot+
+            " returnedOldSlot="+
+            returnedSlot;
+    }
+
     String unequipCosmeticToInventory(CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
-        if(cosmetic==null||!cosmetic.active())return "COSMETIC_NONE_ACTIVE";
-        int old=cosmetic.itemId(); if(!canAddInventoryOne(old))return "REJECTED_INVENTORY_FULL";
-        int dst=addInventoryOne(old,w); if(dst<0)return "REJECTED_INVENTORY_FULL"; cosmetic.clear();
+        if(cosmetic==null||!cosmetic.active())
+            return "COSMETIC_NONE_ACTIVE";
+
+        int old=cosmetic.itemId();
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        int dst=
+            isStackable(old)
+                ?findItem(nextInventory,old)
+                :-1;
+
+        if(dst<0)
+            dst=firstEmpty(nextInventory);
+        if(dst<0)
+            return "REJECTED_INVENTORY_FULL";
+
+        if(nextInventory[dst]==null)
+            nextInventory[dst]=
+                new Stack(
+                    old,
+                    0
+                );
+
+        if(nextInventory[dst].itemId!=old||
+           nextInventory[dst].qty==Integer.MAX_VALUE)
+            return "REJECTED_INVENTORY_FULL";
+
+        nextInventory[dst].qty++;
+
+        publishCosmeticInventoryPostimage(
+            w,
+            nextInventory,
+            -1,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        cosmetic.clear();
+
         return "COSMETIC_UNEQUIP_OK item="+old+" inventorySlot="+dst;
+    }
+
+    PreparedInventoryTransform prepareInventoryTransformOne(
+        int slot,
+        int expectedItemId,
+        int replacementItemId
+    ){
+        if(!validSlot(inventory,slot) ||
+           inventory[slot]==null)
+            return new PreparedInventoryTransform(
+                slot,
+                expectedItemId,
+                replacementItemId,
+                null,
+                "REJECTED_INVENTORY_SLOT"
+            );
+
+        Stack st=inventory[slot];
+
+        if(st.itemId!=expectedItemId)
+            return new PreparedInventoryTransform(
+                slot,
+                expectedItemId,
+                replacementItemId,
+                null,
+                "REJECTED_INVENTORY_ITEM_MISMATCH expected="+
+                    st.itemId
+            );
+
+        if(st.qty!=1)
+            return new PreparedInventoryTransform(
+                slot,
+                expectedItemId,
+                replacementItemId,
+                null,
+                "REJECTED_TRANSFORM_QTY qty="+
+                    st.qty
+            );
+
+        if(ItemDefinitionRepository.get(
+                replacementItemId
+           )==null)
+            return new PreparedInventoryTransform(
+                slot,
+                expectedItemId,
+                replacementItemId,
+                null,
+                "REJECTED_UNKNOWN_REPLACEMENT item="+
+                    replacementItemId
+            );
+
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        nextInventory[slot]=
+            new Stack(
+                replacementItemId,
+                1
+            );
+
+        return new PreparedInventoryTransform(
+            slot,
+            expectedItemId,
+            replacementItemId,
+            nextInventory,
+            null
+        );
+    }
+
+    String publishPreparedInventoryTransform(
+        PreparedInventoryTransform prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        if(!prepared.accepted())
+            return prepared.rejection;
+
+        writeNormalInventoryStructuralPostimage(
+            w,
+            prepared.postimage,
+            open
+        );
+
+        return "INVENTORY_TRANSFORM_OK slot="+
+            prepared.slot+
+            " item="+
+            prepared.expectedItemId+
+            "->"+
+            prepared.replacementItemId;
+    }
+
+    String commitPreparedInventoryTransform(
+        PreparedInventoryTransform prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        if(!prepared.accepted())
+            return prepared.rejection;
+
+        if(!validSlot(inventory,prepared.slot) ||
+           inventory[prepared.slot]==null ||
+           inventory[prepared.slot].itemId!=
+                prepared.expectedItemId ||
+           inventory[prepared.slot].qty!=1)
+            throw new IllegalStateException(
+                "inventory transform preimage changed before prepared commit"
+            );
+
+        replaceStacks(
+            inventory,
+            prepared.postimage
+        );
+
+        return "INVENTORY_TRANSFORM_OK slot="+
+            prepared.slot+
+            " item="+
+            prepared.expectedItemId+
+            "->"+
+            prepared.replacementItemId;
     }
 
     /** Exact in-slot non-stackable transform used by native Switch-colors actions. */
     String transformInventoryOne(int slot,int expectedItemId,int replacementItemId,ServerPacketWriter w) throws IOException {
-        if(!validSlot(inventory,slot) || inventory[slot]==null) return "REJECTED_INVENTORY_SLOT";
-        Stack st=inventory[slot];
-        if(st.itemId!=expectedItemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
-        if(st.qty!=1) return "REJECTED_TRANSFORM_QTY qty="+st.qty;
-        if(ItemDefinitionRepository.get(replacementItemId)==null) return "REJECTED_UNKNOWN_REPLACEMENT item="+replacementItemId;
-        inventory[slot]=new Stack(replacementItemId,1);
-        sendNormalInventory(w);
-        if(open) sendContainers(w);
-        return "INVENTORY_TRANSFORM_OK slot="+slot+" item="+expectedItemId+"->"+replacementItemId;
+        PreparedInventoryTransform prepared=
+            prepareInventoryTransformOne(
+                slot,
+                expectedItemId,
+                replacementItemId
+            );
+
+        if(!prepared.accepted())
+            return prepared.rejection;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            prepared.postimage,
+            open
+        );
+
+        return commitPreparedInventoryTransform(
+            prepared
+        );
     }
 
 
@@ -479,28 +1632,89 @@ final class BankState {
     String spawnItem(int itemId, int requested, ServerPacketWriter w) throws IOException {
         ItemCatalog.Meta meta=ItemDefinitionRepository.get(itemId);
         if (meta==null) return "REJECTED_UNKNOWN_ITEM id="+itemId;
-        int amount=Math.max(1,Math.min(requested,1_000_000_000));
-        boolean stackable=ItemDefinitionRepository.isStackable(itemId);
+
+        int amount=Math.max(
+            1,
+            Math.min(
+                requested,
+                1_000_000_000
+            )
+        );
+        boolean stackable=
+            ItemDefinitionRepository.isStackable(
+                itemId
+            );
+        Stack[] nextInventory=
+            copyStacks(inventory);
         int moved=0;
+
         if (stackable) {
-            int dst=findItem(inventory,itemId);
-            if (dst<0) dst=firstEmpty(inventory);
-            if (dst<0) return "REJECTED_INVENTORY_FULL";
-            if (inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-            long next=(long)inventory[dst].qty+amount;
-            inventory[dst].qty=(int)Math.min(Integer.MAX_VALUE,next);
-            moved=amount;
+            int dst=findItem(
+                nextInventory,
+                itemId
+            );
+            if (dst<0)
+                dst=firstEmpty(nextInventory);
+            if(dst<0)
+                return "REJECTED_INVENTORY_FULL";
+
+            if(nextInventory[dst]==null)
+                nextInventory[dst]=
+                    new Stack(
+                        itemId,
+                        0
+                    );
+
+            int current=
+                nextInventory[dst].qty;
+            long capacity=
+                (long)Integer.MAX_VALUE-
+                current;
+            moved=
+                (int)Math.min(
+                    (long)amount,
+                    Math.max(
+                        0L,
+                        capacity
+                    )
+                );
+
+            if(moved>0)
+                nextInventory[dst].qty=
+                    current+
+                    moved;
         } else {
             for (int i=0;i<amount;i++) {
-                int dst=firstEmpty(inventory);
-                if (dst<0) break;
-                inventory[dst]=new Stack(itemId,1);
+                int dst=firstEmpty(
+                    nextInventory
+                );
+                if (dst<0)
+                    break;
+
+                nextInventory[dst]=
+                    new Stack(
+                        itemId,
+                        1
+                    );
                 moved++;
             }
-            if (moved==0) return "REJECTED_INVENTORY_FULL";
+
+            if (moved==0)
+                return "REJECTED_INVENTORY_FULL";
         }
-        sendNormalInventory(w);
-        if (open) sendContainers(w);
+
+        if(moved>0){
+            publishNormalInventoryStructuralPostimage(
+                w,
+                nextInventory,
+                open
+            );
+            replaceStacks(
+                inventory,
+                nextInventory
+            );
+        }
+
         return "ITEM_SPAWN_OK id="+itemId+" name="+safe(meta.name)+" requested="+amount+" moved="+moved
              +" stackable="+stackable+" stackabilityEvidence="+ItemDefinitionRepository.stackabilityEvidence(itemId)
              +" inventoryOccupied="+inventorySlots()+"/"+inventoryCapacity();
@@ -526,66 +1740,187 @@ final class BankState {
         final boolean stackEquip = meta.slot==EquipmentSlot.AMMO && isStackable(itemId);
         if (!stackEquip && clicked.qty != 1) return "REJECTED_EQUIP_STACK_QTY qty="+clicked.qty;
 
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        int[] nextEquipmentItems=
+            equipment.containerItems();
+        int[] nextEquipmentQuantities=
+            equipment.containerQuantities();
+        int equipmentIndex=
+            meta.slot.equipmentIndex;
+
         // Stackable ammunition moves as one authoritative stack and merges with
-        // identical ammo already worn. This keeps inventory/bank/equipment packet-53
-        // quantities coherent instead of turning each arrow/bolt into a new slot.
+        // identical ammo already worn. Derive both postimages before publication.
         if(stackEquip){
             int amount=clicked.qty;
-            int previous=equipment.itemAt(meta.slot);
-            int previousQty=equipment.quantityAt(meta.slot);
+            int previous=
+                nextEquipmentItems[equipmentIndex];
+            int previousQty=
+                previous<0
+                    ?0
+                    :nextEquipmentQuantities[equipmentIndex];
+
             if(previous==itemId){
-                long merged=(long)previousQty+amount;
-                if(merged>Integer.MAX_VALUE) return "REJECTED_EQUIPMENT_QTY_OVERFLOW";
-                equipment.setStack(meta.slot,itemId,(int)merged);
-                inventory[slot]=null;
-                sendNormalInventory(w); sendEquipment(w,equipment); if(open)sendContainers(w);
+                long merged=
+                    (long)previousQty+
+                    (long)amount;
+                if(merged>Integer.MAX_VALUE)
+                    return "REJECTED_EQUIPMENT_QTY_OVERFLOW";
+
+                nextEquipmentItems[equipmentIndex]=
+                    itemId;
+                nextEquipmentQuantities[equipmentIndex]=
+                    (int)merged;
+                nextInventory[slot]=null;
+
+                publishEquipmentSwapPostimage(
+                    w,
+                    nextInventory,
+                    nextEquipmentItems,
+                    nextEquipmentQuantities
+                );
+                replaceStacks(
+                    inventory,
+                    nextInventory
+                );
+                equipment.restoreAccountState(
+                    nextEquipmentItems,
+                    nextEquipmentQuantities
+                );
+
                 return "EQUIP_STACK_MERGE_OK item="+itemId+" slot="+meta.slot+" moved="+amount+" equippedQty="+merged+" inventorySlot="+slot+" evidence="+meta.evidence;
             }
+
             // The clicked slot becomes free, so a displaced ammo stack always has
             // a deterministic same-slot destination.
-            equipment.setStack(meta.slot,itemId,amount);
-            inventory[slot]=null;
-            if(previous>=0) inventory[slot]=new Stack(previous,Math.max(1,previousQty));
-            sendNormalInventory(w); sendEquipment(w,equipment); if(open)sendContainers(w);
+            nextEquipmentItems[equipmentIndex]=
+                itemId;
+            nextEquipmentQuantities[equipmentIndex]=
+                amount;
+            nextInventory[slot]=null;
+
+            if(previous>=0)
+                nextInventory[slot]=
+                    new Stack(
+                        previous,
+                        Math.max(1,previousQty)
+                    );
+
+            publishEquipmentSwapPostimage(
+                w,
+                nextInventory,
+                nextEquipmentItems,
+                nextEquipmentQuantities
+            );
+            replaceStacks(
+                inventory,
+                nextInventory
+            );
+            equipment.restoreAccountState(
+                nextEquipmentItems,
+                nextEquipmentQuantities
+            );
+
             return "EQUIP_STACK_OK item="+itemId+" slot="+meta.slot+" moved="+amount+" equippedQty="+amount+" displaced="+(previous<0?"[]":"["+previous+" x"+previousQty+"]")+" inventorySlot="+slot+" evidence="+meta.evidence;
         }
 
         ArrayList<Integer> displaced = new ArrayList<>();
-        int previous = equipment.itemAt(meta.slot);
-        if (previous >= 0) displaced.add(previous);
+        int previous =
+            nextEquipmentItems[equipmentIndex];
+        if (previous >= 0)
+            displaced.add(previous);
 
         boolean clearShield = false;
         boolean clearWeapon = false;
+
         if (meta.slot == EquipmentSlot.WEAPON && meta.twoHanded) {
-            int shield = equipment.itemAt(EquipmentSlot.SHIELD);
-            if (shield >= 0) { displaced.add(shield); clearShield = true; }
+            int shield =
+                nextEquipmentItems[
+                    EquipmentSlot.SHIELD.equipmentIndex
+                ];
+            if (shield >= 0) {
+                displaced.add(shield);
+                clearShield = true;
+            }
         } else if (meta.slot == EquipmentSlot.SHIELD) {
-            int weapon = equipment.itemAt(EquipmentSlot.WEAPON);
-            EquipmentMetadataRepository.Meta weaponMeta = EquipmentMetadataRepository.resolveKnownSlot(weapon, EquipmentSlot.WEAPON);
-            if (weapon >= 0 && weaponMeta != null && weaponMeta.twoHanded) {
-                displaced.add(weapon); clearWeapon = true;
+            int weapon =
+                nextEquipmentItems[
+                    EquipmentSlot.WEAPON.equipmentIndex
+                ];
+            EquipmentMetadataRepository.Meta weaponMeta =
+                EquipmentMetadataRepository.resolveKnownSlot(
+                    weapon,
+                    EquipmentSlot.WEAPON
+                );
+            if (weapon >= 0 &&
+                weaponMeta != null &&
+                weaponMeta.twoHanded) {
+                displaced.add(weapon);
+                clearWeapon = true;
             }
         }
 
         int emptyElsewhere = 0;
-        for (int i=0;i<inventory.length;i++) if (i != slot && inventory[i] == null) emptyElsewhere++;
+        for (int i=0;i<nextInventory.length;i++)
+            if (i != slot && nextInventory[i] == null)
+                emptyElsewhere++;
+
         if (displaced.size() > 1 + emptyElsewhere)
             return "REJECTED_INVENTORY_FULL_FOR_DISPLACED count="+displaced.size();
 
-        equipment.set(meta.slot, itemId);
-        if (clearShield) equipment.unequip(EquipmentSlot.SHIELD);
-        if (clearWeapon) equipment.unequip(EquipmentSlot.WEAPON);
+        nextEquipmentItems[equipmentIndex]=
+            itemId;
+        nextEquipmentQuantities[equipmentIndex]=
+            1;
 
-        inventory[slot] = null;
-        for (int i=0;i<displaced.size();i++) {
-            int dst = i == 0 ? slot : firstEmpty(inventory);
-            if (dst < 0) throw new IllegalStateException("preflight inventory-space mismatch");
-            inventory[dst] = new Stack(displaced.get(i),1);
+        if (clearShield) {
+            int shieldIndex=
+                EquipmentSlot.SHIELD.equipmentIndex;
+            nextEquipmentItems[shieldIndex]=-1;
+            nextEquipmentQuantities[shieldIndex]=0;
         }
 
-        sendNormalInventory(w);
-        sendEquipment(w,equipment);
-        if (open) sendContainers(w);
+        if (clearWeapon) {
+            int weaponIndex=
+                EquipmentSlot.WEAPON.equipmentIndex;
+            nextEquipmentItems[weaponIndex]=-1;
+            nextEquipmentQuantities[weaponIndex]=0;
+        }
+
+        nextInventory[slot] = null;
+        for (int i=0;i<displaced.size();i++) {
+            int dst =
+                i == 0
+                    ?slot
+                    :firstEmpty(nextInventory);
+
+            if (dst < 0)
+                throw new IllegalStateException(
+                    "preflight inventory-space mismatch"
+                );
+
+            nextInventory[dst] =
+                new Stack(
+                    displaced.get(i),
+                    1
+                );
+        }
+
+        publishEquipmentSwapPostimage(
+            w,
+            nextInventory,
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        equipment.restoreAccountState(
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+
         return "EQUIP_OK item="+itemId+" slot="+meta.slot+" equipmentIndex="+meta.slot.equipmentIndex
              + " appearanceSlot="+meta.appearanceSlot+" twoHanded="+meta.twoHanded
              + " pose="+meta.pose.name+" poseSpecificMask=0x"+Integer.toHexString(meta.pose.weaponSpecificMask)
@@ -599,21 +1934,69 @@ final class BankState {
     String unequipToInventory(int equipmentIndex, int itemId, EquipmentState equipment, ServerPacketWriter w) throws IOException {
         EquipmentSlot slot = EquipmentSlot.fromEquipmentIndex(equipmentIndex);
         if (slot == null) return "REJECTED_EQUIPMENT_SLOT index="+equipmentIndex;
-        int current = equipment.itemAt(slot);
-        if (current < 0) return "REJECTED_EQUIPMENT_EMPTY slot="+slot;
-        if (current != itemId) return "REJECTED_EQUIPMENT_ITEM_MISMATCH expected="+current;
-        int amount=Math.max(1,equipment.quantityAt(slot));
-        int dst=(isStackable(itemId)?findItem(inventory,itemId):-1);
-        if(dst<0) dst=firstEmpty(inventory);
-        if (dst < 0) return "REJECTED_INVENTORY_FULL";
-        if(inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-        long merged=(long)inventory[dst].qty+amount;
-        if(merged>Integer.MAX_VALUE)return "REJECTED_INVENTORY_QTY_OVERFLOW";
-        equipment.unequip(slot);
-        inventory[dst].qty=(int)merged;
-        sendNormalInventory(w);
-        sendEquipment(w,equipment);
-        if (open) sendContainers(w);
+
+        int[] nextEquipmentItems=
+            equipment.containerItems();
+        int[] nextEquipmentQuantities=
+            equipment.containerQuantities();
+
+        int current=
+            nextEquipmentItems[equipmentIndex];
+        if (current < 0)
+            return "REJECTED_EQUIPMENT_EMPTY slot="+slot;
+        if (current != itemId)
+            return "REJECTED_EQUIPMENT_ITEM_MISMATCH expected="+current;
+
+        int amount=
+            Math.max(
+                1,
+                nextEquipmentQuantities[equipmentIndex]
+            );
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        int dst=
+            isStackable(itemId)
+                ?findItem(nextInventory,itemId)
+                :-1;
+
+        if(dst<0)
+            dst=firstEmpty(nextInventory);
+        if (dst < 0)
+            return "REJECTED_INVENTORY_FULL";
+
+        if(nextInventory[dst]==null)
+            nextInventory[dst]=
+                new Stack(
+                    itemId,
+                    0
+                );
+
+        long merged=
+            (long)nextInventory[dst].qty+
+            (long)amount;
+        if(merged>Integer.MAX_VALUE)
+            return "REJECTED_INVENTORY_QTY_OVERFLOW";
+
+        nextEquipmentItems[equipmentIndex]=-1;
+        nextEquipmentQuantities[equipmentIndex]=0;
+        nextInventory[dst].qty=
+            (int)merged;
+
+        publishEquipmentSwapPostimage(
+            w,
+            nextInventory,
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        equipment.restoreAccountState(
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+
         return "UNEQUIP_OK item="+itemId+" slot="+slot+" equipmentIndex="+equipmentIndex+" amount="+amount+" inventorySlot="+dst;
     }
 
@@ -624,14 +2007,42 @@ final class BankState {
         if(st.itemId!=expectedItemId)return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
         if(st.qty!=1)return "REJECTED_TRANSFORM_QTY qty="+st.qty;
         if(ItemDefinitionRepository.get(primaryReplacement)==null||ItemDefinitionRepository.get(extraItem)==null)return "REJECTED_UNKNOWN_REPLACEMENT";
-        int extraDst=isStackable(extraItem)?findItem(inventory,extraItem):-1;
-        if(extraDst<0) extraDst=firstEmptyExcept(inventory,slot);
+
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        int extraDst=isStackable(extraItem)?findItem(nextInventory,extraItem):-1;
+        if(extraDst<0)
+            extraDst=firstEmptyExcept(nextInventory,slot);
         if(extraDst<0)return "REJECTED_INVENTORY_FULL_FOR_SPLIT";
-        inventory[slot]=new Stack(primaryReplacement,1);
-        if(inventory[extraDst]==null)inventory[extraDst]=new Stack(extraItem,0);
-        if(inventory[extraDst].itemId!=extraItem||inventory[extraDst].qty==Integer.MAX_VALUE)throw new IllegalStateException("split preflight mismatch");
-        inventory[extraDst].qty++;
-        sendNormalInventory(w); if(open)sendContainers(w);
+
+        nextInventory[slot]=
+            new Stack(
+                primaryReplacement,
+                1
+            );
+        if(nextInventory[extraDst]==null)
+            nextInventory[extraDst]=
+                new Stack(
+                    extraItem,
+                    0
+                );
+        if(nextInventory[extraDst].itemId!=extraItem||
+           nextInventory[extraDst].qty==Integer.MAX_VALUE)
+            throw new IllegalStateException(
+                "split preflight mismatch"
+            );
+        nextInventory[extraDst].qty++;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
         return "INVENTORY_SPLIT_OK slot="+slot+" item="+expectedItemId+"->"+primaryReplacement+" extra="+extraItem+" extraSlot="+extraDst;
     }
 
@@ -641,17 +2052,39 @@ final class BankState {
         if(!validSlot(inventory,slotA)||!validSlot(inventory,slotB)||inventory[slotA]==null||inventory[slotB]==null)return "REJECTED_INVENTORY_SLOT";
         if(inventory[slotA].itemId!=itemA||inventory[slotB].itemId!=itemB)return "REJECTED_COMBINE_ITEM_MISMATCH";
         if(ItemDefinitionRepository.get(resultItem)==null)return "REJECTED_UNKNOWN_RESULT";
+
+        Stack[] nextInventory=
+            copyStacks(inventory);
         int regularSlot=itemA==3241?slotA:itemB==3241?slotB:slotB;
         int other=regularSlot==slotA?slotB:slotA;
-        Stack rs=inventory[regularSlot], os=inventory[other];
+        Stack rs=nextInventory[regularSlot], os=nextInventory[other];
+
         if(rs.qty<=0||os.qty<=0)return "REJECTED_COMBINE_QTY";
-        rs.qty--; os.qty--;
-        if(rs.qty==0)inventory[regularSlot]=null;
-        if(os.qty==0)inventory[other]=null;
+        rs.qty--;
+        os.qty--;
+        if(rs.qty==0)nextInventory[regularSlot]=null;
+        if(os.qty==0)nextInventory[other]=null;
+
         // Exact mechanic here uses one regular pet + one dye -> one dyed pet.
-        if(inventory[regularSlot]!=null)return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
-        inventory[regularSlot]=new Stack(resultItem,1);
-        sendNormalInventory(w); if(open)sendContainers(w);
+        if(nextInventory[regularSlot]!=null)
+            return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
+
+        nextInventory[regularSlot]=
+            new Stack(
+                resultItem,
+                1
+            );
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
         return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+" consumed="+itemA+"+"+itemB+" result="+resultItem;
     }
 
@@ -663,14 +2096,47 @@ final class BankState {
     }
 
     String applyAmount(int amount, ServerPacketWriter w) throws IOException {
-        if (!open) { pendingX=null; return "IGNORED_BANK_CLOSED"; }
+        if (!open) {
+            pendingX=null;
+            return "IGNORED_BANK_CLOSED";
+        }
+
         ItemContainerAction a=pendingX;
+        if (a==null)
+            return "IGNORED_NO_PENDING_X amount="+amount;
+
+        if (amount<=0) {
+            pendingX=null;
+            return "X_NO_ITEMS_MOVED amount="+amount;
+        }
+
+        String result;
+
+        if (a.widgetId==BANK_CONTAINER)
+            result=
+                withdrawAmount(
+                    a,
+                    amount,
+                    w,
+                    "WITHDRAW_X_OK"
+                );
+        else if (a.widgetId==
+                    BANK_INVENTORY_CONTAINER)
+            result=
+                depositAmount(
+                    a,
+                    amount,
+                    w,
+                    "STORE_X_OK"
+                );
+        else {
+            pendingX=null;
+            return "X_PENDING_WIDGET_UNSUPPORTED widget="+
+                a.widgetId;
+        }
+
         pendingX=null;
-        if (a==null) return "IGNORED_NO_PENDING_X amount="+amount;
-        if (amount<=0) return "X_NO_ITEMS_MOVED amount="+amount;
-        if (a.widgetId==BANK_CONTAINER) return withdrawAmount(a, amount, w, "WITHDRAW_X_OK");
-        if (a.widgetId==BANK_INVENTORY_CONTAINER) return depositAmount(a, amount, w, "STORE_X_OK");
-        return "X_PENDING_WIDGET_UNSUPPORTED widget="+a.widgetId;
+        return result;
     }
 
     String applyDrag(ContainerDrag d, ServerPacketWriter w) throws IOException {
@@ -679,32 +2145,93 @@ final class BankState {
         // at the widget id. That made a normal inventory drag look correct client-side
         // while leaving the authoritative server slot unchanged; a later opcode-41
         // Equip from the moved slot then failed as REJECTED_INVENTORY_SLOT.
-        final boolean normalInventory = d.widgetId==NORMAL_INVENTORY_CONTAINER;
-        Stack[] xs;
-        if (d.widgetId==BANK_CONTAINER) {
-            if (!open) return "IGNORED_BANK_CLOSED";
-            xs=bank;
-        } else if (d.widgetId==BANK_INVENTORY_CONTAINER) {
-            if (!open) return "IGNORED_BANK_CLOSED";
-            xs=inventory;
-        } else if (normalInventory) {
-            xs=inventory;
-        } else {
-            return "OBSERVED_NON_BANK_DRAG widget="+d.widgetId;
-        }
-        if (!validSlot(xs,d.sourceSlot) || !validSlot(xs,d.destinationSlot)) return "REJECTED_DRAG_SLOT";
-        if (d.sourceSlot==d.destinationSlot) return normalInventory ? "INVENTORY_DRAG_NOOP" : "DRAG_NOOP";
-        if (d.mode==1) insertMove(xs,d.sourceSlot,d.destinationSlot);
-        else swap(xs,d.sourceSlot,d.destinationSlot);
+        final boolean normalInventory =
+            d.widgetId==NORMAL_INVENTORY_CONTAINER;
+        final boolean bankSlots=
+            d.widgetId==BANK_CONTAINER;
+        final boolean bankInventory=
+            d.widgetId==BANK_INVENTORY_CONTAINER;
 
-        if (normalInventory) {
-            sendNormalInventory(w);
-            // If a bank overlay is open, keep its mirror of the same inventory state in sync.
-            if (open) sendContainers(w);
-            return "INVENTORY_DRAG_OK mode="+d.mode+" source="+d.sourceSlot+" destination="+d.destinationSlot;
+        if((bankSlots||bankInventory)&&!open)
+            return "IGNORED_BANK_CLOSED";
+
+        if(!bankSlots&&!bankInventory&&!normalInventory)
+            return "OBSERVED_NON_BANK_DRAG widget="+
+                d.widgetId;
+
+        Stack[] source=
+            bankSlots
+                ?bank
+                :inventory;
+
+        if (!validSlot(source,d.sourceSlot) ||
+            !validSlot(source,d.destinationSlot))
+            return "REJECTED_DRAG_SLOT";
+
+        if (d.sourceSlot==d.destinationSlot)
+            return normalInventory
+                ?"INVENTORY_DRAG_NOOP"
+                :"DRAG_NOOP";
+
+        Stack[] next=
+            copyStacks(source);
+
+        if (d.mode==1)
+            insertMove(
+                next,
+                d.sourceSlot,
+                d.destinationSlot
+            );
+        else
+            swap(
+                next,
+                d.sourceSlot,
+                d.destinationSlot
+            );
+
+        if(normalInventory){
+            publishNormalInventoryStructuralPostimage(
+                w,
+                next,
+                open
+            );
+            replaceStacks(
+                inventory,
+                next
+            );
+
+            return "INVENTORY_DRAG_OK mode="+
+                d.mode+
+                " source="+d.sourceSlot+
+                " destination="+d.destinationSlot;
         }
-        sendContainers(w);
-        return "DRAG_OK mode="+d.mode+" source="+d.sourceSlot+" destination="+d.destinationSlot;
+
+        if(bankSlots){
+            publishContainerPostimage(
+                w,
+                next,
+                inventory
+            );
+            replaceStacks(
+                bank,
+                next
+            );
+        }else{
+            publishContainerPostimage(
+                w,
+                bank,
+                next
+            );
+            replaceStacks(
+                inventory,
+                next
+            );
+        }
+
+        return "DRAG_OK mode="+
+            d.mode+
+            " source="+d.sourceSlot+
+            " destination="+d.destinationSlot;
     }
 
     /** Handle exact SpawnPK bank-tab command strings emitted through opcode 103. */
@@ -726,10 +2253,23 @@ final class BankState {
             if (p.length<3) return "REJECTED_SETBANKTAB_ARGS";
             int slot=parseInt(p[1],-1), tab=parseInt(p[2],-1);
             if (!validSlot(bank,slot) || bank[slot]==null || tab<0 || tab>8) return "REJECTED_SETBANKTAB_RANGE";
-            bank[slot].tab=tab;
+
+            Stack[] nextBank=
+                copyStacks(bank);
+            nextBank[slot].tab=tab;
+
             // Server-side tab ownership is now authoritative. Current full-bank view keeps
             // physical packet-53 slot order unchanged until exact tab-selection control is certified.
-            sendContainers(w);
+            publishContainerPostimage(
+                w,
+                nextBank,
+                inventory
+            );
+            replaceStacks(
+                bank,
+                nextBank
+            );
+
             return "SETBANKTAB_OK slot="+slot+" tab="+tab+" presentation=FULL_BANK_VIEW";
         }
         if (p[0].equalsIgnoreCase("swapbanktab")) {
@@ -738,9 +2278,32 @@ final class BankState {
             int target=parseInt(p[2],-1);
             int sourceTab=p.length>=4?parseInt(p[3],-1):-1;
             if (target<0 || target>8 || sourceTab<0 || sourceTab>8) return "SWAPBANKTAB_OBSERVED_UNCERTIFIED target="+target+" sourceTab="+sourceTab;
-            for (Stack st:bank) if(st!=null){ if(st.tab==sourceTab)st.tab=-1; else if(st.tab==target)st.tab=sourceTab; }
-            for (Stack st:bank) if(st!=null && st.tab==-1)st.tab=target;
-            sendContainers(w);
+
+            Stack[] nextBank=
+                copyStacks(bank);
+
+            for (Stack st:nextBank)
+                if(st!=null){
+                    if(st.tab==sourceTab)
+                        st.tab=-1;
+                    else if(st.tab==target)
+                        st.tab=sourceTab;
+                }
+
+            for (Stack st:nextBank)
+                if(st!=null&&st.tab==-1)
+                    st.tab=target;
+
+            publishContainerPostimage(
+                w,
+                nextBank,
+                inventory
+            );
+            replaceStacks(
+                bank,
+                nextBank
+            );
+
             return "SWAPBANKTAB_OK sourceTab="+sourceTab+" targetTab="+target+" presentation=FULL_BANK_VIEW";
         }
         return "IGNORED_NON_BANK_COMMAND";
@@ -767,8 +2330,8 @@ final class BankState {
                 if (a.extra<=0) return "REJECTED_CONFIGURED_WITHDRAW_AMOUNT amount="+a.extra;
                 return withdrawAmount(a,a.extra,w,"WITHDRAW_CONFIGURED_OK");
             case 135:
-                pendingX=a;
                 w.fixed(27,new byte[0]);
+                pendingX=a;
                 return "WITHDRAW_X_PROMPT_SENT opcode=27 pendingSlot="+a.slot+" itemId="+a.itemId;
             default: return "UNSUPPORTED_BANK_WITHDRAW_OPCODE";
         }
@@ -784,8 +2347,8 @@ final class BankState {
             case 43:  return depositAmount(a,10,w,"STORE_OK");
             case 129: return depositAmount(a,s.qty,w,"STORE_OK");
             case 135:
-                pendingX=a;
                 w.fixed(27,new byte[0]);
+                pendingX=a;
                 return "STORE_X_PROMPT_SENT opcode=27 pendingSlot="+a.slot+" itemId="+a.itemId;
             default: return "UNSUPPORTED_BANK_STORE_OPCODE";
         }
@@ -793,53 +2356,399 @@ final class BankState {
 
     private String withdrawAmount(ItemContainerAction a,int requested,ServerPacketWriter w,String label) throws IOException {
         if (!validSlot(bank,a.slot) || bank[a.slot]==null) return "REJECTED_BANK_SLOT";
-        Stack s=bank[a.slot];
-        if (s.itemId!=a.itemId) return "REJECTED_BANK_ITEM_MISMATCH expected="+s.itemId;
-        int requestedClamped=Math.min(Math.max(0,requested),s.qty);
-        if(requestedClamped<=0)return "NO_ITEMS_MOVED";
 
+        Stack source=bank[a.slot];
+        if (source.itemId!=a.itemId)
+            return "REJECTED_BANK_ITEM_MISMATCH expected="+source.itemId;
+
+        int requestedClamped=
+            Math.min(
+                Math.max(0,requested),
+                source.qty
+            );
+        if(requestedClamped<=0)
+            return "NO_ITEMS_MOVED";
+
+        Stack[] nextBank=
+            copyStacks(bank);
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack nextSource=
+            nextBank[a.slot];
+        int itemId=nextSource.itemId;
+        int sourceTab=nextSource.tab;
         int moved=0;
-        if (isStackable(s.itemId)) {
-            int dst=findItem(inventory,s.itemId);
-            if(dst<0)dst=firstEmpty(inventory);
-            if(dst<0)return "REJECTED_INVENTORY_FULL";
-            if(inventory[dst]==null)inventory[dst]=new Stack(s.itemId,0,s.tab);
-            inventory[dst].qty+=requestedClamped;
+
+        if (isStackable(itemId)) {
+            int dst=findItem(
+                nextInventory,
+                itemId
+            );
+            if(dst<0)
+                dst=firstEmpty(nextInventory);
+            if(dst<0)
+                return "REJECTED_INVENTORY_FULL";
+
+            if(nextInventory[dst]==null)
+                nextInventory[dst]=
+                    new Stack(
+                        itemId,
+                        0,
+                        sourceTab
+                    );
+
+            long merged=
+                (long)nextInventory[dst].qty+
+                (long)requestedClamped;
+            if(merged>Integer.MAX_VALUE)
+                return "REJECTED_QUANTITY_OVERFLOW item="+
+                    itemId+
+                    " destination=INVENTORY"+
+                    " current="+nextInventory[dst].qty+
+                    " incoming="+requestedClamped;
+
+            nextInventory[dst].qty=
+                (int)merged;
             moved=requestedClamped;
         } else {
             for (int n=0;n<requestedClamped;n++) {
-                int dst=firstEmpty(inventory);
-                if(dst<0)break;
-                inventory[dst]=new Stack(s.itemId,1,s.tab);
+                int dst=firstEmpty(
+                    nextInventory
+                );
+                if(dst<0)
+                    break;
+
+                nextInventory[dst]=
+                    new Stack(
+                        itemId,
+                        1,
+                        sourceTab
+                    );
                 moved++;
             }
-            if(moved==0)return "REJECTED_INVENTORY_FULL";
+
+            if(moved==0)
+                return "REJECTED_INVENTORY_FULL";
         }
 
-        s.qty-=moved;
-        if(s.qty<=0){ s.qty=0; if(!placeholdersEnabled)bank[a.slot]=null; }
-        sendContainers(w);
-        return label+" amount="+moved+" requested="+requestedClamped
-             +" stackable="+isStackable(s.itemId)
-             +" bankOccupied="+bankSlots()+" inventoryOccupied="+inventorySlots();
+        nextSource.qty-=moved;
+        if(nextSource.qty<=0){
+            nextSource.qty=0;
+            if(!placeholdersEnabled)
+                nextBank[a.slot]=null;
+        }
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            nextInventory
+        );
+        replaceStacks(
+            bank,
+            nextBank
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
+        return label+" amount="+moved+
+            " requested="+requestedClamped+
+            " stackable="+isStackable(itemId)+
+            " bankOccupied="+occupied(bank)+
+            " inventoryOccupied="+occupied(inventory);
     }
 
     private String depositAmount(ItemContainerAction a,int requested,ServerPacketWriter w,String label) throws IOException {
         if (!validSlot(inventory,a.slot) || inventory[a.slot]==null) return "REJECTED_INVENTORY_SLOT";
-        Stack s=inventory[a.slot];
-        if(s.itemId!=a.itemId)return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+s.itemId;
-        int amount=Math.min(Math.max(0,requested),s.qty);
-        if(amount<=0)return "NO_ITEMS_MOVED";
-        int dst=findItem(bank,s.itemId);
-        if(dst<0)dst=firstEmpty(bank);
-        if(dst<0)return "REJECTED_BANK_FULL";
-        if(bank[dst]==null)bank[dst]=new Stack(s.itemId,0,s.tab);
-        bank[dst].qty+=amount;
-        s.qty-=amount;
-        if(s.qty<=0)inventory[a.slot]=null;
-        sendContainers(w);
-        return label+" amount="+amount+" stackable="+isStackable(s.itemId)
-             +" inventorySlotPreserved=true bankOccupied="+bankSlots()+" inventoryOccupied="+inventorySlots();
+
+        Stack source=inventory[a.slot];
+        if(source.itemId!=a.itemId)
+            return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+source.itemId;
+
+        int amount=
+            Math.min(
+                Math.max(0,requested),
+                source.qty
+            );
+        if(amount<=0)
+            return "NO_ITEMS_MOVED";
+
+        Stack[] nextBank=
+            copyStacks(bank);
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack nextSource=
+            nextInventory[a.slot];
+        int itemId=nextSource.itemId;
+        int sourceTab=nextSource.tab;
+
+        int dst=findItem(
+            nextBank,
+            itemId
+        );
+        if(dst<0)
+            dst=firstEmpty(nextBank);
+        if(dst<0)
+            return "REJECTED_BANK_FULL";
+
+        if(nextBank[dst]==null)
+            nextBank[dst]=
+                new Stack(
+                    itemId,
+                    0,
+                    sourceTab
+                );
+
+        long merged=
+            (long)nextBank[dst].qty+
+            (long)amount;
+        if(merged>Integer.MAX_VALUE)
+            return "REJECTED_QUANTITY_OVERFLOW item="+
+                itemId+
+                " destination=BANK"+
+                " current="+nextBank[dst].qty+
+                " incoming="+amount;
+
+        nextBank[dst].qty=(int)merged;
+        nextSource.qty-=amount;
+
+        if(nextSource.qty<=0)
+            nextInventory[a.slot]=null;
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            nextInventory
+        );
+        replaceStacks(
+            bank,
+            nextBank
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
+        return label+" amount="+amount+
+            " stackable="+isStackable(itemId)+
+            " inventorySlotPreserved=true bankOccupied="+
+            occupied(bank)+
+            " inventoryOccupied="+
+            occupied(inventory);
+    }
+
+    private static Stack[] copyStacks(
+        Stack[] source
+    ){
+        Stack[] copy=
+            new Stack[source.length];
+
+        for(int i=0;i<source.length;i++){
+            Stack stack=source[i];
+            if(stack!=null)
+                copy[i]=
+                    new Stack(
+                        stack.itemId,
+                        stack.qty,
+                        stack.tab
+                    );
+        }
+
+        return copy;
+    }
+
+    private static void replaceStacks(
+        Stack[] target,
+        Stack[] source
+    ){
+        if(target.length!=source.length)
+            throw new IllegalArgumentException(
+                "stack postimage length"
+            );
+
+        for(int i=0;i<target.length;i++){
+            Stack stack=source[i];
+            target[i]=
+                stack==null
+                    ?null
+                    :new Stack(
+                        stack.itemId,
+                        stack.qty,
+                        stack.tab
+                    );
+        }
+    }
+
+    private static void publishContainerPostimage(
+        ServerPacketWriter writer,
+        Stack[] bankPostimage,
+        Stack[] inventoryPostimage
+    )throws IOException{
+        byte[] bankPayload=
+            containerPayload(
+                BANK_CONTAINER,
+                bankPostimage
+            );
+        byte[] inventoryPayload=
+            containerPayload(
+                BANK_INVENTORY_CONTAINER,
+                inventoryPostimage
+            );
+
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                53,
+                bankPayload
+            );
+            writer.varShort(
+                53,
+                inventoryPayload
+            );
+            writer.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+        }
+    }
+
+    private void publishEquipmentSwapPostimage(
+        ServerPacketWriter writer,
+        Stack[] inventoryPostimage,
+        int[] equipmentItemsPostimage,
+        int[] equipmentQuantitiesPostimage
+    )throws IOException{
+        byte[] normalInventoryPayload=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                inventoryPostimage
+            );
+        byte[] equipmentPayload=
+            BootstrapPackets.equipmentContainer53(
+                equipmentItemsPostimage,
+                equipmentQuantitiesPostimage
+            );
+        byte[] bankPayload=
+            open
+                ?containerPayload(
+                    BANK_CONTAINER,
+                    bank
+                )
+                :null;
+        byte[] bankInventoryPayload=
+            open
+                ?containerPayload(
+                    BANK_INVENTORY_CONTAINER,
+                    inventoryPostimage
+                )
+                :null;
+
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                53,
+                normalInventoryPayload
+            );
+            writer.varShort(
+                53,
+                equipmentPayload
+            );
+
+            if(open){
+                writer.varShort(
+                    53,
+                    bankPayload
+                );
+                writer.varShort(
+                    53,
+                    bankInventoryPayload
+                );
+            }
+
+            writer.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+        }
+    }
+
+    private void writeNormalInventoryStructuralPostimage(
+        ServerPacketWriter writer,
+        Stack[] inventoryPostimage,
+        boolean includeBankMirror
+    )throws IOException{
+        byte[] normalPayload=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                inventoryPostimage
+            );
+
+        writer.varShort(
+            53,
+            normalPayload
+        );
+
+        if(!includeBankMirror)
+            return;
+
+        writer.varShort(
+            53,
+            containerPayload(
+                BANK_CONTAINER,
+                bank
+            )
+        );
+        writer.varShort(
+            53,
+            containerPayload(
+                BANK_INVENTORY_CONTAINER,
+                inventoryPostimage
+            )
+        );
+    }
+
+    private void publishNormalInventoryStructuralPostimage(
+        ServerPacketWriter writer,
+        Stack[] inventoryPostimage,
+        boolean includeBankMirror
+    )throws IOException{
+        if(!includeBankMirror){
+            writeNormalInventoryStructuralPostimage(
+                writer,
+                inventoryPostimage,
+                false
+            );
+            return;
+        }
+
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writeNormalInventoryStructuralPostimage(
+                writer,
+                inventoryPostimage,
+                true
+            );
+            writer.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+        }
     }
 
     /** Current item-catalog metadata is authoritative when explicit; unknowns default non-stackable. */
@@ -850,6 +2759,74 @@ final class BankState {
     private static String safe(String s) {
         if (s==null) return "";
         return s.replace(' ','_').replace('\t','_').replace('\n','_').replace('\r','_');
+    }
+
+    private static int preferredAddDestination(
+        Stack[] source,
+        int itemId,
+        int preferredSlot
+    ){
+        int dst=-1;
+
+        if(validSlot(source,preferredSlot)){
+            Stack at=
+                source[preferredSlot];
+
+            if(at==null)
+                dst=preferredSlot;
+            else if(isStackable(itemId)&&
+                    at.itemId==itemId&&
+                    at.qty<Integer.MAX_VALUE)
+                dst=preferredSlot;
+        }
+
+        if(dst<0&&
+           isStackable(itemId))
+            dst=findItem(
+                source,
+                itemId
+            );
+
+        if(dst<0)
+            dst=firstEmpty(source);
+
+        if(dst<0)
+            return -1;
+
+        if(source[dst]!=null&&
+           (source[dst].itemId!=itemId||
+            source[dst].qty==Integer.MAX_VALUE))
+            return -1;
+
+        return dst;
+    }
+
+    private static boolean sameStacks(
+        Stack[] left,
+        Stack[] right
+    ){
+        if(left==null||
+           right==null||
+           left.length!=right.length)
+            return false;
+
+        for(int i=0;i<left.length;i++){
+            Stack a=left[i];
+            Stack b=right[i];
+
+            if(a==null||b==null){
+                if(a!=b)
+                    return false;
+                continue;
+            }
+
+            if(a.itemId!=b.itemId||
+               a.qty!=b.qty||
+               a.tab!=b.tab)
+                return false;
+        }
+
+        return true;
     }
 
     private static int occupied(Stack[] xs){int n=0;for(Stack s:xs)if(s!=null)n++;return n;}

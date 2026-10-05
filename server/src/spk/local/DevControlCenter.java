@@ -12,6 +12,25 @@ final class DevControlCenter {
         REGION_ID,ITEM_LIBRARY_ID,PLAYER_MORPH,PLAYER_ANIM,PLAYER_GFX,NPC_SPAWN,
         PRAYER_WIDGET,PRAYER_ICON,AUTH_SPELL_WIDGET,AUTH_PRAYER_WIDGET,AUTH_ITEM_ID,AUTH_REGION_ID,RUNTIME_WEAPON_ITEM,RESEARCH_EQUIP_ITEM,RESEARCH_PET_ROW,RESEARCH_TELE_ITEM,RESEARCH_TRANSITION_REGION
     }
+    static final class StateSnapshot {
+        final boolean open;
+        final Page page;
+        final PendingAmount pending;
+        final Page returnPage;
+
+        StateSnapshot(
+            boolean open,
+            Page page,
+            PendingAmount pending,
+            Page returnPage
+        ){
+            this.open=open;
+            this.page=page;
+            this.pending=pending;
+            this.returnPage=returnPage;
+        }
+    }
+
     private boolean open;
     private Page page=Page.MAIN;
     private PendingAmount pending=PendingAmount.NONE;
@@ -20,6 +39,22 @@ final class DevControlCenter {
 
     boolean isOpen(){return open;}
     Page page(){return page;}
+    StateSnapshot snapshot(){
+        return new StateSnapshot(
+            open,
+            page,
+            pending,
+            returnPage
+        );
+    }
+    void restore(StateSnapshot snapshot){
+        if(snapshot==null)
+            throw new NullPointerException("snapshot");
+        open=snapshot.open;
+        page=snapshot.page;
+        pending=snapshot.pending;
+        returnPage=snapshot.returnPage;
+    }
     void open(Page p){open=true;page=p==null?Page.MAIN:p;pending=PendingAmount.NONE;}
     void setPage(Page p){open=true;page=p;pending=PendingAmount.NONE;}
     void close(){open=false;pending=PendingAmount.NONE;}

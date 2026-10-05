@@ -137,11 +137,31 @@ The verifier also pins the preserved R10 rig/frame/a.bin compiler source, the R1
 
 The R11 authored-source hashes are byte-identical in the successful Actions artifact and in the R12 safe kit.
 
-One reproducibility boundary remains explicit: the standalone legacy textured+skinned model writer used for R11 was proven and independently rerun, but its source was not preserved in the surviving R11/R12 packages or research branch. The certified custom model output remains pinned at:
+The legacy textured+skinned R11 writer has now been independently re-established as:
+
+`tools/custom-assets/compile_spawnpk_legacy_textured_skinned.py`
+
+This is **not** the preserved R10 FF-FF converter. It emits only the proven R11 legacy/no-marker family and fails closed outside that narrow contract:
+
+- triangular OBJ faces with explicit texture-coordinate indices;
+- canonical per-face UV basis `(0,0), (1,0), (0,1)`;
+- one unsigned-byte rigid skin/group id per vertex;
+- at most 64 type-0 mapping triangles;
+- one texture id carried by the legacy face-colour field;
+- `faceRender = 2 + (mappingIndex << 2)`;
+- each face's own three vertices form its mapping triangle;
+- preserved R10 signed-smart coordinate and type-1 face-index encoding.
+
+The certified custom model output remains pinned at:
 
 `6cf617b5e14e60b5bc58d4f1c72e11476f09382d40a72f49be122009157c7fad`
 
-Do not substitute the preserved R10 FF-FF model converter: R11 rejected that family for the combined texture+skin contract. Until the legacy writer source is recovered or independently re-established against exact v308, the repository must report `modelWriterSourcePreserved=false` and must not claim source-to-model reproducibility.
+When supplied the authorized safe R12 research kit, `verify_issue9_research_evidence.py` now recompiles the preserved R11 OBJ/skin/material inputs through the committed writer and requires both the pinned SHA-256 and exact byte equality with the certified 209-byte model before reporting:
+
+- `modelWriterSourcePreserved=true`;
+- `modelWriterByteIdentity=true`.
+
+No proprietary model/cache/client bytes are committed by this recovery. Arbitrary UV projection, blended weights, unsupported hierarchy shear and real GUI/world visual acceptance remain outside this writer proof.
 
 ## Current-head fail-closed hardening
 

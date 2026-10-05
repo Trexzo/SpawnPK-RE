@@ -4,18 +4,24 @@ on:
   pull_request:
     paths:
       - 'server/**'
-      - 'scripts/Build-Server.ps1'
-      - 'RUN_REPO_SELFTEST.ps1'
-      - 'RUN_V5185_FULL_SELFTEST.ps1'
+      - 'scripts/**'
+      - 'tools/runtime/**'
+      - 'tools/custom-assets/**'
+      - '*.ps1'
+      - 'docs/EXTERNAL_RUNTIME.md'
+      - '.gitignore'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
       - main
     paths:
       - 'server/**'
-      - 'scripts/Build-Server.ps1'
-      - 'RUN_REPO_SELFTEST.ps1'
-      - 'RUN_V5185_FULL_SELFTEST.ps1'
+      - 'scripts/**'
+      - 'tools/runtime/**'
+      - 'tools/custom-assets/**'
+      - '*.ps1'
+      - 'docs/EXTERNAL_RUNTIME.md'
+      - '.gitignore'
       - '.github/workflows/gradle-server-build.yml'
 
 jobs:

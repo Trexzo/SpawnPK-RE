@@ -6,6 +6,9 @@ import java.util.Map;
 
 public final class Player81TradeGenerationFenceTest {
     public static void main(String[] args)throws Exception{
+        assertTerminalTradeNotificationLatchesTargetWriter();
+        assertQueuePressureTradeNotificationRetracts();
+
         World world=
             World.isolatedForTest(600L);
 
@@ -170,7 +173,10 @@ public final class Player81TradeGenerationFenceTest {
                 "PLAYER81_TRADE_GENERATION_FENCE_PASS "+
                 "staleReciprocalRejected=true "+
                 "freshReciprocalAccepted=true "+
-                "ownerCleanupPreserved=true"
+                "ownerCleanupPreserved=true "+
+                "terminalNotifyWriterLatched=true "+
+                "terminalNotifyNoRetouch=true "+
+                "queueNotifyRetracted=true"
             );
 
             world.unregisterPlayer(
@@ -207,6 +213,311 @@ public final class Player81TradeGenerationFenceTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static void assertTerminalTradeNotificationLatchesTargetWriter()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                601L
+            );
+        WorldPlayer source=
+            new WorldPlayer();
+        WorldPlayer target=
+            new WorldPlayer();
+
+        long sourceGeneration=
+            world.registerPlayer(
+                source,
+                "trade-notify-terminal-source"
+            );
+        long targetGeneration=
+            world.registerPlayer(
+                target,
+                "trade-notify-terminal-target"
+            );
+
+        ServerPacketWriter sourceWriter=
+            writer(
+                21
+            );
+        PartialFailOutputStream targetOut=
+            new PartialFailOutputStream();
+        ServerPacketWriter targetWriter=
+            new ServerPacketWriter(
+                targetOut,
+                new IsaacCipher(
+                    new int[]{25,26,27,28}
+                )
+            );
+
+        Player81WorldSync.Context sourceContext=
+            Player81WorldSync.register(
+                sourceWriter,
+                world,
+                source,
+                new DevAuthorityWorkbench()
+            );
+        Player81WorldSync.register(
+            targetWriter,
+            world,
+            target,
+            new DevAuthorityWorkbench()
+        );
+
+        try{
+            String result=
+                sourceContext.requestTrade(
+                    target,
+                    10_000L
+                );
+
+            if(result==null||
+               !result.contains(
+                    "TRADE_REQUEST_RECORDED_NOTIFY_FAILED"
+                ))
+                throw new AssertionError(
+                    "terminal trade notify did not report recorded failure result="+
+                    result
+                );
+
+            if(!targetWriter.terminal())
+                throw new AssertionError(
+                    "terminal trade notify did not latch exact target writer"
+                );
+
+            if(!tradeRequestMentions(
+                    world,
+                    source.id()
+                ))
+                throw new AssertionError(
+                    "terminal trade notify lost recorded semantic request"
+                );
+
+            int attemptsBeforeProbe=
+                targetOut.attempts;
+
+            targetOut.fail=false;
+
+            boolean probeRejected=false;
+
+            try{
+                targetWriter.fixed(
+                    97,
+                    new byte[0]
+                );
+            }catch(java.io.IOException expected){
+                probeRejected=true;
+            }
+
+            if(!probeRejected)
+                throw new AssertionError(
+                    "terminal trade target writer accepted later publication"
+                );
+
+            if(targetOut.attempts!=
+                    attemptsBeforeProbe)
+                throw new AssertionError(
+                    "terminal trade target writer retouched transport before="+
+                    attemptsBeforeProbe+
+                    " after="+
+                    targetOut.attempts
+                );
+        }finally{
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
+                targetWriter
+            );
+
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
+                );
+            if(target.registered())
+                world.unregisterPlayer(
+                    target,
+                    targetGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertQueuePressureTradeNotificationRetracts()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                602L
+            );
+        WorldPlayer source=
+            new WorldPlayer();
+        WorldPlayer target=
+            new WorldPlayer();
+
+        long sourceGeneration=
+            world.registerPlayer(
+                source,
+                "trade-notify-retry-source"
+            );
+        long targetGeneration=
+            world.registerPlayer(
+                target,
+                "trade-notify-retry-target"
+            );
+
+        ServerPacketWriter sourceWriter=
+            writer(
+                31
+            );
+        OutboundPacketQueue targetQueue=
+            new OutboundPacketQueue(
+                1024
+            );
+        targetQueue.offerBatch(
+            new byte[1016]
+        );
+
+        ServerPacketWriter targetWriter=
+            new ServerPacketWriter(
+                targetQueue,
+                new IsaacCipher(
+                    new int[]{35,36,37,38}
+                )
+            );
+
+        Player81WorldSync.Context sourceContext=
+            Player81WorldSync.register(
+                sourceWriter,
+                world,
+                source,
+                new DevAuthorityWorkbench()
+            );
+        Player81WorldSync.register(
+            targetWriter,
+            world,
+            target,
+            new DevAuthorityWorkbench()
+        );
+
+        try{
+            int bytesBefore=
+                targetQueue.queuedBytes();
+
+            String result=
+                sourceContext.requestTrade(
+                    target,
+                    20_000L
+                );
+
+            if(result==null||
+               !result.contains(
+                    "TRADE_REQUEST_RECORDED_NOTIFY_FAILED"
+                )||
+               !result.contains(
+                    "RETRACTED_RETRYABLE"
+                ))
+                throw new AssertionError(
+                    "queue-pressure trade notify was not retractable result="+
+                    result
+                );
+
+            if(targetWriter.terminal())
+                throw new AssertionError(
+                    "queue-pressure trade notify terminalized target writer"
+                );
+
+            if(targetQueue.queuedBytes()!=
+                    bytesBefore)
+                throw new AssertionError(
+                    "queue-pressure trade notify leaked partial bytes before="+
+                    bytesBefore+
+                    " after="+
+                    targetQueue.queuedBytes()
+                );
+
+            if(!tradeRequestMentions(
+                    world,
+                    source.id()
+                ))
+                throw new AssertionError(
+                    "queue-pressure trade notify lost recorded semantic request"
+                );
+        }finally{
+            Player81WorldSync.unregister(
+                sourceWriter
+            );
+            Player81WorldSync.unregister(
+                targetWriter
+            );
+
+            if(source.registered())
+                world.unregisterPlayer(
+                    source,
+                    sourceGeneration
+                );
+            if(target.registered())
+                world.unregisterPlayer(
+                    target,
+                    targetGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static final class PartialFailOutputStream
+        extends java.io.OutputStream {
+
+        final ByteArrayOutputStream bytes=
+            new ByteArrayOutputStream();
+        int attempts;
+        boolean fail=true;
+
+        @Override public void write(
+            int value
+        )throws java.io.IOException{
+            attempts++;
+            bytes.write(
+                value
+            );
+
+            if(fail)
+                throw new java.io.IOException(
+                    "EXPECTED_TRADE_NOTIFY_PARTIAL_FAILURE"
+                );
+        }
+
+        @Override public void write(
+            byte[] data,
+            int offset,
+            int length
+        )throws java.io.IOException{
+            attempts++;
+
+            if(length>0)
+                bytes.write(
+                    data[offset]
+                );
+
+            if(fail)
+                throw new java.io.IOException(
+                    "EXPECTED_TRADE_NOTIFY_PARTIAL_FAILURE"
+                );
+
+            bytes.write(
+                data,
+                offset+(length>0?1:0),
+                Math.max(
+                    0,
+                    length-(length>0?1:0)
+                )
+            );
         }
     }
 

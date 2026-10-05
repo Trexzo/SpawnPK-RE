@@ -38,6 +38,117 @@ final class MovementState {
 
     int loadedBaseX(){return loadedBaseX;} int loadedBaseY(){return loadedBaseY;}
     boolean transientRegion(){return transientRegion;}
+
+    static final class Snapshot {
+        final int x;
+        final int y;
+        final int plane;
+        final ArrayDeque<Step> queue;
+        final boolean runByPacket;
+        final boolean persistentRun;
+        final int runEnergy;
+        final long acceptedPaths;
+        final long rejectedPaths;
+        final int loadedBaseX;
+        final int loadedBaseY;
+        final boolean transientRegion;
+
+        private Snapshot(
+            MovementState source
+        ){
+            x=source.x;
+            y=source.y;
+            plane=source.plane;
+            queue=new ArrayDeque<>();
+            for(Step step:source.queue)
+                queue.addLast(
+                    new Step(
+                        step.x,
+                        step.y,
+                        step.dir
+                    )
+                );
+            runByPacket=source.runByPacket;
+            persistentRun=source.persistentRun;
+            runEnergy=source.runEnergy;
+            acceptedPaths=source.acceptedPaths;
+            rejectedPaths=source.rejectedPaths;
+            loadedBaseX=source.loadedBaseX;
+            loadedBaseY=source.loadedBaseY;
+            transientRegion=source.transientRegion;
+        }
+    }
+
+    Snapshot snapshot(){
+        return new Snapshot(this);
+    }
+
+    void restore(
+        Snapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "movement snapshot"
+            );
+
+        x=snapshot.x;
+        y=snapshot.y;
+        plane=snapshot.plane;
+        queue.clear();
+        for(Step step:snapshot.queue)
+            queue.addLast(
+                new Step(
+                    step.x,
+                    step.y,
+                    step.dir
+                )
+            );
+        runByPacket=snapshot.runByPacket;
+        persistentRun=snapshot.persistentRun;
+        runEnergy=snapshot.runEnergy;
+        acceptedPaths=snapshot.acceptedPaths;
+        rejectedPaths=snapshot.rejectedPaths;
+        loadedBaseX=snapshot.loadedBaseX;
+        loadedBaseY=snapshot.loadedBaseY;
+        transientRegion=snapshot.transientRegion;
+    }
+
+    static final class LoadedWindowSnapshot {
+        final int baseX;
+        final int baseY;
+        final boolean transientRegion;
+
+        private LoadedWindowSnapshot(
+            int baseX,
+            int baseY,
+            boolean transientRegion
+        ){
+            this.baseX=baseX;
+            this.baseY=baseY;
+            this.transientRegion=transientRegion;
+        }
+    }
+
+    LoadedWindowSnapshot snapshotLoadedWindow(){
+        return new LoadedWindowSnapshot(
+            loadedBaseX,
+            loadedBaseY,
+            transientRegion
+        );
+    }
+
+    void restoreLoadedWindow(
+        LoadedWindowSnapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "loaded window snapshot"
+            );
+
+        loadedBaseX=snapshot.baseX;
+        loadedBaseY=snapshot.baseY;
+        transientRegion=snapshot.transientRegion;
+    }
     boolean inHomeWindow(){return loadedBaseX==REGION_BASE_X && loadedBaseY==REGION_BASE_Y && !transientRegion;}
 
     void restoreAccountState(
@@ -93,6 +204,17 @@ final class MovementState {
     void restoreHomeWindowAtCurrentPosition(){
         if(!insideLoadedRegion(x,y))throw new IllegalStateException("current position is outside HOME window world="+x+","+y);
         loadedBaseX=REGION_BASE_X;loadedBaseY=REGION_BASE_Y;transientRegion=false;
+    }
+
+    /**
+     * Presentation-only HOME window staging for a prepared respawn. The
+     * canonical world position remains unchanged until PlayerLifecycleService
+     * commits the exact prepared respawn after packet settlement.
+     */
+    void stageHomeWindowForPreparedRespawn(){
+        loadedBaseX=REGION_BASE_X;
+        loadedBaseY=REGION_BASE_Y;
+        transientRegion=false;
     }
 
     boolean nearLoadedEdge(int margin){

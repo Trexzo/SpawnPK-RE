@@ -12,6 +12,18 @@ import spk.content.builtin.LocalLabCoreContentModule;
  * semantics explicitly unimplemented.
  */
 final class LocalBankObjectInteractionHandler {
+    @FunctionalInterface
+    interface RootOpenAction {
+        String open() throws IOException;
+    }
+
+    @FunctionalInterface
+    interface RootOwner {
+        String publish(
+            RootOpenAction action
+        ) throws IOException;
+    }
+
     private final BankState bank;
     private final MovementState movement;
     private final InteractionApproachResolver approach;
@@ -19,6 +31,9 @@ final class LocalBankObjectInteractionHandler {
 
     private ObjectInteraction pending;
     private long pendingDeadlineMs;
+    private RootOwner rootOwner=
+        action->action.open();
+    private boolean rootOwnerInstalled;
 
     LocalBankObjectInteractionHandler(
         BankState bank,
@@ -40,6 +55,24 @@ final class LocalBankObjectInteractionHandler {
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
         this.approach=new InteractionApproachResolver(this.movement);
         this.contentRegistry=contentRegistry;
+    }
+
+    void installRootOwner(
+        RootOwner owner
+    ){
+        RootOwner checked=
+            java.util.Objects.requireNonNull(
+                owner,
+                "owner"
+            );
+
+        if(rootOwnerInstalled)
+            throw new IllegalStateException(
+                "Bank root owner already installed"
+            );
+
+        rootOwner=checked;
+        rootOwnerInstalled=true;
     }
 
     String handle(ObjectInteraction request,ServerPacketWriter serverPackets)throws IOException{
@@ -118,10 +151,21 @@ final class LocalBankObjectInteractionHandler {
             return null;
         }
 
-        pending=null;
         movement.clearQueuedPath();
-        return openNow(
-            request,serverPackets,"OPENED_AFTER_AUTHORITATIVE_ARRIVAL");
+
+        String result=
+            openNow(
+                request,
+                serverPackets,
+                "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
+            );
+
+        /*
+         * Clear only after standalone Bank publication returns normally.
+         * Transport failure retains the exact deferred object request.
+         */
+        pending=null;
+        return result;
     }
 
     boolean hasPending(){
@@ -150,19 +194,25 @@ final class LocalBankObjectInteractionHandler {
         ServerPacketWriter serverPackets,
         String reason
     )throws IOException{
-        bank.open(serverPackets);
-        return "V5_BANK_OPEN "+request+
-            " authorityWorld="+movement.x()+","+movement.y()+
-            " distance="+chebyshev(
-                movement.x(),movement.y(),request.worldX,request.worldY)+
-            " root="+BankState.BANK_ROOT+
-            " bankContainer="+BankState.BANK_CONTAINER+
-            " bankInventoryRoot="+BankState.BANK_INVENTORY_ROOT+
-            " inventoryContainer="+BankState.BANK_INVENTORY_CONTAINER+
-            " bankOccupied="+bank.bankSlots()+"/"+bank.bankCapacity()+
-            " inventoryOccupied="+bank.inventorySlots()+"/"+bank.inventoryCapacity()+
-            " placeholders="+bank.placeholdersEnabled()+
-            " action="+reason;
+        return rootOwner.publish(
+            ()->{
+                bank.open(
+                    serverPackets
+                );
+                return "V5_BANK_OPEN "+request+
+                    " authorityWorld="+movement.x()+","+movement.y()+
+                    " distance="+chebyshev(
+                        movement.x(),movement.y(),request.worldX,request.worldY)+
+                    " root="+BankState.BANK_ROOT+
+                    " bankContainer="+BankState.BANK_CONTAINER+
+                    " bankInventoryRoot="+BankState.BANK_INVENTORY_ROOT+
+                    " inventoryContainer="+BankState.BANK_INVENTORY_CONTAINER+
+                    " bankOccupied="+bank.bankSlots()+"/"+bank.bankCapacity()+
+                    " inventoryOccupied="+bank.inventorySlots()+"/"+bank.inventoryCapacity()+
+                    " placeholders="+bank.placeholdersEnabled()+
+                    " action="+reason;
+            }
+        );
     }
 
     private boolean adjacentTo(int x,int y){

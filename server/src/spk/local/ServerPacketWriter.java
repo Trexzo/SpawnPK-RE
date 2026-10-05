@@ -8,11 +8,136 @@ import java.io.*;
  * synchronizer the byte stream is identical to R2.14.
  */
 final class ServerPacketWriter {
+    private static final Object ATOMIC_PAIR_LOCK=
+        new Object();
+
+    static final class AtomicPairBatch {
+        private final ServerPacketWriter first;
+        private final ServerPacketWriter second;
+        private final int firstBytes;
+        private final int secondBytes;
+        private final OutboundPacketQueue.PairReservation reservation;
+        private boolean completed;
+
+        private AtomicPairBatch(
+            ServerPacketWriter first,
+            int firstBytes,
+            ServerPacketWriter second,
+            int secondBytes,
+            OutboundPacketQueue.PairReservation reservation
+        ){
+            this.first=first;
+            this.firstBytes=firstBytes;
+            this.second=second;
+            this.secondBytes=secondBytes;
+            this.reservation=reservation;
+        }
+
+        void commit()throws IOException{
+            synchronized(ATOMIC_PAIR_LOCK){
+                lockWriters(
+                    first,
+                    second,
+                    ()->{
+                        if(completed)
+                            throw new IllegalStateException(
+                                "atomic pair batch already completed"
+                            );
+
+                        first.requireLiveLocked();
+                        second.requireLiveLocked();
+
+                        if(first.batchDepth!=1||
+                           second.batchDepth!=1)
+                            throw new IllegalStateException(
+                                "atomic pair batch depth changed"
+                            );
+
+                        if(first.batchContainsPlayer81||
+                           second.batchContainsPlayer81){
+                            reservation.release();
+                            throw new IllegalStateException(
+                                "atomic pair does not support staged packet 81"
+                            );
+                        }
+
+                        byte[] firstData=
+                            first.pending.toByteArray();
+                        byte[] secondData=
+                            second.pending.toByteArray();
+
+                        if(firstData.length!=
+                                firstBytes||
+                           secondData.length!=
+                                secondBytes){
+                            reservation.release();
+                            throw new IllegalStateException(
+                                "atomic pair batch size mismatch expected="+
+                                firstBytes+"/"+secondBytes+
+                                " actual="+
+                                firstData.length+"/"+secondData.length
+                            );
+                        }
+
+                        reservation.commit(
+                            firstData,
+                            secondData
+                        );
+
+                        first.pending.reset();
+                        second.pending.reset();
+                        first.completeBatchLocked();
+                        second.completeBatchLocked();
+                        completed=true;
+                    }
+                );
+            }
+        }
+
+        void abort(){
+            synchronized(ATOMIC_PAIR_LOCK){
+                try{
+                    lockWriters(
+                        first,
+                        second,
+                        ()->{
+                            if(completed)
+                                return;
+
+                            reservation.release();
+                            first.abortBatchLocked();
+                            second.abortBatchLocked();
+                            completed=true;
+                        }
+                    );
+                }catch(IOException impossible){
+                    throw new AssertionError(
+                        impossible
+                    );
+                }
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface PairWriterAction {
+        void run() throws IOException;
+    }
+
     private final OutputStream out;
     private final OutboundPacketQueue queue;
     private final IsaacCipher cipher;
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream(4096);
     private int batchDepth;
+    private IsaacCipher.Snapshot batchCipherCheckpoint;
+    private Player81WorldSync.PreparedBatch batchPlayer81;
+    private boolean batchPlayer81Initialized;
+    private boolean batchContainsPlayer81;
+    private boolean packet81InFlight;
+    private boolean packet81InFlightStaged;
+    private long packet81InFlightBatchGeneration=-1L;
+    private long batchGeneration;
+    private volatile boolean terminal;
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -27,7 +152,27 @@ final class ServerPacketWriter {
         if(queue==null)throw new NullPointerException("queue");
     }
 
+    synchronized void markTerminal(){
+        terminal=true;
+    }
+
+    boolean terminal(){
+        return terminal;
+    }
+
+    synchronized boolean batchActive(){
+        return batchDepth>0;
+    }
+
+    private void requireLiveLocked()throws IOException{
+        if(terminal)
+            throw new IOException(
+                "server packet writer terminal"
+            );
+    }
+
     synchronized void fixed(int opcode, byte[] body) throws IOException {
+        requireLiveLocked();
         if(body==null)body=new byte[0];
         writeOpcode(opcode);
         pending.write(body);
@@ -44,9 +189,149 @@ final class ServerPacketWriter {
                 :body;
 
         if(opcode==81){
-            byte[] transformed=
-                Player81WorldSync.transform(
-                    this,
+            boolean staged;
+            boolean initialized;
+            long operationBatchGeneration;
+            Player81WorldSync.PreparedBatch prepared;
+
+            synchronized(this){
+                requireLiveLocked();
+                awaitPacket81IdleLocked();
+                packet81InFlight=true;
+                staged=batchDepth>0;
+                packet81InFlightStaged=staged;
+                operationBatchGeneration=
+                    staged
+                        ?batchGeneration
+                        :-1L;
+                packet81InFlightBatchGeneration=
+                    operationBatchGeneration;
+                initialized=batchPlayer81Initialized;
+                prepared=batchPlayer81;
+
+                if(staged&&prepared!=null)
+                    batchContainsPlayer81=true;
+            }
+
+            try{
+
+            if(staged&&!initialized){
+                Player81WorldSync.PreparedBatchStart start=
+                    Player81WorldSync.beginPreparedBatchStatus(
+                        this
+                    );
+
+                if(start.status==
+                        Player81WorldSync
+                            .PreparedBatchStartStatus
+                            .STALE_REJECTED)
+                    throw new IOException(
+                        "packet-81 batch semantic preparation rejected stale owner"
+                    );
+
+                synchronized(this){
+                    requirePacket81LifetimeLocked(
+                        true,
+                        operationBatchGeneration
+                    );
+
+                    if(!batchPlayer81Initialized){
+                        batchPlayer81=
+                            start.prepared;
+                        batchPlayer81Initialized=true;
+                    }
+
+                    prepared=batchPlayer81;
+                    batchContainsPlayer81=
+                        prepared!=null;
+                }
+            }
+
+            if(staged){
+                byte[] transformed=
+                    Player81WorldSync.transformPrepared(
+                        prepared,
+                        checkedBody
+                    );
+
+                if(transformed.length>65535)
+                    throw new IllegalArgumentException(
+                        "varShort payload too large: "+
+                        transformed.length
+                    );
+
+                synchronized(this){
+                    requirePacket81LifetimeLocked(
+                        true,
+                        operationBatchGeneration
+                    );
+                    writeOpcode(opcode);
+                    pending.write(
+                        (transformed.length>>>8)&255
+                    );
+                    pending.write(
+                        transformed.length&255
+                    );
+                    pending.write(transformed);
+                    autoFlush();
+                }
+
+                return;
+            }
+
+            Player81WorldSync.PreparedBatchStart start=
+                Player81WorldSync.beginPreparedBatchStatus(
+                    this
+                );
+
+            if(start.status==
+                    Player81WorldSync
+                        .PreparedBatchStartStatus
+                        .STALE_REJECTED)
+                throw new IOException(
+                    "packet-81 semantic preparation rejected stale owner"
+                );
+
+            if(start.status==
+                    Player81WorldSync
+                        .PreparedBatchStartStatus
+                        .NO_CONTEXT){
+                /*
+                 * NO_CONTEXT is the semantic linearization point for this
+                 * exact packet-81 operation. A context registered after this
+                 * classification affects only a later packet; do not perform
+                 * a second live context lookup or relay flush here.
+                 */
+                if(checkedBody.length>65535)
+                    throw new IllegalArgumentException(
+                        "varShort payload too large: "+
+                        checkedBody.length
+                    );
+
+                synchronized(this){
+                    requirePacket81LifetimeLocked(
+                        false,
+                        operationBatchGeneration
+                    );
+                    writeOpcode(opcode);
+                    pending.write(
+                        (checkedBody.length>>>8)&255
+                    );
+                    pending.write(
+                        checkedBody.length&255
+                    );
+                    pending.write(checkedBody);
+                    autoFlush();
+                }
+
+                return;
+            }
+
+            final Player81WorldSync.PreparedBatch unbatchedPrepared=
+                start.prepared;
+            final byte[] transformed=
+                Player81WorldSync.transformPrepared(
+                    unbatchedPrepared,
                     checkedBody
                 );
 
@@ -56,24 +341,117 @@ final class ServerPacketWriter {
                     transformed.length
                 );
 
-            synchronized(this){
-                writeOpcode(opcode);
-                pending.write(
-                    (transformed.length>>>8)&255
-                );
-                pending.write(
-                    transformed.length&255
-                );
-                pending.write(transformed);
-                autoFlush();
-            }
+            boolean committed=
+                Player81WorldSync
+                    .withPreparedBatchOwnership(
+                        unbatchedPrepared,
+                        ()->{
+                            synchronized(ServerPacketWriter.this){
+                                requirePacket81LifetimeLocked(
+                                    false,
+                                    operationBatchGeneration
+                                );
 
-            // Never call back into World/Player81 ownership while
-            // holding the writer monitor.  The packet-81 bytes are
-            // already ordered ahead of any released packet-65 work.
-            SharedNpcWorldRelay
-                .flushAfterPlayer81(this);
+                                if(batchDepth!=0||
+                                   pending.size()!=0)
+                                    throw new IllegalStateException(
+                                        "unbatched packet-81 requires idle writer"
+                                    );
+
+                                if(queue==null)
+                                    throw new IOException(
+                                        "transactional unbatched packet-81 requires queue-backed writer"
+                                    );
+
+                                IsaacCipher.Snapshot checkpoint=
+                                    cipher.snapshot();
+
+                                writeOpcode(opcode);
+                                pending.write(
+                                    (transformed.length>>>8)&255
+                                );
+                                pending.write(
+                                    transformed.length&255
+                                );
+                                pending.write(transformed);
+
+                                byte[] bytes=
+                                    pending.toByteArray();
+                                OutboundPacketQueue.BatchReservation reservation;
+
+                                try{
+                                    reservation=
+                                        OutboundPacketQueue.reserveBatch(
+                                            queue,
+                                            bytes.length
+                                        );
+                                }catch(IOException failure){
+                                    pending.reset();
+                                    cipher.restore(
+                                        checkpoint
+                                    );
+                                    throw failure;
+                                }
+
+                                try{
+                                    Player81WorldSync
+                                        .commitPreparedBatchOwned(
+                                            unbatchedPrepared
+                                        );
+                                    reservation.commit(
+                                        bytes
+                                    );
+                                    pending.reset();
+                                }catch(RuntimeException failure){
+                                    reservation.release();
+                                    pending.reset();
+                                    cipher.restore(
+                                        checkpoint
+                                    );
+                                    throw failure;
+                                }catch(Error failure){
+                                    reservation.release();
+                                    pending.reset();
+                                    cipher.restore(
+                                        checkpoint
+                                    );
+                                    throw failure;
+                                }
+                            }
+                        }
+                    );
+
+            if(!committed)
+                throw new IOException(
+                    "packet-81 owner stale before unbatched joint commit"
+                );
+
+            /*
+             * Packet81 semantic + transport authority is now committed.
+             * SharedNpc relay is explicitly post-commit work (#1573) and may
+             * publish another packet through this same writer. Release the
+             * packet81 lifetime gate before entering relay so recoverable
+             * S2C65 publication cannot wait on its own caller.
+             *
+             * This also matches staged packet81: varShort() ends its in-flight
+             * lifetime before a later endBatch() performs the post-commit
+             * relay flush.
+             */
+            completePacket81InFlight();
+
+            try{
+                SharedNpcWorldRelay
+                    .flushAfterPlayer81(this);
+            }catch(Throwable relayFailure){
+                System.err.println(
+                    "[ENGINE-R3] committed unbatched packet81 relay flush failed: "+
+                    relayFailure
+                );
+            }
             return;
+            }finally{
+                completePacket81InFlight();
+            }
         }
 
         if(checkedBody.length>65535)
@@ -83,6 +461,7 @@ final class ServerPacketWriter {
             );
 
         synchronized(this){
+            requireLiveLocked();
             writeOpcode(opcode);
             pending.write(
                 (checkedBody.length>>>8)&255
@@ -95,7 +474,15 @@ final class ServerPacketWriter {
         }
     }
 
+    private synchronized void completePacket81InFlight(){
+        packet81InFlight=false;
+        packet81InFlightStaged=false;
+        packet81InFlightBatchGeneration=-1L;
+        notifyAll();
+    }
+
     synchronized void varByte(int opcode, byte[] body) throws IOException {
+        requireLiveLocked();
         if(body==null)body=new byte[0];
         if(body.length>255)throw new IllegalArgumentException("varByte payload too large: "+body.length);
         writeOpcode(opcode);
@@ -104,24 +491,487 @@ final class ServerPacketWriter {
         autoFlush();
     }
 
-    synchronized void beginBatch(){batchDepth++;}
+    @FunctionalInterface
+    interface RecoverablePacketPublication {
+        void publish()throws IOException;
+    }
 
-    synchronized void endBatch() throws IOException {
-        if(batchDepth<=0)throw new IllegalStateException("no packet batch");
-        batchDepth--;
-        if(batchDepth==0)flush();
+    enum RecoverablePacketResult {
+        COMMITTED,
+        RETRACTED_RETRYABLE
+    }
+
+    synchronized RecoverablePacketResult
+        publishRecoverablePacketIfIdle(
+            RecoverablePacketPublication publication
+        )throws IOException
+    {
+        requireLiveLocked();
+        if(publication==null)
+            throw new NullPointerException(
+                "publication"
+            );
+
+        /*
+         * Do not wait here. Callers such as Player81 registration may already
+         * own semantic authority that an in-flight packet81 operation needs in
+         * order to clear packet81InFlight. Returning RETRACTED_RETRYABLE keeps
+         * the acquisition zero-byte and avoids monitor-order deadlock.
+         */
+        if(packet81InFlight||
+           batchDepth!=0||
+           pending.size()!=0)
+            return RecoverablePacketResult
+                .RETRACTED_RETRYABLE;
+
+        return publishRecoverablePacket(
+            publication
+        );
+    }
+
+    synchronized RecoverablePacketResult
+        publishRecoverablePacket(
+            RecoverablePacketPublication publication
+        )throws IOException
+    {
+        requireLiveLocked();
+        if(publication==null)
+            throw new NullPointerException(
+                "publication"
+            );
+
+        awaitPacket81IdleLocked();
+
+        if(batchDepth!=0||
+           pending.size()!=0)
+            throw new IOException(
+                "recoverable packet publication requires idle writer"
+            );
+
+        if(queue==null){
+            publication.publish();
+            return RecoverablePacketResult
+                .COMMITTED;
+        }
+
+        beginBatchLocked();
+        boolean completed=false;
+
+        try{
+            publication.publish();
+
+            if(batchDepth!=1)
+                throw new IllegalStateException(
+                    "recoverable packet publication changed batch depth"
+                );
+
+            byte[] bytes=
+                pending.toByteArray();
+
+            if(!queue.tryOfferBatch(
+                    bytes
+                )){
+                abortBatchLocked();
+                completed=true;
+                return RecoverablePacketResult
+                    .RETRACTED_RETRYABLE;
+            }
+
+            pending.reset();
+            completeBatchLocked();
+            completed=true;
+            return RecoverablePacketResult
+                .COMMITTED;
+        }finally{
+            if(!completed&&
+               batchDepth>0)
+                abortBatchLocked();
+        }
+    }
+
+    synchronized void beginBatch(){
+        if(terminal)
+            throw new IllegalStateException(
+                "server packet writer terminal"
+            );
+        awaitPacket81IdleLocked();
+        beginBatchLocked();
+    }
+
+    private void beginBatchLocked(){
+        if(packet81InFlight)
+            throw new IllegalStateException(
+                "packet batch begin while packet-81 operation is in flight"
+            );
+
+        if(batchDepth==0){
+            if(pending.size()!=0)
+                throw new IllegalStateException(
+                    "packet batch requires idle pending buffer"
+                );
+
+            batchGeneration++;
+            batchCipherCheckpoint=
+                cipher.snapshot();
+            batchPlayer81=null;
+            batchPlayer81Initialized=false;
+            batchContainsPlayer81=false;
+        }
+
+        batchDepth++;
+    }
+
+    synchronized void abortBatch(){
+        awaitRelevantPacket81Locked();
+        abortBatchLocked();
+    }
+
+    private void abortBatchLocked(){
+        if(batchDepth<=0)
+            throw new IllegalStateException(
+                "no packet batch"
+            );
+
+        if(batchCipherCheckpoint==null)
+            throw new IllegalStateException(
+                "packet batch has no cipher checkpoint"
+            );
+
+        pending.reset();
+        cipher.restore(
+            batchCipherCheckpoint
+        );
+        Player81WorldSync.abortPreparedBatch(
+            batchPlayer81
+        );
+        batchDepth=0;
+        batchCipherCheckpoint=null;
+        batchPlayer81=null;
+        batchPlayer81Initialized=false;
+        batchContainsPlayer81=false;
+    }
+
+    static AtomicPairBatch beginAtomicQueuePair(
+        ServerPacketWriter first,
+        int firstBytes,
+        ServerPacketWriter second,
+        int secondBytes
+    )throws IOException{
+        if(first==null||second==null)
+            throw new NullPointerException(
+                "pair writer"
+            );
+        if(first==second)
+            throw new IllegalArgumentException(
+                "atomic pair requires distinct writers"
+            );
+        if(firstBytes<0||secondBytes<0)
+            throw new IllegalArgumentException(
+                "atomic pair bytes"
+            );
+
+        if(first.queue==null||
+           second.queue==null)
+            return null;
+
+        OutboundPacketQueue.PairReservation reservation=
+            OutboundPacketQueue.reservePair(
+                first.queue,
+                firstBytes,
+                second.queue,
+                secondBytes
+            );
+
+        try{
+            synchronized(ATOMIC_PAIR_LOCK){
+                lockWriters(
+                    first,
+                    second,
+                    ()->{
+                        first.requireLiveLocked();
+                        second.requireLiveLocked();
+
+                        if(first.packet81InFlight||
+                           second.packet81InFlight||
+                           first.batchDepth!=0||
+                           second.batchDepth!=0||
+                           first.pending.size()!=0||
+                           second.pending.size()!=0)
+                            throw new IllegalStateException(
+                                "atomic pair requires idle writers"
+                            );
+
+                        first.beginBatchLocked();
+                        second.beginBatchLocked();
+                    }
+                );
+            }
+        }catch(IOException failure){
+            reservation.release();
+            throw failure;
+        }catch(RuntimeException failure){
+            reservation.release();
+            throw failure;
+        }catch(Error failure){
+            reservation.release();
+            throw failure;
+        }
+
+        return new AtomicPairBatch(
+            first,
+            firstBytes,
+            second,
+            secondBytes,
+            reservation
+        );
+    }
+
+    void endBatch() throws IOException {
+        Player81WorldSync.PreparedBatch prepared;
+        boolean flushPlayer81Relay;
+
+        synchronized(this){
+            awaitRelevantPacket81Locked();
+
+            if(batchDepth<=0)
+                throw new IllegalStateException(
+                    "no packet batch"
+                );
+
+            if(batchDepth>1){
+                batchDepth--;
+                return;
+            }
+
+            prepared=batchPlayer81;
+            flushPlayer81Relay=batchContainsPlayer81;
+
+            if(prepared==null){
+                /*
+                 * Byte-only batches keep the ordinary writer-local commit
+                 * path. The outer checkpoint remains active until flush
+                 * succeeds so callers can still abort on admission failure.
+                 */
+                flush();
+                completeBatchLocked();
+            }
+        }
+
+        if(prepared!=null){
+            boolean committed=
+                Player81WorldSync
+                    .withPreparedBatchOwnership(
+                        prepared,
+                        ()->{
+                            synchronized(ServerPacketWriter.this){
+                                if(batchDepth!=1||
+                                   batchPlayer81!=prepared)
+                                    throw new IllegalStateException(
+                                        "packet-81 batch ownership changed before commit"
+                                    );
+
+                                if(queue==null)
+                                    throw new IOException(
+                                        "transactional packet-81 batch requires queue-backed writer"
+                                    );
+
+                                byte[] bytes=
+                                    pending.toByteArray();
+                                OutboundPacketQueue.BatchReservation reservation=
+                                    OutboundPacketQueue.reserveBatch(
+                                        queue,
+                                        bytes.length
+                                    );
+
+                                try{
+                                    Player81WorldSync
+                                        .commitPreparedBatchOwned(
+                                            prepared
+                                        );
+
+                                    reservation.commit(
+                                        bytes
+                                    );
+                                    pending.reset();
+                                    completeBatchLocked();
+                                }catch(RuntimeException failure){
+                                    reservation.release();
+                                    throw failure;
+                                }catch(Error failure){
+                                    reservation.release();
+                                    throw failure;
+                                }
+                            }
+                        }
+                    );
+
+            if(!committed)
+                throw new IOException(
+                    "packet-81 batch owner stale before joint commit"
+                );
+        }
+
+        if(flushPlayer81Relay)
+            try{
+                SharedNpcWorldRelay
+                    .flushAfterPlayer81(this);
+            }catch(Throwable relayFailure){
+                System.err.println(
+                    "[ENGINE-R3] committed packet81 relay flush failed: "+
+                    relayFailure
+                );
+            }
+    }
+
+    private void awaitPacket81IdleLocked(){
+        boolean interrupted=false;
+
+        while(packet81InFlight){
+            try{
+                wait();
+            }catch(InterruptedException interruption){
+                interrupted=true;
+            }
+        }
+
+        if(interrupted)
+            Thread.currentThread().interrupt();
+    }
+
+    private void awaitRelevantPacket81Locked(){
+        boolean interrupted=false;
+
+        while(packet81InFlight&&
+              packet81InFlightStaged&&
+              packet81InFlightBatchGeneration==
+                  batchGeneration){
+            try{
+                wait();
+            }catch(InterruptedException interruption){
+                interrupted=true;
+            }
+        }
+
+        if(interrupted)
+            Thread.currentThread().interrupt();
+    }
+
+    private void requirePacket81LifetimeLocked(
+        boolean staged,
+        long expectedBatchGeneration
+    )throws IOException{
+        requireLiveLocked();
+
+        if(!packet81InFlight||
+           packet81InFlightStaged!=staged)
+            throw new IllegalStateException(
+                "packet-81 operation lifetime changed"
+            );
+
+        if(staged){
+            if(batchDepth<=0||
+               batchGeneration!=
+                    expectedBatchGeneration||
+               packet81InFlightBatchGeneration!=
+                    expectedBatchGeneration)
+                throw new IllegalStateException(
+                    "packet-81 batch lifetime changed expected="+
+                    expectedBatchGeneration+
+                    " actual="+batchGeneration+
+                    " depth="+batchDepth
+                );
+            return;
+        }
+
+        if(batchDepth!=0||
+           packet81InFlightBatchGeneration!=-1L)
+            throw new IllegalStateException(
+                "unbatched packet-81 joined a batch"
+            );
+    }
+
+    private void completeBatchLocked(){
+        batchDepth=0;
+        batchCipherCheckpoint=null;
+        batchPlayer81=null;
+        batchPlayer81Initialized=false;
+        batchContainsPlayer81=false;
     }
 
     synchronized void flush() throws IOException {
+        requireLiveLocked();
         if(pending.size()>0){
             byte[] bytes=pending.toByteArray();
+
+            try{
+                if(queue!=null){
+                    if(batchDepth>0)
+                        queue.offerBatch(bytes);
+                    else
+                        queue.offer(bytes);
+                }else
+                    out.write(bytes);
+
+                if(out!=null)
+                    out.flush();
+            }catch(IOException failure){
+                if(batchDepth==0){
+                    /*
+                     * Ordinary publication has already consumed an ISAAC value
+                     * and has no rollback checkpoint. The failed transport is
+                     * therefore non-retractable: discard pending bytes and make
+                     * this exact writer permanently non-reusable before the
+                     * failure escapes to callers such as WorldPulse.
+                     */
+                    pending.reset();
+                    terminal=true;
+                }
+                throw failure;
+            }catch(RuntimeException failure){
+                if(batchDepth==0){
+                    pending.reset();
+                    terminal=true;
+                }
+                throw failure;
+            }catch(Error failure){
+                if(batchDepth==0){
+                    pending.reset();
+                    terminal=true;
+                }
+                throw failure;
+            }
+
             pending.reset();
-            if(queue!=null)queue.offer(bytes);else out.write(bytes);
+            return;
         }
-        if(out!=null)out.flush();
+
+        if(out!=null)
+            out.flush();
     }
 
     private void autoFlush() throws IOException { if(batchDepth==0)flush(); }
+
+    private static void lockWriters(
+        ServerPacketWriter first,
+        ServerPacketWriter second,
+        PairWriterAction action
+    )throws IOException{
+        ServerPacketWriter lockFirst=
+            System.identityHashCode(first)<
+                System.identityHashCode(second)
+                ?first
+                :second;
+        ServerPacketWriter lockSecond=
+            lockFirst==first
+                ?second
+                :first;
+
+        synchronized(lockFirst){
+            synchronized(lockSecond){
+                action.run();
+            }
+        }
+    }
 
     private void writeOpcode(int opcode){
         if(opcode<0||opcode>255)throw new IllegalArgumentException("opcode out of range: "+opcode);

@@ -31,13 +31,47 @@ public final class LocalCommandDispatcherTest {
             new String[]{"regionload","12850"}))
             throw new AssertionError("unrelated command captured by panel route");
 
+        if(!LocalCommandDispatcher.isMonsterSpawnerRoute(
+                new String[]{"monsterspawner"})||
+           !LocalCommandDispatcher.isMonsterSpawnerRoute(
+                new String[]{"mspawn"}))
+            throw new AssertionError(
+                "Monster Spawner LocalLab command aliases not routed"
+            );
+
+        if(LocalCommandDispatcher.isMonsterSpawnerRoute(
+                new String[]{"monsterspawner","extra"})||
+           LocalCommandDispatcher.isMonsterSpawnerRoute(
+                new String[]{"devpanel"}))
+            throw new AssertionError(
+                "Monster Spawner route captured unrelated command"
+            );
+
+        if(!LocalCommandDispatcher.isItemLibraryRootAction(
+                LocalDiagnosticContentModule
+                    .ITEMLIB_OPEN_ACTION_PREFIX+
+                ":28860"
+            )||
+           LocalCommandDispatcher.isItemLibraryRootAction(
+                LocalDiagnosticContentModule
+                    .ENGINE_INFO_ACTION
+            )||
+           LocalCommandDispatcher.isItemLibraryRootAction(
+                null
+            ))
+            throw new AssertionError(
+                "Item Library root action classification changed"
+            );
+
         String untouched=LocalCommandDispatcher.clean("authority");
         if(!"authority".equals(untouched))
             throw new AssertionError("non-prefixed command changed");
 
         System.out.println(
             "LOCAL_COMMAND_DISPATCHER_PASS "+
-            "normalization=true aliases=true unrelatedRejected=true"
+            "normalization=true aliases=true unrelatedRejected=true "+
+            "monsterSpawnerAliases=true monsterSpawnerExactRoute=true "+
+            "itemLibraryRootAction=true"
         );
     }
 }
