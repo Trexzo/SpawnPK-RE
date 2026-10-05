@@ -1298,6 +1298,15 @@ final class LocalWorldTickCoordinator {
         deferredDeathPlan=plan;
     }
 
+    void settleCurrentDeathForSessionTeardown(
+        String tag
+    ){
+        prepareDeathSettlementIfNeeded();
+        settleDeferredDeathSettlementAfterWorldTick(
+            tag
+        );
+    }
+
     void settleDeferredDeathSettlementAfterWorldTick(
         String tag
     ){
