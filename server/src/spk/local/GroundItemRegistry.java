@@ -619,6 +619,54 @@ final class GroundItemRegistry {
         );
     }
 
+    synchronized void rollbackBatchDetailed(
+        List<BatchMutation> mutations
+    ){
+        Objects.requireNonNull(
+            mutations,
+            "mutations"
+        );
+
+        for(int i=mutations.size()-1;
+            i>=0;
+            i--){
+            BatchMutation mutation=
+                Objects.requireNonNull(
+                    mutations.get(i),
+                    "mutation"
+                );
+
+            GroundItem current=
+                byId.get(
+                    mutation.groundItemId
+                );
+
+            if(current==null||
+               current.itemId!=mutation.itemId||
+               !current.tile.equals(mutation.tile)||
+               !Objects.equals(
+                    current.owner,
+                    mutation.owner
+               )||
+               current.devOwned!=mutation.devOwned||
+               current.amount!=mutation.newAmount)
+                throw new IllegalStateException(
+                    "ground rollback postimage changed id="+
+                    mutation.groundItemId
+                );
+
+            if(mutation.created()){
+                byId.remove(
+                    mutation.groundItemId
+                );
+                continue;
+            }
+
+            current.amount=
+                mutation.oldAmount;
+        }
+    }
+
     synchronized GroundItem byId(long id){
         return byId.get(id);
     }
