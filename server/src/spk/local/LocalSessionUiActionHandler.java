@@ -82,6 +82,12 @@ final class LocalSessionUiActionHandler {
             ServerPacketWriter serverPackets,
             String tag
         )throws IOException{}
+
+        default void handleTeleportNavigation(
+            TeleportNavigationService.EntryKind kind,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{}
         default void handleMonsterSpawnerResult(
             LocalMonsterSpawnerUiHandler.Result result,
             ServerPacketWriter serverPackets,
@@ -525,6 +531,21 @@ final class LocalSessionUiActionHandler {
                 "MONSTER_SPAWNER_UI widget="+
                 widget+
                 " status=UNCONFIGURED_ROW_NOOP"
+            );
+            return;
+        }
+
+        TeleportNavigationService.EntryKind navigationKind=
+            TeleportNavigationWidgetAdapter.resolve(
+                widget
+            );
+
+        if(navigationKind!=null&&
+           navigationKind!=TeleportNavigationService.EntryKind.HOME){
+            bridge.handleTeleportNavigation(
+                navigationKind,
+                serverPackets,
+                tag
             );
             return;
         }
