@@ -16,6 +16,7 @@ final class LocalPlayerInteractionHandler {
     private final EquipmentState equipment;
     private final CombatStyleState combatStyles;
     private final LongSupplier ownerGeneration;
+    private final PlayerPvpEligibilityPolicy pvpEligibility;
     private final PlayerCombatResolutionService pvpCombat;
 
     private EntityId activeFollow;
@@ -110,7 +111,32 @@ final class LocalPlayerInteractionHandler {
             owner==null
                 ?CombatSystemHooks.none()
                 :CombatSystemHooks.forPlayer(owner),
-            ownerGeneration
+            ownerGeneration,
+            PlayerPvpEligibilityPolicy.allowAllTestSeam()
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        LongSupplier ownerGeneration,
+        PlayerPvpEligibilityPolicy pvpEligibility
+    ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
+            owner==null?null:owner.combatStyles(),
+            CombatDamageRules.localLabFallback(),
+            CombatAttackTimingRules.recoveredCompatibility(),
+            owner==null
+                ?CombatSystemHooks.none()
+                :CombatSystemHooks.forPlayer(owner),
+            ownerGeneration,
+            pvpEligibility
         );
     }
 
@@ -135,7 +161,8 @@ final class LocalPlayerInteractionHandler {
             systemHooks,
             owner==null
                 ?()->0L
-                :owner::generation
+                :owner::generation,
+            PlayerPvpEligibilityPolicy.allowAllTestSeam()
         );
     }
 
@@ -150,6 +177,32 @@ final class LocalPlayerInteractionHandler {
         CombatSystemHooks systemHooks,
         LongSupplier ownerGeneration
     ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
+            combatStyles,
+            damageRules,
+            timingRules,
+            systemHooks,
+            ownerGeneration,
+            PlayerPvpEligibilityPolicy.allowAllTestSeam()
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatSystemHooks systemHooks,
+        LongSupplier ownerGeneration,
+        PlayerPvpEligibilityPolicy pvpEligibility
+    ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.owner=java.util.Objects.requireNonNull(owner,"owner");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
@@ -162,6 +215,11 @@ final class LocalPlayerInteractionHandler {
             java.util.Objects.requireNonNull(
                 ownerGeneration,
                 "ownerGeneration"
+            );
+        this.pvpEligibility=
+            java.util.Objects.requireNonNull(
+                pvpEligibility,
+                "pvpEligibility"
             );
         this.pvpCombat=
             new PlayerCombatResolutionService(
@@ -220,6 +278,21 @@ final class LocalPlayerInteractionHandler {
                     " target="+target.username()+
                     " reason="+validity.reason+
                     " detail="+validity.detail;
+            }
+
+            PlayerPvpEligibilityPolicy.Result eligibility=
+                pvpEligibility.evaluate(
+                    owner,
+                    target
+                );
+
+            if(!eligibility.eligible){
+                clearAttack();
+                movement.clearQueuedPath();
+                return "V5131_PLAYER_ATTACK_REJECTED "+action+
+                    " target="+target.username()+
+                    " reason=PVP_REGION_POLICY"+
+                    " detail="+eligibility.detail;
             }
 
             clearTrade();
@@ -339,6 +412,21 @@ final class LocalPlayerInteractionHandler {
                     "] V5131_PLAYER_ATTACK_CANCELLED reason="+
                     validity.reason+
                     " detail="+validity.detail+
+                    " worldTick="+worldTick;
+            }
+
+            PlayerPvpEligibilityPolicy.Result eligibility=
+                pvpEligibility.evaluate(
+                    owner,
+                    target
+                );
+
+            if(!eligibility.eligible){
+                clearAttack();
+                movement.clearQueuedPath();
+                return "[world player="+owner.id()+
+                    "] V5131_PLAYER_ATTACK_CANCELLED reason=PVP_REGION_POLICY"+
+                    " detail="+eligibility.detail+
                     " worldTick="+worldTick;
             }
         }else if(target==null||
@@ -514,6 +602,20 @@ final class LocalPlayerInteractionHandler {
             return "V5131_PLAYER_ATTACK_CANCELLED reason="+
                 validity.reason+
                 " detail="+validity.detail+
+                " worldTick="+worldTick;
+        }
+
+        PlayerPvpEligibilityPolicy.Result eligibility=
+            pvpEligibility.evaluate(
+                owner,
+                target
+            );
+
+        if(!eligibility.eligible){
+            clearAttack();
+            movement.clearQueuedPath();
+            return "V5131_PLAYER_ATTACK_CANCELLED reason=PVP_REGION_POLICY"+
+                " detail="+eligibility.detail+
                 " worldTick="+worldTick;
         }
 

@@ -338,7 +338,8 @@ final class LocalSession implements Runnable {
             worldPlayer,
             movement,
             equipment,
-            ()->LocalSession.this.worldPlayerGeneration
+            ()->LocalSession.this.worldPlayerGeneration,
+            LocalLabPvpRegionPolicy.INSTANCE
         );
         this.canonicalNpcAttack=
             new LocalCanonicalNpcAttackHandler(
