@@ -64,6 +64,7 @@ final class LocalPendingRequestDispatcher {
     private final LocalBankObjectInteractionHandler bankObjectHandler;
     private final LocalGenericInteractionHandler genericInteractionHandler;
     private final LocalEquipmentItemActionHandler equipmentItemActions;
+    private final G1RocktailConsumableHandler rocktailConsumables;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalMakeoverMageHandler makeoverMage;
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
@@ -124,6 +125,11 @@ final class LocalPendingRequestDispatcher {
             genericInteractionHandler,"genericInteractionHandler");
         this.equipmentItemActions=Objects.requireNonNull(
             equipmentItemActions,"equipmentItemActions");
+        this.rocktailConsumables=
+            new G1RocktailConsumableHandler(
+                worldPlayer,
+                bank
+            );
         this.petDialogs=Objects.requireNonNull(petDialogs,"petDialogs");
 
         LocalMakeoverMageHandler sharedMakeover=
@@ -905,6 +911,33 @@ final class LocalPendingRequestDispatcher {
 
         if(compCapeItem!=null){
             System.out.println(tag+compCapeItem);
+            return;
+        }
+
+        G1RocktailConsumableHandler.Result
+            rocktail=
+                rocktailConsumables.handle(
+                    action,
+                    bridge.sessionWorldTick(),
+                    serverPackets
+                );
+
+        if(rocktail!=null){
+            if(rocktail.saveReason!=null)
+                bridge.saveAccount(
+                    tag,
+                    rocktail.saveReason
+                );
+
+            System.out.println(
+                tag+
+                "G1_ROCKTAIL_CONSUMABLE "+
+                action+
+                " result="+
+                rocktail+
+                " authority="+
+                G1RocktailConsumableHandler.AUTHORITY
+            );
             return;
         }
 
