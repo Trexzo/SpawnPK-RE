@@ -125,6 +125,7 @@ final class PlayerDeathItemResolutionService {
         final long deathTick;
         final long deathSequence;
         final String deathCause;
+        final Tile deathTile;
         final List<Disposition> dispositions;
         final String policyAuthority;
 
@@ -137,6 +138,7 @@ final class PlayerDeathItemResolutionService {
             this.deathTick=preview.deathTick;
             this.deathSequence=preview.deathSequence;
             this.deathCause=preview.deathCause;
+            this.deathTile=preview.deathTile;
             this.dispositions=
                 Collections.unmodifiableList(
                     new ArrayList<>(
