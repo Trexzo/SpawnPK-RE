@@ -18,6 +18,7 @@ final class World implements AutoCloseable {
     private final GroundItemRegistry groundItems=new GroundItemRegistry();
     private final WorldObjectRegistry objects=new WorldObjectRegistry();
     private final PlayerRegistry players=new PlayerRegistry();
+    private final PlayerPvpDeathLedger pvpDeathLedger;
     private final WorldRealtimeQueue realtime;
     private final WorldNpcRegistry npcs=new WorldNpcRegistry();
     private final NpcLifecycleService npcLifecycle=new NpcLifecycleService(npcs);
@@ -78,6 +79,10 @@ final class World implements AutoCloseable {
         WorldPulse.PulseThreadFactory pulseThreadFactory,
         WorldPulse.PulseThreadStarter pulseThreadStarter
     ){
+        pvpDeathLedger=
+            new PlayerPvpDeathLedger(
+                this
+            );
         realtime=
             new WorldRealtimeQueue(
                 (player,generation)->
@@ -183,6 +188,7 @@ final class World implements AutoCloseable {
     GroundItemRegistry groundItems(){return groundItems;}
     WorldObjectRegistry objects(){return objects;}
     PlayerRegistry players(){return players;}
+    PlayerPvpDeathLedger pvpDeathLedger(){return pvpDeathLedger;}
     WorldNpcRegistry npcs(){return npcs;}
     NpcLifecycleService npcLifecycle(){return npcLifecycle;}
     WorldHomeNpcService homeNpcs(){return homeNpcs;}
@@ -1096,6 +1102,7 @@ final class World implements AutoCloseable {
                     ()->TradeService.closeWorld(
                         this
                     ),
+                    pvpDeathLedger::close,
                     npcPresentationEvents::close,
                     groundItemPresentationEvents::close,
                     domainEvents::close,
