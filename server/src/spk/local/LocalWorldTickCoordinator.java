@@ -1354,12 +1354,12 @@ final class LocalWorldTickCoordinator {
                     deferred.recipientRef
                 );
 
-        bridge.saveAccount(
-            tag,
-            "PLAYER_DEATH_ITEMS"
-        );
-
         if(commit.lostTotalQuantity>0){
+            bridge.saveAccount(
+                tag,
+                "PLAYER_DEATH_ITEMS"
+            );
+
             boolean batchActive=false;
 
             try{
