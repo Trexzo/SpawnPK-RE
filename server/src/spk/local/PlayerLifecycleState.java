@@ -21,6 +21,7 @@ final class PlayerLifecycleState {
     private String cause="NONE";
     private EntityId responsiblePlayerId;
     private Tile deathTile;
+    private LocalRiskZoneState.Snapshot deathRiskSnapshot;
 
     Phase phase(){return phase;}
     boolean alive(){return phase==Phase.ALIVE;}
@@ -31,6 +32,7 @@ final class PlayerLifecycleState {
     String cause(){return cause;}
     EntityId responsiblePlayerId(){return responsiblePlayerId;}
     Tile deathTile(){return deathTile;}
+    LocalRiskZoneState.Snapshot deathRiskSnapshot(){return deathRiskSnapshot;}
 
     void markDead(
         long worldTick,
@@ -68,6 +70,24 @@ final class PlayerLifecycleState {
         EntityId responsiblePlayerId,
         Tile deathTile
     ){
+        markDead(
+            worldTick,
+            respawnDelayTicks,
+            cause,
+            responsiblePlayerId,
+            deathTile,
+            null
+        );
+    }
+
+    void markDead(
+        long worldTick,
+        long respawnDelayTicks,
+        String cause,
+        EntityId responsiblePlayerId,
+        Tile deathTile,
+        LocalRiskZoneState.Snapshot deathRiskSnapshot
+    ){
         if(respawnDelayTicks<0)
             throw new IllegalArgumentException(
                 "respawnDelayTicks="+respawnDelayTicks
@@ -99,6 +119,8 @@ final class PlayerLifecycleState {
             responsiblePlayerId;
         this.deathTile=
             deathTile;
+        this.deathRiskSnapshot=
+            deathRiskSnapshot;
     }
 
     boolean dueRespawn(long worldTick){
@@ -112,6 +134,7 @@ final class PlayerLifecycleState {
         cause="NONE";
         responsiblePlayerId=null;
         deathTile=null;
+        deathRiskSnapshot=null;
     }
 
     @Override public String toString(){
@@ -122,6 +145,12 @@ final class PlayerLifecycleState {
             ",cause="+cause+
             ",responsiblePlayerId="+responsiblePlayerId+
             ",deathTile="+deathTile+
+            ",deathRisk="+
+                (deathRiskSnapshot==null
+                    ?"NONE"
+                    :deathRiskSnapshot.state+
+                        ":"+deathRiskSnapshot.sourceKind+
+                        "@"+deathRiskSnapshot.revision)+
             ",authority="+AUTHORITY+"}";
     }
 }
