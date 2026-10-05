@@ -24,6 +24,29 @@ public final class LocalLabPvpRegionPolicyTest {
             PlayerPvpEligibilityPolicy policy=
                 LocalLabPvpRegionPolicy.INSTANCE;
 
+            String homeTargetMove=
+                target.movement().accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{
+                            attacker.movement().x()+1
+                        },
+                        new int[]{
+                            attacker.movement().y()
+                        },
+                        new byte[0]
+                    )
+                );
+
+            require(
+                homeTargetMove.startsWith(
+                    "ACCEPTED"),
+                "HOME trade adjacency setup rejected"
+            );
+
+            target.movement().advance();
+
             java.io.ByteArrayOutputStream attackerWire=
                 new java.io.ByteArrayOutputStream();
             java.io.ByteArrayOutputStream targetWire=
@@ -124,6 +147,26 @@ public final class LocalLabPvpRegionPolicyTest {
             );
 
             interactions.cancelActive();
+
+            String homeTrade=
+                interactions.handleResolved(
+                    new PlayerAction(
+                        73,
+                        3,
+                        targetIndex,
+                        "Trade with"
+                    ),
+                    target,
+                    attackerSync
+                );
+
+            require(
+                homeTrade!=null&&
+                homeTrade.contains(
+                    "PLAYER_TRADE_DISPATCH")&&
+                interactions.activeTrade()==null,
+                "HOME trade was incorrectly blocked"
+            );
 
             PlayerPvpEligibilityPolicy.Result home=
                 policy.evaluate(
@@ -311,6 +354,7 @@ public final class LocalLabPvpRegionPolicyTest {
                 "handlerPkAccepted=true "+
                 "activeAttackCancelledOnExit=true "+
                 "followOutsidePkUnaffected=true "+
+                "tradeOutsidePkUnaffected=true "+
                 "targetLeaveRejected=true "+
                 "attackerLeaveRejected=true "+
                 "serverRegionAuthority=true "+
