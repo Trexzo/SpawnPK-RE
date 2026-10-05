@@ -1442,6 +1442,12 @@ final class LocalWorldTickCoordinator {
         if(prepared==null)
             return;
 
+        if(deferredDeathSettlement!=null)
+            throw new IllegalStateException(
+                "player respawn cannot bypass pending death-item settlement deathSequence="+
+                deferredDeathSettlement.resolution.deathSequence
+            );
+
         lifecycle.requirePreparedRespawnCurrent(
             prepared
         );
