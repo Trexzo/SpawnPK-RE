@@ -1138,6 +1138,23 @@ final class BankState {
         );
     }
 
+    void writePreparedInventoryMutation(
+        PreparedInventoryMutation prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared inventory mutation required"
+            );
+
+        writeNormalInventoryStructuralPostimage(
+            w,
+            prepared.postimage,
+            prepared.expectedOpen
+        );
+    }
+
     void publishPreparedInventoryMutation(
         PreparedInventoryMutation prepared,
         ServerPacketWriter w
