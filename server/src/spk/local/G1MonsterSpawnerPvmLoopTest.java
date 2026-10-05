@@ -61,9 +61,8 @@ public final class G1MonsterSpawnerPvmLoopTest {
                 );
 
             MonsterSpawnerService.SessionSnapshot selected=
-                spawner.selectRowIfCurrent(
+                spawner.selectRow(
                     "pvm",
-                    opened,
                     0
                 );
 
