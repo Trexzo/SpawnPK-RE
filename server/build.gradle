@@ -6329,8 +6329,19 @@ tasks.register('playabilityAccountProfilesRegression', JavaExec) {
     mainClass = 'spk.local.LocalAccountProfilesTest'
 }
 
+tasks.register('playabilityPlayerInitializerPersistenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves arbitrary login aliases are persistence-eligible and load through the repository before World registration.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalSessionPlayerInitializerTest'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('playabilityAccountProfilesRegression')
+    dependsOn tasks.named('playabilityPlayerInitializerPersistenceRegression')
 }
 
 
