@@ -1488,7 +1488,7 @@ Assert-True ($offlineEnvRestoreIndex -gt $offlinePassIndex) 'Historical offline 
 Assert-True ($serverWrapper -match 'Select-LocalLabJava\.ps1') 'Server wrapper is not using the canonical Java selector.'
 Assert-True ($serverWrapper -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Server wrapper does not target the current built server JAR.'
 Assert-True ($serverWrapper -match 'Test-Path\s+-LiteralPath\s+\$required\s+-PathType\s+Leaf') 'Server wrapper does not fail closed on missing launch components.'
-Assert-True ($serverWrapper -match '&\s+\$java\.Path\s+-jar\s+\$jar\s+--bootstrap\s+--movement') 'Server wrapper does not launch through the selected Java path with canonical server arguments.'
+Assert-True ($serverWrapper -match '&\s+\$java\.Path\s+"-Dspk\.playability\.enabled=true"\s+-jar\s+\$jar\s+--bootstrap\s+--movement') 'Server wrapper does not launch through selected Java with playable-mode policy and canonical server arguments.'
 Assert-True ($serverWrapper -match '\$serverExit\s*=\s*\$LASTEXITCODE') 'Server wrapper does not capture the native Java exit code immediately.'
 Assert-True ($serverWrapper -match '\$serverExit\s+-ne\s+0') 'Server wrapper does not fail on nonzero Java exit.'
 Assert-True ($serverWrapper -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Server wrapper does not record caller JAVA_HOME ownership.'
@@ -1508,7 +1508,7 @@ foreach ($entry in @(
 
 $serverEnvCaptureIndex = $serverWrapper.IndexOf('$callerPath = $env:Path')
 $serverJavaIndex = $serverWrapper.IndexOf('$java = Set-LocalLabJava')
-$serverLaunchIndex = $serverWrapper.IndexOf('& $java.Path -jar $jar --bootstrap --movement')
+$serverLaunchIndex = $serverWrapper.IndexOf('& $java.Path "-Dspk.playability.enabled=true" -jar $jar --bootstrap --movement')
 $serverExitCaptureIndex = $serverWrapper.IndexOf('$serverExit = $LASTEXITCODE')
 $serverExitCheckIndex = $serverWrapper.IndexOf('if ($serverExit -ne 0)')
 $serverEnvRestoreIndex = $serverWrapper.LastIndexOf('$env:Path = $callerPath')

@@ -12,15 +12,18 @@ final class LocalSessionPlayerInitializer {
     static final class Result {
         final String username;
         final boolean persistentAccount;
+        final boolean newAccount;
         final long worldPlayerGeneration;
 
         Result(
             String username,
             boolean persistentAccount,
+            boolean newAccount,
             long worldPlayerGeneration
         ){
             this.username=username;
             this.persistentAccount=persistentAccount;
+            this.newAccount=newAccount;
             this.worldPlayerGeneration=worldPlayerGeneration;
         }
     }
@@ -83,6 +86,29 @@ final class LocalSessionPlayerInitializer {
                 PetAccessoryAuthority::isAccessory,
                 tag
             );
+
+        if(accountLoad.failed)
+            throw new IllegalStateException(
+                "ACCOUNT_LOAD_FAILED profile="+
+                username+
+                " repository="+
+                persistence.repositoryName()
+            );
+
+        if(accountLoad.missing&&
+           PlayabilityStarterAccountPolicy.enabled()){
+            PlayabilityStarterAccountPolicy.Result starter=
+                PlayabilityStarterAccountPolicy.apply(
+                    worldPlayer
+                );
+
+            System.out.println(
+                tag+
+                "PLAYABILITY_STARTER_ACCOUNT_APPLIED "+
+                "profile="+username+
+                " "+starter
+            );
+        }
 
         petAccessoryState.setActiveItem(
             accountLoad.accessoryItem
@@ -184,6 +210,7 @@ final class LocalSessionPlayerInitializer {
         return new Result(
             username,
             persistentAccount,
+            accountLoad.missing,
             generation
         );
         }
