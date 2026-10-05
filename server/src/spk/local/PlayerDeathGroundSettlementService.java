@@ -318,6 +318,13 @@ final class PlayerDeathGroundSettlementService {
             settlement.deathTile,
             settlement.lootOwner
         );
+
+        world.deathLootLifecycle()
+            .registerSettlement(
+                settlement,
+                System.currentTimeMillis()
+            );
+
         return settlement;
     }
 

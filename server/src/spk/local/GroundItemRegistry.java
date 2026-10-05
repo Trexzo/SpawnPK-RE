@@ -194,6 +194,35 @@ final class GroundItemRegistry {
         }
     }
 
+    static final class PreparedOwnerTransition {
+        final GroundItem expected;
+        final String expectedOwner;
+        final String nextOwner;
+        final int expectedItemId;
+        final int expectedAmount;
+        final Tile expectedTile;
+        final long expectedSpawnedTick;
+        final boolean expectedDevOwned;
+
+        PreparedOwnerTransition(
+            GroundItem expected,
+            String expectedOwner,
+            String nextOwner
+        ){
+            this.expected=Objects.requireNonNull(
+                expected,
+                "expected"
+            );
+            this.expectedOwner=expectedOwner;
+            this.nextOwner=nextOwner;
+            this.expectedItemId=expected.itemId;
+            this.expectedAmount=expected.amount;
+            this.expectedTile=expected.tile;
+            this.expectedSpawnedTick=expected.spawnedTick;
+            this.expectedDevOwned=expected.devOwned;
+        }
+    }
+
     synchronized PreparedAdd prepareAdd(
         int itemId,
         int amount,
@@ -348,6 +377,61 @@ final class GroundItemRegistry {
         byId.remove(
             prepared.expected.id
         );
+        return true;
+    }
+
+    synchronized PreparedOwnerTransition
+        prepareOwnerTransition(
+            long id,
+            String expectedOwner,
+            String nextOwner
+        ){
+        GroundItem current=
+            byId.get(id);
+
+        if(current==null||
+           !Objects.equals(
+                current.owner,
+                expectedOwner
+           ))
+            return null;
+
+        return new PreparedOwnerTransition(
+            current,
+            expectedOwner,
+            nextOwner
+        );
+    }
+
+    synchronized boolean commitPreparedOwnerTransition(
+        PreparedOwnerTransition prepared
+    ){
+        if(prepared==null)
+            return false;
+
+        GroundItem current=
+            byId.get(
+                prepared.expected.id
+            );
+
+        if(current!=prepared.expected||
+           current.itemId!=prepared.expectedItemId||
+           current.amount!=prepared.expectedAmount||
+           !current.tile.equals(
+                prepared.expectedTile
+           )||
+           !Objects.equals(
+                current.owner,
+                prepared.expectedOwner
+           )||
+           current.spawnedTick!=
+                prepared.expectedSpawnedTick||
+           current.devOwned!=
+                prepared.expectedDevOwned)
+            return false;
+
+        current.owner=
+            prepared.nextOwner;
         return true;
     }
 

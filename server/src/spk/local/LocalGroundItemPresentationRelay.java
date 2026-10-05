@@ -132,6 +132,12 @@ final class LocalGroundItemPresentationRelay {
                     event.newAmount,
                     event.tile
                 );
+            else if(event.kind==
+                    WorldGroundItemPresentationEvents.Kind.REMOVE)
+                publisher.groundRemove(
+                    event.itemId,
+                    event.tile
+                );
             else
                 throw new IllegalStateException(
                     "unsupported ground presentation kind "+

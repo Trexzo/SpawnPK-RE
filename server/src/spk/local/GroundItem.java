@@ -5,7 +5,7 @@ final class GroundItem {
     final int itemId;
     int amount;
     final Tile tile;
-    final String owner;
+    String owner;
     final long spawnedTick;
     final boolean devOwned;
     GroundItem(long id,int itemId,int amount,Tile tile,String owner,long spawnedTick,boolean devOwned){

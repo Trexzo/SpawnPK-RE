@@ -64,8 +64,23 @@ final class SceneUpdatePublisher {
         );
     }
     void groundRemove(GroundItem g)throws IOException{
-        int c=packed(g.tile);
-        packets.fixed(156,SceneUpdateEncoding.groundRemove(c,g.itemId));
+        groundRemove(
+            g.itemId,
+            g.tile
+        );
+    }
+    void groundRemove(
+        int itemId,
+        Tile tile
+    )throws IOException{
+        int c=packed(tile);
+        packets.fixed(
+            156,
+            SceneUpdateEncoding.groundRemove(
+                c,
+                itemId
+            )
+        );
     }
     void objectAdd(int objectId,Tile t,int shape,int rotation)throws IOException{
         int c=packed(t);

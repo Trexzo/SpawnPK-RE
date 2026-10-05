@@ -15,7 +15,8 @@ final class WorldGroundItemPresentationEvents
 
     enum Kind {
         SPAWN,
-        AMOUNT
+        AMOUNT,
+        REMOVE
     }
 
     static final class Event {
@@ -54,6 +55,37 @@ final class WorldGroundItemPresentationEvents
             this.tile=checked.tile;
             this.oldAmount=checked.oldAmount;
             this.newAmount=checked.newAmount;
+            this.owner=checked.owner;
+            this.spawnedTick=checked.spawnedTick;
+            this.recipientId=Objects.requireNonNull(
+                recipientId,
+                "recipientId"
+            );
+            this.recipientGeneration=recipientGeneration;
+        }
+
+        Event(
+            long sequence,
+            long createdAt,
+            Kind kind,
+            GroundItem item,
+            EntityId recipientId,
+            long recipientGeneration
+        ){
+            GroundItem checked=
+                Objects.requireNonNull(
+                    item,
+                    "item"
+                );
+
+            this.sequence=sequence;
+            this.createdAt=createdAt;
+            this.kind=Objects.requireNonNull(kind,"kind");
+            this.groundItemId=checked.id;
+            this.itemId=checked.itemId;
+            this.tile=checked.tile;
+            this.oldAmount=checked.amount;
+            this.newAmount=checked.amount;
             this.owner=checked.owner;
             this.spawnedTick=checked.spawnedTick;
             this.recipientId=Objects.requireNonNull(
@@ -124,6 +156,76 @@ final class WorldGroundItemPresentationEvents
             recipient,
             generation
         );
+    }
+
+    synchronized boolean enqueueSpawnSnapshot(
+        long now,
+        GroundItem item,
+        WorldPlayer recipient,
+        long generation
+    ){
+        return enqueueSnapshot(
+            now,
+            Kind.SPAWN,
+            item,
+            recipient,
+            generation
+        );
+    }
+
+    synchronized boolean enqueueRemove(
+        long now,
+        GroundItem item,
+        WorldPlayer recipient,
+        long generation
+    ){
+        return enqueueSnapshot(
+            now,
+            Kind.REMOVE,
+            item,
+            recipient,
+            generation
+        );
+    }
+
+    private boolean enqueueSnapshot(
+        long now,
+        Kind kind,
+        GroundItem item,
+        WorldPlayer recipient,
+        long generation
+    ){
+        if(closed)
+            return false;
+
+        GroundItem checkedItem=
+            Objects.requireNonNull(
+                item,
+                "item"
+            );
+        WorldPlayer checkedRecipient=
+            Objects.requireNonNull(
+                recipient,
+                "recipient"
+            );
+
+        pruneExpired(now);
+
+        events.addLast(
+            new Event(
+                ++sequence,
+                now,
+                kind,
+                checkedItem,
+                checkedRecipient.id(),
+                generation
+            )
+        );
+
+        while(events.size()>256)
+            events.removeFirst();
+
+        return true;
     }
 
     private boolean enqueue(

@@ -1985,6 +1985,7 @@ def currentTrainFocusedTests = [
     'spk.local.PlayerLifecycleRespawnPolicyTest',
     'spk.local.PlayerDeathItemResolutionServiceTest',
     'spk.local.PlayerDeathGroundSettlementServiceTest',
+    'spk.local.PlayerDeathLootLifecycleServiceTest',
     'spk.local.PlayerDeathLootOwnerResolverTest',
     'spk.local.PlayerPvpLifecycleIntegrationTest',
     'spk.local.PlayerPvpDeathSettlementIntegrationTest',
@@ -2046,10 +2047,10 @@ def currentTrainFocusedTests = [
     'spk.local.BloodDiamondFuserServiceTest'
 ]
 
-if (currentTrainFocusedTests.size() != 201 ||
-    currentTrainFocusedTests.toSet().size() != 201) {
+if (currentTrainFocusedTests.size() != 202 ||
+    currentTrainFocusedTests.toSet().size() != 202) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 201 unique tests, found " +
+        "Current-train focused manifest drift: expected 202 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()

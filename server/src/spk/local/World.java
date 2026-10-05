@@ -26,6 +26,7 @@ final class World implements AutoCloseable {
     private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
     private final WorldGroundItemPresentationEvents groundItemPresentationEvents=
         new WorldGroundItemPresentationEvents();
+    private final PlayerDeathLootLifecycleService deathLootLifecycle;
     private final WorldCommandInbox commands;
     private final DomainEventBus domainEvents;
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
@@ -132,6 +133,10 @@ final class World implements AutoCloseable {
             );
         pvpRecords=
             new PvpRecordService(
+                this
+            );
+        deathLootLifecycle=
+            new PlayerDeathLootLifecycleService(
                 this
             );
         pvmRecords=
@@ -321,6 +326,9 @@ final class World implements AutoCloseable {
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldGroundItemPresentationEvents groundItemPresentationEvents(){
         return groundItemPresentationEvents;
+    }
+    PlayerDeathLootLifecycleService deathLootLifecycle(){
+        return deathLootLifecycle;
     }
     WorldCommandInbox commands(){return commands;}
     DomainEventBus domainEvents(){return domainEvents;}
@@ -1118,6 +1126,7 @@ final class World implements AutoCloseable {
                         this
                     ),
                     npcPresentationEvents::close,
+                    deathLootLifecycle::close,
                     groundItemPresentationEvents::close,
                     domainEvents::close,
                     commands::close,

@@ -230,6 +230,18 @@ final class WorldPulse implements AutoCloseable,Runnable {
                 );
             }
 
+            try{
+                world.deathLootLifecycle()
+                    .tick(nowMillis);
+            }catch(Throwable t){
+                System.err.println(
+                    "[world] death-loot lifecycle tick failed tick="+
+                    tick+
+                    " error="+
+                    t
+                );
+            }
+
             if(world.closed())
                 return;
 
