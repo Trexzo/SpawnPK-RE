@@ -251,13 +251,28 @@ final class PlayerCombatResolutionService {
                 ()->world.withOpenPlayerOwnership(
                     target,
                     expectedTargetGeneration,
-                    ()->lifecycle[0]=
-                        applyDamage(
-                            target,
-                            weaponId,
-                            worldTick,
-                            prepared
-                        )
+                    ()->{
+                        PlayerLifecycleService.DamageResult applied=
+                            applyDamage(
+                                target,
+                                weaponId,
+                                worldTick,
+                                prepared
+                            );
+
+                        lifecycle[0]=applied;
+
+                        if(applied.died&&
+                           !applied.ignoredDead)
+                            target.lifecycle()
+                                .attributeCurrentDeath(
+                                    target.lifecycle()
+                                        .deathSequence(),
+                                    owner.id(),
+                                    expectedAttackerGeneration,
+                                    "PLAYER_PVP"
+                                );
+                    }
                 )
             );
         }catch(IllegalStateException error){
