@@ -641,6 +641,169 @@ final class BankState {
     }
 
     /**
+     * Failure-atomic full inventory + equipment replacement for semantic
+     * gameplay services such as saved loadout/regear application.
+     *
+     * The complete postimage is validated and encoded before publication.
+     * Canonical state changes only after the packet batch commits, so a writer
+     * admission/flush failure leaves both containers untouched.
+     *
+     * Caller owns the surrounding player mutation lock.
+     */
+    void applyInventoryEquipmentPostimage(
+        int[] inventoryItemIds,
+        int[] inventoryQuantities,
+        int[] equipmentItemIds,
+        int[] equipmentQuantities,
+        EquipmentState equipment,
+        ServerPacketWriter writer
+    )throws IOException{
+        java.util.Objects.requireNonNull(
+            equipment,
+            "equipment"
+        );
+        java.util.Objects.requireNonNull(
+            writer,
+            "writer"
+        );
+
+        validateInventoryPostimage(
+            inventoryItemIds,
+            inventoryQuantities
+        );
+        validateEquipmentPostimage(
+            equipmentItemIds,
+            equipmentQuantities
+        );
+
+        Stack[] inventoryPostimage=
+            new Stack[INVENTORY_CAPACITY];
+
+        for(int slot=0;
+            slot<INVENTORY_CAPACITY;
+            slot++){
+            int itemId=
+                inventoryItemIds[slot];
+
+            if(itemId>=0)
+                inventoryPostimage[slot]=
+                    new Stack(
+                        itemId,
+                        inventoryQuantities[slot]
+                    );
+        }
+
+        int[] equipmentItemsCopy=
+            equipmentItemIds.clone();
+        int[] equipmentQuantitiesCopy=
+            equipmentQuantities.clone();
+
+        publishEquipmentSwapPostimage(
+            writer,
+            inventoryPostimage,
+            equipmentItemsCopy,
+            equipmentQuantitiesCopy
+        );
+
+        /*
+         * These commits are non-throwing after the validation above. Keep
+         * publication first so canonical gameplay state never outruns a failed
+         * client postimage.
+         */
+        replaceInventorySemantic(
+            inventoryItemIds,
+            inventoryQuantities
+        );
+        equipment.restoreAccountState(
+            equipmentItemsCopy,
+            equipmentQuantitiesCopy
+        );
+    }
+
+    private static void validateInventoryPostimage(
+        int[] itemIds,
+        int[] quantities
+    ){
+        if(itemIds==null||
+           quantities==null||
+           itemIds.length!=INVENTORY_CAPACITY||
+           quantities.length!=INVENTORY_CAPACITY)
+            throw new IllegalArgumentException(
+                "inventory postimage length"
+            );
+
+        for(int slot=0;
+            slot<INVENTORY_CAPACITY;
+            slot++){
+            int itemId=itemIds[slot];
+            int quantity=quantities[slot];
+
+            if(itemId<0){
+                if(quantity!=0)
+                    throw new IllegalArgumentException(
+                        "empty inventory postimage quantity slot="+
+                        slot
+                    );
+            }else if(quantity<=0)
+                throw new IllegalArgumentException(
+                    "inventory postimage quantity slot="+
+                    slot+
+                    " item="+itemId+
+                    " qty="+quantity
+                );
+        }
+    }
+
+    private static void validateEquipmentPostimage(
+        int[] itemIds,
+        int[] quantities
+    ){
+        if(itemIds==null||
+           quantities==null||
+           itemIds.length!=
+               EquipmentState.EQUIPMENT_SLOTS||
+           quantities.length!=
+               EquipmentState.EQUIPMENT_SLOTS)
+            throw new IllegalArgumentException(
+                "equipment postimage length"
+            );
+
+        for(int index=0;
+            index<EquipmentState.EQUIPMENT_SLOTS;
+            index++){
+            int itemId=itemIds[index];
+            int quantity=quantities[index];
+            EquipmentSlot slot=
+                EquipmentSlot.fromEquipmentIndex(
+                    index
+                );
+
+            if(slot==null){
+                if(itemId>=0||quantity!=0)
+                    throw new IllegalArgumentException(
+                        "unsupported equipment postimage index="+
+                        index
+                    );
+                continue;
+            }
+
+            if(itemId<0){
+                if(quantity!=0)
+                    throw new IllegalArgumentException(
+                        "empty equipment postimage quantity index="+
+                        index
+                    );
+            }else if(quantity<=0)
+                throw new IllegalArgumentException(
+                    "equipment postimage quantity index="+
+                    index+
+                    " item="+itemId+
+                    " qty="+quantity
+                );
+        }
+    }
+
+    /**
      * Protocol-independent exact-slot consume primitive.
      *
      * Validates the complete mutation before changing the canonical inventory.
