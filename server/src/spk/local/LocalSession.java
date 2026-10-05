@@ -337,7 +337,12 @@ final class LocalSession implements Runnable {
             worldPlayer,
             movement,
             equipment,
-            ()->LocalSession.this.worldPlayerGeneration
+            combatStyles,
+            CombatDamageRules.localLabFallback(),
+            CombatAttackTimingRules.recoveredCompatibility(),
+            CombatSystemHooks.forPlayer(worldPlayer),
+            ()->LocalSession.this.worldPlayerGeneration,
+            new PvpProgressionCombatOutcomeObserver(world)
         );
         this.canonicalNpcAttack=
             new LocalCanonicalNpcAttackHandler(
