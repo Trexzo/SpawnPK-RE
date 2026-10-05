@@ -10,6 +10,12 @@ import java.util.*;
  * npcId -> owner/recipient composition identity and terminal settlement retry.
  */
 final class MonsterSpawnerPvmRuntime {
+    interface TerminalObserver {
+        void onFinalized(
+            FinalizeResult result
+        );
+    }
+
     enum State {
         ACTIVE,
         FINALIZATION_PENDING,
@@ -133,6 +139,8 @@ final class MonsterSpawnerPvmRuntime {
     private final LinkedHashMap<EntityId,Entry>
         entries=new LinkedHashMap<>();
 
+    private TerminalObserver terminalObserver;
+
     MonsterSpawnerPvmRuntime(
         World world,
         MonsterSpawnerNpcLifecycleBindingService lifecycleBinding,
@@ -172,6 +180,26 @@ final class MonsterSpawnerPvmRuntime {
             ))
             throw new IllegalArgumentException(
                 "Monster Spawner PvM runtime services must share one exact World/combat authority graph"
+            );
+    }
+
+    synchronized void installTerminalObserver(
+        TerminalObserver observer
+    ){
+        TerminalObserver checked=
+            Objects.requireNonNull(
+                observer,
+                "observer"
+            );
+
+        if(terminalObserver==null){
+            terminalObserver=checked;
+            return;
+        }
+
+        if(terminalObserver!=checked)
+            throw new IllegalStateException(
+                "Monster Spawner PvM terminal observer already installed"
             );
     }
 
@@ -661,12 +689,38 @@ final class MonsterSpawnerPvmRuntime {
                 }
             );
 
-        return new FinalizeResult(
-            FinalizeStatus.FINALIZED,
-            null,
-            finalized,
-            settled
-        );
+        FinalizeResult terminal=
+            new FinalizeResult(
+                FinalizeStatus.FINALIZED,
+                null,
+                finalized,
+                settled
+            );
+
+        TerminalObserver observer;
+
+        synchronized(this){
+            observer=terminalObserver;
+        }
+
+        if(observer!=null){
+            try{
+                observer.onFinalized(
+                    terminal
+                );
+            }catch(Throwable failure){
+                System.err.println(
+                    "[world] G1_PVM_TERMINAL_OBSERVER_FAILED npc="+
+                    finalized.npcId+
+                    " deathTick="+
+                    finalized.deathTick+
+                    " error="+
+                    failure
+                );
+            }
+        }
+
+        return terminal;
     }
 
     synchronized Snapshot get(
