@@ -192,6 +192,11 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     target.lifecycle()
                 );
 
+            if(!world.pvpDeaths().hasPending(target))
+                throw new AssertionError(
+                    "lethal PvP did not register mandatory death settlement"
+                );
+
             if(interactions.activeAttack()!=null)
                 throw new AssertionError(
                     "lethal PvP attack remained active"
@@ -304,6 +309,49 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     " published="+published
                 );
 
+            PvpDeathSettlementRuntime.RespawnGateResult
+                deathGate=
+                    world.pvpDeaths()
+                        .settleAndPrepareRespawn(
+                            target,
+                            new PlayerLifecycleService(
+                                target
+                            ),
+                            21L
+                        );
+
+            if(deathGate.settlement==null||
+               deathGate.preparedRespawn!=null||
+               world.pvpDeaths().hasPending(target)||
+               target.equipment().hasEquipped(
+                    EquipmentState.BLOODREND_ID
+               ))
+                throw new AssertionError(
+                    "live PvP death settlement did not commit before respawn"
+                );
+
+            Tile deathTile=
+                deathGate.settlement
+                    .receipt
+                    .deathTile;
+
+            GroundItem bloodrendDrop=
+                world.groundItems()
+                    .findOwned(
+                        EquipmentState.BLOODREND_ID,
+                        deathTile.x,
+                        deathTile.y,
+                        deathTile.plane,
+                        "attacker"
+                    );
+
+            if(bloodrendDrop==null||
+               bloodrendDrop.amount!=1)
+                throw new AssertionError(
+                    "live PvP death loot missing "+
+                    bloodrendDrop
+                );
+
             System.out.println(
                 "PLAYER_PVP_LIFECYCLE_INTEGRATION_PASS "+
                 "damage=9 hp=9->0 "+
@@ -312,6 +360,9 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "remoteAttackPresentation=true "+
                 "pvpRecordKill=1 pvpRecordDeath=1 "+
                 "pvpRecordStreak=1 duplicateRecord=false "+
+                "pendingDeath=true liveDeathSettlement=true "+
+                "bloodrendDropped=1 respawnDue=false "+
+                "deathPolicy=DROP_STANDARD_V1 "+
                 "authority=CUSTOM_LOCALLAB"
             );
 
