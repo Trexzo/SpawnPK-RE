@@ -13,10 +13,11 @@ import java.util.Objects;
  * unknown:
  * - exact explicit AUTO_KEEP rows remain kept;
  * - exact explicit AUTO_LOSS rows are lost;
- * - STANDARD_UNRESOLVED rows are lost by LocalLab policy.
+ * - STANDARD_UNRESOLVED rows are kept outside the explicitly configured
+ *   LocalLab PK region and lost inside that region.
  *
- * A later gameplay train may replace STANDARD_UNRESOLVED with a configured
- * risk/value policy without changing the settlement transaction.
+ * This is LocalLab gameplay policy, not recovered original SpawnPK
+ * wilderness/keep-count/value/skull/Protect Item authority.
  */
 final class LocalLabDeathDispositionPolicy {
     static final String AUTHORITY=
