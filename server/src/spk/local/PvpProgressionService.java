@@ -9,7 +9,7 @@ import java.util.*;
  * anti-farm policy and original SpawnPK formulas remain separate concerns.
  */
 final class PvpProgressionService {
-    static final String NAMESPACE="pvp.progression";
+    static final String NAMESPACE="pvp_progression";
     static final String AUTHORITY="LOCAL_LAB_POLICY_PVP_PROGRESS_V1";
 
     static final class Snapshot {
