@@ -208,16 +208,30 @@ final class G1PvmProgressionService {
                         NAMESPACE
                     );
 
-            long kills=
-                parseCounter(
-                    before,
-                    "kills"
+            final long kills;
+            final long points;
+
+            try{
+                kills=
+                    parseCounter(
+                        before,
+                        "kills"
+                    );
+                points=
+                    parseCounter(
+                        before,
+                        "points"
+                    );
+            }catch(IllegalStateException malformed){
+                return new Result(
+                    false,
+                    false,
+                    "MALFORMED_STATE",
+                    0L,
+                    0L,
+                    false
                 );
-            long points=
-                parseCounter(
-                    before,
-                    "points"
-                );
+            }
 
             final long nextKills;
             final long nextPoints;
