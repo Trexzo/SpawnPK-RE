@@ -17,6 +17,7 @@ final class LocalGroundItemInteractionHandler {
     private GroundItemInteraction pendingTake;
     private long pendingTakeGroundId;
     private long pendingTakeDeadlineMs;
+    private String pendingTakeUsername;
 
     LocalGroundItemInteractionHandler(
         World world,
@@ -78,7 +79,10 @@ final class LocalGroundItemInteractionHandler {
 
         if(onTile(ground.tile.x,ground.tile.y)){
             return takeNow(
-                ground,scenePublisher,serverPackets,
+                ground,
+                username,
+                scenePublisher,
+                serverPackets,
                 "TAKE_ON_TILE_IMMEDIATE"
             );
         }
@@ -86,6 +90,7 @@ final class LocalGroundItemInteractionHandler {
         pendingTake=action;
         pendingTakeGroundId=ground.id;
         pendingTakeDeadlineMs=System.currentTimeMillis()+10_000L;
+        pendingTakeUsername=username;
 
         return Result.log(
             "V5122_GROUND_TAKE "+action+
@@ -135,7 +140,10 @@ final class LocalGroundItemInteractionHandler {
 
         Result result=
             takeNow(
-                ground,scenePublisher,serverPackets,
+                ground,
+                pendingTakeUsername,
+                scenePublisher,
+                serverPackets,
                 "TAKE_AFTER_EXACT_TILE_ARRIVAL"
             );
 
@@ -159,10 +167,12 @@ final class LocalGroundItemInteractionHandler {
         pendingTake=null;
         pendingTakeGroundId=0L;
         pendingTakeDeadlineMs=0L;
+        pendingTakeUsername=null;
     }
 
     private Result takeNow(
         GroundItem ground,
+        String username,
         SceneUpdatePublisher scenePublisher,
         ServerPacketWriter serverPackets,
         String reason
@@ -245,15 +255,84 @@ final class LocalGroundItemInteractionHandler {
                 "prepared ground remove did not commit"
             );
 
+        int crossViewerRemoves=0;
+
+        if(ground.owner==null)
+            try{
+                crossViewerRemoves=
+                    enqueuePublicRemoveForOtherViewers(
+                        ground,
+                        username,
+                        System.currentTimeMillis()
+                    );
+            }catch(RuntimeException presentationFailure){
+                System.err.println(
+                    "[ground-take] public remove presentation enqueue failed item="+
+                    ground.id+
+                    " error="+
+                    presentationFailure
+                );
+            }
+
         return new Result(
             "V511_GROUND_TAKE id="+ground.id+
             " item="+ground.itemId+
             " amount="+ground.amount+
             " dst="+destination+
             " world="+ground.tile+
+            " crossViewerRemoveQueued="+
+            crossViewerRemoves+
             " result="+reason,
             "GROUND_TAKE"
         );
+    }
+
+    private int enqueuePublicRemoveForOtherViewers(
+        GroundItem ground,
+        String pickerUsername,
+        long now
+    ){
+        int queued=0;
+
+        for(WorldPlayer recipient:
+                world.players().snapshot()){
+            long generation=
+                recipient.generation();
+
+            if(!world.players().owns(
+                    recipient,
+                    generation))
+                continue;
+
+            if(pickerUsername!=null&&
+               pickerUsername.equalsIgnoreCase(
+                    recipient.username()
+               ))
+                continue;
+
+            MovementState recipientMovement=
+                recipient.movement();
+
+            if(recipientMovement.plane()!=
+                    ground.tile.plane||
+               !recipientMovement
+                    .insideCurrentLoadedRegion(
+                        ground.tile.x,
+                        ground.tile.y
+                    ))
+                continue;
+
+            if(world.groundItemPresentationEvents()
+                    .enqueueRemove(
+                        now,
+                        ground,
+                        recipient,
+                        generation
+                    ))
+                queued++;
+        }
+
+        return queued;
     }
 
     private boolean onTile(int x,int y){
