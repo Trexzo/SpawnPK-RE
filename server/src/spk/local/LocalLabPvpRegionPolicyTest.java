@@ -47,21 +47,21 @@ public final class LocalLabPvpRegionPolicyTest {
 
             target.movement().advance();
 
-            java.io.ByteArrayOutputStream attackerWire=
-                new java.io.ByteArrayOutputStream();
-            java.io.ByteArrayOutputStream targetWire=
-                new java.io.ByteArrayOutputStream();
+            OutboundPacketQueue attackerQueue=
+                new OutboundPacketQueue();
+            OutboundPacketQueue targetQueue=
+                new OutboundPacketQueue();
 
             ServerPacketWriter attackerWriter=
                 new ServerPacketWriter(
-                    attackerWire,
+                    attackerQueue,
                     new IsaacCipher(
                         new int[]{91,92,93,94}
                     )
                 );
             ServerPacketWriter targetWriter=
                 new ServerPacketWriter(
-                    targetWire,
+                    targetQueue,
                     new IsaacCipher(
                         new int[]{95,96,97,98}
                     )
