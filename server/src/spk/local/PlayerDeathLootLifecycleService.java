@@ -454,13 +454,32 @@ final class PlayerDeathLootLifecycleService
                 ))
                 continue;
 
-            world.groundItemPresentationEvents()
-                .enqueueRemove(
-                    now,
-                    item,
-                    recipient,
-                    generation
-                );
+            if(world.groundItemPresentationEvents()
+                    .enqueueRemove(
+                        now,
+                        item,
+                        recipient,
+                        generation
+                    )){
+                GroundItem privateReplacement=
+                    world.groundItems()
+                        .findOwned(
+                            item.itemId,
+                            item.tile.x,
+                            item.tile.y,
+                            item.tile.plane,
+                            recipient.username()
+                        );
+
+                if(privateReplacement!=null)
+                    world.groundItemPresentationEvents()
+                        .enqueueSpawnSnapshot(
+                            now,
+                            privateReplacement,
+                            recipient,
+                            generation
+                        );
+            }
         }
     }
 
