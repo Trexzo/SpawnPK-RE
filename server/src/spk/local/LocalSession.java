@@ -183,6 +183,7 @@ final class LocalSession implements Runnable {
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final LocalCombatCommandHandler combatCommands;
     private final LocalRegionDevCommandHandler regionDevCommands;
+    private final LocalTeleportNavigationRuntime teleportNavigation;
     private final LocalDevSessionCommandHandler devSessionCommands;
     private final LocalPetCompatibilityCommandHandler petCompatibilityCommands;
     /** Engine R7 one-stop in-game developer control center. */
@@ -390,6 +391,10 @@ final class LocalSession implements Runnable {
             homeWorld,
             regionLoads,
             ()->resetPetFollowRuntime());
+        this.teleportNavigation =
+            new LocalTeleportNavigationRuntime(
+                regionDevCommands
+            );
         this.devSessionCommands = new LocalDevSessionCommandHandler(
             world,
             dev,
@@ -672,6 +677,18 @@ final class LocalSession implements Runnable {
                     String tag
                 )throws IOException{
                     LocalSession.this.handleHomeTeleportFromWidget(
+                        writer,
+                        tag
+                    );
+                }
+
+                @Override public void handleTeleportNavigation(
+                    TeleportNavigationService.EntryKind kind,
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this.handleTeleportNavigationFromWidget(
+                        kind,
                         writer,
                         tag
                     );
@@ -2200,6 +2217,58 @@ final class LocalSession implements Runnable {
                 );
             }
         }
+    }
+
+    private void handleTeleportNavigationFromWidget(
+        TeleportNavigationService.EntryKind kind,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        LocalTeleportNavigationRuntime.Result result=
+            teleportNavigation.request(
+                username,
+                kind,
+                scenePublisher,
+                writer
+            );
+
+        LocalRegionDevCommandHandler.Result relocation=
+            result.relocation;
+
+        if(relocation!=null&&
+           relocation.scenePublisher!=null)
+            scenePublisher=
+                relocation.scenePublisher;
+
+        if(result.succeeded()&&
+           relocation!=null&&
+           relocation.saveReason!=null)
+            saveAccountQuiet(
+                tag,
+                relocation.saveReason
+            );
+
+        System.out.println(
+            tag+
+            "PLAYABLE_TELEPORT_NAVIGATION kind="+
+            kind+
+            " success="+
+            result.succeeded()+
+            " detail=["+
+            result.navigation.detail+
+            "] policy="+
+            LocalTeleportDestinationCatalog.POLICY_AUTHORITY+
+            " successfulKindRequests="+
+            result.navigation.player.successful(kind)+
+            " totalSuccessfulRequests="+
+            result.navigation.player.totalSuccessfulRequests
+        );
+
+        if(relocation!=null)
+            System.out.println(
+                tag+
+                relocation.logText
+            );
     }
 
     private void handleHomeTeleportFromWidget(
