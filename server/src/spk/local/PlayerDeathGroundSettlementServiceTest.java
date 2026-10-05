@@ -34,8 +34,9 @@ public final class PlayerDeathGroundSettlementServiceTest {
 
     private static void exactSettlementAndReplay(){
         WorldPlayer player=configuredPlayer();
+        World world=World.isolatedForTest(600L);
         GroundItemRegistry ground=
-            new GroundItemRegistry();
+            world.groundItems();
 
         kill(player,77L,"PVP_TEST",5L);
 
@@ -104,8 +105,8 @@ public final class PlayerDeathGroundSettlementServiceTest {
 
         PlayerDeathGroundSettlementService settlementService=
             new PlayerDeathGroundSettlementService(
+                world,
                 player,
-                ground,
                 AUTHORITY
             );
 
@@ -205,8 +206,9 @@ public final class PlayerDeathGroundSettlementServiceTest {
 
     private static void staleCarriedStateFailsClosed(){
         WorldPlayer player=configuredPlayer();
+        World world=World.isolatedForTest(600L);
         GroundItemRegistry ground=
-            new GroundItemRegistry();
+            world.groundItems();
 
         kill(player,88L,"STALE_TEST",5L);
 
@@ -234,8 +236,8 @@ public final class PlayerDeathGroundSettlementServiceTest {
 
         PlayerDeathGroundSettlementService service=
             new PlayerDeathGroundSettlementService(
+                world,
                 player,
-                ground,
                 AUTHORITY
             );
 
@@ -276,12 +278,13 @@ public final class PlayerDeathGroundSettlementServiceTest {
                 keepNone(preview.carried)
             );
 
+        World world=World.isolatedForTest(600L);
         GroundItemRegistry ground=
-            new GroundItemRegistry();
+            world.groundItems();
         PlayerDeathGroundSettlementService service=
             new PlayerDeathGroundSettlementService(
+                world,
                 second,
-                ground,
                 AUTHORITY
             );
 
@@ -302,8 +305,9 @@ public final class PlayerDeathGroundSettlementServiceTest {
 
     private static void postRespawnReplayRejected(){
         WorldPlayer player=configuredPlayer();
+        World world=World.isolatedForTest(600L);
         GroundItemRegistry ground=
-            new GroundItemRegistry();
+            world.groundItems();
 
         kill(player,111L,"RESPAWN_REPLAY",0L);
 
@@ -322,8 +326,8 @@ public final class PlayerDeathGroundSettlementServiceTest {
 
         PlayerDeathGroundSettlementService service=
             new PlayerDeathGroundSettlementService(
+                world,
                 player,
-                ground,
                 AUTHORITY
             );
         service.settle(
@@ -499,14 +503,15 @@ public final class PlayerDeathGroundSettlementServiceTest {
 
     private static void authorityGuards(){
         WorldPlayer player=configuredPlayer();
+        World world=World.isolatedForTest(600L);
         GroundItemRegistry ground=
-            new GroundItemRegistry();
+            world.groundItems();
 
         expect(
             IllegalArgumentException.class,
             ()->new PlayerDeathGroundSettlementService(
+                world,
                 player,
-                ground,
                 "UNKNOWN_SERVER_AUTHORITY"
             ),
             "unknown authority"
@@ -514,8 +519,8 @@ public final class PlayerDeathGroundSettlementServiceTest {
         expect(
             IllegalArgumentException.class,
             ()->new PlayerDeathGroundSettlementService(
+                world,
                 player,
-                ground,
                 "EXACT_CURRENT_CLIENT"
             ),
             "client authority"
