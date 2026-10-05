@@ -37,6 +37,7 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
         SceneUpdatePublisher publisher;
         int deathSettlementSaves;
         int respawnSaves;
+        int killerRewardSaves;
 
         @Override public Player81WorldSync.Context player81Sync(){return null;}
         @Override public SceneUpdatePublisher scenePublisher(){return publisher;}
@@ -45,6 +46,15 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 deathSettlementSaves++;
             if("PLAYER_RESPAWN".equals(reason))
                 respawnSaves++;
+        }
+        @Override public void savePlayerAccount(
+            WorldPlayer player,
+            long expectedGeneration,
+            String tag,
+            String reason
+        ){
+            if("PVP_KILL_REWARD".equals(reason))
+                killerRewardSaves++;
         }
         @Override public void publishOpponentOverlay(
             NpcEntity target,
@@ -69,7 +79,7 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
         WorldPlayer target=new WorldPlayer();
 
         long attackerGeneration=
-            world.registerPlayer(attacker,"attacker");
+            world.registerPlayer(attacker,"opensrc");
         long targetGeneration=
             world.registerPlayer(target,"target");
 
@@ -401,7 +411,7 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     deathX,
                     deathY,
                     0,
-                    "attacker"
+                    "opensrc"
                 );
 
             if(drop==null||
@@ -419,13 +429,28 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     "live PvP respawn postimage incorrect"
                 );
 
+            PvpKillRewardService.Counters killerReward=
+                PvpKillRewardService.counters(
+                    attacker
+                );
+
+            if(killerReward.kills!=1L||
+               killerReward.points!=1L)
+                throw new AssertionError(
+                    "live PvP killer reward mismatch "+
+                    killerReward
+                );
+
             if(tickBridge.deathSettlementSaves!=1||
-               tickBridge.respawnSaves!=1)
+               tickBridge.respawnSaves!=1||
+               tickBridge.killerRewardSaves!=1)
                 throw new AssertionError(
                     "live PvP persistence count mismatch death="+
                     tickBridge.deathSettlementSaves+
                     " respawn="+
-                    tickBridge.respawnSaves
+                    tickBridge.respawnSaves+
+                    " killerReward="+
+                    tickBridge.killerRewardSaves
                 );
 
             int groundStacksBeforeReplay=
@@ -443,14 +468,17 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     deathX,
                     deathY,
                     0,
-                    "attacker"
+                    "opensrc"
                 );
             if(replayDrop==null||
                replayDrop.id!=coinGroundId||
                replayDrop.amount!=coinAmountBeforeReplay||
                world.groundItems().size()!=groundStacksBeforeReplay||
                tickBridge.deathSettlementSaves!=1||
-               tickBridge.respawnSaves!=1)
+               tickBridge.respawnSaves!=1||
+               tickBridge.killerRewardSaves!=1||
+               PvpKillRewardService.counters(attacker).kills!=1L||
+               PvpKillRewardService.counters(attacker).points!=1L)
                 throw new AssertionError(
                     "post-respawn settlement replay changed settled postimage"
                 );
@@ -464,6 +492,8 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 "groundDropExactlyOnce=true "+
                 "deathSettlementPersistedOnce=true "+
                 "respawnPersistedOnce=true "+
+                "killerReward=true "+
+                "killerRewardPersistRequestedOnce=true "+
                 "attributionClearedOnRespawn=true "+
                 "replayIdempotent=true "+
                 "authority="+
