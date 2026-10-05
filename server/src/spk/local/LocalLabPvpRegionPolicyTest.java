@@ -279,6 +279,28 @@ public final class LocalLabPvpRegionPolicyTest {
                 "PK handler attack was not accepted"
             );
 
+            int hpBefore=
+                target.playerState().currentLevel(
+                    PlayerState.HITPOINTS
+                );
+
+            String pkHit=
+                interactions.tickAttack(
+                    20L,
+                    attackerWriter,
+                    attackerSync
+                );
+
+            require(
+                pkHit!=null&&
+                pkHit.contains(
+                    "PLAYER_ATTACK_RESOLVED")&&
+                target.playerState().currentLevel(
+                    PlayerState.HITPOINTS
+                )<hpBefore,
+                "PK handler did not resolve an actual hit"
+            );
+
             PlayerPvpEligibilityPolicy.Result bothPk=
                 policy.evaluate(
                     attacker,
@@ -325,7 +347,63 @@ public final class LocalLabPvpRegionPolicyTest {
                 pkTile,
                 pkRegion
             );
+            enter(
+                attacker,
+                pkTile,
+                pkRegion
+            );
+
+            Player81WorldSync.transformForTest(
+                attackerSync,
+                BootstrapPackets.player81Idle()
+            );
+
+            targetIndex=
+                attackerSync.clientIndexFor(
+                    target
+                );
+
+            require(
+                targetIndex>=0,
+                "second PK target fixture not visible"
+            );
+
+            String secondPkAttack=
+                interactions.handleResolved(
+                    new PlayerAction(
+                        128,
+                        1,
+                        targetIndex,
+                        "Attack"
+                    ),
+                    target,
+                    attackerSync
+                );
+
+            require(
+                secondPkAttack!=null&&
+                secondPkAttack.contains(
+                    "PLAYER_ATTACK_REQUEST")&&
+                interactions.activeAttack()!=null,
+                "second PK handler attack was not accepted"
+            );
+
             attacker.movement().returnHome();
+
+            String cancelledAfterAttackerLeave=
+                interactions.tickAttack(
+                    40L,
+                    attackerWriter,
+                    attackerSync
+                );
+
+            require(
+                cancelledAfterAttackerLeave!=null&&
+                cancelledAfterAttackerLeave.contains(
+                    "PLAYER_ATTACK_CANCELLED")&&
+                interactions.activeAttack()==null,
+                "active attack survived attacker leaving PK"
+            );
 
             PlayerPvpEligibilityPolicy.Result attackerLeft=
                 policy.evaluate(
@@ -352,7 +430,9 @@ public final class LocalLabPvpRegionPolicyTest {
                 "bothPkEligible=true "+
                 "handlerHomeRejected=true "+
                 "handlerPkAccepted=true "+
-                "activeAttackCancelledOnExit=true "+
+                "handlerPkHitResolved=true "+
+                "targetExitCancelsActiveAttack=true "+
+                "attackerExitCancelsActiveAttack=true "+
                 "followOutsidePkUnaffected=true "+
                 "tradeOutsidePkUnaffected=true "+
                 "targetLeaveRejected=true "+
