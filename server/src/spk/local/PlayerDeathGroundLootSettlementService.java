@@ -11,8 +11,8 @@ import java.util.Objects;
  * canonical World ground-item state.
  *
  * The caller owns recipient choice and death-tile policy. This service only
- * materializes the immutable lost-item facts and publishes live owner-scoped
- * scene events when the selected recipient is currently world-owned.
+ * materializes immutable lost-item facts and publishes live owner-scoped scene
+ * events when the selected recipient is currently world-owned.
  */
 final class PlayerDeathGroundLootSettlementService {
     static final String OWNER_SCOPED_DEATH_TILE=
@@ -75,6 +75,48 @@ final class PlayerDeathGroundLootSettlementService {
                         groundItems
                     )
                 );
+        }
+    }
+
+    static final class PreparedLoot {
+        private final PlayerDeathItemResolutionService.Resolution
+            resolution;
+        private final Tile deathTile;
+        private final String recipientRef;
+        private final GroundItemRegistry.PreparedBatchAdd
+            groundBatch;
+
+        private PreparedLoot(
+            PlayerDeathItemResolutionService.Resolution resolution,
+            Tile deathTile,
+            String recipientRef,
+            GroundItemRegistry.PreparedBatchAdd groundBatch
+        ){
+            this.resolution=
+                Objects.requireNonNull(
+                    resolution,
+                    "resolution"
+                );
+            this.deathTile=
+                Objects.requireNonNull(
+                    deathTile,
+                    "deathTile"
+                );
+            this.recipientRef=
+                requireText(
+                    recipientRef,
+                    "recipientRef"
+                );
+            this.groundBatch=
+                Objects.requireNonNull(
+                    groundBatch,
+                    "groundBatch"
+                );
+        }
+
+        int canonicalStackCount(){
+            return groundBatch
+                .canonicalStackCount();
         }
     }
 
@@ -154,12 +196,11 @@ final class PlayerDeathGroundLootSettlementService {
             Tile otherTile,
             String otherRecipient
         ){
-            if(!sameSettlement(
+            return sameSettlement(
                     settlement,
-                    otherSettlement))
-                return false;
-
-            return deathTile.equals(
+                    otherSettlement
+                )&&
+                deathTile.equals(
                     otherTile
                 )&&
                 recipientRef.equals(
@@ -172,6 +213,8 @@ final class PlayerDeathGroundLootSettlementService {
     private final GroundItemRegistry groundItems;
     private final String settlementAuthority;
     private final String settlementPolicy;
+    private final Object receiptLock=
+        new Object();
 
     private final LinkedHashMap<DeathKey,Receipt>
         receipts=
@@ -221,7 +264,122 @@ final class PlayerDeathGroundLootSettlementService {
                 expectedWorld.groundItems();
     }
 
-    synchronized Receipt settle(
+    /**
+     * Preflight ground capacity from the semantic death resolution before any
+     * carried-item mutation. Callers that need cross-owner atomicity should
+     * keep GroundItemRegistry's monitor from this prepare through
+     * commitPrepared(...).
+     */
+    PreparedLoot prepare(
+        PlayerDeathItemResolutionService.Resolution resolution,
+        Tile deathTile,
+        String recipientRef
+    ){
+        PlayerDeathItemResolutionService.Resolution checked=
+            Objects.requireNonNull(
+                resolution,
+                "resolution"
+            );
+        Tile checkedTile=
+            Objects.requireNonNull(
+                deathTile,
+                "deathTile"
+            );
+        String checkedRecipient=
+            requireText(
+                recipientRef,
+                "recipientRef"
+            );
+
+        validateResolutionIdentity(
+            checked
+        );
+
+        List<GroundItemRegistry.AddRequest>
+            requests=
+                requestsFromResolution(
+                    checked,
+                    checkedTile,
+                    checkedRecipient
+                );
+
+        synchronized(groundItems){
+            return new PreparedLoot(
+                checked,
+                checkedTile,
+                checkedRecipient,
+                groundItems
+                    .prepareAddBatchDetailed(
+                        requests
+                    )
+            );
+        }
+    }
+
+    Receipt commitPrepared(
+        PreparedLoot prepared,
+        PlayerDeathItemSettlementService.Settlement settlement
+    ){
+        PreparedLoot checkedPrepared=
+            Objects.requireNonNull(
+                prepared,
+                "prepared"
+            );
+        PlayerDeathItemSettlementService.Settlement
+            checkedSettlement=
+                Objects.requireNonNull(
+                    settlement,
+                    "settlement"
+                );
+
+        validateSettlementMatchesResolution(
+            checkedPrepared.resolution,
+            checkedSettlement
+        );
+
+        List<GroundItemRegistry.BatchMutation>
+            mutations;
+        Receipt receipt;
+
+        synchronized(groundItems){
+            Receipt existing=
+                existingReceipt(
+                    checkedSettlement,
+                    checkedPrepared.deathTile,
+                    checkedPrepared.recipientRef
+                );
+
+            if(existing!=null)
+                return existing;
+
+            mutations=
+                groundItems
+                    .commitPreparedAddBatch(
+                        checkedPrepared.groundBatch
+                    );
+
+            receipt=
+                recordReceipt(
+                    checkedSettlement,
+                    checkedPrepared.deathTile,
+                    checkedPrepared.recipientRef,
+                    mutations
+                );
+        }
+
+        publishLiveOwnerScene(
+            checkedPrepared.recipientRef,
+            mutations
+        );
+
+        return receipt;
+    }
+
+    /**
+     * Convenience immediate settlement retained for non-cross-owner callers.
+     * The atomic live PvP composition uses prepare(...)/commitPrepared(...).
+     */
+    Receipt settle(
         PlayerDeathItemSettlementService.Settlement settlement,
         Tile deathTile,
         String recipientRef
@@ -243,85 +401,126 @@ final class PlayerDeathGroundLootSettlementService {
                 "recipientRef"
             );
 
-        if(checkedSettlement.deathTick<0L)
-            throw new IllegalArgumentException(
-                "deathTick="+
-                checkedSettlement.deathTick
-            );
-        if(checkedSettlement.deathSequence<=0L)
-            throw new IllegalArgumentException(
-                "deathSequence="+
-                checkedSettlement.deathSequence
-            );
+        validateSettlementIdentity(
+            checkedSettlement
+        );
 
+        List<GroundItemRegistry.BatchMutation>
+            mutations;
+        Receipt receipt;
+
+        synchronized(groundItems){
+            Receipt existing=
+                existingReceipt(
+                    checkedSettlement,
+                    checkedTile,
+                    checkedRecipient
+                );
+
+            if(existing!=null)
+                return existing;
+
+            mutations=
+                groundItems.addBatchDetailed(
+                    requestsFromSettlement(
+                        checkedSettlement,
+                        checkedTile,
+                        checkedRecipient
+                    )
+                );
+
+            receipt=
+                recordReceipt(
+                    checkedSettlement,
+                    checkedTile,
+                    checkedRecipient,
+                    mutations
+                );
+        }
+
+        publishLiveOwnerScene(
+            checkedRecipient,
+            mutations
+        );
+
+        return receipt;
+    }
+
+    Receipt get(
+        EntityId playerId,
+        long deathSequence
+    ){
+        synchronized(receiptLock){
+            return receipts.get(
+                new DeathKey(
+                    playerId,
+                    deathSequence
+                )
+            );
+        }
+    }
+
+    int size(){
+        synchronized(receiptLock){
+            return receipts.size();
+        }
+    }
+
+    String settlementAuthority(){
+        return settlementAuthority;
+    }
+
+    String settlementPolicy(){
+        return settlementPolicy;
+    }
+
+    private Receipt existingReceipt(
+        PlayerDeathItemSettlementService.Settlement settlement,
+        Tile deathTile,
+        String recipientRef
+    ){
         DeathKey key=
             new DeathKey(
-                checkedSettlement.playerId,
-                checkedSettlement.deathSequence
+                settlement.playerId,
+                settlement.deathSequence
             );
 
-        Receipt existing=
-            receipts.get(key);
+        synchronized(receiptLock){
+            Receipt existing=
+                receipts.get(
+                    key
+                );
 
-        if(existing!=null){
+            if(existing==null)
+                return null;
+
             SettlementIdentity identity=
-                identities.get(key);
+                identities.get(
+                    key
+                );
 
             if(identity==null||
                !identity.sameAs(
-                    checkedSettlement,
-                    checkedTile,
-                    checkedRecipient))
+                    settlement,
+                    deathTile,
+                    recipientRef))
                 throw new IllegalStateException(
                     "conflicting player death loot settlement id="+
-                    checkedSettlement.playerId+
+                    settlement.playerId+
                     " deathSequence="+
-                    checkedSettlement.deathSequence
+                    settlement.deathSequence
                 );
 
             return existing;
         }
+    }
 
-        ArrayList<GroundItemRegistry.AddRequest>
-            requests=
-                new ArrayList<>();
-
-        for(PlayerDeathItemSettlementService.LostLine line:
-                checkedSettlement.lost){
-            PlayerDeathItemSettlementService.LostLine
-                checkedLine=
-                    Objects.requireNonNull(
-                        line,
-                        "lostLine"
-                    );
-
-            if(checkedLine.itemId<0||
-               checkedLine.quantity<=0)
-                throw new IllegalArgumentException(
-                    "invalid player death lost line item="+
-                    checkedLine.itemId+
-                    " qty="+
-                    checkedLine.quantity
-                );
-
-            requests.add(
-                new GroundItemRegistry.AddRequest(
-                    checkedLine.itemId,
-                    checkedLine.quantity,
-                    checkedTile,
-                    checkedRecipient,
-                    checkedSettlement.deathTick,
-                    false
-                )
-            );
-        }
-
-        List<GroundItemRegistry.BatchMutation>
-            mutations=
-                groundItems.addBatchDetailed(
-                    requests
-                );
-
+    private Receipt recordReceipt(
+        PlayerDeathItemSettlementService.Settlement settlement,
+        Tile deathTile,
+        String recipientRef,
+        List<GroundItemRegistry.BatchMutation> mutations
+    ){
         ArrayList<SettledGroundItem> rows=
             new ArrayList<>();
 
@@ -335,60 +534,223 @@ final class PlayerDeathGroundLootSettlementService {
 
         SettlementIdentity identity=
             new SettlementIdentity(
-                checkedSettlement,
-                checkedTile,
-                checkedRecipient
+                settlement,
+                deathTile,
+                recipientRef
             );
 
         Receipt receipt=
             new Receipt(
-                checkedSettlement,
-                checkedTile,
-                checkedRecipient,
+                settlement,
+                deathTile,
+                recipientRef,
                 settlementAuthority,
                 settlementPolicy,
                 rows
             );
 
-        identities.put(
-            key,
-            identity
-        );
-        receipts.put(
-            key,
-            receipt
-        );
+        DeathKey key=
+            new DeathKey(
+                settlement.playerId,
+                settlement.deathSequence
+            );
 
-        publishLiveOwnerScene(
-            checkedRecipient,
-            mutations
-        );
+        synchronized(receiptLock){
+            if(receipts.containsKey(
+                    key))
+                throw new IllegalStateException(
+                    "player death loot receipt raced id="+
+                    settlement.playerId+
+                    " deathSequence="+
+                    settlement.deathSequence
+                );
+
+            identities.put(
+                key,
+                identity
+            );
+            receipts.put(
+                key,
+                receipt
+            );
+        }
 
         return receipt;
     }
 
-    synchronized Receipt get(
-        EntityId playerId,
-        long deathSequence
+    private static List<GroundItemRegistry.AddRequest>
+        requestsFromResolution(
+            PlayerDeathItemResolutionService.Resolution resolution,
+            Tile deathTile,
+            String recipientRef
+        )
+    {
+        ArrayList<GroundItemRegistry.AddRequest>
+            requests=
+                new ArrayList<>();
+
+        for(PlayerDeathItemResolutionService.Disposition disposition:
+                resolution.dispositions){
+            PlayerDeathItemResolutionService.Disposition checked=
+                Objects.requireNonNull(
+                    disposition,
+                    "disposition"
+                );
+
+            if(checked.lostAmount<=0)
+                continue;
+
+            requests.add(
+                new GroundItemRegistry.AddRequest(
+                    checked.line.itemId,
+                    checked.lostAmount,
+                    deathTile,
+                    recipientRef,
+                    resolution.deathTick,
+                    false
+                )
+            );
+        }
+
+        return requests;
+    }
+
+    private static List<GroundItemRegistry.AddRequest>
+        requestsFromSettlement(
+            PlayerDeathItemSettlementService.Settlement settlement,
+            Tile deathTile,
+            String recipientRef
+        )
+    {
+        ArrayList<GroundItemRegistry.AddRequest>
+            requests=
+                new ArrayList<>();
+
+        for(PlayerDeathItemSettlementService.LostLine line:
+                settlement.lost){
+            PlayerDeathItemSettlementService.LostLine checked=
+                Objects.requireNonNull(
+                    line,
+                    "lostLine"
+                );
+
+            if(checked.itemId<0||
+               checked.quantity<=0)
+                throw new IllegalArgumentException(
+                    "invalid player death lost line item="+
+                    checked.itemId+
+                    " qty="+
+                    checked.quantity
+                );
+
+            requests.add(
+                new GroundItemRegistry.AddRequest(
+                    checked.itemId,
+                    checked.quantity,
+                    deathTile,
+                    recipientRef,
+                    settlement.deathTick,
+                    false
+                )
+            );
+        }
+
+        return requests;
+    }
+
+    private static void validateResolutionIdentity(
+        PlayerDeathItemResolutionService.Resolution resolution
     ){
-        return receipts.get(
-            new DeathKey(
-                playerId,
-                deathSequence
-            )
+        if(resolution.deathTick<0L)
+            throw new IllegalArgumentException(
+                "deathTick="+
+                resolution.deathTick
+            );
+        if(resolution.deathSequence<=0L)
+            throw new IllegalArgumentException(
+                "deathSequence="+
+                resolution.deathSequence
+            );
+    }
+
+    private static void validateSettlementIdentity(
+        PlayerDeathItemSettlementService.Settlement settlement
+    ){
+        if(settlement.deathTick<0L)
+            throw new IllegalArgumentException(
+                "deathTick="+
+                settlement.deathTick
+            );
+        if(settlement.deathSequence<=0L)
+            throw new IllegalArgumentException(
+                "deathSequence="+
+                settlement.deathSequence
+            );
+    }
+
+    private static void validateSettlementMatchesResolution(
+        PlayerDeathItemResolutionService.Resolution resolution,
+        PlayerDeathItemSettlementService.Settlement settlement
+    ){
+        validateResolutionIdentity(
+            resolution
         );
-    }
+        validateSettlementIdentity(
+            settlement
+        );
 
-    synchronized int size(){
-        return receipts.size();
-    }
+        if(!resolution.playerId.equals(
+                settlement.playerId)||
+           resolution.deathTick!=
+                settlement.deathTick||
+           resolution.deathSequence!=
+                settlement.deathSequence||
+           !resolution.deathCause.equals(
+                settlement.deathCause)||
+           !resolution.policyAuthority.equals(
+                settlement.resolutionAuthority))
+            throw new IllegalStateException(
+                "player death item/ground resolution identity mismatch"
+            );
 
-    String settlementAuthority(){
-        return settlementAuthority;
-    }
+        ArrayList<PlayerDeathItemResolutionService.Disposition>
+            lost=
+                new ArrayList<>();
 
-    String settlementPolicy(){
-        return settlementPolicy;
+        for(PlayerDeathItemResolutionService.Disposition disposition:
+                resolution.dispositions)
+            if(disposition.lostAmount>0)
+                lost.add(
+                    disposition
+                );
+
+        if(lost.size()!=
+                settlement.lost.size())
+            throw new IllegalStateException(
+                "player death lost-line count changed before ground commit"
+            );
+
+        for(int i=0;i<lost.size();i++){
+            PlayerDeathItemResolutionService.Disposition
+                disposition=lost.get(i);
+            PlayerDeathItemSettlementService.LostLine
+                line=settlement.lost.get(i);
+
+            if(disposition.line.source!=
+                    line.source||
+               disposition.line.sourceIndex!=
+                    line.sourceIndex||
+               disposition.line.equipmentSlot!=
+                    line.equipmentSlot||
+               disposition.line.itemId!=
+                    line.itemId||
+               disposition.lostAmount!=
+                    line.quantity)
+                throw new IllegalStateException(
+                    "player death lost-line facts changed before ground commit index="+
+                    i
+                );
+        }
     }
 
     private void publishLiveOwnerScene(
