@@ -174,6 +174,38 @@ final class PlayerLoadoutApplyService {
         }
     }
 
+    LoadoutService.ValidationResult validate(
+        PlayerLoadout loadout
+    ){
+        try{
+            project(
+                Objects.requireNonNull(
+                    loadout,
+                    "loadout"
+                )
+            );
+            return LoadoutService
+                .ValidationResult
+                .valid();
+        }catch(
+            IllegalArgumentException|
+            IllegalStateException invalid
+        ){
+            String message=
+                invalid.getMessage();
+
+            return LoadoutService
+                .ValidationResult
+                .invalid(
+                    "CUSTOM_LOCALLAB_LOADOUT_APPLY_INVALID "+
+                    (message==null
+                        ?invalid.getClass()
+                            .getSimpleName()
+                        :message)
+                );
+        }
+    }
+
     String resolverAuthority(){
         return resolver.authority();
     }
