@@ -21,6 +21,7 @@ final class PlayerDeathAttributionRegistry {
         final EntityId victimId;
         final long victimGeneration;
         final String victimRef;
+        final Tile deathTile;
         final long deathTick;
         final long deathSequence;
         final String authority;
@@ -43,6 +44,12 @@ final class PlayerDeathAttributionRegistry {
                 victim.username(),
                 "victim"
             );
+            this.deathTile=
+                new Tile(
+                    victim.movement().x(),
+                    victim.movement().y(),
+                    victim.movement().plane()
+                );
             this.deathTick=victim.lifecycle().deathTick();
             this.deathSequence=victim.lifecycle().deathSequence();
             this.authority=AUTHORITY;
@@ -58,6 +65,9 @@ final class PlayerDeathAttributionRegistry {
                 attackerGeneration==expectedAttackerGeneration&&
                 victimId.equals(victim.id())&&
                 victimGeneration==expectedVictimGeneration&&
+                deathTile.x==victim.movement().x()&&
+                deathTile.y==victim.movement().y()&&
+                deathTile.plane==victim.movement().plane()&&
                 deathTick==victim.lifecycle().deathTick()&&
                 deathSequence==victim.lifecycle().deathSequence();
         }
