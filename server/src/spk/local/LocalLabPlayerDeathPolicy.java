@@ -186,12 +186,6 @@ final class LocalLabPlayerDeathPolicy {
         String recipientPolicy=RECIPIENT_POLICY;
 
         if(pvpDeathLedger!=null){
-            if(!pvpDeathLedger.isBoundTo(
-                    checkedPlayer.world()))
-                throw new IllegalArgumentException(
-                    "PvP death ledger belongs to another World"
-                );
-
             PlayerPvpDeathLedger.Entry attribution=
                 pvpDeathLedger.get(
                     checkedPlayer.id(),
