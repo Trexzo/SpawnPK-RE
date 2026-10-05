@@ -209,12 +209,18 @@ final class LocalWorldTickCoordinator {
             );
         }
 
+        PvpDeathSettlementRuntime.RespawnGateResult
+            pvpDeathGate=
+                world.pvpDeaths()
+                    .settleAndPrepareRespawn(
+                        worldPlayer,
+                        lifecycle,
+                        worldTick
+                    );
+
         PvpDeathSettlementRuntime.SettlementResult
             pvpDeathSettlement=
-                world.pvpDeaths()
-                    .settlePendingBeforeRespawn(
-                        worldPlayer
-                    );
+                pvpDeathGate.settlement;
 
         if(pvpDeathSettlement!=null){
             System.out.println(
@@ -235,9 +241,7 @@ final class LocalWorldTickCoordinator {
         }
 
         PlayerLifecycleService.PreparedRespawn preparedRespawn=
-            lifecycle.prepareRespawn(
-                worldTick
-            );
+            pvpDeathGate.preparedRespawn;
 
         if(preparedRespawn!=null){
             deferredRespawn=
