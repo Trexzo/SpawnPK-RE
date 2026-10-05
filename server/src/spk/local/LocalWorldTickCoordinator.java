@@ -41,6 +41,10 @@ final class LocalWorldTickCoordinator {
     private final PetEffectState petEffects;
     private final PlayerStatusService statuses;
     private final PlayerLifecycleService lifecycle;
+    private final PlayerDeathItemResolutionService deathItemResolution;
+    private final PlayerDeathItemCommitService deathItemCommit;
+    private final PlayerDeathGroundSettlementService deathGroundSettlement;
+    private final LocalLabPlayerDeathPolicy deathPolicy;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -65,6 +69,7 @@ final class LocalWorldTickCoordinator {
     private NpcEntity deferredPetEffectPet;
     private int deferredPetEffectNativeState;
     private PlayerLifecycleService.PreparedRespawn deferredRespawn;
+    private DeferredDeathSettlement deferredDeathSettlement;
     private MovementState.Snapshot deferredMovementPreimage;
     private LocalPlayerInteractionHandler.Snapshot deferredMovementInteractionPreimage;
     private CombatEngine.MovementFacingSnapshot deferredMovementFacingPreimage;
@@ -76,6 +81,31 @@ final class LocalWorldTickCoordinator {
     private boolean deferredMovementTransient;
     private boolean noMovementSemanticTailEntered;
     private boolean noMovementSemanticTailCompleted;
+
+    private static final class DeferredDeathSettlement {
+        final PlayerDeathItemResolutionService.Resolution resolution;
+        final Tile deathTile;
+        final String recipientRef;
+
+        DeferredDeathSettlement(
+            PlayerDeathItemResolutionService.Resolution resolution,
+            Tile deathTile,
+            String recipientRef
+        ){
+            this.resolution=Objects.requireNonNull(
+                resolution,
+                "resolution"
+            );
+            this.deathTile=Objects.requireNonNull(
+                deathTile,
+                "deathTile"
+            );
+            this.recipientRef=Objects.requireNonNull(
+                recipientRef,
+                "recipientRef"
+            );
+        }
+    }
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -150,6 +180,25 @@ final class LocalWorldTickCoordinator {
         this.petEffects=Objects.requireNonNull(petEffects,"petEffects");
         this.statuses=Objects.requireNonNull(statuses,"statuses");
         this.lifecycle=new PlayerLifecycleService(worldPlayer);
+        this.deathItemResolution=
+            new PlayerDeathItemResolutionService(
+                worldPlayer,
+                LocalLabPlayerDeathPolicy.AUTHORITY
+            );
+        this.deathItemCommit=
+            new PlayerDeathItemCommitService(
+                worldPlayer,
+                "CUSTOM_LOCALLAB_DEATH_COMMIT_V1"
+            );
+        this.deathGroundSettlement=
+            new PlayerDeathGroundSettlementService(
+                world,
+                "CUSTOM_LOCALLAB_DEATH_GROUND_V1",
+                PlayerDeathGroundSettlementService
+                    .OWNER_SCOPED_DEATH_TILE
+            );
+        this.deathPolicy=
+            new LocalLabPlayerDeathPolicy();
         this.npcs=Objects.requireNonNull(npcs,"npcs");
         this.homeWorld=Objects.requireNonNull(homeWorld,"homeWorld");
         this.combat=Objects.requireNonNull(combat,"combat");
@@ -194,6 +243,7 @@ final class LocalWorldTickCoordinator {
         deferredPetEffectPet=null;
         deferredPetEffectNativeState=0;
         deferredRespawn=null;
+        deferredDeathSettlement=null;
         noMovementSemanticTailEntered=false;
         noMovementSemanticTailCompleted=false;
 
@@ -215,6 +265,39 @@ final class LocalWorldTickCoordinator {
             );
 
         if(preparedRespawn!=null){
+            PlayerDeathItemResolutionService.DeathPreview
+                deathPreview=
+                    deathItemResolution
+                        .previewCurrentDeath();
+            LocalLabPlayerDeathPolicy.Plan
+                deathPlan=
+                    deathPolicy.plan(
+                        worldPlayer,
+                        deathPreview
+                    );
+            PlayerDeathItemResolutionService.Resolution
+                deathResolution=
+                    deathItemResolution
+                        .resolveCurrentDeath(
+                            deathPreview,
+                            deathPlan.decisions
+                        );
+
+            if(deathResolution.deathSequence!=
+                    preparedRespawn.deathSequence)
+                throw new IllegalStateException(
+                    "death settlement/respawn sequence drift settlement="+
+                    deathResolution.deathSequence+
+                    " respawn="+
+                    preparedRespawn.deathSequence
+                );
+
+            deferredDeathSettlement=
+                new DeferredDeathSettlement(
+                    deathResolution,
+                    deathPlan.deathTile,
+                    deathPlan.recipientRef
+                );
             deferredRespawn=
                 preparedRespawn;
             return;
@@ -1238,6 +1321,113 @@ final class LocalWorldTickCoordinator {
         System.out.println(
             tag+result.logText
         );
+    }
+
+    void settleDeferredDeathItemsAfterWorldTick(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        DeferredDeathSettlement deferred=
+            deferredDeathSettlement;
+
+        if(deferred==null)
+            return;
+
+        if(deferredRespawn==null||
+           deferredRespawn.deathSequence!=
+                deferred.resolution.deathSequence)
+            throw new IllegalStateException(
+                "deferred death settlement missing matching respawn"
+            );
+
+        PlayerDeathItemCommitService.CommitResult
+            commit=
+                deathItemCommit.commit(
+                    deferred.resolution
+                );
+
+        PlayerDeathGroundSettlementService.Receipt
+            ground=
+                deathGroundSettlement.settle(
+                    commit,
+                    deferred.deathTile,
+                    deferred.recipientRef
+                );
+
+        bridge.saveAccount(
+            tag,
+            "PLAYER_DEATH_ITEMS"
+        );
+
+        if(commit.lostTotalQuantity>0){
+            boolean batchActive=false;
+
+            try{
+                writer.beginBatch();
+                batchActive=true;
+
+                worldPlayer.bank()
+                    .sendNormalInventory(
+                        writer
+                    );
+                worldPlayer.bank()
+                    .sendEquipment(
+                        writer,
+                        equipment
+                    );
+
+                writer.endBatch();
+                batchActive=false;
+            }catch(IOException failure){
+                if(batchActive)
+                    try{
+                        writer.abortBatch();
+                    }catch(Throwable abortFailure){
+                        failure.addSuppressed(
+                            abortFailure
+                        );
+                    }
+                throw failure;
+            }catch(RuntimeException failure){
+                if(batchActive)
+                    try{
+                        writer.abortBatch();
+                    }catch(Throwable abortFailure){
+                        failure.addSuppressed(
+                            abortFailure
+                        );
+                    }
+                throw failure;
+            }
+        }
+
+        deferredDeathSettlement=null;
+
+        System.out.println(
+            tag+
+            "PLAYER_DEATH_ITEMS_SETTLED deathSequence="+
+            commit.deathSequence+
+            " keptQuantity="+
+            commit.keptTotalQuantity+
+            " lostQuantity="+
+            commit.lostTotalQuantity+
+            " groundStacks="+
+            ground.groundItems.size()+
+            " recipient="+
+            ground.recipientRef+
+            " itemPolicy="+
+            LocalLabPlayerDeathPolicy.AUTHORITY+
+            " recipientPolicy="+
+            LocalLabPlayerDeathPolicy.RECIPIENT_POLICY
+        );
+    }
+
+    void abortDeferredDeathItemsAfterWorldTick(){
+        deferredDeathSettlement=null;
+    }
+
+    boolean deferredDeathItemsEligible(){
+        return deferredDeathSettlement!=null;
     }
 
     void settleDeferredRespawnAfterWorldTick(
