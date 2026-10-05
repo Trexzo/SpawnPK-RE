@@ -222,10 +222,25 @@ final class PlayerDeathCarriedSettlementService {
     synchronized Receipt commitPrepared(
         Prepared prepared
     ){
+        return commitPreparedAfterValidation(
+            prepared,
+            ()->{}
+        );
+    }
+
+    synchronized Receipt commitPreparedAfterValidation(
+        Prepared prepared,
+        Runnable beforeCarriedCommit
+    ){
         Prepared checked=
             Objects.requireNonNull(
                 prepared,
                 "prepared"
+            );
+        Runnable callback=
+            Objects.requireNonNull(
+                beforeCarriedCommit,
+                "beforeCarriedCommit"
             );
 
         if(checked.replay)
@@ -243,6 +258,14 @@ final class PlayerDeathCarriedSettlementService {
 
             if(replay!=null)
                 return replay;
+
+            /*
+             * Policy evaluation and all carried postimage calculation have
+             * already completed. A world settlement may now commit its own
+             * prevalidated side of the transaction (for example a ground-item
+             * batch) while the exact victim carried preimage remains locked.
+             */
+            callback.run();
 
             BankState bank=player.bank();
             EquipmentState equipment=player.equipment();
