@@ -21,6 +21,8 @@ final class LocalLabPlayerDeathPolicy {
         "CUSTOM_LOCALLAB_CONSERVATIVE_DEATH_POLICY_V1";
     static final String RECIPIENT_POLICY =
         "VICTIM_OWNED_RECLAIM";
+    static final String PVP_KILLER_RECIPIENT_POLICY =
+        "ATTRIBUTED_PVP_KILLER";
 
     static final class Plan {
         final PlayerDeathItemResolutionService.DeathPreview preview;
@@ -40,7 +42,8 @@ final class LocalLabPlayerDeathPolicy {
             String recipientRef,
             int explicitKeepLines,
             int explicitLossLines,
-            int unresolvedKeptLines
+            int unresolvedKeptLines,
+            String recipientPolicy
         ){
             this.preview=preview;
             this.decisions=
@@ -55,13 +58,28 @@ final class LocalLabPlayerDeathPolicy {
             this.explicitLossLines=explicitLossLines;
             this.unresolvedKeptLines=unresolvedKeptLines;
             this.authority=AUTHORITY;
-            this.recipientPolicy=RECIPIENT_POLICY;
+            this.recipientPolicy=
+                requireRecipientPolicy(
+                    recipientPolicy
+                );
         }
     }
 
     Plan plan(
         WorldPlayer player,
         PlayerDeathItemResolutionService.DeathPreview preview
+    ){
+        return plan(
+            player,
+            preview,
+            null
+        );
+    }
+
+    Plan plan(
+        WorldPlayer player,
+        PlayerDeathItemResolutionService.DeathPreview preview,
+        PlayerPvpDeathLedger pvpDeathLedger
     ){
         WorldPlayer checkedPlayer=
             Objects.requireNonNull(
@@ -154,15 +172,39 @@ final class LocalLabPlayerDeathPolicy {
                 movement.plane()
             );
 
-        String recipientRef=
+        String victimRef=
             checkedPlayer.username();
 
-        if(recipientRef==null||
-           recipientRef.trim().isEmpty())
+        if(victimRef==null||
+           victimRef.trim().isEmpty())
             throw new IllegalStateException(
                 "live death policy requires registered victim username id="+
                 checkedPlayer.id()
             );
+
+        String recipientRef=victimRef;
+        String recipientPolicy=RECIPIENT_POLICY;
+
+        if(pvpDeathLedger!=null){
+            if(!pvpDeathLedger.isBoundTo(
+                    checkedPlayer.world()))
+                throw new IllegalArgumentException(
+                    "PvP death ledger belongs to another World"
+                );
+
+            PlayerPvpDeathLedger.Entry attribution=
+                pvpDeathLedger.get(
+                    checkedPlayer.id(),
+                    checkedPreview.deathSequence
+                );
+
+            if(attribution!=null){
+                recipientRef=
+                    attribution.attackerUsername;
+                recipientPolicy=
+                    PVP_KILLER_RECIPIENT_POLICY;
+            }
+        }
 
         return new Plan(
             checkedPreview,
@@ -171,7 +213,21 @@ final class LocalLabPlayerDeathPolicy {
             recipientRef,
             explicitKeep,
             explicitLoss,
-            unresolvedKeep
+            unresolvedKeep,
+            recipientPolicy
         );
+    }
+
+    private static String requireRecipientPolicy(
+        String value
+    ){
+        if(!RECIPIENT_POLICY.equals(value)&&
+           !PVP_KILLER_RECIPIENT_POLICY.equals(value))
+            throw new IllegalArgumentException(
+                "recipientPolicy="+
+                value
+            );
+
+        return value;
     }
 }
