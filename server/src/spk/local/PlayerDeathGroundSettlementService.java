@@ -278,9 +278,61 @@ final class PlayerDeathGroundSettlementService {
                     receipt
                 );
 
+                publishLiveOwnerScene(
+                    owner,
+                    groundMutations
+                );
+
                 return receipt;
             }
         }
+    }
+
+    private void publishLiveOwnerScene(
+        String owner,
+        List<GroundItemRegistry.BatchMutation> mutations
+    ){
+        if(mutations.isEmpty())
+            return;
+
+        WorldPlayer recipient=
+            world.players().byName(
+                owner
+            );
+
+        if(recipient==null)
+            return;
+
+        long generation=
+            recipient.generation();
+
+        if(!world.players().owns(
+                recipient,
+                generation
+            ))
+            return;
+
+        long now=
+            System.currentTimeMillis();
+
+        for(GroundItemRegistry.BatchMutation mutation:
+                mutations)
+            if(mutation.created())
+                world.groundItemPresentationEvents()
+                    .enqueueSpawn(
+                        now,
+                        mutation,
+                        recipient,
+                        generation
+                    );
+            else
+                world.groundItemPresentationEvents()
+                    .enqueueAmount(
+                        now,
+                        mutation,
+                        recipient,
+                        generation
+                    );
     }
 
     Receipt get(long deathSequence){
