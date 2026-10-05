@@ -147,6 +147,25 @@ final class LocalSessionPlayerInitializer {
             scopesightActive()
         );
 
+        DefaultLoadoutService.Snapshot g1Default=
+            G1DefaultLoadoutRegearService
+                .ensureStarterDefault(
+                    world,
+                    username
+                );
+
+        System.out.println(
+            tag+
+            "G1_DEFAULT_LOADOUT_READY owner="+
+            username+
+            " id="+
+            g1Default.defaultLoadoutId+
+            " revision="+
+            g1Default.selectionRevision+
+            " authority="+
+            g1Default.policyAuthority
+        );
+
         long generation=
             world.registerPlayerAndStart(
                 worldPlayer,
