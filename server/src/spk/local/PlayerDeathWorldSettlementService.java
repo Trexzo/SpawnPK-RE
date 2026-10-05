@@ -9,14 +9,9 @@ import java.util.Objects;
 /**
  * World-side exactly-once PvP death settlement.
  *
- * Order:
- * 1. prepare/validate the victim carried postimage;
- * 2. resolve typed killer attribution and immutable death tile;
- * 3. while the victim preimage remains locked, commit the ground-item batch;
- * 4. apply the already-built carried postimage;
- * 5. retain one receipt for the deathSequence.
- *
- * No client packet value participates in keep/drop economics or ownership.
+ * Prepare resolves policy/attribution and freezes the ground batch without
+ * mutating world state. Commit runs only after the enclosing session/world-tick
+ * packet batch has succeeded.
  */
 final class PlayerDeathWorldSettlementService {
     static final class GroundLine {
@@ -77,6 +72,52 @@ final class PlayerDeathWorldSettlementService {
         }
     }
 
+    static final class Prepared {
+        final PlayerDeathCarriedSettlementService.Prepared carried;
+        final PlayerDeathAttributionRegistry.Attribution attribution;
+        final String owner;
+        final boolean devOwned;
+        final List<GroundItemRegistry.AddRequest> requests;
+        final Receipt replayReceipt;
+
+        private Prepared(Receipt replayReceipt){
+            this.carried=null;
+            this.attribution=null;
+            this.owner=null;
+            this.devOwned=false;
+            this.requests=Collections.emptyList();
+            this.replayReceipt=replayReceipt;
+        }
+
+        private Prepared(
+            PlayerDeathCarriedSettlementService.Prepared carried,
+            PlayerDeathAttributionRegistry.Attribution attribution,
+            String owner,
+            boolean devOwned,
+            List<GroundItemRegistry.AddRequest> requests
+        ){
+            this.carried=carried;
+            this.attribution=attribution;
+            this.owner=owner;
+            this.devOwned=devOwned;
+            this.requests=
+                Collections.unmodifiableList(
+                    new ArrayList<>(requests)
+                );
+            this.replayReceipt=null;
+        }
+
+        boolean replay(){
+            return replayReceipt!=null;
+        }
+
+        long deathSequence(){
+            return replay()
+                ?replayReceipt.deathSequence
+                :carried.receipt.deathSequence;
+        }
+    }
+
     private final World world;
     private final WorldPlayer victim;
     private final PlayerDeathCarriedSettlementService carried;
@@ -112,41 +153,41 @@ final class PlayerDeathWorldSettlementService {
             );
     }
 
-    synchronized Receipt settleCurrentPvpDeath(){
-        PlayerDeathCarriedSettlementService.Prepared prepared=
+    synchronized Prepared prepareCurrentPvpDeath(){
+        PlayerDeathCarriedSettlementService.Prepared carriedPrepared=
             carried.prepareCurrentDeath();
 
         Receipt existing=
             receipts.get(
-                prepared.receipt.deathSequence
+                carriedPrepared.receipt.deathSequence
             );
         if(existing!=null)
-            return existing;
+            return new Prepared(existing);
 
-        if(prepared.replay)
+        if(carriedPrepared.replay)
             throw new IllegalStateException(
                 "carried death was already committed without world receipt victim="+
                 victim.id()+
                 " deathSequence="+
-                prepared.receipt.deathSequence
+                carriedPrepared.receipt.deathSequence
             );
 
         PlayerDeathAttributionRegistry.Attribution attribution=
             world.playerDeathAttributions().get(
                 victim.id(),
-                prepared.receipt.deathSequence
+                carriedPrepared.receipt.deathSequence
             );
 
         requireAttribution(
             attribution,
-            prepared.receipt
+            carriedPrepared.receipt
         );
 
         String owner=
             normalizeOwner(
                 groundPolicy.ownerRef(
                     attribution,
-                    prepared.receipt
+                    carriedPrepared.receipt
                 )
             );
         boolean devOwned=
@@ -156,17 +197,45 @@ final class PlayerDeathWorldSettlementService {
             new ArrayList<>();
 
         for(PlayerDeathCarriedSettlementService.LostLine lost:
-                prepared.receipt.lost)
+                carriedPrepared.receipt.lost)
             requests.add(
                 new GroundItemRegistry.AddRequest(
                     lost.itemId,
                     lost.amount,
                     attribution.deathTile,
                     owner,
-                    prepared.receipt.deathTick,
+                    carriedPrepared.receipt.deathTick,
                     devOwned
                 )
             );
+
+        return new Prepared(
+            carriedPrepared,
+            attribution,
+            owner,
+            devOwned,
+            requests
+        );
+    }
+
+    synchronized Receipt commitPrepared(
+        Prepared prepared
+    ){
+        Prepared checked=
+            Objects.requireNonNull(
+                prepared,
+                "prepared"
+            );
+
+        Receipt existing=
+            receipts.get(
+                checked.deathSequence()
+            );
+        if(existing!=null)
+            return existing;
+
+        if(checked.replay())
+            return checked.replayReceipt;
 
         @SuppressWarnings("unchecked")
         final List<GroundItemRegistry.BatchMutation>[] committed=
@@ -174,11 +243,11 @@ final class PlayerDeathWorldSettlementService {
 
         PlayerDeathCarriedSettlementService.Receipt carriedReceipt=
             carried.commitPreparedAfterValidation(
-                prepared,
+                checked.carried,
                 ()->committed[0]=
                     world.groundItems()
                         .addBatchDetailed(
-                            requests
+                            checked.requests
                         )
             );
 
@@ -195,7 +264,7 @@ final class PlayerDeathWorldSettlementService {
 
         Receipt receipt=
             new Receipt(
-                attribution,
+                checked.attribution,
                 carriedReceipt,
                 groundPolicyAuthority,
                 mutations
@@ -207,11 +276,17 @@ final class PlayerDeathWorldSettlementService {
         );
 
         publishLiveOwnerScene(
-            attribution,
+            checked.attribution,
             mutations
         );
 
         return receipt;
+    }
+
+    synchronized Receipt settleCurrentPvpDeath(){
+        return commitPrepared(
+            prepareCurrentPvpDeath()
+        );
     }
 
     synchronized Receipt get(
