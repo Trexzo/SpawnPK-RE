@@ -32,6 +32,7 @@ final class World implements AutoCloseable {
     private final LinkedHashMap<EntityId,WorldNpcTickTarget> npcTickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
+    private final PvpRecordService pvpRecords;
     private final PlayerPrivilegeService playerPrivileges=
         new PlayerPrivilegeService(
             AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
@@ -120,6 +121,10 @@ final class World implements AutoCloseable {
             new WorldPlayerPersistence(
                 this,
                 repository
+            );
+        pvpRecords=
+            new PvpRecordService(
+                this
             );
         content=
             new ContentRegistry(this);
@@ -309,6 +314,7 @@ final class World implements AutoCloseable {
     DomainEventBus domainEvents(){return domainEvents;}
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
+    PvpRecordService pvpRecords(){return pvpRecords;}
     PlayerPrivilegeService playerPrivileges(){return playerPrivileges;}
     PlayerAppearanceRoleProjection appearanceRoles(){return appearanceRoles;}
     int appearanceRoleFor(String playerRef){
