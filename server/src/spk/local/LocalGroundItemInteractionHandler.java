@@ -15,6 +15,7 @@ final class LocalGroundItemInteractionHandler {
     private final MovementState movement;
 
     private GroundItemInteraction pendingTake;
+    private String pendingTakeUsername;
     private long pendingTakeGroundId;
     private long pendingTakeDeadlineMs;
 
@@ -78,12 +79,16 @@ final class LocalGroundItemInteractionHandler {
 
         if(onTile(ground.tile.x,ground.tile.y)){
             return takeNow(
-                ground,scenePublisher,serverPackets,
+                ground,
+                username,
+                scenePublisher,
+                serverPackets,
                 "TAKE_ON_TILE_IMMEDIATE"
             );
         }
 
         pendingTake=action;
+        pendingTakeUsername=username;
         pendingTakeGroundId=ground.id;
         pendingTakeDeadlineMs=System.currentTimeMillis()+10_000L;
 
@@ -135,7 +140,10 @@ final class LocalGroundItemInteractionHandler {
 
         Result result=
             takeNow(
-                ground,scenePublisher,serverPackets,
+                ground,
+                pendingTakeUsername,
+                scenePublisher,
+                serverPackets,
                 "TAKE_AFTER_EXACT_TILE_ARRIVAL"
             );
 
@@ -157,12 +165,14 @@ final class LocalGroundItemInteractionHandler {
 
     private void clearPendingTake(){
         pendingTake=null;
+        pendingTakeUsername=null;
         pendingTakeGroundId=0L;
         pendingTakeDeadlineMs=0L;
     }
 
     private Result takeNow(
         GroundItem ground,
+        String pickerUsername,
         SceneUpdatePublisher scenePublisher,
         ServerPacketWriter serverPackets,
         String reason
@@ -245,15 +255,86 @@ final class LocalGroundItemInteractionHandler {
                 "prepared ground remove did not commit"
             );
 
+        int crossViewerRemovals=
+            enqueuePublicPickupRemovals(
+                ground,
+                pickerUsername,
+                System.currentTimeMillis()
+            );
+
         return new Result(
             "V511_GROUND_TAKE id="+ground.id+
             " item="+ground.itemId+
             " amount="+ground.amount+
             " dst="+destination+
             " world="+ground.tile+
-            " result="+reason,
+            " result="+reason+
+            " crossViewerRemovals="+
+            crossViewerRemovals,
             "GROUND_TAKE"
         );
+    }
+
+    private int enqueuePublicPickupRemovals(
+        GroundItem removed,
+        String pickerUsername,
+        long now
+    ){
+        if(removed.owner!=null)
+            return 0;
+
+        GroundItem immutableSnapshot=
+            new GroundItem(
+                removed.id,
+                removed.itemId,
+                removed.amount,
+                removed.tile,
+                removed.owner,
+                removed.spawnedTick,
+                removed.devOwned
+            );
+
+        int queued=0;
+
+        for(WorldPlayer recipient:
+                world.players().snapshot()){
+            long generation=
+                recipient.generation();
+
+            if(!world.players().owns(
+                    recipient,
+                    generation))
+                continue;
+
+            if(pickerUsername!=null&&
+               pickerUsername.equalsIgnoreCase(
+                    recipient.username()
+               ))
+                continue;
+
+            MovementState recipientMovement=
+                recipient.movement();
+
+            if(recipientMovement.plane()!=
+                    immutableSnapshot.tile.plane||
+               !recipientMovement
+                    .insideCurrentLoadedRegion(
+                        immutableSnapshot.tile.x,
+                        immutableSnapshot.tile.y
+                    ))
+                continue;
+
+            if(world.groundItemPresentationEvents()
+                    .enqueueRemove(
+                        now,
+                        immutableSnapshot,
+                        recipient,
+                        generation
+                    ))
+                queued++;
+        }
+
+        return queued;
     }
 
     private boolean onTile(int x,int y){
