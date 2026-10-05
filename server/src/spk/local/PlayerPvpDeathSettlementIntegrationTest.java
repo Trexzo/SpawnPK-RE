@@ -158,13 +158,145 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
             int baseX=(chunkX-6)<<3;
             int baseY=(chunkY-6)<<3;
 
-            targetMovement.enterTransientRegion(
-                deathX,
-                deathY,
-                pkDestination.plane,
-                baseX,
-                baseY
-            );
+            LocalPlayerInteractionHandler
+                targetNavigationInteractions=
+                    new LocalPlayerInteractionHandler(
+                        world,
+                        target,
+                        targetMovement,
+                        targetEquipment,
+                        target::generation,
+                        LocalLabPvpRegionPolicy.INSTANCE
+                    );
+
+            LocalRegionDevCommandHandler
+                targetNavigationRelocation=
+                    new LocalRegionDevCommandHandler(
+                        world,
+                        target,
+                        targetMovement,
+                        targetNavigationInteractions,
+                        combat,
+                        npcs,
+                        targetPetState,
+                        home,
+                        ()->{}
+                    );
+
+            LocalTeleportNavigationRuntime
+                targetNavigation=
+                    new LocalTeleportNavigationRuntime(
+                        targetNavigationRelocation
+                    );
+
+            DevAuthorityWorkbench attackerDev=
+                new DevAuthorityWorkbench();
+            NpcRegistry attackerNpcs=
+                new NpcRegistry(
+                    attackerDev
+                );
+            HomeWorldRuntimePlan attackerHome=
+                new HomeWorldRuntimePlan();
+            CombatEngine attackerCombat=
+                new CombatEngine(
+                    attackerDev
+                );
+
+            LocalPlayerInteractionHandler
+                attackerNavigationInteractions=
+                    new LocalPlayerInteractionHandler(
+                        world,
+                        attacker,
+                        attacker.movement(),
+                        attacker.equipment(),
+                        attacker::generation,
+                        LocalLabPvpRegionPolicy.INSTANCE
+                    );
+
+            LocalRegionDevCommandHandler
+                attackerNavigationRelocation=
+                    new LocalRegionDevCommandHandler(
+                        world,
+                        attacker,
+                        attacker.movement(),
+                        attackerNavigationInteractions,
+                        attackerCombat,
+                        attackerNpcs,
+                        attacker.petState(),
+                        attackerHome,
+                        ()->{}
+                    );
+
+            LocalTeleportNavigationRuntime
+                attackerNavigation=
+                    new LocalTeleportNavigationRuntime(
+                        attackerNavigationRelocation
+                    );
+
+            SceneUpdatePublisher targetHomePublisher=
+                new SceneUpdatePublisher(
+                    targetWriter,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            SceneUpdatePublisher attackerHomePublisher=
+                new SceneUpdatePublisher(
+                    attackerWriter,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            LocalTeleportNavigationRuntime.Result
+                targetInitialPkNavigation=
+                    targetNavigation.request(
+                        "target",
+                        TeleportNavigationService.EntryKind.PK,
+                        targetHomePublisher,
+                        targetWriter
+                    );
+
+            LocalTeleportNavigationRuntime.Result
+                attackerInitialPkNavigation=
+                    attackerNavigation.request(
+                        "opensrc",
+                        TeleportNavigationService.EntryKind.PK,
+                        attackerHomePublisher,
+                        attackerWriter
+                    );
+
+            if(!targetInitialPkNavigation.succeeded()||
+               targetInitialPkNavigation.relocation==null||
+               !attackerInitialPkNavigation.succeeded()||
+               attackerInitialPkNavigation.relocation==null)
+                throw new AssertionError(
+                    "semantic PK navigation did not relocate both players"
+                );
+
+            if(WorldRegionAuthorityRepository.forTile(
+                    targetMovement.x(),
+                    targetMovement.y()
+               ).regionId!=pkDestination.regionId||
+               WorldRegionAuthorityRepository.forTile(
+                    attacker.movement().x(),
+                    attacker.movement().y()
+               ).regionId!=pkDestination.regionId)
+                throw new AssertionError(
+                    "semantic PK navigation did not land in configured PK region"
+                );
+
+            /*
+             * Both semantic requests deliberately land on the same recovered
+             * collision-safe tile. Move only the attacker one cardinal tile
+             * within the same PK region to make the live combat fixture
+             * attackable without bypassing the navigation entrypoint.
+             */
             attacker.movement().enterTransientRegion(
                 deathX-1,
                 deathY,
@@ -351,7 +483,9 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     attacker.combatStyles(),
                     CombatDamageRules.localLabFallback(),
                     CombatAttackTimingRules.recoveredCompatibility(),
-                    CombatSystemHooks.forPlayer(attacker)
+                    CombatSystemHooks.forPlayer(attacker),
+                    attacker::generation,
+                    LocalLabPvpRegionPolicy.INSTANCE
                 );
 
             String request=
@@ -370,6 +504,20 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 throw new AssertionError(
                     "live PvP request missing "+
                     request
+                );
+
+            PlayerPvpEligibilityPolicy.Result
+                livePkEligibility=
+                    LocalLabPvpRegionPolicy.INSTANCE
+                        .evaluate(
+                            attacker,
+                            target
+                        );
+
+            if(!livePkEligibility.eligible)
+                throw new AssertionError(
+                    "production PK region gate rejected navigated players "+
+                    livePkEligibility.detail
                 );
 
             String attack=
@@ -555,12 +703,138 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     "post-respawn settlement replay changed settled postimage"
                 );
 
+            /*
+             * Killer completes the ordinary owner-scoped ground Take instead
+             * of directly mutating inventory/registry state.
+             */
+            String killerStep=
+                attacker.movement().accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{deathX},
+                        new int[]{deathY},
+                        new byte[0]
+                    )
+                );
+
+            if(!killerStep.startsWith("ACCEPTED"))
+                throw new AssertionError(
+                    "killer move to death loot rejected "+
+                    killerStep
+                );
+
+            attacker.movement().advance();
+
+            SceneUpdatePublisher attackerPkPublisher=
+                new SceneUpdatePublisher(
+                    attackerWriter,
+                    new SceneCoordinateContext(
+                        baseX,
+                        baseY,
+                        pkDestination.plane
+                    )
+                );
+
+            LocalGroundItemInteractionHandler
+                killerGroundTake=
+                    new LocalGroundItemInteractionHandler(
+                        world,
+                        attacker.bank(),
+                        attacker.movement()
+                    );
+
+            int killerCoinsBefore=
+                attacker.bank().inventoryCount(
+                    995
+                );
+
+            LocalGroundItemInteractionHandler.Result
+                killerTake=
+                    killerGroundTake.handle(
+                        new GroundItemInteraction(
+                            236,
+                            3,
+                            995,
+                            deathX,
+                            deathY
+                        ),
+                        "opensrc",
+                        attackerPkPublisher,
+                        attackerWriter
+                    );
+
+            if(killerTake==null||
+               !"GROUND_TAKE".equals(
+                    killerTake.saveReason
+               )||
+               !killerTake.logText.contains(
+                    "TAKE_ON_TILE_IMMEDIATE")||
+               attacker.bank().inventoryCount(
+                    995
+               )!=killerCoinsBefore+10||
+               world.groundItems().byId(
+                    coinGroundId
+               )!=null)
+                throw new AssertionError(
+                    "killer ordinary ground Take did not settle exact PK loot "+
+                    (killerTake==null
+                        ?"null"
+                        :killerTake.logText)
+                );
+
+            /*
+             * Respawn placed the victim back at HOME. Reuse the same semantic
+             * navigation runtime to prove the regear/respawn loop is ready for
+             * another PK trip.
+             */
+            SceneUpdatePublisher targetRespawnHomePublisher=
+                new SceneUpdatePublisher(
+                    targetWriter,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            LocalTeleportNavigationRuntime.Result
+                targetRepeatPkNavigation=
+                    targetNavigation.request(
+                        "target",
+                        TeleportNavigationService.EntryKind.PK,
+                        targetRespawnHomePublisher,
+                        targetWriter
+                    );
+
+            WorldRegionAuthorityRepository.Region
+                repeatRegion=
+                    WorldRegionAuthorityRepository.forTile(
+                        targetMovement.x(),
+                        targetMovement.y()
+                    );
+
+            if(!targetRepeatPkNavigation.succeeded()||
+               targetRepeatPkNavigation.relocation==null||
+               repeatRegion==null||
+               repeatRegion.regionId!=
+                    pkDestination.regionId)
+                throw new AssertionError(
+                    "victim could not repeat semantic PK navigation after respawn/regear"
+                );
+
             System.out.println(
                 "PLAYER_PVP_DEATH_SETTLEMENT_INTEGRATION_PASS "+
                 "liveAttack=true "+
+                "navigationToPk=true "+
+                "pvpRegionGate=true "+
+                "lethalCombat=true "+
                 "pkRegionRisk=true "+
+                "pkRiskLoss=true "+
                 "deathSequence="+deathSequence+" "+
                 "killerScopedLoot=true "+
+                "killerOwnedLoot=true "+
+                "groundPickup=true "+
                 "carriedStateAtomic=true "+
                 "groundDropExactlyOnce=true "+
                 "deathSettlementPersistedOnce=true "+
@@ -568,6 +842,9 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 "killerReward=true "+
                 "killerRewardPersistRequestedOnce=true "+
                 "defaultRegearApplied=true "+
+                "respawnHome=true "+
+                "defaultRegear=true "+
+                "repeatNavigation=true "+
                 "starterWeapon="+
                 G1DefaultLoadoutRegearService.STARTER_WEAPON+" "+
                 "starterFood="+
@@ -579,6 +856,21 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 "replayIdempotent=true "+
                 "authority="+
                 LocalLabDeathDispositionPolicy.AUTHORITY
+            );
+
+            System.out.println(
+                "PLAYABLE_PK_LOOP_INTEGRATION_PASS "+
+                "navigationToPk=true "+
+                "pvpRegionGate=true "+
+                "lethalCombat=true "+
+                "pkRiskLoss=true "+
+                "killerOwnedLoot=true "+
+                "groundPickup=true "+
+                "respawnHome=true "+
+                "defaultRegear=true "+
+                "repeatNavigation=true "+
+                "authority="+
+                LocalLabPvpRegionPolicy.AUTHORITY
             );
 
             Player81WorldSync.unregister(
