@@ -197,38 +197,67 @@ final class PlayerDeathLootLifecycleService
                             null
                         );
 
-                if(transition==null||
-                   !groundItems
-                        .commitPreparedOwnerTransition(
-                            transition
-                        )){
+                if(transition==null){
                     iterator.remove();
                     stalePreimage++;
                     continue;
+                }
+
+                GroundItemRegistry.OwnerTransitionCommit
+                    transitionCommit=
+                        groundItems
+                            .commitPreparedOwnerTransition(
+                                transition
+                            );
+
+                if(transitionCommit==
+                        GroundItemRegistry
+                            .OwnerTransitionCommit
+                            .TARGET_STACK_EXISTS){
+                    /*
+                     * Never merge quantities across provenance. The existing
+                     * public stack may be unrelated NPC/world loot with a
+                     * different lifecycle. Keep this exact death-loot stack
+                     * private and retry on a later world tick.
+                     */
+                    if(now<entry.expiresAt)
+                        continue;
+                }else if(transitionCommit!=
+                        GroundItemRegistry
+                            .OwnerTransitionCommit
+                            .COMMITTED){
+                    iterator.remove();
+                    stalePreimage++;
+                    continue;
+                }else{
+                    current=
+                        groundItems.byId(
+                            entry.groundItemId
+                        );
+
+                    if(current==null){
+                        iterator.remove();
+                        cancelledMissing++;
+                        continue;
+                    }
+
+                    entry.expectedOwner=null;
+                    entry.expectedAmount=
+                        current.amount;
+                    entry.publicized=true;
+
+                    enqueuePublicSpawn(
+                        current,
+                        entry.originalOwner,
+                        now
+                    );
+                    publicized++;
                 }
 
                 current=
                     groundItems.byId(
                         entry.groundItemId
                     );
-
-                if(current==null){
-                    iterator.remove();
-                    cancelledMissing++;
-                    continue;
-                }
-
-                entry.expectedOwner=null;
-                entry.expectedAmount=
-                    current.amount;
-                entry.publicized=true;
-
-                enqueuePublicSpawn(
-                    current,
-                    entry.originalOwner,
-                    now
-                );
-                publicized++;
             }
 
             if(now<entry.expiresAt)
@@ -259,6 +288,17 @@ final class PlayerDeathLootLifecycleService
                     current.devOwned
                 );
 
+            GroundItem publicReplacement=
+                current.owner==null
+                    ?null
+                    :groundItems.findOwned(
+                        current.itemId,
+                        current.tile.x,
+                        current.tile.y,
+                        current.tile.plane,
+                        null
+                    );
+
             GroundItemRegistry.PreparedRemove removal=
                 groundItems.prepareRemove(
                     current.id
@@ -273,10 +313,18 @@ final class PlayerDeathLootLifecycleService
                 continue;
             }
 
-            enqueueRemove(
-                immutableSnapshot,
-                now
-            );
+            if(immutableSnapshot.owner==null)
+                enqueueRemove(
+                    immutableSnapshot,
+                    now
+                );
+            else
+                enqueuePrivateRemoveAndRestorePublic(
+                    immutableSnapshot,
+                    publicReplacement,
+                    immutableSnapshot.owner,
+                    now
+                );
 
             iterator.remove();
             expired++;
@@ -329,6 +377,61 @@ final class PlayerDeathLootLifecycleService
                     generation
                 );
         }
+    }
+
+    private void enqueuePrivateRemoveAndRestorePublic(
+        GroundItem removedPrivate,
+        GroundItem publicReplacement,
+        String owner,
+        long now
+    ){
+        if(owner==null)
+            return;
+
+        WorldPlayer recipient=
+            world.players().byName(
+                owner
+            );
+
+        if(recipient==null)
+            return;
+
+        long generation=
+            recipient.generation();
+
+        if(!world.players().owns(
+                recipient,
+                generation)||
+           !sceneContains(
+                recipient,
+                removedPrivate.tile
+           ))
+            return;
+
+        world.groundItemPresentationEvents()
+            .enqueueRemove(
+                now,
+                removedPrivate,
+                recipient,
+                generation
+            );
+
+        if(publicReplacement!=null&&
+           publicReplacement.owner==null&&
+           publicReplacement.itemId==
+                removedPrivate.itemId&&
+           publicReplacement.tile.equals(
+                removedPrivate.tile
+           )&&
+           publicReplacement.devOwned==
+                removedPrivate.devOwned)
+            world.groundItemPresentationEvents()
+                .enqueueSpawnSnapshot(
+                    now,
+                    publicReplacement,
+                    recipient,
+                    generation
+                );
     }
 
     private void enqueueRemove(

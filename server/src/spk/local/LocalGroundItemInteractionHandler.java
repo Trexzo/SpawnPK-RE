@@ -328,8 +328,33 @@ final class LocalGroundItemInteractionHandler {
                         ground,
                         recipient,
                         generation
-                    ))
+                    )){
+                /*
+                 * Ground packets identify by item + tile, not registry ID.
+                 * If this viewer still owns an overlapping private stack,
+                 * normalize its scene after removing the public stack.
+                 */
+                GroundItem privateReplacement=
+                    world.groundItems()
+                        .findOwned(
+                            ground.itemId,
+                            ground.tile.x,
+                            ground.tile.y,
+                            ground.tile.plane,
+                            recipient.username()
+                        );
+
+                if(privateReplacement!=null)
+                    world.groundItemPresentationEvents()
+                        .enqueueSpawnSnapshot(
+                            now,
+                            privateReplacement,
+                            recipient,
+                            generation
+                        );
+
                 queued++;
+            }
         }
 
         return queued;

@@ -194,6 +194,12 @@ final class GroundItemRegistry {
         }
     }
 
+    enum OwnerTransitionCommit {
+        COMMITTED,
+        TARGET_STACK_EXISTS,
+        STALE_PREIMAGE
+    }
+
     static final class PreparedOwnerTransition {
         final GroundItem expected;
         final String expectedOwner;
@@ -403,11 +409,13 @@ final class GroundItemRegistry {
         );
     }
 
-    synchronized boolean commitPreparedOwnerTransition(
-        PreparedOwnerTransition prepared
-    ){
+    synchronized OwnerTransitionCommit
+        commitPreparedOwnerTransition(
+            PreparedOwnerTransition prepared
+        ){
         if(prepared==null)
-            return false;
+            return OwnerTransitionCommit
+                .STALE_PREIMAGE;
 
         GroundItem current=
             byId.get(
@@ -428,11 +436,34 @@ final class GroundItemRegistry {
                 prepared.expectedSpawnedTick||
            current.devOwned!=
                 prepared.expectedDevOwned)
-            return false;
+            return OwnerTransitionCommit
+                .STALE_PREIMAGE;
+
+        for(GroundItem candidate:
+                byId.values()){
+            if(candidate==current)
+                continue;
+
+            if(candidate.itemId==
+                    prepared.expectedItemId&&
+               candidate.tile.equals(
+                    prepared.expectedTile
+               )&&
+               Objects.equals(
+                    candidate.owner,
+                    prepared.nextOwner
+               )&&
+               candidate.devOwned==
+                    prepared.expectedDevOwned)
+                return OwnerTransitionCommit
+                    .TARGET_STACK_EXISTS;
+        }
 
         current.owner=
             prepared.nextOwner;
-        return true;
+
+        return OwnerTransitionCommit
+            .COMMITTED;
     }
 
     synchronized GroundItem add(
