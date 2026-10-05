@@ -4945,7 +4945,29 @@ tasks.register('player81WorldStateCleanupRegression', JavaExec) {
     mainClass = 'spk.local.Player81WorldStateCleanupTest'
 }
 
+tasks.register('pvpRecordServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves LocalLab PvP kill/death/streak records are outcome-driven, namespaced and persistence-safe.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PvpRecordServiceTest'
+}
+
+tasks.register('playerPvpRecordLifecycleRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves the ordinary live player attack/death path updates PvP records exactly once.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayerPvpLifecycleIntegrationTest'
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('pvpRecordServiceRegression')
+    dependsOn tasks.named('playerPvpRecordLifecycleRegression')
     dependsOn tasks.named('walkHereFallbackClientPatchRegression')
     dependsOn tasks.named('player81WorldStateCleanupRegression')
     dependsOn tasks.named('globalEventRegistrationCompositionRegression')
