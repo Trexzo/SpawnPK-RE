@@ -2539,6 +2539,11 @@ final class LocalSession implements Runnable {
                             tickTag
                         );
                     worldTicks
+                        .settleDeferredDeathItemsAfterWorldTick(
+                            sessionPackets,
+                            tickTag
+                        );
+                    worldTicks
                         .settleDeferredRespawnAfterWorldTick(
                             sessionPackets,
                             tickTag
@@ -2577,6 +2582,8 @@ final class LocalSession implements Runnable {
                     worldTicks
                         .abortDeferredMovementAfterWorldTick();
                     worldTicks
+                        .abortDeferredDeathItemsAfterWorldTick();
+                    worldTicks
                         .abortDeferredRespawnAfterWorldTick();
                     worldTicks
                         .abortDeferredBankInteractionsAfterWorldTick();
@@ -2613,6 +2620,8 @@ final class LocalSession implements Runnable {
                     .abortHomePresentationBatch();
                 worldTicks
                     .abortGroundPresentationBatch();
+                worldTicks
+                    .abortDeferredDeathItemsAfterWorldTick();
                 worldTicks
                     .abortDeferredRespawnAfterWorldTick();
                 worldTicks
