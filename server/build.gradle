@@ -4985,7 +4985,18 @@ tasks.register('pvpDeathSettlementRuntimeRegression', JavaExec) {
     mainClass = 'spk.local.PvpDeathSettlementRuntimeTest'
 }
 
+tasks.register('pvpDeathPresentationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves PvP death inventory/equipment refresh is retryable across packet-batch abort and clears debt only after commit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PvpDeathPresentationServiceTest'
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('pvpDeathPresentationRegression')
     dependsOn tasks.named('pvpDeathSettlementRuntimeRegression')
     dependsOn tasks.named('playerDeathItemSettlementRegression')
     dependsOn tasks.named('pvpRecordServiceRegression')
