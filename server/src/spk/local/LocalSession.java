@@ -1020,6 +1020,45 @@ final class LocalSession implements Runnable {
                     LocalSession.this.saveAccountQuiet(tag,reason);
                 }
 
+                @Override public void savePlayerAccount(
+                    WorldPlayer player,
+                    long expectedGeneration,
+                    String tag,
+                    String reason
+                ){
+                    if(player==null)
+                        return;
+
+                    String playerUsername=
+                        player.username();
+                    if(!LocalAccountProfiles.isPersistent(
+                            playerUsername))
+                        return;
+
+                    try{
+                        world.persistence().captureAndSave(
+                            playerUsername,
+                            player,
+                            expectedGeneration,
+                            player.petAccessoryState().activeItem(),
+                            tag,
+                            reason
+                        );
+                    }catch(RuntimeException failure){
+                        System.err.println(
+                            tag+
+                            "V5123_ACCOUNT_SAVE_FAILED reason="+
+                            reason+
+                            " profile="+
+                            playerUsername+
+                            " repository="+
+                            world.persistence().repositoryName()+
+                            " stage=G1_PVP_KILL_REWARD_CAPTURE_OR_ENQUEUE error="+
+                            failure
+                        );
+                    }
+                }
+
                 @Override public void publishOpponentOverlay(
                     NpcEntity target,
                     ServerPacketWriter writer,
