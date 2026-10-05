@@ -87,10 +87,10 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
 
             require(
                 openPayload.contains(
-                    "LocalLab placeholder 1 (NPC 1530)"
+                    "LocalLab placeholder 1 (NPC 1)"
                 )&&
                 openPayload.contains(
-                    "LocalLab placeholder 22 (NPC 1530)"
+                    "LocalLab placeholder 22 (NPC 1)"
                 ),
                 "provisioned UI did not publish explicit first/last placeholder labels"
             );
