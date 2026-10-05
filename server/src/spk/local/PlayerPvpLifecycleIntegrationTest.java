@@ -158,7 +158,12 @@ public final class PlayerPvpLifecycleIntegrationTest {
                !attack.contains(
                     "targetDied=true")||
                !attack.contains(
-                    "targetHpPacket134=true"))
+                    "targetHpPacket134=true")||
+               !attack.contains(
+                    "deathPolicy="+
+                    LocalLabPvpDeathItemPolicy.AUTHORITY)||
+               attack.contains(
+                    "deathGroundStacks=0"))
                 throw new AssertionError(
                     "PvP attack did not resolve canonically "+
                     attack
@@ -178,6 +183,23 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     "PvP death timing mismatch "+
                     target.lifecycle()
                 );
+
+            if(world.groundItems()
+                    .snapshot()
+                    .isEmpty())
+                throw new AssertionError(
+                    "lethal PvP produced no canonical death loot"
+                );
+
+            for(GroundItem item:
+                    world.groundItems()
+                        .snapshot())
+                if(!"attacker".equals(
+                        item.owner))
+                    throw new AssertionError(
+                        "PvP death loot owner mismatch "+
+                        item
+                    );
 
             if(interactions.activeAttack()!=null)
                 throw new AssertionError(
@@ -224,6 +246,8 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "damage=9 hp=9->0 "+
                 "deathTick=20 respawnTick=25 "+
                 "hpPacket134=true "+
+                "deathRiskSettled=true "+
+                "killerOwnedLoot=true "+
                 "remoteAttackPresentation=true "+
                 "authority=CUSTOM_LOCALLAB"
             );
