@@ -95,7 +95,8 @@ final class LocalSessionPlayerInitializer {
                 persistence.repositoryName()
             );
 
-        if(accountLoad.missing){
+        if(accountLoad.missing&&
+           PlayabilityStarterAccountPolicy.enabled()){
             PlayabilityStarterAccountPolicy.Result starter=
                 PlayabilityStarterAccountPolicy.apply(
                     worldPlayer
