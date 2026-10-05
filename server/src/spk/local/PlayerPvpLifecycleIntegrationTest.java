@@ -8,8 +8,10 @@ public final class PlayerPvpLifecycleIntegrationTest {
         WorldPlayer attacker=new WorldPlayer();
         WorldPlayer target=new WorldPlayer();
 
-        world.registerPlayer(attacker,"attacker");
-        world.registerPlayer(target,"target");
+        long attackerGeneration=
+            world.registerPlayer(attacker,"attacker");
+        long targetGeneration=
+            world.registerPlayer(target,"target");
 
         ByteArrayOutputStream attackerWire=
             new ByteArrayOutputStream();
@@ -179,6 +181,24 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     target.lifecycle()
                 );
 
+            PlayerLifecycleState.DeathAttribution attribution=
+                target.lifecycle().deathAttribution();
+
+            if(attribution==null||
+               attribution.deathSequence!=
+                    target.lifecycle().deathSequence()||
+               !attacker.id().equals(
+                    attribution.attackerId
+                )||
+               attribution.attackerGeneration!=
+                    attackerGeneration||
+               !"PLAYER_PVP".equals(
+                    attribution.context))
+                throw new AssertionError(
+                    "PvP lethal attacker attribution mismatch "+
+                    attribution
+                );
+
             if(interactions.activeAttack()!=null)
                 throw new AssertionError(
                     "lethal PvP attack remained active"
@@ -219,10 +239,35 @@ public final class PlayerPvpLifecycleIntegrationTest {
                     " published="+published
                 );
 
+            PlayerLifecycleService targetLifecycle=
+                new PlayerLifecycleService(
+                    target
+                );
+            PlayerLifecycleService.PreparedRespawn prepared=
+                targetLifecycle.prepareRespawn(
+                    25L
+                );
+            if(prepared==null)
+                throw new AssertionError(
+                    "PvP respawn preparation missing"
+                );
+            targetLifecycle.commitPreparedRespawn(
+                prepared
+            );
+
+            if(!target.lifecycle().alive()||
+               target.lifecycle().deathAttribution()!=null)
+                throw new AssertionError(
+                    "respawn retained lethal attacker attribution"
+                );
+
             System.out.println(
                 "PLAYER_PVP_LIFECYCLE_INTEGRATION_PASS "+
                 "damage=9 hp=9->0 "+
                 "deathTick=20 respawnTick=25 "+
+                "lethalAttackerId=true "+
+                "lethalAttackerGeneration=true "+
+                "attributionClearedOnRespawn=true "+
                 "hpPacket134=true "+
                 "remoteAttackPresentation=true "+
                 "authority=CUSTOM_LOCALLAB"
@@ -235,8 +280,14 @@ public final class PlayerPvpLifecycleIntegrationTest {
             catch(Exception ignored){}
             try{Player81WorldSync.unregister(targetWriter);}
             catch(Exception ignored){}
-            world.unregisterPlayer(attacker);
-            world.unregisterPlayer(target);
+            world.unregisterPlayer(
+                attacker,
+                attackerGeneration
+            );
+            world.unregisterPlayer(
+                target,
+                targetGeneration
+            );
             world.close();
         }
     }
