@@ -289,9 +289,6 @@ public final class PlayerDeathCarriedPresentationRelayTest {
             new OutboundPacketQueue(
                 1024
             );
-        queue.offerBatch(
-            new byte[1000]
-        );
 
         ServerPacketWriter writer=
             new ServerPacketWriter(
@@ -308,6 +305,18 @@ public final class PlayerDeathCarriedPresentationRelayTest {
             world,
             victim,
             dev
+        );
+
+        ByteArrayOutputStream setupSink=
+            new ByteArrayOutputStream();
+        while(queue.queuedBytes()>0)
+            queue.drainTo(
+                setupSink,
+                Integer.MAX_VALUE
+            );
+
+        queue.offerBatch(
+            new byte[1000]
         );
 
         try{
