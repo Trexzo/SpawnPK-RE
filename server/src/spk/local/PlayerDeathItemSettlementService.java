@@ -40,6 +40,7 @@ final class PlayerDeathItemSettlementService {
         final int keptTotalQuantity;
         final int lostTotalQuantity;
         final List<GroundLine> groundItems;
+        private final List<GroundItemRegistry.BatchMutation> mutations;
         final String settlementAuthority;
 
         Receipt(
@@ -65,6 +66,10 @@ final class PlayerDeathItemSettlementService {
                 lines.add(new GroundLine(mutation));
             this.groundItems=
                 Collections.unmodifiableList(lines);
+            this.mutations=
+                Collections.unmodifiableList(
+                    new ArrayList<>(mutations)
+                );
             this.settlementAuthority=AUTHORITY;
         }
     }
@@ -313,22 +318,8 @@ final class PlayerDeathItemSettlementService {
          * BatchMutation. The settlement path enqueues immediately after commit.
          */
         long now=System.currentTimeMillis();
-        for(GroundLine line:receipt.groundItems){
-            GroundItem item=
-                groundItems.byId(
-                    line.groundItemId
-                );
-            if(item==null)
-                continue;
-
-            GroundItemRegistry.BatchMutation mutation=
-                new GroundItemRegistry.BatchMutation(
-                    item,
-                    line.addedAmount,
-                    line.stackAmountAfter-
-                        line.addedAmount
-                );
-
+        for(GroundItemRegistry.BatchMutation mutation:
+                receipt.mutations){
             if(mutation.created())
                 world.groundItemPresentationEvents()
                     .enqueueSpawn(
