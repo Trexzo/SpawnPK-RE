@@ -1,6 +1,6 @@
 package spk.local;
 
-import java.util.Collections;
+import java.util.ArrayList;
 
 /** Regression for typed responsible-player identity bound to one death sequence. */
 public final class PlayerDeathAttributionTest {
@@ -48,10 +48,22 @@ public final class PlayerDeathAttributionTest {
             "death preview attribution"
         );
 
+        ArrayList<PlayerDeathItemResolutionService.Decision> decisions=
+            new ArrayList<>();
+
+        for(PlayerDeathItemResolutionService.CarriedLine line:
+                preview.carried)
+            decisions.add(
+                new PlayerDeathItemResolutionService.Decision(
+                    line.lineId,
+                    line.quantity
+                )
+            );
+
         PlayerDeathItemResolutionService.Resolution resolution=
             resolver.resolveCurrentDeath(
                 preview,
-                Collections.emptyList()
+                decisions
             );
 
         require(
