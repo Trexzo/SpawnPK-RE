@@ -6546,3 +6546,17 @@ tasks.named('check') {
     dependsOn tasks.named('localLabPlayerDeathPolicyRegression')
 }
 
+tasks.register('playerPvpDeathLedgerRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact live PvP killer attribution is generation- and death-sequence-fenced without owning rewards.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayerPvpDeathLedgerTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('playerPvpDeathLedgerRegression')
+}
+
