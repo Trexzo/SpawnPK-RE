@@ -1020,6 +1020,21 @@ final class LocalSession implements Runnable {
                     LocalSession.this.saveAccountQuiet(tag,reason);
                 }
 
+                @Override public boolean saveOwnedPlayerAccount(
+                    WorldPlayer player,
+                    long expectedGeneration,
+                    String tag,
+                    String reason
+                ){
+                    return LocalSession.this
+                        .saveOwnedPlayerAccountQuiet(
+                            player,
+                            expectedGeneration,
+                            tag,
+                            reason
+                        );
+                }
+
                 @Override public void publishOpponentOverlay(
                     NpcEntity target,
                     ServerPacketWriter writer,
@@ -3061,6 +3076,54 @@ final class LocalSession implements Runnable {
                 " stage=WORLD_CAPTURE_OR_ENQUEUE"+
                 " error="+e
             );
+        }
+    }
+
+    private boolean saveOwnedPlayerAccountQuiet(
+        WorldPlayer player,
+        long expectedGeneration,
+        String tag,
+        String reason
+    ){
+        if(player==null)
+            return false;
+
+        String profile=
+            player.username();
+
+        if(!LocalAccountProfiles.isPersistent(
+                profile))
+            return false;
+
+        try{
+            world.persistence()
+                .captureAndSave(
+                    profile,
+                    player,
+                    expectedGeneration,
+                    player.petAccessoryState()
+                        .activeItem(),
+                    tag,
+                    reason
+                );
+
+            return true;
+        }catch(Throwable e){
+            System.err.println(
+                tag+
+                "V5123_ACCOUNT_SAVE_FAILED reason="+
+                reason+
+                " profile="+
+                profile+
+                " repository="+
+                world.persistence().repositoryName()+
+                " stage=OWNED_PLAYER_CAPTURE_OR_ENQUEUE"+
+                " expectedGeneration="+
+                expectedGeneration+
+                " error="+e
+            );
+
+            return false;
         }
     }
 
