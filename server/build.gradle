@@ -6339,9 +6339,20 @@ tasks.register('playabilityPlayerInitializerPersistenceRegression', JavaExec) {
     mainClass = 'spk.local.LocalSessionPlayerInitializerTest'
 }
 
+tasks.register('playabilityAccountLoadOutcomeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves loaded, missing and failed repository snapshots remain distinct so starter provisioning cannot overwrite failed accounts.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.RuntimeRepositoryLoadTest'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('playabilityAccountProfilesRegression')
     dependsOn tasks.named('playabilityPlayerInitializerPersistenceRegression')
+    dependsOn tasks.named('playabilityAccountLoadOutcomeRegression')
 }
 
 
