@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -10,9 +11,12 @@ import java.util.Objects;
 /**
  * Exactly-once carried-state settlement for one canonical player death.
  *
- * This service deliberately stops before ground-item publication. Lost rows
- * are returned as immutable settlement output so a separate world/ground
- * transaction can prove its own atomicity before live composition.
+ * Policy evaluation and postimage construction happen during prepare. Commit
+ * revalidates the exact death plus full bank/inventory/equipment preimage under
+ * WorldPlayer.mutationLock(), then applies one deterministic carried postimage.
+ *
+ * Ground/world publication is deliberately separate. Prepared.lost is the
+ * immutable handoff for that transaction.
  */
 final class PlayerDeathCarriedSettlementService {
     static final class LostLine {
@@ -64,6 +68,66 @@ final class PlayerDeathCarriedSettlementService {
         }
     }
 
+    static final class Prepared {
+        final PlayerDeathItemResolutionService.Resolution resolution;
+        final Receipt receipt;
+        final boolean replay;
+
+        final BankState.Stack[] expectedBank;
+        final BankState.Stack[] expectedInventory;
+        final boolean expectedBankOpen;
+        final int[] expectedEquipmentItems;
+        final int[] expectedEquipmentQuantities;
+
+        final BankState.Stack[] postBank;
+        final BankState.Stack[] postInventory;
+        final int[] postEquipmentItems;
+        final int[] postEquipmentQuantities;
+
+        private Prepared(Receipt replayReceipt){
+            this.resolution=null;
+            this.receipt=replayReceipt;
+            this.replay=true;
+            this.expectedBank=null;
+            this.expectedInventory=null;
+            this.expectedBankOpen=false;
+            this.expectedEquipmentItems=null;
+            this.expectedEquipmentQuantities=null;
+            this.postBank=null;
+            this.postInventory=null;
+            this.postEquipmentItems=null;
+            this.postEquipmentQuantities=null;
+        }
+
+        private Prepared(
+            PlayerDeathItemResolutionService.Resolution resolution,
+            BankState.Stack[] expectedBank,
+            BankState.Stack[] expectedInventory,
+            boolean expectedBankOpen,
+            int[] expectedEquipmentItems,
+            int[] expectedEquipmentQuantities,
+            BankState.Stack[] postBank,
+            BankState.Stack[] postInventory,
+            int[] postEquipmentItems,
+            int[] postEquipmentQuantities
+        ){
+            this.resolution=resolution;
+            this.receipt=new Receipt(resolution);
+            this.replay=false;
+            this.expectedBank=expectedBank;
+            this.expectedInventory=expectedInventory;
+            this.expectedBankOpen=expectedBankOpen;
+            this.expectedEquipmentItems=expectedEquipmentItems;
+            this.expectedEquipmentQuantities=
+                expectedEquipmentQuantities;
+            this.postBank=postBank;
+            this.postInventory=postInventory;
+            this.postEquipmentItems=postEquipmentItems;
+            this.postEquipmentQuantities=
+                postEquipmentQuantities;
+        }
+    }
+
     private final WorldPlayer player;
     private final PlayerDeathDispositionPolicy policy;
     private final PlayerDeathItemResolutionService resolution;
@@ -83,13 +147,13 @@ final class PlayerDeathCarriedSettlementService {
             );
     }
 
-    synchronized Receipt settleCurrentDeath(){
+    synchronized Prepared prepareCurrentDeath(){
         PlayerDeathItemResolutionService.DeathPreview preview=
             resolution.previewCurrentDeath();
 
         Receipt existing=settled.get(preview.deathSequence);
         if(existing!=null)
-            return existing;
+            return new Prepared(existing);
 
         Collection<PlayerDeathItemResolutionService.Decision> decisions=
             Objects.requireNonNull(
@@ -108,44 +172,121 @@ final class PlayerDeathCarriedSettlementService {
 
             Receipt replay=settled.get(resolved.deathSequence);
             if(replay!=null)
-                return replay;
+                return new Prepared(replay);
 
             BankState bank=player.bank();
             EquipmentState equipment=player.equipment();
 
-            BankState.Stack[] nextBank=bank.bankSnapshot();
-            BankState.Stack[] nextInventory=bank.inventorySnapshot();
-            int[] nextEquipmentItems=equipment.containerItems();
-            int[] nextEquipmentQuantities=
+            BankState.Stack[] expectedBank=bank.bankSnapshot();
+            BankState.Stack[] expectedInventory=
+                bank.inventorySnapshot();
+            boolean expectedBankOpen=bank.isOpen();
+            int[] expectedEquipmentItems=
+                equipment.containerItems();
+            int[] expectedEquipmentQuantities=
                 equipment.containerQuantities();
+
+            BankState.Stack[] postBank=
+                copyStacks(expectedBank);
+            BankState.Stack[] postInventory=
+                copyStacks(expectedInventory);
+            int[] postEquipmentItems=
+                expectedEquipmentItems.clone();
+            int[] postEquipmentQuantities=
+                expectedEquipmentQuantities.clone();
 
             for(PlayerDeathItemResolutionService.Disposition disposition:
                     resolved.dispositions)
                 applyDisposition(
                     disposition,
-                    nextInventory,
-                    nextEquipmentItems,
-                    nextEquipmentQuantities
+                    postInventory,
+                    postEquipmentItems,
+                    postEquipmentQuantities
                 );
 
-            /*
-             * Both carried containers are replaced while the single player
-             * mutation lock is held. No policy callback or ground/world lock
-             * is entered inside this critical section.
-             */
-            bank.restoreAccountState(
-                nextBank,
-                nextInventory,
-                bank.isOpen()
+            return new Prepared(
+                resolved,
+                expectedBank,
+                expectedInventory,
+                expectedBankOpen,
+                expectedEquipmentItems,
+                expectedEquipmentQuantities,
+                postBank,
+                postInventory,
+                postEquipmentItems,
+                postEquipmentQuantities
             );
-            equipment.restoreAccountState(
-                nextEquipmentItems,
-                nextEquipmentQuantities
+        }
+    }
+
+    synchronized Receipt commitPrepared(
+        Prepared prepared
+    ){
+        Prepared checked=
+            Objects.requireNonNull(
+                prepared,
+                "prepared"
             );
 
-            Receipt receipt=new Receipt(resolved);
-            settled.put(resolved.deathSequence,receipt);
-            return receipt;
+        if(checked.replay)
+            return checked.receipt;
+
+        synchronized(player.mutationLock()){
+            requirePreparedCurrentLocked(
+                checked
+            );
+
+            Receipt replay=
+                settled.get(
+                    checked.resolution.deathSequence
+                );
+
+            if(replay!=null)
+                return replay;
+
+            BankState bank=player.bank();
+            EquipmentState equipment=player.equipment();
+
+            bank.restoreAccountState(
+                copyStacks(checked.postBank),
+                copyStacks(checked.postInventory),
+                checked.expectedBankOpen
+            );
+            equipment.restoreAccountState(
+                checked.postEquipmentItems.clone(),
+                checked.postEquipmentQuantities.clone()
+            );
+
+            settled.put(
+                checked.resolution.deathSequence,
+                checked.receipt
+            );
+            return checked.receipt;
+        }
+    }
+
+    synchronized Receipt settleCurrentDeath(){
+        return commitPrepared(
+            prepareCurrentDeath()
+        );
+    }
+
+    synchronized void requirePreparedCurrent(
+        Prepared prepared
+    ){
+        Prepared checked=
+            Objects.requireNonNull(
+                prepared,
+                "prepared"
+            );
+
+        if(checked.replay)
+            return;
+
+        synchronized(player.mutationLock()){
+            requirePreparedCurrentLocked(
+                checked
+            );
         }
     }
 
@@ -155,6 +296,37 @@ final class PlayerDeathCarriedSettlementService {
 
     synchronized int size(){
         return settled.size();
+    }
+
+    private void requirePreparedCurrentLocked(
+        Prepared prepared
+    ){
+        requireCurrentDeath(
+            prepared.resolution
+        );
+
+        BankState bank=player.bank();
+        EquipmentState equipment=player.equipment();
+
+        if(bank.isOpen()!=prepared.expectedBankOpen||
+           !sameStacks(
+                bank.bankSnapshot(),
+                prepared.expectedBank)||
+           !sameStacks(
+                bank.inventorySnapshot(),
+                prepared.expectedInventory)||
+           !Arrays.equals(
+                equipment.containerItems(),
+                prepared.expectedEquipmentItems)||
+           !Arrays.equals(
+                equipment.containerQuantities(),
+                prepared.expectedEquipmentQuantities))
+            throw new IllegalStateException(
+                "carried settlement preimage changed player="+
+                player.id()+
+                " deathSequence="+
+                prepared.resolution.deathSequence
+            );
     }
 
     private void requireCurrentDeath(
@@ -234,6 +406,50 @@ final class PlayerDeathCarriedSettlementService {
             equipmentItems[index]=line.itemId;
             equipmentQuantities[index]=disposition.keptAmount;
         }
+    }
+
+    private static BankState.Stack[] copyStacks(
+        BankState.Stack[] source
+    ){
+        BankState.Stack[] copy=
+            new BankState.Stack[source.length];
+
+        for(int i=0;i<source.length;i++){
+            BankState.Stack stack=source[i];
+            if(stack!=null)
+                copy[i]=
+                    new BankState.Stack(
+                        stack.itemId,
+                        stack.qty
+                    );
+        }
+
+        return copy;
+    }
+
+    private static boolean sameStacks(
+        BankState.Stack[] left,
+        BankState.Stack[] right
+    ){
+        if(left.length!=right.length)
+            return false;
+
+        for(int i=0;i<left.length;i++){
+            BankState.Stack a=left[i];
+            BankState.Stack b=right[i];
+
+            if(a==null||b==null){
+                if(a!=b)
+                    return false;
+                continue;
+            }
+
+            if(a.itemId!=b.itemId||
+               a.qty!=b.qty)
+                return false;
+        }
+
+        return true;
     }
 
     private static String safeCause(String value){
