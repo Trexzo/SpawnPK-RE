@@ -1583,6 +1583,27 @@ final class BankState {
     }
 
 
+    /**
+     * Replace only the carried inventory postimage while preserving bank
+     * contents, bank-open state, placeholders and any unrelated bank control
+     * state. Caller owns higher-level mutation/death policy.
+     */
+    void restoreInventoryState(
+        Stack[] nextInventory
+    ){
+        if(nextInventory==null||
+           nextInventory.length!=INVENTORY_CAPACITY)
+            throw new IllegalArgumentException(
+                "inventory snapshot length"
+            );
+
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+    }
+
+
     void restoreAccountState(
         Stack[] nextBank,
         Stack[] nextInventory,
