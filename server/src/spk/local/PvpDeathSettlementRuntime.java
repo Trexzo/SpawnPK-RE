@@ -96,6 +96,21 @@ final class PvpDeathSettlementRuntime {
         }
     }
 
+    static final class RespawnGateResult {
+        final SettlementResult settlement;
+        final PlayerLifecycleService.PreparedRespawn
+            preparedRespawn;
+
+        RespawnGateResult(
+            SettlementResult settlement,
+            PlayerLifecycleService.PreparedRespawn
+                preparedRespawn
+        ){
+            this.settlement=settlement;
+            this.preparedRespawn=preparedRespawn;
+        }
+    }
+
     private final World world;
     private final LocalLabPvpDeathPolicy policy=
         new LocalLabPvpDeathPolicy();
@@ -210,6 +225,37 @@ final class PvpDeathSettlementRuntime {
         );
 
         return pending;
+    }
+
+    RespawnGateResult settleAndPrepareRespawn(
+        WorldPlayer victim,
+        PlayerLifecycleService lifecycle,
+        long worldTick
+    )throws Exception{
+        Objects.requireNonNull(
+            victim,
+            "victim"
+        );
+        Objects.requireNonNull(
+            lifecycle,
+            "lifecycle"
+        );
+
+        SettlementResult settlement=
+            settlePendingBeforeRespawn(
+                victim
+            );
+
+        PlayerLifecycleService.PreparedRespawn
+            prepared=
+                lifecycle.prepareRespawn(
+                    worldTick
+                );
+
+        return new RespawnGateResult(
+            settlement,
+            prepared
+        );
     }
 
     SettlementResult settlePendingBeforeRespawn(
