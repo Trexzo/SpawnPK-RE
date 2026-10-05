@@ -445,6 +445,14 @@ public final class PlayerRespawnCommitFenceTest {
                 teardownCoins
             );
 
+            WorldPlayer teardownKiller=
+                new WorldPlayer();
+            long teardownKillerGeneration=
+                world.registerPlayer(
+                    teardownKiller,
+                    "teardown-killer"
+                );
+
             PlayerLifecycleService.DamageResult teardownDeath=
                 lifecycle.applyDamage(
                     500,
@@ -458,29 +466,45 @@ public final class PlayerRespawnCommitFenceTest {
                     "teardown death fixture failed"
                 );
 
+            player.lifecycle()
+                .attributeCurrentDeath(
+                    player.lifecycle()
+                        .deathSequence(),
+                    teardownKiller.id(),
+                    teardownKillerGeneration,
+                    "PLAYER_PVP"
+                );
+
             coordinator
                 .settleCurrentDeathForSessionTeardown(
                     "[respawn-fence-teardown] "
                 );
 
             GroundItem teardownGround=
-                world.groundItems().find(
+                world.groundItems().findOwned(
                     995,
                     MovementState.INITIAL_X,
                     MovementState.INITIAL_Y,
-                    0
+                    0,
+                    "teardown-killer"
                 );
             if(player.bank().inventoryCount(995)!=0||
                teardownGround==null||
                teardownGround.amount!=5||
-               teardownGround.owner!=null||
+               !"teardown-killer".equals(
+                    teardownGround.owner)||
                coordinator.deferredDeathSettlementEligible()||
                tickBridge.saveCalls!=3||
                !"PLAYER_DEATH_SETTLEMENT".equals(
                     tickBridge.lastSaveReason))
                 throw new AssertionError(
-                    "synchronous teardown death settlement failed"
+                    "synchronous attributed teardown death settlement failed"
                 );
+
+            world.unregisterPlayer(
+                teardownKiller,
+                teardownKillerGeneration
+            );
 
             assertStalePreparedRespawnRejected();
 
@@ -493,6 +517,8 @@ public final class PlayerRespawnCommitFenceTest {
                 "deathSettlementReplaySafe=true "+
                 "deathSettlementCheckpointed=true "+
                 "disconnectDeathSettlement=true "+
+                "killerScopedLoot=true "+
+                "publicFallbackLoot=true "+
                 "sameWriterRetryCommitsOnce=true "+
                 "stalePreparedRejected=true"
             );

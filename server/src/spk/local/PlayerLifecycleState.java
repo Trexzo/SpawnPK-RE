@@ -7,6 +7,32 @@ package spk.local;
  * death/respawn rules are recovered. Provenance must remain explicit.
  */
 final class PlayerLifecycleState {
+    static final class DeathAttribution {
+        final long deathSequence;
+        final EntityId attackerId;
+        final long attackerGeneration;
+        final String context;
+
+        private DeathAttribution(
+            long deathSequence,
+            EntityId attackerId,
+            long attackerGeneration,
+            String context
+        ){
+            this.deathSequence=deathSequence;
+            this.attackerId=attackerId;
+            this.attackerGeneration=attackerGeneration;
+            this.context=context;
+        }
+
+        @Override public String toString(){
+            return "DeathAttribution{deathSequence="+deathSequence+
+                ",attackerId="+attackerId+
+                ",attackerGeneration="+attackerGeneration+
+                ",context="+context+"}";
+        }
+    }
+
     enum Phase {
         ALIVE,
         DEAD_WAITING_RESPAWN
@@ -19,6 +45,7 @@ final class PlayerLifecycleState {
     private long respawnTick=-1L;
     private long deathSequence;
     private String cause="NONE";
+    private DeathAttribution deathAttribution;
 
     Phase phase(){return phase;}
     boolean alive(){return phase==Phase.ALIVE;}
@@ -27,6 +54,7 @@ final class PlayerLifecycleState {
     long respawnTick(){return respawnTick;}
     long deathSequence(){return deathSequence;}
     String cause(){return cause;}
+    DeathAttribution deathAttribution(){return deathAttribution;}
 
     void markDead(
         long worldTick,
@@ -54,6 +82,7 @@ final class PlayerLifecycleState {
 
         this.phase=Phase.DEAD_WAITING_RESPAWN;
         this.deathSequence=nextDeathSequence;
+        this.deathAttribution=null;
         this.deathTick=worldTick;
         this.respawnTick=worldTick+respawnDelayTicks;
         this.cause=
@@ -66,11 +95,53 @@ final class PlayerLifecycleState {
         return dead()&&worldTick>=respawnTick;
     }
 
+    void attributeCurrentDeath(
+        long expectedDeathSequence,
+        EntityId attackerId,
+        long attackerGeneration,
+        String context
+    ){
+        if(!dead()||
+           deathSequence!=expectedDeathSequence)
+            throw new IllegalStateException(
+                "death attribution sequence changed expected="+
+                expectedDeathSequence+
+                " actual="+deathSequence+
+                " phase="+phase
+            );
+
+        if(attackerId==null)
+            throw new NullPointerException(
+                "attackerId"
+            );
+
+        if(attackerGeneration<=0L)
+            throw new IllegalArgumentException(
+                "attackerGeneration="+
+                attackerGeneration
+            );
+
+        if(context==null||
+           context.trim().isEmpty())
+            throw new IllegalArgumentException(
+                "context"
+            );
+
+        deathAttribution=
+            new DeathAttribution(
+                deathSequence,
+                attackerId,
+                attackerGeneration,
+                context.trim()
+            );
+    }
+
     void markRespawned(){
         phase=Phase.ALIVE;
         deathTick=-1L;
         respawnTick=-1L;
         cause="NONE";
+        deathAttribution=null;
     }
 
     @Override public String toString(){
@@ -79,6 +150,7 @@ final class PlayerLifecycleState {
             ",respawnTick="+respawnTick+
             ",deathSequence="+deathSequence+
             ",cause="+cause+
+            ",deathAttribution="+deathAttribution+
             ",authority="+AUTHORITY+"}";
     }
 }
