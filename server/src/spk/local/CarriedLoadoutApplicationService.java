@@ -46,15 +46,15 @@ final class CarriedLoadoutApplicationService {
         final String sourceAuthority;
         final String policyAuthority;
 
-        final int[] expectedInventoryItems;
-        final int[] expectedInventoryQuantities;
-        final int[] expectedEquipmentItems;
-        final int[] expectedEquipmentQuantities;
+        private final int[] expectedInventoryItems;
+        private final int[] expectedInventoryQuantities;
+        private final int[] expectedEquipmentItems;
+        private final int[] expectedEquipmentQuantities;
 
-        final int[] nextInventoryItems;
-        final int[] nextInventoryQuantities;
-        final int[] nextEquipmentItems;
-        final int[] nextEquipmentQuantities;
+        private final int[] nextInventoryItems;
+        private final int[] nextInventoryQuantities;
+        private final int[] nextEquipmentItems;
+        private final int[] nextEquipmentQuantities;
 
         private Plan(
             EntityId playerId,
