@@ -10,6 +10,7 @@ public final class GroundItemVisibilityCollisionTest {
         publicizationCollisionRetriesSameId();
         persistentCollisionExpiresPrivateOnly();
         publicLifecycleExpiryRestoresPrivateOverlay();
+        privatePickupRestoresPublicFallback();
         publicPickupRestoresPrivateOverlay();
 
         System.out.println(
@@ -22,6 +23,7 @@ public final class GroundItemVisibilityCollisionTest {
             "publicStackPreserved=true "+
             "privateOwnerRemoveThenPublicRestore=true "+
             "publicLifecycleRemoveThenPrivateRestore=true "+
+            "privatePickupRestoresPublicFallback=true "+
             "publicPickupRemoveThenPrivateRestore=true "+
             "crossProvenanceMerge=false"
         );
@@ -485,6 +487,145 @@ public final class GroundItemVisibilityCollisionTest {
                     privateItem.id
                 )==privateItem,
                 "private stack did not publicize after public expiry"
+            );
+        }finally{
+            if(owner.registered())
+                world.unregisterPlayer(
+                    owner,
+                    ownerGeneration
+                );
+            if(other.registered())
+                world.unregisterPlayer(
+                    other,
+                    otherGeneration
+                );
+            world.close();
+        }
+    }
+
+    private static void privatePickupRestoresPublicFallback()
+        throws Exception {
+
+        World world=
+            World.isolatedForTest(600L);
+        WorldPlayer owner=
+            new WorldPlayer();
+        WorldPlayer other=
+            new WorldPlayer();
+
+        long ownerGeneration=
+            world.registerPlayer(
+                owner,
+                "killer"
+            );
+        long otherGeneration=
+            world.registerPlayer(
+                other,
+                "other"
+            );
+
+        try{
+            Tile tile=
+                new Tile(
+                    owner.movement().x(),
+                    owner.movement().y(),
+                    owner.movement().plane()
+                );
+
+            GroundItem publicItem=
+                world.groundItems().add(
+                    4151,1,tile,null,9L,false
+                );
+            GroundItem privateItem=
+                world.groundItems().add(
+                    4151,1,tile,"killer",10L,false
+                );
+
+            LocalGroundItemInteractionHandler handler=
+                new LocalGroundItemInteractionHandler(
+                    world,
+                    owner.bank(),
+                    owner.movement()
+                );
+
+            ServerPacketWriter writer=
+                new ServerPacketWriter(
+                    new ByteArrayOutputStream(),
+                    new IsaacCipher(
+                        new int[]{71,72,73,74}
+                    )
+                );
+            SceneUpdatePublisher scene=
+                new SceneUpdatePublisher(
+                    writer,
+                    new SceneCoordinateContext(
+                        owner.movement()
+                            .loadedBaseX(),
+                        owner.movement()
+                            .loadedBaseY(),
+                        owner.movement()
+                            .plane()
+                    )
+                );
+
+            LocalGroundItemInteractionHandler.Result result=
+                handler.handle(
+                    new GroundItemInteraction(
+                        236,
+                        3,
+                        4151,
+                        tile.x,
+                        tile.y
+                    ),
+                    "killer",
+                    scene,
+                    writer
+                );
+
+            require(
+                result!=null&&
+                result.logText.contains(
+                    "pickerFallbackQueued=1"),
+                "private pickup did not queue public fallback"
+            );
+            require(
+                world.groundItems().byId(
+                    privateItem.id
+                )==null&&
+                world.groundItems().byId(
+                    publicItem.id
+                )==publicItem,
+                "private pickup changed public canonical fallback"
+            );
+
+            long now=System.currentTimeMillis();
+
+            List<WorldGroundItemPresentationEvents.Event>
+                ownerPending=
+                    world.groundItemPresentationEvents()
+                        .pendingFor(
+                            owner.id(),
+                            ownerGeneration,
+                            now
+                        );
+
+            require(
+                ownerPending.size()==1&&
+                ownerPending.get(0).kind==
+                    WorldGroundItemPresentationEvents.Kind.SPAWN&&
+                ownerPending.get(0).groundItemId==
+                    publicItem.id,
+                "picker public fallback presentation missing"
+            );
+
+            require(
+                world.groundItemPresentationEvents()
+                    .pendingFor(
+                        other.id(),
+                        otherGeneration,
+                        now
+                    ).isEmpty(),
+                "private pickup fallback leaked to unrelated viewer"
             );
         }finally{
             if(owner.registered())
