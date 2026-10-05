@@ -161,14 +161,14 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
             targetMovement.enterTransientRegion(
                 deathX,
                 deathY,
-                0,
+                pkDestination.plane,
                 baseX,
                 baseY
             );
             attacker.movement().enterTransientRegion(
                 deathX-1,
                 deathY,
-                0,
+                pkDestination.plane,
                 baseX,
                 baseY
             );
@@ -444,7 +444,7 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     995,
                     deathX,
                     deathY,
-                    0,
+                    pkDestination.plane,
                     "opensrc"
                 );
 
