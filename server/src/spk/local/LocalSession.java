@@ -2240,13 +2240,19 @@ final class LocalSession implements Runnable {
             scenePublisher=
                 relocation.scenePublisher;
 
-        if(result.succeeded()&&
-           relocation!=null&&
-           relocation.saveReason!=null)
-            saveAccountQuiet(
-                tag,
-                relocation.saveReason
-            );
+        if(result.succeeded()){
+            worldPlayer.riskZone()
+                .onSuccessfulTeleport(
+                    kind
+                );
+
+            if(relocation!=null&&
+               relocation.saveReason!=null)
+                saveAccountQuiet(
+                    tag,
+                    relocation.saveReason
+                );
+        }
 
         System.out.println(
             tag+
@@ -2285,11 +2291,15 @@ final class LocalSession implements Runnable {
         if(result.scenePublisher!=null)
             scenePublisher=result.scenePublisher;
 
-        if(result.saveReason!=null)
+        if(result.saveReason!=null){
+            worldPlayer.riskZone()
+                .returnHome();
+
             saveAccountQuiet(
                 tag,
                 result.saveReason
             );
+        }
 
         System.out.println(
             tag+
