@@ -26,6 +26,9 @@ final class LocalWorldTickCoordinator {
             String tag,
             String reason
         )throws IOException;
+        void publishPlayerAppearance(
+            ServerPacketWriter writer
+        )throws IOException;
         long petFollowDeadline();
         void setPetFollowDeadline(long value);
         void ensurePetFollowScheduled(long now);
@@ -41,6 +44,7 @@ final class LocalWorldTickCoordinator {
     private final PetEffectState petEffects;
     private final PlayerStatusService statuses;
     private final PlayerLifecycleService lifecycle;
+    private final PlayerDeathSettlementService deathSettlement;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -150,6 +154,10 @@ final class LocalWorldTickCoordinator {
         this.petEffects=Objects.requireNonNull(petEffects,"petEffects");
         this.statuses=Objects.requireNonNull(statuses,"statuses");
         this.lifecycle=new PlayerLifecycleService(worldPlayer);
+        this.deathSettlement=
+            new PlayerDeathSettlementService(
+                worldPlayer
+            );
         this.npcs=Objects.requireNonNull(npcs,"npcs");
         this.homeWorld=Objects.requireNonNull(homeWorld,"homeWorld");
         this.combat=Objects.requireNonNull(combat,"combat");
@@ -1256,6 +1264,16 @@ final class LocalWorldTickCoordinator {
             prepared
         );
 
+        PlayerDeathSettlementService.Receipt
+            deathReceipt=
+                deathSettlement.settleCurrentDeath();
+
+        if(deathReceipt.destroyedLines>0)
+            worldPlayer.playerState()
+                .syncEquipmentPresentation(
+                    equipment
+                );
+
         boolean writerBatchActive=false;
         boolean packetCommitted=false;
 
@@ -1273,6 +1291,23 @@ final class LocalWorldTickCoordinator {
                     prepared.restoredHitpoints
                 )
             );
+
+            if(deathReceipt.destroyedLines>0){
+                worldPlayer.bank()
+                    .sendNormalInventory(
+                        writer
+                    );
+                writer.varShort(
+                    53,
+                    BootstrapPackets.equipmentContainer53(
+                        equipment.containerItems(),
+                        equipment.containerQuantities()
+                    )
+                );
+                bridge.publishPlayerAppearance(
+                    writer
+                );
+            }
 
             regionStreams.stageHomeForPreparedRespawn(
                 writer,
@@ -1313,6 +1348,16 @@ final class LocalWorldTickCoordinator {
                 movement.x()+","+
                 movement.y()+","+
                 movement.plane()+
+                " deathSettlement="+
+                deathReceipt.policyAuthority+
+                " destroyedLines="+
+                deathReceipt.destroyedLines+
+                " destroyedQty="+
+                deathReceipt.destroyedQuantity+
+                " deferredAutoLoss="+
+                deathReceipt.deferredAutoLoss+
+                " standardUnresolved="+
+                deathReceipt.standardUnresolved+
                 " authority="+
                 PlayerLifecycleService.AUTHORITY
             );
