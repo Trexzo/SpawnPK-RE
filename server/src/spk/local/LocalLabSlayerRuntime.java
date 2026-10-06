@@ -894,12 +894,19 @@ final class LocalLabSlayerRuntime {
             return;
         }
 
+        BloodSlayerModeService.Mode mode=
+            requireSupportedMode(
+                decoded.mode
+            );
+        String objectiveKey=
+            objectiveKeyFor(mode);
+
         ObjectiveProgressService ledger=
             ensureLedger(player);
 
         ledger.define(
             new ObjectiveDefinition(
-                OBJECTIVE_KEY,
+                objectiveKey,
                 OBJECTIVE_GOAL,
                 AUTHORITY
             ),
@@ -909,8 +916,7 @@ final class LocalLabSlayerRuntime {
 
         bloodSlayer.selectMode(
             player,
-            BloodSlayerModeService.Mode
-                .MONSTER_HUNTER_PVM
+            mode
         );
 
         long replayTick=
@@ -922,6 +928,15 @@ final class LocalLabSlayerRuntime {
                     player,
                     replayTick
                 );
+
+        if(!taskKeyFor(mode).equals(
+                assigned.task.definition.taskKey))
+            throw new IllegalStateException(
+                "Blood Slayer persisted mode/task replay mismatch mode="+
+                mode+
+                " task="+
+                assigned.task.definition.taskKey
+            );
 
         remember(
             player,
@@ -957,6 +972,15 @@ final class LocalLabSlayerRuntime {
             localStatus(
                 player,
                 null
+            );
+
+        if(restored.selectedMode!=mode||
+           !taskKeyFor(mode).equals(
+                restored.task.definition.taskKey)||
+           !objectiveKey.equals(
+                restored.task.objective.key))
+            throw new IllegalStateException(
+                "Blood Slayer persisted identity replay mismatch"
             );
 
         if(decoded.state==
