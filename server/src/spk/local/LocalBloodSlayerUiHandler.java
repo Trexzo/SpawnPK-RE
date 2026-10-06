@@ -174,7 +174,9 @@ final class LocalBloodSlayerUiHandler {
                     objective.goal+
                     " ("+
                     started.status.task.state+
-                    ").",
+                    "), completions="+
+                    started.status.completions+
+                    ".",
                 started.created
                     ?SAVE_TASK
                     :null
