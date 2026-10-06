@@ -184,6 +184,7 @@ final class LocalSession implements Runnable {
     private final LocalCombatCommandHandler combatCommands;
     private final LocalRegionDevCommandHandler regionDevCommands;
     private final LocalTeleportNavigationRuntime teleportNavigation;
+    private final LocalBossTeleportUiHandler bossTeleportUi;
     private final LocalDevSessionCommandHandler devSessionCommands;
     private final LocalPetCompatibilityCommandHandler petCompatibilityCommands;
     /** Engine R7 one-stop in-game developer control center. */
@@ -406,6 +407,18 @@ final class LocalSession implements Runnable {
         this.teleportNavigation =
             new LocalTeleportNavigationRuntime(
                 regionDevCommands
+            );
+        this.bossTeleportUi =
+            new LocalBossTeleportUiHandler(
+                ()->LocalSession.this.username,
+                (writer,tag)->
+                    LocalSession.this
+                        .handleTeleportNavigationFromWidget(
+                            TeleportNavigationService
+                                .EntryKind.BOSS,
+                            writer,
+                            tag
+                        )
             );
         this.devSessionCommands = new LocalDevSessionCommandHandler(
             world,
@@ -665,6 +678,8 @@ final class LocalSession implements Runnable {
             movement,
             movementEnabled,
             equipment,
+            null,
+            bossTeleportUi,
             new LocalSessionUiActionHandler.SessionBridge(){
                 @Override public void saveAccount(
                     String tag,
@@ -2319,7 +2334,7 @@ final class LocalSession implements Runnable {
         }
     }
 
-    private void handleTeleportNavigationFromWidget(
+    private boolean handleTeleportNavigationFromWidget(
         TeleportNavigationService.EntryKind kind,
         ServerPacketWriter writer,
         String tag
@@ -2369,6 +2384,8 @@ final class LocalSession implements Runnable {
                 tag+
                 relocation.logText
             );
+
+        return result.succeeded();
     }
 
     private void handleHomeTeleportFromWidget(
