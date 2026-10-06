@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
+import spk.content.builtin.SuppliesMerchantDialogueContent;
 
 public final class LocalSuppliesMerchantRegearShopTest {
     private static final int[] SEED={51,52,53,54};
