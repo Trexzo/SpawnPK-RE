@@ -776,7 +776,7 @@ final class LocalPlayerInteractionHandler {
             movement.clearQueuedPath();
         }
 
-        return "V5131_PLAYER_ATTACK_RESOLVED target="+target.username()+        return "V5131_PLAYER_ATTACK_RESOLVED target="+target.username()+
+        return "V5131_PLAYER_ATTACK_RESOLVED target="+target.username()+
             " clientTarget="+targetValue+
             " distance="+Math.max(dx,dy)+
             " range="+range+
