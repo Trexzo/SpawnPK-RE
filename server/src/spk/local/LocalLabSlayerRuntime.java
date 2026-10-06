@@ -204,7 +204,34 @@ final class LocalLabSlayerRuntime {
         String playerRef,
         long worldTick
     ){
+        return startMode(
+            playerRef,
+            BloodSlayerModeService.Mode
+                .MONSTER_HUNTER_PVM,
+            worldTick
+        );
+    }
+
+    StartResult startBossHunter(
+        String playerRef,
+        long worldTick
+    ){
+        return startMode(
+            playerRef,
+            BloodSlayerModeService.Mode
+                .BOSS_HUNTER_PVM,
+            worldTick
+        );
+    }
+
+    private StartResult startMode(
+        String playerRef,
+        BloodSlayerModeService.Mode mode,
+        long worldTick
+    ){
         String player=normalizePlayer(playerRef);
+        BloodSlayerModeService.Mode checkedMode=
+            requireSupportedMode(mode);
         requireTick(worldTick);
 
         WorldPlayer owner=requireCurrentPlayer(player);
@@ -219,6 +246,7 @@ final class LocalLabSlayerRuntime {
                     ()->result[0]=
                         startOwned(
                             player,
+                            checkedMode,
                             worldTick,
                             owner
                         )
@@ -234,7 +262,9 @@ final class LocalLabSlayerRuntime {
         }catch(Exception failure){
             throw new IllegalStateException(
                 "Blood Slayer start ownership failed player="+
-                player,
+                player+
+                " mode="+
+                checkedMode,
                 failure
             );
         }
@@ -306,7 +336,30 @@ final class LocalLabSlayerRuntime {
     StatusSnapshot selectMonsterHunterMode(
         String playerRef
     ){
+        return selectMode(
+            playerRef,
+            BloodSlayerModeService.Mode
+                .MONSTER_HUNTER_PVM
+        );
+    }
+
+    StatusSnapshot selectBossHunterMode(
+        String playerRef
+    ){
+        return selectMode(
+            playerRef,
+            BloodSlayerModeService.Mode
+                .BOSS_HUNTER_PVM
+        );
+    }
+
+    private StatusSnapshot selectMode(
+        String playerRef,
+        BloodSlayerModeService.Mode mode
+    ){
         String player=normalizePlayer(playerRef);
+        BloodSlayerModeService.Mode checkedMode=
+            requireSupportedMode(mode);
         WorldPlayer owner=requireCurrentPlayer(player);
         long generation=owner.generation();
         final StatusSnapshot[] result={null};
@@ -336,8 +389,7 @@ final class LocalLabSlayerRuntime {
 
                         bloodSlayer.selectMode(
                             player,
-                            BloodSlayerModeService.Mode
-                                .MONSTER_HUNTER_PVM
+                            checkedMode
                         );
 
                         result[0]=
@@ -358,7 +410,9 @@ final class LocalLabSlayerRuntime {
         }catch(Exception failure){
             throw new IllegalStateException(
                 "Blood Slayer mode selection ownership failed player="+
-                player,
+                player+
+                " mode="+
+                checkedMode,
                 failure
             );
         }
