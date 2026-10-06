@@ -209,6 +209,8 @@ public final class G2BloodPoolStorePurchaseServiceTest {
                 "different ShopService instances composed as one Blood Pool authority"
             );
 
+            protocolBoundary();
+
             System.out.println(
                 "G2_BLOOD_POOL_STORE_PURCHASE_PASS "+
                 "sharedShopAuthority=true "+
@@ -315,6 +317,32 @@ public final class G2BloodPoolStorePurchaseServiceTest {
                 left.quantities,
                 right.quantities
             );
+    }
+
+    private static void protocolBoundary(){
+        for(Class<?> type:new Class<?>[]{
+                G2BloodPoolStorePurchaseService.class,
+                G2BloodPoolStorePurchaseService.Result.class
+        }){
+            for(java.lang.reflect.Field field:
+                    type.getDeclaredFields()){
+                String name=
+                    field.getName()
+                        .toLowerCase(
+                            java.util.Locale.ROOT
+                        );
+
+                if(name.contains("widget")||
+                   name.contains("opcode")||
+                   name.contains("sellback"))
+                    throw new AssertionError(
+                        "raw widget/opcode/sellback authority leaked into G2 Blood Pool purchase "+
+                        type.getSimpleName()+
+                        "."+
+                        field.getName()
+                    );
+            }
+        }
     }
 
     private static final class InventoryImage {
