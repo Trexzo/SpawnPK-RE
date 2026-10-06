@@ -24,6 +24,7 @@ public final class PlayerPvpDelayedHitServiceTest {
             "explicitCancel=true " +
             "generationFenced=true " +
             "deathAttribution=true " +
+            "capturedAttackerUsername=true " +
             "protocolIndependent=true"
         );
     }
@@ -158,6 +159,11 @@ public final class PlayerPvpDelayedHitServiceTest {
                     .deathAttribution()
                     .attackerGeneration==
                         attackerGeneration &&
+                "delayed-pvp-attacker".equals(
+                    target.lifecycle()
+                        .deathAttribution()
+                        .attackerUsername
+                ) &&
                 "PLAYER_PVP".equals(
                     target.lifecycle()
                         .deathAttribution()
