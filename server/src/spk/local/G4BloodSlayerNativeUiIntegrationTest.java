@@ -36,7 +36,8 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
             ServerPacketWriter packets=writer(feedback);
 
             LocalBloodSlayerUiHandler.Result unsupported=
-                handler.handle(
+                handleAndPublish(
+                    handler,
                     BloodSlayerPresentation.resolveWidget(
                         BloodSlayerPresentation.BOSS_HUNTER_WIDGET
                     ),
@@ -52,7 +53,8 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
             );
 
             LocalBloodSlayerUiHandler.Result prematureTask=
-                handler.handle(
+                handleAndPublish(
+                    handler,
                     BloodSlayerPresentation.resolveWidget(
                         BloodSlayerPresentation.GET_TASK_WIDGET
                     ),
@@ -78,7 +80,12 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
             );
 
             LocalBloodSlayerUiHandler.Result selected=
-                handler.handle(monsterInput,0L,packets);
+                handleAndPublish(
+                    handler,
+                    monsterInput,
+                    0L,
+                    packets
+                );
             LocalLabSlayerRuntime.StatusSnapshot selectedStatus=
                 world.localLabSlayer().status("opensrc");
             require(
@@ -90,7 +97,8 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
             );
 
             LocalBloodSlayerUiHandler.Result assigned=
-                handler.handle(
+                handleAndPublish(
+                    handler,
                     BloodSlayerPresentation.resolveWidget(
                         BloodSlayerPresentation.GET_TASK_WIDGET
                     ),
@@ -107,7 +115,8 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
 
             SlayerTaskService.TaskId taskId=assigned.taskStatus.task.taskId;
             LocalBloodSlayerUiHandler.Result duplicate=
-                handler.handle(
+                handleAndPublish(
+                    handler,
                     BloodSlayerPresentation.resolveWidget(
                         BloodSlayerPresentation.GET_TASK_WIDGET
                     ),
@@ -159,6 +168,29 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
                 world.unregisterPlayer(player,player.generation());
             world.close();
         }
+    }
+
+
+    private static LocalBloodSlayerUiHandler.Result
+        handleAndPublish(
+            LocalBloodSlayerUiHandler handler,
+            BloodSlayerPresentation.Input input,
+            long worldTick,
+            ServerPacketWriter packets
+        )throws Exception{
+        LocalBloodSlayerUiHandler.Result result=
+            handler.handle(
+                input,
+                worldTick
+            );
+
+        new SocialChatPresentationPublisher(
+            packets
+        ).serverMessage(
+            result.clientMessage
+        );
+
+        return result;
     }
 
     private static ServerPacketWriter writer(ByteArrayOutputStream out){
