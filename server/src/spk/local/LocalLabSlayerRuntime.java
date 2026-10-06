@@ -1116,6 +1116,75 @@ final class LocalLabSlayerRuntime {
         return latestTaskByPlayer.get(player);
     }
 
+    static boolean supportedMode(
+        BloodSlayerModeService.Mode mode
+    ){
+        return mode==
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM||
+            mode==
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM;
+    }
+
+    static String taskKeyFor(
+        BloodSlayerModeService.Mode mode
+    ){
+        BloodSlayerModeService.Mode checked=
+            requireSupportedMode(mode);
+
+        return checked==
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM
+            ?TASK_KEY
+            :BOSS_TASK_KEY;
+    }
+
+    static String objectiveKeyFor(
+        BloodSlayerModeService.Mode mode
+    ){
+        BloodSlayerModeService.Mode checked=
+            requireSupportedMode(mode);
+
+        return checked==
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM
+            ?OBJECTIVE_KEY
+            :BOSS_OBJECTIVE_KEY;
+    }
+
+    static int regionId(
+        Tile tile
+    ){
+        Tile checked=
+            Objects.requireNonNull(
+                tile,
+                "tile"
+            );
+
+        return ((checked.x>>6)<<8)|
+            (checked.y>>6);
+    }
+
+    private static BloodSlayerModeService.Mode
+        requireSupportedMode(
+            BloodSlayerModeService.Mode mode
+        ){
+        BloodSlayerModeService.Mode checked=
+            Objects.requireNonNull(
+                mode,
+                "mode"
+            );
+
+        if(!supportedMode(checked))
+            throw new IllegalArgumentException(
+                "unsupported LocalLab Blood Slayer mode "+
+                checked
+            );
+
+        return checked;
+    }
+
     private static void requireTick(
         long worldTick
     ){
