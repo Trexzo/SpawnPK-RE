@@ -573,7 +573,8 @@ final class LocalLabSlayerRuntime {
 
         String objectiveKey=
             objectiveKeyFor(mode);
-        ObjectiveProgressService ledger=null;
+        ObjectiveProgressService ledger=
+            ensureLedger(player);
         ObjectiveProgressService.Snapshot
             renewalBefore=null;
         ObjectiveProgressService.Snapshot
@@ -587,52 +588,35 @@ final class LocalLabSlayerRuntime {
                 slayer.get(latest);
 
             if(prior!=null&&
-               prior.terminal()){
-                if(prior.state!=
-                        SlayerTaskService.State
-                            .COMPLETED){
-                    StatusSnapshot status=
-                        snapshot(
-                            player,
-                            prior
-                        );
-
-                    persistOwned(
-                        owner,
-                        status
+               prior.terminal()&&
+               prior.state!=
+                    SlayerTaskService.State
+                        .COMPLETED){
+                StatusSnapshot status=
+                    snapshot(
+                        player,
+                        prior
                     );
 
-                    return new StartResult(
-                        false,
-                        status
-                    );
-                }
+                persistOwned(
+                    owner,
+                    status
+                );
 
-                if(objectiveKey.equals(
-                        prior.definition.objectiveKey)){
-                    ledger=
-                        ensureLedger(player);
-                    renewalBefore=
-                        prior.objective;
-                    renewalReset=
-                        ledger.resetCompleted(
-                            objectiveKey
-                        );
-
-                    if(renewalReset.complete||
-                       renewalReset.progress!=0L)
-                        throw new IllegalStateException(
-                            "Blood Slayer completed objective did not reset"
-                        );
-                }
+                return new StartResult(
+                    false,
+                    status
+                );
             }
         }
 
-        if(ledger==null)
-            ledger=
-                ensureLedger(player);
+        ObjectiveProgressService.Snapshot
+            desiredObjective=
+                ledger.get(
+                    objectiveKey
+                );
 
-        if(ledger.get(objectiveKey)==null)
+        if(desiredObjective==null){
             ledger.define(
                 new ObjectiveDefinition(
                     objectiveKey,
@@ -640,6 +624,20 @@ final class LocalLabSlayerRuntime {
                     AUTHORITY
                 )
             );
+        }else if(desiredObjective.complete){
+            renewalBefore=
+                desiredObjective;
+            renewalReset=
+                ledger.resetCompleted(
+                    objectiveKey
+                );
+
+            if(renewalReset.complete||
+               renewalReset.progress!=0L)
+                throw new IllegalStateException(
+                    "Blood Slayer completed objective did not reset"
+                );
+        }
 
         final BloodSlayerModeService.AssignmentResult
             assigned;
