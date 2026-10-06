@@ -334,6 +334,22 @@ public final class PlayerPvpDelayedCurrentPolicyIntegrationTest {
                 "due delayed hit did not land"
             );
 
+            PlayerLifecycleState.DeathAttribution attribution=
+                target.lifecycle().deathAttribution();
+
+            require(
+                attribution!=null&&
+                attribution.attackerId.equals(
+                    attacker.id()
+                )&&
+                attribution.attackerGeneration==
+                    attackerGeneration&&
+                "PLAYER_PVP".equals(
+                    attribution.context
+                ),
+                "delayed lethal attribution mismatch"
+            );
+
             System.out.println(
                 "G5_DELAYED_PVP_CURRENT_POLICY_PASS "+
                 "pkSchedule=true "+
@@ -343,6 +359,7 @@ public final class PlayerPvpDelayedCurrentPolicyIntegrationTest {
                 "reenterPkSchedule=true "+
                 "dueTickDamage=true "+
                 "dueTickDeath=true "+
+                "killerAttribution=true "+
                 "dueTickHpPacket=true "+
                 "cadenceIndependent=true "+
                 "generationFenced=true "+
