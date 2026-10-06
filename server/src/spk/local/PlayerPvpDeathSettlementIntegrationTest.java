@@ -604,6 +604,42 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     "live PvP death did not prepare settlement+respawn"
                 );
 
+            int appearancePublishesBeforeDeathSettlement=
+                tickBridge.respawnAppearancePublishes;
+
+            coordinator
+                .settleDeferredDeathSettlementAfterWorldTick(
+                    "[g1.1-live-pvp] "
+                );
+
+            if(!coordinator.deathCarriedPresentationPending()||
+               !target.lifecycle().dead())
+                throw new AssertionError(
+                    "live PvP settlement did not create carried-presentation debt"
+                );
+
+            coordinator
+                .settleDeferredDeathCarriedPresentationAfterWorldTick(
+                    targetWriter,
+                    "[g1.1-live-pvp] "
+                );
+
+            int weaponAppearanceIndex=
+                EquipmentSlot.WEAPON.appearanceIndex;
+
+            if(coordinator.deathCarriedPresentationPending()||
+               !target.lifecycle().dead()||
+               tickBridge.respawnAppearancePublishes!=
+                    appearancePublishesBeforeDeathSettlement+1||
+               tickBridge.respawnAppearanceItems==null||
+               weaponAppearanceIndex<0||
+               tickBridge.respawnAppearanceItems[
+                    weaponAppearanceIndex
+               ]!=-1)
+                throw new AssertionError(
+                    "live PvP settled carried postimage did not commit before respawn"
+                );
+
             coordinator
                 .settleDeferredRespawnAfterWorldTick(
                     targetWriter,
@@ -658,10 +694,8 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     world.groundItems().size()
                 );
 
-            int weaponAppearanceIndex=
-                EquipmentSlot.WEAPON.appearanceIndex;
-
-            if(tickBridge.respawnAppearancePublishes!=1||
+            if(tickBridge.respawnAppearancePublishes!=
+                    appearancePublishesBeforeDeathSettlement+2||
                tickBridge.respawnAppearanceItems==null||
                weaponAppearanceIndex<0||
                tickBridge.respawnAppearanceItems[
@@ -878,6 +912,7 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 "starterFood="+
                 G1DefaultLoadoutRegearService.STARTER_FOOD+"x"+
                 G1DefaultLoadoutRegearService.STARTER_FOOD_COUNT+" "+
+                "deathCarriedAppearanceBeforeRespawn=true "+
                 "respawnAppearancePublished=true "+
                 "deathLootLifecycleRegistered=true "+
                 "attributionClearedOnRespawn=true "+
