@@ -9,6 +9,7 @@ public final class G6BloodSlayerRepeatableIntegrationTest {
         MemoryPlayers repository=new MemoryPlayers();
 
         boolean firstCompleted=false;
+        boolean renewalFailureAtomic=false;
         boolean secondAssigned=false;
         boolean newTaskId=false;
         boolean oldTaskFrozenComplete=false;
@@ -95,6 +96,39 @@ public final class G6BloodSlayerRepeatableIntegrationTest {
             require(
                 firstCompleted,
                 "first task did not complete"
+            );
+
+            boolean renewalFailed=false;
+
+            try{
+                world.localLabSlayer()
+                    .startMonsterHunter(
+                        OWNER,
+                        -1L
+                    );
+            }catch(IllegalArgumentException expected){
+                renewalFailed=true;
+            }
+
+            LocalLabSlayerRuntime.StatusSnapshot
+                afterFailedRenewal=
+                    world.localLabSlayer()
+                        .status(OWNER);
+
+            renewalFailureAtomic=
+                renewalFailed&&
+                afterFailedRenewal.complete()&&
+                afterFailedRenewal.task.taskId
+                    .equals(firstId)&&
+                afterFailedRenewal.task.objective
+                    .progress==1L&&
+                world.localLabSlayer()
+                    .slayer()
+                    .taskCount()==1;
+
+            require(
+                renewalFailureAtomic,
+                "failed renewal did not restore completed objective"
             );
 
             LocalBloodSlayerUiHandler.Result second=
@@ -280,6 +314,8 @@ public final class G6BloodSlayerRepeatableIntegrationTest {
         System.out.println(
             "G6_BLOOD_SLAYER_REPEATABLE_PASS"+
             " firstCompleted="+firstCompleted+
+            " renewalFailureAtomic="+
+                renewalFailureAtomic+
             " secondAssigned="+secondAssigned+
             " newTaskId="+newTaskId+
             " oldTaskFrozenComplete="+
