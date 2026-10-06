@@ -13,21 +13,23 @@ final class LocalSlayerCommandHandler {
     static final class Result {
         final String logText;
         final String clientMessage;
+        final boolean openRoot;
 
         Result(
             String logText,
             String clientMessage
         ){
-            this.logText=
-                Objects.requireNonNull(
-                    logText,
-                    "logText"
-                );
-            this.clientMessage=
-                Objects.requireNonNull(
-                    clientMessage,
-                    "clientMessage"
-                );
+            this(logText,clientMessage,false);
+        }
+
+        Result(
+            String logText,
+            String clientMessage,
+            boolean openRoot
+        ){
+            this.logText=Objects.requireNonNull(logText,"logText");
+            this.clientMessage=Objects.requireNonNull(clientMessage,"clientMessage");
+            this.openRoot=openRoot;
         }
     }
 
@@ -76,6 +78,18 @@ final class LocalSlayerCommandHandler {
             );
 
         if(tokens.length==2&&
+           "open".equalsIgnoreCase(
+                tokens[1]
+           ))
+            return new Result(
+                "G4_BLOOD_SLAYER_COMMAND action=OPEN"+
+                " stateMutation=false authority="+
+                AUTHORITY,
+                "Opening Blood Slayer.",
+                true
+            );
+
+        if(tokens.length==2&&
            "start".equalsIgnoreCase(
                 tokens[1]
            )){
@@ -98,7 +112,7 @@ final class LocalSlayerCommandHandler {
             "G4_BLOOD_SLAYER_COMMAND result=REJECTED_SYNTAX"+
             " stateMutation=false authority="+
             AUTHORITY,
-            "Usage: ::slayer start or ::slayer status"
+            "Usage: ::slayer open, ::slayer start, or ::slayer status"
         );
     }
 

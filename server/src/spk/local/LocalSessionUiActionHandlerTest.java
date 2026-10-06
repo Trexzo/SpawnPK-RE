@@ -20,6 +20,8 @@ public final class LocalSessionUiActionHandlerTest {
         int monsterSpawnerWidgetTransactions;
         int monsterSpawnerRootReplacements;
         int makeoverDesignerRetireCalls;
+        int bloodSlayerWidgetRequests;
+        BloodSlayerPresentation.Input lastBloodSlayerInput;
         LocalMonsterSpawnerUiHandler.Result lastMonsterSpawnerResult;
 
         @Override public void saveAccount(
@@ -94,6 +96,17 @@ public final class LocalSessionUiActionHandlerTest {
         @Override public boolean retireMakeoverDesignerRoot(){
             makeoverDesignerRetireCalls++;
             return true;
+        }
+
+        @Override public LocalBloodSlayerUiHandler.Result
+            handleBloodSlayerWidget(
+                BloodSlayerPresentation.Input input,
+                ServerPacketWriter serverPackets,
+                String tag
+            ){
+            bloodSlayerWidgetRequests++;
+            lastBloodSlayerInput=input;
+            return null;
         }
 
         @Override public void handleMonsterSpawnerResult(
@@ -188,6 +201,60 @@ public final class LocalSessionUiActionHandlerTest {
             throw new AssertionError(
                 "unconfigured Monster Spawner UI emitted packet"
             );
+
+        int closedBloodBefore=wire.size();
+        h.handleWidget(
+            BloodSlayerPresentation.MONSTER_HUNTER_WIDGET,
+            w,
+            "[ui-test] "
+        );
+        if(bridge.bloodSlayerWidgetRequests!=0)
+            throw new AssertionError(
+                "closed Blood Slayer root admitted widget"
+            );
+        if(wire.size()!=closedBloodBefore)
+            throw new AssertionError(
+                "closed Blood Slayer widget emitted packet"
+            );
+
+        int bloodRootBefore=wire.size();
+        if(!h.openBloodSlayer(w))
+            throw new AssertionError(
+                "Blood Slayer exact root did not open"
+            );
+        if(wire.size()<=bloodRootBefore)
+            throw new AssertionError(
+                "Blood Slayer root 54100 emitted no packet"
+            );
+
+        h.handleWidget(
+            BloodSlayerPresentation.MONSTER_HUNTER_WIDGET,
+            w,
+            "[ui-test] "
+        );
+        if(bridge.bloodSlayerWidgetRequests!=1||
+           bridge.lastBloodSlayerInput==null||
+           bridge.lastBloodSlayerInput.mode!=
+                BloodSlayerModeService.Mode.MONSTER_HUNTER_PVM)
+            throw new AssertionError(
+                "open Blood Slayer root did not route exact widget 54109"
+            );
+
+        h.handleInterfaceClose(true,w,"[ui-test] ");
+        h.handleWidget(
+            BloodSlayerPresentation.GET_TASK_WIDGET,
+            w,
+            "[ui-test] "
+        );
+        if(bridge.bloodSlayerWidgetRequests!=1)
+            throw new AssertionError(
+                "interface close did not retire Blood Slayer widget authority"
+            );
+
+        bridge.saveReason=null;
+        bridge.clearedKeys=false;
+        bridge.monsterSpawnerRootReplacements=0;
+        bridge.makeoverDesignerRetireCalls=0;
 
         int before=wire.size();
         h.handleWidget(2458,w,"[ui-test] ");
