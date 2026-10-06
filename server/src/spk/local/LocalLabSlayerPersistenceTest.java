@@ -24,6 +24,7 @@ public final class LocalLabSlayerPersistenceTest {
         boolean canonicalRestore=false;
         boolean restoredKillCompletes=false;
         boolean completedFreshWorld=false;
+        boolean completedRenewal=false;
         boolean duplicateSafe=false;
         boolean malformedFailClosed=false;
         boolean coreSchemaUntouched=false;
@@ -230,6 +231,36 @@ public final class LocalLabSlayerPersistenceTest {
                 completedRestored.complete()&&
                 completedRestored.task.objective.progress==1L;
 
+            SlayerTaskService.TaskId
+                completedTaskId=
+                    completedRestored.task.taskId;
+
+            LocalLabSlayerRuntime.StartResult
+                renewed=
+                    completedWorld.localLabSlayer()
+                        .startMonsterHunter(
+                            OWNER,
+                            completedWorld.clock().tick()
+                        );
+
+            completedRenewal=
+                renewed.created&&
+                renewed.status.active()&&
+                renewed.status.task.objective.progress==0L&&
+                !renewed.status.task.taskId.equals(
+                    completedTaskId
+                )&&
+                completedWorld.localLabSlayer()
+                    .slayer()
+                    .get(completedTaskId)
+                    .state==
+                        SlayerTaskService.State
+                            .COMPLETED&&
+                completedWorld.localLabSlayer()
+                    .slayer()
+                    .get(completedTaskId)
+                    .objective.progress==1L;
+
             LocalLabSlayerRuntime.StartResult
                 duplicateStart=
                     completedWorld.localLabSlayer()
@@ -238,30 +269,21 @@ public final class LocalLabSlayerPersistenceTest {
                             completedWorld.clock().tick()
                         );
 
-            LocalLabSlayerRuntime.KillCreditResult
-                duplicateKill=
-                    completedWorld.localLabSlayer()
-                        .recordMonsterSpawnerKill(
-                            OWNER,
-                            LocalLabSlayerRuntime
-                                .TARGET_DEFINITION_ID,
-                            completedWorld.clock().tick()
-                        );
-
             duplicateSafe=
                 !duplicateStart.created&&
-                duplicateStart.status.complete()&&
-                !duplicateKill.activeTask&&
-                !duplicateKill.progressed&&
-                duplicateKill.status.complete()&&
+                duplicateStart.status.active()&&
+                duplicateStart.status.task.taskId.equals(
+                    renewed.status.task.taskId
+                )&&
                 completedWorld.localLabSlayer()
-                    .status(OWNER)
-                    .task.objective.progress==1L;
+                    .slayer()
+                    .taskCount()==2;
 
             require(
                 completedFreshWorld&&
+                completedRenewal&&
                 duplicateSafe,
-                "completed Slayer restore was not terminal/replay-safe"
+                "completed Slayer restore did not renew exactly once"
             );
 
             TreeMap<String,String> malformedValues=
@@ -347,6 +369,7 @@ public final class LocalLabSlayerPersistenceTest {
                 " canonicalRestore="+canonicalRestore+
                 " restoredKillCompletes="+restoredKillCompletes+
                 " completedFreshWorld="+completedFreshWorld+
+                " completedRenewal="+completedRenewal+
                 " duplicateSafe="+duplicateSafe+
                 " malformedFailClosed="+malformedFailClosed+
                 " coreSchemaUntouched="+coreSchemaUntouched+
