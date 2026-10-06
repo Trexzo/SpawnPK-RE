@@ -70,6 +70,12 @@ final class G2BloodPoolStorePurchaseService {
             throw new IllegalArgumentException(
                 "Blood Pool/G2 purchase composition requires exact same ShopService instance"
             );
+
+        if(this.bloodPool.snapshot().sourceAuthority!=
+                AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB)
+            throw new IllegalArgumentException(
+                "G2 Blood Pool purchase requires CUSTOM_LOCALLAB Shop authority"
+            );
     }
 
     Result purchase(
