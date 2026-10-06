@@ -223,9 +223,10 @@ final class LocalLabMonsterSpawnerProvisioning {
                     return;
 
                 checkedWorld.localLabSlayer()
-                    .recordMonsterSpawnerKill(
+                    .recordMonsterSpawnerFinalization(
                         finalization.recipientRef,
                         finalization.definitionId,
+                        finalization.deathTile,
                         finalization.deathTick
                     );
             }
