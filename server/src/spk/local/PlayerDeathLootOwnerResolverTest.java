@@ -9,6 +9,7 @@ public final class PlayerDeathLootOwnerResolverTest {
 
     public static void main(String[] args){
         exactCurrentGenerationWins();
+        capturedIdentitySurvivesDisconnect();
         staleGenerationFallsBackPublic();
         missingAndUnsupportedAttributionFallBackPublic();
         crossVictimResolutionRejected();
@@ -17,7 +18,9 @@ public final class PlayerDeathLootOwnerResolverTest {
         System.out.println(
             "PLAYER_DEATH_LOOT_OWNER_RESOLVER_PASS "+
             "currentKillerGeneration=true "+
-            "staleGenerationPublic=true "+
+            "capturedKillerIdentity=true "+
+            "disconnectPreservesLootOwner=true "+
+            "staleGenerationWithoutCapturePublic=true "+
             "missingAttributionPublic=true "+
             "unsupportedContextPublic=true "+
             "crossVictimRejected=true "+
@@ -83,6 +86,80 @@ public final class PlayerDeathLootOwnerResolverTest {
                 attacker,
                 attackerGeneration
             );
+            world.unregisterPlayer(
+                victim,
+                victimGeneration
+            );
+            world.close();
+        }
+    }
+
+    private static void capturedIdentitySurvivesDisconnect(){
+        World world=World.isolatedForTest(600L);
+        WorldPlayer attacker=new WorldPlayer();
+        WorldPlayer victim=new WorldPlayer();
+        long attackerGeneration=
+            world.registerPlayer(
+                attacker,
+                "killer"
+            );
+        long victimGeneration=
+            world.registerPlayer(
+                victim,
+                "victim"
+            );
+
+        try{
+            kill(victim,15L);
+            victim.lifecycle()
+                .attributeCurrentDeath(
+                    victim.lifecycle()
+                        .deathSequence(),
+                    attacker.id(),
+                    attackerGeneration,
+                    attacker.username(),
+                    "PLAYER_PVP"
+                );
+
+            PlayerDeathItemResolutionService.Resolution resolution=
+                resolution(victim);
+
+            require(
+                world.unregisterPlayer(
+                    attacker,
+                    attackerGeneration
+                ),
+                "attacker unregister"
+            );
+
+            PlayerDeathLootOwnerResolver.Result owner=
+                new PlayerDeathLootOwnerResolver()
+                    .resolve(
+                        world,
+                        victim,
+                        resolution
+                    );
+
+            require(
+                owner.killerScoped()&&
+                "killer".equals(
+                    owner.lootOwner
+                )&&
+                attacker.id().equals(
+                    owner.attackerId
+                )&&
+                owner.attackerGeneration==
+                    attackerGeneration&&
+                "KILLER_CAPTURED_IDENTITY".equals(
+                    owner.reason
+                ),
+                "captured killer identity"
+            );
+        }finally{
+            if(attacker.registered())
+                world.unregisterPlayer(
+                    attacker
+                );
             world.unregisterPlayer(
                 victim,
                 victimGeneration
