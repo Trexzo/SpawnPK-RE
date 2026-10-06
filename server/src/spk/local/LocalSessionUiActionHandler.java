@@ -315,8 +315,37 @@ final class LocalSessionUiActionHandler {
         compCapeCustomize.close();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
         monsterSpawnerUiOpen=true;
         return true;
+    }
+
+    boolean openBossTeleportIfConfigured(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        LocalBossTeleportUiHandler configured=
+            bossTeleportUiHandler;
+
+        if(configured==null)
+            return false;
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishBossTeleportRootForOwnedSession(
+                        ()->
+                            configured
+                                .open(
+                                    Objects.requireNonNull(
+                                        serverPackets,
+                                        "serverPackets"
+                                    )
+                                )
+                                .detail
+                    )
+            );
+
+        return result!=null;
     }
 
     void handleInterfaceClose(
@@ -347,6 +376,9 @@ final class LocalSessionUiActionHandler {
                 }
             );
 
+        boolean bossTeleportWasOpen=
+            closeBossTeleportUi();
+
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
 
@@ -373,6 +405,7 @@ final class LocalSessionUiActionHandler {
             " itemLibraryWasOpen="+itemLibraryWasOpen+
             " devPanelWasOpen="+devPanelWasOpen+
             " monsterSpawnerWasOpen="+monsterSpawnerWasOpen+
+            " bossTeleportWasOpen="+bossTeleportWasOpen+
             " petColorWasOpen="+petColorWasOpen+
             " miniConfigWasOpen="+miniConfigWasOpen+
             " petAccessoryWasOpen="+petAccessoryWasOpen+
@@ -569,6 +602,38 @@ final class LocalSessionUiActionHandler {
             return;
         }
 
+        LocalBossTeleportUiHandler configuredBossTeleport=
+            bossTeleportUiHandler;
+
+        if(configuredBossTeleport!=null&&
+           configuredBossTeleport.ownsWidget(
+                widget
+           )){
+            LocalBossTeleportUiHandler.Result boss=
+                configuredBossTeleport.handleWidget(
+                    widget,
+                    serverPackets,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G3_BOSS_TELEPORT_UI widget="+
+                widget+
+                " status="+
+                boss.status+
+                " row="+
+                boss.rowIndex+
+                " success="+
+                boss.teleportSucceeded+
+                " detail=["+
+                boss.detail+
+                "] authority="+
+                LocalBossTeleportUiHandler.POLICY_AUTHORITY
+            );
+            return;
+        }
+
         TeleportNavigationService.EntryKind navigationKind=
             TeleportNavigationWidgetAdapter.resolve(
                 widget
@@ -576,6 +641,29 @@ final class LocalSessionUiActionHandler {
 
         if(navigationKind!=null&&
            navigationKind!=TeleportNavigationService.EntryKind.HOME){
+            if(navigationKind==
+                    TeleportNavigationService.EntryKind.BOSS&&
+               bossTeleportUiHandler!=null){
+                boolean opened=
+                    openBossTeleportIfConfigured(
+                        serverPackets
+                    );
+
+                System.out.println(
+                    tag+
+                    "G3_BOSS_TELEPORT_OPEN topLevelWidget="+
+                    widget+
+                    " opened="+
+                    opened+
+                    " root="+
+                    BossTeleportPresentation.ROOT+
+                    " directRelocation=false"+
+                    " authority="+
+                    LocalBossTeleportUiHandler.POLICY_AUTHORITY
+                );
+                return;
+            }
+
             bridge.handleTeleportNavigation(
                 navigationKind,
                 serverPackets,
@@ -724,6 +812,7 @@ final class LocalSessionUiActionHandler {
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
+        closeBossTeleportUi();
         return result;
     }
 
@@ -746,6 +835,7 @@ final class LocalSessionUiActionHandler {
         compCapeCustomize.close();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
         return result;
     }
 
@@ -768,6 +858,7 @@ final class LocalSessionUiActionHandler {
         bank.clientClosed();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
         return result;
     }
 
@@ -790,6 +881,7 @@ final class LocalSessionUiActionHandler {
         compCapeCustomize.close();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
         return result;
     }
 
@@ -813,6 +905,7 @@ final class LocalSessionUiActionHandler {
         compCapeCustomize.close();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
         return result;
     }
 
@@ -834,6 +927,7 @@ final class LocalSessionUiActionHandler {
         compCapeCustomize.close();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
         return result;
     }
 
@@ -857,7 +951,40 @@ final class LocalSessionUiActionHandler {
         compCapeCustomize.close();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
         return result;
+    }
+
+    String publishBossTeleportRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+
+        return result;
+    }
+
+    private boolean closeBossTeleportUi(){
+        LocalBossTeleportUiHandler configured=
+            bossTeleportUiHandler;
+
+        return configured!=null&&
+            configured.close();
     }
 
     String replaceMonsterSpawnerWithItemLibraryRoot(
