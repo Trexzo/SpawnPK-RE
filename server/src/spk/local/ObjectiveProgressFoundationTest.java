@@ -7,6 +7,7 @@ public final class ObjectiveProgressFoundationTest {
     public static void main(String[] args){
         assertRecoveredBootstrap();
         assertSemanticProgression();
+        assertResetRollback();
         assertNoProtocolIdentity();
 
         System.out.println(
@@ -16,6 +17,9 @@ public final class ObjectiveProgressFoundationTest {
             "goalClamp=true "+
             "completionTransition=true "+
             "claimBookkeeping=true "+
+            "resetRollback=true "+
+            "compareAndRestore=true "+
+            "claimedRestore=true "+
             "duplicateConflictFailClosed=true "+
             "snapshotImmutable=true "+
             "protocolIdentityInState=false"
@@ -303,6 +307,87 @@ public final class ObjectiveProgressFoundationTest {
         if(!immutable)
             throw new AssertionError(
                 "objective snapshot mutable"
+            );
+    }
+
+    private static void assertResetRollback(){
+        ObjectiveProgressService service=
+            new ObjectiveProgressService();
+        ObjectiveDefinition definition=
+            new ObjectiveDefinition(
+                "repeatable:test",
+                2L,
+                "CUSTOM_LOCALLAB"
+            );
+
+        service.define(
+            definition,
+            2L,
+            true
+        );
+
+        ObjectiveProgressService.Snapshot before=
+            service.get(
+                "repeatable:test"
+            );
+        ObjectiveProgressService.Snapshot reset=
+            service.resetCompleted(
+                "repeatable:test"
+            );
+
+        if(reset.complete||
+           reset.progress!=0L||
+           reset.claimed)
+            throw new AssertionError(
+                "reset postimage="+reset
+            );
+
+        ObjectiveProgressService.Snapshot restored=
+            service.restoreIfUnchanged(
+                reset,
+                before
+            );
+
+        if(!restored.complete||
+           restored.progress!=2L||
+           !restored.claimed)
+            throw new AssertionError(
+                "completed objective restore="+
+                restored
+            );
+
+        ObjectiveProgressService.Snapshot secondReset=
+            service.resetCompleted(
+                "repeatable:test"
+            );
+        service.advance(
+            "repeatable:test",
+            1L
+        );
+
+        boolean changedRejected=false;
+
+        try{
+            service.restoreIfUnchanged(
+                secondReset,
+                before
+            );
+        }catch(IllegalStateException expected){
+            changedRejected=true;
+        }
+
+        ObjectiveProgressService.Snapshot changed=
+            service.get(
+                "repeatable:test"
+            );
+
+        if(!changedRejected||
+           changed.progress!=1L||
+           changed.complete||
+           changed.claimed)
+            throw new AssertionError(
+                "compare-and-restore overwrote changed objective "+
+                changed
             );
     }
 
