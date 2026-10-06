@@ -3,8 +3,8 @@ package spk.local;
 import java.util.Objects;
 
 /**
- * Player-facing command adapter for the explicit LocalLab G4.1 Blood Slayer
- * slice. Native Blood Slayer widgets are intentionally not claimed here.
+ * Player-facing command adapter for the explicit LocalLab G4 Blood Slayer
+ * slice. ::slayer open is only a LocalLab access path to exact-current UI.
  */
 final class LocalSlayerCommandHandler {
     static final String AUTHORITY=
@@ -14,11 +14,13 @@ final class LocalSlayerCommandHandler {
         final String logText;
         final String clientMessage;
         final String saveReason;
+        final boolean openRoot;
 
         Result(
             String logText,
             String clientMessage,
-            String saveReason
+            String saveReason,
+            boolean openRoot
         ){
             this.logText=
                 Objects.requireNonNull(
@@ -31,6 +33,7 @@ final class LocalSlayerCommandHandler {
                     "clientMessage"
                 );
             this.saveReason=saveReason;
+            this.openRoot=openRoot;
         }
     }
 
@@ -76,8 +79,36 @@ final class LocalSlayerCommandHandler {
                     playerRef
                 ),
                 "STATUS",
-                null
+                null,
+                false
             );
+
+        if(tokens.length==2&&
+           "open".equalsIgnoreCase(
+                tokens[1]
+           )){
+            LocalLabSlayerRuntime.StatusSnapshot status=
+                runtime.status(
+                    playerRef
+                );
+
+            if(!status.persistenceValid())
+                return statusResult(
+                    status,
+                    "OPEN_REJECTED_INVALID",
+                    null,
+                    false
+                );
+
+            return new Result(
+                "G4_BLOOD_SLAYER_COMMAND action=OPEN"+
+                " stateMutation=false authority="+
+                AUTHORITY,
+                "Opening Blood Slayer.",
+                null,
+                true
+            );
+        }
 
         if(tokens.length==2&&
            "start".equalsIgnoreCase(
@@ -97,7 +128,8 @@ final class LocalSlayerCommandHandler {
                     :"START_EXISTING",
                 started.created
                     ?"G4_BLOOD_SLAYER_START"
-                    :null
+                    :null,
+                false
             );
         }
 
@@ -105,15 +137,17 @@ final class LocalSlayerCommandHandler {
             "G4_BLOOD_SLAYER_COMMAND result=REJECTED_SYNTAX"+
             " stateMutation=false authority="+
             AUTHORITY,
-            "Usage: ::slayer start or ::slayer status",
-            null
+            "Usage: ::slayer open, ::slayer start, or ::slayer status",
+            null,
+            false
         );
     }
 
     private Result statusResult(
         LocalLabSlayerRuntime.StatusSnapshot status,
         String action,
-        String saveReason
+        String saveReason,
+        boolean openRoot
     ){
         if(!status.persistenceValid())
             return new Result(
@@ -124,7 +158,8 @@ final class LocalSlayerCommandHandler {
                 " stateMutation=false authority="+
                 AUTHORITY,
                 "Blood Slayer state is invalid; task mutations are disabled.",
-                null
+                null,
+                false
             );
 
         if(status.task==null)
@@ -134,7 +169,8 @@ final class LocalSlayerCommandHandler {
                 " task=NONE authority="+
                 AUTHORITY,
                 "Blood Slayer: no LocalLab task. Use ::slayer start.",
-                saveReason
+                saveReason,
+                openRoot
             );
 
         ObjectiveProgressService.Snapshot objective=
@@ -163,7 +199,8 @@ final class LocalSlayerCommandHandler {
                 " ("+
                 state+
                 ").",
-            saveReason
+            saveReason,
+            openRoot
         );
     }
 
