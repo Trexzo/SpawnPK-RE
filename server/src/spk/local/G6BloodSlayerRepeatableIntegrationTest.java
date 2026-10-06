@@ -99,15 +99,37 @@ public final class G6BloodSlayerRepeatableIntegrationTest {
             );
 
             boolean renewalFailed=false;
+            Object removedBinding=
+                removeTaskBinding(
+                    world.localLabSlayer()
+                        .bloodSlayer(),
+                    LocalLabSlayerRuntime
+                        .TASK_KEY
+                );
 
             try{
-                world.localLabSlayer()
-                    .startMonsterHunter(
-                        OWNER,
-                        -1L
-                    );
-            }catch(IllegalArgumentException expected){
-                renewalFailed=true;
+                try{
+                    world.localLabSlayer()
+                        .startMonsterHunter(
+                            OWNER,
+                            world.clock().tick()
+                        );
+                }catch(IllegalArgumentException expected){
+                    renewalFailed=
+                        expected.getMessage()!=null&&
+                        expected.getMessage()
+                            .contains(
+                                "unregistered Blood Slayer task"
+                            );
+                }
+            }finally{
+                restoreTaskBinding(
+                    world.localLabSlayer()
+                        .bloodSlayer(),
+                    LocalLabSlayerRuntime
+                        .TASK_KEY,
+                    removedBinding
+                );
             }
 
             LocalLabSlayerRuntime.StatusSnapshot
@@ -328,6 +350,59 @@ public final class G6BloodSlayerRepeatableIntegrationTest {
             " pointsClaim=false"+
             " rewardClaim=false"+
             " originalSpawnpkTaskPolicyClaim=false"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object removeTaskBinding(
+        BloodSlayerModeService service,
+        String taskKey
+    )throws Exception{
+        java.lang.reflect.Field field=
+            BloodSlayerModeService.class
+                .getDeclaredField(
+                    "tasks"
+                );
+        field.setAccessible(true);
+
+        Map<String,Object> tasks=
+            (Map<String,Object>)
+                field.get(service);
+
+        Object removed=
+            tasks.remove(taskKey);
+
+        require(
+            removed!=null,
+            "missing task binding for injected renewal failure"
+        );
+
+        return removed;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void restoreTaskBinding(
+        BloodSlayerModeService service,
+        String taskKey,
+        Object binding
+    )throws Exception{
+        java.lang.reflect.Field field=
+            BloodSlayerModeService.class
+                .getDeclaredField(
+                    "tasks"
+                );
+        field.setAccessible(true);
+
+        Map<String,Object> tasks=
+            (Map<String,Object>)
+                field.get(service);
+
+        require(
+            tasks.put(
+                taskKey,
+                binding
+            )==null,
+            "task binding unexpectedly replaced during renewal injection"
         );
     }
 
