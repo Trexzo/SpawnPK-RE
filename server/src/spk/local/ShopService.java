@@ -1092,13 +1092,51 @@ final class ShopService {
                 offer.offer.itemRef
             );
 
-        if(offer.availableStock>=ceiling)
+        long reservedOutgoing=0L;
+
+        try{
+            for(Purchase purchase:purchases.values()){
+                if(purchase.offer!=offer||
+                   purchase.state!=PurchaseState.RESERVED)
+                    continue;
+
+                reservedOutgoing=
+                    Math.addExact(
+                        reservedOutgoing,
+                        purchase.quantity
+                    );
+            }
+        }catch(ArithmeticException overflow){
+            throw new IllegalStateException(
+                "reserved Shop stock overflow item="+
+                offer.offer.itemRef,
+                overflow
+            );
+        }
+
+        final long effectiveStock;
+
+        try{
+            effectiveStock=
+                Math.addExact(
+                    offer.availableStock,
+                    reservedOutgoing
+                );
+        }catch(ArithmeticException overflow){
+            throw new IllegalStateException(
+                "effective Shop stock overflow item="+
+                offer.offer.itemRef,
+                overflow
+            );
+        }
+
+        if(effectiveStock>=ceiling)
             return 0L;
 
         long room=
             Math.subtractExact(
                 ceiling,
-                offer.availableStock
+                effectiveStock
             );
         long added=
             Math.min(
