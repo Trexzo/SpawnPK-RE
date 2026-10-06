@@ -630,12 +630,10 @@ final class LocalSession implements Runnable {
 
                 @Override public LocalShopCommandHandler.Result
                     handleShopCommand(
-                        String[] tokens,
-                        ServerPacketWriter writer
-                    )throws IOException{
+                        String[] tokens
+                    ){
                     return LocalSession.this.shopCommands.handle(
-                        tokens,
-                        writer
+                        tokens
                     );
                 }
 
