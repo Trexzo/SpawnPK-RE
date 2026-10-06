@@ -190,15 +190,19 @@ final class LocalSlayerCommandHandler {
                 objective.progress+
                 "/"+
                 objective.goal+
+                " bloodSlayerCompletions="+
+                status.completions+
                 " authority="+
                 AUTHORITY,
-            "Blood Slayer Monster Hunter: "+
+            "Blood Slayer: "+
                 objective.progress+
                 "/"+
                 objective.goal+
                 " ("+
                 state+
-                ").",
+                "), completions="+
+                status.completions+
+                ".",
             saveReason,
             openRoot
         );
