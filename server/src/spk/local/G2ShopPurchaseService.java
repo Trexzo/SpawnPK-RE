@@ -182,10 +182,36 @@ final class G2ShopPurchaseService {
         String itemRef,
         long quantity
     ){
-        long generation=
+        final long generation=
             player.generation();
 
-        if(!owns(generation))
+        final Result[] result=
+            new Result[1];
+
+        final boolean current;
+
+        try{
+            current=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    player,
+                    generation,
+                    ()->result[0]=
+                        purchaseOwned(
+                            shopId,
+                            itemRef,
+                            quantity
+                        )
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Shop purchase ownership execution failed",
+                failure
+            );
+        }
+
+        if(!current)
             return rejected(
                 Status.STALE_PLAYER,
                 null,
@@ -196,34 +222,39 @@ final class G2ShopPurchaseService {
                 "player ownership is not current"
             );
 
+        if(result[0]==null)
+            throw new IllegalStateException(
+                "Shop purchase ownership action produced no result"
+            );
+
+        return result[0];
+    }
+
+    /**
+     * Runs only under World lifecycle + exact player mutation ownership.
+     * Registration/generation therefore cannot change during reservation,
+     * carried-state commit and Shop settlement.
+     */
+    private Result purchaseOwned(
+        ShopService.ShopId shopId,
+        String itemRef,
+        long quantity
+    ){
+        if(player.lifecycle().dead())
+            return rejected(
+                Status.DEAD,
+                null,
+                -1,
+                -1,
+                0L,
+                quantity,
+                "dead players cannot buy"
+            );
+
         String buyerRef=
             PartyService.requireRef(
                 player.username()
             );
-
-        synchronized(player.mutationLock()){
-            if(!owns(generation))
-                return rejected(
-                    Status.STALE_PLAYER,
-                    null,
-                    -1,
-                    -1,
-                    0L,
-                    quantity,
-                    "player ownership changed"
-                );
-
-            if(player.lifecycle().dead())
-                return rejected(
-                    Status.DEAD,
-                    null,
-                    -1,
-                    -1,
-                    0L,
-                    quantity,
-                    "dead players cannot buy"
-                );
-        }
 
         ShopService.PurchaseSnapshot reservation=
             shops.requestPurchase(
@@ -236,211 +267,136 @@ final class G2ShopPurchaseService {
                 quantity
             );
 
-        synchronized(player.mutationLock()){
-            if(!owns(generation)){
-                cancelReserved(
-                    reservation.purchaseId
-                );
-                return rejected(
-                    Status.STALE_PLAYER,
-                    reservation,
-                    -1,
-                    -1,
-                    reservation.totalPrice,
-                    reservation.quantity,
-                    "player ownership changed after Shop reservation"
-                );
-            }
+        final int currencyItemId;
+        final int purchasedItemId;
 
-            if(player.lifecycle().dead()){
-                cancelReserved(
-                    reservation.purchaseId
+        try{
+            currencyItemId=
+                parseItemRef(
+                    reservation.currencyRef
                 );
-                return rejected(
-                    Status.DEAD,
-                    reservation,
-                    -1,
-                    -1,
-                    reservation.totalPrice,
-                    reservation.quantity,
-                    "player died after Shop reservation"
+            purchasedItemId=
+                parseItemRef(
+                    reservation.itemRef
                 );
-            }
+        }catch(IllegalArgumentException unsupported){
+            cancelReserved(
+                reservation.purchaseId
+            );
+            return rejected(
+                Status.UNSUPPORTED_SEMANTIC_KEY,
+                reservation,
+                -1,
+                -1,
+                reservation.totalPrice,
+                reservation.quantity,
+                unsupported.getMessage()
+            );
+        }
 
-            final int currencyItemId;
-            final int purchasedItemId;
+        if(!ItemCatalog.exists(
+                currencyItemId)||
+           !ItemCatalog.exists(
+                purchasedItemId)){
+            cancelReserved(
+                reservation.purchaseId
+            );
+            return rejected(
+                Status.UNKNOWN_ITEM,
+                reservation,
+                currencyItemId,
+                purchasedItemId,
+                reservation.totalPrice,
+                reservation.quantity,
+                "Shop semantic item missing from current ItemCatalog"
+            );
+        }
 
-            try{
-                currencyItemId=
-                    parseItemRef(
-                        reservation.currencyRef
-                    );
-                purchasedItemId=
-                    parseItemRef(
-                        reservation.itemRef
-                    );
-            }catch(IllegalArgumentException unsupported){
-                cancelReserved(
-                    reservation.purchaseId
-                );
-                return rejected(
-                    Status.UNSUPPORTED_SEMANTIC_KEY,
-                    reservation,
-                    -1,
-                    -1,
-                    reservation.totalPrice,
-                    reservation.quantity,
-                    unsupported.getMessage()
-                );
-            }
+        InventoryImage before=
+            captureInventory(
+                player.bank()
+            );
 
-            if(!ItemCatalog.exists(
-                    currencyItemId)||
-               !ItemCatalog.exists(
-                    purchasedItemId)){
-                cancelReserved(
-                    reservation.purchaseId
-                );
-                return rejected(
-                    Status.UNKNOWN_ITEM,
-                    reservation,
-                    currencyItemId,
-                    purchasedItemId,
-                    reservation.totalPrice,
-                    reservation.quantity,
-                    "Shop semantic item missing from current ItemCatalog"
-                );
-            }
+        Plan plan=
+            planExchange(
+                before,
+                currencyItemId,
+                reservation.totalPrice,
+                purchasedItemId,
+                reservation.quantity
+            );
 
-            InventoryImage before=
-                captureInventory(
-                    player.bank()
-                );
+        if(!plan.accepted()){
+            cancelReserved(
+                reservation.purchaseId
+            );
+            return rejected(
+                plan.rejection,
+                reservation,
+                currencyItemId,
+                purchasedItemId,
+                reservation.totalPrice,
+                reservation.quantity,
+                plan.detail
+            );
+        }
 
-            Plan plan=
-                planExchange(
-                    before,
-                    currencyItemId,
-                    reservation.totalPrice,
-                    purchasedItemId,
-                    reservation.quantity
+        AtomicTransactionService.TransactionId
+            transactionId=null;
+
+        try{
+            transactionId=
+                transactions.create(
+                    buyerRef,
+                    "shop-purchase:"+
+                        reservation.purchaseId,
+                    reservation.sourceAuthority
                 );
 
-            if(!plan.accepted()){
-                cancelReserved(
-                    reservation.purchaseId
-                );
-                return rejected(
-                    plan.rejection,
-                    reservation,
-                    currencyItemId,
-                    purchasedItemId,
-                    reservation.totalPrice,
-                    reservation.quantity,
-                    plan.detail
-                );
-            }
-
-            AtomicTransactionService.TransactionId
-                transactionId=null;
-
-            try{
-                transactionId=
-                    transactions.create(
+            transactions.reserve(
+                transactionId,
+                Arrays.asList(
+                    new EscrowAsset(
+                        EscrowAsset.Kind.CURRENCY,
+                        reservation.currencyRef,
+                        reservation.totalPrice,
                         buyerRef,
-                        "shop-purchase:"+
-                            reservation.purchaseId,
                         reservation.sourceAuthority
-                    );
-
-                transactions.reserve(
-                    transactionId,
-                    Arrays.asList(
-                        new EscrowAsset(
-                            EscrowAsset.Kind.CURRENCY,
-                            reservation.currencyRef,
-                            reservation.totalPrice,
-                            buyerRef,
-                            reservation.sourceAuthority
-                        ),
-                        new EscrowAsset(
-                            EscrowAsset.Kind.ITEM,
-                            reservation.itemRef,
-                            reservation.quantity,
-                            reservation.stockOwnerRef,
-                            reservation.sourceAuthority
-                        )
+                    ),
+                    new EscrowAsset(
+                        EscrowAsset.Kind.ITEM,
+                        reservation.itemRef,
+                        reservation.quantity,
+                        reservation.stockOwnerRef,
+                        reservation.sourceAuthority
                     )
-                );
+                )
+            );
 
-                transactions.commit(
-                    transactionId
-                );
-            }catch(RuntimeException failure){
-                cancelReserved(
-                    reservation.purchaseId
-                );
-                throw failure;
-            }
-
-            if(!owns(generation)){
-                cancelReserved(
-                    reservation.purchaseId
-                );
-                return rejected(
-                    Status.STALE_PLAYER,
-                    reservation,
-                    currencyItemId,
-                    purchasedItemId,
-                    reservation.totalPrice,
-                    reservation.quantity,
-                    "player ownership changed before carried-state commit"
-                );
-            }
-
+            /*
+             * Canonical carried state changes before final settlement proof,
+             * but both remain inside exact World/player ownership.  If the
+             * Shop finalizer rejects while the transaction is still open,
+             * inventory, transaction and finite stock are all rolled back.
+             */
             player.bank()
                 .replaceInventorySemantic(
                     plan.items,
                     plan.quantities
                 );
 
-            final ShopService.PurchaseSnapshot
-                settled;
+            ShopService.PurchaseSnapshot settled=
+                shops.commitReservedSettlement(
+                    reservation.purchaseId,
+                    transactionId
+                );
 
-            try{
-                settled=
-                    shops.confirmSettlement(
-                        reservation.purchaseId,
-                        transactionId
-                    );
-            }catch(RuntimeException failure){
-                player.bank()
-                    .replaceInventorySemantic(
-                        before.items,
-                        before.quantities
-                    );
-
-                ShopService.PurchaseSnapshot
-                    current=
-                        shops.getPurchase(
-                            reservation.purchaseId
-                        );
-
-                if(current!=null&&
-                   current.state==
-                       ShopService.PurchaseState.RESERVED)
-                    shops.cancelPurchase(
-                        reservation.purchaseId
-                    );
-
-                throw failure;
-            }
-
-            if(!settled.settled())
+            if(!settled.settled()||
+               !transactionId.equals(
+                    settled.settlementTransactionId))
                 throw new IllegalStateException(
-                    "Shop confirmation returned non-settled purchase "+
-                    settled.purchaseId+
-                    " state="+settled.state
+                    "Shop reserved settlement did not commit exact transaction "+
+                    reservation.purchaseId
                 );
 
             return new Result(
@@ -454,16 +410,49 @@ final class G2ShopPurchaseService {
                 SAVE_REASON,
                 "PURCHASED"
             );
+        }catch(RuntimeException failure){
+            player.bank()
+                .replaceInventorySemantic(
+                    before.items,
+                    before.quantities
+                );
+
+            if(transactionId!=null)
+                cancelTransactionIfOpen(
+                    transactionId
+                );
+
+            ShopService.PurchaseSnapshot current=
+                shops.getPurchase(
+                    reservation.purchaseId
+                );
+
+            if(current!=null&&
+               current.state==
+                    ShopService.PurchaseState.RESERVED)
+                shops.cancelPurchase(
+                    reservation.purchaseId
+                );
+
+            throw failure;
         }
     }
 
-    private boolean owns(
-        long generation
+    private void cancelTransactionIfOpen(
+        AtomicTransactionService.TransactionId
+            transactionId
     ){
-        return player.registered()&&
-            world.players().owns(
-                player,
-                generation
+        AtomicTransactionService.Snapshot snapshot=
+            transactions.snapshot(
+                transactionId
+            );
+
+        if(snapshot.state==
+                AtomicTransactionService.TransactionState.CREATED||
+           snapshot.state==
+                AtomicTransactionService.TransactionState.RESERVED)
+            transactions.cancel(
+                transactionId
             );
     }
 
