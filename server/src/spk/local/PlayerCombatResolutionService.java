@@ -485,6 +485,7 @@ final class PlayerCombatResolutionService {
                                             .deathSequence(),
                                         owner.id(),
                                         expectedAttackerGeneration,
+                                        owner.username(),
                                         "PLAYER_PVP"
                                     );
                         }
