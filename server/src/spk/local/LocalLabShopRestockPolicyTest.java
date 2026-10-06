@@ -12,6 +12,7 @@ public final class LocalLabShopRestockPolicyTest {
         boolean aboveBaselinePreserved=false;
         boolean worldOwned=false;
         boolean gracefulPersistence=false;
+        boolean reservedPurchaseSafe=false;
 
         InMemoryLocalLabShopRepository zeroRepo=
             seeded(0L);
@@ -151,6 +152,62 @@ public final class LocalLabShopRestockPolicyTest {
             aboveWorld.close();
         }
 
+        LocalLabShopRuntime reservedRuntime=
+            new LocalLabShopRuntime(
+                LocalLabShopSnapshot
+                    .ofRocktailStock(
+                        LocalLabShopRuntime
+                            .INITIAL_ROCKTAIL_STOCK
+                    )
+            );
+
+        ShopService.PurchaseSnapshot reserved=
+            reservedRuntime.shops()
+                .requestPurchase(
+                    LocalLabShopRuntime.SUPPLIES,
+                    "player:reserved-restock",
+                    "item:"+
+                        LocalLabShopRuntime.ROCKTAIL,
+                    1L
+                );
+
+        require(
+            reservedRuntime.rocktailStock()==
+                LocalLabShopRuntime
+                    .INITIAL_ROCKTAIL_STOCK-
+                1L,
+            "finite purchase reservation did not reserve stock"
+        );
+
+        long addedWhileReserved=
+            reservedRuntime.onWorldTick(
+                LocalLabShopRuntime
+                    .ROCKTAIL_RESTOCK_INTERVAL_TICKS
+            );
+
+        require(
+            addedWhileReserved==0L&&
+            reservedRuntime.rocktailStock()==
+                LocalLabShopRuntime
+                    .INITIAL_ROCKTAIL_STOCK-
+                1L,
+            "restock treated reserved purchase depletion as real baseline depletion"
+        );
+
+        reservedRuntime.shops()
+            .cancelPurchase(
+                reserved.purchaseId
+            );
+
+        require(
+            reservedRuntime.rocktailStock()==
+                LocalLabShopRuntime
+                    .INITIAL_ROCKTAIL_STOCK,
+            "purchase cancellation manufactured stock above restock baseline"
+        );
+
+        reservedPurchaseSafe=true;
+
         require(
             worldOwned,
             "restock runtime is not World-owned"
@@ -176,6 +233,8 @@ public final class LocalLabShopRestockPolicyTest {
             " worldOwned="+worldOwned+
             " gracefulPersistence="+
                 gracefulPersistence+
+            " reservedPurchaseSafe="+
+                reservedPurchaseSafe+
             " offlineCatchupClaim=false"+
             " originalSpawnpkEconomyClaim=false"
         );
