@@ -427,8 +427,9 @@ public final class G6BloodSlayerCompletionCountTest {
                 " startsZero="+startsZero+
                 " firstMonsterCompletionOne="+firstMonsterCompletionOne+
                 " duplicateSafe="+duplicateSafe+
-                " modeSwitchPreservesTwo="+modeSwitchPreservesTwo+
+                " bossOutsideNoIncrement="+bossOutsideNoIncrement+
                 " bossCompletionTwo="+bossCompletionTwo+
+                " modeSwitchPreservesTwo="+modeSwitchPreservesTwo+
                 " secondMonsterCompletionThree="+secondMonsterCompletionThree+
                 " freshWorldRestoresThree="+freshWorldRestoresThree+
                 " legacyV1LoadsZero="+legacyV1LoadsZero+
