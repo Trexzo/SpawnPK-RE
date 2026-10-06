@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.file.*;
+import java.util.*;
 
 public final class G3BossDestinationPvmIntegrationTest {
     private static final String OWNER=
@@ -569,6 +571,10 @@ public final class G3BossDestinationPvmIntegrationTest {
                 "certified respawn did not remain current-owner/collision-safe in Boss region"
             );
 
+            verifyFreshWorldPersistence(
+                player
+            );
+
             System.out.println(
                 "G3_BOSS_DESTINATION_PVM_PASS"+
                 " bossTeleport=true"+
@@ -606,6 +612,123 @@ public final class G3BossDestinationPvmIntegrationTest {
                 );
 
             world.close();
+        }
+    }
+
+    private static void verifyFreshWorldPersistence(
+        WorldPlayer player
+    )throws Exception{
+        Path root=
+            Files.createTempDirectory(
+                "spawnpk-g3-boss-pvm-"
+            );
+
+        FilePlayerRepository repository=
+            new FilePlayerRepository(
+                username->
+                    root.resolve(
+                        username+
+                        ".properties"
+                    )
+            );
+
+        World restarted=null;
+        boolean temporaryRepositoryClean=false;
+
+        try{
+            repository.save(
+                PlayerSnapshotCodec.capture(
+                    OWNER,
+                    player,
+                    0
+                )
+            );
+
+            restarted=
+                World.isolatedForTest(
+                    60_000L,
+                    repository
+                );
+
+            Optional<PlayerSnapshot> loaded=
+                restarted.persistence()
+                    .load(
+                        OWNER
+                    );
+
+            require(
+                loaded.isPresent(),
+                "fresh World persistence owner did not load Boss PvM snapshot"
+            );
+
+            WorldPlayer restored=
+                new WorldPlayer();
+
+            PlayerSnapshotCodec.applyValidated(
+                loaded.get(),
+                restored
+            );
+
+            require(
+                restarted.pvmRecords()
+                    .snapshot(
+                        restored
+                    )
+                    .kills==1L,
+                "fresh World Boss PvM kill progression mismatch"
+            );
+
+            require(
+                restored.bank()
+                    .inventoryCount(995)==1,
+                "fresh World Boss PvM owner-drop coin mismatch"
+            );
+        }finally{
+            if(restarted!=null)
+                restarted.close();
+
+            deleteTree(root);
+            temporaryRepositoryClean=
+                !Files.exists(root);
+        }
+
+        require(
+            temporaryRepositoryClean,
+            "temporary Boss PvM repository cleanup failed path="+
+                root
+        );
+
+        System.out.println(
+            "G3_BOSS_PVM_FRESH_WORLD_PERSISTENCE_PASS"+
+            " repositorySave=true"+
+            " freshWorldLoad=true"+
+            " pvmKills1=true"+
+            " ownerDropCoins1=true"+
+            " snapshotValidated=true"+
+            " temporaryRepositoryClean=true"+
+            " transientBossRuntimePersistenceClaim=false"+
+            " originalSpawnpkBossPolicyClaim=false"
+        );
+    }
+
+    private static void deleteTree(
+        Path root
+    )throws Exception{
+        if(root==null||
+           !Files.exists(root))
+            return;
+
+        try(java.util.stream.Stream<Path> paths=
+                Files.walk(root)){
+            Iterator<Path> iterator=
+                paths.sorted(
+                    Comparator.reverseOrder()
+                ).iterator();
+
+            while(iterator.hasNext())
+                Files.deleteIfExists(
+                    iterator.next()
+                );
         }
     }
 
