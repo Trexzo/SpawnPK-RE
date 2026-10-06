@@ -190,6 +190,7 @@ final class LocalSession implements Runnable {
     private final DevControlCenter devPanel = new DevControlCenter();
     private final LocalDialogNumberKeyState dialogNumberKeys = new LocalDialogNumberKeyState();
     private final LocalDevPanelCoordinator devPanelCoordinator;
+    private final LocalShopCommandHandler shopCommands;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
@@ -509,6 +510,12 @@ final class LocalSession implements Runnable {
                         :outcome[0];
                 }
             });
+        this.shopCommands =
+            new LocalShopCommandHandler(
+                this.world,
+                this.worldPlayer,
+                this.world.localLabShops()
+            );
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
             diagnosticCommands,
@@ -618,6 +625,17 @@ final class LocalSession implements Runnable {
                     throw new IllegalStateException(
                         "Unexpected root command result="+
                         result
+                    );
+                }
+
+                @Override public LocalShopCommandHandler.Result
+                    handleShopCommand(
+                        String[] tokens,
+                        ServerPacketWriter writer
+                    )throws IOException{
+                    return LocalSession.this.shopCommands.handle(
+                        tokens,
+                        writer
                     );
                 }
 
