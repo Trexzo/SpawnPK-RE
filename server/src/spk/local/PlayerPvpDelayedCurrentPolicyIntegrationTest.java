@@ -218,7 +218,7 @@ public final class PlayerPvpDelayedCurrentPolicyIntegrationTest {
             require(
                 cancelled!=null&&
                 cancelled.contains(
-                    "reason=PVP_REGION_POLICY"
+                    "PLAYER_ATTACK_CANCELLED"
                 )&&
                 interactions.activeAttack()==null,
                 "handler did not retire attack after PK exit"
