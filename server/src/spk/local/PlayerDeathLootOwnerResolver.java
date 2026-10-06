@@ -6,9 +6,10 @@ import java.util.Objects;
  * Resolves one already-recorded death attribution into the owner string used
  * by GroundItemRegistry.
  *
- * EntityId + generation are the authority. Username is read only after the
- * exact attacker generation is proven current because the ground-item layer's
- * visibility contract is still username based.
+ * EntityId + generation remain the lethal-attribution authority. A username
+ * captured while that exact generation is proven current may survive a later
+ * disconnect only for ground-loot ownership; it does not authorize rewards or
+ * stale-player mutation.
  */
 final class PlayerDeathLootOwnerResolver {
     static final class Result {
@@ -85,6 +86,9 @@ final class PlayerDeathLootOwnerResolver {
                 "PUBLIC_UNSUPPORTED_ATTRIBUTION_CONTEXT"
             );
 
+        String capturedUsername=
+            attribution.attackerUsername;
+
         WorldPlayer attacker=
             checkedWorld.players().byId(
                 attribution.attackerId
@@ -94,13 +98,22 @@ final class PlayerDeathLootOwnerResolver {
            !checkedWorld.players().owns(
                 attacker,
                 attribution.attackerGeneration
-            ))
+            )){
+            if(capturedUsername!=null)
+                return new Result(
+                    capturedUsername,
+                    attribution.attackerId,
+                    attribution.attackerGeneration,
+                    "KILLER_CAPTURED_IDENTITY"
+                );
+
             return new Result(
                 null,
                 attribution.attackerId,
                 attribution.attackerGeneration,
                 "PUBLIC_STALE_ATTACKER_GENERATION"
             );
+        }
 
         String username=
             attacker.username();
@@ -112,6 +125,17 @@ final class PlayerDeathLootOwnerResolver {
                 attribution.attackerId,
                 attribution.attackerGeneration,
                 "PUBLIC_ATTACKER_USERNAME_UNAVAILABLE"
+            );
+
+        username=username.trim();
+
+        if(capturedUsername!=null&&
+           !capturedUsername.equals(username))
+            return new Result(
+                null,
+                attribution.attackerId,
+                attribution.attackerGeneration,
+                "PUBLIC_ATTACKER_IDENTITY_MISMATCH"
             );
 
         return new Result(
