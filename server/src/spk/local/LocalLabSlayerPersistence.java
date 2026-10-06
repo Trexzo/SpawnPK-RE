@@ -3,16 +3,17 @@ package spk.local;
 import java.util.*;
 
 /**
- * Snapshot-extension codec for the explicit G4 Blood Slayer one-shot policy.
+ * Snapshot-extension codec for explicit LocalLab Blood Slayer PvM policy.
  *
- * Historical world ticks are persisted as evidence only. A fresh World
- * replays the same canonical lifecycle at its current logical tick because
- * GameClock tick identity is not durable across server restart.
+ * v1 is the historical Monster-Hunter-only contract. v2 keeps the same
+ * namespace/key set while binding persisted state to one supported PvM mode,
+ * task identity and objective identity.
  */
 final class LocalLabSlayerPersistence {
     static final String NAMESPACE=
         "blood-slayer-g4";
-    static final String VERSION="1";
+    static final String LEGACY_VERSION="1";
+    static final String VERSION="2";
 
     enum State {
         ACTIVE,
@@ -20,17 +21,23 @@ final class LocalLabSlayerPersistence {
     }
 
     static final class Snapshot {
+        final BloodSlayerModeService.Mode mode;
         final State state;
         final long progress;
         final long sourceAssignedTick;
         final long sourceTransitionTick;
 
         Snapshot(
+            BloodSlayerModeService.Mode mode,
             State state,
             long progress,
             long sourceAssignedTick,
             long sourceTransitionTick
         ){
+            this.mode=Objects.requireNonNull(
+                mode,
+                "mode"
+            );
             this.state=Objects.requireNonNull(
                 state,
                 "state"
@@ -63,15 +70,27 @@ final class LocalLabSlayerPersistence {
                 status.persistenceError
             );
 
-        if(status.selectedMode!=
-                BloodSlayerModeService.Mode
-                    .MONSTER_HUNTER_PVM)
-            throw new IllegalArgumentException(
-                "unsupported persisted Blood Slayer mode "+
-                status.selectedMode
+        BloodSlayerModeService.Mode mode=
+            Objects.requireNonNull(
+                status.selectedMode,
+                "selectedMode"
             );
 
-        if(!LocalLabSlayerRuntime.TASK_KEY.equals(
+        if(!LocalLabSlayerRuntime
+                .supportedMode(mode))
+            throw new IllegalArgumentException(
+                "unsupported persisted Blood Slayer mode "+
+                mode
+            );
+
+        String taskKey=
+            LocalLabSlayerRuntime
+                .taskKeyFor(mode);
+        String objectiveKey=
+            LocalLabSlayerRuntime
+                .objectiveKeyFor(mode);
+
+        if(!taskKey.equals(
                 task.definition.taskKey)||
            !LocalLabSlayerRuntime.AUTHORITY.equals(
                 task.definition.sourceAuthority))
@@ -82,7 +101,7 @@ final class LocalLabSlayerPersistence {
         if(task.objective==null||
            task.objective.goal!=
                 LocalLabSlayerRuntime.OBJECTIVE_GOAL||
-           !LocalLabSlayerRuntime.OBJECTIVE_KEY.equals(
+           !objectiveKey.equals(
                 task.objective.key)||
            !LocalLabSlayerRuntime.AUTHORITY.equals(
                 task.objective.sourceAuthority))
@@ -90,25 +109,8 @@ final class LocalLabSlayerPersistence {
                 "unsupported persisted Blood Slayer objective"
             );
 
-        State state;
-
-        if(task.state==
-                SlayerTaskService.State.ACTIVE&&
-           task.objective.progress==0L){
-            state=State.ACTIVE;
-        }else if(task.state==
-                    SlayerTaskService.State.COMPLETED&&
-                task.objective.progress==
-                    LocalLabSlayerRuntime.OBJECTIVE_GOAL){
-            state=State.COMPLETED;
-        }else{
-            throw new IllegalArgumentException(
-                "unsupported persisted Blood Slayer lifecycle state="+
-                task.state+
-                " progress="+
-                task.objective.progress
-            );
-        }
+        State state=
+            lifecycleState(task);
 
         TreeMap<String,String> values=
             new TreeMap<>();
@@ -120,13 +122,11 @@ final class LocalLabSlayerPersistence {
         );
         values.put(
             "task-key",
-            LocalLabSlayerRuntime.TASK_KEY
+            taskKey
         );
         values.put(
             "mode",
-            BloodSlayerModeService.Mode
-                .MONSTER_HUNTER_PVM
-                .name()
+            mode.name()
         );
         values.put(
             "state",
@@ -171,32 +171,84 @@ final class LocalLabSlayerPersistence {
 
         requireExactKeys(values);
 
-        if(!VERSION.equals(
-                clean(values.get("version"))))
+        String version=
+            cleanRequired(
+                values.get("version"),
+                "version"
+            );
+
+        if(LEGACY_VERSION.equals(version))
+            return decodeVersion(
+                values,
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM,
+                LocalLabSlayerRuntime
+                    .LEGACY_AUTHORITY,
+                LocalLabSlayerRuntime.TASK_KEY
+            );
+
+        if(!VERSION.equals(version))
             throw invalid(
                 "version",
                 values.get("version")
             );
 
-        if(!LocalLabSlayerRuntime.AUTHORITY.equals(
+        final BloodSlayerModeService.Mode mode;
+
+        try{
+            mode=
+                BloodSlayerModeService.Mode
+                    .valueOf(
+                        cleanRequired(
+                            values.get("mode"),
+                            "mode"
+                        )
+                    );
+        }catch(RuntimeException failure){
+            throw invalid(
+                "mode",
+                values.get("mode")
+            );
+        }
+
+        if(!LocalLabSlayerRuntime
+                .supportedMode(mode))
+            throw invalid(
+                "mode",
+                values.get("mode")
+            );
+
+        return decodeVersion(
+            values,
+            mode,
+            LocalLabSlayerRuntime.AUTHORITY,
+            LocalLabSlayerRuntime
+                .taskKeyFor(mode)
+        );
+    }
+
+    private static Snapshot decodeVersion(
+        SortedMap<String,String> values,
+        BloodSlayerModeService.Mode mode,
+        String expectedAuthority,
+        String expectedTaskKey
+    ){
+        if(!expectedAuthority.equals(
                 clean(values.get("authority"))))
             throw invalid(
                 "authority",
                 values.get("authority")
             );
 
-        if(!LocalLabSlayerRuntime.TASK_KEY.equals(
+        if(!expectedTaskKey.equals(
                 clean(values.get("task-key"))))
             throw invalid(
                 "task-key",
                 values.get("task-key")
             );
 
-        if(!BloodSlayerModeService.Mode
-                .MONSTER_HUNTER_PVM
-                .name()
-                .equals(
-                    clean(values.get("mode"))))
+        if(!mode.name().equals(
+                clean(values.get("mode"))))
             throw invalid(
                 "mode",
                 values.get("mode")
@@ -277,10 +329,33 @@ final class LocalLabSlayerPersistence {
         }
 
         return new Snapshot(
+            mode,
             state,
             progress,
             assigned,
             transition
+        );
+    }
+
+    private static State lifecycleState(
+        SlayerTaskService.Snapshot task
+    ){
+        if(task.state==
+                SlayerTaskService.State.ACTIVE&&
+           task.objective.progress==0L)
+            return State.ACTIVE;
+
+        if(task.state==
+                SlayerTaskService.State.COMPLETED&&
+           task.objective.progress==
+                LocalLabSlayerRuntime.OBJECTIVE_GOAL)
+            return State.COMPLETED;
+
+        throw new IllegalArgumentException(
+            "unsupported persisted Blood Slayer lifecycle state="+
+            task.state+
+            " progress="+
+            task.objective.progress
         );
     }
 
