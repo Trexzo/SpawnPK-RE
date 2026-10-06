@@ -67,6 +67,8 @@ final class LocalSuppliesMerchantHandler {
     private final NpcRegistry npcs;
     private final InteractionApproachResolver approach;
     private final ContentRegistry content;
+    private final SuppliesMerchantDialogueContent fallbackDialoguePolicy=
+        new SuppliesMerchantDialogueContent();
     private final LocalLabShopRuntime runtime;
     private final G2ShopPurchaseService purchases;
     private final G2ShopSellbackInventoryService sellbacks;
@@ -92,7 +94,7 @@ final class LocalSuppliesMerchantHandler {
         this.player=Objects.requireNonNull(player,"player");
         this.movement=Objects.requireNonNull(movement,"movement");
         this.npcs=npcs;
-        this.content=Objects.requireNonNull(content,"content");
+        this.content=content;
         this.runtime=Objects.requireNonNull(runtime,"runtime");
         this.approach=new InteractionApproachResolver(
             this.movement
@@ -781,10 +783,12 @@ final class LocalSuppliesMerchantHandler {
         effectiveDefinition()
     {
         ContentDialogueDefinition definition=
-            content.dialogueDefinition(
-                SuppliesMerchantDialogueContent
-                    .DIALOGUE_KEY
-            );
+            content==null
+                ?fallbackDialoguePolicy.definition()
+                :content.dialogueDefinition(
+                    SuppliesMerchantDialogueContent
+                        .DIALOGUE_KEY
+                );
 
         if(definition==null)
             throw new IllegalStateException(
@@ -909,19 +913,47 @@ final class LocalSuppliesMerchantHandler {
                 );
         }
 
-        ContentDialogueTransition transition=
-            content.dispatchDialogue(
-                player,
-                SuppliesMerchantDialogueContent
-                    .DIALOGUE_KEY,
-                nodeKey,
-                contentIntent
-            );
+        ContentDialogueTransition transition;
 
-        if(transition==null)
-            throw new IllegalStateException(
-                "supplies dialogue content binding missing"
-            );
+        if(content!=null){
+            transition=
+                content.dispatchDialogue(
+                    player,
+                    SuppliesMerchantDialogueContent
+                        .DIALOGUE_KEY,
+                    nodeKey,
+                    contentIntent
+                );
+
+            if(transition==null)
+                throw new IllegalStateException(
+                    "supplies dialogue content binding missing"
+                );
+        }else{
+            transition=
+                fallbackDialoguePolicy.handle(
+                    new ContentDialogueContext(){
+                        @Override public String dialogueKey(){
+                            return SuppliesMerchantDialogueContent
+                                .DIALOGUE_KEY;
+                        }
+
+                        @Override public String nodeKey(){
+                            return nodeKey;
+                        }
+
+                        @Override public ContentDialogueIntent intent(){
+                            return contentIntent;
+                        }
+
+                        @Override public ContentPlayer player(){
+                            return ContentRuntimeAdapters.player(
+                                player
+                            );
+                        }
+                    }
+                );
+        }
 
         pendingDialogueOutcome=
             transition.outcomeKey();
