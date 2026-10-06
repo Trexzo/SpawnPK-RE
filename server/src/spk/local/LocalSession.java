@@ -193,6 +193,7 @@ final class LocalSession implements Runnable {
     private final LocalDevPanelCoordinator devPanelCoordinator;
     private final LocalShopCommandHandler shopCommands;
     private final LocalSlayerCommandHandler slayerCommands;
+    private final LocalBloodSlayerUiHandler bloodSlayerUi;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
@@ -545,6 +546,11 @@ final class LocalSession implements Runnable {
                 this.worldPlayer,
                 this.world.localLabSlayer()
             );
+        this.bloodSlayerUi =
+            new LocalBloodSlayerUiHandler(
+                this.worldPlayer,
+                this.world.localLabSlayer()
+            );
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
             diagnosticCommands,
@@ -615,6 +621,12 @@ final class LocalSession implements Runnable {
                                     writer
                                 )
                     );
+                }
+
+                @Override public boolean openBloodSlayer(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    return LocalSession.this.uiActions.openBloodSlayer(writer);
                 }
 
                 @Override public LocalCommandDispatcher
@@ -750,6 +762,19 @@ final class LocalSession implements Runnable {
                         kind,
                         writer,
                         tag
+                    );
+                }
+
+                @Override public LocalBloodSlayerUiHandler.Result
+                    handleBloodSlayerWidget(
+                        BloodSlayerPresentation.Input input,
+                        ServerPacketWriter writer,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this.bloodSlayerUi.handle(
+                        input,
+                        LocalSession.this.world.clock().tick(),
+                        writer
                     );
                 }
 
