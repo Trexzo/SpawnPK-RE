@@ -152,6 +152,11 @@ public final class DeathCarriedPresentationDebtTest {
                 pressured.queuedBytes()==
                     bytesAfterRetry;
 
+            pressured.drainTo(
+                drain,
+                Integer.MAX_VALUE
+            );
+
             DeathCarriedPresentationDebt noBypass=
                 new DeathCarriedPresentationDebt();
             installSettledState(player);
