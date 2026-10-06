@@ -1463,12 +1463,18 @@ final class LocalWorldTickCoordinator {
                 settlement=committed[0];
                 killRewardReceipt=reward[0];
             }else{
+                /*
+                 * Loot ownership was already bound to the verified killer
+                 * identity at the lethal transition. A later disconnect may
+                 * remove reward/persistence authority, but must not erase that
+                 * already-proven ground-item owner.
+                 */
                 lootOwnerReason=
-                    "PUBLIC_ATTACKER_GENERATION_CHANGED_BEFORE_COMMIT";
+                    "KILLER_CAPTURED_IDENTITY_ATTACKER_STALE_AT_SETTLEMENT";
                 settlement=
                     deathGroundSettlement.settle(
                         resolution,
-                        null
+                        lootOwner.lootOwner
                     );
             }
         }else{
