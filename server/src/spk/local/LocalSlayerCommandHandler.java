@@ -13,10 +13,12 @@ final class LocalSlayerCommandHandler {
     static final class Result {
         final String logText;
         final String clientMessage;
+        final String saveReason;
 
         Result(
             String logText,
-            String clientMessage
+            String clientMessage,
+            String saveReason
         ){
             this.logText=
                 Objects.requireNonNull(
@@ -28,6 +30,7 @@ final class LocalSlayerCommandHandler {
                     clientMessage,
                     "clientMessage"
                 );
+            this.saveReason=saveReason;
         }
     }
 
@@ -72,7 +75,8 @@ final class LocalSlayerCommandHandler {
                 runtime.status(
                     playerRef
                 ),
-                "STATUS"
+                "STATUS",
+                null
             );
 
         if(tokens.length==2&&
@@ -90,7 +94,10 @@ final class LocalSlayerCommandHandler {
                 started.status,
                 started.created
                     ?"START_ASSIGNED"
-                    :"START_EXISTING"
+                    :"START_EXISTING",
+                started.created
+                    ?"G4_BLOOD_SLAYER_START"
+                    :null
             );
         }
 
@@ -98,21 +105,36 @@ final class LocalSlayerCommandHandler {
             "G4_BLOOD_SLAYER_COMMAND result=REJECTED_SYNTAX"+
             " stateMutation=false authority="+
             AUTHORITY,
-            "Usage: ::slayer start or ::slayer status"
+            "Usage: ::slayer start or ::slayer status",
+            null
         );
     }
 
     private Result statusResult(
         LocalLabSlayerRuntime.StatusSnapshot status,
-        String action
+        String action,
+        String saveReason
     ){
+        if(!status.persistenceValid())
+            return new Result(
+                "G4_BLOOD_SLAYER_COMMAND action="+
+                action+
+                " task=INVALID persistenceError="+
+                status.persistenceError+
+                " stateMutation=false authority="+
+                AUTHORITY,
+                "Blood Slayer state is invalid; task mutations are disabled.",
+                null
+            );
+
         if(status.task==null)
             return new Result(
                 "G4_BLOOD_SLAYER_COMMAND action="+
                 action+
                 " task=NONE authority="+
                 AUTHORITY,
-                "Blood Slayer: no LocalLab task. Use ::slayer start."
+                "Blood Slayer: no LocalLab task. Use ::slayer start.",
+                saveReason
             );
 
         ObjectiveProgressService.Snapshot objective=
@@ -140,7 +162,8 @@ final class LocalSlayerCommandHandler {
                 objective.goal+
                 " ("+
                 state+
-                ")."
+                ").",
+            saveReason
         );
     }
 
