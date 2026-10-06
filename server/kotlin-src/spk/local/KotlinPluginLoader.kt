@@ -535,7 +535,9 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
             name == "spk/event/DomainEventBus\$Cancellable.class" ||
             name == "spk/event/DomainEventBus\$Priority.class" ||
             name == "spk/event/DomainEventBus\$Listener.class" ||
-            name == "spk/event/DomainEventBus\$Subscription.class"
+            name == "spk/event/DomainEventBus\$Subscription.class" ||
+            name == "spk/event/PlayerEvent.class" ||
+            name == "spk/event/PlayerTickEvent.class"
 
     private fun exportedDslResource(
         name: String
