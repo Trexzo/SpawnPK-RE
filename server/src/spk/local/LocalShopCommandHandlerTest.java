@@ -75,16 +75,29 @@ public final class LocalShopCommandHandlerTest {
                 handler,
                 new String[]{"shop","sell","rocktail","0"}
             );
+            Captured trailingBuy=capture(
+                handler,
+                new String[]{"shop","buy","rocktail","1","junk"}
+            );
+            Captured trailingStock=capture(
+                handler,
+                new String[]{"shop","stock","junk"}
+            );
 
             require(
                 badItem.result.saveReason==null&&
                 badQty.result.saveReason==null&&
+                trailingBuy.result.saveReason==null&&
+                trailingStock.result.saveReason==null&&
+                trailingBuy.result.logText.contains("REJECTED_SYNTAX")&&
                 sameInventory(beforeInvalid,captureInventory(player))&&
                 runtime.rocktailStock()==stockBeforeInvalid,
                 "invalid live Shop command mutated state or requested save"
             );
             requireServerMessage(badItem.bytes,"badItem");
             requireServerMessage(badQty.bytes,"badQty");
+            requireServerMessage(trailingBuy.bytes,"trailingBuy");
+            requireServerMessage(trailingStock.bytes,"trailingStock");
 
             require(
                 LocalLabShopRuntime.AUTHORITY.equals(
@@ -103,6 +116,8 @@ public final class LocalShopCommandHandlerTest {
                 "finiteStock=true "+
                 "accountSave=true "+
                 "invalidAtomic=true "+
+                "strictSyntax=true "+
+                "feedbackSeparatedFromMutation=true "+
                 "nativeShopWidgetAuthority=false "+
                 "originalSpawnpkEconomyClaim=false "+
                 "authority="+LocalShopCommandHandler.AUTHORITY
@@ -120,6 +135,16 @@ public final class LocalShopCommandHandlerTest {
         LocalShopCommandHandler handler,
         String[] tokens
     )throws Exception{
+        LocalShopCommandHandler.Result result=
+            handler.handle(tokens);
+
+        require(result!=null,"Shop command was not handled");
+        require(
+            result.clientMessage!=null&&
+            !result.clientMessage.isEmpty(),
+            "Shop command did not prepare client feedback"
+        );
+
         ByteArrayOutputStream out=new ByteArrayOutputStream();
         ServerPacketWriter writer=
             new ServerPacketWriter(
@@ -127,10 +152,12 @@ public final class LocalShopCommandHandlerTest {
                 new IsaacCipher(SEED.clone())
             );
 
-        LocalShopCommandHandler.Result result=
-            handler.handle(tokens,writer);
+        new SocialChatPresentationPublisher(
+            writer
+        ).serverMessage(
+            result.clientMessage
+        );
 
-        require(result!=null,"Shop command was not handled");
         return new Captured(result,out.toByteArray());
     }
 
