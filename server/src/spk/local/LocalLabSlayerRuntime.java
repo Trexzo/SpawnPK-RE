@@ -821,6 +821,15 @@ final class LocalLabSlayerRuntime {
                 )
             );
 
+        long completionsBefore=
+            completionCount(player);
+
+        if(completionsBefore==Long.MAX_VALUE)
+            throw new IllegalStateException(
+                "Blood Slayer completion count exhausted player="+
+                player
+            );
+
         SlayerTaskService.KillResult result=
             slayer.recordValidatedKill(
                 player,
@@ -834,8 +843,6 @@ final class LocalLabSlayerRuntime {
             result.task.taskId
         );
 
-        long completionsBefore=
-            completionCount(player);
         boolean taskCompletion=
             result.completedNow;
         long completionsAfter=
