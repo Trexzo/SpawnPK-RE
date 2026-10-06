@@ -1063,6 +1063,58 @@ final class ShopService {
         );
     }
 
+    synchronized long replenishFiniteStock(
+        ShopId shopId,
+        String itemRef,
+        long quantity,
+        long ceiling
+    ){
+        if(quantity<=0L)
+            throw new IllegalArgumentException(
+                "replenish quantity="+quantity
+            );
+
+        if(ceiling<0L)
+            throw new IllegalArgumentException(
+                "replenish ceiling="+ceiling
+            );
+
+        OfferState offer=
+            requireOffer(
+                requireShop(shopId),
+                itemRef
+            );
+
+        if(offer.offer.stockMode!=
+                StockMode.FINITE)
+            throw new IllegalArgumentException(
+                "replenish requires finite Shop offer item="+
+                offer.offer.itemRef
+            );
+
+        if(offer.availableStock>=ceiling)
+            return 0L;
+
+        long room=
+            Math.subtractExact(
+                ceiling,
+                offer.availableStock
+            );
+        long added=
+            Math.min(
+                quantity,
+                room
+            );
+
+        offer.availableStock=
+            Math.addExact(
+                offer.availableStock,
+                added
+            );
+
+        return added;
+    }
+
     synchronized void reserveIncomingStock(
         ShopId shopId,
         String itemRef,
