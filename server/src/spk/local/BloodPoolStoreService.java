@@ -141,6 +141,10 @@ final class BloodPoolStoreService {
             );
     }
 
+    ShopService shops(){
+        return shops;
+    }
+
     Snapshot replaceSlots(
         Collection<SlotSpec> nextSlots
     ){
