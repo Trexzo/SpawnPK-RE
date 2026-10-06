@@ -45,7 +45,7 @@ public final class G4BloodSlayerUiPersistenceIntegrationTest {
                 ui.handle(
                     BloodSlayerPresentation.resolveWidget(
                         BloodSlayerPresentation
-                            .BOSS_HUNTER_WIDGET
+                            .BOUNTY_HUNTER_WIDGET
                     ),
                     source.clock().tick()
                 );
