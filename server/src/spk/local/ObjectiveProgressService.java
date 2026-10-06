@@ -217,6 +217,74 @@ final class ObjectiveProgressService {
         return entry.snapshot();
     }
 
+    synchronized Snapshot restoreIfUnchanged(
+        Snapshot expectedCurrent,
+        Snapshot replacement
+    ){
+        Objects.requireNonNull(
+            expectedCurrent,
+            "expectedCurrent"
+        );
+        Objects.requireNonNull(
+            replacement,
+            "replacement"
+        );
+
+        if(!expectedCurrent.key.equals(
+                replacement.key))
+            throw new IllegalArgumentException(
+                "objective restore key mismatch expected="+
+                expectedCurrent.key+
+                " replacement="+
+                replacement.key
+            );
+
+        Entry entry=
+            requireEntry(
+                expectedCurrent.key
+            );
+        Snapshot current=
+            entry.snapshot();
+
+        if(current.progress!=
+                expectedCurrent.progress||
+           current.claimed!=
+                expectedCurrent.claimed||
+           current.goal!=
+                expectedCurrent.goal||
+           !Objects.equals(
+                current.sourceAuthority,
+                expectedCurrent.sourceAuthority
+            ))
+            throw new IllegalStateException(
+                "objective changed before restore "+
+                expectedCurrent.key
+            );
+
+        if(replacement.goal!=
+                entry.definition.goal||
+           !Objects.equals(
+                replacement.sourceAuthority,
+                entry.definition.sourceAuthority
+            )||
+           replacement.progress<0L||
+           replacement.progress>
+                entry.definition.goal||
+           (replacement.claimed&&
+            replacement.progress<
+                entry.definition.goal))
+            throw new IllegalArgumentException(
+                "invalid objective restore snapshot "+
+                replacement
+            );
+
+        entry.progress=
+            replacement.progress;
+        entry.claimed=
+            replacement.claimed;
+        return entry.snapshot();
+    }
+
     synchronized boolean markClaimed(
         String key
     ){
