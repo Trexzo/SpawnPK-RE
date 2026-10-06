@@ -67,6 +67,7 @@ final class LocalPendingRequestDispatcher {
     private final G1RocktailConsumableHandler rocktailConsumables;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalMakeoverMageHandler makeoverMage;
+    private final LocalSuppliesMerchantHandler suppliesMerchant;
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
     private final LocalItemOnItemHandler itemOnItemHandler;
     private final LocalItemOnNpcHandler itemOnNpcHandler;
@@ -146,6 +147,10 @@ final class LocalPendingRequestDispatcher {
                     movement,
                     npcs
                 );
+        this.suppliesMerchant=
+            routedNpcHandler==null
+                ?null
+                :routedNpcHandler.suppliesMerchant();
         this.makeoverMage.installDesignerRootOwner(
             new LocalMakeoverMageHandler.DesignerRootOwner(){
                 @Override public void publish(
@@ -243,6 +248,12 @@ final class LocalPendingRequestDispatcher {
                         "MAKEOVER_MAGE_DIALOG_CANCEL reason=CLIENT_INTERFACE_CLOSE"
                     );
 
+                if(suppliesMerchant!=null)
+                    suppliesMerchant
+                        .cancelForInterfaceClose(
+                            tag
+                        );
+
                 uiActions.handleInterfaceClose(
                     clientPackets.isAligned(),
                     serverPackets,
@@ -315,6 +326,24 @@ final class LocalPendingRequestDispatcher {
                         serverPackets,
                         tag))
                     continue;
+
+                if(suppliesMerchant!=null){
+                    LocalSuppliesMerchantHandler.Result
+                        merchantResult=
+                            suppliesMerchant.handleWidget(
+                                widget.widgetId(),
+                                serverPackets
+                            );
+
+                    if(merchantResult.handled){
+                        applySuppliesMerchantResult(
+                            merchantResult,
+                            serverPackets,
+                            tag
+                        );
+                        continue;
+                    }
+                }
 
                 uiActions.handleWidget(
                     widget.widgetId(),
@@ -618,10 +647,33 @@ final class LocalPendingRequestDispatcher {
                         );
 
                 if(dialogueOption>0){
-                    if(!makeoverMage.handleOption(
+                    boolean handled=
+                        makeoverMage.handleOption(
                             dialogueOption,
                             serverPackets,
-                            tag))
+                            tag
+                        );
+
+                    if(!handled&&
+                       suppliesMerchant!=null){
+                        LocalSuppliesMerchantHandler.Result
+                            merchantResult=
+                                suppliesMerchant.handleOption(
+                                    dialogueOption,
+                                    serverPackets
+                                );
+
+                        if(merchantResult.handled){
+                            applySuppliesMerchantResult(
+                                merchantResult,
+                                serverPackets,
+                                tag
+                            );
+                            handled=true;
+                        }
+                    }
+
+                    if(!handled)
                         System.out.println(
                             tag+
                             "DIALOGUE_OPTION_UNHANDLED index="+
@@ -800,6 +852,37 @@ final class LocalPendingRequestDispatcher {
             " reason=NAME_KEY_ACCOUNT_MAPPING_UNPROVEN"+
             " stateMutation=false"+
             " authority=EXACT_CURRENT_CLIENT";
+    }
+
+    private void applySuppliesMerchantResult(
+        LocalSuppliesMerchantHandler.Result result,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(result==null||!result.handled)
+            return;
+
+        if(result.saveReason!=null)
+            bridge.saveAccount(
+                tag,
+                result.saveReason
+            );
+
+        if(result.feedback!=null)
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                result.feedback
+            );
+
+        if(result.logText!=null)
+            System.out.println(
+                tag+
+                result.logText+
+                " persistenceBeforeFeedback="+
+                (result.saveReason!=null&&
+                 result.feedback!=null)
+            );
     }
 
     private void routeObjectInteraction(
@@ -1155,6 +1238,13 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
+
+        if(suppliesMerchant!=null)
+            suppliesMerchant
+                .cancelForNewNpcAction(
+                    serverPackets,
+                    tag
+                );
 
         if(petDropPickup.handlePickupNpcAction(
             action,
