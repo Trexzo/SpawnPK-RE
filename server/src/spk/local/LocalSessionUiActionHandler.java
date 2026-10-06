@@ -175,6 +175,7 @@ final class LocalSessionUiActionHandler {
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
     private volatile LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
     private volatile boolean monsterSpawnerUiOpen;
+    private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
@@ -205,6 +206,7 @@ final class LocalSessionUiActionHandler {
             movementEnabled,
             equipment,
             null,
+            null,
             bridge
         );
     }
@@ -223,6 +225,38 @@ final class LocalSessionUiActionHandler {
         LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler,
         SessionBridge bridge
     ){
+        this(
+            worldPlayer,
+            itemLibrary,
+            devPanel,
+            bank,
+            compCapeCustomize,
+            petDialogs,
+            gameplayWidgetHandler,
+            movement,
+            movementEnabled,
+            equipment,
+            monsterSpawnerUiHandler,
+            null,
+            bridge
+        );
+    }
+
+    LocalSessionUiActionHandler(
+        WorldPlayer worldPlayer,
+        NativeItemLibraryService itemLibrary,
+        DevControlCenter devPanel,
+        BankState bank,
+        LocalCompCapeCustomizeHandler compCapeCustomize,
+        LocalPetInventoryDialogHandler petDialogs,
+        LocalGameplayWidgetHandler gameplayWidgetHandler,
+        MovementState movement,
+        boolean movementEnabled,
+        EquipmentState equipment,
+        LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler,
+        LocalBossTeleportUiHandler bossTeleportUiHandler,
+        SessionBridge bridge
+    ){
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.itemLibrary=Objects.requireNonNull(itemLibrary,"itemLibrary");
         this.devPanel=Objects.requireNonNull(devPanel,"devPanel");
@@ -233,6 +267,7 @@ final class LocalSessionUiActionHandler {
         this.gameplayWidgetHandler=Objects.requireNonNull(
             gameplayWidgetHandler,"gameplayWidgetHandler");
         this.monsterSpawnerUiHandler=monsterSpawnerUiHandler;
+        this.bossTeleportUiHandler=bossTeleportUiHandler;
         this.movement=Objects.requireNonNull(movement,"movement");
         this.movementEnabled=movementEnabled;
         this.equipment=Objects.requireNonNull(equipment,"equipment");
