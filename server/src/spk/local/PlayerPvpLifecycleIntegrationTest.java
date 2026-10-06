@@ -190,6 +190,8 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 )||
                attribution.attackerGeneration!=
                     attackerGeneration||
+               !"attacker".equals(
+                    attribution.attackerUsername)||
                !"PLAYER_PVP".equals(
                     attribution.context))
                 throw new AssertionError(
@@ -324,6 +326,7 @@ public final class PlayerPvpLifecycleIntegrationTest {
                 "deathTick=20 respawnTick=25 "+
                 "lethalAttackerId=true "+
                 "lethalAttackerGeneration=true "+
+                "lethalAttackerUsername=true "+
                 "attributionClearedOnRespawn=true "+
                 "hpPacket134=true "+
                 "remoteAttackPresentation=true "+
