@@ -135,7 +135,7 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
                 BloodSlayerPresentation.WIDGET_ACTION_OPCODE==185,
                 "Blood Slayer widget opcode drift"
             );
-            requireFeedbackFrames(feedback.toByteArray(),4);
+            requireFeedbackFrames(feedback.toByteArray(),5);
 
             System.out.println(
                 "G4_BLOOD_SLAYER_NATIVE_UI_PASS "+
