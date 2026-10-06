@@ -518,6 +518,184 @@ final class ShopSellbackService {
         return result;
     }
 
+    /**
+     * Composition boundary for inventory-backed callers.
+     *
+     * The transaction must still be RESERVED. Seller/item/payout coverage is
+     * validated before the proof becomes final. The Shop transaction-use key
+     * is claimed before commit and released again if the transaction remains
+     * open after a failed finalization attempt.
+     */
+    SaleSnapshot commitReservedSettlement(
+        SaleId saleId,
+        AtomicTransactionService.TransactionId
+            transactionId
+    ){
+        final Sale live;
+        final AtomicTransactionService.TransactionId
+            requested=
+                Objects.requireNonNull(
+                    transactionId,
+                    "transactionId"
+                );
+        final String useKey;
+
+        synchronized(this){
+            live=requireSale(saleId);
+
+            if(live.externalOperationInFlight)
+                throw new IllegalStateException(
+                    "Shop sale external operation already in flight "+
+                    live.id
+                );
+
+            if(live.state==SaleState.CANCELLED)
+                throw new IllegalStateException(
+                    "cannot settle cancelled sale "+
+                    live.id
+                );
+
+            if(live.state==SaleState.SETTLED){
+                if(!requested.equals(
+                        live.settlementTransactionId))
+                    throw new IllegalStateException(
+                        "sale already settled with "+
+                        live.settlementTransactionId
+                    );
+
+                return live.snapshot();
+            }
+
+            if(live.state!=SaleState.RESERVED)
+                throw new IllegalStateException(
+                    "Shop sale settlement invalid from "+
+                    live.state+
+                    " for "+
+                    live.id
+                );
+
+            live.externalOperationInFlight=true;
+            useKey="sale:"+live.id.value();
+        }
+
+        RuntimeException failure=null;
+        boolean useClaimed=false;
+        AtomicTransactionService.Snapshot
+            committed=null;
+
+        try{
+            AtomicTransactionService.Snapshot
+                reserved=
+                    transactions.snapshot(
+                        requested
+                    );
+
+            verifyReservedSettlement(
+                live,
+                reserved
+            );
+
+            useClaimed=
+                shops.claimSettlementUse(
+                    requested,
+                    useKey
+                );
+
+            if(!useClaimed)
+                throw new IllegalStateException(
+                    "reserved sellback transaction use already claimed "+
+                    requested
+                );
+
+            committed=
+                transactions.commit(
+                    requested
+                );
+
+            verifySettlement(
+                live,
+                committed
+            );
+
+            /*
+             * requestSale() already reserved finite incoming capacity. With
+             * this sale fenced in-flight and the transaction-use key claimed,
+             * the remaining Shop stock mutation is the deterministic final
+             * step for the same reservation.
+             */
+            shops.commitIncomingStockSettlement(
+                live.definition.shopId,
+                live.definition.itemRef,
+                live.stockReservationRef,
+                requested,
+                useKey
+            );
+        }catch(RuntimeException error){
+            failure=error;
+        }
+
+        if(failure!=null&&useClaimed){
+            try{
+                AtomicTransactionService.Snapshot
+                    afterFailure=
+                        transactions.snapshot(
+                            requested
+                        );
+
+                if(afterFailure.state!=
+                        AtomicTransactionService
+                            .TransactionState
+                            .COMMITTED)
+                    shops.releaseSettlementUse(
+                        requested,
+                        useKey
+                    );
+            }catch(RuntimeException cleanup){
+                failure.addSuppressed(cleanup);
+            }
+        }
+
+        final SaleSnapshot result;
+
+        synchronized(this){
+            Sale current=
+                requireSale(
+                    live.id
+                );
+
+            if(current!=live)
+                throw new IllegalStateException(
+                    "Shop sale identity changed "+
+                    live.id
+                );
+
+            try{
+                if(failure==null){
+                    if(current.state!=
+                            SaleState.RESERVED)
+                        throw new IllegalStateException(
+                            "Shop sale changed after reserved transaction commit "+
+                            current.id
+                        );
+
+                    current.settlementTransactionId=
+                        committed.transactionId;
+                    current.state=
+                        SaleState.SETTLED;
+                }
+
+                result=current.snapshot();
+            }finally{
+                current.externalOperationInFlight=false;
+            }
+        }
+
+        if(failure!=null)
+            throw failure;
+
+        return result;
+    }
+
     SaleSnapshot cancelSale(
         SaleId saleId
     ){
@@ -634,6 +812,10 @@ final class ShopSellbackService {
         return definitions.size();
     }
 
+    AtomicTransactionService transactions(){
+        return transactions;
+    }
+
     synchronized List<SaleSnapshot> snapshot(){
         ArrayList<Sale> ordered=
             new ArrayList<>(
@@ -676,12 +858,39 @@ final class ShopSellbackService {
         Sale sale,
         AtomicTransactionService.Snapshot settlement
     ){
-        if(settlement.state!=
-                AtomicTransactionService
-                    .TransactionState
-                    .COMMITTED)
+        verifySettlementState(
+            sale,
+            settlement,
+            AtomicTransactionService
+                .TransactionState
+                .COMMITTED
+        );
+    }
+
+    private static void verifyReservedSettlement(
+        Sale sale,
+        AtomicTransactionService.Snapshot settlement
+    ){
+        verifySettlementState(
+            sale,
+            settlement,
+            AtomicTransactionService
+                .TransactionState
+                .RESERVED
+        );
+    }
+
+    private static void verifySettlementState(
+        Sale sale,
+        AtomicTransactionService.Snapshot settlement,
+        AtomicTransactionService.TransactionState
+            requiredState
+    ){
+        if(settlement.state!=requiredState)
             throw new IllegalArgumentException(
-                "sellback settlement must be COMMITTED state="+
+                "sellback settlement must be "+
+                requiredState+
+                " state="+
                 settlement.state
             );
 
