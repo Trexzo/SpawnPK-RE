@@ -462,21 +462,39 @@ final class LocalLabSlayerRuntime {
 
             if(prior!=null&&
                prior.terminal()){
-                StatusSnapshot status=
-                    snapshot(
-                        player,
-                        prior
+                if(prior.state!=
+                        SlayerTaskService.State
+                            .COMPLETED){
+                    StatusSnapshot status=
+                        snapshot(
+                            player,
+                            prior
+                        );
+
+                    persistOwned(
+                        owner,
+                        status
                     );
 
-                persistOwned(
-                    owner,
-                    status
-                );
+                    return new StartResult(
+                        false,
+                        status
+                    );
+                }
 
-                return new StartResult(
-                    false,
-                    status
-                );
+                ObjectiveProgressService ledger=
+                    ensureLedger(player);
+
+                ObjectiveProgressService.Snapshot reset=
+                    ledger.resetCompleted(
+                        OBJECTIVE_KEY
+                    );
+
+                if(reset.complete||
+                   reset.progress!=0L)
+                    throw new IllegalStateException(
+                        "Blood Slayer completed objective did not reset"
+                    );
             }
         }
 
