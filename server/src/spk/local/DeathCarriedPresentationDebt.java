@@ -107,22 +107,44 @@ final class DeathCarriedPresentationDebt {
             );
 
         if(pending!=null){
-            if(pending.playerId.equals(
-                    next.playerId)&&
-               pending.playerGeneration==
-                    next.playerGeneration&&
-               pending.deathSequence==
+            if(!pending.playerId.equals(
+                    next.playerId))
+                throw new IllegalStateException(
+                    "death carried presentation debt rebound to another player pending="+
+                    pending.playerId+
+                    " next="+
+                    next.playerId
+                );
+
+            if(pending.playerGeneration!=
+                    next.playerGeneration){
+                pending=next;
+                return;
+            }
+
+            if(pending.deathSequence==
                     next.deathSequence)
                 return;
 
-            throw new IllegalStateException(
-                "conflicting death carried presentation debt player="+
-                checked.id()+
-                " pendingDeath="+
-                pending.deathSequence+
-                " nextDeath="+
-                next.deathSequence
-            );
+            if(pending.deathSequence>
+                    next.deathSequence)
+                throw new IllegalStateException(
+                    "death carried presentation sequence regressed player="+
+                    checked.id()+
+                    " pendingDeath="+
+                    pending.deathSequence+
+                    " nextDeath="+
+                    next.deathSequence
+                );
+
+            /*
+             * Presentation is advisory and must never block a later canonical
+             * death. If an older postimage was not delivered before this same
+             * session reached a newer death, the newer exact postimage
+             * supersedes it.
+             */
+            pending=next;
+            return;
         }
 
         pending=next;
