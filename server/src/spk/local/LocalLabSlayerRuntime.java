@@ -277,6 +277,72 @@ final class LocalLabSlayerRuntime {
         );
     }
 
+    StatusSnapshot selectMonsterHunterMode(
+        String playerRef
+    ){
+        String player=normalizePlayer(playerRef);
+        WorldPlayer owner=requireCurrentPlayer(player);
+        long generation=owner.generation();
+        final StatusSnapshot[] result={null};
+
+        try{
+            boolean current=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    owner,
+                    generation,
+                    ()->{
+                        ensureRestoredOwned(
+                            player,
+                            owner
+                        );
+
+                        String invalid=
+                            invalidPersistence.get(owner);
+
+                        if(invalid!=null){
+                            result[0]=
+                                localStatus(
+                                    player,
+                                    invalid
+                                );
+                            return;
+                        }
+
+                        bloodSlayer.selectMode(
+                            player,
+                            BloodSlayerModeService.Mode
+                                .MONSTER_HUNTER_PVM
+                        );
+
+                        result[0]=
+                            localStatus(
+                                player,
+                                null
+                            );
+                    }
+                );
+
+            if(!current)
+                return localStatus(
+                    player,
+                    "STALE_PLAYER"
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Blood Slayer mode selection ownership failed player="+
+                player,
+                failure
+            );
+        }
+
+        return Objects.requireNonNull(
+            result[0],
+            "Blood Slayer mode selection result"
+        );
+    }
+
     KillCreditResult recordMonsterSpawnerKill(
         String playerRef,
         int definitionId,
