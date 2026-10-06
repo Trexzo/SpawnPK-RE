@@ -519,9 +519,15 @@ final class LocalLabSlayerRuntime {
 
     private StartResult startOwned(
         String player,
+        BloodSlayerModeService.Mode requestedMode,
         long worldTick,
         WorldPlayer owner
     ){
+        BloodSlayerModeService.Mode mode=
+            requireSupportedMode(
+                requestedMode
+            );
+
         ensureRestoredOwned(
             player,
             owner
@@ -565,6 +571,8 @@ final class LocalLabSlayerRuntime {
             );
         }
 
+        String objectiveKey=
+            objectiveKeyFor(mode);
         ObjectiveProgressService ledger=null;
         ObjectiveProgressService.Snapshot
             renewalBefore=null;
@@ -600,20 +608,23 @@ final class LocalLabSlayerRuntime {
                     );
                 }
 
-                ledger=
-                    ensureLedger(player);
-                renewalBefore=
-                    prior.objective;
-                renewalReset=
-                    ledger.resetCompleted(
-                        OBJECTIVE_KEY
-                    );
+                if(objectiveKey.equals(
+                        prior.definition.objectiveKey)){
+                    ledger=
+                        ensureLedger(player);
+                    renewalBefore=
+                        prior.objective;
+                    renewalReset=
+                        ledger.resetCompleted(
+                            objectiveKey
+                        );
 
-                if(renewalReset.complete||
-                   renewalReset.progress!=0L)
-                    throw new IllegalStateException(
-                        "Blood Slayer completed objective did not reset"
-                    );
+                    if(renewalReset.complete||
+                       renewalReset.progress!=0L)
+                        throw new IllegalStateException(
+                            "Blood Slayer completed objective did not reset"
+                        );
+                }
             }
         }
 
@@ -621,10 +632,10 @@ final class LocalLabSlayerRuntime {
             ledger=
                 ensureLedger(player);
 
-        if(ledger.get(OBJECTIVE_KEY)==null)
+        if(ledger.get(objectiveKey)==null)
             ledger.define(
                 new ObjectiveDefinition(
-                    OBJECTIVE_KEY,
+                    objectiveKey,
                     OBJECTIVE_GOAL,
                     AUTHORITY
                 )
@@ -636,8 +647,7 @@ final class LocalLabSlayerRuntime {
         try{
             bloodSlayer.selectMode(
                 player,
-                BloodSlayerModeService.Mode
-                    .MONSTER_HUNTER_PVM
+                mode
             );
 
             assigned=
@@ -661,6 +671,15 @@ final class LocalLabSlayerRuntime {
 
             throw failure;
         }
+
+        if(!taskKeyFor(mode).equals(
+                assigned.task.definition.taskKey))
+            throw new IllegalStateException(
+                "Blood Slayer assigned task/mode mismatch mode="+
+                mode+
+                " task="+
+                assigned.task.definition.taskKey
+            );
 
         remember(
             player,
@@ -687,6 +706,7 @@ final class LocalLabSlayerRuntime {
     private KillCreditResult recordOwned(
         String player,
         int definitionId,
+        Tile deathTile,
         long worldTick,
         WorldPlayer owner
     ){
@@ -711,10 +731,13 @@ final class LocalLabSlayerRuntime {
                 )
             );
 
+        SlayerTaskService.Snapshot active=
+            slayer.active(player);
+
         if(definitionId!=TARGET_DEFINITION_ID)
             return new KillCreditResult(
                 false,
-                slayer.active(player)!=null,
+                active!=null,
                 false,
                 false,
                 localStatus(
@@ -722,9 +745,6 @@ final class LocalLabSlayerRuntime {
                     null
                 )
             );
-
-        SlayerTaskService.Snapshot active=
-            slayer.active(player);
 
         if(active==null)
             return new KillCreditResult(
@@ -735,6 +755,44 @@ final class LocalLabSlayerRuntime {
                 localStatus(
                     player,
                     null
+                )
+            );
+
+        BloodSlayerModeService.Mode mode=
+            requireSupportedMode(
+                bloodSlayer.get(player)
+                    .selectedMode
+            );
+
+        if(!taskKeyFor(mode).equals(
+                active.definition.taskKey))
+            throw new IllegalStateException(
+                "Blood Slayer active task/mode mismatch mode="+
+                mode+
+                " task="+
+                active.definition.taskKey
+            );
+
+        boolean eligible=
+            mode==
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM||
+            (mode==
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM&&
+             deathTile!=null&&
+             regionId(deathTile)==
+                BOSS_REGION_ID);
+
+        if(!eligible)
+            return new KillCreditResult(
+                true,
+                true,
+                false,
+                false,
+                snapshot(
+                    player,
+                    active
                 )
             );
 
