@@ -10,17 +10,24 @@ import java.util.*;
  * LocalLab-owned and must not be represented as recovered SpawnPK balance.
  */
 final class LocalLabSlayerRuntime {
-    static final String AUTHORITY=
+    static final String LEGACY_AUTHORITY=
         "LOCAL_LAB_POLICY_G4_BLOOD_SLAYER_MONSTER_HUNTER_V1";
+    static final String AUTHORITY=
+        "LOCAL_LAB_POLICY_G6_BLOOD_SLAYER_PVM_V2";
     static final String TASK_KEY=
         "locallab:blood-slayer:monster-hunter:definition-1";
+    static final String BOSS_TASK_KEY=
+        "locallab:blood-slayer:boss-hunter:region-16168-definition-1";
     static final String FAMILY_KEY=
         "blood-slayer";
     static final String TARGET_KEY=
         "npc-definition:1";
     static final String OBJECTIVE_KEY=
         "locallab:blood-slayer:monster-hunter:definition-1:kills";
+    static final String BOSS_OBJECTIVE_KEY=
+        "locallab:blood-slayer:boss-hunter:region-16168-definition-1:kills";
     static final int TARGET_DEFINITION_ID=1;
+    static final int BOSS_REGION_ID=16168;
     static final long OBJECTIVE_GOAL=1L;
 
     static final class StatusSnapshot {
@@ -148,13 +155,18 @@ final class LocalLabSlayerRuntime {
             new BloodSlayerModeService(
                 slayer,
                 (playerRef,mode)->{
-                    if(mode!=
+                    if(mode==
                             BloodSlayerModeService.Mode
                                 .MONSTER_HUNTER_PVM)
-                        throw new IllegalArgumentException(
-                            "G4.1 allocator only owns Monster Hunter PvM"
-                        );
-                    return TASK_KEY;
+                        return TASK_KEY;
+                    if(mode==
+                            BloodSlayerModeService.Mode
+                                .BOSS_HUNTER_PVM)
+                        return BOSS_TASK_KEY;
+                    throw new IllegalArgumentException(
+                        "LocalLab Blood Slayer allocator does not own mode "+
+                        mode
+                    );
                 },
                 AUTHORITY
             );
@@ -170,6 +182,20 @@ final class LocalLabSlayerRuntime {
             Collections.singletonList(
                 BloodSlayerModeService.Mode
                     .MONSTER_HUNTER_PVM
+            )
+        );
+
+        bloodSlayer.registerTaskDefinition(
+            new SlayerTaskService.Definition(
+                BOSS_TASK_KEY,
+                FAMILY_KEY,
+                TARGET_KEY,
+                BOSS_OBJECTIVE_KEY,
+                AUTHORITY
+            ),
+            Collections.singletonList(
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM
             )
         );
     }
