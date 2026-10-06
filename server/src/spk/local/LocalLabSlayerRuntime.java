@@ -453,6 +453,12 @@ final class LocalLabSlayerRuntime {
             );
         }
 
+        ObjectiveProgressService ledger=null;
+        ObjectiveProgressService.Snapshot
+            renewalBefore=null;
+        ObjectiveProgressService.Snapshot
+            renewalReset=null;
+
         SlayerTaskService.TaskId latest=
             latestTask(player);
 
@@ -482,24 +488,26 @@ final class LocalLabSlayerRuntime {
                     );
                 }
 
-                ObjectiveProgressService ledger=
+                ledger=
                     ensureLedger(player);
-
-                ObjectiveProgressService.Snapshot reset=
+                renewalBefore=
+                    prior.objective;
+                renewalReset=
                     ledger.resetCompleted(
                         OBJECTIVE_KEY
                     );
 
-                if(reset.complete||
-                   reset.progress!=0L)
+                if(renewalReset.complete||
+                   renewalReset.progress!=0L)
                     throw new IllegalStateException(
                         "Blood Slayer completed objective did not reset"
                     );
             }
         }
 
-        ObjectiveProgressService ledger=
-            ensureLedger(player);
+        if(ledger==null)
+            ledger=
+                ensureLedger(player);
 
         if(ledger.get(OBJECTIVE_KEY)==null)
             ledger.define(
@@ -510,18 +518,37 @@ final class LocalLabSlayerRuntime {
                 )
             );
 
-        bloodSlayer.selectMode(
-            player,
-            BloodSlayerModeService.Mode
-                .MONSTER_HUNTER_PVM
-        );
+        final BloodSlayerModeService.AssignmentResult
+            assigned;
 
-        BloodSlayerModeService.AssignmentResult
+        try{
+            bloodSlayer.selectMode(
+                player,
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM
+            );
+
             assigned=
                 bloodSlayer.requestTask(
                     player,
                     worldTick
                 );
+        }catch(RuntimeException failure){
+            if(renewalReset!=null){
+                try{
+                    ledger.restoreIfUnchanged(
+                        renewalReset,
+                        renewalBefore
+                    );
+                }catch(RuntimeException rollbackFailure){
+                    failure.addSuppressed(
+                        rollbackFailure
+                    );
+                }
+            }
+
+            throw failure;
+        }
 
         remember(
             player,
