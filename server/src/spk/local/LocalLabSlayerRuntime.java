@@ -428,6 +428,37 @@ final class LocalLabSlayerRuntime {
         int definitionId,
         long worldTick
     ){
+        return recordMonsterSpawnerCredit(
+            playerRef,
+            definitionId,
+            null,
+            worldTick
+        );
+    }
+
+    KillCreditResult recordMonsterSpawnerFinalization(
+        String playerRef,
+        int definitionId,
+        Tile deathTile,
+        long worldTick
+    ){
+        return recordMonsterSpawnerCredit(
+            playerRef,
+            definitionId,
+            Objects.requireNonNull(
+                deathTile,
+                "deathTile"
+            ),
+            worldTick
+        );
+    }
+
+    private KillCreditResult recordMonsterSpawnerCredit(
+        String playerRef,
+        int definitionId,
+        Tile deathTile,
+        long worldTick
+    ){
         String player=normalizePlayer(playerRef);
         requireTick(worldTick);
 
@@ -444,6 +475,7 @@ final class LocalLabSlayerRuntime {
                         recordOwned(
                             player,
                             definitionId,
+                            deathTile,
                             worldTick,
                             owner
                         )
