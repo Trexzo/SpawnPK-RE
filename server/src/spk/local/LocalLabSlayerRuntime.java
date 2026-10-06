@@ -34,6 +34,7 @@ final class LocalLabSlayerRuntime {
         final String playerRef;
         final BloodSlayerModeService.Mode selectedMode;
         final SlayerTaskService.Snapshot task;
+        final long completions;
         final String authority;
         final String persistenceError;
 
@@ -46,6 +47,7 @@ final class LocalLabSlayerRuntime {
                 playerRef,
                 selectedMode,
                 task,
+                0L,
                 null
             );
         }
@@ -56,9 +58,32 @@ final class LocalLabSlayerRuntime {
             SlayerTaskService.Snapshot task,
             String persistenceError
         ){
+            this(
+                playerRef,
+                selectedMode,
+                task,
+                0L,
+                persistenceError
+            );
+        }
+
+        StatusSnapshot(
+            String playerRef,
+            BloodSlayerModeService.Mode selectedMode,
+            SlayerTaskService.Snapshot task,
+            long completions,
+            String persistenceError
+        ){
+            if(completions<0L)
+                throw new IllegalArgumentException(
+                    "Blood Slayer completions="+
+                    completions
+                );
+
             this.playerRef=playerRef;
             this.selectedMode=selectedMode;
             this.task=task;
+            this.completions=completions;
             this.authority=AUTHORITY;
             this.persistenceError=persistenceError;
         }
@@ -128,6 +153,8 @@ final class LocalLabSlayerRuntime {
         ledgers=new LinkedHashMap<>();
     private final LinkedHashMap<String,SlayerTaskService.TaskId>
         latestTaskByPlayer=new LinkedHashMap<>();
+    private final LinkedHashMap<String,Long>
+        completionCountByPlayer=new LinkedHashMap<>();
     private final Set<WorldPlayer> hydratedPlayers=
         Collections.newSetFromMap(
             new IdentityHashMap<WorldPlayer,Boolean>()
@@ -807,16 +834,35 @@ final class LocalLabSlayerRuntime {
             result.task.taskId
         );
 
+        long completionsBefore=
+            completionCount(player);
+        boolean taskCompletion=
+            result.completedNow;
+        long completionsAfter=
+            taskCompletion
+                ?Math.addExact(
+                    completionsBefore,
+                    1L
+                )
+                :completionsBefore;
+
         StatusSnapshot status=
             snapshot(
                 player,
-                result.task
+                result.task,
+                completionsAfter
             );
 
         persistOwned(
             owner,
             status
         );
+
+        if(taskCompletion)
+            setCompletionCount(
+                player,
+                completionsAfter
+            );
 
         return new KillCreditResult(
             true,
@@ -966,6 +1012,11 @@ final class LocalLabSlayerRuntime {
             );
         }
 
+        setCompletionCount(
+            player,
+            decoded.completions
+        );
+
         StatusSnapshot restored=
             localStatus(
                 player,
@@ -1063,13 +1114,27 @@ final class LocalLabSlayerRuntime {
         String player,
         SlayerTaskService.Snapshot task
     ){
+        return snapshot(
+            player,
+            task,
+            completionCount(player)
+        );
+    }
+
+    private StatusSnapshot snapshot(
+        String player,
+        SlayerTaskService.Snapshot task,
+        long completions
+    ){
         BloodSlayerModeService.Snapshot blood=
             bloodSlayer.get(player);
 
         return new StatusSnapshot(
             player,
             blood.selectedMode,
-            task
+            task,
+            completions,
+            null
         );
     }
 
@@ -1136,6 +1201,36 @@ final class LocalLabSlayerRuntime {
             String player
         ){
         return latestTaskByPlayer.get(player);
+    }
+
+    private synchronized long completionCount(
+        String player
+    ){
+        Long value=
+            completionCountByPlayer.get(player);
+
+        return value==null
+            ?0L
+            :value.longValue();
+    }
+
+    private synchronized void setCompletionCount(
+        String player,
+        long value
+    ){
+        if(value<0L)
+            throw new IllegalArgumentException(
+                "Blood Slayer completions="+
+                value
+            );
+
+        if(value==0L)
+            completionCountByPlayer.remove(player);
+        else
+            completionCountByPlayer.put(
+                player,
+                value
+            );
     }
 
     static boolean supportedMode(
