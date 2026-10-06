@@ -31,6 +31,7 @@ public final class G6BloodSlayerCompletionCountTest {
         boolean completionV2PreservesCount=false;
         boolean malformedMixedV2Rejected=false;
         boolean malformedCountRejected=false;
+        boolean completionOverflowFailClosed=false;
         boolean statusExposesCount=false;
 
         try{
@@ -422,6 +423,140 @@ public final class G6BloodSlayerCompletionCountTest {
                 "negative completion count was accepted"
             );
 
+            World maxWorld=
+                World.isolatedForTest(
+                    60_000L
+                );
+            WorldPlayer maxPlayer=
+                new WorldPlayer();
+            TreeMap<String,String> maxState=
+                new TreeMap<>();
+
+            maxState.put(
+                "version",
+                LocalLabSlayerPersistence.VERSION
+            );
+            maxState.put(
+                "authority",
+                LocalLabSlayerRuntime.AUTHORITY
+            );
+            maxState.put(
+                "task-key",
+                LocalLabSlayerRuntime.TASK_KEY
+            );
+            maxState.put(
+                "mode",
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM
+                    .name()
+            );
+            maxState.put("state","ACTIVE");
+            maxState.put("progress","0");
+            maxState.put(
+                "goal",
+                Long.toString(
+                    LocalLabSlayerRuntime
+                        .OBJECTIVE_GOAL
+                )
+            );
+            maxState.put(
+                "source-assigned-tick",
+                "0"
+            );
+            maxState.put(
+                "source-transition-tick",
+                "-1"
+            );
+            maxState.put(
+                "completion-count",
+                Long.toString(
+                    Long.MAX_VALUE
+                )
+            );
+
+            maxPlayer.snapshotExtensions()
+                .replaceNamespace(
+                    LocalLabSlayerPersistence
+                        .NAMESPACE,
+                    maxState
+                );
+
+            maxWorld.registerPlayer(
+                maxPlayer,
+                "g63-max-count"
+            );
+
+            try{
+                LocalLabSlayerRuntime maxRuntime=
+                    maxWorld.localLabSlayer();
+
+                LocalLabSlayerRuntime.StatusSnapshot
+                    maxBefore=
+                        maxRuntime.status(
+                            "g63-max-count"
+                        );
+
+                SortedMap<String,String>
+                    extensionBefore=
+                        maxPlayer.snapshotExtensions()
+                            .namespace(
+                                LocalLabSlayerPersistence
+                                    .NAMESPACE
+                            );
+
+                boolean rejected=false;
+
+                try{
+                    maxRuntime.recordMonsterSpawnerKill(
+                        "g63-max-count",
+                        LocalLabSlayerRuntime
+                            .TARGET_DEFINITION_ID,
+                        maxWorld.clock().tick()
+                    );
+                }catch(IllegalStateException expected){
+                    rejected=
+                        expected.getMessage()!=null&&
+                        expected.getMessage()
+                            .contains(
+                                "completion count exhausted"
+                            );
+                }
+
+                LocalLabSlayerRuntime.StatusSnapshot
+                    maxAfter=
+                        maxRuntime.status(
+                            "g63-max-count"
+                        );
+
+                completionOverflowFailClosed=
+                    maxBefore.persistenceValid()&&
+                    maxBefore.active()&&
+                    maxBefore.task.objective.progress==0L&&
+                    maxBefore.completions==
+                        Long.MAX_VALUE&&
+                    rejected&&
+                    maxAfter.active()&&
+                    maxAfter.task.objective.progress==0L&&
+                    maxAfter.completions==
+                        Long.MAX_VALUE&&
+                    maxRuntime.slayer()
+                        .taskCount()==1&&
+                    extensionBefore.equals(
+                        maxPlayer.snapshotExtensions()
+                            .namespace(
+                                LocalLabSlayerPersistence
+                                    .NAMESPACE
+                            )
+                    );
+
+                require(
+                    completionOverflowFailClosed,
+                    "completion-count overflow mutated Slayer state"
+                );
+            }finally{
+                maxWorld.close();
+            }
+
             System.out.println(
                 "G63_BLOOD_SLAYER_COMPLETION_COUNT_PASS"+
                 " startsZero="+startsZero+
@@ -437,6 +572,8 @@ public final class G6BloodSlayerCompletionCountTest {
                 " completionV2PreservesCount="+completionV2PreservesCount+
                 " malformedMixedV2Rejected="+malformedMixedV2Rejected+
                 " malformedCountRejected="+malformedCountRejected+
+                " completionOverflowFailClosed="+
+                    completionOverflowFailClosed+
                 " statusExposesCount="+statusExposesCount+
                 " pointsClaim=false"+
                 " rewardClaim=false"+
