@@ -97,6 +97,8 @@ final class LocalWorldTickCoordinator {
     private final PlayerDeathLootOwnerResolver deathLootOwnerResolver;
     private final LocalLabDeathDispositionPolicy deathDispositionPolicy;
     private final PvpKillRewardService pvpKillRewards;
+    private final DeathCarriedPresentationDebt deathCarriedPresentation=
+        new DeathCarriedPresentationDebt();
     private final G1DefaultLoadoutRegearService g1Regear;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
@@ -1482,6 +1484,11 @@ final class LocalWorldTickCoordinator {
             "PLAYER_DEATH_SETTLEMENT"
         );
 
+        deathCarriedPresentation
+            .captureAfterSettlement(
+                worldPlayer
+            );
+
         if(killRewardReceipt!=null)
             System.out.println(
                 tag+
@@ -1526,6 +1533,30 @@ final class LocalWorldTickCoordinator {
             " authority="+
             LocalLabDeathDispositionPolicy.AUTHORITY
         );
+    }
+
+    void settleDeferredDeathCarriedPresentationAfterWorldTick(
+        ServerPacketWriter writer,
+        String tag
+    ){
+        deathCarriedPresentation
+            .publishIfPending(
+                world,
+                worldPlayer,
+                writer,
+                bridge::publishPlayerAppearanceSnapshot,
+                deferredRespawn!=null,
+                tag
+            );
+    }
+
+    boolean deathCarriedPresentationPending(){
+        return deathCarriedPresentation.pending();
+    }
+
+    long deathCarriedPresentationDeathSequence(){
+        return deathCarriedPresentation
+            .pendingDeathSequence();
     }
 
     void abortDeferredDeathSettlementAfterWorldTick(){
