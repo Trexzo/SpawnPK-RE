@@ -70,8 +70,7 @@ final class LocalCommandDispatcher {
         }
         default LocalShopCommandHandler.Result
             handleShopCommand(
-                String[] tokens,
-                ServerPacketWriter serverPackets
+                String[] tokens
             )throws IOException{
             return null;
         }
@@ -186,18 +185,31 @@ final class LocalCommandDispatcher {
 
         LocalShopCommandHandler.Result shopCommand=
             bridge.handleShopCommand(
-                p,
-                serverPackets
+                p
             );
         if(shopCommand!=null){
+            /*
+             * Canonical mutation has already committed inside the semantic
+             * handler. Request persistence before advisory S2C253 publication
+             * so a transport failure cannot suppress the successful save.
+             */
             if(shopCommand.saveReason!=null)
                 bridge.saveAccount(
                     tag,
                     shopCommand.saveReason
                 );
+
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                shopCommand.clientMessage
+            );
+
             System.out.println(
                 tag+
                 shopCommand.logText+
+                " clientFeedback=true"+
+                " persistenceBeforeFeedback=true"+
                 " route=EXACT_CURRENT_C2S103"
             );
             return true;
