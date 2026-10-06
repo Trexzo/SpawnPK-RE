@@ -199,6 +199,24 @@ final class ObjectiveProgressService {
         );
     }
 
+    synchronized Snapshot resetCompleted(
+        String key
+    ){
+        Entry entry=
+            requireEntry(key);
+
+        if(entry.progress<
+                entry.definition.goal)
+            throw new IllegalStateException(
+                "objective incomplete "+
+                entry.definition.key
+            );
+
+        entry.progress=0L;
+        entry.claimed=false;
+        return entry.snapshot();
+    }
+
     synchronized boolean markClaimed(
         String key
     ){
