@@ -50,6 +50,11 @@ public final class LocalSuppliesMerchantRegearShopTest {
         boolean unlimitedWhipStock=false;
         boolean rocktailFiniteStockPreserved=false;
         boolean persistence=false;
+        boolean snapshotRoundTrip=false;
+        boolean insufficientCurrencyAtomic=false;
+        boolean inventoryFullAtomic=false;
+        boolean cancelAtomic=false;
+        boolean feedbackSeparated=false;
         boolean failureAtomic=false;
 
         try{
@@ -197,6 +202,16 @@ public final class LocalSuppliesMerchantRegearShopTest {
                 persistence,
                 "whip purchase did not survive player snapshot round-trip"
             );
+            snapshotRoundTrip=true;
+
+            require(
+                !containsAscii(
+                    wire.toByteArray(),
+                    bought.feedback
+                ),
+                "successful whip advisory feedback was emitted inside mutation path"
+            );
+            feedbackSeparated=true;
 
             installCoins(
                 player,
@@ -204,6 +219,8 @@ public final class LocalSuppliesMerchantRegearShopTest {
             );
             long insufficientStock=
                 runtime.rocktailStock();
+            InventoryImage beforeInsufficient=
+                captureInventory(player);
 
             openWhip(
                 handler,
@@ -232,15 +249,22 @@ public final class LocalSuppliesMerchantRegearShopTest {
                             .ABYSSAL_WHIP
                     )==0&&
                 runtime.rocktailStock()==
-                    insufficientStock,
+                    insufficientStock&&
+                sameInventory(
+                    beforeInsufficient,
+                    captureInventory(player)
+                ),
                 "insufficient-coin whip rejection mutated state"
             );
+            insufficientCurrencyAtomic=true;
 
             installFullInventory(
                 player
             );
             long fullStock=
                 runtime.rocktailStock();
+            InventoryImage beforeFull=
+                captureInventory(player);
 
             openWhip(
                 handler,
@@ -272,9 +296,14 @@ public final class LocalSuppliesMerchantRegearShopTest {
                             .ABYSSAL_WHIP
                     )==0&&
                 runtime.rocktailStock()==
-                    fullStock,
+                    fullStock&&
+                sameInventory(
+                    beforeFull,
+                    captureInventory(player)
+                ),
                 "inventory-full whip rejection mutated state"
             );
+            inventoryFullAtomic=true;
 
             installCoins(
                 player,
@@ -285,6 +314,8 @@ public final class LocalSuppliesMerchantRegearShopTest {
                     .inventoryCount(
                         LocalLabShopRuntime.COINS
                     );
+            InventoryImage beforeCancel=
+                captureInventory(player);
 
             openWhip(
                 handler,
@@ -312,11 +343,19 @@ public final class LocalSuppliesMerchantRegearShopTest {
                     .inventoryCount(
                         LocalLabShopRuntime
                             .ABYSSAL_WHIP
-                    )==0,
+                    )==0&&
+                sameInventory(
+                    beforeCancel,
+                    captureInventory(player)
+                ),
                 "whip cancel mutated canonical inventory"
             );
 
-            failureAtomic=true;
+            cancelAtomic=true;
+            failureAtomic=
+                insufficientCurrencyAtomic&&
+                inventoryFullAtomic&&
+                cancelAtomic;
 
             System.out.println(
                 "G2_HOME_MERCHANT_REGEAR_SHOP_PASS"+
@@ -334,6 +373,13 @@ public final class LocalSuppliesMerchantRegearShopTest {
                 " rocktailFiniteStockPreserved="+
                     rocktailFiniteStockPreserved+
                 " persistence="+persistence+
+                " snapshotRoundTrip="+snapshotRoundTrip+
+                " insufficientCurrencyAtomic="+
+                    insufficientCurrencyAtomic+
+                " inventoryFullAtomic="+
+                    inventoryFullAtomic+
+                " cancelAtomic="+cancelAtomic+
+                " feedbackSeparated="+feedbackSeparated+
                 " failureAtomic="+failureAtomic+
                 " nativeShopWidgetOwned=false"+
                 " originalSpawnpkEconomyClaim=false"
@@ -471,6 +517,103 @@ public final class LocalSuppliesMerchantRegearShopTest {
                     items,
                     quantities
                 );
+        }
+    }
+
+    private static InventoryImage captureInventory(
+        WorldPlayer player
+    ){
+        int[] items=
+            new int[
+                BankState.INVENTORY_CAPACITY
+            ];
+        int[] quantities=
+            new int[
+                BankState.INVENTORY_CAPACITY
+            ];
+
+        Arrays.fill(
+            items,
+            -1
+        );
+
+        synchronized(player.mutationLock()){
+            for(int slot=0;
+                slot<items.length;
+                slot++){
+                BankState.InventorySlotSnapshot snapshot=
+                    player.bank()
+                        .inventorySlotSnapshot(
+                            slot
+                        );
+
+                if(!snapshot.occupied)
+                    continue;
+
+                items[slot]=snapshot.itemId;
+                quantities[slot]=snapshot.quantity;
+            }
+        }
+
+        return new InventoryImage(
+            items,
+            quantities
+        );
+    }
+
+    private static boolean sameInventory(
+        InventoryImage first,
+        InventoryImage second
+    ){
+        return Arrays.equals(
+                first.items,
+                second.items
+            )&&
+            Arrays.equals(
+                first.quantities,
+                second.quantities
+            );
+    }
+
+    private static boolean containsAscii(
+        byte[] bytes,
+        String text
+    ){
+        if(text==null)
+            return false;
+
+        byte[] needle=
+            text.getBytes(
+                java.nio.charset.StandardCharsets
+                    .ISO_8859_1
+            );
+
+        outer:
+        for(int i=0;
+            i+needle.length<=bytes.length;
+            i++){
+            for(int j=0;
+                j<needle.length;
+                j++)
+                if(bytes[i+j]!=needle[j])
+                    continue outer;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static final class InventoryImage {
+        final int[] items;
+        final int[] quantities;
+
+        InventoryImage(
+            int[] items,
+            int[] quantities
+        ){
+            this.items=items;
+            this.quantities=quantities;
         }
     }
 
