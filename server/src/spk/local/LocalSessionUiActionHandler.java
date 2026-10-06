@@ -163,6 +163,15 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default LocalBloodSlayerUiHandler.Result
+            handleBloodSlayerWidget(
+                BloodSlayerPresentation.Input input,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         void requestLogout();
     }
 
@@ -175,6 +184,7 @@ final class LocalSessionUiActionHandler {
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
     private volatile LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
     private volatile boolean monsterSpawnerUiOpen;
+    private volatile boolean bloodSlayerUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -316,6 +326,7 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
+        bloodSlayerUiOpen=false;
         monsterSpawnerUiOpen=true;
         return true;
     }
@@ -346,6 +357,26 @@ final class LocalSessionUiActionHandler {
             );
 
         return result!=null;
+    }
+
+    boolean openBloodSlayer(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        String result=
+            replaceMonsterSpawnerRoot(
+                ()->{
+                    BloodSlayerPresentation.open(
+                        Objects.requireNonNull(serverPackets,"serverPackets")
+                    );
+                    return "BLOOD_SLAYER_ROOT_OPENED";
+                }
+            );
+
+        if(result==null)
+            return false;
+
+        bloodSlayerUiOpen=true;
+        return true;
     }
 
     void handleInterfaceClose(
@@ -379,6 +410,9 @@ final class LocalSessionUiActionHandler {
         boolean bossTeleportWasOpen=
             closeBossTeleportUi();
 
+        boolean bloodSlayerWasOpen=bloodSlayerUiOpen;
+        bloodSlayerUiOpen=false;
+
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
 
@@ -406,6 +440,7 @@ final class LocalSessionUiActionHandler {
             " devPanelWasOpen="+devPanelWasOpen+
             " monsterSpawnerWasOpen="+monsterSpawnerWasOpen+
             " bossTeleportWasOpen="+bossTeleportWasOpen+
+            " bloodSlayerWasOpen="+bloodSlayerWasOpen+
             " petColorWasOpen="+petColorWasOpen+
             " miniConfigWasOpen="+miniConfigWasOpen+
             " petAccessoryWasOpen="+petAccessoryWasOpen+
@@ -515,6 +550,43 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
+            );
+            return;
+        }
+
+        BloodSlayerPresentation.Input bloodSlayerInput=
+            BloodSlayerPresentation.resolveWidget(widget);
+
+        if(bloodSlayerInput!=null){
+            if(!bloodSlayerUiOpen){
+                System.out.println(
+                    tag+"G4_BLOOD_SLAYER_UI widget="+widget+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalBloodSlayerUiHandler.Result result=
+                bridge.handleBloodSlayerWidget(
+                    bloodSlayerInput,
+                    serverPackets,
+                    tag
+                );
+
+            if(result==null){
+                System.out.println(
+                    tag+"G4_BLOOD_SLAYER_UI widget="+widget+
+                    " status=UNCONFIGURED_HANDLER_NOOP"
+                );
+                return;
+            }
+
+            System.out.println(
+                tag+"G4_BLOOD_SLAYER_UI widget="+widget+
+                " status="+result.status+
+                " mode="+result.mode+
+                " c2s="+BloodSlayerPresentation.WIDGET_ACTION_OPCODE+
+                " authority="+LocalBloodSlayerUiHandler.AUTHORITY
             );
             return;
         }
@@ -819,6 +891,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -841,6 +914,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -864,6 +938,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -887,6 +962,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
         itemLibrary.close();
 
         bank.clientClosed();
@@ -910,6 +986,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -934,6 +1011,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -956,6 +1034,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -980,6 +1059,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
