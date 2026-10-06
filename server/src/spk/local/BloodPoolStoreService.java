@@ -317,6 +317,15 @@ final class BloodPoolStoreService {
         return slots.size();
     }
 
+    /**
+     * Package-local composition boundary. Higher gameplay layers may reuse the
+     * exact same ShopService authority instead of reconstructing parallel Shop
+     * state from the presentation projection.
+     */
+    ShopService shopAuthority(){
+        return shops;
+    }
+
     private Snapshot snapshotFrom(
         ShopService.ShopSnapshot shop,
         Collection<SlotSpec> configured
