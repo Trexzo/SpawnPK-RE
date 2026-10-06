@@ -616,6 +616,16 @@ final class LocalSessionUiActionHandler {
                     tag
                 );
 
+            boolean monsterSpawnerHandoff=false;
+
+            if(boss.status==
+                    LocalBossTeleportUiHandler.Status.TELEPORTED&&
+               boss.teleportSucceeded)
+                monsterSpawnerHandoff=
+                    openMonsterSpawnerIfConfigured(
+                        serverPackets
+                    );
+
             System.out.println(
                 tag+
                 "G3_BOSS_TELEPORT_UI widget="+
@@ -626,6 +636,8 @@ final class LocalSessionUiActionHandler {
                 boss.rowIndex+
                 " success="+
                 boss.teleportSucceeded+
+                " monsterSpawnerHandoff="+
+                monsterSpawnerHandoff+
                 " detail=["+
                 boss.detail+
                 "] authority="+
