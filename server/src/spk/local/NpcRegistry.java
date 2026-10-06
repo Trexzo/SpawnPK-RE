@@ -423,7 +423,7 @@ final class NpcRegistry {
      */
     NpcEntity spawnMirroredNpc(int npcId,int worldX,int worldY,Integer particleSelector,MovementState movement,ServerPacketWriter w)throws IOException{
         if(npcId<0||npcId>16383) throw new IllegalArgumentException("npcId");
-        if(!MovementState.insideLoadedRegion(worldX,worldY)) throw new IllegalArgumentException("outside loaded region");
+        if(!movement.insideCurrentLoadedRegion(worldX,worldY)) throw new IllegalArgumentException("outside loaded region");
         int dx=worldX-movement.x(),dy=worldY-movement.y();
         if(dx<-16||dx>15||dy<-16||dy>15) throw new IllegalArgumentException("offset outside add range");
         int scene=allocateDevSceneIndex();
