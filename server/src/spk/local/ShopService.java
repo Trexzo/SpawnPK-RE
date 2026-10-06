@@ -1198,6 +1198,38 @@ final class ShopService {
         return true;
     }
 
+    synchronized boolean releaseSettlementUse(
+        AtomicTransactionService.TransactionId transactionId,
+        String useKey
+    ){
+        AtomicTransactionService.TransactionId id=
+            Objects.requireNonNull(
+                transactionId,
+                "transactionId"
+            );
+        String key=
+            requireText(
+                useKey,
+                "useKey"
+            );
+
+        String existing=
+            settlementUses.get(id);
+
+        if(existing==null)
+            return false;
+
+        if(!existing.equals(key))
+            throw new IllegalStateException(
+                "settlement transaction owned by "+
+                existing+
+                " not "+key
+            );
+
+        settlementUses.remove(id);
+        return true;
+    }
+
     synchronized void commitIncomingStockSettlement(
         ShopId shopId,
         String itemRef,
