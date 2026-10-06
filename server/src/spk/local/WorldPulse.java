@@ -2,6 +2,7 @@ package spk.local;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import spk.event.PlayerTickEvent;
 
 /** One execution context for shared logical ticks and queued gameplay commands. */
 final class WorldPulse implements AutoCloseable,Runnable {
@@ -282,6 +283,25 @@ final class WorldPulse implements AutoCloseable,Runnable {
                         generation
                     ))
                     continue;
+
+                try{
+                    world.domainEvents().publish(
+                        new PlayerTickEvent(
+                            player.username(),
+                            tick
+                        )
+                    );
+                }catch(Throwable t){
+                    System.err.println(
+                        "[world] player tick domain event failed tick="+
+                        tick+
+                        " owner="+player.id()+
+                        " error="+t
+                    );
+                }
+
+                if(world.closed())
+                    return;
 
                 try{
                     world.withOpenPlayerMutationOwnershipIfCurrent(

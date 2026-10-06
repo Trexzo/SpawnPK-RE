@@ -14,7 +14,9 @@ public final class DomainEventPublicApiBoundaryTest {
         DomainEventBus.Cancellable.class,
         DomainEventBus.Priority.class,
         DomainEventBus.Listener.class,
-        DomainEventBus.Subscription.class
+        DomainEventBus.Subscription.class,
+        PlayerEvent.class,
+        PlayerTickEvent.class
     };
 
     private static final Set<String> FORBIDDEN_SIMPLE_NAMES=

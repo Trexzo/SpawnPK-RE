@@ -76,7 +76,9 @@ final class PluginApiExportContract {
                     "spk/event/DomainEventBus$Cancellable.class",
                     "spk/event/DomainEventBus$Priority.class",
                     "spk/event/DomainEventBus$Listener.class",
-                    "spk/event/DomainEventBus$Subscription.class"
+                    "spk/event/DomainEventBus$Subscription.class",
+                    "spk/event/PlayerEvent.class",
+                    "spk/event/PlayerTickEvent.class"
                 )
             )
         );

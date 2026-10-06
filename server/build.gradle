@@ -278,7 +278,9 @@ def pluginApiClassPatterns =
         'spk/event/DomainEventBus$Cancellable.class',
         'spk/event/DomainEventBus$Priority.class',
         'spk/event/DomainEventBus$Listener.class',
-        'spk/event/DomainEventBus$Subscription.class'
+        'spk/event/DomainEventBus$Subscription.class',
+        'spk/event/PlayerEvent.class',
+        'spk/event/PlayerTickEvent.class'
     ]
 
 def pluginApiJar =
@@ -1880,6 +1882,7 @@ def currentTrainFocusedTests = [
     'spk.local.ClientChatRequestQueueTest',
     'spk.local.ClientChatExactLengthFenceTest',
     'spk.event.DomainEventBusTest',
+    'spk.local.PlayerTickDomainEventTest',
     'spk.local.WorldConcurrentCloseTerminalWaitTest',
     'spk.local.WorldDomainEventBusCloseOrderingTest',
     'spk.local.WorldDomainEventBusCloseTest',
@@ -2070,10 +2073,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 225 ||
-    currentTrainFocusedTests.toSet().size() != 225) {
+if (currentTrainFocusedTests.size() != 226 ||
+    currentTrainFocusedTests.toSet().size() != 226) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 225 unique tests, found " +
+        "Current-train focused manifest drift: expected 226 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
