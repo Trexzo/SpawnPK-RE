@@ -27,6 +27,8 @@ final class World implements AutoCloseable {
     private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
     private final WorldGroundItemPresentationEvents groundItemPresentationEvents=
         new WorldGroundItemPresentationEvents();
+    private final WorldPlayerCarriedPresentationEvents playerCarriedPresentationEvents=
+        new WorldPlayerCarriedPresentationEvents();
     private final PlayerDeathLootLifecycleService deathLootLifecycle;
     private final WorldCommandInbox commands;
     private final DomainEventBus domainEvents;
@@ -402,6 +404,9 @@ final class World implements AutoCloseable {
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldGroundItemPresentationEvents groundItemPresentationEvents(){
         return groundItemPresentationEvents;
+    }
+    WorldPlayerCarriedPresentationEvents playerCarriedPresentationEvents(){
+        return playerCarriedPresentationEvents;
     }
     PlayerDeathLootLifecycleService deathLootLifecycle(){
         return deathLootLifecycle;
@@ -1206,6 +1211,7 @@ final class World implements AutoCloseable {
                     npcPresentationEvents::close,
                     deathLootLifecycle::close,
                     groundItemPresentationEvents::close,
+                    playerCarriedPresentationEvents::close,
                     domainEvents::close,
                     commands::close,
                     realtime::close,
