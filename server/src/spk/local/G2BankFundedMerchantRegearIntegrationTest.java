@@ -11,6 +11,7 @@ public final class G2BankFundedMerchantRegearIntegrationTest {
         World world=World.isolatedForTest(60_000L);
         WorldPlayer player=new WorldPlayer();
         world.registerPlayer(player,"bank-funded-regear");
+        world.start();
 
         BankState bank=player.bank();
         MovementState movement=player.movement();
