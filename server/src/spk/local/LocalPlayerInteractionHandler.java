@@ -257,7 +257,12 @@ final class LocalPlayerInteractionHandler {
                         deliveredTarget.playerState().currentLevel(
                             PlayerState.HITPOINTS
                         )
-                    )
+                    ),
+                (attacker,deliveredTarget)->
+                    this.pvpEligibility.evaluate(
+                        attacker,
+                        deliveredTarget
+                    ).eligible
             );
     }
 
