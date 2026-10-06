@@ -294,15 +294,18 @@ public final class G4BloodSlayerUiPersistenceIntegrationTest {
                         .MODE_SELECTED&&
                 existing.status==
                     LocalBloodSlayerUiHandler.Status
-                        .TASK_EXISTING&&
-                existing.saveReason==null&&
-                existing.taskStatus.complete()&&
+                        .TASK_ASSIGNED&&
+                LocalBloodSlayerUiHandler.SAVE_TASK
+                    .equals(
+                        existing.saveReason
+                    )&&
+                existing.taskStatus.active()&&
                 existing.taskStatus.task.objective
-                    .progress==1L;
+                    .progress==0L;
 
             require(
                 freshWorldCompletedUi,
-                "fresh World COMPLETED task not terminal through native UI"
+                "fresh World COMPLETED task did not renew through native UI"
             );
 
             completedSnapshot=
