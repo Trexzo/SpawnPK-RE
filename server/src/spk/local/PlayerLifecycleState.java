@@ -11,17 +11,20 @@ final class PlayerLifecycleState {
         final long deathSequence;
         final EntityId attackerId;
         final long attackerGeneration;
+        final String attackerUsername;
         final String context;
 
         private DeathAttribution(
             long deathSequence,
             EntityId attackerId,
             long attackerGeneration,
+            String attackerUsername,
             String context
         ){
             this.deathSequence=deathSequence;
             this.attackerId=attackerId;
             this.attackerGeneration=attackerGeneration;
+            this.attackerUsername=attackerUsername;
             this.context=context;
         }
 
@@ -29,6 +32,7 @@ final class PlayerLifecycleState {
             return "DeathAttribution{deathSequence="+deathSequence+
                 ",attackerId="+attackerId+
                 ",attackerGeneration="+attackerGeneration+
+                ",attackerUsername="+attackerUsername+
                 ",context="+context+"}";
         }
     }
@@ -101,6 +105,22 @@ final class PlayerLifecycleState {
         long attackerGeneration,
         String context
     ){
+        attributeCurrentDeath(
+            expectedDeathSequence,
+            attackerId,
+            attackerGeneration,
+            null,
+            context
+        );
+    }
+
+    void attributeCurrentDeath(
+        long expectedDeathSequence,
+        EntityId attackerId,
+        long attackerGeneration,
+        String attackerUsername,
+        String context
+    ){
         if(!dead()||
            deathSequence!=expectedDeathSequence)
             throw new IllegalStateException(
@@ -121,6 +141,17 @@ final class PlayerLifecycleState {
                 attackerGeneration
             );
 
+        String capturedUsername=
+            attackerUsername==null
+                ?null
+                :attackerUsername.trim();
+
+        if(capturedUsername!=null&&
+           capturedUsername.isEmpty())
+            throw new IllegalArgumentException(
+                "attackerUsername blank"
+            );
+
         if(context==null||
            context.trim().isEmpty())
             throw new IllegalArgumentException(
@@ -132,6 +163,7 @@ final class PlayerLifecycleState {
                 deathSequence,
                 attackerId,
                 attackerGeneration,
+                capturedUsername,
                 context.trim()
             );
     }
