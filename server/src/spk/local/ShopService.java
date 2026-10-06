@@ -735,6 +735,181 @@ final class ShopService {
         throw failure;
     }
 
+    /**
+     * Composition boundary for callers that own the carried-state mutation.
+     *
+     * The transaction must still be RESERVED.  Shop validation and single-use
+     * binding happen before the transaction becomes final; while the purchase
+     * is fenced in-flight no concurrent cancel/settle can change its state.
+     * After commit succeeds, the remaining Shop mutation is deterministic.
+     */
+    PurchaseSnapshot commitReservedSettlement(
+        PurchaseId purchaseId,
+        AtomicTransactionService.TransactionId
+            settlementTransactionId
+    ){
+        final Purchase live;
+        final AtomicTransactionService.TransactionId
+            requestedTransaction=
+                Objects.requireNonNull(
+                    settlementTransactionId,
+                    "settlementTransactionId"
+                );
+        final String useKey;
+
+        synchronized(this){
+            live=
+                requirePurchase(
+                    purchaseId
+                );
+
+            if(live.settlementCheckInFlight)
+                throw new IllegalStateException(
+                    "purchase settlement check already in flight "+
+                    live.id
+                );
+
+            if(live.state==
+                    PurchaseState.CANCELLED)
+                throw new IllegalStateException(
+                    "cannot settle cancelled purchase "+
+                    live.id
+                );
+
+            if(live.state==
+                    PurchaseState.SETTLED){
+                if(!requestedTransaction.equals(
+                        live.settlementTransactionId))
+                    throw new IllegalStateException(
+                        "purchase already settled with "+
+                        live.settlementTransactionId
+                    );
+
+                return live.snapshot();
+            }
+
+            if(live.state!=
+                    PurchaseState.RESERVED)
+                throw new IllegalStateException(
+                    "purchase settlement invalid from "+
+                    live.state+
+                    " for "+
+                    live.id
+                );
+
+            live.settlementCheckInFlight=
+                true;
+            useKey=
+                "purchase:"+
+                live.id.value();
+        }
+
+        RuntimeException failure=null;
+        boolean useClaimed=false;
+
+        try{
+            AtomicTransactionService.Snapshot
+                reserved=
+                    transactions.snapshot(
+                        requestedTransaction
+                    );
+
+            verifyReservedSettlement(
+                live,
+                reserved
+            );
+
+            synchronized(this){
+                Purchase current=
+                    requirePurchase(
+                        purchaseId
+                    );
+
+                if(current!=live||
+                   current.state!=
+                        PurchaseState.RESERVED)
+                    throw new IllegalStateException(
+                        "purchase changed during reserved settlement "+
+                        purchaseId
+                    );
+
+                String existingUse=
+                    settlementUses.get(
+                        requestedTransaction
+                    );
+
+                if(existingUse!=null&&
+                   !existingUse.equals(
+                       useKey))
+                    throw new IllegalStateException(
+                        "settlement transaction already used by "+
+                        existingUse
+                    );
+
+                if(existingUse==null){
+                    settlementUses.put(
+                        requestedTransaction,
+                        useKey
+                    );
+                    useClaimed=true;
+                }
+            }
+
+            AtomicTransactionService.Snapshot
+                committed=
+                    transactions.commit(
+                        requestedTransaction
+                    );
+
+            verifySettlement(
+                live,
+                committed
+            );
+        }catch(RuntimeException error){
+            failure=error;
+        }
+
+        synchronized(this){
+            Purchase purchase=
+                requirePurchase(
+                    purchaseId
+                );
+
+            try{
+                if(failure==null){
+                    if(purchase!=live||
+                       purchase.state!=
+                            PurchaseState.RESERVED)
+                        throw new IllegalStateException(
+                            "purchase changed after transaction commit "+
+                            purchaseId
+                        );
+
+                    purchase.settlementTransactionId=
+                        requestedTransaction;
+                    purchase.state=
+                        PurchaseState.SETTLED;
+
+                    return purchase.snapshot();
+                }
+
+                if(useClaimed&&
+                   useKey.equals(
+                       settlementUses.get(
+                           requestedTransaction
+                       )))
+                    settlementUses.remove(
+                        requestedTransaction
+                    );
+            }finally{
+                purchase.settlementCheckInFlight=
+                    false;
+            }
+        }
+
+        throw failure;
+    }
+
     synchronized PurchaseSnapshot cancelPurchase(
         PurchaseId purchaseId
     ){
@@ -1210,12 +1385,42 @@ final class ShopService {
         AtomicTransactionService.Snapshot
             settlement
     ){
+        verifySettlementState(
+            purchase,
+            settlement,
+            AtomicTransactionService
+                .TransactionState
+                .COMMITTED
+        );
+    }
+
+    private static void verifyReservedSettlement(
+        Purchase purchase,
+        AtomicTransactionService.Snapshot
+            settlement
+    ){
+        verifySettlementState(
+            purchase,
+            settlement,
+            AtomicTransactionService
+                .TransactionState
+                .RESERVED
+        );
+    }
+
+    private static void verifySettlementState(
+        Purchase purchase,
+        AtomicTransactionService.Snapshot
+            settlement,
+        AtomicTransactionService.TransactionState
+            requiredState
+    ){
         if(settlement.state!=
-                AtomicTransactionService
-                    .TransactionState
-                    .COMMITTED)
+                requiredState)
             throw new IllegalArgumentException(
-                "shop settlement must be COMMITTED state="+
+                "shop settlement must be "+
+                requiredState+
+                " state="+
                 settlement.state
             );
 
