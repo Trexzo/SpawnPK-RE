@@ -23,6 +23,14 @@ final class PlayerPvpDelayedHitService {
         ) throws Exception;
     }
 
+    @FunctionalInterface
+    interface DeliveryEligibility {
+        boolean allow(
+            WorldPlayer attacker,
+            WorldPlayer target
+        );
+    }
+
     enum State {
         SCHEDULED,
         DELIVERED,
@@ -180,12 +188,15 @@ final class PlayerPvpDelayedHitService {
         (target, result) -> {};
     private static final CombatOutcomeObserver NO_OUTCOME_OBSERVER =
         outcome -> {};
+    private static final DeliveryEligibility ALLOW_ALL_DELIVERIES =
+        (attacker,target) -> true;
 
     private final World world;
     private final String deliveryAuthority;
     private final String deliveryPolicy;
     private final CombatOutcomeObserver outcomeObserver;
     private final DeliveryObserver deliveryObserver;
+    private final DeliveryEligibility deliveryEligibility;
     private final LinkedHashMap<HitId, Entry> entries =
         new LinkedHashMap<>();
     private long nextHitId;
@@ -200,7 +211,8 @@ final class PlayerPvpDelayedHitService {
             deliveryAuthority,
             deliveryPolicy,
             NO_OUTCOME_OBSERVER,
-            NO_DELIVERY_OBSERVER
+            NO_DELIVERY_OBSERVER,
+            ALLOW_ALL_DELIVERIES
         );
     }
 
@@ -210,6 +222,24 @@ final class PlayerPvpDelayedHitService {
         String deliveryPolicy,
         CombatOutcomeObserver outcomeObserver,
         DeliveryObserver deliveryObserver
+    ) {
+        this(
+            world,
+            deliveryAuthority,
+            deliveryPolicy,
+            outcomeObserver,
+            deliveryObserver,
+            ALLOW_ALL_DELIVERIES
+        );
+    }
+
+    PlayerPvpDelayedHitService(
+        World world,
+        String deliveryAuthority,
+        String deliveryPolicy,
+        CombatOutcomeObserver outcomeObserver,
+        DeliveryObserver deliveryObserver,
+        DeliveryEligibility deliveryEligibility
     ) {
         this.world =
             Objects.requireNonNull(
@@ -234,6 +264,11 @@ final class PlayerPvpDelayedHitService {
             Objects.requireNonNull(
                 deliveryObserver,
                 "deliveryObserver"
+            );
+        this.deliveryEligibility =
+            Objects.requireNonNull(
+                deliveryEligibility,
+                "deliveryEligibility"
             );
 
         if (!REQUIRE_CURRENT_PLAYER_GENERATIONS.equals(
@@ -593,6 +628,20 @@ final class PlayerPvpDelayedHitService {
                                 cancelled[0] = true;
                                 return;
                             }
+                        }
+
+                        if(!deliveryEligibility.allow(
+                                entry.attacker,
+                                entry.target
+                            )){
+                            synchronized(this){
+                                if(entries.get(entry.hitId)==entry&&
+                                   entry.state==State.SCHEDULED)
+                                    entry.state=State.CANCELLED;
+                                entry.executing=false;
+                            }
+                            cancelled[0]=true;
+                            return;
                         }
 
                         delivered[0] =
