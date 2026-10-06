@@ -50,6 +50,8 @@ final class World implements AutoCloseable {
             loadouts,
             G1DefaultLoadoutRegearService.POLICY_AUTHORITY
         );
+    private final LocalLabShopRuntime localLabShops=
+        new LocalLabShopRuntime();
     private final ContentRegistry content;
     private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
@@ -340,6 +342,7 @@ final class World implements AutoCloseable {
     PlayerAppearanceRoleProjection appearanceRoles(){return appearanceRoles;}
     LoadoutService loadouts(){return loadouts;}
     DefaultLoadoutService defaultLoadouts(){return defaultLoadouts;}
+    LocalLabShopRuntime localLabShops(){return localLabShops;}
     int appearanceRoleFor(String playerRef){
         return appearanceRoles.project(
             playerPrivileges.snapshot(playerRef)
