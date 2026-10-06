@@ -154,6 +154,26 @@ public final class LocalSuppliesMerchantHandlerTest {
                 "adjacent merchant did not open standard dialogue"
             );
 
+            LocalSuppliesMerchantHandler.Result chooseRocktail=
+                handler.handleOption(
+                    1,
+                    packets
+                );
+
+            require(
+                chooseRocktail.handled&&
+                chooseRocktail.saveReason==null&&
+                chooseRocktail.feedback==null&&
+                SuppliesMerchantDialogueContent
+                    .ROCKTAIL_ACTION_NODE
+                    .equals(
+                        handler
+                            .semanticDialogueSnapshot()
+                            .nodeKey
+                    ),
+                "Rocktail catalog branch did not open action dialogue"
+            );
+
             LocalSuppliesMerchantHandler.Result chooseBuy=
                 handler.handleOption(
                     1,
@@ -232,6 +252,10 @@ public final class LocalSuppliesMerchantHandlerTest {
                 1,
                 packets
             );
+            observerHandler.handleOption(
+                1,
+                packets
+            );
             LocalSuppliesMerchantHandler.Result
                 observerBought=
                     observerHandler.handleOption(
@@ -260,6 +284,10 @@ public final class LocalSuppliesMerchantHandlerTest {
                 sellMerchant,
                 packets,
                 "[merchant-test] "
+            );
+            handler.handleOption(
+                1,
+                packets
             );
             handler.handleOption(
                 2,

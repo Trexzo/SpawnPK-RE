@@ -24,6 +24,8 @@ final class LocalSuppliesMerchantHandler {
         "G2_HOME_MERCHANT_BUY";
     static final String SAVE_SELL=
         "G2_HOME_MERCHANT_SELL";
+    static final String SAVE_WHIP_BUY=
+        "G2_HOME_MERCHANT_WHIP_BUY";
 
     static final class Result {
         final boolean handled;
@@ -436,7 +438,53 @@ final class LocalSuppliesMerchantHandler {
                 .equals(current.nodeKey)){
             if(outcome!=null)
                 throw new IllegalStateException(
-                    "supplies action node produced terminal outcome="+
+                    "supplies catalog node produced terminal outcome="+
+                    outcome
+                );
+
+            if(option==1)
+                publishTwoOptions(
+                    packets,
+                    ()->
+                        SuppliesMerchantDialogueContent
+                            .presentRocktailAction(
+                                ContentRuntimeAdapters
+                                    .presentation(packets)
+                                    .dialogue()
+                            )
+                );
+            else
+                publishTwoOptions(
+                    packets,
+                    ()->
+                        SuppliesMerchantDialogueContent
+                            .presentWhipAction(
+                                ContentRuntimeAdapters
+                                    .presentation(packets)
+                                    .dialogue()
+                            )
+                );
+
+            DialogueSessionService.Snapshot after=
+                dialogue.commitPrepared(
+                    prepared
+                );
+
+            return Result.handled(
+                null,
+                null,
+                "G2_HOME_MERCHANT_SHOP_DIALOG node="+
+                after.nodeKey+
+                " standardDialogue=true"
+            );
+        }
+
+        if(SuppliesMerchantDialogueContent
+                .ROCKTAIL_ACTION_NODE
+                .equals(current.nodeKey)){
+            if(outcome!=null)
+                throw new IllegalStateException(
+                    "Rocktail action node produced terminal outcome="+
                     outcome
                 );
 
@@ -479,6 +527,8 @@ final class LocalSuppliesMerchantHandler {
 
         long quantity;
         boolean buy;
+        boolean whip=false;
+        boolean cancel=false;
 
         if(SuppliesMerchantDialogueContent
                 .OUTCOME_BUY_ONE
@@ -500,6 +550,18 @@ final class LocalSuppliesMerchantHandler {
                 .equals(outcome)){
             quantity=5L;
             buy=false;
+        }else if(SuppliesMerchantDialogueContent
+                .OUTCOME_BUY_WHIP
+                .equals(outcome)){
+            quantity=1L;
+            buy=true;
+            whip=true;
+        }else if(SuppliesMerchantDialogueContent
+                .OUTCOME_CANCEL
+                .equals(outcome)){
+            quantity=0L;
+            buy=false;
+            cancel=true;
         }else{
             throw new IllegalStateException(
                 "unsupported supplies terminal outcome="+
@@ -520,12 +582,23 @@ final class LocalSuppliesMerchantHandler {
 
         clearActive();
 
+        if(cancel)
+            return Result.handled(
+                null,
+                null,
+                "G2_HOME_MERCHANT_SHOP_CANCEL reason=CLIENT_CANCEL"
+            );
+
         if(buy){
+            int itemId=
+                whip
+                    ?LocalLabShopRuntime.ABYSSAL_WHIP
+                    :LocalLabShopRuntime.ROCKTAIL;
+
             G2ShopPurchaseService.Result purchase=
                 purchases.purchase(
                     LocalLabShopRuntime.SUPPLIES,
-                    "item:"+
-                        LocalLabShopRuntime.ROCKTAIL,
+                    "item:"+itemId,
                     quantity
                 );
 
@@ -534,10 +607,24 @@ final class LocalSuppliesMerchantHandler {
                     null,
                     "Shop buy rejected: "+
                         purchase.status,
-                    "G2_HOME_MERCHANT_SHOP action=BUY quantity="+
-                        quantity+
+                    "G2_HOME_MERCHANT_SHOP action="+
+                        (whip
+                            ?"BUY_WHIP"
+                            :"BUY")+
+                        " quantity="+quantity+
                         " result="+purchase.status+
                         " stateMutation=false"
+                );
+
+            if(whip)
+                return Result.handled(
+                    SAVE_WHIP_BUY,
+                    "Bought 1 Abyssal whip for "+
+                        purchase.currencySpent+
+                        " coins.",
+                    "G2_HOME_MERCHANT_SHOP action=BUY_WHIP"+
+                        " quantity=1 result=PURCHASED"+
+                        " unlimitedStock=true"
                 );
 
             return Result.handled(
@@ -864,15 +951,17 @@ final class LocalSuppliesMerchantHandler {
            !SuppliesMerchantDialogueContent
                 .ACTION_NODE
                 .equals(definition.startNodeKey())||
-           definition.nodes().size()!=3)
+           definition.nodes().size()!=5)
             throw new IllegalStateException(
                 "incompatible supplies dialogue topology"
             );
 
         for(String key:new String[]{
                 SuppliesMerchantDialogueContent.ACTION_NODE,
+                SuppliesMerchantDialogueContent.ROCKTAIL_ACTION_NODE,
                 SuppliesMerchantDialogueContent.BUY_QUANTITY_NODE,
-                SuppliesMerchantDialogueContent.SELL_QUANTITY_NODE
+                SuppliesMerchantDialogueContent.SELL_QUANTITY_NODE,
+                SuppliesMerchantDialogueContent.WHIP_ACTION_NODE
         }){
             ContentDialogueNode node=
                 definition.node(key);

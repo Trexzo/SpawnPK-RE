@@ -16,10 +16,14 @@ public final class SuppliesMerchantDialogueContent
         "dialogue:locallab-supplies-merchant";
     public static final String ACTION_NODE=
         "node:action";
+    public static final String ROCKTAIL_ACTION_NODE=
+        "node:rocktail-action";
     public static final String BUY_QUANTITY_NODE=
         "node:buy-quantity";
     public static final String SELL_QUANTITY_NODE=
         "node:sell-quantity";
+    public static final String WHIP_ACTION_NODE=
+        "node:whip-action";
 
     public static final String OUTCOME_BUY_ONE=
         "supplies:buy:1";
@@ -29,6 +33,8 @@ public final class SuppliesMerchantDialogueContent
         "supplies:sell:1";
     public static final String OUTCOME_SELL_FIVE=
         "supplies:sell:5";
+    public static final String OUTCOME_BUY_WHIP=
+        "supplies:buy-whip:1";
     public static final String OUTCOME_CANCEL=
         "supplies:cancel";
 
@@ -44,6 +50,12 @@ public final class SuppliesMerchantDialogueContent
                     true
                 ),
                 new ContentDialogueNode(
+                    ROCKTAIL_ACTION_NODE,
+                    ContentDialogueNode.InputMode.OPTIONS,
+                    2,
+                    true
+                ),
+                new ContentDialogueNode(
                     BUY_QUANTITY_NODE,
                     ContentDialogueNode.InputMode.OPTIONS,
                     2,
@@ -51,6 +63,12 @@ public final class SuppliesMerchantDialogueContent
                 ),
                 new ContentDialogueNode(
                     SELL_QUANTITY_NODE,
+                    ContentDialogueNode.InputMode.OPTIONS,
+                    2,
+                    true
+                ),
+                new ContentDialogueNode(
+                    WHIP_ACTION_NODE,
                     ContentDialogueNode.InputMode.OPTIONS,
                     2,
                     true
@@ -68,6 +86,19 @@ public final class SuppliesMerchantDialogueContent
         Objects.requireNonNull(presentation,"presentation")
             .twoOptions(
                 "LocalLab Supplies",
+                Arrays.asList(
+                    "Rocktail",
+                    "Abyssal whip"
+                )
+            );
+    }
+
+    public static void presentRocktailAction(
+        ContentDialoguePresentation presentation
+    ){
+        Objects.requireNonNull(presentation,"presentation")
+            .twoOptions(
+                "Rocktail",
                 Arrays.asList(
                     "Buy Rocktail",
                     "Sell Rocktail"
@@ -101,6 +132,19 @@ public final class SuppliesMerchantDialogueContent
             );
     }
 
+    public static void presentWhipAction(
+        ContentDialoguePresentation presentation
+    ){
+        Objects.requireNonNull(presentation,"presentation")
+            .twoOptions(
+                "Abyssal whip",
+                Arrays.asList(
+                    "Buy 1",
+                    "Cancel"
+                )
+            );
+    }
+
     @Override public ContentDialogueTransition handle(
         ContentDialogueContext context
     ){
@@ -127,6 +171,17 @@ public final class SuppliesMerchantDialogueContent
         int option=intent.optionIndex();
 
         if(ACTION_NODE.equals(context.nodeKey())){
+            if(option==1)
+                return ContentDialogueTransition.move(
+                    ROCKTAIL_ACTION_NODE
+                );
+            if(option==2)
+                return ContentDialogueTransition.move(
+                    WHIP_ACTION_NODE
+                );
+        }
+
+        if(ROCKTAIL_ACTION_NODE.equals(context.nodeKey())){
             if(option==1)
                 return ContentDialogueTransition.move(
                     BUY_QUANTITY_NODE
@@ -156,6 +211,17 @@ public final class SuppliesMerchantDialogueContent
             if(option==2)
                 return ContentDialogueTransition.end(
                     OUTCOME_SELL_FIVE
+                );
+        }
+
+        if(WHIP_ACTION_NODE.equals(context.nodeKey())){
+            if(option==1)
+                return ContentDialogueTransition.end(
+                    OUTCOME_BUY_WHIP
+                );
+            if(option==2)
+                return ContentDialogueTransition.end(
+                    OUTCOME_CANCEL
                 );
         }
 

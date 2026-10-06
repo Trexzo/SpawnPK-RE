@@ -1,13 +1,16 @@
 package spk.local;
 
-import java.util.Collections;
+import java.util.Arrays;
 
 /** World-owned explicit LocalLab supplies economy. */
 final class LocalLabShopRuntime {
     static final String AUTHORITY="CUSTOM_LOCALLAB_G2_LIVE_SHOP_V1";
     static final int COINS=995;
     static final int ROCKTAIL=15272;
+    static final int ABYSSAL_WHIP=
+        G1DefaultLoadoutRegearService.STARTER_WEAPON;
     static final long ROCKTAIL_BUY_PRICE=10L;
+    static final long ABYSSAL_WHIP_BUY_PRICE=20L;
     static final long ROCKTAIL_SELL_PRICE=4L;
     static final long INITIAL_ROCKTAIL_STOCK=100L;
     static final long ROCKTAIL_RESTOCK_INTERVAL_TICKS=10L;
@@ -36,7 +39,7 @@ final class LocalLabShopRuntime {
             SUPPLIES,
             "LocalLab Supplies",
             "shop-owner:locallab-supplies",
-            Collections.singletonList(
+            Arrays.asList(
                 ShopService.Offer.finite(
                     "item:"+ROCKTAIL,
                     "item:"+COINS,
@@ -44,6 +47,11 @@ final class LocalLabShopRuntime {
                     restored==null
                         ?INITIAL_ROCKTAIL_STOCK
                         :restored.rocktailStock
+                ),
+                ShopService.Offer.unlimited(
+                    "item:"+ABYSSAL_WHIP,
+                    "item:"+COINS,
+                    ABYSSAL_WHIP_BUY_PRICE
                 )
             ),
             authority
