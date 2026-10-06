@@ -330,6 +330,16 @@ final class LocalSession implements Runnable {
             worldPlayer,
             equipment
         );
+        this.routedNpcHandler.installSuppliesMerchantHandler(
+            new LocalSuppliesMerchantHandler(
+                this.world,
+                this.worldPlayer,
+                this.movement,
+                this.npcs,
+                this.world.content(),
+                this.world.localLabShops()
+            )
+        );
         this.genericInteractionHandler =
             new LocalGenericInteractionHandler(
                 world.content()
@@ -973,6 +983,16 @@ final class LocalSession implements Runnable {
 
                     if(handler!=null)
                         handler.cancelForManualMovement(
+                            writer,
+                            tag
+                        );
+
+                    LocalSuppliesMerchantHandler merchant=
+                        LocalSession.this.routedNpcHandler
+                            .suppliesMerchant();
+
+                    if(merchant!=null)
+                        merchant.cancelForManualMovement(
                             writer,
                             tag
                         );
