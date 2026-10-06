@@ -1945,6 +1945,17 @@ final class LocalWorldTickCoordinator {
             System.out.println(
                 tag+makeoverTick
             );
+
+        String merchantTick=
+            routedNpcHandler.tickSuppliesMerchant(
+                now,
+                writer,
+                tag
+            );
+        if(merchantTick!=null)
+            System.out.println(
+                tag+merchantTick
+            );
     }
 
     void abortDeferredMakeoverInteractionsAfterWorldTick(){
