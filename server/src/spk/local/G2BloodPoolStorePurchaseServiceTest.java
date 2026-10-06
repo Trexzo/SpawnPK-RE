@@ -209,11 +209,17 @@ public final class G2BloodPoolStorePurchaseServiceTest {
                 "different ShopService instances composed as one Blood Pool authority"
             );
 
+            localLabAuthorityFence(
+                world,
+                player,
+                shopId
+            );
             protocolBoundary();
 
             System.out.println(
                 "G2_BLOOD_POOL_STORE_PURCHASE_PASS "+
                 "sharedShopAuthority=true "+
+                "localLabAuthorityFence=true "+
                 "slotResolution=true "+
                 "canonicalPurchase=true "+
                 "currencyDebited=true "+
@@ -317,6 +323,67 @@ public final class G2BloodPoolStorePurchaseServiceTest {
                 left.quantities,
                 right.quantities
             );
+    }
+
+    private static void localLabAuthorityFence(
+        World world,
+        WorldPlayer player,
+        ShopService.ShopId shopId
+    ){
+        AtomicTransactionService inferredTransactions=
+            new AtomicTransactionService();
+        ShopService inferredShops=
+            new ShopService(
+                inferredTransactions
+            );
+
+        inferredShops.register(
+            new ShopService.ShopDefinition(
+                shopId,
+                "Inference Blood Pool",
+                "shop-owner:inference-blood-pool",
+                Collections.singletonList(
+                    ShopService.Offer.finite(
+                        "item:"+ROCKTAIL,
+                        "item:"+COINS,
+                        10L,
+                        5L
+                    )
+                ),
+                AtomicTransactionService
+                    .SourceAuthority
+                    .INFERENCE
+            )
+        );
+
+        BloodPoolStoreService inferredBloodPool=
+            new BloodPoolStoreService(
+                inferredShops,
+                shopId,
+                AtomicTransactionService
+                    .SourceAuthority
+                    .INFERENCE
+            );
+
+        boolean rejected=false;
+
+        try{
+            new G2BloodPoolStorePurchaseService(
+                inferredBloodPool,
+                new G2ShopPurchaseService(
+                    world,
+                    player,
+                    inferredShops
+                )
+            );
+        }catch(IllegalArgumentException expected){
+            rejected=true;
+        }
+
+        require(
+            rejected,
+            "non-LocalLab Blood Pool authority composed into G2 LocalLab purchase"
+        );
     }
 
     private static void protocolBoundary(){
