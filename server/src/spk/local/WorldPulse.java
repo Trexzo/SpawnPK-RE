@@ -242,6 +242,32 @@ final class WorldPulse implements AutoCloseable,Runnable {
                 );
             }
 
+            try{
+                long restocked=
+                    world.localLabShops()
+                        .onWorldTick(tick);
+
+                if(restocked>0L)
+                    System.out.println(
+                        "[world] G2_SHOP_RESTOCK tick="+
+                        tick+
+                        " item="+
+                        LocalLabShopRuntime.ROCKTAIL+
+                        " added="+restocked+
+                        " stock="+
+                        world.localLabShops()
+                            .rocktailStock()+
+                        " authority=CUSTOM_LOCALLAB"
+                    );
+            }catch(Throwable t){
+                System.err.println(
+                    "[world] LocalLab Shop restock failed tick="+
+                    tick+
+                    " error="+
+                    t
+                );
+            }
+
             if(world.closed())
                 return;
 
