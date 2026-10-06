@@ -18,6 +18,7 @@ final class LocalPlayerInteractionHandler {
     private final LongSupplier ownerGeneration;
     private final PlayerPvpEligibilityPolicy pvpEligibility;
     private final PlayerCombatResolutionService pvpCombat;
+    private final PlayerPvpDelayedHitService delayedPvpHits;
 
     private EntityId activeFollow;
     private long activeFollowGeneration;
@@ -237,6 +238,26 @@ final class LocalPlayerInteractionHandler {
                     "systemHooks"
                 ),
                 world.pvpRecords()
+            );
+        this.delayedPvpHits=
+            new PlayerPvpDelayedHitService(
+                world,
+                "CUSTOM_LOCALLAB_G5_DELAYED_PVP_HIT_V1",
+                PlayerPvpDelayedHitService
+                    .REQUIRE_CURRENT_PLAYER_GENERATIONS,
+                pvpCombat.outcomeObserver(),
+                (deliveredTarget,damageResult)->
+                    Player81WorldSync.sendSkillUpdate(
+                        world,
+                        deliveredTarget,
+                        PlayerState.HITPOINTS,
+                        deliveredTarget.playerState().xp(
+                            PlayerState.HITPOINTS
+                        ),
+                        deliveredTarget.playerState().currentLevel(
+                            PlayerState.HITPOINTS
+                        )
+                    )
             );
     }
 
@@ -660,18 +681,19 @@ final class LocalPlayerInteractionHandler {
                 )
             );
 
-        PlayerCombatResolutionService.Result resolution;
+        PlayerCombatResolutionService.AttackResolution resolution;
 
         try{
             resolution=
-                pvpCombat.resolveImmediateOwned(
+                pvpCombat.resolveOwned(
                     world,
                     ownerGeneration.getAsLong(),
                     target,
                     targetGeneration,
                     equipment.weapon(),
                     style,
-                    worldTick
+                    worldTick,
+                    delayedPvpHits
                 );
         }catch(
             PlayerCombatResolutionService
@@ -694,6 +716,46 @@ final class LocalPlayerInteractionHandler {
             return "V5131_PLAYER_ATTACK_CANCELLED reason=TARGET_OWNERSHIP_CHANGED"+
                 " expectedGeneration="+targetGeneration+
                 " worldTick="+worldTick;
+        }catch(IOException io){
+            throw io;
+        }catch(RuntimeException runtime){
+            throw runtime;
+        }catch(Exception checked){
+            throw new IOException(
+                "delayed PvP resolution failed",
+                checked
+            );
+        }
+
+        nextAttackTick=
+            worldTick+
+            resolution.nextAttackDelayTicks;
+
+        if(resolution.delivery==
+                PlayerCombatResolutionService
+                    .Delivery.SCHEDULED){
+            PlayerPvpDelayedHitService.Snapshot scheduled=
+                resolution.scheduledHit;
+
+            return "V5131_PLAYER_ATTACK_SCHEDULED target="+target.username()+
+                " clientTarget="+targetValue+
+                " distance="+Math.max(dx,dy)+
+                " range="+range+
+                " weapon="+equipment.weapon()+
+                " attackAnim="+(animation>=0?animation:"DEFERRED")+
+                " speedTicks="+resolution.nextAttackDelayTicks+
+                " cadenceAuthority="+resolution.timing.cadenceAuthority+
+                " hitDelayTicks="+resolution.timing.hitDelayTicks+
+                " hitDelayAuthority="+resolution.timing.hitDelayAuthority+
+                " damage="+resolution.damage.damage+
+                " damageAuthority="+resolution.damage.authority+
+                " damageFormula="+resolution.damage.formula+
+                " dueTick="+scheduled.dueTick+
+                " delayedHitId="+scheduled.hitId+
+                " targetHpPacket134=DEFERRED_UNTIL_DUE"+
+                " systemHooks="+resolution.hooks+
+                " remoteMaskRelay=true nextAttackTick="+
+                nextAttackTick;
         }
 
         boolean hpPublished=
@@ -709,16 +771,12 @@ final class LocalPlayerInteractionHandler {
                 )
             );
 
-        nextAttackTick=
-            worldTick+
-            resolution.nextAttackDelayTicks;
-
         if(resolution.lifecycle.died){
             clearAttack();
             movement.clearQueuedPath();
         }
 
-        return "V5131_PLAYER_ATTACK_RESOLVED target="+target.username()+
+        return "V5131_PLAYER_ATTACK_RESOLVED target="+target.username()+        return "V5131_PLAYER_ATTACK_RESOLVED target="+target.username()+
             " clientTarget="+targetValue+
             " distance="+Math.max(dx,dy)+
             " range="+range+
