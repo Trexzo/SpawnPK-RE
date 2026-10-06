@@ -228,6 +228,12 @@ final class LocalCommandDispatcher {
                 sessionWorldTick
             );
         if(slayerCommand!=null){
+            if(slayerCommand.saveReason!=null)
+                bridge.saveAccount(
+                    tag,
+                    slayerCommand.saveReason
+                );
+
             new SocialChatPresentationPublisher(
                 serverPackets
             ).serverMessage(
@@ -239,7 +245,8 @@ final class LocalCommandDispatcher {
                 slayerCommand.logText+
                 " clientFeedback=true"+
                 " route=EXACT_CURRENT_C2S103"+
-                " persistenceClaim=false"
+                " persistenceBeforeFeedback="+
+                (slayerCommand.saveReason!=null)
             );
             return true;
         }
