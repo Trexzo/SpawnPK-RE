@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.util.concurrent.atomic.AtomicReference;
 import spk.content.builtin.SuppliesMerchantDialogueContent;
 
 public final class G2BankFundedMerchantRegearIntegrationTest {
@@ -82,9 +83,13 @@ public final class G2BankFundedMerchantRegearIntegrationTest {
                 );
 
             String opened=
-                bankObject.handle(
-                    bankClick,
-                    packets
+                onWorld(
+                    world,
+                    player,
+                    ()->bankObject.handle(
+                        bankClick,
+                        packets
+                    )
                 );
 
             require(
@@ -364,6 +369,44 @@ public final class G2BankFundedMerchantRegearIntegrationTest {
                 );
             world.close();
         }
+    }
+
+    private static String onWorld(
+        World world,
+        WorldPlayer player,
+        ThrowingString action
+    )throws Exception{
+        AtomicReference<String> result=
+            new AtomicReference<>();
+        AtomicReference<Throwable> failure=
+            new AtomicReference<>();
+
+        world.submitAndWait(
+            player,
+            ()->{
+                try{
+                    result.set(
+                        action.run()
+                    );
+                }catch(Throwable error){
+                    failure.set(error);
+                }
+            },
+            5_000L
+        );
+
+        if(failure.get()!=null)
+            throw new AssertionError(
+                "world action failed",
+                failure.get()
+            );
+
+        return result.get();
+    }
+
+    @FunctionalInterface
+    private interface ThrowingString {
+        String run()throws Exception;
     }
 
     private static int findSlot(
