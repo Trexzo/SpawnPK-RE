@@ -165,13 +165,33 @@ public final class LocalSuppliesMerchantHandlerTest {
                 chooseBuy.saveReason==null&&
                 chooseBuy.feedback==null&&
                 SuppliesMerchantDialogueContent
+                    .BUY_CATALOG_NODE
+                    .equals(
+                        handler
+                            .semanticDialogueSnapshot()
+                            .nodeKey
+                    ),
+                "Buy branch did not enter catalog dialogue"
+            );
+
+            LocalSuppliesMerchantHandler.Result chooseRocktail=
+                handler.handleOption(
+                    1,
+                    packets
+                );
+
+            require(
+                chooseRocktail.handled&&
+                chooseRocktail.saveReason==null&&
+                chooseRocktail.feedback==null&&
+                SuppliesMerchantDialogueContent
                     .BUY_QUANTITY_NODE
                     .equals(
                         handler
                             .semanticDialogueSnapshot()
                             .nodeKey
                     ),
-                "Buy branch did not enter quantity dialogue"
+                "Rocktail catalog branch did not enter quantity dialogue"
             );
 
             LocalSuppliesMerchantHandler.Result bought=
@@ -227,6 +247,10 @@ public final class LocalSuppliesMerchantHandlerTest {
                 observerMerchant,
                 packets,
                 "[merchant-test] "
+            );
+            observerHandler.handleOption(
+                1,
+                packets
             );
             observerHandler.handleOption(
                 1,
