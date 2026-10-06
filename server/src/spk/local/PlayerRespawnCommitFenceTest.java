@@ -322,6 +322,30 @@ public final class PlayerRespawnCommitFenceTest {
 
             drain(queue);
 
+            /*
+             * G5.4 requires the exact settled carried postimage to commit
+             * before respawn publication is eligible. Preserve this test's
+             * original purpose by clearing that presentation debt first, then
+             * force failure specifically at the respawn publication boundary.
+             */
+            coordinator
+                .settleDeferredDeathSettlementAfterWorldTick(
+                    "[respawn-fence-present] "
+                );
+            coordinator
+                .settleDeferredDeathCarriedPresentationAfterWorldTick(
+                    writer,
+                    "[respawn-fence-present] "
+                );
+
+            if(coordinator
+                    .deathCarriedPresentationPending())
+                throw new AssertionError(
+                    "respawn failure fixture retained carried-presentation debt"
+                );
+
+            drain(queue);
+
             SceneUpdatePublisher beforePublisher=
                 regionBridge.publisher;
 
