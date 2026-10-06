@@ -10,6 +10,8 @@ final class LocalLabShopRuntime {
     static final long ROCKTAIL_BUY_PRICE=10L;
     static final long ROCKTAIL_SELL_PRICE=4L;
     static final long INITIAL_ROCKTAIL_STOCK=100L;
+    static final long ROCKTAIL_RESTOCK_INTERVAL_TICKS=10L;
+    static final long ROCKTAIL_RESTOCK_INCREMENT=1L;
     static final ShopService.ShopId SUPPLIES=
         ShopService.ShopId.of("shop:locallab-supplies");
 
@@ -59,6 +61,26 @@ final class LocalLabShopRuntime {
     ShopService shops(){return shops;}
     ShopSellbackService sellbacks(){return sellbacks;}
     AtomicTransactionService transactions(){return transactions;}
+
+    long onWorldTick(
+        long authoritativeTick
+    ){
+        if(authoritativeTick<=0L)
+            throw new IllegalArgumentException(
+                "authoritativeTick="+authoritativeTick
+            );
+
+        if(authoritativeTick%
+                ROCKTAIL_RESTOCK_INTERVAL_TICKS!=0L)
+            return 0L;
+
+        return shops.replenishFiniteStock(
+            SUPPLIES,
+            "item:"+ROCKTAIL,
+            ROCKTAIL_RESTOCK_INCREMENT,
+            INITIAL_ROCKTAIL_STOCK
+        );
+    }
 
     LocalLabShopSnapshot snapshot(){
         return LocalLabShopSnapshot.ofRocktailStock(
