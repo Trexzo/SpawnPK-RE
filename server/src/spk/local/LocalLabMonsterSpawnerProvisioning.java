@@ -167,10 +167,9 @@ final class LocalLabMonsterSpawnerProvisioning {
 
                         return new MonsterSpawnerPvmSpawnExecutor.Request(
                             context.ownerRef,
-                            new Tile(
-                                MovementState.INITIAL_X+1,
-                                MovementState.INITIAL_Y,
-                                0
+                            resolveCurrentOwnerAdjacentTile(
+                                checkedWorld,
+                                context.ownerRef
                             )
                         );
                     }
@@ -227,6 +226,74 @@ final class LocalLabMonsterSpawnerProvisioning {
                     return CATALOG_AUTHORITY;
                 }
             }
+        );
+    }
+
+    static Tile resolveCurrentOwnerAdjacentTile(
+        World world,
+        String ownerRef
+    ){
+        World checkedWorld=
+            Objects.requireNonNull(
+                world,
+                "world"
+            );
+        String owner=
+            PartyService.requireRef(
+                ownerRef
+            );
+        WorldPlayer player=
+            checkedWorld.players()
+                .byName(
+                    owner
+                );
+
+        if(player==null||
+           !checkedWorld.players().owns(
+                player,
+                player.generation()))
+            throw new IllegalStateException(
+                "LocalLab Monster Spawner placement requires exact current owner="+
+                owner
+            );
+
+        MovementState movement=
+            player.movement();
+        int x=movement.x();
+        int y=movement.y();
+        int plane=movement.plane();
+
+        final int[][] directions={
+            {1,0},
+            {-1,0},
+            {0,1},
+            {0,-1}
+        };
+
+        for(int[] direction:directions){
+            int targetX=x+direction[0];
+            int targetY=y+direction[1];
+
+            if(WorldCollisionAuthority.canStep(
+                    x,
+                    y,
+                    plane,
+                    targetX,
+                    targetY))
+                return new Tile(
+                    targetX,
+                    targetY,
+                    plane
+                );
+        }
+
+        throw new IllegalStateException(
+            "LocalLab Monster Spawner has no collision-safe adjacent tile owner="+
+            owner+
+            " tile="+
+            x+","+
+            y+","+
+            plane
         );
     }
 

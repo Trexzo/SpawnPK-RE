@@ -183,6 +183,13 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
                 "last-row selection triggered spawn"
             );
 
+            Tile expectedSpawn=
+                LocalLabMonsterSpawnerProvisioning
+                    .resolveCurrentOwnerAdjacentTile(
+                        world,
+                        owner
+                    );
+
             LocalMonsterSpawnerUiHandler.Result activated=
                 ui.handle(
                     MonsterSpawnerPresentation
@@ -236,12 +243,17 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
                 spawned.definitionId==
                     LocalLabMonsterSpawnerProvisioning
                         .NPC_DEFINITION_ID&&
-                spawned.tile().x==
-                    MovementState.INITIAL_X+1&&
-                spawned.tile().y==
-                    MovementState.INITIAL_Y&&
-                spawned.tile().plane==0,
-                "provisioned spawn identity/location"
+                spawned.tile().equals(
+                    expectedSpawn
+                )&&
+                WorldCollisionAuthority.canStep(
+                    player.movement().x(),
+                    player.movement().y(),
+                    player.movement().plane(),
+                    spawned.tile().x,
+                    spawned.tile().y
+                ),
+                "provisioned spawn identity/current-owner collision-safe location"
             );
 
             System.out.println(
@@ -256,7 +268,7 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
                 "customPolicy=true "+
                 "activationSpawn=true "+
                 "oneShotBudget=true "+
-                "homeSafePlacement=true"
+                "currentOwnerCollisionSafePlacement=true"
             );
         }finally{
             if(player.registered())
