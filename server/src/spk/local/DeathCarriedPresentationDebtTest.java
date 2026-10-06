@@ -22,7 +22,7 @@ public final class DeathCarriedPresentationDebtTest {
         boolean appearancePublished=false;
         boolean abortRetainsDebt=false;
         boolean retryCommitsOnce=false;
-        boolean respawnSupersedesDebt=false;
+        boolean respawnBypassRemoved=false;
         boolean newerDeathSupersedesDebt=false;
 
         try{
@@ -86,7 +86,6 @@ public final class DeathCarriedPresentationDebtTest {
                                     .appearanceIndex
                             ];
                     },
-                    false,
                     "[g5.3-test] "
                 );
 
@@ -118,7 +117,6 @@ public final class DeathCarriedPresentationDebtTest {
                                     .appearanceIndex
                             ];
                     },
-                    false,
                     "[g5.3-test] "
                 );
 
@@ -145,7 +143,6 @@ public final class DeathCarriedPresentationDebtTest {
                             "cleared debt replayed appearance"
                         );
                     },
-                    false,
                     "[g5.3-test] "
                 );
 
@@ -155,35 +152,37 @@ public final class DeathCarriedPresentationDebtTest {
                 pressured.queuedBytes()==
                     bytesAfterRetry;
 
-            DeathCarriedPresentationDebt superseded=
+            DeathCarriedPresentationDebt noBypass=
                 new DeathCarriedPresentationDebt();
             installSettledState(player);
-            superseded.captureAfterSettlement(
+            noBypass.captureAfterSettlement(
                 player
             );
 
-            int beforeSupersede=
+            int beforeNoBypass=
                 pressured.queuedBytes();
 
-            boolean supersedePublish=
-                superseded.publishIfPending(
+            boolean noBypassPublish=
+                noBypass.publishIfPending(
                     world,
                     player,
                     pressuredWriter,
                     (appearance,writer)->{
-                        throw new AssertionError(
-                            "respawn-superseded debt published"
-                        );
+                        appearanceCalls[0]++;
                     },
-                    true,
                     "[g5.3-test] "
                 );
 
-            respawnSupersedesDebt=
-                !supersedePublish&&
-                !superseded.pending()&&
-                pressured.queuedBytes()==
-                    beforeSupersede;
+            respawnBypassRemoved=
+                noBypassPublish&&
+                !noBypass.pending()&&
+                pressured.queuedBytes()>
+                    beforeNoBypass;
+
+            require(
+                respawnBypassRemoved,
+                "death carried debt retained obsolete respawn bypass"
+            );
 
             DeathCarriedPresentationDebt succession=
                 new DeathCarriedPresentationDebt();
@@ -254,7 +253,6 @@ public final class DeathCarriedPresentationDebtTest {
                                 "stale generation published"
                             );
                         },
-                        false,
                         "[g5.3-test] "
                     );
 
@@ -282,7 +280,7 @@ public final class DeathCarriedPresentationDebtTest {
                 appearancePublished&&
                 abortRetainsDebt&&
                 retryCommitsOnce&&
-                respawnSupersedesDebt&&
+                respawnBypassRemoved&&
                 newerDeathSupersedesDebt,
                 "G5.3 death carried presentation invariant"
             );
@@ -298,7 +296,7 @@ public final class DeathCarriedPresentationDebtTest {
                 " appearancePublished="+appearancePublished+
                 " abortRetainsDebt="+abortRetainsDebt+
                 " retryCommitsOnce="+retryCommitsOnce+
-                " respawnSupersedesDebt="+respawnSupersedesDebt+
+                " respawnBypassRemoved="+respawnBypassRemoved+
                 " newerDeathSupersedesDebt="+newerDeathSupersedesDebt+
                 " gameplayMutation=false"+
                 " originalSpawnpkPresentationClaim=false"
