@@ -18,6 +18,10 @@ public final class LocalLabCoreContentModule
     public static final String MAKEOVER_MAGE_ACTION=
         "locallab.makeover-mage";
 
+    public static final int SUPPLIES_MERCHANT_NPC=410;
+    public static final String SUPPLIES_MERCHANT_ACTION=
+        "locallab.supplies-merchant";
+
     public static final int BANK_OBJECT=26972;
     public static final String BANK_OBJECT_SERVICE=
         "locallab.bank";
@@ -302,6 +306,16 @@ public final class LocalLabCoreContentModule
                 )
         );
 
+        registrar.npcOption(
+            SUPPLIES_MERCHANT_NPC,
+            3,
+            100,
+            context->
+                ContentNpcOptionResult.action(
+                    SUPPLIES_MERCHANT_ACTION
+                )
+        );
+
         MakeoverMageDialogueContent makeover=
             new MakeoverMageDialogueContent();
 
@@ -310,6 +324,16 @@ public final class LocalLabCoreContentModule
                 .DIALOGUE_KEY,
             100,
             makeover
+        );
+
+        SuppliesMerchantDialogueContent supplies=
+            new SuppliesMerchantDialogueContent();
+
+        registrar.dialogue(
+            SuppliesMerchantDialogueContent
+                .DIALOGUE_KEY,
+            100,
+            supplies
         );
 
         registrar.action(
