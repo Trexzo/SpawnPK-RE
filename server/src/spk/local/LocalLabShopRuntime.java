@@ -21,6 +21,12 @@ final class LocalLabShopRuntime {
         new ShopSellbackService(shops);
 
     LocalLabShopRuntime(){
+        this(null);
+    }
+
+    LocalLabShopRuntime(
+        LocalLabShopSnapshot restored
+    ){
         AtomicTransactionService.SourceAuthority authority=
             AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB;
 
@@ -33,7 +39,9 @@ final class LocalLabShopRuntime {
                     "item:"+ROCKTAIL,
                     "item:"+COINS,
                     ROCKTAIL_BUY_PRICE,
-                    INITIAL_ROCKTAIL_STOCK
+                    restored==null
+                        ?INITIAL_ROCKTAIL_STOCK
+                        :restored.rocktailStock
                 )
             ),
             authority
@@ -51,6 +59,12 @@ final class LocalLabShopRuntime {
     ShopService shops(){return shops;}
     ShopSellbackService sellbacks(){return sellbacks;}
     AtomicTransactionService transactions(){return transactions;}
+
+    LocalLabShopSnapshot snapshot(){
+        return LocalLabShopSnapshot.ofRocktailStock(
+            rocktailStock()
+        );
+    }
 
     long rocktailStock(){
         ShopService.OfferSnapshot offer=
