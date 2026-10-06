@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.file.*;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import spk.content.builtin.SuppliesMerchantDialogueContent;
 
@@ -844,6 +846,11 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     "victim could not repeat semantic PK navigation after respawn/regear"
                 );
 
+            verifyPostLoopPersistence(
+                attacker,
+                target
+            );
+
             System.out.println(
                 "PLAYER_PVP_DEATH_SETTLEMENT_INTEGRATION_PASS "+
                 "liveAttack=true "+
@@ -938,6 +945,185 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                     targetGeneration
                 );
             world.close();
+        }
+    }
+
+    private static void verifyPostLoopPersistence(
+        WorldPlayer attacker,
+        WorldPlayer target
+    )throws Exception{
+        Path root=
+            Files.createTempDirectory(
+                "spawnpk-playable-pk-post-loop-"
+            );
+
+        FilePlayerRepository repository=
+            new FilePlayerRepository(
+                username->
+                    root.resolve(
+                        username+".properties"
+                    )
+            );
+
+        World restarted=null;
+        boolean temporaryRepositoryClean=false;
+
+        try{
+            repository.save(
+                PlayerSnapshotCodec.capture(
+                    "opensrc",
+                    attacker
+                )
+            );
+            repository.save(
+                PlayerSnapshotCodec.capture(
+                    "target",
+                    target
+                )
+            );
+
+            restarted=
+                World.isolatedForTest(
+                    60_000L,
+                    repository
+                );
+
+            Optional<PlayerSnapshot> attackerLoaded=
+                restarted.persistence()
+                    .load(
+                        "opensrc"
+                    );
+            Optional<PlayerSnapshot> targetLoaded=
+                restarted.persistence()
+                    .load(
+                        "target"
+                    );
+
+            if(!attackerLoaded.isPresent()||
+               !targetLoaded.isPresent())
+                throw new AssertionError(
+                    "fresh World persistence owner did not load both post-loop snapshots"
+                );
+
+            WorldPlayer restoredAttacker=
+                new WorldPlayer();
+            WorldPlayer restoredTarget=
+                new WorldPlayer();
+
+            PlayerSnapshotCodec.applyValidated(
+                attackerLoaded.get(),
+                restoredAttacker
+            );
+            PlayerSnapshotCodec.applyValidated(
+                targetLoaded.get(),
+                restoredTarget
+            );
+
+            PvpKillRewardService.Counters
+                restoredReward=
+                    PvpKillRewardService.counters(
+                        restoredAttacker
+                    );
+
+            if(restoredAttacker.equipment().weapon()!=
+                    LocalLabShopRuntime.STARTER_WHIP||
+               restoredAttacker.bank().inventoryCount(
+                    LocalLabShopRuntime.COINS
+               )!=10||
+               restoredAttacker.bank().inventoryCount(
+                    LocalLabShopRuntime.STARTER_WHIP
+               )!=0||
+               restoredReward.kills!=1L||
+               restoredReward.points!=1L)
+                throw new AssertionError(
+                    "fresh World attacker post-loop persistence mismatch weapon="+
+                    restoredAttacker.equipment().weapon()+
+                    " coins="+
+                    restoredAttacker.bank().inventoryCount(
+                        LocalLabShopRuntime.COINS
+                    )+
+                    " carriedWhip="+
+                    restoredAttacker.bank().inventoryCount(
+                        LocalLabShopRuntime.STARTER_WHIP
+                    )+
+                    " reward="+
+                    restoredReward
+                );
+
+            if(!restoredTarget.lifecycle().alive()||
+               restoredTarget.equipment().weapon()!=
+                    G1DefaultLoadoutRegearService.STARTER_WEAPON||
+               restoredTarget.bank().inventoryCount(
+                    G1DefaultLoadoutRegearService.STARTER_FOOD
+               )!=
+                    G1DefaultLoadoutRegearService.STARTER_FOOD_COUNT||
+               restoredTarget.bank().inventoryCount(
+                    LocalLabShopRuntime.COINS
+               )!=0)
+                throw new AssertionError(
+                    "fresh World victim post-loop persistence mismatch alive="+
+                    restoredTarget.lifecycle().alive()+
+                    " weapon="+
+                    restoredTarget.equipment().weapon()+
+                    " food="+
+                    restoredTarget.bank().inventoryCount(
+                        G1DefaultLoadoutRegearService.STARTER_FOOD
+                    )+
+                    " coins="+
+                    restoredTarget.bank().inventoryCount(
+                        LocalLabShopRuntime.COINS
+                    )
+                );
+        }finally{
+            if(restarted!=null)
+                restarted.close();
+
+            deleteTree(root);
+            temporaryRepositoryClean=
+                !Files.exists(root);
+        }
+
+        if(!temporaryRepositoryClean)
+            throw new AssertionError(
+                "temporary post-loop repository cleanup failed path="+
+                root
+            );
+
+        System.out.println(
+            "PLAYABLE_PK_POST_LOOP_PERSISTENCE_PASS "+
+            "repositorySave=true "+
+            "freshWorldLoad=true "+
+            "attackerWeapon4151=true "+
+            "attackerLootCoins10=true "+
+            "attackerKillCounter1=true "+
+            "attackerPointCounter1=true "+
+            "victimAlive=true "+
+            "victimStarterWeapon4151=true "+
+            "victimStarterFood10=true "+
+            "victimLostCoinsAbsent=true "+
+            "snapshotValidated=true "+
+            "temporaryRepositoryClean=true"
+        );
+    }
+
+    private static void deleteTree(
+        Path root
+    )throws Exception{
+        if(root==null||
+           !Files.exists(root))
+            return;
+
+        try(java.util.stream.Stream<Path> paths=
+                Files.walk(root)){
+            Iterator<Path> iterator=
+                paths.sorted(
+                    Comparator.reverseOrder()
+                ).iterator();
+
+            while(iterator.hasNext())
+                Files.deleteIfExists(
+                    iterator.next()
+                );
         }
     }
 
