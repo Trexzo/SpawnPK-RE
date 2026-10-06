@@ -261,6 +261,10 @@ public final class LocalWorldTickCoordinatorTest {
     }
 
     public static void main(String[] args)throws Exception{
+        boolean deathPresentationBlocksRespawn=false;
+        boolean deathPresentationRetryAllowsRespawn=false;
+        boolean allKeptDeathSkipsPresentationDebt=false;
+
         try(Fixture idle=new Fixture()){
             TickBridge bridge=new TickBridge();
             LocalWorldTickCoordinator coordinator=
@@ -613,6 +617,261 @@ public final class LocalWorldTickCoordinatorTest {
             if(respawning.wire.size()<=before)
                 throw new AssertionError(
                     "post-commit respawn emitted no client packets"
+                );
+        }
+
+        try(Fixture fencedRespawn=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                fencedRespawn.coordinator(true,bridge);
+
+            int[] items=
+                new int[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            int[] quantities=
+                new int[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            java.util.Arrays.fill(
+                items,
+                -1
+            );
+            items[0]=24254;
+            quantities[0]=1;
+            fencedRespawn.bank
+                .replaceInventorySemantic(
+                    items,
+                    quantities
+                );
+
+            PlayerLifecycleService lifecycle=
+                new PlayerLifecycleService(
+                    fencedRespawn.player
+                );
+            PlayerLifecycleService.DamageResult lethal=
+                lifecycle.applyDamage(
+                    500,
+                    10L,
+                    "G5_PRESENTATION_RESPAWN_FENCE_TEST"
+                );
+
+            if(!lethal.died)
+                throw new AssertionError(
+                    "presentation-fence fixture did not die"
+                );
+
+            OutboundPacketQueue pressuredQueue=
+                new OutboundPacketQueue(1024);
+            pressuredQueue.offerBatch(
+                new byte[1000]
+            );
+            ServerPacketWriter pressuredWriter=
+                new ServerPacketWriter(
+                    pressuredQueue,
+                    new IsaacCipher(
+                        new int[]{9,10,11,12}
+                    )
+                );
+
+            fencedRespawn.writer.beginBatch();
+            coordinator.tick(
+                15L,
+                3_000L,
+                fencedRespawn.writer,
+                "[g5-respawn-fence-first] "
+            );
+            LocalSession.endWorldTickBatch(
+                fencedRespawn.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_000L
+            );
+
+            coordinator
+                .settleDeferredDeathSettlementAfterWorldTick(
+                    "[g5-respawn-fence-first] "
+                );
+
+            if(fencedRespawn.bank
+                    .inventoryCount(24254)!=0||
+               !coordinator
+                    .deathCarriedPresentationPending()||
+               !coordinator.deferredRespawnEligible())
+                throw new AssertionError(
+                    "loss settlement did not create exact carried-presentation debt"
+                );
+
+            int pressuredBefore=
+                pressuredQueue.queuedBytes();
+
+            coordinator
+                .settleDeferredDeathCarriedPresentationAfterWorldTick(
+                    pressuredWriter,
+                    "[g5-respawn-fence-first] "
+                );
+
+            if(!coordinator
+                    .deathCarriedPresentationPending()||
+               pressuredQueue.queuedBytes()!=
+                    pressuredBefore)
+                throw new AssertionError(
+                    "failed carried presentation did not remain retryable"
+                );
+
+            coordinator
+                .settleDeferredRespawnAfterWorldTick(
+                    fencedRespawn.writer,
+                    "[g5-respawn-fence-first] "
+                );
+
+            deathPresentationBlocksRespawn=
+                fencedRespawn.player.lifecycle().dead()&&
+                coordinator
+                    .deathCarriedPresentationPending()&&
+                !coordinator.deferredRespawnEligible();
+
+            if(!deathPresentationBlocksRespawn)
+                throw new AssertionError(
+                    "pending carried presentation did not block respawn"
+                );
+
+            ByteArrayOutputStream pressureDrain=
+                new ByteArrayOutputStream();
+            pressuredQueue.drainTo(
+                pressureDrain,
+                Integer.MAX_VALUE
+            );
+
+            fencedRespawn.writer.beginBatch();
+            coordinator.tick(
+                16L,
+                3_600L,
+                fencedRespawn.writer,
+                "[g5-respawn-fence-retry] "
+            );
+            LocalSession.endWorldTickBatch(
+                fencedRespawn.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_600L
+            );
+
+            coordinator
+                .settleDeferredDeathSettlementAfterWorldTick(
+                    "[g5-respawn-fence-retry] "
+                );
+            coordinator
+                .settleDeferredDeathCarriedPresentationAfterWorldTick(
+                    pressuredWriter,
+                    "[g5-respawn-fence-retry] "
+                );
+
+            if(coordinator
+                    .deathCarriedPresentationPending())
+                throw new AssertionError(
+                    "carried presentation retry did not commit"
+                );
+
+            coordinator
+                .settleDeferredRespawnAfterWorldTick(
+                    fencedRespawn.writer,
+                    "[g5-respawn-fence-retry] "
+                );
+
+            deathPresentationRetryAllowsRespawn=
+                fencedRespawn.player.lifecycle().alive();
+
+            if(!deathPresentationRetryAllowsRespawn)
+                throw new AssertionError(
+                    "respawn did not proceed after carried presentation commit"
+                );
+        }
+
+        try(Fixture allKeptRespawn=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                allKeptRespawn.coordinator(true,bridge);
+
+            int[] items=
+                new int[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            int[] quantities=
+                new int[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            java.util.Arrays.fill(
+                items,
+                -1
+            );
+            items[0]=20466;
+            quantities[0]=1;
+            allKeptRespawn.bank
+                .replaceInventorySemantic(
+                    items,
+                    quantities
+                );
+
+            PlayerLifecycleService.DamageResult lethal=
+                new PlayerLifecycleService(
+                    allKeptRespawn.player
+                ).applyDamage(
+                    500,
+                    10L,
+                    "G5_ALL_KEPT_RESPAWN_TEST"
+                );
+
+            if(!lethal.died)
+                throw new AssertionError(
+                    "all-kept fixture did not die"
+                );
+
+            allKeptRespawn.writer.beginBatch();
+            coordinator.tick(
+                15L,
+                3_000L,
+                allKeptRespawn.writer,
+                "[g5-all-kept-respawn] "
+            );
+            LocalSession.endWorldTickBatch(
+                allKeptRespawn.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_000L
+            );
+
+            coordinator
+                .settleDeferredDeathSettlementAfterWorldTick(
+                    "[g5-all-kept-respawn] "
+                );
+
+            if(coordinator
+                    .deathCarriedPresentationPending()||
+               allKeptRespawn.bank
+                    .inventoryCount(20466)!=1)
+                throw new AssertionError(
+                    "all-kept death created unnecessary presentation debt"
+                );
+
+            coordinator
+                .settleDeferredRespawnAfterWorldTick(
+                    allKeptRespawn.writer,
+                    "[g5-all-kept-respawn] "
+                );
+
+            allKeptDeathSkipsPresentationDebt=
+                allKeptRespawn.player.lifecycle().alive();
+
+            if(!allKeptDeathSkipsPresentationDebt)
+                throw new AssertionError(
+                    "all-kept death did not respawn normally"
                 );
         }
 
@@ -1397,7 +1656,13 @@ public final class LocalWorldTickCoordinatorTest {
             "tickCountersOwned=true schedulerHooks=true "+
             "respawnLifecycle=true "+
             "respawnOuterAbortPreservesDead=true "+
-            "respawnPostCommitSettles=true "+
+            "respawnPostCommitSettles=true "+            "deathPresentationBlocksRespawn="+
+                deathPresentationBlocksRespawn+" "+
+            "deathPresentationRetryAllowsRespawn="+
+                deathPresentationRetryAllowsRespawn+" "+
+            "allKeptDeathSkipsPresentationDebt="+
+                allKeptDeathSkipsPresentationDebt+" "+
+
             "movementTailAfterCommit=true "+
             "movementAbortRestoresPreimage=true "+
             "transientMovementSave=false "+
@@ -1412,6 +1677,20 @@ public final class LocalWorldTickCoordinatorTest {
             "petEffectTimeoutOuterAbortPreservesState=true "+
             "petEffectTimeoutPostCommitSettles=true "+
             "sharedHomeClockReconnect=true"
+        );
+
+        System.out.println(
+            "G5_DEATH_CARRIED_RESPAWN_FENCE_PASS"+
+            " presentationBeforeRespawn=true"+
+            " failureBlocksRespawn="+
+                deathPresentationBlocksRespawn+
+            " retryAllowsRespawn="+
+                deathPresentationRetryAllowsRespawn+
+            " allKeptNoDebt="+
+                allKeptDeathSkipsPresentationDebt+
+            " sessionOwnedDebt=true"+
+            " worldGlobalEventRevived=false"+
+            " originalSpawnpkPresentationClaim=false"
         );
     }
 }
