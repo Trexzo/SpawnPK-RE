@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.util.concurrent.atomic.AtomicReference;
+import spk.content.builtin.SuppliesMerchantDialogueContent;
 
 public final class PlayerPvpDeathSettlementIntegrationTest {
     private static final int QUEUE_CAPACITY=1<<20;
@@ -92,6 +94,8 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
             world.registerPlayer(attacker,"opensrc");
         long targetGeneration=
             world.registerPlayer(target,"target");
+
+        world.start();
 
         G1DefaultLoadoutRegearService
             .ensureStarterDefault(
@@ -251,6 +255,24 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                         MovementState.REGION_BASE_Y,
                         0
                     )
+                );
+
+            bankFundedRegear(
+                world,
+                attacker,
+                attackerWriter
+            );
+
+            if(attacker.equipment().weapon()!=
+                    LocalLabShopRuntime.STARTER_WHIP||
+               attacker.bank().inventoryCount(
+                    LocalLabShopRuntime.COINS
+               )!=0||
+               attacker.bank().inventoryCount(
+                    LocalLabShopRuntime.STARTER_WHIP
+               )!=0)
+                throw new AssertionError(
+                    "bank-funded HOME regear postimage missing before PK navigation"
                 );
 
             LocalTeleportNavigationRuntime.Result
@@ -435,7 +457,6 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 coins
             );
 
-            attacker.equipment().setWeapon(4151);
             if(!target.playerState().setCurrentLevel(
                     PlayerState.HITPOINTS,
                     9))
@@ -859,6 +880,27 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
             );
 
             System.out.println(
+                "PLAYABLE_BANK_FUNDED_PK_LOOP_PASS "+
+                "bankFundedRegear=true "+
+                "bankObject26972=true "+
+                "withdrawX=true "+
+                "amountEntry208=true "+
+                "merchantNpc410=true "+
+                "whipPurchase=true "+
+                "exactWield=true "+
+                "navigationToPk=true "+
+                "pvpRegionGate=true "+
+                "lethalCombat=true "+
+                "killerOwnedLoot=true "+
+                "groundPickup=true "+
+                "victimRespawnHome=true "+
+                "defaultRegear=true "+
+                "repeatNavigation=true "+
+                "snapshotAuthorityPreserved=true "+
+                "originalSpawnpkEconomyClaim=false"
+            );
+
+            System.out.println(
                 "PLAYABLE_PK_LOOP_INTEGRATION_PASS "+
                 "navigationToPk=true "+
                 "pvpRegionGate=true "+
@@ -897,6 +939,377 @@ public final class PlayerPvpDeathSettlementIntegrationTest {
                 );
             world.close();
         }
+    }
+
+    private static void bankFundedRegear(
+        World world,
+        WorldPlayer attacker,
+        ServerPacketWriter packets
+    )throws Exception{
+        BankState bank=attacker.bank();
+        MovementState movement=attacker.movement();
+
+        if(bank.inventorySlots()!=0||
+           bank.inventoryCount(
+                LocalLabShopRuntime.COINS
+           )!=0||
+           attacker.equipment().weapon()==
+                LocalLabShopRuntime.STARTER_WHIP)
+            throw new AssertionError(
+                "bank-funded PK fixture must start unfunded and unequipped"
+            );
+
+        LocalBankObjectInteractionHandler bankObject=
+            new LocalBankObjectInteractionHandler(
+                bank,
+                movement,
+                world.content()
+            );
+        LocalBankRequestHandler bankRequests=
+            new LocalBankRequestHandler(
+                attacker,
+                bank
+            );
+        LocalLabShopRuntime runtime=
+            world.localLabShops();
+        LocalSuppliesMerchantHandler merchant=
+            new LocalSuppliesMerchantHandler(
+                world,
+                attacker,
+                movement,
+                null,
+                null,
+                runtime
+            );
+        LocalEquipmentItemActionHandler equipment=
+            new LocalEquipmentItemActionHandler(
+                bank,
+                attacker.equipment(),
+                attacker.playerState(),
+                new PlayerPresentationService(
+                    new DevAuthorityWorkbench()
+                ),
+                attacker.combatStyles()
+            );
+
+        ObjectInteraction bankClick=
+            new ObjectInteraction(
+                132,
+                BankState.BANK_OBJECT_ID,
+                movement.x()+1,
+                movement.y()
+            );
+
+        String opened=
+            onWorld(
+                world,
+                attacker,
+                ()->bankObject.handle(
+                    bankClick,
+                    packets
+                )
+            );
+
+        if(bankClick.opcode!=132||
+           bankClick.objectId!=26972||
+           opened==null||
+           !opened.contains("V5_BANK_OPEN")||
+           !bank.isOpen())
+            throw new AssertionError(
+                "bank-funded PK bank object path missing"
+            );
+
+        BankState.Stack coinStack=
+            bank.bankAt(0);
+
+        if(coinStack==null||
+           coinStack.itemId!=
+                LocalLabShopRuntime.COINS||
+           coinStack.qty<100)
+            throw new AssertionError(
+                "bank-funded PK coin bank fixture missing"
+            );
+
+        int bankCoinsBefore=
+            coinStack.qty;
+
+        ItemContainerAction withdrawX=
+            new ItemContainerAction(
+                135,
+                BankState.BANK_CONTAINER,
+                0,
+                LocalLabShopRuntime.COINS,
+                0,
+                "ITEM_ACTION_X"
+            );
+
+        String prompt=
+            bank.apply(
+                withdrawX,
+                packets
+            );
+
+        if(withdrawX.opcode!=135||
+           withdrawX.widgetId!=
+                BankState.BANK_CONTAINER||
+           BankState.BANK_CONTAINER!=5382||
+           prompt==null||
+           !prompt.contains(
+                "WITHDRAW_X_PROMPT_SENT"
+           ))
+            throw new AssertionError(
+                "bank-funded PK Withdraw-X prompt missing"
+            );
+
+        AmountEntryClientRequest amount208=
+            new AmountEntryClientRequest(
+                100,
+                ClientRequestMetadata.exactCurrent(
+                    208,
+                    "i32 amount",
+                    "G2_BANK_FUNDED_FULL_PK_LOOP"
+                )
+            );
+
+        LocalBankRequestHandler.Result withdrew=
+            bankRequests.handleAmount(
+                amount208.amount(),
+                packets
+            );
+
+        if(amount208.metadata().opcode!=208||
+           amount208.metadata().provenance!=
+                ClientRequestProvenance
+                    .EXACT_CURRENT_CLIENT||
+           !"BANK_AMOUNT".equals(
+                withdrew.saveReason
+           )||
+           bank.inventoryCount(
+                LocalLabShopRuntime.COINS
+           )!=100||
+           bank.bankAt(0)==null||
+           bank.bankAt(0).qty!=
+                bankCoinsBefore-100)
+            throw new AssertionError(
+                "bank-funded PK exact 100-coin withdrawal mismatch"
+            );
+
+        bank.close(packets);
+
+        if(bank.isOpen()||
+           bank.inventoryCount(
+                LocalLabShopRuntime.COINS
+           )!=100)
+            throw new AssertionError(
+                "bank-funded PK bank close lost carried coins"
+            );
+
+        long rocktailBefore=
+            runtime.rocktailStock();
+
+        NpcEntity npc=
+            new NpcEntity(
+                98,
+                LocalSuppliesMerchantHandler.NPC_ID,
+                movement.x()+1,
+                movement.y()
+            );
+
+        if(!merchant.beginIfSupported(
+                new NpcAction(
+                    LocalSuppliesMerchantHandler
+                        .TRADE_OPCODE,
+                    npc.sceneIndex
+                ),
+                npc,
+                packets,
+                "[bank-funded-pk] "
+           ))
+            throw new AssertionError(
+                "bank-funded PK NPC410 Trade missing"
+            );
+
+        LocalSuppliesMerchantHandler.Result buyMenu=
+            merchant.handleOption(
+                1,
+                packets
+            );
+
+        if(!buyMenu.handled||
+           !SuppliesMerchantDialogueContent
+                .BUY_CATALOG_NODE
+                .equals(
+                    merchant
+                        .semanticDialogueSnapshot()
+                        .nodeKey
+                ))
+            throw new AssertionError(
+                "bank-funded PK merchant catalog missing"
+            );
+
+        LocalSuppliesMerchantHandler.Result whipMenu=
+            merchant.handleOption(
+                2,
+                packets
+            );
+
+        if(!whipMenu.handled||
+           !SuppliesMerchantDialogueContent
+                .WHIP_CONFIRM_NODE
+                .equals(
+                    merchant
+                        .semanticDialogueSnapshot()
+                        .nodeKey
+                ))
+            throw new AssertionError(
+                "bank-funded PK whip confirmation missing"
+            );
+
+        LocalSuppliesMerchantHandler.Result bought=
+            merchant.handleOption(
+                1,
+                packets
+            );
+
+        if(!LocalSuppliesMerchantHandler.SAVE_BUY
+                .equals(
+                    bought.saveReason
+                )||
+           bank.inventoryCount(
+                LocalLabShopRuntime.COINS
+           )!=0||
+           bank.inventoryCount(
+                LocalLabShopRuntime.STARTER_WHIP
+           )!=1||
+           runtime.rocktailStock()!=
+                rocktailBefore)
+            throw new AssertionError(
+                "bank-funded PK merchant purchase mismatch"
+            );
+
+        int whipSlot=
+            findInventorySlot(
+                bank,
+                LocalLabShopRuntime.STARTER_WHIP
+            );
+
+        if(whipSlot<0)
+            throw new AssertionError(
+                "bank-funded PK purchased whip slot missing"
+            );
+
+        ItemContainerAction wield=
+            new ItemContainerAction(
+                41,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                whipSlot,
+                LocalLabShopRuntime.STARTER_WHIP,
+                0,
+                "INVENTORY_OPTION"
+            );
+
+        LocalEquipmentItemActionHandler.Result equipped=
+            equipment.handle(
+                wield,
+                "opensrc",
+                packets
+            );
+
+        if(wield.opcode!=41||
+           wield.widgetId!=3214||
+           equipped==null||
+           !"EQUIP_FROM_INVENTORY".equals(
+                equipped.saveReason
+           )||
+           attacker.equipment().weapon()!=
+                LocalLabShopRuntime.STARTER_WHIP||
+           bank.inventoryCount(
+                LocalLabShopRuntime.STARTER_WHIP
+           )!=0)
+            throw new AssertionError(
+                "bank-funded PK exact Wield mismatch"
+            );
+
+        PlayerSnapshot snapshot=
+            PlayerSnapshotCodec.capture(
+                "opensrc",
+                attacker
+            );
+        WorldPlayer restored=
+            new WorldPlayer();
+
+        PlayerSnapshotCodec.applyValidated(
+            snapshot,
+            restored
+        );
+
+        if(restored.equipment().weapon()!=
+                LocalLabShopRuntime.STARTER_WHIP||
+           restored.bank().inventoryCount(
+                LocalLabShopRuntime.COINS
+           )!=0||
+           restored.bank().inventoryCount(
+                LocalLabShopRuntime.STARTER_WHIP
+           )!=0)
+            throw new AssertionError(
+                "bank-funded PK regear snapshot authority mismatch"
+            );
+    }
+
+    private static String onWorld(
+        World world,
+        WorldPlayer player,
+        ThrowingString action
+    )throws Exception{
+        AtomicReference<String> result=
+            new AtomicReference<>();
+        AtomicReference<Throwable> failure=
+            new AtomicReference<>();
+
+        world.submitAndWait(
+            player,
+            ()->{
+                try{
+                    result.set(
+                        action.run()
+                    );
+                }catch(Throwable error){
+                    failure.set(error);
+                }
+            },
+            5_000L
+        );
+
+        if(failure.get()!=null)
+            throw new AssertionError(
+                "world action failed",
+                failure.get()
+            );
+
+        return result.get();
+    }
+
+    @FunctionalInterface
+    private interface ThrowingString {
+        String run()throws Exception;
+    }
+
+    private static int findInventorySlot(
+        BankState bank,
+        int itemId
+    ){
+        for(int slot=0;
+            slot<BankState.INVENTORY_CAPACITY;
+            slot++){
+            BankState.InventorySlotSnapshot item=
+                bank.inventorySlotSnapshot(slot);
+
+            if(item.occupied&&
+               item.itemId==itemId)
+                return slot;
+        }
+
+        return -1;
     }
 
     private static void drain(
