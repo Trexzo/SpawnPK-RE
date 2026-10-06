@@ -27,8 +27,9 @@ public final class G6BloodSlayerCompletionCountTest {
         boolean secondMonsterCompletionThree=false;
         boolean freshWorldRestoresThree=false;
         boolean legacyV1LoadsZero=false;
-        boolean modeV2LoadsZero=false;
+        boolean modeV2BossLoadsZero=false;
         boolean completionV2PreservesCount=false;
+        boolean malformedMixedV2Rejected=false;
         boolean malformedCountRejected=false;
         boolean statusExposesCount=false;
 
@@ -320,6 +321,16 @@ public final class G6BloodSlayerCompletionCountTest {
                 "version",
                 LocalLabSlayerPersistence.MODE_VERSION
             );
+            modeV2.put(
+                "mode",
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM
+                    .name()
+            );
+            modeV2.put(
+                "task-key",
+                LocalLabSlayerRuntime.BOSS_TASK_KEY
+            );
             modeV2.remove("completion-count");
 
             LocalLabSlayerPersistence.Snapshot
@@ -328,16 +339,16 @@ public final class G6BloodSlayerCompletionCountTest {
                         modeV2
                     );
 
-            modeV2LoadsZero=
+            modeV2BossLoadsZero=
                 decodedModeV2!=null&&
                 decodedModeV2.mode==
                     BloodSlayerModeService.Mode
-                        .MONSTER_HUNTER_PVM&&
+                        .BOSS_HUNTER_PVM&&
                 decodedModeV2.completions==0L;
 
             require(
-                modeV2LoadsZero,
-                "mode-aware v2 snapshot did not default completions to zero"
+                modeV2BossLoadsZero,
+                "mode-aware Boss v2 snapshot did not default completions to zero"
             );
 
             TreeMap<String,String> completionV2=
@@ -367,6 +378,28 @@ public final class G6BloodSlayerCompletionCountTest {
             require(
                 completionV2PreservesCount,
                 "completion-aware sibling v2 snapshot lost count"
+            );
+
+            TreeMap<String,String> mixedV2=
+                new TreeMap<>(completionV2);
+            mixedV2.put(
+                "mode",
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM
+                    .name()
+            );
+
+            try{
+                LocalLabSlayerPersistence.decode(
+                    mixedV2
+                );
+            }catch(IllegalArgumentException expected){
+                malformedMixedV2Rejected=true;
+            }
+
+            require(
+                malformedMixedV2Rejected,
+                "mixed completion-aware v2 mode/task schema was accepted"
             );
 
             TreeMap<String,String> malformed=
@@ -399,8 +432,9 @@ public final class G6BloodSlayerCompletionCountTest {
                 " secondMonsterCompletionThree="+secondMonsterCompletionThree+
                 " freshWorldRestoresThree="+freshWorldRestoresThree+
                 " legacyV1LoadsZero="+legacyV1LoadsZero+
-                " modeV2LoadsZero="+modeV2LoadsZero+
+                " modeV2BossLoadsZero="+modeV2BossLoadsZero+
                 " completionV2PreservesCount="+completionV2PreservesCount+
+                " malformedMixedV2Rejected="+malformedMixedV2Rejected+
                 " malformedCountRejected="+malformedCountRejected+
                 " statusExposesCount="+statusExposesCount+
                 " pointsClaim=false"+
