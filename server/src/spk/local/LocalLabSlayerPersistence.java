@@ -5,15 +5,17 @@ import java.util.*;
 /**
  * Snapshot-extension codec for explicit LocalLab Blood Slayer PvM policy.
  *
- * v1 is the historical Monster-Hunter-only contract. v2 keeps the same
- * namespace/key set while binding persisted state to one supported PvM mode,
- * task identity and objective identity.
+ * v1 is the historical Monster-Hunter-only contract. Two hosted-green v2
+ * sibling contracts exist: mode-aware Boss/Monster state, and Monster-only
+ * completion-count state. v3 composes both while preserving exact decoding
+ * of each earlier contract.
  */
 final class LocalLabSlayerPersistence {
     static final String NAMESPACE=
         "blood-slayer-g4";
     static final String LEGACY_VERSION="1";
-    static final String VERSION="2";
+    static final String MODE_VERSION="2";
+    static final String VERSION="3";
 
     enum State {
         ACTIVE,
@@ -26,13 +28,15 @@ final class LocalLabSlayerPersistence {
         final long progress;
         final long sourceAssignedTick;
         final long sourceTransitionTick;
+        final long completions;
 
         Snapshot(
             BloodSlayerModeService.Mode mode,
             State state,
             long progress,
             long sourceAssignedTick,
-            long sourceTransitionTick
+            long sourceTransitionTick,
+            long completions
         ){
             this.mode=Objects.requireNonNull(
                 mode,
@@ -47,6 +51,12 @@ final class LocalLabSlayerPersistence {
                 sourceAssignedTick;
             this.sourceTransitionTick=
                 sourceTransitionTick;
+            if(completions<0L)
+                throw new IllegalArgumentException(
+                    "negative Blood Slayer completions="+
+                    completions
+                );
+            this.completions=completions;
         }
     }
 
@@ -156,6 +166,12 @@ final class LocalLabSlayerPersistence {
                 task.transitionTick
             )
         );
+        values.put(
+            "completion-count",
+            Long.toString(
+                status.completions
+            )
+        );
 
         return Collections.unmodifiableSortedMap(
             values
@@ -169,23 +185,62 @@ final class LocalLabSlayerPersistence {
            values.isEmpty())
             return null;
 
-        requireExactKeys(values);
-
         String version=
             cleanRequired(
                 values.get("version"),
                 "version"
             );
 
-        if(LEGACY_VERSION.equals(version))
+        if(LEGACY_VERSION.equals(version)){
+            requireExactKeys(
+                values,
+                false
+            );
             return decodeVersion(
                 values,
                 BloodSlayerModeService.Mode
                     .MONSTER_HUNTER_PVM,
                 LocalLabSlayerRuntime
                     .LEGACY_AUTHORITY,
-                LocalLabSlayerRuntime.TASK_KEY
+                LocalLabSlayerRuntime.TASK_KEY,
+                0L
             );
+        }
+
+        if(MODE_VERSION.equals(version)){
+            boolean completionSibling=
+                values.containsKey(
+                    "completion-count"
+                );
+
+            requireExactKeys(
+                values,
+                completionSibling
+            );
+
+            if(completionSibling)
+                return decodeVersion(
+                    values,
+                    BloodSlayerModeService.Mode
+                        .MONSTER_HUNTER_PVM,
+                    LocalLabSlayerRuntime
+                        .LEGACY_AUTHORITY,
+                    LocalLabSlayerRuntime.TASK_KEY,
+                    completionCount(values)
+                );
+
+            BloodSlayerModeService.Mode mode=
+                decodeMode(values);
+
+            return decodeVersion(
+                values,
+                mode,
+                LocalLabSlayerRuntime.AUTHORITY,
+                LocalLabSlayerRuntime
+                    .taskKeyFor(mode),
+                0L
+            );
+        }
 
         if(!VERSION.equals(version))
             throw invalid(
@@ -193,37 +248,21 @@ final class LocalLabSlayerPersistence {
                 values.get("version")
             );
 
-        final BloodSlayerModeService.Mode mode;
+        requireExactKeys(
+            values,
+            true
+        );
 
-        try{
-            mode=
-                BloodSlayerModeService.Mode
-                    .valueOf(
-                        cleanRequired(
-                            values.get("mode"),
-                            "mode"
-                        )
-                    );
-        }catch(RuntimeException failure){
-            throw invalid(
-                "mode",
-                values.get("mode")
-            );
-        }
-
-        if(!LocalLabSlayerRuntime
-                .supportedMode(mode))
-            throw invalid(
-                "mode",
-                values.get("mode")
-            );
+        BloodSlayerModeService.Mode mode=
+            decodeMode(values);
 
         return decodeVersion(
             values,
             mode,
             LocalLabSlayerRuntime.AUTHORITY,
             LocalLabSlayerRuntime
-                .taskKeyFor(mode)
+                .taskKeyFor(mode),
+            completionCount(values)
         );
     }
 
@@ -231,7 +270,8 @@ final class LocalLabSlayerPersistence {
         SortedMap<String,String> values,
         BloodSlayerModeService.Mode mode,
         String expectedAuthority,
-        String expectedTaskKey
+        String expectedTaskKey,
+        long completions
     ){
         if(!expectedAuthority.equals(
                 clean(values.get("authority"))))
@@ -333,7 +373,8 @@ final class LocalLabSlayerPersistence {
             state,
             progress,
             assigned,
-            transition
+            transition,
+            completions
         );
     }
 
@@ -360,7 +401,8 @@ final class LocalLabSlayerPersistence {
     }
 
     private static void requireExactKeys(
-        SortedMap<String,String> values
+        SortedMap<String,String> values,
+        boolean completionCount
     ){
         TreeSet<String> expected=
             new TreeSet<>(
@@ -377,6 +419,11 @@ final class LocalLabSlayerPersistence {
                 )
             );
 
+        if(completionCount)
+            expected.add(
+                "completion-count"
+            );
+
         if(!expected.equals(
                 new TreeSet<>(
                     values.keySet()
@@ -387,6 +434,55 @@ final class LocalLabSlayerPersistence {
                 " actual="+
                 values.keySet()
             );
+    }
+
+    private static BloodSlayerModeService.Mode decodeMode(
+        SortedMap<String,String> values
+    ){
+        final BloodSlayerModeService.Mode mode;
+
+        try{
+            mode=
+                BloodSlayerModeService.Mode
+                    .valueOf(
+                        cleanRequired(
+                            values.get("mode"),
+                            "mode"
+                        )
+                    );
+        }catch(RuntimeException failure){
+            throw invalid(
+                "mode",
+                values.get("mode")
+            );
+        }
+
+        if(!LocalLabSlayerRuntime
+                .supportedMode(mode))
+            throw invalid(
+                "mode",
+                values.get("mode")
+            );
+
+        return mode;
+    }
+
+    private static long completionCount(
+        SortedMap<String,String> values
+    ){
+        long completions=
+            parseLong(
+                values,
+                "completion-count"
+            );
+
+        if(completions<0L)
+            throw invalid(
+                "completion-count",
+                Long.toString(completions)
+            );
+
+        return completions;
     }
 
     private static long parseLong(
