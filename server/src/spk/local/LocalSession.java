@@ -777,28 +777,16 @@ final class LocalSession implements Runnable {
                             LocalSession.this.world.clock().tick()
                         );
 
-                    if(result.saveReason!=null)
-                        LocalSession.this.saveAccountQuiet(
-                            tag,
-                            result.saveReason
-                        );
-
-                    new SocialChatPresentationPublisher(
-                        writer
-                    ).serverMessage(
-                        result.clientMessage
+                    return LocalBloodSlayerUiSettlement.settle(
+                        result,
+                        reason->
+                            LocalSession.this.saveAccountQuiet(
+                                tag,
+                                reason
+                            ),
+                        writer,
+                        tag
                     );
-
-                    System.out.println(
-                        tag+
-                        "G4_BLOOD_SLAYER_UI_SETTLEMENT"+
-                        " persistenceBeforeFeedback="+
-                        (result.saveReason!=null)+
-                        " status="+
-                        result.status
-                    );
-
-                    return result;
                 }
 
                 @Override public LocalSessionUiActionHandler
