@@ -107,6 +107,9 @@ public final class G2BankFundedMerchantRegearIntegrationTest {
                 "bank coin fixture missing"
             );
 
+            int bankCoinsBefore=
+                coinStack.qty;
+
             ItemContainerAction withdrawX=
                 new ItemContainerAction(
                     135,
@@ -167,8 +170,13 @@ public final class G2BankFundedMerchantRegearIntegrationTest {
                 )&&
                 bank.inventoryCount(
                     LocalLabShopRuntime.COINS
-                )==100,
-                "exact amount-entry withdrawal did not fund inventory"
+                )==100&&
+                bank.bankAt(0)!=null&&
+                bank.bankAt(0).itemId==
+                    LocalLabShopRuntime.COINS&&
+                bank.bankAt(0).qty==
+                    bankCoinsBefore-100,
+                "exact amount-entry withdrawal did not conserve bank -> inventory coins"
             );
 
             bank.close(packets);
@@ -329,6 +337,7 @@ public final class G2BankFundedMerchantRegearIntegrationTest {
                 " amountEntry208="+
                     (amount208.metadata().opcode==208)+
                 " withdrew100Coins=true"+
+                " bankDebitExact=true"+
                 " bankCloseRetainedCoins=true"+
                 " merchantNpc410=true"+
                 " c2s17=true"+
