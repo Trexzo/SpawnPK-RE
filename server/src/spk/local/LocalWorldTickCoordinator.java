@@ -1490,10 +1490,11 @@ final class LocalWorldTickCoordinator {
             "PLAYER_DEATH_SETTLEMENT"
         );
 
-        deathCarriedPresentation
-            .captureAfterSettlement(
-                worldPlayer
-            );
+        if(settlement.lostTotalQuantity>0)
+            deathCarriedPresentation
+                .captureAfterSettlement(
+                    worldPlayer
+                );
 
         if(killRewardReceipt!=null)
             System.out.println(
@@ -1551,7 +1552,6 @@ final class LocalWorldTickCoordinator {
                 worldPlayer,
                 writer,
                 bridge::publishPlayerAppearanceSnapshot,
-                deferredRespawn!=null,
                 tag
             );
     }
@@ -1581,14 +1581,28 @@ final class LocalWorldTickCoordinator {
         PlayerLifecycleService.PreparedRespawn prepared=
             deferredRespawn;
 
-        deferredRespawn=null;
-
         if(prepared==null)
             return;
 
         settleDeferredDeathSettlementAfterWorldTick(
             tag
         );
+
+        if(deathCarriedPresentation.pending()&&
+           deathCarriedPresentation.pendingDeathSequence()==
+                prepared.deathSequence){
+            deferredRespawn=null;
+
+            System.out.println(
+                (tag==null?"":tag)+
+                "G5_DEATH_CARRIED_RESPAWN_FENCE_PENDING"+
+                " deathSequence="+
+                prepared.deathSequence
+            );
+            return;
+        }
+
+        deferredRespawn=null;
 
         lifecycle.requirePreparedRespawnCurrent(
             prepared
