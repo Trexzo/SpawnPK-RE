@@ -210,17 +210,34 @@ public final class LocalLabSlayerRuntimeTest {
                     2L
                 );
 
+            LocalLabSlayerRuntime.StatusSnapshot
+                renewedStatus=
+                    runtime.status(
+                        "opensrc"
+                    );
+
             require(
                 completedRestart.result.logText.contains(
-                    "START_EXISTING"
+                    "START_ASSIGNED"
                 )&&
-                runtime.status(
-                    "opensrc"
-                ).task.taskId.equals(
+                renewedStatus.active()&&
+                renewedStatus.task.objective.progress==0L&&
+                !renewedStatus.task.taskId.equals(
                     taskId
-                ),
-                "completed one-shot G4.1 task was silently reset"
+                )&&
+                runtime.slayer()
+                    .get(taskId)
+                    .state==
+                        SlayerTaskService.State
+                            .COMPLETED&&
+                runtime.slayer()
+                    .get(taskId)
+                    .objective.progress==1L,
+                "completed G6 task did not renew with frozen history"
             );
+
+            SlayerTaskService.TaskId renewedTaskId=
+                renewedStatus.task.taskId;
 
             Captured malformed=
                 capture(
@@ -239,8 +256,13 @@ public final class LocalLabSlayerRuntimeTest {
                 )&&
                 runtime.status(
                     "opensrc"
-                ).task.objective.progress==1L,
-                "invalid Slayer command mutated task"
+                ).task.taskId.equals(
+                    renewedTaskId
+                )&&
+                runtime.status(
+                    "opensrc"
+                ).task.objective.progress==0L,
+                "invalid Slayer command mutated renewed task"
             );
 
             Captured observerStatus=
