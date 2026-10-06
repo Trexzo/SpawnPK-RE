@@ -1,5 +1,6 @@
 package spk.local;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,8 +51,8 @@ final class World implements AutoCloseable {
             loadouts,
             G1DefaultLoadoutRegearService.POLICY_AUTHORITY
         );
-    private final LocalLabShopRuntime localLabShops=
-        new LocalLabShopRuntime();
+    private final LocalLabShopRepository localLabShopRepository;
+    private final LocalLabShopRuntime localLabShops;
     private final ContentRegistry content;
     private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
@@ -64,7 +65,8 @@ final class World implements AutoCloseable {
     private World(long tickMillis){
         this(
             tickMillis,
-            new FilePlayerRepository()
+            new FilePlayerRepository(),
+            new FileLocalLabShopRepository()
         );
     }
 
@@ -75,6 +77,19 @@ final class World implements AutoCloseable {
         this(
             tickMillis,
             repository,
+            new InMemoryLocalLabShopRepository()
+        );
+    }
+
+    private World(
+        long tickMillis,
+        PlayerRepository repository,
+        LocalLabShopRepository shopRepository
+    ){
+        this(
+            tickMillis,
+            repository,
+            shopRepository,
             (target,name)->
                 new Thread(
                     target,
@@ -87,6 +102,22 @@ final class World implements AutoCloseable {
     private World(
         long tickMillis,
         PlayerRepository repository,
+        WorldPulse.PulseThreadFactory pulseThreadFactory,
+        WorldPulse.PulseThreadStarter pulseThreadStarter
+    ){
+        this(
+            tickMillis,
+            repository,
+            new InMemoryLocalLabShopRepository(),
+            pulseThreadFactory,
+            pulseThreadStarter
+        );
+    }
+
+    private World(
+        long tickMillis,
+        PlayerRepository repository,
+        LocalLabShopRepository shopRepository,
         WorldPulse.PulseThreadFactory pulseThreadFactory,
         WorldPulse.PulseThreadStarter pulseThreadStarter
     ){
@@ -133,6 +164,29 @@ final class World implements AutoCloseable {
                 this,
                 repository
             );
+        localLabShopRepository=
+            Objects.requireNonNull(
+                shopRepository,
+                "shopRepository"
+            );
+        LocalLabShopSnapshot restoredShopState;
+
+        try{
+            restoredShopState=
+                localLabShopRepository
+                    .load()
+                    .orElse(null);
+        }catch(IOException failure){
+            throw new IllegalStateException(
+                "failed to load LocalLab Shop world state",
+                failure
+            );
+        }
+
+        localLabShops=
+            new LocalLabShopRuntime(
+                restoredShopState
+            );
         pvpRecords=
             new PvpRecordService(
                 this
@@ -177,7 +231,12 @@ final class World implements AutoCloseable {
     }
 
     static World shared(){return SHARED;}
-    static World isolatedForTest(long tickMillis){return new World(tickMillis);}
+    static World isolatedForTest(long tickMillis){
+        return new World(
+            tickMillis,
+            new FilePlayerRepository()
+        );
+    }
     static World isolatedForTest(
         long tickMillis,
         PlayerRepository repository
@@ -185,6 +244,18 @@ final class World implements AutoCloseable {
         return new World(
             tickMillis,
             repository
+        );
+    }
+
+    static World isolatedForTest(
+        long tickMillis,
+        PlayerRepository repository,
+        LocalLabShopRepository shopRepository
+    ){
+        return new World(
+            tickMillis,
+            repository,
+            shopRepository
         );
     }
 
@@ -1135,6 +1206,7 @@ final class World implements AutoCloseable {
                     commands::close,
                     realtime::close,
                     events::close,
+                    this::saveLocalLabShopState,
                     persistence::close
                 );
 
@@ -1146,6 +1218,19 @@ final class World implements AutoCloseable {
         WorldCloseSequence.rethrow(
             failure
         );
+    }
+
+    private void saveLocalLabShopState(){
+        try{
+            localLabShopRepository.save(
+                localLabShops.snapshot()
+            );
+        }catch(IOException failure){
+            throw new IllegalStateException(
+                "failed to save LocalLab Shop world state",
+                failure
+            );
+        }
     }
 
     private void awaitCloseCompleted(){
