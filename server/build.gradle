@@ -1994,6 +1994,8 @@ def currentTrainFocusedTests = [
     'spk.local.LocalLabDeathRiskDispositionPolicyTest',
     'spk.local.LocalLabPvpRegionPolicyTest',
     'spk.local.PlayerPvpLifecycleIntegrationTest',
+    'spk.local.PlayerPvpDelayedHitServiceTest',
+    'spk.local.PlayerPvpDelayedCurrentPolicyIntegrationTest',
     'spk.local.PlayerPvpDeathSettlementIntegrationTest',
     'spk.local.PlayablePkLoopIntegrationTest',
     'spk.local.PlayableBankFundedPkLoopIntegrationTest',
@@ -2077,10 +2079,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 230 ||
-    currentTrainFocusedTests.toSet().size() != 230) {
+if (currentTrainFocusedTests.size() != 232 ||
+    currentTrainFocusedTests.toSet().size() != 232) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 230 unique tests, found " +
+        "Current-train focused manifest drift: expected 232 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2108,6 +2110,32 @@ tasks.register('currentTrainFocusedRegression') {
             "GRADLE_CURRENT_TRAIN_FOCUSED_PASS count=${currentTrainFocusedTests.size()} bytecodeMajor=55"
         )
     }
+}
+
+
+tasks.register('playerPvpDelayedHitServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves delayed player-to-player hit delivery is due-tick authoritative and generation-fenced.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayerPvpDelayedHitServiceTest'
+}
+
+tasks.register('playerPvpDelayedCurrentPolicyRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves delayed PvP delivery preserves current PK-region policy and due-tick HP publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PlayerPvpDelayedCurrentPolicyIntegrationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('playerPvpDelayedHitServiceRegression')
+    dependsOn tasks.named('playerPvpDelayedCurrentPolicyRegression')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
