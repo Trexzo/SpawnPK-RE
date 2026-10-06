@@ -9,8 +9,8 @@ import java.util.Objects;
  * produced by one settled player death.
  *
  * Gameplay mutation remains outside this class. It only captures immutable
- * presentation state after settlement and clears it after exact packet commit
- * or when same-session respawn presentation supersedes it.
+ * presentation state after settlement and clears it only after exact packet
+ * commit or when the debt becomes stale against session/lifecycle identity.
  */
 final class DeathCarriedPresentationDebt {
     @FunctionalInterface
@@ -165,7 +165,6 @@ final class DeathCarriedPresentationDebt {
         WorldPlayer player,
         ServerPacketWriter writer,
         AppearancePublisher appearance,
-        boolean respawnSupersedes,
         String tag
     ){
         Objects.requireNonNull(
@@ -199,11 +198,6 @@ final class DeathCarriedPresentationDebt {
            !world.players().owns(
                 player,
                 debt.playerGeneration)){
-            clearIfSame(debt);
-            return false;
-        }
-
-        if(respawnSupersedes){
             clearIfSame(debt);
             return false;
         }
