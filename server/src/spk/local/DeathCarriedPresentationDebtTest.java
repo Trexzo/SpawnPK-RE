@@ -23,6 +23,7 @@ public final class DeathCarriedPresentationDebtTest {
         boolean abortRetainsDebt=false;
         boolean retryCommitsOnce=false;
         boolean respawnSupersedesDebt=false;
+        boolean newerDeathSupersedesDebt=false;
 
         try{
             installPreDeathState(player);
@@ -184,6 +185,44 @@ public final class DeathCarriedPresentationDebtTest {
                 pressured.queuedBytes()==
                     beforeSupersede;
 
+            DeathCarriedPresentationDebt succession=
+                new DeathCarriedPresentationDebt();
+            installSettledState(player);
+            succession.captureAfterSettlement(
+                player
+            );
+
+            new PlayerLifecycleService(
+                player,
+                "CUSTOM_LOCALLAB_G5_DEATH_CARRIED_TEST"
+            ).commitPreparedRespawn(
+                new PlayerLifecycleService(
+                    player,
+                    "CUSTOM_LOCALLAB_G5_DEATH_CARRIED_TEST"
+                ).prepareRespawn(
+                    player.lifecycle()
+                        .respawnTick()
+                )
+            );
+
+            kill(player,60L);
+            installSettledState(player);
+            succession.captureAfterSettlement(
+                player
+            );
+
+            newerDeathSupersedesDebt=
+                succession.pending()&&
+                succession.pendingDeathSequence()==
+                    player.lifecycle()
+                        .deathSequence()&&
+                succession.pendingDeathSequence()==2L;
+
+            require(
+                newerDeathSupersedesDebt,
+                "newer exact death did not supersede older presentation debt"
+            );
+
             DeathCarriedPresentationDebt stale=
                 new DeathCarriedPresentationDebt();
             installSettledState(player);
@@ -243,7 +282,8 @@ public final class DeathCarriedPresentationDebtTest {
                 appearancePublished&&
                 abortRetainsDebt&&
                 retryCommitsOnce&&
-                respawnSupersedesDebt,
+                respawnSupersedesDebt&&
+                newerDeathSupersedesDebt,
                 "G5.3 death carried presentation invariant"
             );
 
@@ -259,6 +299,7 @@ public final class DeathCarriedPresentationDebtTest {
                 " abortRetainsDebt="+abortRetainsDebt+
                 " retryCommitsOnce="+retryCommitsOnce+
                 " respawnSupersedesDebt="+respawnSupersedesDebt+
+                " newerDeathSupersedesDebt="+newerDeathSupersedesDebt+
                 " gameplayMutation=false"+
                 " originalSpawnpkPresentationClaim=false"
             );
