@@ -324,6 +324,79 @@ public final class G2ShopPurchaseServiceTest {
                 stale
             );
 
+            /*
+             * The Shop finalizer must reject an invalid RESERVED proof before
+             * it becomes COMMITTED, so callers can still cancel both sides.
+             */
+            ShopService.PurchaseSnapshot guardedPurchase=
+                shops.requestPurchase(
+                    shopId,
+                    "guarded-buyer",
+                    "item:"+ROCKTAIL,
+                    1L
+                );
+
+            AtomicTransactionService.TransactionId
+                guardedTransaction=
+                    transactions.create(
+                        "wrong-buyer",
+                        "g2-guarded-invalid",
+                        AUTHORITY
+                    );
+
+            transactions.reserve(
+                guardedTransaction,
+                Arrays.asList(
+                    new EscrowAsset(
+                        EscrowAsset.Kind.CURRENCY,
+                        "item:"+COINS,
+                        guardedPurchase.totalPrice,
+                        "wrong-buyer",
+                        AUTHORITY
+                    ),
+                    new EscrowAsset(
+                        EscrowAsset.Kind.ITEM,
+                        "item:"+ROCKTAIL,
+                        guardedPurchase.quantity,
+                        guardedPurchase.stockOwnerRef,
+                        AUTHORITY
+                    )
+                )
+            );
+
+            boolean guardedRejected=false;
+
+            try{
+                shops.commitReservedSettlement(
+                    guardedPurchase.purchaseId,
+                    guardedTransaction
+                );
+            }catch(SecurityException expected){
+                guardedRejected=true;
+            }
+
+            require(
+                guardedRejected&&
+                transactions.snapshot(
+                    guardedTransaction
+                ).state==
+                    AtomicTransactionService
+                        .TransactionState
+                        .RESERVED&&
+                shops.getPurchase(
+                    guardedPurchase.purchaseId
+                ).state==
+                    ShopService.PurchaseState.RESERVED,
+                "invalid reserved Shop proof crossed commit fence"
+            );
+
+            transactions.cancel(
+                guardedTransaction
+            );
+            shops.cancelPurchase(
+                guardedPurchase.purchaseId
+            );
+
             System.out.println(
                 "G2_SHOP_PURCHASE_PASS "+
                 "successfulPurchase=true "+
@@ -331,6 +404,8 @@ public final class G2ShopPurchaseServiceTest {
                 "itemDelivered=true "+
                 "finiteStockCommitted=true "+
                 "transactionProof=true "+
+                "reservedSettlementFence=true "+
+                "noGhostCommittedTransaction=true "+
                 "insufficientCurrencyAtomic=true "+
                 "inventoryFullAtomic=true "+
                 "deadRejected=true "+
