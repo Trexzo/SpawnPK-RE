@@ -2050,6 +2050,7 @@ def currentTrainFocusedTests = [
     'spk.local.LocalShopCommandHandlerTest',
     'spk.local.LocalSuppliesMerchantHandlerTest',
     'spk.local.LocalSuppliesMerchantRegearShopTest',
+    'spk.local.G2MerchantRegearEquipIntegrationTest',
     'spk.local.LocalLabShopWorldPersistenceTest',
     'spk.local.LocalLabShopRestockPolicyTest',
     'spk.local.BloodPoolStoreServiceTest',
@@ -2064,10 +2065,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 219 ||
-    currentTrainFocusedTests.toSet().size() != 219) {
+if (currentTrainFocusedTests.size() != 220 ||
+    currentTrainFocusedTests.toSet().size() != 220) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 219 unique tests, found " +
+        "Current-train focused manifest drift: expected 220 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
