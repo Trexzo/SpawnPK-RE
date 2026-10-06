@@ -1656,13 +1656,13 @@ public final class LocalWorldTickCoordinatorTest {
             "tickCountersOwned=true schedulerHooks=true "+
             "respawnLifecycle=true "+
             "respawnOuterAbortPreservesDead=true "+
-            "respawnPostCommitSettles=true "+            "deathPresentationBlocksRespawn="+
+            "respawnPostCommitSettles=true "+
+            "deathPresentationBlocksRespawn="+
                 deathPresentationBlocksRespawn+" "+
             "deathPresentationRetryAllowsRespawn="+
                 deathPresentationRetryAllowsRespawn+" "+
             "allKeptDeathSkipsPresentationDebt="+
                 allKeptDeathSkipsPresentationDebt+" "+
-
             "movementTailAfterCommit=true "+
             "movementAbortRestoresPreimage=true "+
             "transientMovementSave=false "+
