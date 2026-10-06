@@ -24,6 +24,7 @@ public final class PlayerPvpDelayedHitServiceTest {
             "explicitCancel=true " +
             "generationFenced=true " +
             "deathAttribution=true " +
+            "capturedKillerIdentity=true " +
             "protocolIndependent=true"
         );
     }
