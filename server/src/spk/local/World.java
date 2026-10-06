@@ -201,7 +201,7 @@ final class World implements AutoCloseable {
                 this
             );
         localLabSlayer=
-            new LocalLabSlayerRuntime();
+            new LocalLabSlayerRuntime(this);
         content=
             new ContentRegistry(this);
         content.installTrusted(
