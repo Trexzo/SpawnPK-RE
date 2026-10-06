@@ -202,29 +202,91 @@ public final class G62BloodSlayerBossHunterIntegrationTest {
                 "Boss Hunter progressed outside region 16168"
             );
 
-            LocalLabSlayerRuntime.KillCreditResult
-                bossKill=
-                    world.localLabSlayer()
-                        .recordMonsterSpawnerFinalization(
+            LocalMonsterSpawnerActivationRuntime
+                provisioned=
+                    LocalLabMonsterSpawnerProvisioning
+                        .create(world);
+
+            provisioned.service()
+                .openSession(
+                    OWNER,
+                    LocalLabMonsterSpawnerProvisioning
+                        .SESSION_AUTHORITY
+                );
+            provisioned.service()
+                .selectRow(
+                    OWNER,
+                    0
+                );
+            provisioned.service()
+                .activate(
+                    OWNER,
+                    LocalLabMonsterSpawnerProvisioning
+                        .ACTIVATION_BUDGET
+                );
+
+            MonsterSpawnerPvmRuntime.SpawnResult
+                spawned=
+                    provisioned.runtime()
+                        .spawnAndBind(
                             OWNER,
-                            LocalLabSlayerRuntime
-                                .TARGET_DEFINITION_ID,
-                            bossTile,
-                            world.clock().tick()
+                            OWNER,
+                            bossTile.x,
+                            bossTile.y,
+                            bossTile.plane
                         );
 
+            WorldNpc bossNpc=
+                spawned.spawn.combat.spawn.npc;
+
+            require(
+                bossNpc.definitionId==
+                    LocalLabMonsterSpawnerProvisioning
+                        .NPC_DEFINITION_ID&&
+                LocalLabSlayerRuntime.regionId(
+                    bossNpc.tile()
+                )==
+                    LocalLabSlayerRuntime
+                        .BOSS_REGION_ID,
+                "provisioned Boss Hunter NPC identity/region"
+            );
+
+            require(
+                world.npcLifecycle()
+                    .applyDamage(
+                        bossNpc.id,
+                        99,
+                        1L
+                    )
+                    .newlyDied,
+                "provisioned Boss Hunter lethal finalization fixture"
+            );
+
+            MonsterSpawnerPvmRuntime.FinalizeResult
+                finalized=
+                    provisioned.runtime()
+                        .finalizeIfOwned(
+                            bossNpc
+                        );
+
+            LocalLabSlayerRuntime.StatusSnapshot
+                bossCompletedStatus=
+                    world.localLabSlayer()
+                        .status(OWNER);
+
             bossRegionCompleted=
-                bossKill.progressed&&
-                bossKill.completedNow&&
-                bossKill.status.complete()&&
-                bossKill.status.task.taskId
+                finalized.status==
+                    MonsterSpawnerPvmRuntime
+                        .FinalizeStatus.FINALIZED&&
+                bossCompletedStatus.complete()&&
+                bossCompletedStatus.task.taskId
                     .equals(firstBossId)&&
-                bossKill.status.task.objective
+                bossCompletedStatus.task.objective
                     .progress==1L;
 
             require(
                 bossRegionCompleted,
-                "Boss Hunter did not complete in region 16168"
+                "canonical Boss-region finalization did not complete Boss Hunter"
             );
 
             LocalBloodSlayerUiHandler.Result selectMonster=
