@@ -12,7 +12,8 @@ import java.util.*;
 final class LocalLabSlayerPersistence {
     static final String NAMESPACE=
         "blood-slayer-g4";
-    static final String VERSION="1";
+    static final String VERSION="2";
+    static final String LEGACY_VERSION="1";
 
     enum State {
         ACTIVE,
@@ -24,12 +25,14 @@ final class LocalLabSlayerPersistence {
         final long progress;
         final long sourceAssignedTick;
         final long sourceTransitionTick;
+        final long completions;
 
         Snapshot(
             State state,
             long progress,
             long sourceAssignedTick,
-            long sourceTransitionTick
+            long sourceTransitionTick,
+            long completions
         ){
             this.state=Objects.requireNonNull(
                 state,
@@ -40,6 +43,12 @@ final class LocalLabSlayerPersistence {
                 sourceAssignedTick;
             this.sourceTransitionTick=
                 sourceTransitionTick;
+            if(completions<0L)
+                throw new IllegalArgumentException(
+                    "negative Blood Slayer completions="+
+                    completions
+                );
+            this.completions=completions;
         }
     }
 
@@ -156,6 +165,12 @@ final class LocalLabSlayerPersistence {
                 task.transitionTick
             )
         );
+        values.put(
+            "completion-count",
+            Long.toString(
+                status.completions
+            )
+        );
 
         return Collections.unmodifiableSortedMap(
             values
@@ -169,14 +184,20 @@ final class LocalLabSlayerPersistence {
            values.isEmpty())
             return null;
 
-        requireExactKeys(values);
+        String version=
+            clean(values.get("version"));
 
-        if(!VERSION.equals(
-                clean(values.get("version"))))
+        if(!VERSION.equals(version)&&
+           !LEGACY_VERSION.equals(version))
             throw invalid(
                 "version",
                 values.get("version")
             );
+
+        requireExactKeys(
+            values,
+            version
+        );
 
         if(!LocalLabSlayerRuntime.AUTHORITY.equals(
                 clean(values.get("authority"))))
@@ -238,6 +259,19 @@ final class LocalLabSlayerPersistence {
                 values,
                 "source-transition-tick"
             );
+        long completions=
+            LEGACY_VERSION.equals(version)
+                ?0L
+                :parseLong(
+                    values,
+                    "completion-count"
+                );
+
+        if(completions<0L)
+            throw invalid(
+                "completion-count",
+                Long.toString(completions)
+            );
 
         if(goal!=LocalLabSlayerRuntime
                 .OBJECTIVE_GOAL)
@@ -280,12 +314,14 @@ final class LocalLabSlayerPersistence {
             state,
             progress,
             assigned,
-            transition
+            transition,
+            completions
         );
     }
 
     private static void requireExactKeys(
-        SortedMap<String,String> values
+        SortedMap<String,String> values,
+        String version
     ){
         TreeSet<String> expected=
             new TreeSet<>(
@@ -300,6 +336,11 @@ final class LocalLabSlayerPersistence {
                     "source-assigned-tick",
                     "source-transition-tick"
                 )
+            );
+
+        if(VERSION.equals(version))
+            expected.add(
+                "completion-count"
             );
 
         if(!expected.equals(
