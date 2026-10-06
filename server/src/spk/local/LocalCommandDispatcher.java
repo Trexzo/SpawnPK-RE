@@ -68,6 +68,13 @@ final class LocalCommandDispatcher {
                 ).handle()
             );
         }
+        default LocalShopCommandHandler.Result
+            handleShopCommand(
+                String[] tokens,
+                ServerPacketWriter serverPackets
+            )throws IOException{
+            return null;
+        }
         void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
     }
 
@@ -176,6 +183,25 @@ final class LocalCommandDispatcher {
 
         String clean=clean(command);
         String[] p=tokens(clean);
+
+        LocalShopCommandHandler.Result shopCommand=
+            bridge.handleShopCommand(
+                p,
+                serverPackets
+            );
+        if(shopCommand!=null){
+            if(shopCommand.saveReason!=null)
+                bridge.saveAccount(
+                    tag,
+                    shopCommand.saveReason
+                );
+            System.out.println(
+                tag+
+                shopCommand.logText+
+                " route=EXACT_CURRENT_C2S103"
+            );
+            return true;
+        }
 
         try{
             ContentResult content=
