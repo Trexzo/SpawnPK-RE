@@ -85,28 +85,46 @@ final class PlayerDeathLootOwnerResolver {
                 "PUBLIC_UNSUPPORTED_ATTRIBUTION_CONTEXT"
             );
 
+        String capturedUsername=
+            cleanOptionalUsername(
+                attribution.attackerUsername
+            );
+
         WorldPlayer attacker=
             checkedWorld.players().byId(
                 attribution.attackerId
             );
 
-        if(attacker==null||
-           !checkedWorld.players().owns(
+        boolean current=
+            attacker!=null&&
+            checkedWorld.players().owns(
                 attacker,
                 attribution.attackerGeneration
-            ))
+            );
+
+        if(!current){
+            if(capturedUsername!=null)
+                return new Result(
+                    capturedUsername,
+                    attribution.attackerId,
+                    attribution.attackerGeneration,
+                    "KILLER_CAPTURED_IDENTITY_AFTER_DISCONNECT"
+                );
+
             return new Result(
                 null,
                 attribution.attackerId,
                 attribution.attackerGeneration,
                 "PUBLIC_STALE_ATTACKER_GENERATION"
             );
+        }
 
-        String username=
-            attacker.username();
+        String currentUsername=
+            cleanOptionalUsername(
+                attacker.username()
+            );
 
-        if(username==null||
-           username.trim().isEmpty())
+        if(currentUsername==null)
             return new Result(
                 null,
                 attribution.attackerId,
@@ -114,12 +132,38 @@ final class PlayerDeathLootOwnerResolver {
                 "PUBLIC_ATTACKER_USERNAME_UNAVAILABLE"
             );
 
+        if(capturedUsername!=null&&
+           !capturedUsername.equalsIgnoreCase(
+                currentUsername))
+            return new Result(
+                null,
+                attribution.attackerId,
+                attribution.attackerGeneration,
+                "PUBLIC_ATTACKER_IDENTITY_MISMATCH"
+            );
+
         return new Result(
-            username,
+            capturedUsername==null
+                ?currentUsername
+                :capturedUsername,
             attribution.attackerId,
             attribution.attackerGeneration,
-            "KILLER_CURRENT_GENERATION"
+            capturedUsername==null
+                ?"KILLER_CURRENT_GENERATION"
+                :"KILLER_CURRENT_CAPTURED_IDENTITY"
         );
+    }
+
+    private static String cleanOptionalUsername(
+        String value
+    ){
+        if(value==null)
+            return null;
+
+        String clean=value.trim();
+        return clean.isEmpty()
+            ?null
+            :clean;
     }
 
     private static Result publicResult(
