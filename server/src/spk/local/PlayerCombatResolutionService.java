@@ -43,6 +43,69 @@ final class PlayerCombatResolutionService {
         }
     }
 
+    enum Delivery {
+        IMMEDIATE,
+        SCHEDULED
+    }
+
+    static final class AttackResolution {
+        final CombatDamageRules.Result damage;
+        final CombatAttackTimingRules.Result timing;
+        final CombatSystemHooks.Snapshot hooks;
+        final Delivery delivery;
+        final PlayerLifecycleService.DamageResult lifecycle;
+        final PlayerPvpDelayedHitService.Snapshot scheduledHit;
+        final int nextAttackDelayTicks;
+
+        AttackResolution(
+            CombatDamageRules.Result damage,
+            CombatAttackTimingRules.Result timing,
+            CombatSystemHooks.Snapshot hooks,
+            Delivery delivery,
+            PlayerLifecycleService.DamageResult lifecycle,
+            PlayerPvpDelayedHitService.Snapshot scheduledHit,
+            int nextAttackDelayTicks
+        ){
+            this.damage=Objects.requireNonNull(damage,"damage");
+            this.timing=Objects.requireNonNull(timing,"timing");
+            this.hooks=Objects.requireNonNull(hooks,"hooks");
+            this.delivery=Objects.requireNonNull(delivery,"delivery");
+
+            if(delivery==Delivery.IMMEDIATE){
+                this.lifecycle=
+                    Objects.requireNonNull(
+                        lifecycle,
+                        "lifecycle"
+                    );
+                if(scheduledHit!=null)
+                    throw new IllegalArgumentException(
+                        "IMMEDIATE resolution cannot carry scheduledHit"
+                    );
+                this.scheduledHit=null;
+            }else{
+                if(lifecycle!=null)
+                    throw new IllegalArgumentException(
+                        "SCHEDULED resolution cannot carry lifecycle"
+                    );
+                this.lifecycle=null;
+                this.scheduledHit=
+                    Objects.requireNonNull(
+                        scheduledHit,
+                        "scheduledHit"
+                    );
+            }
+
+            if(nextAttackDelayTicks<=0)
+                throw new IllegalArgumentException(
+                    "nextAttackDelayTicks="+
+                    nextAttackDelayTicks
+                );
+
+            this.nextAttackDelayTicks=
+                nextAttackDelayTicks;
+        }
+    }
+
     static final class StaleAttackerOwnershipException
         extends IllegalStateException {
 
@@ -152,6 +215,10 @@ final class PlayerCombatResolutionService {
         return damageRules.formula();
     }
 
+    CombatOutcomeObserver outcomeObserver(){
+        return this::publishOutcome;
+    }
+
     Result resolveImmediate(
         WorldPlayer target,
         int weaponId,
@@ -166,6 +233,10 @@ final class PlayerCombatResolutionService {
                 style,
                 worldTick
             );
+
+        requireImmediateTiming(
+            prepared.timing
+        );
 
         PlayerLifecycleService.DamageResult lifecycle=
             applyDamage(
@@ -241,6 +312,10 @@ final class PlayerCombatResolutionService {
                 worldTick
             );
 
+        requireImmediateTiming(
+            prepared.timing
+        );
+
         final PlayerLifecycleService.DamageResult[] lifecycle=
             new PlayerLifecycleService.DamageResult[1];
 
@@ -307,6 +382,188 @@ final class PlayerCombatResolutionService {
         );
     }
 
+    AttackResolution resolveOwned(
+        World world,
+        long expectedAttackerGeneration,
+        WorldPlayer target,
+        long expectedTargetGeneration,
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick,
+        PlayerPvpDelayedHitService delayedHits
+    )throws Exception{
+        World checkedWorld=
+            Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedTarget=
+            Objects.requireNonNull(
+                target,
+                "target"
+            );
+        PlayerPvpDelayedHitService checkedDelayedHits=
+            Objects.requireNonNull(
+                delayedHits,
+                "delayedHits"
+            );
+
+        if(worldTick<0L)
+            throw new IllegalArgumentException(
+                "worldTick="+
+                worldTick
+            );
+
+        if(!checkedDelayedHits.isBoundTo(
+                checkedWorld
+            ))
+            throw new IllegalArgumentException(
+                "delayedHits must be bound to resolver World"
+            );
+
+        if(!checkedWorld.players().owns(
+                owner,
+                expectedAttackerGeneration
+            ))
+            throw new StaleAttackerOwnershipException(
+                owner,
+                expectedAttackerGeneration,
+                null
+            );
+
+        if(!checkedWorld.players().owns(
+                checkedTarget,
+                expectedTargetGeneration
+            ))
+            throw new StaleTargetOwnershipException(
+                checkedTarget,
+                expectedTargetGeneration,
+                null
+            );
+
+        Prepared prepared=
+            prepare(
+                weaponId,
+                style,
+                worldTick
+            );
+
+        int cadence=
+            nextAttackDelayTicks(
+                prepared.timing
+            );
+
+        if(prepared.timing.hitDelayTicks==0){
+            final PlayerLifecycleService.DamageResult[]
+                lifecycle=
+                    new PlayerLifecycleService.DamageResult[1];
+
+            try{
+                checkedWorld.withOpenPlayerOwnership(
+                    owner,
+                    expectedAttackerGeneration,
+                    ()->checkedWorld.withOpenPlayerOwnership(
+                        checkedTarget,
+                        expectedTargetGeneration,
+                        ()->{
+                            PlayerLifecycleService.DamageResult applied=
+                                applyDamage(
+                                    checkedTarget,
+                                    weaponId,
+                                    worldTick,
+                                    prepared
+                                );
+
+                            lifecycle[0]=applied;
+
+                            if(applied.died&&
+                               !applied.ignoredDead)
+                                checkedTarget.lifecycle()
+                                    .attributeCurrentDeath(
+                                        checkedTarget.lifecycle()
+                                            .deathSequence(),
+                                        owner.id(),
+                                        expectedAttackerGeneration,
+                                        "PLAYER_PVP"
+                                    );
+                        }
+                    )
+                );
+            }catch(IllegalStateException error){
+                if(!checkedWorld.players().owns(
+                        owner,
+                        expectedAttackerGeneration
+                    ))
+                    throw new StaleAttackerOwnershipException(
+                        owner,
+                        expectedAttackerGeneration,
+                        error
+                    );
+
+                if(!checkedWorld.players().owns(
+                        checkedTarget,
+                        expectedTargetGeneration
+                    ))
+                    throw new StaleTargetOwnershipException(
+                        checkedTarget,
+                        expectedTargetGeneration,
+                        error
+                    );
+
+                throw error;
+            }
+
+            Result immediate=
+                finish(
+                    checkedTarget,
+                    worldTick,
+                    prepared,
+                    lifecycle[0]
+                );
+
+            return new AttackResolution(
+                immediate.damage,
+                immediate.timing,
+                immediate.hooks,
+                Delivery.IMMEDIATE,
+                immediate.lifecycle,
+                null,
+                immediate.nextAttackDelayTicks
+            );
+        }
+
+        if(worldTick!=checkedWorld.clock().tick())
+            throw new IllegalStateException(
+                "delayed PvP resolution requires shared world clock tick expected="+
+                checkedWorld.clock().tick()+
+                " actual="+
+                worldTick
+            );
+
+        PlayerPvpDelayedHitService.Snapshot scheduled=
+            checkedDelayedHits.scheduleAtExpectedTick(
+                owner,
+                expectedAttackerGeneration,
+                checkedTarget,
+                expectedTargetGeneration,
+                prepared.damage.damage,
+                prepared.timing.hitDelayTicks,
+                prepared.damage.authority,
+                prepared.damage.formula,
+                worldTick
+            );
+
+        return new AttackResolution(
+            prepared.damage,
+            prepared.timing,
+            prepared.hooks,
+            Delivery.SCHEDULED,
+            null,
+            scheduled,
+            cadence
+        );
+    }
+
     private Prepared prepare(
         int weaponId,
         CombatStyleRepository.Style style,
@@ -325,14 +582,6 @@ final class PlayerCombatResolutionService {
                     runtime
                 )
             );
-
-        if(timing.hitDelayTicks!=0){
-            throw new IllegalStateException(
-                "PvP delayed-hit scheduler not yet wired hitDelayTicks="+
-                timing.hitDelayTicks+
-                " authority="+timing.hitDelayAuthority
-            );
-        }
 
         CombatSystemHooks.Snapshot snapshot=
             hooks.beforeDamage(
@@ -355,6 +604,31 @@ final class PlayerCombatResolutionService {
             damage,
             timing,
             snapshot
+        );
+    }
+
+    private static void requireImmediateTiming(
+        CombatAttackTimingRules.Result timing
+    ){
+        if(timing.hitDelayTicks!=0)
+            throw new IllegalStateException(
+                "PvP immediate resolver requires hitDelayTicks=0 actual="+
+                timing.hitDelayTicks+
+                " authority="+timing.hitDelayAuthority
+            );
+    }
+
+    private static int nextAttackDelayTicks(
+        CombatAttackTimingRules.Result timing
+    ){
+        int delay=
+            timing.attackSpeedTicks>0
+                ?timing.attackSpeedTicks
+                :4;
+
+        return Math.max(
+            1,
+            delay
         );
     }
 
@@ -403,17 +677,14 @@ final class PlayerCombatResolutionService {
             );
         }
 
-        int delay=
-            prepared.timing.attackSpeedTicks>0
-                ?prepared.timing.attackSpeedTicks
-                :4;
-
         return new Result(
             prepared.damage,
             prepared.timing,
             prepared.hooks,
             lifecycle,
-            Math.max(1,delay)
+            nextAttackDelayTicks(
+                prepared.timing
+            )
         );
     }
 
