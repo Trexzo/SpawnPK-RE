@@ -57,6 +57,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openBloodSlayer(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default RootReplacingCommandDispatch
             handleRootReplacingCommand(
                 RootReplacingCommandAction action
@@ -234,10 +239,21 @@ final class LocalCommandDispatcher {
                     slayerCommand.saveReason
                 );
 
+            boolean rootOpened=false;
+
+            if(slayerCommand.openRoot)
+                rootOpened=
+                    bridge.openBloodSlayer(
+                        serverPackets
+                    );
+
             new SocialChatPresentationPublisher(
                 serverPackets
             ).serverMessage(
-                slayerCommand.clientMessage
+                slayerCommand.openRoot&&
+                    !rootOpened
+                    ?"Blood Slayer interface unavailable."
+                    :slayerCommand.clientMessage
             );
 
             System.out.println(
@@ -245,6 +261,10 @@ final class LocalCommandDispatcher {
                 slayerCommand.logText+
                 " clientFeedback=true"+
                 " route=EXACT_CURRENT_C2S103"+
+                " rootRequested="+
+                slayerCommand.openRoot+
+                " rootOpened="+
+                rootOpened+
                 " persistenceBeforeFeedback="+
                 (slayerCommand.saveReason!=null)
             );
