@@ -824,7 +824,14 @@ final class LocalLabSlayerRuntime {
         long completionsBefore=
             completionCount(player);
 
-        if(completionsBefore==Long.MAX_VALUE)
+        boolean completesOnThisCredit=
+            active.objective!=null&&
+            !active.objective.complete&&
+            active.objective.goal-
+                active.objective.progress<=1L;
+
+        if(completesOnThisCredit&&
+           completionsBefore==Long.MAX_VALUE)
             throw new IllegalStateException(
                 "Blood Slayer completion count exhausted player="+
                 player
