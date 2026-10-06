@@ -74,6 +74,13 @@ final class LocalCommandDispatcher {
             )throws IOException{
             return null;
         }
+        default LocalSlayerCommandHandler.Result
+            handleSlayerCommand(
+                String[] tokens,
+                long worldTick
+            )throws IOException{
+            return null;
+        }
         void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
     }
 
@@ -211,6 +218,28 @@ final class LocalCommandDispatcher {
                 " clientFeedback=true"+
                 " persistenceBeforeFeedback=true"+
                 " route=EXACT_CURRENT_C2S103"
+            );
+            return true;
+        }
+
+        LocalSlayerCommandHandler.Result slayerCommand=
+            bridge.handleSlayerCommand(
+                p,
+                sessionWorldTick
+            );
+        if(slayerCommand!=null){
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                slayerCommand.clientMessage
+            );
+
+            System.out.println(
+                tag+
+                slayerCommand.logText+
+                " clientFeedback=true"+
+                " route=EXACT_CURRENT_C2S103"+
+                " persistenceClaim=false"
             );
             return true;
         }

@@ -21,6 +21,22 @@ public final class G3BossDestinationPvmIntegrationTest {
                 OWNER
             );
 
+        LocalLabSlayerRuntime.StartResult
+            slayerStart=
+                world.localLabSlayer()
+                    .startMonsterHunter(
+                        OWNER,
+                        world.clock().tick()
+                    );
+
+        require(
+            slayerStart.created&&
+            slayerStart.status.active()&&
+            slayerStart.status.task.objective.progress==0L&&
+            slayerStart.status.task.objective.goal==1L,
+            "G4.1 Blood Slayer task did not arm before Boss PvM"
+        );
+
         LocalMonsterSpawnerActivationRuntime activation=
             LocalLabMonsterSpawnerProvisioning
                 .create(
@@ -497,6 +513,20 @@ public final class G3BossDestinationPvmIntegrationTest {
                 "Boss-destination kill did not advance PvM record"
             );
 
+            LocalLabSlayerRuntime.StatusSnapshot
+                slayerAfterKill=
+                    world.localLabSlayer()
+                        .status(
+                            OWNER
+                        );
+
+            require(
+                slayerAfterKill.complete()&&
+                slayerAfterKill.task.objective.progress==1L&&
+                slayerAfterKill.task.objective.goal==1L,
+                "canonical Boss-destination finalization did not complete G4.1 Blood Slayer"
+            );
+
             String pickupMove=
                 player.movement()
                     .accept(
@@ -682,6 +712,7 @@ public final class G3BossDestinationPvmIntegrationTest {
                 " ownerDrop=true"+
                 " groundTake=true"+
                 " pvmProgression=true"+
+                " bloodSlayerMonsterHunter=true"+
                 " scheduledRespawn=true"+
                 " freshWorldPersistence=true"+
                 " vetionNpcClaim=false"+

@@ -192,6 +192,7 @@ final class LocalSession implements Runnable {
     private final LocalDialogNumberKeyState dialogNumberKeys = new LocalDialogNumberKeyState();
     private final LocalDevPanelCoordinator devPanelCoordinator;
     private final LocalShopCommandHandler shopCommands;
+    private final LocalSlayerCommandHandler slayerCommands;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
@@ -539,6 +540,11 @@ final class LocalSession implements Runnable {
                 this.worldPlayer,
                 this.world.localLabShops()
             );
+        this.slayerCommands =
+            new LocalSlayerCommandHandler(
+                this.worldPlayer,
+                this.world.localLabSlayer()
+            );
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
             diagnosticCommands,
@@ -657,6 +663,17 @@ final class LocalSession implements Runnable {
                     ){
                     return LocalSession.this.shopCommands.handle(
                         tokens
+                    );
+                }
+
+                @Override public LocalSlayerCommandHandler.Result
+                    handleSlayerCommand(
+                        String[] tokens,
+                        long worldTick
+                    ){
+                    return LocalSession.this.slayerCommands.handle(
+                        tokens,
+                        worldTick
                     );
                 }
 

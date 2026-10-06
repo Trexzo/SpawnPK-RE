@@ -189,7 +189,46 @@ final class LocalLabMonsterSpawnerProvisioning {
             );
 
         runtime.installTerminalObserver(
-            loop::onFinalized
+            result->{
+                /*
+                 * G1 owns canonical finalization/record/respawn first. G4.1
+                 * consumes only the already-finalized death and cannot create
+                 * kill authority for a stale/unregistered recipient.
+                 */
+                loop.onFinalized(result);
+
+                if(result.status!=
+                        MonsterSpawnerPvmRuntime
+                            .FinalizeStatus.FINALIZED||
+                   result.finalization==null)
+                    return;
+
+                MonsterSpawnerNpcDeathFinalizationService.Result
+                    finalization=result.finalization;
+
+                WorldPlayer recipient=
+                    checkedWorld.players().byName(
+                        finalization.recipientRef
+                    );
+
+                if(recipient==null)
+                    return;
+
+                long generation=
+                    recipient.generation();
+
+                if(!checkedWorld.players().owns(
+                        recipient,
+                        generation))
+                    return;
+
+                checkedWorld.localLabSlayer()
+                    .recordMonsterSpawnerKill(
+                        finalization.recipientRef,
+                        finalization.definitionId,
+                        finalization.deathTick
+                    );
+            }
         );
 
         return new LocalMonsterSpawnerActivationRuntime(
