@@ -402,14 +402,40 @@ public final class G3BossDestinationPvmIntegrationTest {
                 "Boss-destination kill did not advance PvM record"
             );
 
-            player.movement()
-                .restoreAccountState(
-                    false,
-                    100,
-                    drop.tile.x,
-                    drop.tile.y,
-                    drop.tile.plane
-                );
+            String pickupMove=
+                player.movement()
+                    .accept(
+                        new MovementRequest(
+                            164,
+                            false,
+                            new int[]{drop.tile.x},
+                            new int[]{drop.tile.y},
+                            new byte[0]
+                        )
+                    );
+
+            require(
+                pickupMove.startsWith("ACCEPTED"),
+                "Boss-destination movement to owner drop rejected "+
+                    pickupMove
+            );
+
+            MovementState.Tick pickupStep=
+                player.movement()
+                    .advance();
+
+            require(
+                pickupStep!=null&&
+                player.movement().x()==
+                    drop.tile.x&&
+                player.movement().y()==
+                    drop.tile.y&&
+                player.movement().plane()==
+                    drop.tile.plane&&
+                player.movement()
+                    .transientRegion(),
+                "Boss-destination movement did not retain transient loaded window"
+            );
 
             LocalGroundItemInteractionHandler
                 ground=
