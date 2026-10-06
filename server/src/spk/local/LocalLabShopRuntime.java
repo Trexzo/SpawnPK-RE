@@ -1,0 +1,62 @@
+package spk.local;
+
+import java.util.Collections;
+
+/** World-owned explicit LocalLab supplies economy. */
+final class LocalLabShopRuntime {
+    static final String AUTHORITY="CUSTOM_LOCALLAB_G2_LIVE_SHOP_V1";
+    static final int COINS=995;
+    static final int ROCKTAIL=15272;
+    static final long ROCKTAIL_BUY_PRICE=10L;
+    static final long ROCKTAIL_SELL_PRICE=4L;
+    static final long INITIAL_ROCKTAIL_STOCK=100L;
+    static final ShopService.ShopId SUPPLIES=
+        ShopService.ShopId.of("shop:locallab-supplies");
+
+    private final AtomicTransactionService transactions=
+        new AtomicTransactionService();
+    private final ShopService shops=
+        new ShopService(transactions);
+    private final ShopSellbackService sellbacks=
+        new ShopSellbackService(shops);
+
+    LocalLabShopRuntime(){
+        AtomicTransactionService.SourceAuthority authority=
+            AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB;
+
+        shops.register(new ShopService.ShopDefinition(
+            SUPPLIES,
+            "LocalLab Supplies",
+            "shop-owner:locallab-supplies",
+            Collections.singletonList(
+                ShopService.Offer.finite(
+                    "item:"+ROCKTAIL,
+                    "item:"+COINS,
+                    ROCKTAIL_BUY_PRICE,
+                    INITIAL_ROCKTAIL_STOCK
+                )
+            ),
+            authority
+        ));
+
+        sellbacks.register(new ShopSellbackService.BuybackDefinition(
+            SUPPLIES,
+            "item:"+ROCKTAIL,
+            "item:"+COINS,
+            ROCKTAIL_SELL_PRICE,
+            authority
+        ));
+    }
+
+    ShopService shops(){return shops;}
+    ShopSellbackService sellbacks(){return sellbacks;}
+    AtomicTransactionService transactions(){return transactions;}
+
+    long rocktailStock(){
+        ShopService.OfferSnapshot offer=
+            shops.getShop(SUPPLIES).offer("item:"+ROCKTAIL);
+        if(offer==null||!offer.availableStock.isPresent())
+            throw new IllegalStateException("LocalLab supplies finite stock missing");
+        return offer.availableStock.getAsLong();
+    }
+}
