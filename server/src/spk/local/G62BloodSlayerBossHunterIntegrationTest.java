@@ -532,7 +532,7 @@ public final class G62BloodSlayerBossHunterIntegrationTest {
                 LocalLabSlayerPersistence
                     .decode(legacy);
 
-        legacyV1Readable=
+        require(
             legacyDecoded!=null&&
             legacyDecoded.mode==
                 BloodSlayerModeService.Mode
@@ -540,11 +540,67 @@ public final class G62BloodSlayerBossHunterIntegrationTest {
             legacyDecoded.state==
                 LocalLabSlayerPersistence.State
                     .ACTIVE&&
-            legacyDecoded.progress==0L;
+            legacyDecoded.progress==0L,
+            "legacy v1 Monster Hunter codec decode"
+        );
+
+        final String legacyOwner=
+            "g62-legacy-monster";
+        WorldPlayer legacySeed=
+            new WorldPlayer();
+        legacySeed.snapshotExtensions()
+            .replaceNamespace(
+                LocalLabSlayerPersistence
+                    .NAMESPACE,
+                legacy
+            );
+        repository.save(
+            PlayerSnapshotCodec.capture(
+                legacyOwner,
+                legacySeed
+            )
+        );
+
+        World legacyWorld=
+            World.isolatedForTest(
+                60_000L,
+                repository
+            );
+
+        try{
+            loadAndRegister(
+                legacyWorld,
+                repository,
+                legacyOwner
+            );
+
+            LocalLabSlayerRuntime.StatusSnapshot
+                legacyStatus=
+                    legacyWorld.localLabSlayer()
+                        .status(
+                            legacyOwner
+                        );
+
+            legacyV1Readable=
+                legacyStatus.persistenceValid()&&
+                legacyStatus.active()&&
+                legacyStatus.selectedMode==
+                    BloodSlayerModeService.Mode
+                        .MONSTER_HUNTER_PVM&&
+                LocalLabSlayerRuntime.TASK_KEY
+                    .equals(
+                        legacyStatus.task.definition
+                            .taskKey
+                    )&&
+                legacyStatus.task.objective
+                    .progress==0L;
+        }finally{
+            legacyWorld.close();
+        }
 
         require(
             legacyV1Readable,
-            "legacy v1 Monster Hunter persistence unreadable"
+            "legacy v1 Monster Hunter fresh-World restore failed"
         );
 
         TreeMap<String,String> malformed=
