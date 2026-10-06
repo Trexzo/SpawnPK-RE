@@ -177,6 +177,10 @@ final class G2ShopPurchaseService {
             );
     }
 
+    ShopService shops(){
+        return shops;
+    }
+
     Result purchase(
         ShopService.ShopId shopId,
         String itemRef,
