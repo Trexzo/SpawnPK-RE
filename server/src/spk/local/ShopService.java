@@ -1198,6 +1198,75 @@ final class ShopService {
         return true;
     }
 
+    synchronized void preflightIncomingStockSettlement(
+        ShopId shopId,
+        String itemRef,
+        String reservationRef,
+        AtomicTransactionService.TransactionId transactionId,
+        String useKey
+    ){
+        OfferState offer=
+            requireOffer(
+                requireShop(shopId),
+                itemRef
+            );
+
+        AtomicTransactionService.TransactionId id=
+            Objects.requireNonNull(
+                transactionId,
+                "transactionId"
+            );
+        String key=
+            requireText(
+                useKey,
+                "useKey"
+            );
+
+        String existingUse=
+            settlementUses.get(id);
+
+        if(existingUse!=null&&
+           !existingUse.equals(key))
+            throw new IllegalStateException(
+                "settlement transaction already used by "+
+                existingUse
+            );
+
+        if(offer.offer.stockMode==
+                StockMode.UNLIMITED)
+            return;
+
+        String ref=
+            requireText(
+                reservationRef,
+                "reservationRef"
+            );
+
+        Long quantity=
+            offer.incomingReservations.get(
+                ref
+            );
+
+        if(quantity==null)
+            throw new IllegalStateException(
+                "unknown incoming stock reservation "+
+                ref
+            );
+
+        try{
+            Math.addExact(
+                offer.availableStock,
+                quantity.longValue()
+            );
+        }catch(ArithmeticException overflow){
+            throw new IllegalStateException(
+                "committed Shop stock overflow item="+
+                offer.offer.itemRef,
+                overflow
+            );
+        }
+    }
+
     synchronized void commitIncomingStockSettlement(
         ShopId shopId,
         String itemRef,

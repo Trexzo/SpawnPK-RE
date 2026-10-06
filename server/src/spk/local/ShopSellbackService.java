@@ -402,6 +402,153 @@ final class ShopSellbackService {
         return sale.snapshot();
     }
 
+    /**
+     * Finalize one caller-owned RESERVED transaction for a reserved sale.
+     *
+     * The sale's external-operation fence prevents its incoming stock
+     * reservation from being cancelled through ShopSellbackService while
+     * validation/commit is in progress. Incoming stock capacity and
+     * transaction-use identity are preflighted before the transaction becomes
+     * final.
+     */
+    SaleSnapshot commitReservedSettlement(
+        SaleId saleId,
+        AtomicTransactionService.TransactionId
+            transactionId
+    ){
+        final Sale live;
+        final AtomicTransactionService.TransactionId
+            requested=
+                Objects.requireNonNull(
+                    transactionId,
+                    "transactionId"
+                );
+        final String useKey;
+
+        synchronized(this){
+            live=requireSale(saleId);
+
+            if(live.externalOperationInFlight)
+                throw new IllegalStateException(
+                    "Shop sale external operation already in flight "+
+                    live.id
+                );
+
+            if(live.state==SaleState.CANCELLED)
+                throw new IllegalStateException(
+                    "cannot settle cancelled sale "+
+                    live.id
+                );
+
+            if(live.state==SaleState.SETTLED){
+                if(!requested.equals(
+                        live.settlementTransactionId))
+                    throw new IllegalStateException(
+                        "sale already settled with "+
+                        live.settlementTransactionId
+                    );
+
+                return live.snapshot();
+            }
+
+            if(live.state!=SaleState.RESERVED)
+                throw new IllegalStateException(
+                    "Shop sale settlement invalid from "+
+                    live.state+
+                    " for "+
+                    live.id
+                );
+
+            live.externalOperationInFlight=true;
+            useKey="sale:"+live.id.value();
+        }
+
+        AtomicTransactionService.Snapshot settlement=null;
+        RuntimeException failure=null;
+
+        try{
+            AtomicTransactionService.Snapshot reserved=
+                transactions.snapshot(
+                    requested
+                );
+
+            verifyReservedSettlement(
+                live,
+                reserved
+            );
+
+            shops.preflightIncomingStockSettlement(
+                live.definition.shopId,
+                live.definition.itemRef,
+                live.stockReservationRef,
+                requested,
+                useKey
+            );
+
+            settlement=
+                transactions.commit(
+                    requested
+                );
+
+            verifySettlement(
+                live,
+                settlement
+            );
+
+            shops.commitIncomingStockSettlement(
+                live.definition.shopId,
+                live.definition.itemRef,
+                live.stockReservationRef,
+                settlement.transactionId,
+                useKey
+            );
+        }catch(RuntimeException error){
+            failure=error;
+        }
+
+        final SaleSnapshot result;
+
+        synchronized(this){
+            Sale current=
+                requireSale(
+                    live.id
+                );
+
+            if(current!=live)
+                throw new IllegalStateException(
+                    "Shop sale identity changed "+
+                    live.id
+                );
+
+            try{
+                if(failure==null){
+                    if(current.state!=
+                            SaleState.RESERVED)
+                        throw new IllegalStateException(
+                            "Shop sale settlement invalid from "+
+                            current.state+
+                            " for "+
+                            current.id
+                        );
+
+                    current.settlementTransactionId=
+                        settlement.transactionId;
+                    current.state=
+                        SaleState.SETTLED;
+                }
+
+                result=current.snapshot();
+            }finally{
+                current.externalOperationInFlight=false;
+            }
+        }
+
+        if(failure!=null)
+            throw failure;
+
+        return result;
+    }
+
     SaleSnapshot confirmSettlement(
         SaleId saleId,
         AtomicTransactionService.TransactionId
@@ -634,6 +781,10 @@ final class ShopSellbackService {
         return definitions.size();
     }
 
+    AtomicTransactionService transactions(){
+        return transactions;
+    }
+
     synchronized List<SaleSnapshot> snapshot(){
         ArrayList<Sale> ordered=
             new ArrayList<>(
@@ -676,12 +827,38 @@ final class ShopSellbackService {
         Sale sale,
         AtomicTransactionService.Snapshot settlement
     ){
-        if(settlement.state!=
-                AtomicTransactionService
-                    .TransactionState
-                    .COMMITTED)
+        verifySettlementState(
+            sale,
+            settlement,
+            AtomicTransactionService
+                .TransactionState
+                .COMMITTED
+        );
+    }
+
+    private static void verifyReservedSettlement(
+        Sale sale,
+        AtomicTransactionService.Snapshot settlement
+    ){
+        verifySettlementState(
+            sale,
+            settlement,
+            AtomicTransactionService
+                .TransactionState
+                .RESERVED
+        );
+    }
+
+    private static void verifySettlementState(
+        Sale sale,
+        AtomicTransactionService.Snapshot settlement,
+        AtomicTransactionService.TransactionState requiredState
+    ){
+        if(settlement.state!=requiredState)
             throw new IllegalArgumentException(
-                "sellback settlement must be COMMITTED state="+
+                "sellback settlement must be "+
+                requiredState+
+                " state="+
                 settlement.state
             );
 
