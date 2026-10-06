@@ -1,14 +1,15 @@
 package spk.local;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
 /**
  * Explicit LocalLab command access to the world-owned G2 Shop economy.
  *
- * Native exact-v308 Shop widget identity remains unproven; this adapter uses
- * only the already-exact opcode-103 command path and exact S2C253 feedback.
+ * Native exact-v308 Shop widget identity remains unproven. This adapter owns
+ * only semantic command parsing + canonical Shop mutation. Exact S2C253
+ * presentation stays at the command/session boundary so successful state can
+ * request persistence before advisory feedback is written.
  */
 final class LocalShopCommandHandler {
     static final String AUTHORITY=LocalLabShopRuntime.AUTHORITY;
@@ -18,10 +19,17 @@ final class LocalShopCommandHandler {
     static final class Result {
         final String logText;
         final String saveReason;
+        final String clientMessage;
 
-        Result(String logText,String saveReason){
-            this.logText=logText;
+        Result(
+            String logText,
+            String saveReason,
+            String clientMessage
+        ){
+            this.logText=Objects.requireNonNull(logText,"logText");
             this.saveReason=saveReason;
+            this.clientMessage=
+                Objects.requireNonNull(clientMessage,"clientMessage");
         }
     }
 
@@ -47,63 +55,64 @@ final class LocalShopCommandHandler {
         );
     }
 
-    Result handle(
-        String[] p,
-        ServerPacketWriter packets
-    )throws IOException{
+    Result handle(String[] p){
         if(p==null||p.length==0||!p[0].equalsIgnoreCase("shop"))
             return null;
 
-        SocialChatPresentationPublisher chat=
-            new SocialChatPresentationPublisher(
-                Objects.requireNonNull(packets,"packets")
-            );
-
-        if(p.length==1||p[1].equalsIgnoreCase("stock")){
-            String message=
-                "LocalLab Supplies: Rocktail x"+
-                runtime.rocktailStock()+
+        if(p.length==1||
+           (p.length==2&&p[1].equalsIgnoreCase("stock"))){
+            long stock=runtime.rocktailStock();
+            return new Result(
+                "G2_LIVE_SHOP_COMMAND action=STOCK stock="+stock+
+                " clientFeedbackPrepared=true authority="+AUTHORITY,
+                null,
+                "LocalLab Supplies: Rocktail x"+stock+
                 " | buy="+LocalLabShopRuntime.ROCKTAIL_BUY_PRICE+
                 " coins | sell="+LocalLabShopRuntime.ROCKTAIL_SELL_PRICE+
-                " coins | ::shop buy rocktail <qty> / ::shop sell rocktail <qty>";
-            chat.serverMessage(message);
-            return new Result(
-                "G2_LIVE_SHOP_COMMAND action=STOCK stock="+
-                runtime.rocktailStock()+
-                " clientFeedback=true authority="+AUTHORITY,
-                null
+                " coins | ::shop buy rocktail <qty> / ::shop sell rocktail <qty>"
             );
         }
 
-        if(p.length<3){
-            chat.serverMessage(
-                "Usage: ::shop buy rocktail <qty> or ::shop sell rocktail <qty>"
-            );
+        /*
+         * Only the exact LocalLab grammar is admitted. In particular, never
+         * silently ignore trailing tokens: malformed input must be mutation-free.
+         */
+        if(p.length<3||p.length>4){
             return new Result(
                 "G2_LIVE_SHOP_COMMAND result=REJECTED_SYNTAX stateMutation=false authority="+
                 AUTHORITY,
-                null
+                null,
+                "Usage: ::shop buy rocktail <qty> or ::shop sell rocktail <qty>"
             );
         }
 
         String verb=p[1].toLowerCase(Locale.ROOT);
+        if(!"buy".equals(verb)&&!"sell".equals(verb)){
+            return new Result(
+                "G2_LIVE_SHOP_COMMAND result=REJECTED_VERB verb="+verb+
+                " stateMutation=false authority="+AUTHORITY,
+                null,
+                "Usage: ::shop buy rocktail <qty> or ::shop sell rocktail <qty>"
+            );
+        }
+
         if(!isRocktail(p[2])){
-            chat.serverMessage("LocalLab Supplies currently sells Rocktail only.");
             return new Result(
                 "G2_LIVE_SHOP_COMMAND result=REJECTED_ITEM item="+
                 p[2]+
                 " stateMutation=false authority="+AUTHORITY,
-                null
+                null,
+                "LocalLab Supplies currently sells Rocktail only."
             );
         }
 
-        long quantity=parseQuantity(p.length>=4?p[3]:"1");
+        long quantity=parseQuantity(p.length==4?p[3]:"1");
         if(quantity<=0L){
-            chat.serverMessage("Quantity must be between 1 and 1000000.");
             return new Result(
                 "G2_LIVE_SHOP_COMMAND result=REJECTED_QUANTITY stateMutation=false authority="+
                 AUTHORITY,
-                null
+                null,
+                "Quantity must be between 1 and 1000000."
             );
         }
 
@@ -116,64 +125,51 @@ final class LocalShopCommandHandler {
                 );
 
             if(result.purchased()){
-                chat.serverMessage(
-                    "Bought "+quantity+" Rocktail for "+
-                    result.currencySpent+" coins. Stock="+
-                    runtime.rocktailStock()
-                );
+                long stock=runtime.rocktailStock();
                 return new Result(
                     "G2_LIVE_SHOP_COMMAND action=BUY quantity="+quantity+
-                    " result=PURCHASED stock="+runtime.rocktailStock()+
-                    " clientFeedback=true authority="+AUTHORITY,
-                    SAVE_BUY
+                    " result=PURCHASED stock="+stock+
+                    " clientFeedbackPrepared=true authority="+AUTHORITY,
+                    SAVE_BUY,
+                    "Bought "+quantity+" Rocktail for "+
+                    result.currencySpent+" coins. Stock="+stock
                 );
             }
 
-            chat.serverMessage("Shop buy rejected: "+result.status);
             return new Result(
                 "G2_LIVE_SHOP_COMMAND action=BUY quantity="+quantity+
                 " result="+result.status+
                 " stateMutation=false authority="+AUTHORITY,
-                null
+                null,
+                "Shop buy rejected: "+result.status
             );
         }
 
-        if("sell".equals(verb)){
-            G2ShopSellbackInventoryService.Result result=
-                sellbacks.sell(
-                    LocalLabShopRuntime.SUPPLIES,
-                    "item:"+LocalLabShopRuntime.ROCKTAIL,
-                    quantity
-                );
+        G2ShopSellbackInventoryService.Result result=
+            sellbacks.sell(
+                LocalLabShopRuntime.SUPPLIES,
+                "item:"+LocalLabShopRuntime.ROCKTAIL,
+                quantity
+            );
 
-            if(result.sold()){
-                chat.serverMessage(
-                    "Sold "+quantity+" Rocktail for "+
-                    result.payout+" coins. Stock="+
-                    runtime.rocktailStock()
-                );
-                return new Result(
-                    "G2_LIVE_SHOP_COMMAND action=SELL quantity="+quantity+
-                    " result=SOLD stock="+runtime.rocktailStock()+
-                    " clientFeedback=true authority="+AUTHORITY,
-                    SAVE_SELL
-                );
-            }
-
-            chat.serverMessage("Shop sell rejected: "+result.status);
+        if(result.sold()){
+            long stock=runtime.rocktailStock();
             return new Result(
                 "G2_LIVE_SHOP_COMMAND action=SELL quantity="+quantity+
-                " result="+result.status+
-                " stateMutation=false authority="+AUTHORITY,
-                null
+                " result=SOLD stock="+stock+
+                " clientFeedbackPrepared=true authority="+AUTHORITY,
+                SAVE_SELL,
+                "Sold "+quantity+" Rocktail for "+
+                result.payout+" coins. Stock="+stock
             );
         }
 
-        chat.serverMessage("Usage: ::shop buy rocktail <qty> or ::shop sell rocktail <qty>");
         return new Result(
-            "G2_LIVE_SHOP_COMMAND result=REJECTED_VERB verb="+verb+
+            "G2_LIVE_SHOP_COMMAND action=SELL quantity="+quantity+
+            " result="+result.status+
             " stateMutation=false authority="+AUTHORITY,
-            null
+            null,
+            "Shop sell rejected: "+result.status
         );
     }
 
