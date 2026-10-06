@@ -422,6 +422,9 @@ public final class LocalPendingRequestDispatcherTest {
                     }
                 );
 
+            final int[] dispatcherSaveCount={0};
+            final String[] dispatcherLastSaveReason={null};
+
             LocalPendingRequestDispatcher dispatcher=
                 new LocalPendingRequestDispatcher(
                     player,
@@ -474,7 +477,10 @@ public final class LocalPendingRequestDispatcherTest {
                         @Override public void saveAccount(
                             String tag,
                             String reason
-                        ){}
+                        ){
+                            dispatcherSaveCount[0]++;
+                            dispatcherLastSaveReason[0]=reason;
+                        }
                         @Override public void applyPetDialogResult(
                             LocalPetInventoryDialogHandler.Result result,
                             String tag
@@ -979,6 +985,59 @@ public final class LocalPendingRequestDispatcherTest {
                 true
             );
 
+            int bankSlotsBeforeUnknown=
+                bank.bankSlots();
+            int inventorySlotsBeforeUnknown=
+                bank.inventorySlots();
+            int savesBeforeUnknown=
+                dispatcherSaveCount[0];
+
+            routeItemAction.invoke(
+                dispatcher,
+                new ItemContainerAction(
+                    41,
+                    0,
+                    0,
+                    0,
+                    0,
+                    "ITEM_ACTION_5"
+                ),
+                writer,
+                "[pending-test] "
+            );
+
+            if(dispatcherSaveCount[0]!=
+                    savesBeforeUnknown||
+               bank.bankSlots()!=
+                    bankSlotsBeforeUnknown||
+               bank.inventorySlots()!=
+                    inventorySlotsBeforeUnknown)
+                throw new AssertionError(
+                    "unclaimed item-container action leaked into Bank ownership"
+                );
+
+            routeItemAction.invoke(
+                dispatcher,
+                new ItemContainerAction(
+                    145,
+                    BankState.BANK_CONTAINER,
+                    0,
+                    0,
+                    0,
+                    "WITHDRAW_1"
+                ),
+                writer,
+                "[pending-test] "
+            );
+
+            if(dispatcherSaveCount[0]!=
+                    savesBeforeUnknown+1||
+               !"BANK_ITEM_ACTION".equals(
+                    dispatcherLastSaveReason[0]))
+                throw new AssertionError(
+                    "exact Bank widget no longer owns persistence"
+                );
+
             int rootBeforeInvalid=
                 rootReplacements[0];
 
@@ -1073,6 +1132,10 @@ public final class LocalPendingRequestDispatcherTest {
                 "spellTargetConsumed=true genericInteractionConsumed=true "+
                 "itemActionConsumed=true groundItemConsumed=true "+
                 "movementConsumed=true runToggleBeforeMovement=true "+
+                "nonBankItemFailClosed=true "+
+                "nonBankItemSaveFence=true "+
+                "bankWidgetSavePreserved=true "+
+                "shopAuthorityUnproven=true "+
                 "classifierCompatibility=true "+
                 "compCapeRootRevokesMonsterSpawner=true "+
                 "invalidCompCapePreservesMonsterSpawner=true "+

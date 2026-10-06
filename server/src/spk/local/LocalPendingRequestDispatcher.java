@@ -941,6 +941,25 @@ final class LocalPendingRequestDispatcher {
             return;
         }
 
+        boolean bankOwned=
+            action.widgetId==
+                BankState.BANK_CONTAINER||
+            action.widgetId==
+                BankState.BANK_INVENTORY_CONTAINER;
+
+        if(!bankOwned){
+            System.out.println(
+                tag+
+                "V522_ITEM_CONTAINER_UNCLAIMED "+
+                action+
+                " result=FAIL_CLOSED_NON_BANK_WIDGET"+
+                " bankOwnership=false"+
+                " shopAuthority=UNPROVEN"+
+                " decoderAligned=true"
+            );
+            return;
+        }
+
         String result=
             bank.apply(
                 action,
@@ -956,7 +975,8 @@ final class LocalPendingRequestDispatcher {
             tag+"V522_BANK_ITEM_ACTION "+
             action+
             " result="+result+
-            " decoderAligned=true"
+            " decoderAligned=true"+
+            " bankOwnership=true"
         );
     }
 
