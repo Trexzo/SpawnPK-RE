@@ -109,43 +109,166 @@ public final class G3BossDestinationPvmIntegrationTest {
             );
         boolean relayRegistered=false;
 
+        LocalMonsterSpawnerUiHandler monsterUi=
+            LocalSession
+                .resolveMonsterSpawnerUiAfterLogin(
+                    activation,
+                    world,
+                    player,
+                    generation,
+                    OWNER
+                );
+
+        require(
+            monsterUi!=null&&
+            monsterUi.isBoundTo(world)&&
+            monsterUi.isBoundToOwner(OWNER),
+            "production Monster Spawner UI unavailable for session routing"
+        );
+
+        LocalPetInventoryDialogHandler petDialogs=
+            new LocalPetInventoryDialogHandler(
+                player.bank(),
+                player.miniPets(),
+                player.petState(),
+                views,
+                player.movement(),
+                new PetAccessoryState()
+            );
+
+        LocalGameplayWidgetHandler gameplay=
+            new LocalGameplayWidgetHandler(
+                player.prayers(),
+                player.playerState(),
+                player.equipment(),
+                player.combatStyles(),
+                player.magic(),
+                player.bank()
+            );
+
+        LocalCompCapeCustomizeHandler compCape=
+            new LocalCompCapeCustomizeHandler(
+                player.bank(),
+                player.playerState()
+            );
+
+        final LocalMonsterSpawnerUiHandler.Result[]
+            lastMonsterResult={null};
+        final int[] monsterResultCount={0};
+
+        LocalSessionUiActionHandler sessionUi=
+            new LocalSessionUiActionHandler(
+                player,
+                new NativeItemLibraryService(),
+                new DevControlCenter(),
+                player.bank(),
+                compCape,
+                petDialogs,
+                gameplay,
+                player.movement(),
+                true,
+                player.equipment(),
+                monsterUi,
+                boss,
+                new LocalSessionUiActionHandler.SessionBridge(){
+                    @Override public void saveAccount(
+                        String tag,
+                        String reason
+                    ){}
+
+                    @Override public void clearDialogNumberKeys(){}
+
+                    @Override public void handleDevPanelWidget(
+                        int widget,
+                        ServerPacketWriter packets,
+                        String tag
+                    ){}
+
+                    @Override public void applyPetDialog(
+                        LocalPetInventoryDialogHandler.Result result,
+                        String tag
+                    ){}
+
+                    @Override public void handleMonsterSpawnerResult(
+                        LocalMonsterSpawnerUiHandler.Result result,
+                        ServerPacketWriter packets,
+                        String tag
+                    )throws java.io.IOException{
+                        monsterResultCount[0]++;
+                        lastMonsterResult[0]=result;
+
+                        LocalSession
+                            .forwardMonsterSpawnerUiResult(
+                                activation,
+                                world,
+                                player,
+                                generation,
+                                OWNER,
+                                result,
+                                packets,
+                                tag
+                            );
+                    }
+
+                    @Override public void requestLogout(){}
+                }
+            );
+
         try{
-            boss.open(
-                writer
-            );
-            LocalBossTeleportUiHandler.Result
-                selected=
-                    boss.handleWidget(
-                        BossTeleportPresentation
-                            .rowWidget(
-                                LocalBossTeleportUiHandler
-                                    .CONFIGURED_ROW
-                            ),
-                        writer,
-                        "[g3-pvm] "
-                    );
+            int bossOpenBefore=wire.size();
 
-            require(
-                selected.status==
-                    LocalBossTeleportUiHandler
-                        .Status.SELECTED,
-                "Boss row selection"
+            sessionUi.handleWidget(
+                1170,
+                writer,
+                "[g3-pvm] "
             );
 
-            LocalBossTeleportUiHandler.Result
-                teleported=
-                    boss.handleWidget(
-                        BossTeleportPresentation
-                            .TELEPORT_WIDGET,
-                        writer,
-                        "[g3-pvm] "
-                    );
+            require(
+                boss.isOpen()&&
+                wire.size()>bossOpenBefore,
+                "session UI did not open exact Boss Teleport root"
+            );
+
+            sessionUi.handleWidget(
+                BossTeleportPresentation
+                    .rowWidget(
+                        LocalBossTeleportUiHandler
+                            .CONFIGURED_ROW
+                    ),
+                writer,
+                "[g3-pvm] "
+            );
+
+            BossTeleportService.PlayerSnapshot
+                bossSelection=
+                    boss.snapshot();
 
             require(
-                teleported.status==
-                    LocalBossTeleportUiHandler
-                        .Status.TELEPORTED&&
-                teleported.teleportSucceeded&&
+                bossSelection!=null&&
+                bossSelection.hasSelection()&&
+                LocalBossTeleportUiHandler
+                    .BOSS_KEY
+                    .equals(
+                        bossSelection
+                            .selectedBossKey
+                    ),
+                "session UI Boss row selection"
+            );
+
+            int monsterResultsBeforeTeleport=
+                monsterResultCount[0];
+
+            sessionUi.handleWidget(
+                BossTeleportPresentation
+                    .TELEPORT_WIDGET,
+                writer,
+                "[g3-pvm] "
+            );
+
+            require(
+                !boss.isOpen()&&
+                monsterResultCount[0]==
+                    monsterResultsBeforeTeleport&&
                 regionId(
                     player.movement().x(),
                     player.movement().y()
@@ -153,7 +276,7 @@ public final class G3BossDestinationPvmIntegrationTest {
                     LocalBossTeleportUiHandler
                         .REGION_ID&&
                 player.movement().transientRegion(),
-                "Boss Teleport did not land in live region 16168"
+                "session UI Boss Teleport/handoff did not land in live region 16168"
             );
 
             Tile landing=
@@ -182,48 +305,24 @@ public final class G3BossDestinationPvmIntegrationTest {
             );
             relayRegistered=true;
 
-            LocalMonsterSpawnerUiHandler ui=
-                LocalSession
-                    .resolveMonsterSpawnerUiAfterLogin(
-                        activation,
-                        world,
-                        player,
-                        generation,
-                        OWNER
-                    );
+            int beforeSpawnerRow=
+                monsterResultCount[0];
 
-            require(
-                ui!=null&&
-                ui.isBoundTo(world)&&
-                ui.isBoundToOwner(OWNER),
-                "production Monster Spawner UI unavailable after Boss teleport"
-            );
-
-            ui.open(
-                writer
+            sessionUi.handleWidget(
+                MonsterSpawnerPresentation
+                    .rowWidget(0),
+                writer,
+                "[g3-pvm] "
             );
 
             LocalMonsterSpawnerUiHandler.Result
                 row=
-                    ui.handle(
-                        MonsterSpawnerPresentation
-                            .rowWidget(0),
-                        writer
-                    );
-
-            LocalSession
-                .forwardMonsterSpawnerUiResult(
-                    activation,
-                    world,
-                    player,
-                    generation,
-                    OWNER,
-                    row,
-                    writer,
-                    "[g3-pvm] "
-                );
+                    lastMonsterResult[0];
 
             require(
+                monsterResultCount[0]==
+                    beforeSpawnerRow+1&&
+                row!=null&&
                 row.status==
                     LocalMonsterSpawnerUiHandler
                         .Status.ROW_SELECTED&&
@@ -236,34 +335,28 @@ public final class G3BossDestinationPvmIntegrationTest {
                             .NPC_DEFINITION_ID&&
                 LocalLabMonsterSpawnerProvisioning
                     .NPC_DEFINITION_ID==1,
-                "exact-client LocalLab encounter definition selection"
+                "session UI exact-client LocalLab encounter definition selection"
+            );
+
+            sessionUi.handleWidget(
+                MonsterSpawnerPresentation
+                    .TOGGLE_WIDGET,
+                writer,
+                "[g3-pvm] "
             );
 
             LocalMonsterSpawnerUiHandler.Result
                 activated=
-                    ui.handle(
-                        MonsterSpawnerPresentation
-                            .TOGGLE_WIDGET,
-                        writer
-                    );
-
-            LocalSession
-                .forwardMonsterSpawnerUiResult(
-                    activation,
-                    world,
-                    player,
-                    generation,
-                    OWNER,
-                    activated,
-                    writer,
-                    "[g3-pvm] "
-                );
+                    lastMonsterResult[0];
 
             require(
+                monsterResultCount[0]==
+                    beforeSpawnerRow+2&&
+                activated!=null&&
                 activated.status==
                     LocalMonsterSpawnerUiHandler
                         .Status.ACTIVATED,
-                "Monster Spawner did not activate at Boss destination"
+                "session UI Monster Spawner did not activate at Boss destination"
             );
 
             MonsterSpawnerService.SessionSnapshot
@@ -573,6 +666,26 @@ public final class G3BossDestinationPvmIntegrationTest {
 
             verifyFreshWorldPersistence(
                 player
+            );
+
+            System.out.println(
+                "G3_COMMANDLESS_BOSS_PVM_LOOP_PASS"+
+                " sessionUiOwner=true"+
+                " bossRoot=true"+
+                " teleport60448=true"+
+                " automaticSpawnerRoot=true"+
+                " monsterRowViaSessionUi=true"+
+                " monsterToggleViaSessionUi=true"+
+                " noMonsterSpawnerCommand=true"+
+                " noManualSpawnerOpen=true"+
+                " canonicalAttack=true"+
+                " ownerDrop=true"+
+                " groundTake=true"+
+                " pvmProgression=true"+
+                " scheduledRespawn=true"+
+                " freshWorldPersistence=true"+
+                " vetionNpcClaim=false"+
+                " originalSpawnpkBossPolicyClaim=false"
             );
 
             System.out.println(
