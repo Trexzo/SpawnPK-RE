@@ -158,6 +158,11 @@ public final class PlayerPvpDelayedHitServiceTest {
                     .deathAttribution()
                     .attackerGeneration==
                         attackerGeneration &&
+                "delayed-pvp-attacker".equals(
+                    target.lifecycle()
+                        .deathAttribution()
+                        .attackerUsername
+                ) &&
                 "PLAYER_PVP".equals(
                     target.lifecycle()
                         .deathAttribution()
