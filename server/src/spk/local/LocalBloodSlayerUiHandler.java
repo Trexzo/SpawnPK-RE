@@ -95,21 +95,28 @@ final class LocalBloodSlayerUiHandler {
         if(checked.kind==
                 BloodSlayerPresentation
                     .InputKind.SELECT_MODE){
-            if(checked.mode!=
-                    BloodSlayerModeService.Mode
-                        .MONSTER_HUNTER_PVM)
+            if(!LocalLabSlayerRuntime
+                    .supportedMode(
+                        checked.mode
+                    ))
                 return new Result(
                     Status.UNSUPPORTED_MODE,
                     checked.mode,
                     before,
-                    "This LocalLab slice currently supports Blood Slayer Monster Hunter only.",
+                    "This LocalLab slice currently supports Blood Slayer Monster Hunter and Boss Hunter only.",
                     null
                 );
 
             LocalLabSlayerRuntime.StatusSnapshot selected=
-                runtime.selectMonsterHunterMode(
-                    playerRef
-                );
+                checked.mode==
+                    BloodSlayerModeService.Mode
+                        .MONSTER_HUNTER_PVM
+                    ?runtime.selectMonsterHunterMode(
+                        playerRef
+                    )
+                    :runtime.selectBossHunterMode(
+                        playerRef
+                    );
 
             if(!selected.persistenceValid())
                 return new Result(
@@ -124,7 +131,9 @@ final class LocalBloodSlayerUiHandler {
                 Status.MODE_SELECTED,
                 checked.mode,
                 selected,
-                "Blood Slayer mode selected: Monster Hunter.",
+                "Blood Slayer mode selected: "+
+                    modeName(checked.mode)+
+                    ".",
                 null
             );
         }
@@ -132,22 +141,30 @@ final class LocalBloodSlayerUiHandler {
         if(checked.kind==
                 BloodSlayerPresentation
                     .InputKind.REQUEST_TASK){
-            if(before.selectedMode!=
-                    BloodSlayerModeService.Mode
-                        .MONSTER_HUNTER_PVM)
+            if(!LocalLabSlayerRuntime
+                    .supportedMode(
+                        before.selectedMode
+                    ))
                 return new Result(
                     Status.NO_SUPPORTED_MODE_SELECTED,
                     before.selectedMode,
                     before,
-                    "Select Monster Hunter before requesting this LocalLab Blood Slayer task.",
+                    "Select Monster Hunter or Boss Hunter before requesting this LocalLab Blood Slayer task.",
                     null
                 );
 
             LocalLabSlayerRuntime.StartResult started=
-                runtime.startMonsterHunter(
-                    playerRef,
-                    worldTick
-                );
+                before.selectedMode==
+                    BloodSlayerModeService.Mode
+                        .MONSTER_HUNTER_PVM
+                    ?runtime.startMonsterHunter(
+                        playerRef,
+                        worldTick
+                    )
+                    :runtime.startBossHunter(
+                        playerRef,
+                        worldTick
+                    );
 
             if(!started.status.persistenceValid())
                 return new Result(
@@ -165,10 +182,11 @@ final class LocalBloodSlayerUiHandler {
                 started.created
                     ?Status.TASK_ASSIGNED
                     :Status.TASK_EXISTING,
-                BloodSlayerModeService.Mode
-                    .MONSTER_HUNTER_PVM,
+                before.selectedMode,
                 started.status,
-                "Blood Slayer Monster Hunter: "+
+                "Blood Slayer "+
+                    modeName(before.selectedMode)+
+                    ": "+
                     objective.progress+
                     "/"+
                     objective.goal+
@@ -185,6 +203,21 @@ final class LocalBloodSlayerUiHandler {
             "Unhandled Blood Slayer input kind "+
             checked.kind
         );
+    }
+
+    private static String modeName(
+        BloodSlayerModeService.Mode mode
+    ){
+        if(mode==
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM)
+            return "Monster Hunter";
+        if(mode==
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM)
+            return "Boss Hunter";
+
+        return String.valueOf(mode);
     }
 
     private String requirePlayerRef(){
