@@ -664,6 +664,7 @@ final class PlayerPvpDelayedHitService {
                                         .deathSequence(),
                                     entry.attacker.id(),
                                     entry.attackerGeneration,
+                                    entry.attacker.username(),
                                     "PLAYER_PVP"
                                 );
 
