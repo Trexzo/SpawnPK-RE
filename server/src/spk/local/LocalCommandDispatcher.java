@@ -103,6 +103,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openBloodFountain(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -616,6 +621,29 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isBloodFountainRoute(p)){
+            boolean opened=
+                bridge.openBloodFountain(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G136_BLOOD_FOUNTAIN_COMMAND"+
+                " opened="+opened+
+                " root="+
+                BloodFountainHubPresentation.ROOT+
+                " presentationAuthority="+
+                BloodFountainHubPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalBloodFountainUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " exactSubNavigation=true"+
+                " originalWorldEntryClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -1012,6 +1040,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "unclaimed"
+                )
+            );
+    }
+
+    static boolean isBloodFountainRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "bloodfountain"
+                )||
+                p[0].equalsIgnoreCase(
+                    "bfountain"
                 )
             );
     }

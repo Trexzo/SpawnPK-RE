@@ -2085,6 +2085,7 @@ def currentTrainFocusedTests = [
     'spk.local.G133LotteryLiveFailClosedIntegrationTest',
     'spk.local.G134VotingOpenOnlyIntegrationTest',
     'spk.local.G135UnclaimedCofferLiveFailClosedIntegrationTest',
+    'spk.local.G136BloodFountainSalvageNavigationIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2113,10 +2114,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 266 ||
-    currentTrainFocusedTests.toSet().size() != 266) {
+if (currentTrainFocusedTests.size() != 267 ||
+    currentTrainFocusedTests.toSet().size() != 267) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 266 unique tests, found " +
+        "Current-train focused manifest drift: expected 267 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2352,6 +2353,14 @@ tasks.register('g135UnclaimedCofferLiveFailClosedRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G135UnclaimedCofferLiveFailClosedIntegrationTest')
+}
+
+tasks.register('g136BloodFountainSalvageNavigationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact Blood Fountain hub presentation and exact 60006 navigation into fail-closed Blood Shard Salvage.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G136BloodFountainSalvageNavigationIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
