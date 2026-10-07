@@ -194,6 +194,7 @@ final class LocalSession implements Runnable {
     private final LocalShopCommandHandler shopCommands;
     private final LocalSlayerCommandHandler slayerCommands;
     private final LocalBloodSlayerUiHandler bloodSlayerUi;
+    private final LocalLootingBagBankHandler lootingBagBank;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
@@ -551,6 +552,12 @@ final class LocalSession implements Runnable {
                 this.worldPlayer,
                 this.world.localLabSlayer()
             );
+        this.lootingBagBank=
+            new LocalLootingBagBankHandler(
+                ()->LocalSession.this.username,
+                this.world.lootingBags(),
+                this.bank
+            );
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
             diagnosticCommands,
@@ -627,6 +634,22 @@ final class LocalSession implements Runnable {
                     ServerPacketWriter writer
                 )throws IOException{
                     return LocalSession.this.uiActions.openBloodSlayer(writer);
+                }
+
+                @Override public boolean openLootingBag(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithLootingBagRoot(
+                                ()->{
+                                    LocalSession.this.lootingBagBank
+                                        .open(writer);
+                                    return "LOOTING_BAG_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
                 }
 
                 @Override public LocalCommandDispatcher
@@ -860,6 +883,10 @@ final class LocalSession implements Runnable {
 
                     return makeover!=null&&
                         makeover.retireDesignerRoot();
+                }
+
+                @Override public boolean retireLootingBagRoot(){
+                    return LocalSession.this.lootingBagBank.close();
                 }
 
                 @Override public void handleMonsterSpawnerResult(
@@ -1368,6 +1395,9 @@ final class LocalSession implements Runnable {
                     );
                 }
             });
+        this.pendingRequests.installLootingBagBankHandler(
+            this.lootingBagBank
+        );
         this.bootstrapPublisher = new LocalSessionBootstrapPublisher(
             world,
             equipment,
