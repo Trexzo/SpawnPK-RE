@@ -13,6 +13,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
         boolean exact54111=false;
         boolean bountyAssigned=false;
         boolean pvmIsolation=false;
+        boolean pvpIsolation=false;
         boolean immediateSettlementCredit=false;
         boolean duplicateDeathSafe=false;
         boolean sharedCompletionCount=false;
@@ -303,6 +304,68 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
                 monster.status.active()&&
                 monster.status.completions==1L,
                 "Bounty -> Monster renewal lost shared completion count"
+            );
+
+            WorldPlayer pvpIsolationVictim=
+                new WorldPlayer();
+            long pvpIsolationVictimGeneration=
+                immediateWorld.registerPlayer(
+                    pvpIsolationVictim,
+                    "g71-pvp-isolation-victim"
+                );
+
+            require(
+                pvpIsolationVictim.playerState()
+                    .setCurrentLevel(
+                        PlayerState.HITPOINTS,
+                        50
+                    ),
+                "PvP isolation victim HP fixture"
+            );
+
+            PlayerCombatResolutionService.Result
+                isolationLethal=
+                    immediateCombat.resolveImmediateOwned(
+                        immediateWorld,
+                        immediateAttackerGeneration,
+                        pvpIsolationVictim,
+                        pvpIsolationVictimGeneration,
+                        4151,
+                        style,
+                        11L
+                    );
+
+            require(
+                isolationLethal.lifecycle.died,
+                "PvP isolation fixture did not die"
+            );
+
+            new SettlementHarness(
+                immediateWorld,
+                pvpIsolationVictim
+            ).coordinator
+                .settleCurrentDeathForSessionTeardown(
+                    "[g7-pvp-isolation] "
+                );
+
+            LocalLabSlayerRuntime.StatusSnapshot
+                afterPvpIsolation=
+                    runtime.status(
+                        IMMEDIATE_ATTACKER
+                    );
+
+            pvpIsolation=
+                afterPvpIsolation.active()&&
+                afterPvpIsolation.selectedMode==
+                    BloodSlayerModeService.Mode
+                        .MONSTER_HUNTER_PVM&&
+                afterPvpIsolation.task.objective
+                    .progress==0L&&
+                afterPvpIsolation.completions==1L;
+
+            require(
+                pvpIsolation,
+                "canonical PvP kill progressed Monster Hunter"
             );
 
             LocalLabSlayerRuntime.KillCreditResult
@@ -746,6 +809,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
             " exact54111="+exact54111+
             " bountyAssigned="+bountyAssigned+
             " pvmIsolation="+pvmIsolation+
+            " pvpIsolation="+pvpIsolation+
             " immediateSettlementCredit="+
                 immediateSettlementCredit+
             " duplicateDeathSafe="+duplicateDeathSafe+
