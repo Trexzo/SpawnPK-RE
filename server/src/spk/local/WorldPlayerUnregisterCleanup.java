@@ -9,6 +9,22 @@ final class WorldPlayerUnregisterCleanup {
         Runnable realtimeCleanup,
         Runnable petCleanup
     ){
+        run(
+            persistenceCleanup,
+            commandCleanup,
+            realtimeCleanup,
+            ()->{},
+            petCleanup
+        );
+    }
+
+    static void run(
+        Runnable persistenceCleanup,
+        Runnable commandCleanup,
+        Runnable realtimeCleanup,
+        Runnable duelCleanup,
+        Runnable petCleanup
+    ){
         runStep(
             "PERSISTENCE_RELEASE",
             persistenceCleanup
@@ -20,6 +36,10 @@ final class WorldPlayerUnregisterCleanup {
         runStep(
             "REALTIME_CANCEL",
             realtimeCleanup
+        );
+        runStep(
+            "DUEL_CANCEL",
+            duelCleanup
         );
         runStep(
             "PET_REMOVE",
