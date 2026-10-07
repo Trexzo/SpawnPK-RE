@@ -816,6 +816,9 @@ final class World implements AutoCloseable {
                     ))
                     return false;
 
+                String unregisterPlayerRef=
+                    player.username();
+
                 synchronized(tickTargets){
                     WorldTickTarget target=
                         tickTargets.get(
@@ -847,6 +850,9 @@ final class World implements AutoCloseable {
                     ),
                     ()->realtime.cancelPlayer(
                         player
+                    ),
+                    ()->localDuels.cancelForUnregister(
+                        unregisterPlayerRef
                     ),
                     ()->petNpcs.removeMainAndMini(
                         player.id()
