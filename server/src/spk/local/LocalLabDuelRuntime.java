@@ -211,6 +211,24 @@ final class LocalLabDuelRuntime {
                     AUTHORITY
                 );
 
+            /*
+             * requireOnlineTarget() is intentionally repeated after mutation.
+             * If unregister crossed the first check while this runtime owned
+             * its monitor, retire the just-created proposal before exposing it.
+             */
+            try{
+                requireOnlineTarget(
+                    challenger,
+                    challenged
+                );
+            }catch(RuntimeException offline){
+                duels.cancelOpen(
+                    challengeId,
+                    challenger
+                );
+                throw offline;
+            }
+
             challengeSequence=
                 Math.addExact(
                     sequence,
@@ -463,6 +481,53 @@ final class LocalLabDuelRuntime {
             Long.toUnsignedString(
                 deathSequence
             );
+    }
+
+    synchronized DuelSessionService.Snapshot
+        cancelForUnregister(
+            String participantRef
+        ){
+        String participant=
+            PartyService.requireRef(
+                participantRef
+            );
+
+        DuelSessionService.Snapshot open=
+            duels.openFor(
+                participant
+            );
+
+        if(open==null)
+            return null;
+
+        switch(open.state){
+            case PROPOSED:
+            case ACCEPTED:
+                return duels.cancelOpen(
+                    open.challengeId,
+                    participant
+                );
+
+            case ACTIVE:
+                return duels.cancelActive(
+                    open.challengeId,
+                    "participant-disconnected"
+                );
+
+            case DECLINED:
+            case CANCELLED:
+            case COMPLETED:
+                throw new IllegalStateException(
+                    "terminal Duel retained participant index "+
+                    participant+
+                    " state="+open.state
+                );
+
+            default:
+                throw new AssertionError(
+                    open.state
+                );
+        }
     }
 
     boolean participantHasOpenDuel(
