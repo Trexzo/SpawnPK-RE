@@ -1,17 +1,17 @@
 package spk.local;
 
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * World-owned LocalLab Task Scroll runtime.
  *
- * G15.2 deliberately owns one explicit CUSTOM_LOCALLAB PvM task only. Progress
- * may advance exclusively from the already-certified Monster Spawner terminal
- * finalization seam. Rewards, claims, persistence, Track/Collect actions,
- * expiry and original SpawnPK policy remain absent.
+ * G15 owns one explicit CUSTOM_LOCALLAB PvM task only. Progress may advance
+ * exclusively from the already-certified Monster Spawner terminal-finalization
+ * seam. G15.4 persists only this explicit assignment/progress contract through
+ * a versioned PlayerSnapshot extension.
+ *
+ * Rewards, claims, Track/Collect actions, expiry and original SpawnPK policy
+ * remain absent.
  */
 final class LocalLabTaskScrollRuntime {
     static final String AUTHORITY=
@@ -67,6 +67,13 @@ final class LocalLabTaskScrollRuntime {
         ledgers=
             new HashMap<>();
     private final TaskScrollService service;
+    private final Set<WorldPlayer> hydratedPlayers=
+        Collections.newSetFromMap(
+            new IdentityHashMap<WorldPlayer,Boolean>()
+        );
+    private final IdentityHashMap<WorldPlayer,String>
+        invalidPersistence=
+            new IdentityHashMap<>();
 
     LocalLabTaskScrollRuntime(
         World world
@@ -85,7 +92,7 @@ final class LocalLabTaskScrollRuntime {
             new TaskScrollService.Definition(
                 TASK_KEY,
                 OBJECTIVE_KEY,
-                java.util.Arrays.asList(
+                Arrays.asList(
                     "Defeat 3 certified LocalLab Monster Spawner targets.",
                     "Reward settlement is not configured."
                 ),
@@ -121,8 +128,14 @@ final class LocalLabTaskScrollRuntime {
                     owner,
                     generation,
                     ()->{
-                        ensureLedger(
-                            player
+                        ensureRestoredOwned(
+                            player,
+                            owner,
+                            worldTick
+                        );
+                        requirePersistenceValid(
+                            player,
+                            owner
                         );
 
                         TaskScrollService.Snapshot
@@ -140,14 +153,28 @@ final class LocalLabTaskScrollRuntime {
                             return;
                         }
 
-                        result[0]=
-                            new AssignmentResult(
-                                true,
+                        ensureLedger(
+                            player,
+                            0L
+                        );
+
+                        TaskScrollService.Snapshot
+                            assigned=
                                 service.assign(
                                     player,
                                     TASK_KEY,
                                     worldTick
-                                )
+                                );
+
+                        persistOwned(
+                            owner,
+                            assigned
+                        );
+
+                        result[0]=
+                            new AssignmentResult(
+                                true,
+                                assigned
                             );
                     }
                 );
@@ -180,14 +207,56 @@ final class LocalLabTaskScrollRuntime {
             normalizePlayer(
                 playerRef
             );
+        WorldPlayer owner=
+            requireCurrentPlayer(
+                player
+            );
+        long generation=
+            owner.generation();
+        long restoreTick=
+            world.clock().tick();
+        final TaskScrollService.Snapshot[]
+            result={null};
 
-        requireCurrentPlayer(
-            player
-        );
+        try{
+            boolean current=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    owner,
+                    generation,
+                    ()->{
+                        ensureRestoredOwned(
+                            player,
+                            owner,
+                            restoreTick
+                        );
+                        requirePersistenceValid(
+                            player,
+                            owner
+                        );
 
-        return service.active(
-            player
-        );
+                        result[0]=
+                            service.active(
+                                player
+                            );
+                    }
+                );
+
+            if(!current)
+                throw new IllegalStateException(
+                    "stale Task Scroll player "+
+                    player
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Task Scroll active ownership failed player="+
+                player,
+                failure
+            );
+        }
+
+        return result[0];
     }
 
     ProgressResult recordMonsterSpawnerFinalization(
@@ -218,6 +287,16 @@ final class LocalLabTaskScrollRuntime {
                     owner,
                     generation,
                     ()->{
+                        ensureRestoredOwned(
+                            player,
+                            owner,
+                            deathTick
+                        );
+                        requirePersistenceValid(
+                            player,
+                            owner
+                        );
+
                         TaskScrollService.Snapshot before=
                             service.active(
                                 player
@@ -258,6 +337,11 @@ final class LocalLabTaskScrollRuntime {
                                     1L,
                                     deathTick
                                 );
+
+                        persistOwned(
+                            owner,
+                            progress.task
+                        );
 
                         result[0]=
                             new ProgressResult(
@@ -301,18 +385,172 @@ final class LocalLabTaskScrollRuntime {
         return service.assignmentCount();
     }
 
+    private void ensureRestoredOwned(
+        String player,
+        WorldPlayer owner,
+        long worldTick
+    ){
+        synchronized(this){
+            if(hydratedPlayers.contains(
+                    owner))
+                return;
+        }
+
+        SortedMap<String,String> values=
+            owner.snapshotExtensions()
+                .namespace(
+                    LocalLabTaskScrollPersistence
+                        .NAMESPACE
+                );
+
+        try{
+            LocalLabTaskScrollPersistence.Snapshot
+                decoded=
+                    LocalLabTaskScrollPersistence
+                        .decode(values);
+
+            if(decoded!=null){
+                ensureLedger(
+                    player,
+                    decoded.progress
+                );
+
+                TaskScrollService.Snapshot restored=
+                    service.restoreActiveAssignment(
+                        player,
+                        TASK_KEY,
+                        worldTick
+                    );
+
+                if(restored.objective.progress!=
+                        decoded.progress||
+                   restored.objective.goal!=GOAL||
+                   restored.objective.complete!=
+                        decoded.complete()||
+                   restored.objective.claimed||
+                   restored.tracked||
+                   restored.state!=
+                        (
+                            decoded.complete()
+                                ?TaskScrollService.State
+                                    .COMPLETE_UNCLAIMED
+                                :TaskScrollService.State
+                                    .ACTIVE
+                        ))
+                    throw new IllegalStateException(
+                        "Task Scroll persisted replay mismatch player="+
+                        player
+                    );
+            }
+        }catch(RuntimeException failure){
+            synchronized(this){
+                invalidPersistence.put(
+                    owner,
+                    failure.getMessage()==null
+                        ?failure.getClass()
+                            .getSimpleName()
+                        :failure.getMessage()
+                );
+                hydratedPlayers.add(
+                    owner
+                );
+            }
+            return;
+        }
+
+        synchronized(this){
+            invalidPersistence.remove(
+                owner
+            );
+            hydratedPlayers.add(
+                owner
+            );
+        }
+    }
+
+    private void requirePersistenceValid(
+        String player,
+        WorldPlayer owner
+    ){
+        final String invalid;
+
+        synchronized(this){
+            invalid=
+                invalidPersistence.get(
+                    owner
+                );
+        }
+
+        if(invalid!=null)
+            throw new IllegalStateException(
+                "Task Scroll persistence invalid player="+
+                player+
+                " reason="+
+                invalid
+            );
+    }
+
+    private void persistOwned(
+        WorldPlayer owner,
+        TaskScrollService.Snapshot task
+    ){
+        owner.snapshotExtensions()
+            .replaceNamespace(
+                LocalLabTaskScrollPersistence
+                    .NAMESPACE,
+                LocalLabTaskScrollPersistence
+                    .encode(task)
+            );
+
+        synchronized(this){
+            invalidPersistence.remove(
+                owner
+            );
+            hydratedPlayers.add(
+                owner
+            );
+        }
+    }
+
     private synchronized ObjectiveProgressService
         ensureLedger(
-            String player
+            String player,
+            long initialProgress
         )
     {
+        if(initialProgress<0L||
+           initialProgress>GOAL)
+            throw new IllegalArgumentException(
+                "Task Scroll initial progress="+
+                initialProgress
+            );
+
         ObjectiveProgressService existing=
             ledgers.get(
                 player
             );
 
-        if(existing!=null)
+        if(existing!=null){
+            ObjectiveProgressService.Snapshot
+                snapshot=
+                    existing.get(
+                        OBJECTIVE_KEY
+                    );
+
+            if(snapshot==null||
+               snapshot.progress!=initialProgress||
+               snapshot.goal!=GOAL||
+               snapshot.claimed||
+               !AUTHORITY.equals(
+                    snapshot.sourceAuthority
+                ))
+                throw new IllegalStateException(
+                    "Task Scroll ledger state conflicts with persisted contract player="+
+                    player
+                );
+
             return existing;
+        }
 
         ObjectiveProgressService created=
             new ObjectiveProgressService();
@@ -322,7 +560,9 @@ final class LocalLabTaskScrollRuntime {
                 OBJECTIVE_KEY,
                 GOAL,
                 AUTHORITY
-            )
+            ),
+            initialProgress,
+            false
         );
 
         ledgers.put(

@@ -433,6 +433,109 @@ final class TaskScrollService {
         );
     }
 
+    /**
+     * Reconstructs one already-authoritative active assignment after external
+     * persistence restored its semantic objective state.
+     *
+     * Unlike normal assign(), a complete-but-unclaimed objective is permitted.
+     * Claimed state remains terminal and cannot be resurrected as active.
+     */
+    Snapshot restoreActiveAssignment(
+        String playerRef,
+        String taskKey,
+        long worldTick
+    ){
+        String player=
+            normalizePlayer(
+                playerRef
+            );
+        requireWorldTick(worldTick);
+
+        final Definition definition;
+
+        synchronized(this){
+            if(activeByPlayer.containsKey(
+                    player))
+                throw new IllegalStateException(
+                    "player already has Task Scroll "+
+                    player
+                );
+
+            definition=
+                definitions.get(
+                    ObjectiveDefinition
+                        .normalizeKey(
+                            taskKey
+                        )
+                );
+
+            if(definition==null)
+                throw new IllegalArgumentException(
+                    "unknown Task Scroll "+
+                    taskKey
+                );
+        }
+
+        ObjectiveProgressService ledger=
+            requireLedger(player);
+
+        ObjectiveProgressService.Snapshot
+            objective=
+                requireObjective(
+                    definition,
+                    ledger
+                );
+
+        if(objective.claimed)
+            throw new IllegalStateException(
+                "cannot restore claimed Task Scroll objective "+
+                definition.objectiveKey+
+                " player="+player
+            );
+
+        TaskScrollId id=
+            nextId();
+
+        Assignment assignment=
+            new Assignment(
+                id,
+                player,
+                definition,
+                worldTick
+            );
+
+        synchronized(this){
+            if(activeByPlayer.containsKey(
+                    player))
+                throw new IllegalStateException(
+                    "player already has Task Scroll "+
+                    player
+                );
+
+            if(definitions.get(
+                    definition.taskKey)!=
+                    definition)
+                throw new IllegalStateException(
+                    "Task Scroll definition changed "+
+                    definition.taskKey
+                );
+
+            assignments.put(
+                id,
+                assignment
+            );
+            activeByPlayer.put(
+                player,
+                id
+            );
+        }
+
+        return snapshotOf(
+            assignment.snapshotCopy(),
+            objective
+        );
+    }
+
     ProgressResult recordValidatedProgress(
         String playerRef,
         long amount,
