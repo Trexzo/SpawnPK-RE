@@ -223,6 +223,14 @@ final class LocalSessionUiActionHandler {
             return null;
         }
 
+        default LocalBloodFountainUiHandler.FuserResult
+            handleBloodDiamondFuserWidget(
+                BloodDiamondFuserPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default boolean openUnclaimedCoffer(
             ServerPacketWriter serverPackets,
             String tag
@@ -823,6 +831,40 @@ final class LocalSessionUiActionHandler {
                 " targetMechanicsClaim=false"
             );
             return;
+        }
+
+        if(bloodFountainUiOpen){
+            BloodDiamondFuserPresentation.Input fuserInput=
+                BloodDiamondFuserPresentation.resolveWidget(
+                    widget
+                );
+
+            if(fuserInput!=null){
+                LocalBloodFountainUiHandler.FuserResult result=
+                    bridge.handleBloodDiamondFuserWidget(
+                        fuserInput,
+                        tag
+                    );
+
+                System.out.println(
+                    tag+
+                    "G137_BLOOD_DIAMOND_FUSER widget="+
+                    widget+
+                    " kind="+fuserInput.kind+
+                    " row="+fuserInput.rowIndex+
+                    " status="+
+                    (result==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :result.status)+
+                    " succeeded="+
+                    (result!=null&&result.succeeded)+
+                    " recipeBindingClaim=false"+
+                    " costClaim=false"+
+                    " cyclePolicyClaim=false"+
+                    " outcomeClaim=false"
+                );
+                return;
+            }
         }
 
         BloodShardSalvagePresentation.Intent salvageIntent=
