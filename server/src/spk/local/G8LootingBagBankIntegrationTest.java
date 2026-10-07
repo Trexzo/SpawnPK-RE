@@ -79,6 +79,25 @@ public final class G8LootingBagBankIntegrationTest {
                 "empty exact Looting Bag root did not open"
             );
 
+            LocalLootingBagBankHandler.Result
+                emptyAction=
+                    handler.handle(
+                        action(
+                            145,
+                            0,
+                            200
+                        ),
+                        writer
+                    );
+
+            require(
+                emptyAction.status==
+                    LocalLootingBagBankHandler
+                        .Status.BANK_REJECTED&&
+                bags.get(OWNER)==null,
+                "open empty Looting Bag item action did not fail closed"
+            );
+
             require(
                 handler.close()&&
                 !handler.isOpen(),
