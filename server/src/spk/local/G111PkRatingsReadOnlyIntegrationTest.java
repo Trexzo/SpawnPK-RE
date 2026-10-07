@@ -262,7 +262,7 @@ public final class G111PkRatingsReadOnlyIntegrationTest {
                 onlineRoster&&
                 registrationOrder&&
                 readOnly&&
-                selectableRows&&
+                !selectableRows&&
                 clientFeed&&
                 fontPolicyLocal,
                 "G11.1 read-only PK Ratings postimage failed"
