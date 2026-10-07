@@ -2072,6 +2072,7 @@ def currentTrainFocusedTests = [
     'spk.local.G105CompetitiveAdmissionFenceIntegrationTest',
     'spk.local.G106DuelDisconnectCleanupIntegrationTest',
     'spk.local.G107NormalDuelDeclineIntegrationTest',
+    'spk.local.G108NormalDuelOpenCancelIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2100,10 +2101,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 253 ||
-    currentTrainFocusedTests.toSet().size() != 253) {
+if (currentTrainFocusedTests.size() != 254 ||
+    currentTrainFocusedTests.toSet().size() != 254) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 253 unique tests, found " +
+        "Current-train focused manifest drift: expected 254 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2235,6 +2236,14 @@ tasks.register('g107NormalDuelDeclineRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G107NormalDuelDeclineIntegrationTest')
+}
+
+tasks.register('g108NormalDuelOpenCancelRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates explicit participant cancellation of an open normal Duel and reservation/admission release.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G108NormalDuelOpenCancelIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
