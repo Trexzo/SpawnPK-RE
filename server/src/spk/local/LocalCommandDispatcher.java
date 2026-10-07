@@ -72,6 +72,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openPkRatings(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -454,6 +459,31 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isPkRatingsRoute(p)){
+            boolean opened=
+                bridge.openPkRatings(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G111_PK_RATINGS_COMMAND"+
+                " opened="+opened+
+                " root="+
+                PkRatingsPresentation.RATINGS_ROOT+
+                " subtype="+
+                PkRatingsPresentation.APPLICATION_SUBTYPE+
+                " presentationAuthority="+
+                PkRatingsPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalPkRatingsUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " ratingFormulaClaim=false"+
+                " originalCommandClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -720,6 +750,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "tourny"
+                )
+            );
+    }
+
+    static boolean isPkRatingsRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "pkratings"
+                )||
+                p[0].equalsIgnoreCase(
+                    "pkrating"
                 )
             );
     }
