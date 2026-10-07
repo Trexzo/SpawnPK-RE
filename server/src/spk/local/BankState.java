@@ -153,6 +153,35 @@ final class BankState {
         }
     }
 
+    static final class PreparedExternalBankCredit {
+        final Stack[] expectedBank;
+        final Stack[] postimage;
+        final int itemId;
+        final int amount;
+        final int destinationSlot;
+        final String rejection;
+
+        PreparedExternalBankCredit(
+            Stack[] expectedBank,
+            Stack[] postimage,
+            int itemId,
+            int amount,
+            int destinationSlot,
+            String rejection
+        ){
+            this.expectedBank=expectedBank;
+            this.postimage=postimage;
+            this.itemId=itemId;
+            this.amount=amount;
+            this.destinationSlot=destinationSlot;
+            this.rejection=rejection;
+        }
+
+        boolean accepted(){
+            return rejection==null;
+        }
+    }
+
     private final Stack[] bank = new Stack[BANK_CAPACITY];
     private final Stack[] inventory = new Stack[INVENTORY_CAPACITY];
     private boolean open;
@@ -182,6 +211,103 @@ final class BankState {
         long total=0;
         for(Stack st:inventory) if(st!=null && st.itemId==itemId) total+=st.qty;
         return total>Integer.MAX_VALUE?Integer.MAX_VALUE:(int)total;
+    }
+
+    PreparedExternalBankCredit prepareExternalBankCredit(
+        int itemId,
+        int amount
+    ){
+        if(itemId<0)
+            throw new IllegalArgumentException(
+                "itemId="+itemId
+            );
+        if(amount<=0)
+            throw new IllegalArgumentException(
+                "amount="+amount
+            );
+
+        Stack[] expected=
+            copyStacks(bank);
+        Stack[] next=
+            copyStacks(bank);
+
+        int dst=findItem(
+            next,
+            itemId
+        );
+        if(dst<0)
+            dst=firstEmpty(next);
+
+        if(dst<0)
+            return new PreparedExternalBankCredit(
+                expected,
+                expected,
+                itemId,
+                amount,
+                -1,
+                "REJECTED_BANK_FULL"
+            );
+
+        if(next[dst]==null)
+            next[dst]=
+                new Stack(
+                    itemId,
+                    0
+                );
+
+        long merged=
+            (long)next[dst].qty+
+            (long)amount;
+
+        if(merged>Integer.MAX_VALUE)
+            return new PreparedExternalBankCredit(
+                expected,
+                expected,
+                itemId,
+                amount,
+                dst,
+                "REJECTED_QUANTITY_OVERFLOW item="+
+                    itemId+
+                    " destination=BANK"+
+                    " current="+next[dst].qty+
+                    " incoming="+amount
+            );
+
+        next[dst].qty=(int)merged;
+
+        return new PreparedExternalBankCredit(
+            expected,
+            next,
+            itemId,
+            amount,
+            dst,
+            null
+        );
+    }
+
+    int commitPreparedExternalBankCredit(
+        PreparedExternalBankCredit prepared
+    ){
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted external bank credit required"
+            );
+
+        if(!sameStacks(
+                bank,
+                prepared.expectedBank
+            ))
+            throw new IllegalStateException(
+                "bank preimage changed before external credit commit"
+            );
+
+        replaceStacks(
+            bank,
+            prepared.postimage
+        );
+
+        return prepared.destinationSlot;
     }
 
     void open(ServerPacketWriter w) throws IOException {

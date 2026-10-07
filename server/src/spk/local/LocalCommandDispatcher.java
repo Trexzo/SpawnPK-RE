@@ -62,6 +62,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openLootingBag(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default RootReplacingCommandDispatch
             handleRootReplacingCommand(
                 RootReplacingCommandAction action
@@ -382,6 +387,27 @@ final class LocalCommandDispatcher {
             );
         }
 
+        if(isLootingBagRoute(p)){
+            boolean opened=
+                bridge.openLootingBag(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G8_LOOTING_BAG_UI_COMMAND"+
+                " opened="+opened+
+                " root="+
+                LootingBagPresentation.ROOT+
+                " container="+
+                LootingBagPresentation.CONTAINER_WIDGET+
+                " presentationAuthority="+
+                LootingBagPresentation.PRESENTATION_AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"
+            );
+            return true;
+        }
+
         if(isDevPanelRoute(p)){
             bridge.openDevPanel(serverPackets);
             System.out.println(
@@ -558,6 +584,19 @@ final class LocalCommandDispatcher {
                 LocalDiagnosticContentModule
                     .ITEMLIB_OPEN_ACTION_PREFIX+
                 ":"
+            );
+    }
+
+    static boolean isLootingBagRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "lootingbag"
+                )||
+                p[0].equalsIgnoreCase(
+                    "lootbag"
+                )
             );
     }
 

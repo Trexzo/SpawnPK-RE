@@ -2059,6 +2059,7 @@ def currentTrainFocusedTests = [
     'spk.local.G62BloodSlayerBossHunterIntegrationTest',
     'spk.local.G6BloodSlayerCompletionCountTest',
     'spk.local.G71BloodSlayerBountyHunterIntegrationTest',
+    'spk.local.G8LootingBagBankIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2087,10 +2088,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 240 ||
-    currentTrainFocusedTests.toSet().size() != 240) {
+if (currentTrainFocusedTests.size() != 241 ||
+    currentTrainFocusedTests.toSet().size() != 241) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 240 unique tests, found " +
+        "Current-train focused manifest drift: expected 241 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2118,6 +2119,14 @@ tasks.register('currentTrainFocusedRegression') {
             "GRADLE_CURRENT_TRAIN_FOCUSED_PASS count=${currentTrainFocusedTests.size()} bytecodeMajor=55"
         )
     }
+}
+
+tasks.register('g8LootingBagBankRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates live exact-v308 Looting Bag per-item deposits into LocalLab bank state with failure-atomic reservation rollback.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G8LootingBagBankIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
