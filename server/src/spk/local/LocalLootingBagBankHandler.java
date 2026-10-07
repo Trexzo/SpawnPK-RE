@@ -175,6 +175,16 @@ final class LocalLootingBagBankHandler {
 
         LootingBagService.Snapshot before=
             service.get(owner());
+
+        if(before==null)
+            return new Result(
+                Status.BANK_REJECTED,
+                action.itemId,
+                0,
+                "EMPTY_BAG",
+                null
+            );
+
         LootingBagPresentation.Projection projection=
             LootingBagPresentation.project(
                 before
