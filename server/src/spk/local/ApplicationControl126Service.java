@@ -239,7 +239,7 @@ final class ApplicationControl126Service {
         );
     }
 
-    static void loginRewardIndex(
+    static void loginRewardContainerIndex(
         ServerPacketWriter writer,
         int index
     )throws IOException{
@@ -249,6 +249,16 @@ final class ApplicationControl126Service {
                 .loginRewardIndex(
                     index
                 )
+        );
+    }
+
+    static void loginRewardIndex(
+        ServerPacketWriter writer,
+        int index
+    )throws IOException{
+        loginRewardContainerIndex(
+            writer,
+            index
         );
     }
 
