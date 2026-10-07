@@ -22,6 +22,8 @@ public final class LocalSessionUiActionHandlerTest {
         int makeoverDesignerRetireCalls;
         int lootingBagRetireCalls;
         boolean lootingBagOpen;
+        int tournamentRetireCalls;
+        boolean tournamentOpen;
         LocalMonsterSpawnerUiHandler.Result lastMonsterSpawnerResult;
 
         @Override public void saveAccount(
@@ -102,6 +104,13 @@ public final class LocalSessionUiActionHandlerTest {
             lootingBagRetireCalls++;
             boolean wasOpen=lootingBagOpen;
             lootingBagOpen=false;
+            return wasOpen;
+        }
+
+        @Override public boolean retireTournamentRoot(){
+            tournamentRetireCalls++;
+            boolean wasOpen=tournamentOpen;
+            tournamentOpen=false;
             return wasOpen;
         }
 
@@ -390,6 +399,65 @@ public final class LocalSessionUiActionHandlerTest {
                 closeRetiresBefore+1)
             throw new AssertionError(
                 "interface close did not retire Looting Bag ownership"
+            );
+
+        int tournamentRetiresBefore=
+            bridge.tournamentRetireCalls;
+
+        String tournamentTarget=
+            routed.replaceMonsterSpawnerWithTournamentRoot(
+                ()->{
+                    bridge.tournamentOpen=true;
+                    return "TOURNAMENT_TARGET_OPENED";
+                }
+            );
+
+        if(!"TOURNAMENT_TARGET_OPENED".equals(
+                tournamentTarget
+            )||
+           !bridge.tournamentOpen||
+           bridge.tournamentRetireCalls!=
+                tournamentRetiresBefore)
+            throw new AssertionError(
+                "Tournament target root retired its own ownership"
+            );
+
+        String afterTournament=
+            routed.replaceMonsterSpawnerRoot(
+                ()->"AFTER_TOURNAMENT"
+            );
+
+        if(!"AFTER_TOURNAMENT".equals(
+                afterTournament
+            )||
+           bridge.tournamentOpen||
+           bridge.tournamentRetireCalls!=
+                tournamentRetiresBefore+1)
+            throw new AssertionError(
+                "competing root did not retire Tournament ownership"
+            );
+
+        routed.replaceMonsterSpawnerWithTournamentRoot(
+            ()->{
+                bridge.tournamentOpen=true;
+                return "TOURNAMENT_REOPENED";
+            }
+        );
+
+        int tournamentCloseBefore=
+            bridge.tournamentRetireCalls;
+
+        routed.handleInterfaceClose(
+            true,
+            w,
+            "[ui-test] "
+        );
+
+        if(bridge.tournamentOpen||
+           bridge.tournamentRetireCalls!=
+                tournamentCloseBefore+1)
+            throw new AssertionError(
+                "interface close did not retire Tournament ownership"
             );
 
         int configuredPreOpenWire=
