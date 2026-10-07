@@ -180,7 +180,7 @@ public final class G111PkRatingsReadOnlyIntegrationTest {
                     );
 
             registrationOrder=
-                "Online: "+A
+                ("Online: "+A)
                     .equals(
                         snapshot.rows
                             .get(1)
@@ -199,14 +199,14 @@ public final class G111PkRatingsReadOnlyIntegrationTest {
                             .displayText
                     );
 
-            selectableRows=true;
+            selectableRows=false;
             for(PkRatingsService.Row row:
                     snapshot.rows)
                 if(row.selectable)
-                    selectableRows=false;
+                    selectableRows=true;
 
             readOnly=
-                selectableRows&&
+                !selectableRows&&
                 snapshot.policyAuthority==
                     AtomicTransactionService
                         .SourceAuthority
@@ -230,8 +230,8 @@ public final class G111PkRatingsReadOnlyIntegrationTest {
                 exactSubtype16&&
                 feed.subtype16;
             selectableRows=
-                selectableRows&&
-                feed.allNonselectable;
+                selectableRows||
+                !feed.allNonselectable;
             fontPolicyLocal=
                 fontPolicyLocal&&
                 feed.fontZero;
@@ -277,10 +277,7 @@ public final class G111PkRatingsReadOnlyIntegrationTest {
                 " onlineRoster="+onlineRoster+
                 " registrationOrder="+registrationOrder+
                 " readOnly="+readOnly+
-                " selectableRows="+
-                    (!selectableRows
-                        ?true
-                        :false)+
+                " selectableRows="+selectableRows+
                 " clientFeed="+clientFeed+
                 " fontPolicyLocal="+fontPolicyLocal+
                 " ratingFormulaClaim=false"+
