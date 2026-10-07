@@ -201,6 +201,7 @@ final class LocalSession implements Runnable {
     private final LocalEventChestUiHandler eventChestUi;
     private final LocalGoodwillWellUiHandler goodwillWellUi;
     private final LocalLotteryUiHandler lotteryUi;
+    private final LocalUnclaimedRewardCofferUiHandler unclaimedCofferUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -589,6 +590,10 @@ final class LocalSession implements Runnable {
             new LocalGoodwillWellUiHandler();
         this.lotteryUi=
             new LocalLotteryUiHandler();
+        this.unclaimedCofferUi=
+            new LocalUnclaimedRewardCofferUiHandler(
+                this.worldPlayer
+            );
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -792,6 +797,23 @@ final class LocalSession implements Runnable {
                                         writer
                                     );
                                     return "VOTING_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openUnclaimedCoffer(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithUnclaimedCofferRoot(
+                                ()->{
+                                    LocalSession.this
+                                        .unclaimedCofferUi
+                                        .open(writer);
+                                    return "UNCLAIMED_COFFER_ROOT_OPENED";
                                 }
                             );
 
@@ -1094,6 +1116,32 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .lotteryUi
                         .close();
+                }
+
+                @Override public boolean retireUnclaimedCofferRoot(){
+                    return LocalSession.this
+                        .unclaimedCofferUi
+                        .close();
+                }
+
+                @Override public boolean openUnclaimedCoffer(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .unclaimedCofferUi
+                        .open(writer);
+                    return true;
+                }
+
+                @Override public LocalUnclaimedRewardCofferUiHandler.Result
+                    handleUnclaimedCofferBulk(
+                        UnclaimedRewardCofferPresentation.BulkIntent intent,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .unclaimedCofferUi
+                        .handleBulk(intent);
                 }
 
                 @Override public boolean openLottery(

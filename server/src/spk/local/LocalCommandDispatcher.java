@@ -98,6 +98,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openUnclaimedCoffer(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -586,6 +591,31 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isUnclaimedCofferRoute(p)){
+            boolean opened=
+                bridge.openUnclaimedCoffer(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G135_UNCLAIMED_COFFER_COMMAND"+
+                " opened="+opened+
+                " root="+
+                UnclaimedRewardCofferPresentation.ROOT+
+                " container="+
+                UnclaimedRewardCofferPresentation.CONTAINER_WIDGET+
+                " presentationAuthority="+
+                UnclaimedRewardCofferPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalUnclaimedRewardCofferUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " semanticCofferCreated=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -969,6 +999,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "voting"
+                )
+            );
+    }
+
+    static boolean isUnclaimedCofferRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "coffer"
+                )||
+                p[0].equalsIgnoreCase(
+                    "unclaimed"
                 )
             );
     }
