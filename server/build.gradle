@@ -2096,6 +2096,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1314ItemEnchantmentEmptyMainNavigationIntegrationTest',
     'spk.local.G1315DonorToZeroCartNavigationIntegrationTest',
     'spk.local.G141DailyPvmLiveIntegrationTest',
+    'spk.local.G142DailyPvmPersistenceIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2124,10 +2125,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 277 ||
-    currentTrainFocusedTests.toSet().size() != 277) {
+if (currentTrainFocusedTests.size() != 278 ||
+    currentTrainFocusedTests.toSet().size() != 278) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 277 unique tests, found " +
+        "Current-train focused manifest drift: expected 278 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2451,6 +2452,14 @@ tasks.register('g141DailyPvmLiveRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G141DailyPvmLiveIntegrationTest')
+}
+
+tasks.register('g142DailyPvmPersistenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates versioned LocalLab Daily PvM assignment/progress persistence across fresh World reloads with malformed-state fail-closed behavior.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G142DailyPvmPersistenceIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
