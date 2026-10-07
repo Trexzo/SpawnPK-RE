@@ -191,6 +191,25 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireUnclaimedCofferRoot(){
+            return false;
+        }
+
+        default boolean openUnclaimedCoffer(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalUnclaimedRewardCofferUiHandler.Result
+            handleUnclaimedCofferBulk(
+                UnclaimedRewardCofferPresentation.BulkIntent intent,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default boolean openLottery(
             LotteryService.Channel channel,
             ServerPacketWriter serverPackets,
@@ -317,6 +336,7 @@ final class LocalSessionUiActionHandler {
     private volatile boolean eventChestUiOpen;
     private volatile boolean goodwillWellUiOpen;
     private volatile boolean lotteryUiOpen;
+    private volatile boolean unclaimedCofferUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -465,6 +485,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         monsterSpawnerUiOpen=true;
@@ -568,6 +589,9 @@ final class LocalSessionUiActionHandler {
         boolean lotteryWasOpen=
             retireLotteryUi();
 
+        boolean unclaimedCofferWasOpen=
+            retireUnclaimedCofferUi();
+
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
@@ -610,6 +634,7 @@ final class LocalSessionUiActionHandler {
             " eventChestWasOpen="+eventChestWasOpen+
             " goodwillWellWasOpen="+goodwillWellWasOpen+
             " lotteryWasOpen="+lotteryWasOpen+
+            " unclaimedCofferWasOpen="+unclaimedCofferWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
             " duelWasOpen="+duelWasOpen+
@@ -722,6 +747,49 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
+            );
+            return;
+        }
+
+        UnclaimedRewardCofferPresentation.BulkIntent cofferBulk=
+            UnclaimedRewardCofferPresentation.resolveWidget(
+                widget
+            );
+
+        if(cofferBulk!=null){
+            if(!unclaimedCofferUiOpen){
+                System.out.println(
+                    tag+
+                    "G135_UNCLAIMED_COFFER_UI widget="+
+                    widget+
+                    " destination="+
+                    cofferBulk.destination+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalUnclaimedRewardCofferUiHandler.Result result=
+                bridge.handleUnclaimedCofferBulk(
+                    cofferBulk,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G135_UNCLAIMED_COFFER_UI widget="+
+                widget+
+                " destination="+
+                cofferBulk.destination+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " rewardDeliveryClaim=false"+
+                " inventoryMutationClaim=false"+
+                " bankMutationClaim=false"
             );
             return;
         }
@@ -1493,6 +1561,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1524,6 +1593,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1556,6 +1626,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1588,6 +1659,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bank.clientClosed();
@@ -1620,6 +1692,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1652,6 +1725,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -1683,6 +1757,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1694,6 +1769,40 @@ final class LocalSessionUiActionHandler {
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishUnclaimedCofferRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
         return result;
     }
 
@@ -1715,6 +1824,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1748,6 +1858,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1781,6 +1892,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1814,6 +1926,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1848,6 +1961,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1881,6 +1995,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1914,6 +2029,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1947,6 +2063,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireUnclaimedCofferUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2113,6 +2230,31 @@ final class LocalSessionUiActionHandler {
                     checked
                 )
         );
+    }
+
+    String replaceMonsterSpawnerWithUnclaimedCofferRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireUnclaimedCofferUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishUnclaimedCofferRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            unclaimedCofferUiOpen=true;
+
+        return result;
     }
 
     String replaceMonsterSpawnerWithLotteryRoot(
@@ -2284,6 +2426,14 @@ final class LocalSessionUiActionHandler {
         lotteryUiOpen=false;
 
         return bridge.retireLotteryRoot()||
+            wasOpen;
+    }
+
+    private boolean retireUnclaimedCofferUi(){
+        boolean wasOpen=unclaimedCofferUiOpen;
+        unclaimedCofferUiOpen=false;
+
+        return bridge.retireUnclaimedCofferRoot()||
             wasOpen;
     }
 
