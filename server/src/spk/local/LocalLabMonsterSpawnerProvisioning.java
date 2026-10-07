@@ -313,6 +313,13 @@ final class LocalLabMonsterSpawnerProvisioning {
                 deathTick
             );
 
+        checkedWorld.localLabTaskScrolls()
+            .recordMonsterSpawnerFinalization(
+                recipientRefChecked,
+                definitionId,
+                deathTick
+            );
+
         return true;
     }
 
