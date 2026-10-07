@@ -653,7 +653,6 @@ final class LocalSessionUiActionHandler {
 
         boolean bloodFountainWasOpen=
             retireBloodFountainUi();
-            retireLegendaryPetFusionUi();
 
         boolean legendaryPetFusionWasOpen=
             retireLegendaryPetFusionUi();
