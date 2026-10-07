@@ -14,7 +14,12 @@ import java.util.Objects;
 final class QuickPrayerSelectionPresentation {
     static final int NORMAL_ROOT=20000;
     static final int CURSES_ROOT=22000;
+    static final int QUICK_OFF_WIDGET=4999;
+    static final int QUICK_ON_WIDGET=5000;
+    static final int SELECT_WIDGET=5001;
     static final int FIRST_SELECTOR=17202;
+    static final int LAST_CURSE_SELECTOR=17221;
+    static final int LAST_NORMAL_SELECTOR=17230;
     static final int CONFIRM_WIDGET=17241;
     static final String PRESENTATION_AUTHORITY="EXACT_CURRENT_CLIENT";
 
@@ -90,6 +95,30 @@ final class QuickPrayerSelectionPresentation {
     boolean open(){return activeBook!=null;}
 
     QuickPrayerSelectionService.Book activeBook(){return activeBook;}
+
+    static boolean isSelectionWidget(int widget){
+        return widget==CONFIRM_WIDGET||
+            (widget>=FIRST_SELECTOR&&
+             widget<=LAST_NORMAL_SELECTOR);
+    }
+
+    static boolean attachedToBook(
+        QuickPrayerSelectionService.Book book,
+        int widget
+    ){
+        Objects.requireNonNull(book,"book");
+
+        if(widget==CONFIRM_WIDGET)
+            return true;
+
+        int last=
+            book==QuickPrayerSelectionService.Book.NORMAL
+                ?LAST_NORMAL_SELECTOR
+                :LAST_CURSE_SELECTOR;
+
+        return widget>=FIRST_SELECTOR&&
+            widget<=last;
+    }
 
     static void publishActive(
         ServerPacketWriter packets,
