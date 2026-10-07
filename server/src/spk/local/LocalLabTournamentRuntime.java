@@ -12,6 +12,14 @@ import java.util.*;
  * and all original SpawnPK tournament policy remain external authority.
  */
 final class LocalLabTournamentRuntime {
+    @FunctionalInterface
+    interface MatchAdmissionFence {
+        void requireAvailable(
+            String firstParticipant,
+            String secondParticipant
+        );
+    }
+
     static final String AUTHORITY=
         "LOCAL_LAB_POLICY_G91_TOURNAMENT_REGISTRATION_V1";
     static final WorldEventId EVENT_ID=
@@ -107,8 +115,23 @@ final class LocalLabTournamentRuntime {
     private final LinkedHashMap<String,PvpDeathResult>
         pvpDeathByIdentity=
             new LinkedHashMap<>();
+    private final Object competitiveAdmissionLock;
+    private MatchAdmissionFence matchAdmissionFence=
+        (first,second)->{};
+    private boolean matchAdmissionFenceInstalled;
 
     LocalLabTournamentRuntime(){
+        this(new Object());
+    }
+
+    LocalLabTournamentRuntime(
+        Object competitiveAdmissionLock
+    ){
+        this.competitiveAdmissionLock=
+            Objects.requireNonNull(
+                competitiveAdmissionLock,
+                "competitiveAdmissionLock"
+            );
         TournamentService.Snapshot created=
             tournament.registerTournament(
                 new WorldEventDefinition(
@@ -143,6 +166,39 @@ final class LocalLabTournamentRuntime {
             throw new IllegalStateException(
                 "G9.1 Tournament did not initialize SCHEDULED"
             );
+    }
+
+    synchronized void installMatchAdmissionFence(
+        MatchAdmissionFence fence
+    ){
+        if(matchAdmissionFenceInstalled)
+            throw new IllegalStateException(
+                "Tournament match admission fence already installed"
+            );
+
+        matchAdmissionFence=
+            Objects.requireNonNull(
+                fence,
+                "fence"
+            );
+        matchAdmissionFenceInstalled=true;
+    }
+
+    boolean participantInActiveMatch(
+        String participantRef
+    ){
+        TournamentService.EntrantSnapshot entrant=
+            tournament.get(
+                EVENT_ID
+            ).entrant(
+                PartyService.requireRef(
+                    participantRef
+                )
+            );
+
+        return entrant!=null&&
+            entrant.state==
+                TournamentService.EntrantState.IN_MATCH;
     }
 
     synchronized RegistrationResult register(
@@ -222,52 +278,59 @@ final class LocalLabTournamentRuntime {
                 "G9.2 requires two REGISTERED entrants"
             );
 
-        events.tick(worldTick);
-
-        GlobalEventService.Snapshot event=
-            events.get(
-                EVENT_ID
-            );
-
-        if(event.lifecycle!=
-                GlobalEventService.Lifecycle.ACTIVE)
-            throw new IllegalStateException(
-                "G9.2 Tournament did not activate lifecycle="+
-                event.lifecycle
-            );
-
-        long sequence=matchSequence;
-        MatchId matchId=
-            MatchId.of(
-                "locallab:tournament:g92:match:"+
-                sequence
-            );
-        WorldInstanceId instanceId=
-            WorldInstanceId.of(
-                "locallab:tournament:g92:instance:"+
-                sequence
-            );
-
-        TournamentService.Snapshot started=
-            tournament.startMatch(
-                EVENT_ID,
+        synchronized(competitiveAdmissionLock){
+            matchAdmissionFence.requireAvailable(
                 first,
-                second,
+                second
+            );
+
+            events.tick(worldTick);
+
+            GlobalEventService.Snapshot event=
+                events.get(
+                    EVENT_ID
+                );
+
+            if(event.lifecycle!=
+                    GlobalEventService.Lifecycle.ACTIVE)
+                throw new IllegalStateException(
+                    "G9.2 Tournament did not activate lifecycle="+
+                    event.lifecycle
+                );
+
+            long sequence=matchSequence;
+            MatchId matchId=
+                MatchId.of(
+                    "locallab:tournament:g92:match:"+
+                    sequence
+                );
+            WorldInstanceId instanceId=
+                WorldInstanceId.of(
+                    "locallab:tournament:g92:instance:"+
+                    sequence
+                );
+
+            TournamentService.Snapshot started=
+                tournament.startMatch(
+                    EVENT_ID,
+                    first,
+                    second,
+                    matchId,
+                    instanceId
+                );
+
+            matchSequence=
+                Math.addExact(
+                    sequence,
+                    1L
+                );
+
+            return new MatchStartResult(
                 matchId,
-                instanceId
+                instanceId,
+                started
             );
-
-        matchSequence=
-            Math.addExact(
-                sequence,
-                1L
-            );
-
-        return new MatchStartResult(
-            matchId,
-            instanceId,
-            started
-        );
+        }
     }
 
     synchronized TournamentService.Snapshot completeMatch(

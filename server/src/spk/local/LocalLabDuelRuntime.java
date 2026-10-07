@@ -176,37 +176,52 @@ final class LocalLabDuelRuntime {
                 "mode"
             );
 
-        long sequence=challengeSequence;
-        DuelSessionService.ChallengeId challengeId=
-            DuelSessionService.ChallengeId.of(
-                "locallab:duel:g101:"+
-                Long.toUnsignedString(
-                    sequence
-                )
-            );
+        synchronized(world.competitiveAdmissionLock()){
+            if(world.localTournament()
+                    .participantInActiveMatch(
+                        challenger
+                    )||
+               world.localTournament()
+                    .participantInActiveMatch(
+                        challenged
+                    ))
+                throw new IllegalStateException(
+                    "Duel proposal blocked by active Tournament match participants="+
+                    challenger+","+challenged
+                );
 
-        DuelSessionService.Snapshot proposed=
-            duels.propose(
-                challengeId,
-                challenger,
-                challenged,
-                duelTypeKey(
-                    checkedMode
-                ),
-                rules(),
-                AUTHORITY
-            );
+            long sequence=challengeSequence;
+            DuelSessionService.ChallengeId challengeId=
+                DuelSessionService.ChallengeId.of(
+                    "locallab:duel:g101:"+
+                    Long.toUnsignedString(
+                        sequence
+                    )
+                );
 
-        challengeSequence=
-            Math.addExact(
-                sequence,
-                1L
-            );
+            DuelSessionService.Snapshot proposed=
+                duels.propose(
+                    challengeId,
+                    challenger,
+                    challenged,
+                    duelTypeKey(
+                        checkedMode
+                    ),
+                    rules(),
+                    AUTHORITY
+                );
 
-        return new ProposalResult(
-            checkedMode,
-            proposed
-        );
+            challengeSequence=
+                Math.addExact(
+                    sequence,
+                    1L
+                );
+
+            return new ProposalResult(
+                checkedMode,
+                proposed
+            );
+        }
     }
 
     synchronized StartResult acceptAndStart(
@@ -448,6 +463,14 @@ final class LocalLabDuelRuntime {
             Long.toUnsignedString(
                 deathSequence
             );
+    }
+
+    boolean participantHasOpenDuel(
+        String participantRef
+    ){
+        return duels.openFor(
+            participantRef
+        )!=null;
     }
 
     synchronized DuelSessionService.Snapshot openFor(
