@@ -2104,6 +2104,7 @@ def currentTrainFocusedTests = [
     'spk.local.G151TaskScrollEmptyShellIntegrationTest',
     'spk.local.G152TaskScrollPvmRuntimeIntegrationTest',
     'spk.local.G153TaskScrollLiveAssignIntegrationTest',
+    'spk.local.G154TaskScrollPersistenceIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2132,10 +2133,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 285 ||
-    currentTrainFocusedTests.toSet().size() != 285) {
+if (currentTrainFocusedTests.size() != 286 ||
+    currentTrainFocusedTests.toSet().size() != 286) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 285 unique tests, found " +
+        "Current-train focused manifest drift: expected 286 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2523,6 +2524,14 @@ tasks.register('g153TaskScrollLiveAssignRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G153TaskScrollLiveAssignIntegrationTest')
+}
+
+tasks.register('g154TaskScrollPersistenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates versioned LocalLab Task Scroll assignment/progress persistence across fresh World reloads with malformed-state fail-closed behavior.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G154TaskScrollPersistenceIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
