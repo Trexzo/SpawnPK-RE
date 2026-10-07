@@ -208,6 +208,7 @@ final class LocalSession implements Runnable {
     private final LocalLegendaryPetFusionUiHandler legendaryPetFusionUi;
     private final LocalItemEnchantmentUiHandler itemEnchantmentUi;
     private final LocalDonorPanelUiHandler donorPanelUi;
+    private final LocalDonationCartUiHandler donationCartUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -612,6 +613,8 @@ final class LocalSession implements Runnable {
             new LocalItemEnchantmentUiHandler();
         this.donorPanelUi=
             new LocalDonorPanelUiHandler();
+        this.donationCartUi=
+            new LocalDonationCartUiHandler();
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -934,6 +937,23 @@ final class LocalSession implements Runnable {
                                         .donorPanelUi
                                         .open(writer);
                                     return "DONOR_PANEL_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openDonationCart(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithDonationCartRoot(
+                                ()->{
+                                    LocalSession.this
+                                        .donationCartUi
+                                        .open(writer);
+                                    return "DONATION_CART_ROOT_OPENED";
                                 }
                             );
 
@@ -1346,6 +1366,32 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .donorPanelUi
                         .handle(intent);
+                }
+
+                @Override public boolean retireDonationCartRoot(){
+                    return LocalSession.this
+                        .donationCartUi
+                        .close();
+                }
+
+                @Override public boolean openDonationCart(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .donationCartUi
+                        .open(writer);
+                    return true;
+                }
+
+                @Override public LocalDonationCartUiHandler.Result
+                    handleDonationCartInput(
+                        DonationCartPresentation.Input input,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .donationCartUi
+                        .handle(input);
                 }
 
                 @Override public boolean openBloodFountainHub(

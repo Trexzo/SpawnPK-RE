@@ -159,6 +159,22 @@ final class DonationCartPresentation {
             );
     }
 
+    static void publishZeroQuantities(
+        ServerPacketWriter packets
+    )throws IOException{
+        Objects.requireNonNull(
+            packets,
+            "packets"
+        );
+
+        for(int i=0;i<PRODUCT_SLOTS;i++)
+            ApplicationBus126Publisher.send(
+                packets,
+                QUANTITY_WIDGETS[i],
+                "0"
+            );
+    }
+
     static void publishQuantities(
         ServerPacketWriter packets,
         List<DonationCartService.Product> catalog,
