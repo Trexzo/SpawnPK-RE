@@ -256,9 +256,9 @@ public final class G136BloodFountainSalvageNavigationIntegrationTest {
 
             ui.handleWidget(
                 BloodFountainHubPresentation
-                    .BLOOD_DIAMOND_FUSER_WIDGET,
+                    .BLOOD_POOL_STORE_WIDGET,
                 writer,
-                "[g136-disabled-fuser] "
+                "[g136-disabled-blood-pool-store] "
             );
 
             otherHubIntentsDisabled=
@@ -266,7 +266,7 @@ public final class G136BloodFountainSalvageNavigationIntegrationTest {
                 bridge.lastHub!=null&&
                 bridge.lastHub.intent==
                     BloodFountainHubService
-                        .Intent.BLOOD_DIAMOND_FUSER&&
+                        .Intent.BLOOD_POOL_STORE&&
                 "DISABLED_NO_RUNTIME_COMPOSITION"
                     .equals(
                         bridge.lastHub.status
