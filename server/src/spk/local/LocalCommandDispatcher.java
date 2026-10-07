@@ -459,30 +459,13 @@ final class LocalCommandDispatcher {
             return true;
         }
 
-        if(isPkRatingsRoute(p)){
-            boolean opened=
-                bridge.openPkRatings(
-                    serverPackets
-                );
-
-            System.out.println(
-                tag+
-                "G111_PK_RATINGS_COMMAND"+
-                " opened="+opened+
-                " root="+
-                PkRatingsPresentation.RATINGS_ROOT+
-                " subtype="+
-                PkRatingsPresentation.APPLICATION_SUBTYPE+
-                " presentationAuthority="+
-                PkRatingsPresentation.PRESENTATION_AUTHORITY+
-                " gameplayAuthority="+
-                LocalPkRatingsUiHandler.AUTHORITY+
-                " routeAuthority=CUSTOM_LOCALLAB"+
-                " ratingFormulaClaim=false"+
-                " originalCommandClaim=false"
-            );
+        if(dispatchPkRatingsCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
             return true;
-        }
 
         if(isDuelRoute(p)){
             String target=
@@ -665,6 +648,46 @@ final class LocalCommandDispatcher {
         }
 
         return false;
+    }
+
+    static boolean dispatchPkRatingsCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(!isPkRatingsRoute(tokens))
+            return false;
+
+        boolean opened=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).openPkRatings(
+                Objects.requireNonNull(
+                    serverPackets,
+                    "serverPackets"
+                )
+            );
+
+        System.out.println(
+            tag+
+            "G111_PK_RATINGS_COMMAND"+
+            " opened="+opened+
+            " root="+
+            PkRatingsPresentation.RATINGS_ROOT+
+            " subtype="+
+            PkRatingsPresentation.APPLICATION_SUBTYPE+
+            " presentationAuthority="+
+            PkRatingsPresentation.PRESENTATION_AUTHORITY+
+            " gameplayAuthority="+
+            LocalPkRatingsUiHandler.AUTHORITY+
+            " routeAuthority=CUSTOM_LOCALLAB"+
+            " ratingFormulaClaim=false"+
+            " originalCommandClaim=false"
+        );
+
+        return true;
     }
 
     static boolean dispatchDuelLifecycleCommand(
