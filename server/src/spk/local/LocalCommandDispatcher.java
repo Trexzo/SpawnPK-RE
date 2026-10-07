@@ -113,6 +113,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openEventActivity(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -673,6 +678,31 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isEventActivityRoute(p)){
+            boolean opened=
+                bridge.openEventActivity(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G139_EVENT_ACTIVITY_COMMAND"+
+                " opened="+opened+
+                " root="+
+                EventActivityPresentation.ROOT+
+                " subtype="+
+                EventActivityPresentation.APPLICATION_SUBTYPE+
+                " presentationAuthority="+
+                EventActivityPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalEventActivityUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " zeroRows=true"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -1095,6 +1125,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "bcsynthesis"
+                )
+            );
+    }
+
+    static boolean isEventActivityRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "eventactivity"
+                )||
+                p[0].equalsIgnoreCase(
+                    "activities"
                 )
             );
     }
