@@ -2109,6 +2109,7 @@ def currentTrainFocusedTests = [
     'spk.local.G162AdventureLiveOpenIntegrationTest',
     'spk.local.G163AdventurePvmRuntimeIntegrationTest',
     'spk.local.G164AdventureLivePvmIntegrationTest',
+    'spk.local.G165AdventurePersistenceIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2137,10 +2138,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 290 ||
-    currentTrainFocusedTests.toSet().size() != 290) {
+if (currentTrainFocusedTests.size() != 291 ||
+    currentTrainFocusedTests.toSet().size() != 291) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 290 unique tests, found " +
+        "Current-train focused manifest drift: expected 291 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2568,6 +2569,14 @@ tasks.register('g164AdventureLivePvmRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G164AdventureLivePvmIntegrationTest')
+}
+
+tasks.register('g165AdventurePersistenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates versioned LocalLab Adventure activation/progress persistence across fresh World reloads with malformed-state fail-closed behavior.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G165AdventurePersistenceIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
