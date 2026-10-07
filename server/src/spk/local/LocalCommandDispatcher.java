@@ -133,6 +133,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openDonationCart(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -791,6 +796,34 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isDonationCartRoute(p)){
+            boolean opened=
+                bridge.openDonationCart(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G1313_DONATION_CART_COMMAND"+
+                " opened="+opened+
+                " root="+
+                DonationCartPresentation.ROOT+
+                " productSlots="+
+                DonationCartPresentation.PRODUCT_SLOTS+
+                " presentationAuthority="+
+                DonationCartPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalDonationCartUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " catalogClaim=false"+
+                " pricingClaim=false"+
+                " checkoutClaim=false"+
+                " paymentProcessingClaim=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -1265,6 +1298,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "donor"
+                )
+            );
+    }
+
+    static boolean isDonationCartRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "donationcart"
+                )||
+                p[0].equalsIgnoreCase(
+                    "donatecart"
                 )
             );
     }
