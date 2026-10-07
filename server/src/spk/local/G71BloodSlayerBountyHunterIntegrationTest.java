@@ -21,6 +21,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
         boolean delayedSettlementCredit=false;
         boolean freshWorldBountyRestore=false;
         boolean g6V3Migration=false;
+        boolean g6V2BountyRejected=false;
         boolean g6V3BountyRejected=false;
         boolean slaughterStillUnsupported=false;
 
@@ -786,6 +787,32 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
                 .BOUNTY_TASK_KEY
         );
 
+        TreeMap<String,String> impossibleModeV2Bounty=
+            new TreeMap<>(
+                impossibleG6Bounty
+            );
+        impossibleModeV2Bounty.put(
+            "version",
+            LocalLabSlayerPersistence
+                .MODE_VERSION
+        );
+        impossibleModeV2Bounty.remove(
+            "completion-count"
+        );
+
+        try{
+            LocalLabSlayerPersistence.decode(
+                impossibleModeV2Bounty
+            );
+        }catch(IllegalArgumentException expected){
+            g6V2BountyRejected=true;
+        }
+
+        require(
+            g6V2BountyRejected,
+            "historical mode-aware v2 illegally accepted Bounty mode"
+        );
+
         try{
             LocalLabSlayerPersistence.decode(
                 impossibleG6Bounty
@@ -822,6 +849,8 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
             " freshWorldBountyRestore="+
                 freshWorldBountyRestore+
             " g6V3Migration="+g6V3Migration+
+            " g6V2BountyRejected="+
+                g6V2BountyRejected+
             " g6V3BountyRejected="+
                 g6V3BountyRejected+
             " slaughterStillUnsupported="+
