@@ -179,6 +179,25 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireEventChestRoot(){
+            return false;
+        }
+
+        default boolean openEventChest(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalEventChestUiHandler.Result
+            handleEventChestWidget(
+                EventChestService.Action action,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default boolean openQuickPrayer(
             ServerPacketWriter serverPackets,
             String tag
@@ -256,6 +275,7 @@ final class LocalSessionUiActionHandler {
     private volatile boolean bloodSlayerUiOpen;
     private volatile boolean pkRatingsUiOpen;
     private volatile boolean quickPrayerUiOpen;
+    private volatile boolean eventChestUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -495,6 +515,9 @@ final class LocalSessionUiActionHandler {
         boolean quickPrayerWasOpen=
             retireQuickPrayerUi();
 
+        boolean eventChestWasOpen=
+            retireEventChestUi();
+
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
@@ -534,6 +557,7 @@ final class LocalSessionUiActionHandler {
             " bloodSlayerWasOpen="+bloodSlayerWasOpen+
             " pkRatingsWasOpen="+pkRatingsWasOpen+
             " quickPrayerWasOpen="+quickPrayerWasOpen+
+            " eventChestWasOpen="+eventChestWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
             " duelWasOpen="+duelWasOpen+
@@ -646,6 +670,47 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
+            );
+            return;
+        }
+
+        EventChestService.Action eventChestAction=
+            EventChestPresentation.resolveAction(
+                widget
+            );
+
+        if(eventChestAction!=null){
+            if(!eventChestUiOpen){
+                System.out.println(
+                    tag+
+                    "G131_EVENT_CHEST_UI widget="+
+                    widget+
+                    " action="+eventChestAction+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalEventChestUiHandler.Result result=
+                bridge.handleEventChestWidget(
+                    eventChestAction,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G131_EVENT_CHEST_UI widget="+
+                widget+
+                " action="+eventChestAction+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " mechanicsClaim=false"+
+                " rewardClaim=false"+
+                " rngClaim=false"
             );
             return;
         }
@@ -1291,6 +1356,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1319,6 +1385,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1348,6 +1415,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1377,6 +1445,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bank.clientClosed();
@@ -1406,6 +1475,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1435,6 +1505,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -1463,6 +1534,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1474,6 +1546,37 @@ final class LocalSessionUiActionHandler {
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishEventChestRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
         return result;
     }
 
@@ -1523,6 +1626,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1553,6 +1657,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1583,6 +1688,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1613,6 +1719,7 @@ final class LocalSessionUiActionHandler {
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1781,6 +1888,31 @@ final class LocalSessionUiActionHandler {
         );
     }
 
+    String replaceMonsterSpawnerWithEventChestRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireEventChestUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishEventChestRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            eventChestUiOpen=true;
+
+        return result;
+    }
+
     String replaceMonsterSpawnerWithQuickPrayerRoot(
         RootInterfaceAction publisher
     )throws IOException{
@@ -1851,6 +1983,14 @@ final class LocalSessionUiActionHandler {
         quickPrayerUiOpen=false;
 
         return bridge.retireQuickPrayerRoot()||
+            wasOpen;
+    }
+
+    private boolean retireEventChestUi(){
+        boolean wasOpen=eventChestUiOpen;
+        eventChestUiOpen=false;
+
+        return bridge.retireEventChestRoot()||
             wasOpen;
     }
 
