@@ -54,7 +54,10 @@ final class LocalPkRatingsUiHandler {
 
         PkRatingsService.Snapshot snapshot=
             service.replaceRows(
-                buildRows()
+                buildRows(
+                    "LocalLab PK Ratings (not ranked)",
+                    "online:"
+                )
             );
 
         packets.beginBatch();
@@ -94,18 +97,76 @@ final class LocalPkRatingsUiHandler {
         return snapshot;
     }
 
+    PkRatingsService.Snapshot navigate(
+        String playerRef,
+        PkRatingsService.Navigation navigation,
+        ServerPacketWriter writer
+    )throws IOException{
+        PartyService.requireRef(
+            playerRef
+        );
+        PkRatingsService.Navigation checked=
+            Objects.requireNonNull(
+                navigation,
+                "navigation"
+            );
+
+        final String header;
+        final String keyPrefix;
+
+        switch(checked){
+            case DAILY_PK:
+                header="LocalLab Daily PK (not scored)";
+                keyPrefix="daily-online:";
+                break;
+            case TOURNAMENT_PK:
+                header="LocalLab Tournament PK (not scored)";
+                keyPrefix="tournament-online:";
+                break;
+            default:
+                throw new AssertionError(
+                    checked
+                );
+        }
+
+        PkRatingsService.Snapshot snapshot=
+            service.replaceRows(
+                buildRows(
+                    header,
+                    keyPrefix
+                )
+            );
+
+        PkRatingsPresentation.rebuild(
+            Objects.requireNonNull(
+                writer,
+                "writer"
+            ),
+            snapshot,
+            FONT_INDEX
+        );
+
+        return snapshot;
+    }
+
     PkRatingsService.Snapshot snapshot(){
         return service.snapshot();
     }
 
-    private List<PkRatingsService.Row> buildRows(){
+    private List<PkRatingsService.Row> buildRows(
+        String headerText,
+        String keyPrefix
+    ){
         ArrayList<PkRatingsService.Row> rows=
             new ArrayList<>();
 
         rows.add(
             row(
                 "locallab:header",
-                "LocalLab PK Ratings (not ranked)"
+                Objects.requireNonNull(
+                    headerText,
+                    "headerText"
+                )
             )
         );
 
@@ -127,7 +188,10 @@ final class LocalPkRatingsUiHandler {
 
             rows.add(
                 row(
-                    "online:"+
+                    Objects.requireNonNull(
+                        keyPrefix,
+                        "keyPrefix"
+                    )+
                         username,
                     "Online: "+
                         username

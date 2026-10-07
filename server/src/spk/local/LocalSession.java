@@ -696,7 +696,7 @@ final class LocalSession implements Runnable {
                 )throws IOException{
                     String result=
                         LocalSession.this.uiActions
-                            .replaceMonsterSpawnerRoot(
+                            .replaceMonsterSpawnerWithPkRatingsRoot(
                                 ()->{
                                     LocalSession.this.pkRatingsUi
                                         .open(writer);
@@ -989,6 +989,19 @@ final class LocalSession implements Runnable {
                         writer
                     );
                     return true;
+                }
+
+                @Override public PkRatingsService.Snapshot
+                    handlePkRatingsNavigation(
+                        PkRatingsService.Navigation navigation,
+                        ServerPacketWriter writer,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this.pkRatingsUi.navigate(
+                        LocalSession.this.username,
+                        navigation,
+                        writer
+                    );
                 }
 
                 @Override public LocalDuelUiHandler.Result
