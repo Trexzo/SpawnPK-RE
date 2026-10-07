@@ -163,6 +163,10 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireLootingBagRoot(){
+            return false;
+        }
+
         default LocalBloodSlayerUiHandler.Result
             handleBloodSlayerWidget(
                 BloodSlayerPresentation.Input input,
@@ -326,6 +330,7 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
         bloodSlayerUiOpen=false;
         monsterSpawnerUiOpen=true;
         return true;
@@ -413,6 +418,9 @@ final class LocalSessionUiActionHandler {
         boolean bloodSlayerWasOpen=bloodSlayerUiOpen;
         bloodSlayerUiOpen=false;
 
+        boolean lootingBagWasOpen=
+            bridge.retireLootingBagRoot();
+
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
 
@@ -441,6 +449,7 @@ final class LocalSessionUiActionHandler {
             " monsterSpawnerWasOpen="+monsterSpawnerWasOpen+
             " bossTeleportWasOpen="+bossTeleportWasOpen+
             " bloodSlayerWasOpen="+bloodSlayerWasOpen+
+            " lootingBagWasOpen="+lootingBagWasOpen+
             " petColorWasOpen="+petColorWasOpen+
             " miniConfigWasOpen="+miniConfigWasOpen+
             " petAccessoryWasOpen="+petAccessoryWasOpen+
