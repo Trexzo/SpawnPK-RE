@@ -14,6 +14,7 @@ final class LocalBloodSlayerUiHandler {
 
     enum Status {
         MODE_SELECTED,
+        ACTIVE_TASK_MODE_LOCKED,
         TASK_ASSIGNED,
         TASK_EXISTING,
         NO_SUPPORTED_MODE_SELECTED,
@@ -135,6 +136,23 @@ final class LocalBloodSlayerUiHandler {
                     checked.mode,
                     selected,
                     "Blood Slayer state is invalid; task mutations are disabled.",
+                    null
+                );
+
+            if(selected.active()&&
+               selected.selectedMode!=
+                    checked.mode)
+                return new Result(
+                    Status.ACTIVE_TASK_MODE_LOCKED,
+                    selected.selectedMode,
+                    selected,
+                    "Complete your current Blood Slayer "+
+                        modeName(
+                            selected.selectedMode
+                        )+
+                        " task before switching to "+
+                        modeName(checked.mode)+
+                        ".",
                     null
                 );
 
