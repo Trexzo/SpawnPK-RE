@@ -242,43 +242,6 @@ public final class G1314ItemEnchantmentEmptyMainNavigationIntegrationTest {
             for(int i=0;
                 i<ItemEnchantmentPresentation.ROWS;
                 i++){
-                TextPacket packet=
-                    readText126(
-                        mainBytes,
-                        decode,
-                        new int[]{offset}
-                    );
-
-                /*
-                 * readText126 receives an offset holder; recalculate offset
-                 * deterministically from packet framing below.
-                 */
-                int opcode=
-                    ((mainBytes[offset++]&255)-
-                        decodeBackOneUnsupported())&
-                        255;
-            }
-
-            /*
-             * Re-decode the main publication cleanly. This keeps the helper
-             * simple and also proves the full packet sequence from scratch.
-             */
-            decode=
-                new IsaacCipher(
-                    SEED.clone()
-                );
-            decode.nextInt();
-            offset=0;
-            require(
-                (((mainBytes[offset++]&255)-
-                    decode.nextInt())&255)==97,
-                "main root opcode replay"
-            );
-            offset+=2;
-
-            for(int i=0;
-                i<ItemEnchantmentPresentation.ROWS;
-                i++){
                 int[] holder={offset};
                 TextPacket packet=
                     readText126(
@@ -720,12 +683,6 @@ public final class G1314ItemEnchantmentEmptyMainNavigationIntegrationTest {
         return new TextPacket(
             target,
             text
-        );
-    }
-
-    private static int decodeBackOneUnsupported(){
-        throw new AssertionError(
-            "unreachable pre-replay decoder path"
         );
     }
 
