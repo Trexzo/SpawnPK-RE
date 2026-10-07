@@ -12,6 +12,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
     public static void main(String[] args)throws Exception{
         boolean exact54111=false;
         boolean bountyAssigned=false;
+        boolean activeModeLock=false;
         boolean pvmIsolation=false;
         boolean pvpIsolation=false;
         boolean immediateSettlementCredit=false;
@@ -127,6 +128,40 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
             require(
                 bountyAssigned,
                 "exact Get Task did not assign LocalLab Bounty task"
+            );
+
+            LocalBloodSlayerUiHandler.Result lockedSwitch=
+                ui.handle(
+                    BloodSlayerPresentation.resolveWidget(
+                        BloodSlayerPresentation
+                            .MONSTER_HUNTER_WIDGET
+                    ),
+                    immediateWorld.clock().tick()
+                );
+
+            LocalLabSlayerRuntime.StatusSnapshot
+                afterLockedSwitch=
+                    runtime.status(
+                        IMMEDIATE_ATTACKER
+                    );
+
+            activeModeLock=
+                lockedSwitch.status==
+                    LocalBloodSlayerUiHandler.Status
+                        .ACTIVE_TASK_MODE_LOCKED&&
+                afterLockedSwitch.active()&&
+                afterLockedSwitch.selectedMode==
+                    BloodSlayerModeService.Mode
+                        .BOUNTY_HUNTER_PK&&
+                LocalLabSlayerRuntime.BOUNTY_TASK_KEY
+                    .equals(
+                        afterLockedSwitch.task
+                            .definition.taskKey
+                    );
+
+            require(
+                activeModeLock,
+                "active Bounty task was relabelled by mode selector"
             );
 
             LocalLabSlayerRuntime.KillCreditResult pvmKill=
@@ -835,6 +870,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
             "G71_BLOOD_SLAYER_BOUNTY_HUNTER_PASS"+
             " exact54111="+exact54111+
             " bountyAssigned="+bountyAssigned+
+            " activeModeLock="+activeModeLock+
             " pvmIsolation="+pvmIsolation+
             " pvpIsolation="+pvpIsolation+
             " immediateSettlementCredit="+
