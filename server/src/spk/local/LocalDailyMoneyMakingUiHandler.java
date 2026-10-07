@@ -54,6 +54,51 @@ final class LocalDailyMoneyMakingUiHandler {
         new DailyMoneyMakingStateService(
             new ObjectiveProgressService()
         );
+    private final WorldPlayer persistenceOwner;
+    private final String invalidPersistence;
+
+    LocalDailyMoneyMakingUiHandler(){
+        this(null);
+    }
+
+    LocalDailyMoneyMakingUiHandler(
+        WorldPlayer persistenceOwner
+    ){
+        this.persistenceOwner=
+            persistenceOwner;
+
+        String invalid=null;
+
+        if(persistenceOwner!=null){
+            try{
+                DailyMoneyMakingStateService.Difficulty
+                    restored=
+                        LocalDailyMoneyMakingPersistence
+                            .decode(
+                                persistenceOwner
+                                    .snapshotExtensions()
+                                    .namespace(
+                                        LocalDailyMoneyMakingPersistence
+                                            .NAMESPACE
+                                    )
+                            );
+
+                if(restored!=null)
+                    state.selectDifficulty(
+                        restored
+                    );
+            }catch(RuntimeException failure){
+                invalid=
+                    failure.getMessage()==null
+                        ?failure.getClass()
+                            .getSimpleName()
+                        :failure.getMessage();
+            }
+        }
+
+        this.invalidPersistence=
+            invalid;
+    }
 
     Result handle(
         DailyMoneyMakingPresentation.Input input,
@@ -63,6 +108,14 @@ final class LocalDailyMoneyMakingUiHandler {
             Objects.requireNonNull(
                 input,
                 "input"
+            );
+
+        if(invalidPersistence!=null)
+            return new Result(
+                checked.kind,
+                "INVALID_PERSISTENCE",
+                false,
+                state.snapshot()
             );
 
         switch(checked.kind){
@@ -122,6 +175,18 @@ final class LocalDailyMoneyMakingUiHandler {
             state.selectDifficulty(
                 difficulty
             );
+
+        if(persistenceOwner!=null)
+            persistenceOwner
+                .snapshotExtensions()
+                .replaceNamespace(
+                    LocalDailyMoneyMakingPersistence
+                        .NAMESPACE,
+                    LocalDailyMoneyMakingPersistence
+                        .encode(
+                            difficulty
+                        )
+                );
 
         ApplicationControl126Service
             .dailyMoneyMakingDifficulty(
