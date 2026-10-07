@@ -436,7 +436,7 @@ public final class G95TournamentPvpDeathIntegrationTest {
         WorldPlayer victim,
         long victimGeneration,
         long worldTick
-    ){
+    )throws Exception{
         require(
             victim.playerState()
                 .setCurrentLevel(
