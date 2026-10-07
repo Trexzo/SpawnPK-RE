@@ -122,7 +122,8 @@ final class LocalDailyChallengeCommandHandler {
                 challenge.claimed+
                 " rewardClaimExposed=false"+
                 " resetPolicyClaim=false"+
-                " persistenceClaim=false"+
+                " persistenceAuthority=CUSTOM_LOCALLAB"+
+                " originalPersistenceClaim=false"+
                 " authority="+
                 AUTHORITY,
             message
