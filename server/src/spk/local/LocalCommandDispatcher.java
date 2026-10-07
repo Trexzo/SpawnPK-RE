@@ -168,6 +168,12 @@ final class LocalCommandDispatcher {
             )throws IOException{
             return null;
         }
+        default LocalDailyChallengeCommandHandler.Result
+            handleDailyChallengeCommand(
+                String[] tokens
+            )throws IOException{
+            return null;
+        }
         default LocalDuelCommandHandler.Result
             handleDuelCommand(
                 String[] tokens
@@ -355,6 +361,31 @@ final class LocalCommandDispatcher {
                 rootOpened+
                 " persistenceBeforeFeedback="+
                 (slayerCommand.saveReason!=null)
+            );
+            return true;
+        }
+
+        LocalDailyChallengeCommandHandler.Result
+            dailyChallenge=
+                bridge.handleDailyChallengeCommand(
+                    p
+                );
+
+        if(dailyChallenge!=null){
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                dailyChallenge.clientMessage
+            );
+
+            System.out.println(
+                tag+
+                dailyChallenge.logText+
+                " clientFeedback=true"+
+                " route=EXACT_CURRENT_C2S103"+
+                " commandPolicy=CUSTOM_LOCALLAB"+
+                " rewardClaimExposed=false"+
+                " persistenceBeforeFeedback=false"
             );
             return true;
         }
