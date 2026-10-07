@@ -2068,6 +2068,7 @@ def currentTrainFocusedTests = [
     'spk.local.G101NormalDuelProposalIntegrationTest',
     'spk.local.G102NormalDuelAcceptStartIntegrationTest',
     'spk.local.G103NormalDuelLiveUiIntegrationTest',
+    'spk.local.G104NormalDuelPvpDeathIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2096,10 +2097,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 249 ||
-    currentTrainFocusedTests.toSet().size() != 249) {
+if (currentTrainFocusedTests.size() != 250 ||
+    currentTrainFocusedTests.toSet().size() != 250) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 249 unique tests, found " +
+        "Current-train focused manifest drift: expected 250 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2199,6 +2200,14 @@ tasks.register('g103NormalDuelLiveUiRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G103NormalDuelLiveUiIntegrationTest')
+}
+
+tasks.register('g104NormalDuelPvpDeathRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates canonical PvP death completion for normal Duel with single competitive-owner and retry-debt fences.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G104NormalDuelPvpDeathIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
