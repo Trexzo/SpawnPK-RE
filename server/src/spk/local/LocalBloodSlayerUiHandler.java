@@ -103,18 +103,29 @@ final class LocalBloodSlayerUiHandler {
                     Status.UNSUPPORTED_MODE,
                     checked.mode,
                     before,
-                    "This LocalLab slice currently supports Blood Slayer Monster Hunter and Boss Hunter only.",
+                    "This LocalLab slice currently supports Blood Slayer Monster Hunter, Boss Hunter, and Bounty Hunter.",
                     null
                 );
 
-            LocalLabSlayerRuntime.StatusSnapshot selected=
-                checked.mode==
+            LocalLabSlayerRuntime.StatusSnapshot selected;
+
+            if(checked.mode==
                     BloodSlayerModeService.Mode
-                        .MONSTER_HUNTER_PVM
-                    ?runtime.selectMonsterHunterMode(
+                        .MONSTER_HUNTER_PVM)
+                selected=
+                    runtime.selectMonsterHunterMode(
                         playerRef
-                    )
-                    :runtime.selectBossHunterMode(
+                    );
+            else if(checked.mode==
+                    BloodSlayerModeService.Mode
+                        .BOSS_HUNTER_PVM)
+                selected=
+                    runtime.selectBossHunterMode(
+                        playerRef
+                    );
+            else
+                selected=
+                    runtime.selectBountyHunterMode(
                         playerRef
                     );
 
@@ -149,19 +160,31 @@ final class LocalBloodSlayerUiHandler {
                     Status.NO_SUPPORTED_MODE_SELECTED,
                     before.selectedMode,
                     before,
-                    "Select Monster Hunter or Boss Hunter before requesting this LocalLab Blood Slayer task.",
+                    "Select Monster Hunter, Boss Hunter, or Bounty Hunter before requesting this LocalLab Blood Slayer task.",
                     null
                 );
 
-            LocalLabSlayerRuntime.StartResult started=
-                before.selectedMode==
+            LocalLabSlayerRuntime.StartResult started;
+
+            if(before.selectedMode==
                     BloodSlayerModeService.Mode
-                        .MONSTER_HUNTER_PVM
-                    ?runtime.startMonsterHunter(
+                        .MONSTER_HUNTER_PVM)
+                started=
+                    runtime.startMonsterHunter(
                         playerRef,
                         worldTick
-                    )
-                    :runtime.startBossHunter(
+                    );
+            else if(before.selectedMode==
+                    BloodSlayerModeService.Mode
+                        .BOSS_HUNTER_PVM)
+                started=
+                    runtime.startBossHunter(
+                        playerRef,
+                        worldTick
+                    );
+            else
+                started=
+                    runtime.startBountyHunter(
                         playerRef,
                         worldTick
                     );
@@ -218,6 +241,10 @@ final class LocalBloodSlayerUiHandler {
                 BloodSlayerModeService.Mode
                     .BOSS_HUNTER_PVM)
             return "Boss Hunter";
+        if(mode==
+                BloodSlayerModeService.Mode
+                    .BOUNTY_HUNTER_PK)
+            return "Bounty Hunter";
 
         return String.valueOf(mode);
     }
