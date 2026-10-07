@@ -482,6 +482,9 @@ final class LocalSessionUiActionHandler {
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
+    private final LocalDailyMoneyMakingUiHandler
+        dailyMoneyMakingUi=
+            new LocalDailyMoneyMakingUiHandler();
     private final SessionBridge bridge;
 
     LocalSessionUiActionHandler(
@@ -595,6 +598,33 @@ final class LocalSessionUiActionHandler {
             throw new IllegalStateException(
                 "Monster Spawner UI adapter already installed"
             );
+    }
+
+    static LocalDailyMoneyMakingUiHandler.Result
+        dispatchDailyMoneyMakingWidget(
+            LocalDailyMoneyMakingUiHandler handler,
+            int widget,
+            ServerPacketWriter serverPackets
+        )throws IOException{
+        DailyMoneyMakingPresentation.Input input=
+            DailyMoneyMakingPresentation
+                .resolveWidget(
+                    widget
+                );
+
+        if(input==null)
+            return null;
+
+        return Objects.requireNonNull(
+            handler,
+            "handler"
+        ).handle(
+            input,
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            )
+        );
     }
 
     boolean openMonsterSpawnerIfConfigured(
@@ -827,6 +857,42 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+
                 "V5124_LOGOUT widget=2458 result=S2C109_LOGOUT_DISCONNECT save=true"
+            );
+            return;
+        }
+
+        LocalDailyMoneyMakingUiHandler.Result
+            dailyMoneyMaking=
+                dispatchDailyMoneyMakingWidget(
+                    dailyMoneyMakingUi,
+                    widget,
+                    serverPackets
+                );
+
+        if(dailyMoneyMaking!=null){
+            System.out.println(
+                tag+
+                "G182_DAILY_MONEY_MAKING_WIDGET"+
+                " widget="+widget+
+                " input="+
+                    dailyMoneyMaking.input+
+                " status="+
+                    dailyMoneyMaking.status+
+                " changed="+
+                    dailyMoneyMaking.stateChanged+
+                " selected="+
+                    dailyMoneyMaking.snapshot
+                        .selectedDifficulty+
+                " trackedObjective="+
+                    dailyMoneyMaking.snapshot
+                        .trackedObjectiveKey+
+                " routeAuthority="+
+                    LocalDailyMoneyMakingUiHandler
+                        .AUTHORITY+
+                " rootClaim=false"+
+                " rewardPolicyClaim=false"+
+                " progressPolicyClaim=false"+
+                " persistenceClaim=false"
             );
             return;
         }
