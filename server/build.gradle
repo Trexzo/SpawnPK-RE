@@ -2098,6 +2098,7 @@ def currentTrainFocusedTests = [
     'spk.local.G141DailyPvmLiveIntegrationTest',
     'spk.local.G142DailyPvmPersistenceIntegrationTest',
     'spk.local.G143DailyPvmTypedInfoIntegrationTest',
+    'spk.local.G144DailyNativeDefinitionIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2126,10 +2127,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 279 ||
-    currentTrainFocusedTests.toSet().size() != 279) {
+if (currentTrainFocusedTests.size() != 280 ||
+    currentTrainFocusedTests.toSet().size() != 280) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 279 unique tests, found " +
+        "Current-train focused manifest drift: expected 280 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2469,6 +2470,14 @@ tasks.register('g143DailyPvmTypedInfoRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G143DailyPvmTypedInfoIntegrationTest')
+}
+
+tasks.register('g144DailyNativeDefinitionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact-current S2C126 target-55 Daily Challenge six-field definition/state projection for the certified LocalLab G14 row.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G144DailyNativeDefinitionIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
