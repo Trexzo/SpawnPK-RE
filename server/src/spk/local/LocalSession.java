@@ -200,6 +200,7 @@ final class LocalSession implements Runnable {
     private final LocalPkRatingsUiHandler pkRatingsUi;
     private final LocalEventChestUiHandler eventChestUi;
     private final LocalGoodwillWellUiHandler goodwillWellUi;
+    private final LocalLotteryUiHandler lotteryUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -586,6 +587,8 @@ final class LocalSession implements Runnable {
             );
         this.goodwillWellUi=
             new LocalGoodwillWellUiHandler();
+        this.lotteryUi=
+            new LocalLotteryUiHandler();
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -752,6 +755,26 @@ final class LocalSession implements Runnable {
                                     LocalSession.this.goodwillWellUi
                                         .open(writer);
                                     return "GOODWILL_WELL_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openLottery(
+                    LotteryService.Channel channel,
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithLotteryRoot(
+                                ()->{
+                                    LocalSession.this.lotteryUi
+                                        .open(
+                                            channel,
+                                            writer
+                                        );
+                                    return "LOTTERY_ROOT_OPENED";
                                 }
                             );
 
@@ -1048,6 +1071,36 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .goodwillWellUi
                         .close();
+                }
+
+                @Override public boolean retireLotteryRoot(){
+                    return LocalSession.this
+                        .lotteryUi
+                        .close();
+                }
+
+                @Override public boolean openLottery(
+                    LotteryService.Channel channel,
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .lotteryUi
+                        .open(
+                            channel,
+                            writer
+                        );
+                    return true;
+                }
+
+                @Override public LocalLotteryUiHandler.Result
+                    handleLotteryEntry(
+                        LotteryService.Channel channel,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .lotteryUi
+                        .handleEntry(channel);
                 }
 
                 @Override public boolean openGoodwillWell(

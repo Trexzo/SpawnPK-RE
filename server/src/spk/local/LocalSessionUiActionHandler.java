@@ -187,6 +187,26 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireLotteryRoot(){
+            return false;
+        }
+
+        default boolean openLottery(
+            LotteryService.Channel channel,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalLotteryUiHandler.Result
+            handleLotteryEntry(
+                LotteryService.Channel channel,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default boolean openGoodwillWell(
             ServerPacketWriter serverPackets,
             String tag
@@ -296,6 +316,7 @@ final class LocalSessionUiActionHandler {
     private volatile boolean quickPrayerUiOpen;
     private volatile boolean eventChestUiOpen;
     private volatile boolean goodwillWellUiOpen;
+    private volatile boolean lotteryUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -443,6 +464,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         monsterSpawnerUiOpen=true;
@@ -543,6 +565,9 @@ final class LocalSessionUiActionHandler {
         boolean goodwillWellWasOpen=
             retireGoodwillWellUi();
 
+        boolean lotteryWasOpen=
+            retireLotteryUi();
+
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
@@ -584,6 +609,7 @@ final class LocalSessionUiActionHandler {
             " quickPrayerWasOpen="+quickPrayerWasOpen+
             " eventChestWasOpen="+eventChestWasOpen+
             " goodwillWellWasOpen="+goodwillWellWasOpen+
+            " lotteryWasOpen="+lotteryWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
             " duelWasOpen="+duelWasOpen+
@@ -696,6 +722,47 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
+            );
+            return;
+        }
+
+        LotteryService.Channel lotteryChannel=
+            LotteryPresentation.resolveEntryWidget(
+                widget
+            );
+
+        if(lotteryChannel!=null){
+            if(!lotteryUiOpen){
+                System.out.println(
+                    tag+
+                    "G133_LOTTERY_UI widget="+
+                    widget+
+                    " channel="+lotteryChannel+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalLotteryUiHandler.Result result=
+                bridge.handleLotteryEntry(
+                    lotteryChannel,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G133_LOTTERY_UI widget="+
+                widget+
+                " channel="+lotteryChannel+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " entryEconomicsClaim=false"+
+                " rngClaim=false"+
+                " prizeClaim=false"
             );
             return;
         }
@@ -1425,6 +1492,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1455,6 +1523,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1486,6 +1555,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1517,6 +1587,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bank.clientClosed();
@@ -1548,6 +1619,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1579,6 +1651,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -1609,6 +1682,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1620,6 +1694,39 @@ final class LocalSessionUiActionHandler {
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishLotteryRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
         return result;
     }
 
@@ -1640,6 +1747,7 @@ final class LocalSessionUiActionHandler {
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
         retireEventChestUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1672,6 +1780,7 @@ final class LocalSessionUiActionHandler {
         pkRatingsUiOpen=false;
         retireQuickPrayerUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1704,6 +1813,7 @@ final class LocalSessionUiActionHandler {
         pkRatingsUiOpen=false;
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1737,6 +1847,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1769,6 +1880,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1801,6 +1913,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1833,6 +1946,7 @@ final class LocalSessionUiActionHandler {
         retireQuickPrayerUi();
         retireEventChestUi();
         retireGoodwillWellUi();
+        retireLotteryUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2001,6 +2115,31 @@ final class LocalSessionUiActionHandler {
         );
     }
 
+    String replaceMonsterSpawnerWithLotteryRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireLotteryUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishLotteryRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            lotteryUiOpen=true;
+
+        return result;
+    }
+
     String replaceMonsterSpawnerWithGoodwillWellRoot(
         RootInterfaceAction publisher
     )throws IOException{
@@ -2137,6 +2276,14 @@ final class LocalSessionUiActionHandler {
         goodwillWellUiOpen=false;
 
         return bridge.retireGoodwillWellRoot()||
+            wasOpen;
+    }
+
+    private boolean retireLotteryUi(){
+        boolean wasOpen=lotteryUiOpen;
+        lotteryUiOpen=false;
+
+        return bridge.retireLotteryRoot()||
             wasOpen;
     }
 
