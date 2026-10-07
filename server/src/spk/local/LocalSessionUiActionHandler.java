@@ -167,6 +167,18 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireTournamentRoot(){
+            return false;
+        }
+
+        default LocalTournamentUiHandler.Result
+            handleTournamentWidget(
+                TournamentPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default LocalBloodSlayerUiHandler.Result
             handleBloodSlayerWidget(
                 BloodSlayerPresentation.Input input,
@@ -331,6 +343,7 @@ final class LocalSessionUiActionHandler {
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
         bloodSlayerUiOpen=false;
         monsterSpawnerUiOpen=true;
         return true;
@@ -421,6 +434,9 @@ final class LocalSessionUiActionHandler {
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
+        boolean tournamentWasOpen=
+            bridge.retireTournamentRoot();
+
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
 
@@ -450,6 +466,7 @@ final class LocalSessionUiActionHandler {
             " bossTeleportWasOpen="+bossTeleportWasOpen+
             " bloodSlayerWasOpen="+bloodSlayerWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
+            " tournamentWasOpen="+tournamentWasOpen+
             " petColorWasOpen="+petColorWasOpen+
             " miniConfigWasOpen="+miniConfigWasOpen+
             " petAccessoryWasOpen="+petAccessoryWasOpen+
@@ -596,6 +613,57 @@ final class LocalSessionUiActionHandler {
                 " mode="+result.mode+
                 " c2s="+BloodSlayerPresentation.WIDGET_ACTION_OPCODE+
                 " authority="+LocalBloodSlayerUiHandler.AUTHORITY
+            );
+            return;
+        }
+
+        TournamentPresentation.Input tournamentInput=
+            TournamentPresentation.resolveWidget(
+                widget
+            );
+
+        if(tournamentInput!=null&&
+           tournamentInput.kind!=
+                TournamentPresentation.InputKind
+                    .LEADERBOARD_FILTER){
+            LocalTournamentUiHandler.Result
+                tournament=
+                    bridge.handleTournamentWidget(
+                        tournamentInput,
+                        tag
+                    );
+
+            if(tournament==null){
+                System.out.println(
+                    tag+
+                    "G91_TOURNAMENT_UI widget="+
+                    widget+
+                    " status=UNCONFIGURED_HANDLER_NOOP"
+                );
+                return;
+            }
+
+            System.out.println(
+                tag+
+                "G91_TOURNAMENT_UI widget="+
+                widget+
+                " status="+
+                tournament.status+
+                " input="+
+                tournament.inputKind+
+                " entrants="+
+                tournament.entrantCount+
+                " detail=["+
+                tournament.detail+
+                "] c2s="+
+                TournamentPresentation
+                    .WIDGET_ACTION_OPCODE+
+                " presentationAuthority="+
+                TournamentPresentation
+                    .PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLabTournamentRuntime
+                    .AUTHORITY
             );
             return;
         }
