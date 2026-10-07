@@ -80,6 +80,30 @@ final class ApplicationControl126Service {
         );
     }
 
+    static void dailyChallengesClear(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token
+                    .CLEAR_ACHIEVEMENT_TAB
+            )
+        );
+    }
+
+    static void dailyChallengesBuild(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token
+                    .BUILD_ACHIEVEMENT_TAB
+            )
+        );
+    }
+
     static void exchangeClear(
         ServerPacketWriter writer
     )throws IOException{
