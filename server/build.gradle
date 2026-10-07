@@ -2060,6 +2060,7 @@ def currentTrainFocusedTests = [
     'spk.local.G6BloodSlayerCompletionCountTest',
     'spk.local.G71BloodSlayerBountyHunterIntegrationTest',
     'spk.local.G8LootingBagBankIntegrationTest',
+    'spk.local.G91TournamentRegistrationIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2088,10 +2089,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 241 ||
-    currentTrainFocusedTests.toSet().size() != 241) {
+if (currentTrainFocusedTests.size() != 242 ||
+    currentTrainFocusedTests.toSet().size() != 242) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 241 unique tests, found " +
+        "Current-train focused manifest drift: expected 242 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2127,6 +2128,14 @@ tasks.register('g8LootingBagBankRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G8LootingBagBankIntegrationTest')
+}
+
+tasks.register('g91TournamentRegistrationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact-v308 Tournament Enter against the World-owned LocalLab registration-only policy.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G91TournamentRegistrationIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
