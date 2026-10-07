@@ -2108,6 +2108,7 @@ def currentTrainFocusedTests = [
     'spk.local.G161AdventureAuthorityIntegrationTest',
     'spk.local.G162AdventureLiveOpenIntegrationTest',
     'spk.local.G163AdventurePvmRuntimeIntegrationTest',
+    'spk.local.G164AdventureLivePvmIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2136,10 +2137,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 289 ||
-    currentTrainFocusedTests.toSet().size() != 289) {
+if (currentTrainFocusedTests.size() != 290 ||
+    currentTrainFocusedTests.toSet().size() != 290) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 289 unique tests, found " +
+        "Current-train focused manifest drift: expected 290 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2559,6 +2560,14 @@ tasks.register('g163AdventurePvmRuntimeRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G163AdventurePvmRuntimeIntegrationTest')
+}
+
+tasks.register('g164AdventureLivePvmRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates native adventurebook activation and exact subtype-22 publication of the CUSTOM_LOCALLAB PvM objective with zero reward contents.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G164AdventureLivePvmIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
