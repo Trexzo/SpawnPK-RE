@@ -197,6 +197,7 @@ final class LocalSession implements Runnable {
     private final LocalBloodSlayerUiHandler bloodSlayerUi;
     private final LocalLootingBagBankHandler lootingBagBank;
     private final LocalTournamentUiHandler tournamentUi;
+    private final LocalPkRatingsUiHandler pkRatingsUi;
     private final LocalDuelUiHandler duelUi;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
@@ -571,6 +572,10 @@ final class LocalSession implements Runnable {
                 this.worldPlayer,
                 this.world.localTournament()
             );
+        this.pkRatingsUi=
+            new LocalPkRatingsUiHandler(
+                this.world
+            );
         this.duelUi=
             new LocalDuelUiHandler(
                 this.worldPlayer,
@@ -680,6 +685,22 @@ final class LocalSession implements Runnable {
                                     LocalSession.this.tournamentUi
                                         .open(writer);
                                     return "TOURNAMENT_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openPkRatings(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRoot(
+                                ()->{
+                                    LocalSession.this.pkRatingsUi
+                                        .open(writer);
+                                    return "PK_RATINGS_ROOT_OPENED";
                                 }
                             );
 
