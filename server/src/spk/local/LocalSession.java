@@ -207,6 +207,7 @@ final class LocalSession implements Runnable {
     private final LocalEventActivityUiHandler eventActivityUi;
     private final LocalLegendaryPetFusionUiHandler legendaryPetFusionUi;
     private final LocalItemEnchantmentUiHandler itemEnchantmentUi;
+    private final LocalDonorPanelUiHandler donorPanelUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -609,6 +610,8 @@ final class LocalSession implements Runnable {
             new LocalLegendaryPetFusionUiHandler();
         this.itemEnchantmentUi=
             new LocalItemEnchantmentUiHandler();
+        this.donorPanelUi=
+            new LocalDonorPanelUiHandler();
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -914,6 +917,23 @@ final class LocalSession implements Runnable {
                                         .itemEnchantmentUi
                                         .openCategories(writer);
                                     return "ITEM_ENCHANTMENT_CATEGORY_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openDonorPanel(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithDonorPanelRoot(
+                                ()->{
+                                    LocalSession.this
+                                        .donorPanelUi
+                                        .open(writer);
+                                    return "DONOR_PANEL_ROOT_OPENED";
                                 }
                             );
 
@@ -1300,6 +1320,32 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .itemEnchantmentUi
                         .handleCategory(input);
+                }
+
+                @Override public boolean retireDonorPanelRoot(){
+                    return LocalSession.this
+                        .donorPanelUi
+                        .close();
+                }
+
+                @Override public boolean openDonorPanel(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .donorPanelUi
+                        .open(writer);
+                    return true;
+                }
+
+                @Override public LocalDonorPanelUiHandler.Result
+                    handleDonorPanelIntent(
+                        DonorPanelPresentation.Intent intent,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .donorPanelUi
+                        .handle(intent);
                 }
 
                 @Override public boolean openBloodFountainHub(

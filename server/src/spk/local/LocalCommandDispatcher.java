@@ -128,6 +128,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openDonorPanel(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -762,6 +767,30 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isDonorPanelRoute(p)){
+            boolean opened=
+                bridge.openDonorPanel(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G1312_DONOR_PANEL_COMMAND"+
+                " opened="+opened+
+                " root="+
+                DonorPanelPresentation.ROOT+
+                " presentationAuthority="+
+                DonorPanelPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalDonorPanelUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " paymentClaim=false"+
+                " teleportPolicyClaim=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -1223,6 +1252,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "enchanting"
+                )
+            );
+    }
+
+    static boolean isDonorPanelRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "donorpanel"
+                )||
+                p[0].equalsIgnoreCase(
+                    "donor"
                 )
             );
     }
