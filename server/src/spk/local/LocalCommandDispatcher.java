@@ -123,6 +123,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openItemEnchantment(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -733,6 +738,30 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isItemEnchantmentRoute(p)){
+            boolean opened=
+                bridge.openItemEnchantment(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G1311_ITEM_ENCHANTMENT_COMMAND"+
+                " opened="+opened+
+                " categoryRoot="+
+                ItemEnchantmentPresentation.CATEGORY_ROOT+
+                " mainRootClaim=false"+
+                " presentationAuthority="+
+                ItemEnchantmentPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalItemEnchantmentUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " catalogClaim=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -1181,6 +1210,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "legendaryfusion"
+                )
+            );
+    }
+
+    static boolean isItemEnchantmentRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "enchantments"
+                )||
+                p[0].equalsIgnoreCase(
+                    "enchanting"
                 )
             );
     }
