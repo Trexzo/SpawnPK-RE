@@ -8,8 +8,9 @@ import java.util.Objects;
  *
  * G9.1 keeps the backing event SCHEDULED until explicit runtime activation.
  * G9.2 adds caller-paired 1v1 start. G9.3 adds explicit caller-resolved match
- * completion. Automatic pairing, PvP winner inference, arenas, rewards and
- * all original SpawnPK tournament policy remain external authority.
+ * completion. G9.4 adds explicit multi-round reuse and terminal completion.
+ * Automatic pairing, PvP winner inference, champion policy, arenas, rewards
+ * and all original SpawnPK tournament policy remain external authority.
  */
 final class LocalLabTournamentRuntime {
     static final String AUTHORITY=
@@ -287,6 +288,20 @@ final class LocalLabTournamentRuntime {
             winner,
             "caller-resolved-win",
             AUTHORITY
+        );
+    }
+
+    synchronized TournamentService.Snapshot completeTournament(
+        long worldTick
+    ){
+        if(worldTick<0L)
+            throw new IllegalArgumentException(
+                "worldTick="+worldTick
+            );
+
+        return tournament.completeTournament(
+            EVENT_ID,
+            worldTick
         );
     }
 
