@@ -198,6 +198,8 @@ final class LocalSession implements Runnable {
     private final LocalLootingBagBankHandler lootingBagBank;
     private final LocalTournamentUiHandler tournamentUi;
     private final LocalPkRatingsUiHandler pkRatingsUi;
+    private final QuickPrayerSelectionService quickPrayerSelections;
+    private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
@@ -575,6 +577,15 @@ final class LocalSession implements Runnable {
         this.pkRatingsUi=
             new LocalPkRatingsUiHandler(
                 this.world
+            );
+        this.quickPrayerSelections=
+            new QuickPrayerSelectionService(
+                this.worldPlayer,
+                "LOCAL_LAB_POLICY_G121_QUICK_SELECTION"
+            );
+        this.quickPrayerPresentation=
+            new QuickPrayerSelectionPresentation(
+                this.quickPrayerSelections
             );
         this.duelUi=
             new LocalDuelUiHandler(
@@ -979,6 +990,40 @@ final class LocalSession implements Runnable {
 
                 @Override public boolean retireDuelRoot(){
                     return LocalSession.this.duelUi.close();
+                }
+
+                @Override public boolean retireQuickPrayerRoot(){
+                    return LocalSession.this
+                        .quickPrayerPresentation
+                        .close();
+                }
+
+                @Override public boolean openQuickPrayer(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    QuickPrayerSelectionService.Book book=
+                        LocalSession.this
+                            .quickPrayerSelections
+                            .snapshot()
+                            .currentBook;
+
+                    LocalSession.this
+                        .quickPrayerPresentation
+                        .open(
+                            book,
+                            writer
+                        );
+                    return true;
+                }
+
+                @Override public String handleQuickPrayerWidget(
+                    int widget,
+                    String tag
+                )throws IOException{
+                    return LocalSession.this
+                        .quickPrayerPresentation
+                        .handleWidget(widget);
                 }
 
                 @Override public boolean openPkRatings(
