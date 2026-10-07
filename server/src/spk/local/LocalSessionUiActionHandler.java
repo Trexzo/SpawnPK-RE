@@ -421,6 +421,7 @@ final class LocalSessionUiActionHandler {
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
         retireQuickPrayerUi();
+        retireEventChestUi();
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         monsterSpawnerUiOpen=true;
@@ -1595,6 +1596,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireEventChestUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
