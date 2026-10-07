@@ -7,7 +7,8 @@ import java.util.Objects;
  * Exact-v308 Blood Fountain hub presentation/input adapter.
  *
  * This class owns only the recovered root and six navigation widget identities.
- * Target application mechanics remain caller/server authority.
+ * Original-server input transport and target mechanics remain caller/server
+ * authority.
  */
 final class BloodFountainHubPresentation {
     static final int ROOT=3320;
@@ -17,7 +18,6 @@ final class BloodFountainHubPresentation {
     static final int BLOOD_DIAMOND_STORE_WIDGET=60005;
     static final int BLOOD_SHARD_SALVAGING_WIDGET=60006;
     static final int BLOOD_SHARD_STORE_WIDGET=60007;
-    static final int WIDGET_ACTION_OPCODE=185;
     static final String PRESENTATION_AUTHORITY=
         "EXACT_CURRENT_CLIENT";
 
