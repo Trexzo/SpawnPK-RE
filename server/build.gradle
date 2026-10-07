@@ -2105,6 +2105,7 @@ def currentTrainFocusedTests = [
     'spk.local.G152TaskScrollPvmRuntimeIntegrationTest',
     'spk.local.G153TaskScrollLiveAssignIntegrationTest',
     'spk.local.G154TaskScrollPersistenceIntegrationTest',
+    'spk.local.G161AdventureAuthorityIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2133,10 +2134,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 286 ||
-    currentTrainFocusedTests.toSet().size() != 286) {
+if (currentTrainFocusedTests.size() != 287 ||
+    currentTrainFocusedTests.toSet().size() != 287) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 286 unique tests, found " +
+        "Current-train focused manifest drift: expected 287 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2532,6 +2533,14 @@ tasks.register('g154TaskScrollPersistenceRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G154TaskScrollPersistenceIntegrationTest')
+}
+
+tasks.register('g161AdventureAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates the protocol-independent Adventure composition/projection and exact-current target-1 Adventure presentation-control publications.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G161AdventureAuthorityIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
