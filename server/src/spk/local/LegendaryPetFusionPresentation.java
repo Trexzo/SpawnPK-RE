@@ -327,6 +327,49 @@ final class LegendaryPetFusionPresentation {
             );
     }
 
+    static void publishEmpty(
+        ServerPacketWriter packets,
+        String availabilityText
+    )throws IOException{
+        Objects.requireNonNull(
+            packets,
+            "packets"
+        );
+
+        packets.varShort(
+            53,
+            itemContainer(
+                INGREDIENT_WIDGET,
+                Collections.emptyList()
+            )
+        );
+        packets.varShort(
+            53,
+            itemContainer(
+                COST_WIDGET,
+                Collections.emptyList()
+            )
+        );
+        packets.varShort(
+            53,
+            itemContainer(
+                RESULT_WIDGET,
+                Collections.emptyList()
+            )
+        );
+
+        if(availabilityText!=null&&
+           !availabilityText.trim().isEmpty())
+            ApplicationBus126Publisher.send(
+                packets,
+                AVAILABILITY_TEXT_WIDGET,
+                requireSingleLine(
+                    availabilityText,
+                    "availabilityText"
+                )
+            );
+    }
+
     static byte[] itemContainer(
         int widgetId,
         List<ItemStack> items
