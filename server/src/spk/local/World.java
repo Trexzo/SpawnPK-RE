@@ -816,9 +816,6 @@ final class World implements AutoCloseable {
                     ))
                     return false;
 
-                String unregisterPlayerRef=
-                    player.username();
-
                 synchronized(tickTargets){
                     WorldTickTarget target=
                         tickTargets.get(
