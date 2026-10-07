@@ -58,6 +58,7 @@ final class World implements AutoCloseable {
         new LootingBagService();
     private final LocalLabTournamentRuntime localTournament=
         new LocalLabTournamentRuntime();
+    private final LocalLabDuelRuntime localDuels;
     private final ContentRegistry content;
     private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
@@ -206,6 +207,8 @@ final class World implements AutoCloseable {
             );
         localLabSlayer=
             new LocalLabSlayerRuntime(this);
+        localDuels=
+            new LocalLabDuelRuntime(this);
         content=
             new ContentRegistry(this);
         content.installTrusted(
@@ -424,6 +427,7 @@ final class World implements AutoCloseable {
     LocalLabSlayerRuntime localLabSlayer(){return localLabSlayer;}
     LootingBagService lootingBags(){return lootingBags;}
     LocalLabTournamentRuntime localTournament(){return localTournament;}
+    LocalLabDuelRuntime localDuels(){return localDuels;}
     int appearanceRoleFor(String playerRef){
         return appearanceRoles.project(
             playerPrivileges.snapshot(playerRef)
