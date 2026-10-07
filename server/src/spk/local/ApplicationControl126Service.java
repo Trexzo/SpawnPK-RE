@@ -105,7 +105,7 @@ final class ApplicationControl126Service {
         );
     }
 
-    static void achievementRebuild(
+    static void achievementClear(
         ServerPacketWriter writer
     )throws IOException{
         publish(
@@ -115,12 +115,28 @@ final class ApplicationControl126Service {
                     .CLEAR_ACHIEVEMENT_TAB
             )
         );
+    }
+
+    static void achievementBuild(
+        ServerPacketWriter writer
+    )throws IOException{
         publish(
             writer,
             ApplicationControl126Command.token(
                 ApplicationControl126Command.Token
                     .BUILD_ACHIEVEMENT_TAB
             )
+        );
+    }
+
+    static void achievementRebuild(
+        ServerPacketWriter writer
+    )throws IOException{
+        achievementClear(
+            writer
+        );
+        achievementBuild(
+            writer
         );
     }
 
