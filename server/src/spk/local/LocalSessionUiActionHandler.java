@@ -171,6 +171,18 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireDuelRoot(){
+            return false;
+        }
+
+        default LocalDuelUiHandler.Result
+            handleDuelWidget(
+                NormalDuelPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default LocalTournamentUiHandler.Result
             handleTournamentWidget(
                 TournamentPresentation.Input input,
@@ -344,6 +356,7 @@ final class LocalSessionUiActionHandler {
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         bloodSlayerUiOpen=false;
         monsterSpawnerUiOpen=true;
         return true;
@@ -437,6 +450,9 @@ final class LocalSessionUiActionHandler {
         boolean tournamentWasOpen=
             bridge.retireTournamentRoot();
 
+        boolean duelWasOpen=
+            bridge.retireDuelRoot();
+
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
 
@@ -467,6 +483,7 @@ final class LocalSessionUiActionHandler {
             " bloodSlayerWasOpen="+bloodSlayerWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
+            " duelWasOpen="+duelWasOpen+
             " petColorWasOpen="+petColorWasOpen+
             " miniConfigWasOpen="+miniConfigWasOpen+
             " petAccessoryWasOpen="+petAccessoryWasOpen+
@@ -613,6 +630,46 @@ final class LocalSessionUiActionHandler {
                 " mode="+result.mode+
                 " c2s="+BloodSlayerPresentation.WIDGET_ACTION_OPCODE+
                 " authority="+LocalBloodSlayerUiHandler.AUTHORITY
+            );
+            return;
+        }
+
+        NormalDuelPresentation.Input duelInput=
+            NormalDuelPresentation.resolveSelectorWidget(
+                widget
+            );
+
+        if(duelInput!=null){
+            LocalDuelUiHandler.Result duel=
+                bridge.handleDuelWidget(
+                    duelInput,
+                    tag
+                );
+
+            if(duel==null){
+                System.out.println(
+                    tag+
+                    "G103_NORMAL_DUEL_UI widget="+
+                    widget+
+                    " status=UNCONFIGURED_HANDLER_NOOP"
+                );
+                return;
+            }
+
+            System.out.println(
+                tag+
+                "G103_NORMAL_DUEL_UI widget="+
+                widget+
+                " status="+duel.status+
+                " input="+duel.inputKind+
+                " mode="+duel.mode+
+                " target="+duel.targetRef+
+                " c2s="+
+                NormalDuelPresentation.WIDGET_ACTION_OPCODE+
+                " presentationAuthority="+
+                NormalDuelPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLabDuelRuntime.AUTHORITY
             );
             return;
         }
@@ -977,6 +1034,7 @@ final class LocalSessionUiActionHandler {
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         return result;
     }
 
@@ -1003,6 +1061,7 @@ final class LocalSessionUiActionHandler {
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         return result;
     }
 
@@ -1029,6 +1088,7 @@ final class LocalSessionUiActionHandler {
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         return result;
     }
 
@@ -1055,6 +1115,7 @@ final class LocalSessionUiActionHandler {
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         return result;
     }
 
@@ -1082,6 +1143,7 @@ final class LocalSessionUiActionHandler {
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         return result;
     }
 
@@ -1107,6 +1169,7 @@ final class LocalSessionUiActionHandler {
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         return result;
     }
 
@@ -1134,6 +1197,7 @@ final class LocalSessionUiActionHandler {
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         return result;
     }
 
@@ -1160,6 +1224,7 @@ final class LocalSessionUiActionHandler {
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
 
         return result;
     }
@@ -1191,6 +1256,34 @@ final class LocalSessionUiActionHandler {
         return result;
     }
 
+    String publishDuelRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+
+        return result;
+    }
+
     String publishBossTeleportRootForOwnedSession(
         RootInterfaceAction publisher
     )throws IOException{
@@ -1215,6 +1308,7 @@ final class LocalSessionUiActionHandler {
 
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
         return result;
     }
 
@@ -1350,6 +1444,23 @@ final class LocalSessionUiActionHandler {
         return bridge.replaceMonsterSpawnerRoot(
             ()->
                 publishTournamentRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithDuelRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishDuelRootForOwnedSession(
                     checked
                 )
         );
