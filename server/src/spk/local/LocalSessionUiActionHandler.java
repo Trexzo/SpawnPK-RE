@@ -268,6 +268,17 @@ final class LocalSessionUiActionHandler {
             return null;
         }
 
+        default LocalDonorPanelUiHandler.Result
+            handleDonorPanelLiveIntent(
+                DonorPanelPresentation.Intent intent,
+                String tag
+            )throws IOException{
+            return handleDonorPanelIntent(
+                intent,
+                tag
+            );
+        }
+
         default boolean retireDonationCartRoot(){
             return false;
         }
@@ -957,14 +968,37 @@ final class LocalSessionUiActionHandler {
 
             if(donorIntent!=null){
                 LocalDonorPanelUiHandler.Result result=
-                    bridge.handleDonorPanelIntent(
+                    bridge.handleDonorPanelLiveIntent(
                         donorIntent,
                         tag
                     );
 
+                boolean cartOpened=false;
+
+                if(result!=null&&
+                   "NAVIGATE_DONATION_CART".equals(
+                       result.status)){
+                    String opened=
+                        replaceMonsterSpawnerWithDonationCartRoot(
+                            ()->{
+                                boolean published=
+                                    bridge.openDonationCart(
+                                        serverPackets,
+                                        tag
+                                    );
+
+                                return published
+                                    ?"DONATION_CART_ROOT_OPENED"
+                                    :null;
+                            }
+                        );
+
+                    cartOpened=opened!=null;
+                }
+
                 System.out.println(
                     tag+
-                    "G1312_DONOR_PANEL widget="+
+                    "G1315_DONOR_PANEL widget="+
                     widget+
                     " intent="+donorIntent+
                     " status="+
@@ -973,10 +1007,15 @@ final class LocalSessionUiActionHandler {
                         :result.status)+
                     " succeeded="+
                     (result!=null&&result.succeeded)+
+                    " cartOpened="+cartOpened+
+                    " donorRootOpen="+donorPanelUiOpen+
+                    " donationCartRootOpen="+
+                        donationCartUiOpen+
                     " paymentClaim=false"+
                     " entitlementClaim=false"+
                     " shopPolicyClaim=false"+
-                    " teleportPolicyClaim=false"
+                    " teleportPolicyClaim=false"+
+                    " originalNavigationClaim=false"
                 );
                 return;
             }
