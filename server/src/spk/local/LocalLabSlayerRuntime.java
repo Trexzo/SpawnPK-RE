@@ -695,9 +695,9 @@ final class LocalLabSlayerRuntime {
         WorldPlayer owner
     ){
         String deathKey=
-            player+"|"+
-            victimId.toString()+"|"+
-            Long.toUnsignedString(
+            bountyDeathKey(
+                player,
+                victimId,
                 deathSequence
             );
 
@@ -867,6 +867,57 @@ final class LocalLabSlayerRuntime {
         }
 
         return result;
+    }
+
+    void retireBountyHunterDeathCredit(
+        String playerRef,
+        EntityId victimId,
+        long deathSequence
+    ){
+        String player=normalizePlayer(playerRef);
+        EntityId victim=Objects.requireNonNull(
+            victimId,
+            "victimId"
+        );
+
+        String deathKey=
+            bountyDeathKey(
+                player,
+                victim,
+                deathSequence
+            );
+
+        synchronized(this){
+            bountyCreditByDeath.remove(
+                deathKey
+            );
+        }
+    }
+
+    int bountyDeathCreditCount(){
+        synchronized(this){
+            return bountyCreditByDeath.size();
+        }
+    }
+
+    private static String bountyDeathKey(
+        String player,
+        EntityId victimId,
+        long deathSequence
+    ){
+        if(deathSequence<=0L)
+            throw new IllegalArgumentException(
+                "deathSequence="+deathSequence
+            );
+
+        return player+"|"+
+            Objects.requireNonNull(
+                victimId,
+                "victimId"
+            ).toString()+"|"+
+            Long.toUnsignedString(
+                deathSequence
+            );
     }
 
     SlayerTaskService slayer(){
