@@ -1340,7 +1340,7 @@ final class LocalLabSlayerRuntime {
             SlayerTaskService.KillResult completed=
                 slayer.recordValidatedKill(
                     player,
-                    TARGET_KEY,
+                    targetKeyFor(mode),
                     1L,
                     replayTick
                 );
@@ -1611,6 +1611,19 @@ final class LocalLabSlayerRuntime {
             return BOSS_TASK_KEY;
 
         return BOUNTY_TASK_KEY;
+    }
+
+    static String targetKeyFor(
+        BloodSlayerModeService.Mode mode
+    ){
+        BloodSlayerModeService.Mode checked=
+            requireSupportedMode(mode);
+
+        return checked==
+                BloodSlayerModeService.Mode
+                    .BOUNTY_HUNTER_PK
+            ?BOUNTY_TARGET_KEY
+            :TARGET_KEY;
     }
 
     static String objectiveKeyFor(
