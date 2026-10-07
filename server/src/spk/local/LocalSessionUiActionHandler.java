@@ -195,6 +195,34 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireBloodFountainRoot(){
+            return false;
+        }
+
+        default boolean openBloodFountainHub(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalBloodFountainUiHandler.HubResult
+            handleBloodFountainHubIntent(
+                BloodFountainHubService.Intent intent,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default LocalBloodFountainUiHandler.SalvageResult
+            handleBloodShardSalvageWidget(
+                BloodShardSalvagePresentation.Intent intent,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default boolean openUnclaimedCoffer(
             ServerPacketWriter serverPackets,
             String tag
@@ -337,6 +365,7 @@ final class LocalSessionUiActionHandler {
     private volatile boolean goodwillWellUiOpen;
     private volatile boolean lotteryUiOpen;
     private volatile boolean unclaimedCofferUiOpen;
+    private volatile boolean bloodFountainUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -486,6 +515,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         monsterSpawnerUiOpen=true;
@@ -592,6 +622,9 @@ final class LocalSessionUiActionHandler {
         boolean unclaimedCofferWasOpen=
             retireUnclaimedCofferUi();
 
+        boolean bloodFountainWasOpen=
+            retireBloodFountainUi();
+
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
@@ -635,6 +668,7 @@ final class LocalSessionUiActionHandler {
             " goodwillWellWasOpen="+goodwillWellWasOpen+
             " lotteryWasOpen="+lotteryWasOpen+
             " unclaimedCofferWasOpen="+unclaimedCofferWasOpen+
+            " bloodFountainWasOpen="+bloodFountainWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
             " duelWasOpen="+duelWasOpen+
@@ -747,6 +781,87 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
+            );
+            return;
+        }
+
+        BloodFountainHubService.Intent bloodFountainIntent=
+            BloodFountainHubPresentation.resolveWidget(
+                widget
+            );
+
+        if(bloodFountainIntent!=null){
+            if(!bloodFountainUiOpen){
+                System.out.println(
+                    tag+
+                    "G136_BLOOD_FOUNTAIN_HUB widget="+
+                    widget+
+                    " intent="+bloodFountainIntent+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalBloodFountainUiHandler.HubResult result=
+                bridge.handleBloodFountainHubIntent(
+                    bloodFountainIntent,
+                    serverPackets,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G136_BLOOD_FOUNTAIN_HUB widget="+
+                widget+
+                " intent="+bloodFountainIntent+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " navigated="+
+                (result!=null&&result.navigated)+
+                " targetMechanicsClaim=false"
+            );
+            return;
+        }
+
+        BloodShardSalvagePresentation.Intent salvageIntent=
+            BloodShardSalvagePresentation.resolveWidget(
+                widget
+            );
+
+        if(salvageIntent!=null){
+            if(!bloodFountainUiOpen){
+                System.out.println(
+                    tag+
+                    "G136_BLOOD_SHARD_SALVAGE widget="+
+                    widget+
+                    " intent="+salvageIntent+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalBloodFountainUiHandler.SalvageResult result=
+                bridge.handleBloodShardSalvageWidget(
+                    salvageIntent,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G136_BLOOD_SHARD_SALVAGE widget="+
+                widget+
+                " intent="+salvageIntent+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " recipeClaim=false"+
+                " yieldClaim=false"+
+                " guideContentClaim=false"
             );
             return;
         }
@@ -1562,6 +1677,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1594,6 +1710,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1627,6 +1744,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1660,6 +1778,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bank.clientClosed();
@@ -1693,6 +1812,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1726,6 +1846,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -1758,6 +1879,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1769,6 +1891,41 @@ final class LocalSessionUiActionHandler {
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishBloodFountainRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
         return result;
     }
 
@@ -1791,6 +1948,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireLotteryUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1825,6 +1983,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireGoodwillWellUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1859,6 +2018,7 @@ final class LocalSessionUiActionHandler {
         retireEventChestUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1893,6 +2053,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1927,6 +2088,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1962,6 +2124,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1996,6 +2159,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2030,6 +2194,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2064,6 +2229,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireUnclaimedCofferUi();
+        retireBloodFountainUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2230,6 +2396,31 @@ final class LocalSessionUiActionHandler {
                     checked
                 )
         );
+    }
+
+    String replaceMonsterSpawnerWithBloodFountainRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireBloodFountainUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishBloodFountainRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            bloodFountainUiOpen=true;
+
+        return result;
     }
 
     String replaceMonsterSpawnerWithUnclaimedCofferRoot(
@@ -2434,6 +2625,14 @@ final class LocalSessionUiActionHandler {
         unclaimedCofferUiOpen=false;
 
         return bridge.retireUnclaimedCofferRoot()||
+            wasOpen;
+    }
+
+    private boolean retireBloodFountainUi(){
+        boolean wasOpen=bloodFountainUiOpen;
+        bloodFountainUiOpen=false;
+
+        return bridge.retireBloodFountainRoot()||
             wasOpen;
     }
 
