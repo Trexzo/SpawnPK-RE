@@ -175,6 +175,24 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireQuickPrayerRoot(){
+            return false;
+        }
+
+        default boolean openQuickPrayer(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default String handleQuickPrayerWidget(
+            int widget,
+            String tag
+        )throws IOException{
+            return null;
+        }
+
         default boolean openPkRatings(
             ServerPacketWriter serverPackets,
             String tag
@@ -230,6 +248,7 @@ final class LocalSessionUiActionHandler {
     private volatile boolean monsterSpawnerUiOpen;
     private volatile boolean bloodSlayerUiOpen;
     private volatile boolean pkRatingsUiOpen;
+    private volatile boolean quickPrayerUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -374,7 +393,9 @@ final class LocalSessionUiActionHandler {
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
+        retireQuickPrayerUi();
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         monsterSpawnerUiOpen=true;
         return true;
     }
@@ -464,6 +485,9 @@ final class LocalSessionUiActionHandler {
         boolean pkRatingsWasOpen=pkRatingsUiOpen;
         pkRatingsUiOpen=false;
 
+        boolean quickPrayerWasOpen=
+            retireQuickPrayerUi();
+
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
@@ -502,6 +526,7 @@ final class LocalSessionUiActionHandler {
             " bossTeleportWasOpen="+bossTeleportWasOpen+
             " bloodSlayerWasOpen="+bloodSlayerWasOpen+
             " pkRatingsWasOpen="+pkRatingsWasOpen+
+            " quickPrayerWasOpen="+quickPrayerWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
             " duelWasOpen="+duelWasOpen+
@@ -614,6 +639,84 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
+            );
+            return;
+        }
+
+        if(widget==
+                QuickPrayerSelectionPresentation.SELECT_WIDGET){
+            final boolean[] opened={false};
+
+            String result=
+                replaceMonsterSpawnerWithQuickPrayerRoot(
+                    ()->{
+                        opened[0]=
+                            bridge.openQuickPrayer(
+                                serverPackets,
+                                tag
+                            );
+                        return opened[0]
+                            ?"QUICK_PRAYER_ROOT_OPENED"
+                            :"QUICK_PRAYER_ROOT_UNAVAILABLE";
+                    }
+                );
+
+            System.out.println(
+                tag+
+                "G121_QUICK_PRAYER_OPEN widget="+
+                widget+
+                " status="+
+                (result==null
+                    ?"LIFECYCLE_REJECTED"
+                    :opened[0]
+                        ?"OPENED"
+                        :"UNAVAILABLE")+
+                " normalRoot="+
+                QuickPrayerSelectionPresentation.NORMAL_ROOT+
+                " curseRoot="+
+                QuickPrayerSelectionPresentation.CURSES_ROOT+
+                " rootSelectionPolicy=LOCAL_LAB_CURRENT_PRAYER_BOOK"+
+                " originalSpawnpkRootPolicyClaim=false"
+            );
+            return;
+        }
+
+        if(QuickPrayerSelectionPresentation
+                .isSelectionWidget(widget)){
+            if(!quickPrayerUiOpen){
+                System.out.println(
+                    tag+
+                    "G121_QUICK_PRAYER_SELECTION widget="+
+                    widget+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            String action=
+                bridge.handleQuickPrayerWidget(
+                    widget,
+                    tag
+                );
+
+            if(action!=null&&
+               widget==
+                    QuickPrayerSelectionPresentation
+                        .CONFIRM_WIDGET)
+                quickPrayerUiOpen=false;
+
+            System.out.println(
+                tag+
+                "G121_QUICK_PRAYER_SELECTION widget="+
+                widget+
+                " status="+
+                (action==null
+                    ?"UNATTACHED_NOOP"
+                    :"HANDLED")+
+                " action="+
+                (action==null?"none":action)+
+                " activationClaim=false"+
+                " selectedConfigClaim=false"
             );
             return;
         }
@@ -1155,6 +1258,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1182,6 +1286,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1210,6 +1315,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1238,6 +1344,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bank.clientClosed();
@@ -1266,6 +1373,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1294,6 +1402,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        retireQuickPrayerUi();
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -1321,6 +1430,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1332,6 +1442,36 @@ final class LocalSessionUiActionHandler {
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishQuickPrayerRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
         return result;
     }
 
@@ -1350,6 +1490,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1379,6 +1520,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1408,6 +1550,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1437,6 +1580,7 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1605,6 +1749,31 @@ final class LocalSessionUiActionHandler {
         );
     }
 
+    String replaceMonsterSpawnerWithQuickPrayerRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireQuickPrayerUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishQuickPrayerRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            quickPrayerUiOpen=true;
+
+        return result;
+    }
+
     String replaceMonsterSpawnerWithPkRatingsRoot(
         RootInterfaceAction publisher
     )throws IOException{
@@ -1643,6 +1812,14 @@ final class LocalSessionUiActionHandler {
                     checked
                 )
         );
+    }
+
+    private boolean retireQuickPrayerUi(){
+        boolean wasOpen=quickPrayerUiOpen;
+        quickPrayerUiOpen=false;
+
+        return bridge.retireQuickPrayerRoot()||
+            wasOpen;
     }
 
     private boolean isDevPanelRootReplacementWidget(
