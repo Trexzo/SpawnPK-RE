@@ -385,6 +385,8 @@ final class LocalCommandDispatcher {
                 " route=EXACT_CURRENT_C2S103"+
                 " commandPolicy=CUSTOM_LOCALLAB"+
                 " rewardClaimExposed=false"+
+                " persistenceAuthority=CUSTOM_LOCALLAB"+
+                " originalPersistenceClaim=false"+
                 " persistenceBeforeFeedback=false"
             );
             return true;
