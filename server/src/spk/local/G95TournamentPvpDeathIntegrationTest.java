@@ -429,7 +429,7 @@ public final class G95TournamentPvpDeathIntegrationTest {
         );
     }
 
-    private static void lethal(
+    static void lethal(
         World world,
         WorldPlayer attacker,
         long attackerGeneration,
@@ -505,7 +505,7 @@ public final class G95TournamentPvpDeathIntegrationTest {
         );
     }
 
-    private static final class SettlementHarness {
+    static final class SettlementHarness {
         final World world;
         final WorldPlayer player;
         final MovementState movement;
