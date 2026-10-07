@@ -916,6 +916,58 @@ final class LocalSession implements Runnable {
                     return result!=null;
                 }
 
+                @Override public boolean openTaskScroll(
+                    boolean assignIfAbsent,
+                    long worldTick,
+                    ServerPacketWriter writer
+                )throws IOException{
+                    final TaskScrollService.Snapshot task;
+
+                    if(assignIfAbsent)
+                        task=
+                            LocalSession.this.world
+                                .localLabTaskScrolls()
+                                .assign(
+                                    LocalSession.this
+                                        .worldPlayer
+                                        .username(),
+                                    worldTick
+                                ).task;
+                    else
+                        task=
+                            LocalSession.this.world
+                                .localLabTaskScrolls()
+                                .active(
+                                    LocalSession.this
+                                        .worldPlayer
+                                        .username()
+                                );
+
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRoot(
+                                ()->{
+                                    if(task==null)
+                                        TaskScrollPresentation
+                                            .openEmpty(
+                                                writer
+                                            );
+                                    else
+                                        LocalLabTaskScrollPresentation
+                                            .open(
+                                                writer,
+                                                task
+                                            );
+
+                                    return task==null
+                                        ?"TASK_SCROLL_EMPTY_ROOT_OPENED"
+                                        :"TASK_SCROLL_ASSIGNED_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
                 @Override public boolean openLegendaryPetFusion(
                     ServerPacketWriter writer
                 )throws IOException{
