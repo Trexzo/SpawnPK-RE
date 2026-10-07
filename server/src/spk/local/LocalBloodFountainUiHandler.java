@@ -18,6 +18,7 @@ final class LocalBloodFountainUiHandler {
 
     enum Surface {
         HUB,
+        FUSER,
         SALVAGE
     }
 
@@ -69,6 +70,30 @@ final class LocalBloodFountainUiHandler {
         }
     }
 
+    static final class FuserResult {
+        final String status;
+        final BloodDiamondFuserPresentation.Input input;
+        final boolean succeeded;
+
+        FuserResult(
+            String status,
+            BloodDiamondFuserPresentation.Input input,
+            boolean succeeded
+        ){
+            this.status=
+                Objects.requireNonNull(
+                    status,
+                    "status"
+                );
+            this.input=
+                Objects.requireNonNull(
+                    input,
+                    "input"
+                );
+            this.succeeded=succeeded;
+        }
+    }
+
     private Surface surface;
 
     synchronized void openHub(
@@ -113,28 +138,74 @@ final class LocalBloodFountainUiHandler {
                 false
             );
 
-        if(checked!=
+        if(checked==
                 BloodFountainHubService
-                    .Intent.BLOOD_SHARD_SALVAGING)
+                    .Intent.BLOOD_DIAMOND_FUSER){
+            BloodDiamondFuserPresentation.open(
+                packets
+            );
+            surface=Surface.FUSER;
+
             return new HubResult(
-                "DISABLED_NO_RUNTIME_COMPOSITION",
+                "NAVIGATED_TO_FUSER",
+                checked,
+                true
+            );
+        }
+
+        if(checked==
+                BloodFountainHubService
+                    .Intent.BLOOD_SHARD_SALVAGING){
+            BloodShardSalvagePresentation.open(
+                packets
+            );
+            BloodShardSalvagePresentation.publishStatus(
+                packets,
+                SALVAGE_STATUS
+            );
+            surface=Surface.SALVAGE;
+
+            return new HubResult(
+                "NAVIGATED_TO_SALVAGE",
+                checked,
+                true
+            );
+        }
+
+        return new HubResult(
+            "DISABLED_NO_RUNTIME_COMPOSITION",
+            checked,
+            false
+        );
+    }
+
+    synchronized FuserResult handleFuser(
+        BloodDiamondFuserPresentation.Input input
+    ){
+        BloodDiamondFuserPresentation.Input checked=
+            Objects.requireNonNull(
+                input,
+                "input"
+            );
+
+        if(surface==null)
+            return new FuserResult(
+                "CLOSED_UI_NOOP",
                 checked,
                 false
             );
 
-        BloodShardSalvagePresentation.open(
-            packets
-        );
-        BloodShardSalvagePresentation.publishStatus(
-            packets,
-            SALVAGE_STATUS
-        );
-        surface=Surface.SALVAGE;
+        if(surface!=Surface.FUSER)
+            return new FuserResult(
+                "WRONG_SURFACE_NOOP",
+                checked,
+                false
+            );
 
-        return new HubResult(
-            "NAVIGATED_TO_SALVAGE",
+        return new FuserResult(
+            "DISABLED_NO_GAMEPLAY_AUTHORITY",
             checked,
-            true
+            false
         );
     }
 
