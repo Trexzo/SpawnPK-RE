@@ -323,6 +323,10 @@ public final class G6BloodSlayerCompletionCountTest {
                 LocalLabSlayerPersistence.MODE_VERSION
             );
             modeV2.put(
+                "authority",
+                LocalLabSlayerRuntime.G6_AUTHORITY
+            );
+            modeV2.put(
                 "mode",
                 BloodSlayerModeService.Mode
                     .BOSS_HUNTER_PVM
