@@ -54,6 +54,8 @@ final class World implements AutoCloseable {
     private final LocalLabShopRepository localLabShopRepository;
     private final LocalLabShopRuntime localLabShops;
     private final LocalLabSlayerRuntime localLabSlayer;
+    private final LootingBagService lootingBags=
+        new LootingBagService();
     private final ContentRegistry content;
     private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
@@ -418,6 +420,7 @@ final class World implements AutoCloseable {
     DefaultLoadoutService defaultLoadouts(){return defaultLoadouts;}
     LocalLabShopRuntime localLabShops(){return localLabShops;}
     LocalLabSlayerRuntime localLabSlayer(){return localLabSlayer;}
+    LootingBagService lootingBags(){return lootingBags;}
     int appearanceRoleFor(String playerRef){
         return appearanceRoles.project(
             playerPrivileges.snapshot(playerRef)
