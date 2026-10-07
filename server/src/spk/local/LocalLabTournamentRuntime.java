@@ -7,8 +7,9 @@ import java.util.Objects;
  * World-owned LocalLab registration slice over the reusable Tournament domain.
  *
  * G9.1 keeps the backing event SCHEDULED until explicit runtime activation.
- * G9.2 adds caller-paired 1v1 start only. Automatic pairing, arenas, rewards
- * and all original SpawnPK tournament policy remain external authority.
+ * G9.2 adds caller-paired 1v1 start. G9.3 adds explicit caller-resolved match
+ * completion. Automatic pairing, PvP winner inference, arenas, rewards and
+ * all original SpawnPK tournament policy remain external authority.
  */
 final class LocalLabTournamentRuntime {
     static final String AUTHORITY=
@@ -239,6 +240,53 @@ final class LocalLabTournamentRuntime {
             matchId,
             instanceId,
             started
+        );
+    }
+
+    synchronized TournamentService.Snapshot completeMatch(
+        MatchId matchId,
+        String winnerRef
+    ){
+        MatchId id=Objects.requireNonNull(
+            matchId,
+            "matchId"
+        );
+        String winner=
+            PartyService.requireRef(
+                winnerRef
+            );
+
+        TournamentService.Snapshot before=
+            tournament.get(
+                EVENT_ID
+            );
+        TournamentService.MatchSnapshot match=
+            before.match(id);
+
+        if(match==null||
+           match.state!=
+                TournamentService
+                    .TournamentMatchState.ACTIVE)
+            throw new IllegalStateException(
+                "G9.3 requires ACTIVE Tournament match "+
+                id
+            );
+
+        if(!winner.equals(
+                match.firstParticipant)&&
+           !winner.equals(
+                match.secondParticipant))
+            throw new IllegalArgumentException(
+                "winner not in Tournament match "+
+                winner
+            );
+
+        return tournament.completeMatch(
+            EVENT_ID,
+            id,
+            winner,
+            "caller-resolved-win",
+            AUTHORITY
         );
     }
 
