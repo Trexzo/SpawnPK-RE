@@ -2093,6 +2093,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1311ItemEnchantmentCategoryShellIntegrationTest',
     'spk.local.G1312DonorPanelLiveFailClosedIntegrationTest',
     'spk.local.G1313DonationCartZeroFailClosedIntegrationTest',
+    'spk.local.G1314ItemEnchantmentEmptyMainNavigationIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2121,10 +2122,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 274 ||
-    currentTrainFocusedTests.toSet().size() != 274) {
+if (currentTrainFocusedTests.size() != 275 ||
+    currentTrainFocusedTests.toSet().size() != 275) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 274 unique tests, found " +
+        "Current-train focused manifest drift: expected 275 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2424,6 +2425,14 @@ tasks.register('g1313DonationCartZeroFailClosedRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1313DonationCartZeroFailClosedIntegrationTest')
+}
+
+tasks.register('g1314ItemEnchantmentEmptyMainNavigationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact Item Enchantment category-to-empty-main navigation, blank rows, fail-closed main actions and exact Back.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1314ItemEnchantmentEmptyMainNavigationIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

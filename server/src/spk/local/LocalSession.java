@@ -1342,6 +1342,20 @@ final class LocalSession implements Runnable {
                         .handleCategory(input);
                 }
 
+                @Override public LocalItemEnchantmentUiHandler.Result
+                    handleItemEnchantmentInput(
+                        ItemEnchantmentPresentation.Input input,
+                        ServerPacketWriter writer,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .itemEnchantmentUi
+                        .handle(
+                            input,
+                            writer
+                        );
+                }
+
                 @Override public boolean retireDonorPanelRoot(){
                     return LocalSession.this
                         .donorPanelUi

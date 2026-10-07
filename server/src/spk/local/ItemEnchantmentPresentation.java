@@ -459,6 +459,22 @@ final class ItemEnchantmentPresentation {
         );
     }
 
+    static void publishEmptyRows(
+        ServerPacketWriter packets
+    )throws IOException{
+        Objects.requireNonNull(
+            packets,
+            "packets"
+        );
+
+        for(int i=0;i<ROWS;i++)
+            ApplicationBus126Publisher.send(
+                packets,
+                rowWidget(i),
+                ""
+            );
+    }
+
     static void publishRows(
         ServerPacketWriter packets,
         View view
