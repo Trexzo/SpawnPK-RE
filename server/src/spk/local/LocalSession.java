@@ -193,6 +193,7 @@ final class LocalSession implements Runnable {
     private final LocalDevPanelCoordinator devPanelCoordinator;
     private final LocalShopCommandHandler shopCommands;
     private final LocalSlayerCommandHandler slayerCommands;
+    private final LocalDuelCommandHandler duelCommands;
     private final LocalBloodSlayerUiHandler bloodSlayerUi;
     private final LocalLootingBagBankHandler lootingBagBank;
     private final LocalTournamentUiHandler tournamentUi;
@@ -549,6 +550,11 @@ final class LocalSession implements Runnable {
                 this.worldPlayer,
                 this.world.localLabSlayer()
             );
+        this.duelCommands =
+            new LocalDuelCommandHandler(
+                this.worldPlayer,
+                this.world.localDuels()
+            );
         this.bloodSlayerUi =
             new LocalBloodSlayerUiHandler(
                 this.worldPlayer,
@@ -757,6 +763,15 @@ final class LocalSession implements Runnable {
                     return LocalSession.this.slayerCommands.handle(
                         tokens,
                         worldTick
+                    );
+                }
+
+                @Override public LocalDuelCommandHandler.Result
+                    handleDuelCommand(
+                        String[] tokens
+                    ){
+                    return LocalSession.this.duelCommands.handle(
+                        tokens
                     );
                 }
 
