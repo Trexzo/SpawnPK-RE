@@ -56,8 +56,12 @@ final class World implements AutoCloseable {
     private final LocalLabSlayerRuntime localLabSlayer;
     private final LootingBagService lootingBags=
         new LootingBagService();
+    private final Object competitiveAdmissionLock=
+        new Object();
     private final LocalLabTournamentRuntime localTournament=
-        new LocalLabTournamentRuntime();
+        new LocalLabTournamentRuntime(
+            competitiveAdmissionLock
+        );
     private final LocalLabDuelRuntime localDuels;
     private final ContentRegistry content;
     private final WorldPluginManager plugins;
@@ -209,6 +213,18 @@ final class World implements AutoCloseable {
             new LocalLabSlayerRuntime(this);
         localDuels=
             new LocalLabDuelRuntime(this);
+        localTournament.installMatchAdmissionFence(
+            (first,second)->{
+                if(localDuels.participantHasOpenDuel(
+                        first)||
+                   localDuels.participantHasOpenDuel(
+                        second))
+                    throw new IllegalStateException(
+                        "Tournament match blocked by open Duel participants="+
+                        first+","+second
+                    );
+            }
+        );
         content=
             new ContentRegistry(this);
         content.installTrusted(
@@ -428,6 +444,7 @@ final class World implements AutoCloseable {
     LootingBagService lootingBags(){return lootingBags;}
     LocalLabTournamentRuntime localTournament(){return localTournament;}
     LocalLabDuelRuntime localDuels(){return localDuels;}
+    Object competitiveAdmissionLock(){return competitiveAdmissionLock;}
     int appearanceRoleFor(String playerRef){
         return appearanceRoles.project(
             playerPrivileges.snapshot(playerRef)
