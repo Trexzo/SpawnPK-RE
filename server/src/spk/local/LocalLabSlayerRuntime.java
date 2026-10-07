@@ -12,20 +12,28 @@ import java.util.*;
 final class LocalLabSlayerRuntime {
     static final String LEGACY_AUTHORITY=
         "LOCAL_LAB_POLICY_G4_BLOOD_SLAYER_MONSTER_HUNTER_V1";
-    static final String AUTHORITY=
+    static final String G6_AUTHORITY=
         "LOCAL_LAB_POLICY_G6_BLOOD_SLAYER_PVM_V2";
+    static final String AUTHORITY=
+        "LOCAL_LAB_POLICY_G7_BLOOD_SLAYER_PVM_BOUNTY_V1";
     static final String TASK_KEY=
         "locallab:blood-slayer:monster-hunter:definition-1";
     static final String BOSS_TASK_KEY=
         "locallab:blood-slayer:boss-hunter:region-16168-definition-1";
+    static final String BOUNTY_TASK_KEY=
+        "locallab:blood-slayer:bounty-hunter:player-kill";
     static final String FAMILY_KEY=
         "blood-slayer";
     static final String TARGET_KEY=
         "npc-definition:1";
+    static final String BOUNTY_TARGET_KEY=
+        "player-kill";
     static final String OBJECTIVE_KEY=
         "locallab:blood-slayer:monster-hunter:definition-1:kills";
     static final String BOSS_OBJECTIVE_KEY=
         "locallab:blood-slayer:boss-hunter:region-16168-definition-1:kills";
+    static final String BOUNTY_OBJECTIVE_KEY=
+        "locallab:blood-slayer:bounty-hunter:player-kill:kills";
     static final int TARGET_DEFINITION_ID=1;
     static final int BOSS_REGION_ID=16168;
     static final long OBJECTIVE_GOAL=1L;
@@ -155,6 +163,8 @@ final class LocalLabSlayerRuntime {
         latestTaskByPlayer=new LinkedHashMap<>();
     private final LinkedHashMap<String,Long>
         completionCountByPlayer=new LinkedHashMap<>();
+    private final LinkedHashMap<String,KillCreditResult>
+        bountyCreditByDeath=new LinkedHashMap<>();
     private final Set<WorldPlayer> hydratedPlayers=
         Collections.newSetFromMap(
             new IdentityHashMap<WorldPlayer,Boolean>()
@@ -190,6 +200,10 @@ final class LocalLabSlayerRuntime {
                             BloodSlayerModeService.Mode
                                 .BOSS_HUNTER_PVM)
                         return BOSS_TASK_KEY;
+                    if(mode==
+                            BloodSlayerModeService.Mode
+                                .BOUNTY_HUNTER_PK)
+                        return BOUNTY_TASK_KEY;
                     throw new IllegalArgumentException(
                         "LocalLab Blood Slayer allocator does not own mode "+
                         mode
@@ -225,6 +239,20 @@ final class LocalLabSlayerRuntime {
                     .BOSS_HUNTER_PVM
             )
         );
+
+        bloodSlayer.registerTaskDefinition(
+            new SlayerTaskService.Definition(
+                BOUNTY_TASK_KEY,
+                FAMILY_KEY,
+                BOUNTY_TARGET_KEY,
+                BOUNTY_OBJECTIVE_KEY,
+                AUTHORITY
+            ),
+            Collections.singletonList(
+                BloodSlayerModeService.Mode
+                    .BOUNTY_HUNTER_PK
+            )
+        );
     }
 
     StartResult startMonsterHunter(
@@ -247,6 +275,18 @@ final class LocalLabSlayerRuntime {
             playerRef,
             BloodSlayerModeService.Mode
                 .BOSS_HUNTER_PVM,
+            worldTick
+        );
+    }
+
+    StartResult startBountyHunter(
+        String playerRef,
+        long worldTick
+    ){
+        return startMode(
+            playerRef,
+            BloodSlayerModeService.Mode
+                .BOUNTY_HUNTER_PK,
             worldTick
         );
     }
@@ -377,6 +417,16 @@ final class LocalLabSlayerRuntime {
             playerRef,
             BloodSlayerModeService.Mode
                 .BOSS_HUNTER_PVM
+        );
+    }
+
+    StatusSnapshot selectBountyHunterMode(
+        String playerRef
+    ){
+        return selectMode(
+            playerRef,
+            BloodSlayerModeService.Mode
+                .BOUNTY_HUNTER_PK
         );
     }
 
@@ -534,6 +584,251 @@ final class LocalLabSlayerRuntime {
             result[0],
             "Blood Slayer kill result"
         );
+    }
+
+    KillCreditResult recordBountyHunterKill(
+        String playerRef,
+        EntityId victimId,
+        long deathSequence,
+        long worldTick
+    ){
+        String player=normalizePlayer(playerRef);
+        EntityId victim=Objects.requireNonNull(
+            victimId,
+            "victimId"
+        );
+        if(deathSequence<=0L)
+            throw new IllegalArgumentException(
+                "deathSequence="+deathSequence
+            );
+        requireTick(worldTick);
+
+        WorldPlayer owner=requireCurrentPlayer(player);
+        long generation=owner.generation();
+        final KillCreditResult[] result={null};
+
+        try{
+            boolean current=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    owner,
+                    generation,
+                    ()->result[0]=
+                        recordBountyOwned(
+                            player,
+                            victim,
+                            deathSequence,
+                            worldTick,
+                            owner
+                        )
+                );
+
+            if(!current)
+                return new KillCreditResult(
+                    true,
+                    false,
+                    false,
+                    false,
+                    localStatus(
+                        player,
+                        "STALE_PLAYER"
+                    )
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Blood Slayer Bounty kill ownership failed player="+
+                player,
+                failure
+            );
+        }
+
+        return Objects.requireNonNull(
+            result[0],
+            "Blood Slayer Bounty kill result"
+        );
+    }
+
+    private KillCreditResult recordBountyOwned(
+        String player,
+        EntityId victimId,
+        long deathSequence,
+        long worldTick,
+        WorldPlayer owner
+    ){
+        String deathKey=
+            player+"|"+
+            victimId.toString()+"|"+
+            Long.toUnsignedString(
+                deathSequence
+            );
+
+        synchronized(this){
+            KillCreditResult existing=
+                bountyCreditByDeath.get(
+                    deathKey
+                );
+            if(existing!=null)
+                return existing;
+        }
+
+        ensureRestoredOwned(
+            player,
+            owner
+        );
+
+        String invalid=
+            invalidPersistence.get(owner);
+
+        SlayerTaskService.Snapshot active=
+            invalid==null
+                ?slayer.active(player)
+                :null;
+
+        KillCreditResult result;
+
+        if(invalid!=null){
+            result=
+                new KillCreditResult(
+                    true,
+                    false,
+                    false,
+                    false,
+                    localStatus(
+                        player,
+                        invalid
+                    )
+                );
+        }else if(active==null){
+            result=
+                new KillCreditResult(
+                    true,
+                    false,
+                    false,
+                    false,
+                    localStatus(
+                        player,
+                        null
+                    )
+                );
+        }else{
+            BloodSlayerModeService.Mode mode=
+                requireSupportedMode(
+                    bloodSlayer.get(player)
+                        .selectedMode
+                );
+
+            if(mode!=
+                    BloodSlayerModeService.Mode
+                        .BOUNTY_HUNTER_PK){
+                result=
+                    new KillCreditResult(
+                        true,
+                        true,
+                        false,
+                        false,
+                        snapshot(
+                            player,
+                            active
+                        )
+                    );
+            }else{
+                if(!BOUNTY_TASK_KEY.equals(
+                        active.definition.taskKey))
+                    throw new IllegalStateException(
+                        "Blood Slayer Bounty active task/mode mismatch task="+
+                        active.definition.taskKey
+                    );
+
+                long completionsBefore=
+                    completionCount(player);
+
+                boolean completesOnThisCredit=
+                    active.objective!=null&&
+                    !active.objective.complete&&
+                    active.objective.goal-
+                        active.objective.progress<=1L;
+
+                if(completesOnThisCredit&&
+                   completionsBefore==Long.MAX_VALUE){
+                    result=
+                        new KillCreditResult(
+                            true,
+                            true,
+                            false,
+                            false,
+                            snapshot(
+                                player,
+                                active
+                            )
+                        );
+                }else{
+                    SlayerTaskService.KillResult credited=
+                        slayer.recordValidatedKill(
+                            player,
+                            BOUNTY_TARGET_KEY,
+                            1L,
+                            worldTick
+                        );
+
+                    remember(
+                        player,
+                        credited.task.taskId
+                    );
+
+                    long completionsAfter=
+                        credited.completedNow
+                            ?Math.addExact(
+                                completionsBefore,
+                                1L
+                            )
+                            :completionsBefore;
+
+                    StatusSnapshot status=
+                        snapshot(
+                            player,
+                            credited.task,
+                            completionsAfter
+                        );
+
+                    persistOwned(
+                        owner,
+                        status
+                    );
+
+                    if(credited.completedNow)
+                        setCompletionCount(
+                            player,
+                            completionsAfter
+                        );
+
+                    result=
+                        new KillCreditResult(
+                            true,
+                            true,
+                            credited.progressed,
+                            credited.completedNow,
+                            status
+                        );
+                }
+            }
+        }
+
+        synchronized(this){
+            KillCreditResult existing=
+                bountyCreditByDeath.get(
+                    deathKey
+                );
+            if(existing!=null)
+                return existing;
+
+            bountyCreditByDeath.put(
+                deathKey,
+                result
+            );
+        }
+
+        return result;
     }
 
     SlayerTaskService slayer(){
@@ -1255,7 +1550,10 @@ final class LocalLabSlayerRuntime {
                     .MONSTER_HUNTER_PVM||
             mode==
                 BloodSlayerModeService.Mode
-                    .BOSS_HUNTER_PVM;
+                    .BOSS_HUNTER_PVM||
+            mode==
+                BloodSlayerModeService.Mode
+                    .BOUNTY_HUNTER_PK;
     }
 
     static String taskKeyFor(
@@ -1264,11 +1562,17 @@ final class LocalLabSlayerRuntime {
         BloodSlayerModeService.Mode checked=
             requireSupportedMode(mode);
 
-        return checked==
+        if(checked==
                 BloodSlayerModeService.Mode
-                    .MONSTER_HUNTER_PVM
-            ?TASK_KEY
-            :BOSS_TASK_KEY;
+                    .MONSTER_HUNTER_PVM)
+            return TASK_KEY;
+
+        if(checked==
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM)
+            return BOSS_TASK_KEY;
+
+        return BOUNTY_TASK_KEY;
     }
 
     static String objectiveKeyFor(
@@ -1277,11 +1581,17 @@ final class LocalLabSlayerRuntime {
         BloodSlayerModeService.Mode checked=
             requireSupportedMode(mode);
 
-        return checked==
+        if(checked==
                 BloodSlayerModeService.Mode
-                    .MONSTER_HUNTER_PVM
-            ?OBJECTIVE_KEY
-            :BOSS_OBJECTIVE_KEY;
+                    .MONSTER_HUNTER_PVM)
+            return OBJECTIVE_KEY;
+
+        if(checked==
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM)
+            return BOSS_OBJECTIVE_KEY;
+
+        return BOUNTY_OBJECTIVE_KEY;
     }
 
     static int regionId(
