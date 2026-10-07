@@ -205,6 +205,7 @@ final class LocalSession implements Runnable {
     private final LocalBloodFountainUiHandler bloodFountainUi;
     private final LocalBloodcoreSynthesisUiHandler bloodcoreSynthesisUi;
     private final LocalEventActivityUiHandler eventActivityUi;
+    private final LocalLegendaryPetFusionUiHandler legendaryPetFusionUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -603,6 +604,8 @@ final class LocalSession implements Runnable {
             new LocalBloodcoreSynthesisUiHandler();
         this.eventActivityUi=
             new LocalEventActivityUiHandler();
+        this.legendaryPetFusionUi=
+            new LocalLegendaryPetFusionUiHandler();
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -874,6 +877,23 @@ final class LocalSession implements Runnable {
                                         .eventActivityUi
                                         .open(writer);
                                     return "EVENT_ACTIVITY_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openLegendaryPetFusion(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithLegendaryPetFusionRoot(
+                                ()->{
+                                    LocalSession.this
+                                        .legendaryPetFusionUi
+                                        .open(writer);
+                                    return "LEGENDARY_PET_FUSION_ROOT_OPENED";
                                 }
                             );
 
@@ -1208,6 +1228,32 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .bloodFountainUi
                         .close();
+                }
+
+                @Override public boolean retireLegendaryPetFusionRoot(){
+                    return LocalSession.this
+                        .legendaryPetFusionUi
+                        .close();
+                }
+
+                @Override public boolean openLegendaryPetFusion(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .legendaryPetFusionUi
+                        .open(writer);
+                    return true;
+                }
+
+                @Override public LocalLegendaryPetFusionUiHandler.Result
+                    handleLegendaryPetFusionWidget(
+                        LegendaryPetFusionPresentation.Input input,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .legendaryPetFusionUi
+                        .handle(input);
                 }
 
                 @Override public boolean openBloodFountainHub(
