@@ -483,8 +483,7 @@ final class LocalSessionUiActionHandler {
     private final boolean movementEnabled;
     private final EquipmentState equipment;
     private final LocalDailyMoneyMakingUiHandler
-        dailyMoneyMakingUi=
-            new LocalDailyMoneyMakingUiHandler();
+        dailyMoneyMakingUi;
     private final SessionBridge bridge;
 
     LocalSessionUiActionHandler(
@@ -564,6 +563,10 @@ final class LocalSessionUiActionHandler {
         SessionBridge bridge
     ){
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
+        this.dailyMoneyMakingUi=
+            new LocalDailyMoneyMakingUiHandler(
+                this.worldPlayer
+            );
         this.itemLibrary=Objects.requireNonNull(itemLibrary,"itemLibrary");
         this.devPanel=Objects.requireNonNull(devPanel,"devPanel");
         this.bank=Objects.requireNonNull(bank,"bank");
