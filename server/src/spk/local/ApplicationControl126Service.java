@@ -252,6 +252,57 @@ final class ApplicationControl126Service {
         );
     }
 
+    static void dailyMoneyMakingTrackingText(
+        ServerPacketWriter writer,
+        String text
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command
+                .dailyMoneyMakingTrackingText(
+                    text
+                )
+        );
+    }
+
+    static void dailyMoneyMakingDifficulty(
+        ServerPacketWriter writer,
+        DailyMoneyMakingStateService.Difficulty
+            difficulty
+    )throws IOException{
+        Objects.requireNonNull(
+            difficulty,
+            "difficulty"
+        );
+
+        final int state;
+
+        switch(difficulty){
+            case EASY:
+                state=1;
+                break;
+            case MEDIUM:
+                state=2;
+                break;
+            case HARD:
+                state=3;
+                break;
+            default:
+                throw new IllegalStateException(
+                    "unknown Daily Money Making difficulty "+
+                    difficulty
+                );
+        }
+
+        publish(
+            writer,
+            ApplicationControl126Command
+                .dailyMoneyMakingSelectedCategory(
+                    state
+                )
+        );
+    }
+
     static void dailyChallengeDefinition(
         ServerPacketWriter writer,
         int metadataA,
