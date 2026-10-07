@@ -27,6 +27,14 @@ final class ApplicationControl126Command {
             55,
             "daily-challenge-definition"
         ),
+        DAILY_MONEY_MAKING_TRACKING_TEXT(
+            26,
+            "daily-money-making-tracking-text"
+        ),
+        DAILY_MONEY_MAKING_SELECTED_CATEGORY(
+            36,
+            "daily-money-making-selected-category"
+        ),
         COLLECTION_CLEAR_ROWS(
             54315,
             "collection-log-clear-rows"
@@ -177,6 +185,43 @@ final class ApplicationControl126Command {
             "LOGIN_REWARD_IDX "+
                 index,
             "login-reward:index"
+        );
+    }
+
+    static ApplicationControl126Command dailyMoneyMakingTrackingText(
+        String text
+    ){
+        if(text==null)
+            throw new NullPointerException(
+                "text"
+            );
+
+        if(text.indexOf('\n')>=0||
+           text.indexOf('\r')>=0)
+            throw new IllegalArgumentException(
+                "Daily Money Making tracking text contains line break"
+            );
+
+        return exact(
+            Target.DAILY_MONEY_MAKING_TRACKING_TEXT,
+            text,
+            "daily-money-making:tracking-text"
+        );
+    }
+
+    static ApplicationControl126Command dailyMoneyMakingSelectedCategory(
+        int state
+    ){
+        if(state<1||state>3)
+            throw new IllegalArgumentException(
+                "Daily Money Making category state="+
+                state
+            );
+
+        return exact(
+            Target.DAILY_MONEY_MAKING_SELECTED_CATEGORY,
+            Integer.toString(state),
+            "daily-money-making:selected-category"
         );
     }
 
