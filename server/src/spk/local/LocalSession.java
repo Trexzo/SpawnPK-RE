@@ -898,6 +898,24 @@ final class LocalSession implements Runnable {
                     return result!=null;
                 }
 
+                @Override public boolean openTaskScroll(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRoot(
+                                ()->{
+                                    TaskScrollPresentation
+                                        .openEmpty(
+                                            writer
+                                        );
+                                    return "TASK_SCROLL_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
                 @Override public boolean openLegendaryPetFusion(
                     ServerPacketWriter writer
                 )throws IOException{
