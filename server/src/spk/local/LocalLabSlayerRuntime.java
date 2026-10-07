@@ -464,6 +464,44 @@ final class LocalLabSlayerRuntime {
                             return;
                         }
 
+                        SlayerTaskService.Snapshot active=
+                            slayer.active(player);
+
+                        if(active!=null){
+                            BloodSlayerModeService.Mode
+                                activeMode=
+                                    requireSupportedMode(
+                                        bloodSlayer.get(
+                                            player
+                                        ).selectedMode
+                                    );
+
+                            if(!taskKeyFor(activeMode)
+                                    .equals(
+                                        active.definition
+                                            .taskKey
+                                    ))
+                                throw new IllegalStateException(
+                                    "Blood Slayer active task/mode mismatch mode="+
+                                    activeMode+
+                                    " task="+
+                                    active.definition
+                                        .taskKey
+                                );
+
+                            /*
+                             * An ACTIVE task owns its mode. Do not let a
+                             * selector click relabel that task into a state
+                             * the persistence schema cannot represent.
+                             */
+                            result[0]=
+                                snapshot(
+                                    player,
+                                    active
+                                );
+                            return;
+                        }
+
                         bloodSlayer.selectMode(
                             player,
                             checkedMode
