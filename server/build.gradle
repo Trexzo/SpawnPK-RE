@@ -2082,6 +2082,7 @@ def currentTrainFocusedTests = [
     'spk.local.G122QuickPrayerOffIntegrationTest',
     'spk.local.G131EventChestLiveFailClosedIntegrationTest',
     'spk.local.G132GoodwillWellLiveFailClosedIntegrationTest',
+    'spk.local.G133LotteryLiveFailClosedIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2110,10 +2111,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 263 ||
-    currentTrainFocusedTests.toSet().size() != 263) {
+if (currentTrainFocusedTests.size() != 264 ||
+    currentTrainFocusedTests.toSet().size() != 264) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 263 unique tests, found " +
+        "Current-train focused manifest drift: expected 264 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2325,6 +2326,14 @@ tasks.register('g132GoodwillWellLiveFailClosedRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G132GoodwillWellLiveFailClosedIntegrationTest')
+}
+
+tasks.register('g133LotteryLiveFailClosedRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates live exact ordinary and Bloodcore Lottery roots with entry fail-closed and no invented rounds.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G133LotteryLiveFailClosedIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
