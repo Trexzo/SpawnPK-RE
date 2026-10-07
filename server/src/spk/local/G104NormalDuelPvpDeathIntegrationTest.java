@@ -390,16 +390,60 @@ public final class G104NormalDuelPvpDeathIntegrationTest {
 
             LocalLabDuelRuntime duel=
                 collisionWorld.localDuels();
-            LocalLabDuelRuntime.ProposalResult duelProposal=
-                duel.propose(
-                    COLLIDE_A,
-                    COLLIDE_B,
-                    NormalDuelPresentation.DuelMode.STANDARD
+
+            /*
+             * G10.5 prevents supported gameplay from creating this collision.
+             * Build the impossible-state fixture directly through the reusable
+             * protocol-independent DuelSessionService so G10.4 remains a
+             * defense-in-depth test for corrupted/legacy composition state.
+             */
+            DuelSessionService.ChallengeId duelChallengeId=
+                DuelSessionService.ChallengeId.of(
+                    "g104:defensive-collision"
                 );
-            LocalLabDuelRuntime.StartResult duelMatch=
-                duel.acceptAndStart(
+            MatchId duelMatchId=
+                MatchId.of(
+                    "g104:defensive-collision-match"
+                );
+            WorldInstanceId duelInstanceId=
+                WorldInstanceId.of(
+                    "g104:defensive-collision-instance"
+                );
+            MatchRules duelRules=
+                new MatchRules(
+                    MatchRules.TeamMode.TEAMS,
+                    MatchRules.SpellPolicy.UNRESTRICTED,
+                    MatchRules.PrayerPolicy.UNRESTRICTED,
+                    MatchRules.RestrictionPolicy.ALLOWED,
+                    MatchRules.RestrictionPolicy.ALLOWED,
+                    MatchRules.WinConditionKind.CALLER_RESOLVED,
+                    MatchRules.NO_SCORE_TARGET,
+                    "g104-defensive-collision",
+                    LocalLabDuelRuntime.AUTHORITY
+                );
+
+            DuelSessionService.Snapshot duelProposal=
+                duel.duels()
+                    .propose(
+                        duelChallengeId,
+                        COLLIDE_A,
+                        COLLIDE_B,
+                        "standard",
+                        duelRules,
+                        LocalLabDuelRuntime.AUTHORITY
+                    );
+            duel.duels()
+                .accept(
+                    duelChallengeId,
                     COLLIDE_B
                 );
+            DuelSessionService.Snapshot duelMatch=
+                duel.duels()
+                    .startAccepted(
+                        duelChallengeId,
+                        duelMatchId,
+                        duelInstanceId
+                    );
 
             G95TournamentPvpDeathIntegrationTest.lethal(
                 collisionWorld,
@@ -437,7 +481,7 @@ public final class G104NormalDuelPvpDeathIntegrationTest {
             DuelSessionService.Snapshot duelAfterCollision=
                 duel.duels()
                     .get(
-                        duelProposal.snapshot.challengeId
+                        duelProposal.challengeId
                     );
 
             tournamentUnaffectedOnCollision=
@@ -453,11 +497,11 @@ public final class G104NormalDuelPvpDeathIntegrationTest {
                     DuelSessionService.State.ACTIVE&&
                 duel.pvpDeathDedupeCount()==0&&
                 duel.matches()
-                    .get(duelMatch.snapshot.matchId)
+                    .get(duelMatch.matchId)
                     .state==
                     MatchSession.State.ACTIVE&&
                 duel.instances()
-                    .get(duelMatch.snapshot.instanceId)
+                    .get(duelMatch.instanceId)
                     .lifecycle==
                     WorldInstanceService.Lifecycle.ACTIVE;
 
@@ -475,7 +519,7 @@ public final class G104NormalDuelPvpDeathIntegrationTest {
              */
             duel.duels()
                 .cancelActive(
-                    duelProposal.snapshot.challengeId,
+                    duelProposal.challengeId,
                     "g104-collision-resolution"
                 );
 
