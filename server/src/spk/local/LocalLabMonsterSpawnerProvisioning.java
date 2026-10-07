@@ -258,8 +258,8 @@ final class LocalLabMonsterSpawnerProvisioning {
      * Monster Spawner death.
      *
      * G4 Blood Slayer remains first. G14 Daily Challenges, G15 Task Scroll,
-     * and G16 Adventure consume the same validated finalization only after
-     * the established progression hooks ahead of them.
+     * G16 Adventure and G18 Daily Money Making consume the same validated
+     * finalization only after the established progression hooks ahead of them.
      */
     static boolean creditTerminalProgression(
         World world,
@@ -322,6 +322,13 @@ final class LocalLabMonsterSpawnerProvisioning {
             );
 
         checkedWorld.localLabAdventures()
+            .recordMonsterSpawnerFinalization(
+                recipientRefChecked,
+                definitionId,
+                deathTick
+            );
+
+        checkedWorld.localLabDailyMoneyMaking()
             .recordMonsterSpawnerFinalization(
                 recipientRefChecked,
                 definitionId,
