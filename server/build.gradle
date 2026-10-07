@@ -2106,6 +2106,7 @@ def currentTrainFocusedTests = [
     'spk.local.G153TaskScrollLiveAssignIntegrationTest',
     'spk.local.G154TaskScrollPersistenceIntegrationTest',
     'spk.local.G161AdventureAuthorityIntegrationTest',
+    'spk.local.G162AdventureLiveOpenIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2134,10 +2135,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 287 ||
-    currentTrainFocusedTests.toSet().size() != 287) {
+if (currentTrainFocusedTests.size() != 288 ||
+    currentTrainFocusedTests.toSet().size() != 288) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 287 unique tests, found " +
+        "Current-train focused manifest drift: expected 288 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2541,6 +2542,14 @@ tasks.register('g161AdventureAuthorityRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G161AdventureAuthorityIntegrationTest')
+}
+
+tasks.register('g162AdventureLiveOpenRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact C2S103 adventurebook routing to native book mode 7 and truthful empty subtype-22 Adventure projection.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G162AdventureLiveOpenIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
