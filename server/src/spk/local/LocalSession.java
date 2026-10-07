@@ -781,6 +781,23 @@ final class LocalSession implements Runnable {
                     return result!=null;
                 }
 
+                @Override public boolean openVoting(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRoot(
+                                ()->{
+                                    VotingPresentation.open(
+                                        writer
+                                    );
+                                    return "VOTING_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
                 @Override public boolean openDuel(
                     String targetRef,
                     ServerPacketWriter writer
