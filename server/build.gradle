@@ -2100,6 +2100,7 @@ def currentTrainFocusedTests = [
     'spk.local.G143DailyPvmTypedInfoIntegrationTest',
     'spk.local.G144DailyNativeDefinitionIntegrationTest',
     'spk.local.G145DailyLiveNativeInfoIntegrationTest',
+    'spk.local.G146DailyControlAliasIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2128,10 +2129,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 281 ||
-    currentTrainFocusedTests.toSet().size() != 281) {
+if (currentTrainFocusedTests.size() != 282 ||
+    currentTrainFocusedTests.toSet().size() != 282) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 281 unique tests, found " +
+        "Current-train focused manifest drift: expected 282 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2487,6 +2488,14 @@ tasks.register('g145DailyLiveNativeInfoRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G145DailyLiveNativeInfoIntegrationTest')
+}
+
+tasks.register('g146DailyControlAliasRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates semantic Daily Challenge clear/build APIs preserve exact legacy target-1 control bytes without claiming sequencing.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G146DailyControlAliasIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
