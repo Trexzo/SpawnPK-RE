@@ -2061,6 +2061,7 @@ def currentTrainFocusedTests = [
     'spk.local.G71BloodSlayerBountyHunterIntegrationTest',
     'spk.local.G8LootingBagBankIntegrationTest',
     'spk.local.G91TournamentRegistrationIntegrationTest',
+    'spk.local.G92TournamentMatchStartIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2089,10 +2090,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 242 ||
-    currentTrainFocusedTests.toSet().size() != 242) {
+if (currentTrainFocusedTests.size() != 243 ||
+    currentTrainFocusedTests.toSet().size() != 243) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 242 unique tests, found " +
+        "Current-train focused manifest drift: expected 243 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2136,6 +2137,14 @@ tasks.register('g91TournamentRegistrationRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G91TournamentRegistrationIntegrationTest')
+}
+
+tasks.register('g92TournamentMatchStartRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates explicit activation and caller-paired 1v1 Tournament composition over registered entrants.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G92TournamentMatchStartIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
