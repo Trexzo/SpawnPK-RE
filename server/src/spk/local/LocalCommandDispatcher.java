@@ -118,6 +118,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openTaskScroll(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openLegendaryPetFusion(
             ServerPacketWriter serverPackets
         )throws IOException{
@@ -756,6 +761,14 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(dispatchTaskScrollCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
+            return true;
+
         if(isLegendaryPetFusionRoute(p)){
             boolean opened=
                 bridge.openLegendaryPetFusion(
@@ -1040,6 +1053,49 @@ final class LocalCommandDispatcher {
         return false;
     }
 
+    static boolean dispatchTaskScrollCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(!isTaskScrollRoute(tokens))
+            return false;
+
+        boolean opened=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).openTaskScroll(
+                Objects.requireNonNull(
+                    serverPackets,
+                    "serverPackets"
+                )
+            );
+
+        System.out.println(
+            tag+
+            "G151_TASK_SCROLL_COMMAND"+
+            " opened="+opened+
+            " root="+
+            TaskScrollPresentation.ROOT+
+            " infoRows="+
+            TaskScrollPresentation.INFO_ROWS+
+            " rewardSlots="+
+            TaskScrollPresentation.REWARD_SLOTS+
+            " presentationAuthority="+
+            TaskScrollPresentation.PRESENTATION_AUTHORITY+
+            " routeAuthority=CUSTOM_LOCALLAB"+
+            " emptyProjection=true"+
+            " inputRouter=false"+
+            " assignmentCreated=false"+
+            " rewardPolicyClaim=false"+
+            " originalNavigationClaim=false"
+        );
+
+        return true;
+    }
+
     static boolean dispatchPkRatingsCommand(
         String[] tokens,
         SessionBridge bridge,
@@ -1292,6 +1348,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "activities"
+                )
+            );
+    }
+
+    static boolean isTaskScrollRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "taskscroll"
+                )||
+                p[0].equalsIgnoreCase(
+                    "tscroll"
                 )
             );
     }
