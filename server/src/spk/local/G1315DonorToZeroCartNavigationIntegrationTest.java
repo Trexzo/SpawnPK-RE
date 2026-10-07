@@ -172,6 +172,31 @@ public final class G1315DonorToZeroCartNavigationIntegrationTest {
                 "Donor Panel exact root"
             );
 
+            for(int i=0;i<2;i++){
+                int opcode=
+                    ((donorWire[offset++]&255)-
+                        decode.nextInt())&
+                        255;
+                int length=
+                    ((donorWire[offset++]&255)<<8)|
+                    (donorWire[offset++]&255);
+
+                require(
+                    opcode==126&&
+                    length>=3&&
+                    offset+length<=
+                        donorWire.length,
+                    "Donor Panel promotion packet "+i
+                );
+
+                offset+=length;
+            }
+
+            require(
+                offset==donorWire.length,
+                "unexpected Donor Panel opening wire tail"
+            );
+
             compatibilityG1312Preserved=
                 "DISABLED_NO_GAMEPLAY_AUTHORITY"
                     .equals(
