@@ -83,6 +83,61 @@ final class LocalDailyChallengeCommandHandler {
         );
     }
 
+    Result handle(
+        DailyChallengeClientRequest request
+    ){
+        DailyChallengeClientRequest checked=
+            Objects.requireNonNull(
+                request,
+                "request"
+            );
+
+        if(!LocalLabDailyChallengeRuntime
+                .CHALLENGE_KEY
+                .equals(
+                    checked.challengeKey()
+                ))
+            return null;
+
+        if(checked.action()==
+                DailyChallengeClientRequest.Action.CLAIM)
+            return new Result(
+                "G143_DAILY_TYPED_REQUEST action=CLAIM"+
+                    " challenge="+
+                    checked.challengeKey()+
+                    " result=DISABLED_NO_REWARD_AUTHORITY"+
+                    " exactTyped=true"+
+                    " stateMutation=false"+
+                    " rewardClaimExposed=false"+
+                    " authority="+
+                    AUTHORITY,
+                "Daily reward claiming is not configured."
+            );
+
+        if(checked.action()!=
+                DailyChallengeClientRequest.Action.INFO)
+            throw new IllegalStateException(
+                "Unsupported Daily Challenge action "+
+                checked.action()
+            );
+
+        Result status=
+            status(
+                runtime.status(
+                    requirePlayerRef()
+                )
+            );
+
+        return new Result(
+            "G143_DAILY_TYPED_REQUEST action=INFO"+
+                " challenge="+
+                checked.challengeKey()+
+                " exactTyped=true "+
+                status.logText,
+            status.clientMessage
+        );
+    }
+
     private Result status(
         LocalLabDailyChallengeRuntime.StatusResult status
     ){
