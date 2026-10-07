@@ -2050,6 +2050,15 @@ final class LocalSession implements Runnable {
                     return LocalSession.this.sessionWorldTick;
                 }
 
+                @Override public LocalDailyChallengeCommandHandler.Result
+                    handleDailyChallengeRequest(
+                        DailyChallengeClientRequest request
+                    ){
+                    return LocalSession.this
+                        .dailyChallengeCommands
+                        .handle(request);
+                }
+
                 @Override public SceneUpdatePublisher scenePublisher(){
                     return LocalSession.this.scenePublisher;
                 }
