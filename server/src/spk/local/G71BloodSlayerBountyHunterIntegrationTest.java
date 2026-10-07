@@ -177,7 +177,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
                 immediateVictim.playerState()
                     .setCurrentLevel(
                         PlayerState.HITPOINTS,
-                        50
+                        9
                     ),
                 "immediate victim HP fixture"
             );
@@ -185,7 +185,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
             PlayerCombatResolutionService immediateCombat=
                 new PlayerCombatResolutionService(
                     immediateAttacker,
-                    CombatDamageRules.dummyFixture(),
+                    CombatDamageRules.localLabFallback(),
                     CombatAttackTimingRules
                         .recoveredCompatibility(),
                     CombatSystemHooks.forPlayer(
@@ -318,7 +318,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
                 pvpIsolationVictim.playerState()
                     .setCurrentLevel(
                         PlayerState.HITPOINTS,
-                        50
+                        9
                     ),
                 "PvP isolation victim HP fixture"
             );
