@@ -102,6 +102,12 @@ final class LocalCommandDispatcher {
             )throws IOException{
             return null;
         }
+        default LocalDuelCommandHandler.Result
+            handleDuelCommand(
+                String[] tokens
+            )throws IOException{
+            return null;
+        }
         void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
     }
 
@@ -283,6 +289,29 @@ final class LocalCommandDispatcher {
                 rootOpened+
                 " persistenceBeforeFeedback="+
                 (slayerCommand.saveReason!=null)
+            );
+            return true;
+        }
+
+        LocalDuelCommandHandler.Result duelCommand=
+            bridge.handleDuelCommand(
+                p
+            );
+        if(duelCommand!=null){
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                duelCommand.clientMessage
+            );
+
+            System.out.println(
+                tag+
+                duelCommand.logText+
+                " clientFeedback=true"+
+                " route=EXACT_CURRENT_C2S103"+
+                " routeAuthority="+
+                LocalDuelCommandHandler.ROUTE_AUTHORITY+
+                " persistenceClaim=false"
             );
             return true;
         }
