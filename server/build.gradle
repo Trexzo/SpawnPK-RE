@@ -2067,6 +2067,7 @@ def currentTrainFocusedTests = [
     'spk.local.G95TournamentPvpDeathIntegrationTest',
     'spk.local.G101NormalDuelProposalIntegrationTest',
     'spk.local.G102NormalDuelAcceptStartIntegrationTest',
+    'spk.local.G103NormalDuelLiveUiIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2095,10 +2096,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 248 ||
-    currentTrainFocusedTests.toSet().size() != 248) {
+if (currentTrainFocusedTests.size() != 249 ||
+    currentTrainFocusedTests.toSet().size() != 249) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 248 unique tests, found " +
+        "Current-train focused manifest drift: expected 249 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2190,6 +2191,14 @@ tasks.register('g102NormalDuelAcceptStartRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G102NormalDuelAcceptStartIntegrationTest')
+}
+
+tasks.register('g103NormalDuelLiveUiRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates live LocalSession normal Duel command/root/widget lifecycle against exact-v308 selector identities.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G103NormalDuelLiveUiIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
