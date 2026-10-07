@@ -77,6 +77,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openEventChest(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -467,6 +472,28 @@ final class LocalCommandDispatcher {
             ))
             return true;
 
+        if(isEventChestRoute(p)){
+            boolean opened=
+                bridge.openEventChest(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G131_EVENT_CHEST_COMMAND"+
+                " opened="+opened+
+                " root="+
+                EventChestPresentation.ROOT+
+                " presentationAuthority="+
+                EventChestPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalEventChestUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -786,6 +813,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "pkrating"
+                )
+            );
+    }
+
+    static boolean isEventChestRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "eventchest"
+                )||
+                p[0].equalsIgnoreCase(
+                    "echest"
                 )
             );
     }

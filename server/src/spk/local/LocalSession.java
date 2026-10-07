@@ -198,6 +198,7 @@ final class LocalSession implements Runnable {
     private final LocalLootingBagBankHandler lootingBagBank;
     private final LocalTournamentUiHandler tournamentUi;
     private final LocalPkRatingsUiHandler pkRatingsUi;
+    private final LocalEventChestUiHandler eventChestUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -578,6 +579,10 @@ final class LocalSession implements Runnable {
             new LocalPkRatingsUiHandler(
                 this.world
             );
+        this.eventChestUi=
+            new LocalEventChestUiHandler(
+                this.worldPlayer
+            );
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -712,6 +717,22 @@ final class LocalSession implements Runnable {
                                     LocalSession.this.pkRatingsUi
                                         .open(writer);
                                     return "PK_RATINGS_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openEventChest(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithEventChestRoot(
+                                ()->{
+                                    LocalSession.this.eventChestUi
+                                        .open(writer);
+                                    return "EVENT_CHEST_ROOT_OPENED";
                                 }
                             );
 
@@ -996,6 +1017,32 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .quickPrayerPresentation
                         .close();
+                }
+
+                @Override public boolean retireEventChestRoot(){
+                    return LocalSession.this
+                        .eventChestUi
+                        .close();
+                }
+
+                @Override public boolean openEventChest(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .eventChestUi
+                        .open(writer);
+                    return true;
+                }
+
+                @Override public LocalEventChestUiHandler.Result
+                    handleEventChestWidget(
+                        EventChestService.Action action,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .eventChestUi
+                        .handle(action);
                 }
 
                 @Override public boolean openQuickPrayer(
