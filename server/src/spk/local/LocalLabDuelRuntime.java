@@ -211,6 +211,24 @@ final class LocalLabDuelRuntime {
                     AUTHORITY
                 );
 
+            /*
+             * requireOnlineTarget() is intentionally repeated after mutation.
+             * If unregister crossed the first check while this runtime owned
+             * its monitor, retire the just-created proposal before exposing it.
+             */
+            try{
+                requireOnlineTarget(
+                    challenger,
+                    challenged
+                );
+            }catch(RuntimeException offline){
+                duels.cancelOpen(
+                    challengeId,
+                    challenger
+                );
+                throw offline;
+            }
+
             challengeSequence=
                 Math.addExact(
                     sequence,
@@ -462,6 +480,128 @@ final class LocalLabDuelRuntime {
             victim+"|"+
             Long.toUnsignedString(
                 deathSequence
+            );
+    }
+
+    synchronized DuelSessionService.Snapshot
+        cancelForUnregister(
+            WorldPlayer player,
+            long registeredGeneration
+        ){
+        WorldPlayer checkedPlayer=
+            Objects.requireNonNull(
+                player,
+                "player"
+            );
+        if(registeredGeneration<=0L)
+            throw new IllegalArgumentException(
+                "registeredGeneration="+
+                registeredGeneration
+            );
+
+        String participant=
+            PartyService.requireRef(
+                checkedPlayer.username()
+            );
+
+        DuelSessionService.Snapshot open=
+            duels.openFor(
+                participant
+            );
+
+        if(open==null)
+            return null;
+
+        switch(open.state){
+            case PROPOSED:
+            case ACCEPTED:
+                return duels.cancelOpen(
+                    open.challengeId,
+                    participant
+                );
+
+            case ACTIVE:
+                /*
+                 * G10.4 authority predates disconnect cleanup: once this exact
+                 * participant has already lethally killed the Duel opponent,
+                 * the captured canonical death identity owns terminalization.
+                 * Do not let a later attacker disconnect erase that result.
+                 */
+                if(hasPendingCanonicalAttackerDeath(
+                        checkedPlayer,
+                        registeredGeneration,
+                        open
+                    ))
+                    return open;
+
+                return duels.cancelActive(
+                    open.challengeId,
+                    "participant-disconnected"
+                );
+
+            case DECLINED:
+            case CANCELLED:
+            case COMPLETED:
+                throw new IllegalStateException(
+                    "terminal Duel retained participant index "+
+                    participant+
+                    " state="+open.state
+                );
+
+            default:
+                throw new AssertionError(
+                    open.state
+                );
+        }
+    }
+
+    private boolean hasPendingCanonicalAttackerDeath(
+        WorldPlayer unregisteringPlayer,
+        long registeredGeneration,
+        DuelSessionService.Snapshot open
+    ){
+        String participant=
+            PartyService.requireRef(
+                unregisteringPlayer.username()
+            );
+
+        final String opponent;
+        if(participant.equals(
+                open.challengerRef))
+            opponent=open.challengedRef;
+        else if(participant.equals(
+                open.challengedRef))
+            opponent=open.challengerRef;
+        else
+            throw new IllegalStateException(
+                "Duel participant index drift "+
+                participant
+            );
+
+        WorldPlayer opponentPlayer=
+            world.players().byName(
+                opponent
+            );
+
+        if(opponentPlayer==null||
+           !opponentPlayer.lifecycle().dead())
+            return false;
+
+        PlayerLifecycleState.DeathAttribution attribution=
+            opponentPlayer.lifecycle()
+                .deathAttribution();
+
+        return attribution!=null&&
+            "PLAYER_PVP".equals(
+                attribution.context
+            )&&
+            unregisteringPlayer.id().equals(
+                attribution.attackerId
+            )&&
+            attribution.attackerGeneration==
+                registeredGeneration&&
+            participant.equalsIgnoreCase(
+                attribution.attackerUsername
             );
     }
 

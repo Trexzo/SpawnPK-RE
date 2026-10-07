@@ -848,6 +848,10 @@ final class World implements AutoCloseable {
                     ()->realtime.cancelPlayer(
                         player
                     ),
+                    ()->localDuels.cancelForUnregister(
+                        player,
+                        expectedGeneration
+                    ),
                     ()->petNpcs.removeMainAndMini(
                         player.id()
                     )
