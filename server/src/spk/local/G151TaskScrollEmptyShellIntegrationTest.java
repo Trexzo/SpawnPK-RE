@@ -16,6 +16,7 @@ public final class G151TaskScrollEmptyShellIntegrationTest {
         boolean rewards100Empty=false;
         boolean competingRoot=false;
         boolean inputRouter=false;
+        boolean noInputRouter=false;
         boolean assignmentCreated=false;
 
         ByteArrayOutputStream wire=
@@ -190,8 +191,9 @@ public final class G151TaskScrollEmptyShellIntegrationTest {
         rewards100Empty=
             offset==bytes.length;
 
-        inputRouter=
+        noInputRouter=
             noInputRouter();
+        inputRouter=false;
 
         assignmentCreated=
             false;
@@ -204,7 +206,8 @@ public final class G151TaskScrollEmptyShellIntegrationTest {
                 progressBlank&&
                 rewards100Empty&&
                 competingRoot&&
-                inputRouter&&
+                noInputRouter&&
+                !inputRouter&&
                 !assignmentCreated,
             "G15.1 acceptance"
         );
@@ -221,6 +224,7 @@ public final class G151TaskScrollEmptyShellIntegrationTest {
                 rewards100Empty+
             " competingRoot="+competingRoot+
             " inputRouter="+inputRouter+
+            " noInputRouter="+noInputRouter+
             " assignmentCreated="+
                 assignmentCreated+
             " rewardPolicyClaim=false"+
