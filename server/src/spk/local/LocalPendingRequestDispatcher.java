@@ -80,6 +80,7 @@ final class LocalPendingRequestDispatcher {
     private final LocalMovementRequestHandler movementRequests;
     private final LocalPetRealtimeScheduler petRealtime;
     private final SessionBridge bridge;
+    private volatile LocalLootingBagBankHandler lootingBagBank;
 
     LocalPendingRequestDispatcher(
         WorldPlayer worldPlayer,
@@ -202,6 +203,26 @@ final class LocalPendingRequestDispatcher {
         this.petRealtime=Objects.requireNonNull(
             petRealtime,"petRealtime");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
+    }
+
+    synchronized void installLootingBagBankHandler(
+        LocalLootingBagBankHandler handler
+    ){
+        LocalLootingBagBankHandler checked=
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+        if(lootingBagBank==null){
+            lootingBagBank=checked;
+            return;
+        }
+
+        if(lootingBagBank!=checked)
+            throw new IllegalStateException(
+                "Looting Bag bank handler already installed"
+            );
     }
 
     void drain(
@@ -1020,6 +1041,43 @@ final class LocalPendingRequestDispatcher {
                 rocktail+
                 " authority="+
                 G1RocktailConsumableHandler.AUTHORITY
+            );
+            return;
+        }
+
+        LocalLootingBagBankHandler bagHandler=
+            lootingBagBank;
+
+        if(bagHandler!=null&&
+           bagHandler.owns(action)){
+            LocalLootingBagBankHandler.Result
+                bag=
+                    bagHandler.handle(
+                        action,
+                        serverPackets
+                    );
+
+            if(bag.saveReason!=null)
+                bridge.saveAccount(
+                    tag,
+                    bag.saveReason
+                );
+
+            System.out.println(
+                tag+
+                "G8_LOOTING_BAG_BANK "+
+                action+
+                " status="+
+                bag.status+
+                " item="+
+                bag.itemId+
+                " amount="+
+                bag.amount+
+                " detail=["+
+                bag.detail+
+                "] authority="+
+                LocalLootingBagBankHandler
+                    .POLICY_AUTHORITY
             );
             return;
         }
