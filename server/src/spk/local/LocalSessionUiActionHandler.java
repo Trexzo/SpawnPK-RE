@@ -186,6 +186,13 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default String handleQuickPrayerOff(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return null;
+        }
+
         default String handleQuickPrayerWidget(
             int widget,
             String tag
@@ -639,6 +646,31 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
+            );
+            return;
+        }
+
+        if(widget==
+                QuickPrayerSelectionPresentation.QUICK_OFF_WIDGET){
+            String result=
+                bridge.handleQuickPrayerOff(
+                    serverPackets,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G122_QUICK_PRAYER_OFF widget="+
+                widget+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :"CURRENT_BOOK_DEACTIVATED")+
+                " detail="+
+                (result==null?"none":result)+
+                " scopePolicy=LOCAL_LAB_CURRENT_PRAYER_BOOK"+
+                " quickOn5000Claim=false"+
+                " originalSpawnpkOffScopeClaim=false"
             );
             return;
         }
