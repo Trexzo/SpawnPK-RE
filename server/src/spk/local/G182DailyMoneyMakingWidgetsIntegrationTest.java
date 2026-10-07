@@ -105,10 +105,10 @@ public final class G182DailyMoneyMakingWidgetsIntegrationTest {
             track.snapshot.trackedObjectiveKey!=null;
 
         DailyMoneyMakingStateService.Difficulty
-            beforeTeleport=
+            difficultyBeforeTeleport=
                 track.snapshot.selectedDifficulty;
 
-        int beforeTeleport=
+        int wireBeforeTeleport=
             wire.size();
 
         LocalDailyMoneyMakingUiHandler.Result teleport=
@@ -129,11 +129,11 @@ public final class G182DailyMoneyMakingWidgetsIntegrationTest {
                 teleport.status
             )&&
             !teleport.stateChanged&&
-            wire.size()==beforeTeleport;
+            wire.size()==wireBeforeTeleport;
 
         teleportMutation=
             teleport.snapshot.selectedDifficulty!=
-                beforeTeleport||
+                difficultyBeforeTeleport||
             teleport.snapshot.trackedObjectiveKey!=null;
 
         LocalDailyMoneyMakingUiHandler.Result medium=
