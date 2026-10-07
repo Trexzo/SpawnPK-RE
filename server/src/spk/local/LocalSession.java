@@ -1382,6 +1382,16 @@ final class LocalSession implements Runnable {
                         .handle(intent);
                 }
 
+                @Override public LocalDonorPanelUiHandler.Result
+                    handleDonorPanelLiveIntent(
+                        DonorPanelPresentation.Intent intent,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .donorPanelUi
+                        .handleLive(intent);
+                }
+
                 @Override public boolean retireDonationCartRoot(){
                     return LocalSession.this
                         .donationCartUi

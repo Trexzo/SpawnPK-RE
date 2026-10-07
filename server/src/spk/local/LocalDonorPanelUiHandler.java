@@ -86,6 +86,38 @@ final class LocalDonorPanelUiHandler {
         );
     }
 
+    synchronized Result handleLive(
+        DonorPanelPresentation.Intent intent
+    ){
+        DonorPanelPresentation.Intent checked=
+            Objects.requireNonNull(
+                intent,
+                "intent"
+            );
+
+        if(!open)
+            return new Result(
+                "CLOSED_UI_NOOP",
+                checked,
+                false
+            );
+
+        if(checked==
+                DonorPanelPresentation
+                    .Intent.DONATE_FOR_REWARDS)
+            return new Result(
+                "NAVIGATE_DONATION_CART",
+                checked,
+                true
+            );
+
+        return new Result(
+            "DISABLED_NO_GAMEPLAY_AUTHORITY",
+            checked,
+            false
+        );
+    }
+
     synchronized boolean close(){
         boolean wasOpen=open;
         open=false;
