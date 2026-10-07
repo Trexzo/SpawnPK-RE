@@ -2101,6 +2101,7 @@ def currentTrainFocusedTests = [
     'spk.local.G144DailyNativeDefinitionIntegrationTest',
     'spk.local.G145DailyLiveNativeInfoIntegrationTest',
     'spk.local.G146DailyControlAliasIntegrationTest',
+    'spk.local.G151TaskScrollEmptyShellIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2129,10 +2130,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 282 ||
-    currentTrainFocusedTests.toSet().size() != 282) {
+if (currentTrainFocusedTests.size() != 283 ||
+    currentTrainFocusedTests.toSet().size() != 283) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 282 unique tests, found " +
+        "Current-train focused manifest drift: expected 283 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2496,6 +2497,14 @@ tasks.register('g146DailyControlAliasRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G146DailyControlAliasIntegrationTest')
+}
+
+tasks.register('g151TaskScrollEmptyShellRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates the exact-v308 Task Scroll root as a truthful LocalLab empty shell with zero reward authority and no input router.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G151TaskScrollEmptyShellIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
