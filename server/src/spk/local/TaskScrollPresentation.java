@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -71,6 +73,51 @@ final class TaskScrollPresentation {
                 97,
                 BootstrapPackets.interface97(ROOT)
             );
+    }
+
+    static void openEmpty(
+        ServerPacketWriter packets
+    )throws IOException{
+        ServerPacketWriter checked=
+            Objects.requireNonNull(
+                packets,
+                "packets"
+            );
+
+        open(checked);
+
+        ApplicationBus126Publisher.send(
+            checked,
+            TITLE_WIDGET,
+            "No Task Scroll assigned"
+        );
+
+        publishInformation(
+            checked,
+            Collections.emptyList()
+        );
+
+        ApplicationBus126Publisher.send(
+            checked,
+            PROGRESS_TEXT_WIDGET,
+            ""
+        );
+
+        int[] itemIds=
+            new int[REWARD_SLOTS];
+        int[] quantities=
+            new int[REWARD_SLOTS];
+
+        Arrays.fill(
+            itemIds,
+            -1
+        );
+
+        publishRewards(
+            checked,
+            itemIds,
+            quantities
+        );
     }
 
     static void publishTask(
