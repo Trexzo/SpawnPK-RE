@@ -2065,6 +2065,7 @@ def currentTrainFocusedTests = [
     'spk.local.G93TournamentMatchCompleteIntegrationTest',
     'spk.local.G94TournamentMultiRoundIntegrationTest',
     'spk.local.G95TournamentPvpDeathIntegrationTest',
+    'spk.local.G101NormalDuelProposalIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2093,10 +2094,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 246 ||
-    currentTrainFocusedTests.toSet().size() != 246) {
+if (currentTrainFocusedTests.size() != 247 ||
+    currentTrainFocusedTests.toSet().size() != 247) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 246 unique tests, found " +
+        "Current-train focused manifest drift: expected 247 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2172,6 +2173,14 @@ tasks.register('g95TournamentPvpDeathRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G95TournamentPvpDeathIntegrationTest')
+}
+
+tasks.register('g101NormalDuelProposalRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact-v308 normal Duel selector mode selection and proposal binding without invented restriction policy.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G101NormalDuelProposalIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
