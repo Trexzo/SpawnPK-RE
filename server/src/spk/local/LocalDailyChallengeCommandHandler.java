@@ -15,10 +15,25 @@ final class LocalDailyChallengeCommandHandler {
     static final class Result {
         final String logText;
         final String clientMessage;
+        final DailyChallengeApplicationService
+            .ChallengeSnapshot nativeDefinition;
 
         Result(
             String logText,
             String clientMessage
+        ){
+            this(
+                logText,
+                clientMessage,
+                null
+            );
+        }
+
+        Result(
+            String logText,
+            String clientMessage,
+            DailyChallengeApplicationService
+                .ChallengeSnapshot nativeDefinition
         ){
             this.logText=
                 Objects.requireNonNull(
@@ -30,6 +45,8 @@ final class LocalDailyChallengeCommandHandler {
                     clientMessage,
                     "clientMessage"
                 );
+            this.nativeDefinition=
+                nativeDefinition;
         }
     }
 
@@ -134,7 +151,8 @@ final class LocalDailyChallengeCommandHandler {
                 checked.challengeKey()+
                 " exactTyped=true "+
                 status.logText,
-            status.clientMessage
+            status.clientMessage,
+            status.nativeDefinition
         );
     }
 
@@ -181,7 +199,8 @@ final class LocalDailyChallengeCommandHandler {
                 " originalPersistenceClaim=false"+
                 " authority="+
                 AUTHORITY,
-            message
+            message,
+            challenge
         );
     }
 
