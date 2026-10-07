@@ -93,6 +93,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openVoting(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -558,6 +563,29 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isVotingRoute(p)){
+            boolean opened=
+                bridge.openVoting(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G134_VOTING_COMMAND"+
+                " opened="+opened+
+                " root="+
+                VotingPresentation.ROOT+
+                " presentationAuthority="+
+                VotingPresentation.PRESENTATION_AUTHORITY+
+                " voteLiteralAuthority=EXACT_CURRENT_CLIENT"+
+                " rootOpenPolicy=CUSTOM_LOCALLAB"+
+                " inputRouter=false"+
+                " browserActionClaim=false"+
+                " originalServerCommandBehaviorClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -930,6 +958,19 @@ final class LocalCommandDispatcher {
             return LotteryService.Channel.BLOODCORE;
 
         return null;
+    }
+
+    static boolean isVotingRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "vote"
+                )||
+                p[0].equalsIgnoreCase(
+                    "voting"
+                )
+            );
     }
 
     static boolean isDuelRoute(String[] p){
