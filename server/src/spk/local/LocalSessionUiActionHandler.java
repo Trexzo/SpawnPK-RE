@@ -742,7 +742,24 @@ final class LocalSessionUiActionHandler {
                 return;
             }
 
-            // G11.3 deliberately leaves row selection unowned.
+            if(pkRatingsInput.kind==
+                    PkRatingsPresentation.InputKind
+                        .SELECT_ROW){
+                System.out.println(
+                    tag+
+                    "G114_PK_RATINGS_ROW widget="+
+                    widget+
+                    " status="+
+                    (pkRatingsUiOpen
+                        ?"READ_ONLY_NOOP"
+                        :"CLOSED_UI_NOOP")+
+                    " row="+
+                    pkRatingsInput.rowIndex+
+                    " rowSelectionClaim=false"+
+                    " targetClaim=false"
+                );
+                return;
+            }
         }
 
         NormalDuelPresentation.Input duelInput=
