@@ -2097,6 +2097,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1315DonorToZeroCartNavigationIntegrationTest',
     'spk.local.G141DailyPvmLiveIntegrationTest',
     'spk.local.G142DailyPvmPersistenceIntegrationTest',
+    'spk.local.G143DailyPvmTypedInfoIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2125,10 +2126,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 278 ||
-    currentTrainFocusedTests.toSet().size() != 278) {
+if (currentTrainFocusedTests.size() != 279 ||
+    currentTrainFocusedTests.toSet().size() != 279) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 278 unique tests, found " +
+        "Current-train focused manifest drift: expected 279 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2460,6 +2461,14 @@ tasks.register('g142DailyPvmPersistenceRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G142DailyPvmPersistenceIntegrationTest')
+}
+
+tasks.register('g143DailyPvmTypedInfoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact typed Daily Challenge INFO routing into the owned LocalLab Daily PvM key while CLAIM and foreign keys remain fail-closed.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G143DailyPvmTypedInfoIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
