@@ -2077,6 +2077,7 @@ def currentTrainFocusedTests = [
     'spk.local.G111PkRatingsReadOnlyIntegrationTest',
     'spk.local.G112PkRatingsNativeTabIntegrationTest',
     'spk.local.G113PkRatingsReadOnlyNavigationIntegrationTest',
+    'spk.local.G114PkRatingsRowFailClosedIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2105,10 +2106,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 258 ||
-    currentTrainFocusedTests.toSet().size() != 258) {
+if (currentTrainFocusedTests.size() != 259 ||
+    currentTrainFocusedTests.toSet().size() != 259) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 258 unique tests, found " +
+        "Current-train focused manifest drift: expected 259 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2280,6 +2281,14 @@ tasks.register('g113PkRatingsReadOnlyNavigationRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G113PkRatingsReadOnlyNavigationIntegrationTest')
+}
+
+tasks.register('g114PkRatingsRowFailClosedRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact PK Ratings row widgets fail closed without row-target or rating semantics.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G114PkRatingsRowFailClosedIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
