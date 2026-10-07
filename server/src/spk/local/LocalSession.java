@@ -195,6 +195,7 @@ final class LocalSession implements Runnable {
     private final LocalSlayerCommandHandler slayerCommands;
     private final LocalBloodSlayerUiHandler bloodSlayerUi;
     private final LocalLootingBagBankHandler lootingBagBank;
+    private final LocalTournamentUiHandler tournamentUi;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
@@ -558,6 +559,11 @@ final class LocalSession implements Runnable {
                 this.world.lootingBags(),
                 this.bank
             );
+        this.tournamentUi=
+            new LocalTournamentUiHandler(
+                this.worldPlayer,
+                this.world.localTournament()
+            );
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
             diagnosticCommands,
@@ -646,6 +652,22 @@ final class LocalSession implements Runnable {
                                     LocalSession.this.lootingBagBank
                                         .open(writer);
                                     return "LOOTING_BAG_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openTournament(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithTournamentRoot(
+                                ()->{
+                                    LocalSession.this.tournamentUi
+                                        .open(writer);
+                                    return "TOURNAMENT_ROOT_OPENED";
                                 }
                             );
 
@@ -887,6 +909,19 @@ final class LocalSession implements Runnable {
 
                 @Override public boolean retireLootingBagRoot(){
                     return LocalSession.this.lootingBagBank.close();
+                }
+
+                @Override public boolean retireTournamentRoot(){
+                    return LocalSession.this.tournamentUi.close();
+                }
+
+                @Override public LocalTournamentUiHandler.Result
+                    handleTournamentWidget(
+                        TournamentPresentation.Input input,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this.tournamentUi
+                        .handle(input);
                 }
 
                 @Override public void handleMonsterSpawnerResult(

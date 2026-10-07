@@ -67,6 +67,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openTournament(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default RootReplacingCommandDispatch
             handleRootReplacingCommand(
                 RootReplacingCommandAction action
@@ -408,6 +413,27 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isTournamentRoute(p)){
+            boolean opened=
+                bridge.openTournament(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G91_TOURNAMENT_UI_COMMAND"+
+                " opened="+opened+
+                " root="+
+                TournamentPresentation.TOURNAMENT_ROOT+
+                " presentationAuthority="+
+                TournamentPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLabTournamentRuntime.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"
+            );
+            return true;
+        }
+
         if(isDevPanelRoute(p)){
             bridge.openDevPanel(serverPackets);
             System.out.println(
@@ -596,6 +622,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "lootbag"
+                )
+            );
+    }
+
+    static boolean isTournamentRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "tournament"
+                )||
+                p[0].equalsIgnoreCase(
+                    "tourny"
                 )
             );
     }
