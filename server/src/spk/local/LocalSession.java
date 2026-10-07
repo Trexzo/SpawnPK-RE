@@ -199,6 +199,7 @@ final class LocalSession implements Runnable {
     private final LocalTournamentUiHandler tournamentUi;
     private final LocalPkRatingsUiHandler pkRatingsUi;
     private final LocalEventChestUiHandler eventChestUi;
+    private final LocalGoodwillWellUiHandler goodwillWellUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -583,6 +584,8 @@ final class LocalSession implements Runnable {
             new LocalEventChestUiHandler(
                 this.worldPlayer
             );
+        this.goodwillWellUi=
+            new LocalGoodwillWellUiHandler();
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -733,6 +736,22 @@ final class LocalSession implements Runnable {
                                     LocalSession.this.eventChestUi
                                         .open(writer);
                                     return "EVENT_CHEST_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openGoodwillWell(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithGoodwillWellRoot(
+                                ()->{
+                                    LocalSession.this.goodwillWellUi
+                                        .open(writer);
+                                    return "GOODWILL_WELL_ROOT_OPENED";
                                 }
                             );
 
@@ -1023,6 +1042,32 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .eventChestUi
                         .close();
+                }
+
+                @Override public boolean retireGoodwillWellRoot(){
+                    return LocalSession.this
+                        .goodwillWellUi
+                        .close();
+                }
+
+                @Override public boolean openGoodwillWell(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .goodwillWellUi
+                        .open(writer);
+                    return true;
+                }
+
+                @Override public LocalGoodwillWellUiHandler.Result
+                    handleGoodwillWellWidget(
+                        GoodwillWellPresentation.Input input,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .goodwillWellUi
+                        .handle(input);
                 }
 
                 @Override public boolean openEventChest(
