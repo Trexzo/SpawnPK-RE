@@ -317,6 +317,78 @@ final class LocalLabTournamentRuntime {
         );
     }
 
+    synchronized boolean claimsCanonicalPvpDeath(
+        String attackerRef,
+        String victimRef,
+        long deathSequence
+    ){
+        String attacker=
+            PartyService.requireRef(
+                attackerRef
+            );
+        String victim=
+            PartyService.requireRef(
+                victimRef
+            );
+
+        if(attacker.equals(victim))
+            throw new IllegalArgumentException(
+                "Tournament PvP attacker/victim identical"
+            );
+
+        String deathKey=
+            pvpDeathKey(
+                attacker,
+                victim,
+                deathSequence
+            );
+
+        if(pvpDeathByIdentity.containsKey(
+                deathKey))
+            return true;
+
+        TournamentService.Snapshot before=
+            tournament.get(
+                EVENT_ID
+            );
+        TournamentService.MatchSnapshot active=
+            null;
+
+        for(TournamentService.MatchSnapshot match:
+                before.matches){
+            if(match.state!=
+                    TournamentService
+                        .TournamentMatchState.ACTIVE)
+                continue;
+
+            boolean exactPair=
+                attacker.equals(
+                    match.firstParticipant
+                )&&
+                victim.equals(
+                    match.secondParticipant
+                )||
+                attacker.equals(
+                    match.secondParticipant
+                )&&
+                victim.equals(
+                    match.firstParticipant
+                );
+
+            if(!exactPair)
+                continue;
+
+            if(active!=null)
+                throw new IllegalStateException(
+                    "multiple ACTIVE Tournament matches for canonical PvP pair"
+                );
+
+            active=match;
+        }
+
+        return active!=null;
+    }
+
     synchronized PvpDeathResult recordCanonicalPvpDeath(
         String attackerRef,
         String victimRef,

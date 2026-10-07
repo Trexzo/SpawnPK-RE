@@ -1,19 +1,41 @@
 package spk.local;
 
-import java.util.Objects;
+import java.util.*;
 
 /**
  * World-owned LocalLab binding from exact normal-Duel mode selection to the
  * reusable protocol-independent DuelSessionService proposal lifecycle.
  *
  * G10.1 binds proposal state. G10.2 adds explicit challenged-player accept
- * and reusable MatchSession/WorldInstance start. Stake/escrow, weapon
- * restrictions, arena behavior, winner policy and rewards remain external
- * authority.
+ * and reusable MatchSession/WorldInstance start. G10.4 binds the canonical
+ * verified PvP death identity to ACTIVE Duel completion. Stake/escrow, weapon
+ * restrictions, arena behavior, rewards and original SpawnPK winner policy
+ * remain external authority.
  */
 final class LocalLabDuelRuntime {
     static final String AUTHORITY=
         "LOCAL_LAB_POLICY_G101_NORMAL_DUEL_PROPOSAL_V1";
+    static final String PVP_DEATH_AUTHORITY=
+        "LOCAL_LAB_CANONICAL_PVP_DEATH";
+
+    static final class PvpDeathResult {
+        final boolean duelMatch;
+        final boolean completedNow;
+        final DuelSessionService.ChallengeId challengeId;
+        final DuelSessionService.Snapshot snapshot;
+
+        PvpDeathResult(
+            boolean duelMatch,
+            boolean completedNow,
+            DuelSessionService.ChallengeId challengeId,
+            DuelSessionService.Snapshot snapshot
+        ){
+            this.duelMatch=duelMatch;
+            this.completedNow=completedNow;
+            this.challengeId=challengeId;
+            this.snapshot=snapshot;
+        }
+    }
 
     static final class StartResult {
         final DuelSessionService.Snapshot snapshot;
@@ -77,6 +99,9 @@ final class LocalLabDuelRuntime {
 
     private long challengeSequence=1L;
     private long matchSequence=1L;
+    private final LinkedHashMap<String,PvpDeathResult>
+        pvpDeathByIdentity=
+            new LinkedHashMap<>();
 
     LocalLabDuelRuntime(
         World world
@@ -265,6 +290,164 @@ final class LocalLabDuelRuntime {
             match,
             instance
         );
+    }
+
+    synchronized boolean claimsCanonicalPvpDeath(
+        String attackerRef,
+        String victimRef,
+        long deathSequence
+    ){
+        String attacker=
+            PartyService.requireRef(
+                attackerRef
+            );
+        String victim=
+            PartyService.requireRef(
+                victimRef
+            );
+
+        if(attacker.equals(victim))
+            throw new IllegalArgumentException(
+                "Duel PvP attacker/victim identical"
+            );
+
+        String deathKey=
+            pvpDeathKey(
+                attacker,
+                victim,
+                deathSequence
+            );
+
+        if(pvpDeathByIdentity.containsKey(
+                deathKey))
+            return true;
+
+        DuelSessionService.Snapshot active=
+            duels.openFor(
+                attacker
+            );
+
+        return active!=null&&
+            active.state==
+                DuelSessionService.State.ACTIVE&&
+            active.participant(victim);
+    }
+
+    synchronized PvpDeathResult recordCanonicalPvpDeath(
+        String attackerRef,
+        String victimRef,
+        long deathSequence
+    ){
+        String attacker=
+            PartyService.requireRef(
+                attackerRef
+            );
+        String victim=
+            PartyService.requireRef(
+                victimRef
+            );
+
+        if(attacker.equals(victim))
+            throw new IllegalArgumentException(
+                "Duel PvP attacker/victim identical"
+            );
+
+        String deathKey=
+            pvpDeathKey(
+                attacker,
+                victim,
+                deathSequence
+            );
+
+        PvpDeathResult existing=
+            pvpDeathByIdentity.get(
+                deathKey
+            );
+        if(existing!=null)
+            return existing;
+
+        DuelSessionService.Snapshot active=
+            duels.openFor(
+                attacker
+            );
+
+        if(active==null||
+           active.state!=
+                DuelSessionService.State.ACTIVE||
+           !active.participant(victim))
+            return new PvpDeathResult(
+                false,
+                false,
+                null,
+                active
+            );
+
+        DuelSessionService.Snapshot completed=
+            duels.complete(
+                active.challengeId,
+                attacker,
+                "canonical-pvp-death",
+                PVP_DEATH_AUTHORITY
+            );
+
+        PvpDeathResult result=
+            new PvpDeathResult(
+                true,
+                true,
+                active.challengeId,
+                completed
+            );
+
+        pvpDeathByIdentity.put(
+            deathKey,
+            result
+        );
+
+        return result;
+    }
+
+    synchronized void retireCanonicalPvpDeath(
+        String attackerRef,
+        String victimRef,
+        long deathSequence
+    ){
+        String attacker=
+            PartyService.requireRef(
+                attackerRef
+            );
+        String victim=
+            PartyService.requireRef(
+                victimRef
+            );
+
+        pvpDeathByIdentity.remove(
+            pvpDeathKey(
+                attacker,
+                victim,
+                deathSequence
+            )
+        );
+    }
+
+    synchronized int pvpDeathDedupeCount(){
+        return pvpDeathByIdentity.size();
+    }
+
+    private static String pvpDeathKey(
+        String attacker,
+        String victim,
+        long deathSequence
+    ){
+        if(deathSequence<=0L)
+            throw new IllegalArgumentException(
+                "deathSequence="+deathSequence
+            );
+
+        return attacker+"|"+
+            victim+"|"+
+            Long.toUnsignedString(
+                deathSequence
+            );
     }
 
     synchronized DuelSessionService.Snapshot openFor(

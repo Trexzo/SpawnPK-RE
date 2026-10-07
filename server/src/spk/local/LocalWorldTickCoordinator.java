@@ -1413,16 +1413,59 @@ final class LocalWorldTickCoordinator {
                 worldPlayer.username();
 
             /*
-             * Tournament winner authority consumes the already-verified
-             * PLAYER_PVP death identity. It is World-owned and deliberately
-             * does not depend on the attacker session still being present.
+             * Competitive winner authority consumes the already-verified
+             * PLAYER_PVP death identity. Preflight both World-owned domains
+             * before either may mutate: one canonical death must never
+             * terminalize both a Tournament match and a normal Duel.
              */
-            world.localTournament()
-                .recordCanonicalPvpDeath(
-                    canonicalKiller,
-                    canonicalVictim,
-                    resolution.deathSequence
+            boolean tournamentDeathClaim=
+                world.localTournament()
+                    .claimsCanonicalPvpDeath(
+                        canonicalKiller,
+                        canonicalVictim,
+                        resolution.deathSequence
+                    );
+            boolean duelDeathClaim=
+                world.localDuels()
+                    .claimsCanonicalPvpDeath(
+                        canonicalKiller,
+                        canonicalVictim,
+                        resolution.deathSequence
+                    );
+
+            if(tournamentDeathClaim&&
+               duelDeathClaim){
+                /*
+                 * Preserve the exact deferred settlement debt. The collision
+                 * is a fail-closed ownership error, not permission to discard
+                 * the victim's already-resolved death settlement.
+                 */
+                deferredDeathResolution=resolution;
+                deferredDeathPlan=plan;
+
+                throw new IllegalStateException(
+                    "canonical PvP death has multiple competitive owners "+
+                    "killer="+canonicalKiller+
+                    " victim="+canonicalVictim+
+                    " deathSequence="+resolution.deathSequence
                 );
+            }
+
+            if(tournamentDeathClaim)
+                world.localTournament()
+                    .recordCanonicalPvpDeath(
+                        canonicalKiller,
+                        canonicalVictim,
+                        resolution.deathSequence
+                    );
+
+            if(duelDeathClaim)
+                world.localDuels()
+                    .recordCanonicalPvpDeath(
+                        canonicalKiller,
+                        canonicalVictim,
+                        resolution.deathSequence
+                    );
 
             try{
                 WorldPlayer attacker=
@@ -1528,9 +1571,10 @@ final class LocalWorldTickCoordinator {
                     bountyKillCredit=bountyCredit[0];
                 }else{
                     /*
-                     * Loot ownership and Tournament result were already bound
-                     * to captured verified killer identity. Disconnect may
-                     * remove reward/persistence authority, but not those facts.
+                     * Loot ownership and any single competitive result were
+                     * already bound to captured verified killer identity.
+                     * Disconnect may remove reward/persistence authority, but
+                     * not those already-proven facts.
                      */
                     lootOwnerReason=
                         "KILLER_CAPTURED_IDENTITY_ATTACKER_STALE_AT_SETTLEMENT";
@@ -1542,20 +1586,27 @@ final class LocalWorldTickCoordinator {
                 }
             }finally{
                 /*
-                 * A pre-commit settlement retry must see the same Tournament
+                 * A pre-commit settlement retry must see the same competitive
                  * death result. Once ground settlement is terminal, the
-                 * coordinator cannot legitimately re-enter this death, so the
-                 * exact dedupe entry can be retired.
+                 * coordinator cannot legitimately re-enter this death, so any
+                 * exact domain memo can be retired.
                  */
                 if(deathGroundSettlement.get(
                         resolution.deathSequence
-                    )!=null)
+                    )!=null){
                     world.localTournament()
                         .retireCanonicalPvpDeath(
                             canonicalKiller,
                             canonicalVictim,
                             resolution.deathSequence
                         );
+                    world.localDuels()
+                        .retireCanonicalPvpDeath(
+                            canonicalKiller,
+                            canonicalVictim,
+                            resolution.deathSequence
+                        );
+                }
             }
         }else{
             settlement=
