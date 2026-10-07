@@ -87,6 +87,12 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openLottery(
+            LotteryService.Channel channel,
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -522,6 +528,36 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        LotteryService.Channel lotteryChannel=
+            lotteryRoute(p);
+
+        if(lotteryChannel!=null){
+            boolean opened=
+                bridge.openLottery(
+                    lotteryChannel,
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G133_LOTTERY_COMMAND"+
+                " opened="+opened+
+                " channel="+lotteryChannel+
+                " root="+
+                LotteryPresentation.root(
+                    lotteryChannel
+                )+
+                " presentationAuthority="+
+                LotteryPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLotteryUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " roundInvented=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -869,6 +905,31 @@ final class LocalCommandDispatcher {
                     "well"
                 )
             );
+    }
+
+    static LotteryService.Channel lotteryRoute(
+        String[] p
+    ){
+        if(p==null||p.length!=1)
+            return null;
+
+        if(p[0].equalsIgnoreCase(
+                "lottery"
+            )||
+           p[0].equalsIgnoreCase(
+                "lotto"
+            ))
+            return LotteryService.Channel.ORDINARY;
+
+        if(p[0].equalsIgnoreCase(
+                "bloodcorelottery"
+            )||
+           p[0].equalsIgnoreCase(
+                "bclottery"
+            ))
+            return LotteryService.Channel.BLOODCORE;
+
+        return null;
     }
 
     static boolean isDuelRoute(String[] p){
