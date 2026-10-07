@@ -203,6 +203,7 @@ final class LocalSession implements Runnable {
     private final LocalLotteryUiHandler lotteryUi;
     private final LocalUnclaimedRewardCofferUiHandler unclaimedCofferUi;
     private final LocalBloodFountainUiHandler bloodFountainUi;
+    private final LocalBloodcoreSynthesisUiHandler bloodcoreSynthesisUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -597,6 +598,8 @@ final class LocalSession implements Runnable {
             );
         this.bloodFountainUi=
             new LocalBloodFountainUiHandler();
+        this.bloodcoreSynthesisUi=
+            new LocalBloodcoreSynthesisUiHandler();
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -834,6 +837,23 @@ final class LocalSession implements Runnable {
                                         .bloodFountainUi
                                         .openHub(writer);
                                     return "BLOOD_FOUNTAIN_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openBloodcoreSynthesis(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRoot(
+                                ()->{
+                                    LocalSession.this
+                                        .bloodcoreSynthesisUi
+                                        .open(writer);
+                                    return "BLOODCORE_SYNTHESIS_ROOT_OPENED";
                                 }
                             );
 

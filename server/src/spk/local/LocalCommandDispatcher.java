@@ -108,6 +108,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openBloodcoreSynthesis(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -644,6 +649,30 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isBloodcoreSynthesisRoute(p)){
+            boolean opened=
+                bridge.openBloodcoreSynthesis(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G138_BLOODCORE_SYNTHESIS_COMMAND"+
+                " opened="+opened+
+                " root="+
+                BloodcoreSynthesisPresentation.ROOT+
+                " presentationAuthority="+
+                BloodcoreSynthesisPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalBloodcoreSynthesisUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " rawWidgetDispatch=false"+
+                " secondSurfaceClaim=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -1053,6 +1082,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "bfountain"
+                )
+            );
+    }
+
+    static boolean isBloodcoreSynthesisRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "bloodcoresynthesis"
+                )||
+                p[0].equalsIgnoreCase(
+                    "bcsynthesis"
                 )
             );
     }
