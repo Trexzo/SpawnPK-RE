@@ -303,7 +303,8 @@ public final class G131EventChestLiveFailClosedIntegrationTest {
                 "competing root did not retire Event Chest"
             );
 
-            semanticKeysAsItemIds=
+            require(
+                !semanticKeysAsItemIds&&
                 projection.projection
                     .mainEntries
                     .isEmpty()&&
@@ -312,10 +313,7 @@ public final class G131EventChestLiveFailClosedIntegrationTest {
                     .stream()
                     .allMatch(
                         java.util.List::isEmpty
-                    );
-
-            require(
-                semanticKeysAsItemIds,
+                    ),
                 "semantic Event Chest keys were reinterpreted"
             );
 
