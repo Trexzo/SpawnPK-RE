@@ -118,6 +118,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openAdventureBook(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openTaskScroll(
             ServerPacketWriter serverPackets
         )throws IOException{
@@ -770,6 +775,14 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(dispatchAdventureBookCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
+            return true;
+
         if(dispatchTaskScrollCommand(
                 p,
                 sessionWorldTick,
@@ -1061,6 +1074,49 @@ final class LocalCommandDispatcher {
         }
 
         return false;
+    }
+
+    static boolean dispatchAdventureBookCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(!isAdventureBookRoute(tokens))
+            return false;
+
+        boolean opened=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).openAdventureBook(
+                Objects.requireNonNull(
+                    serverPackets,
+                    "serverPackets"
+                )
+            );
+
+        System.out.println(
+            tag+
+            "G162_ADVENTURE_BOOK_COMMAND"+
+            " opened="+opened+
+            " command=adventurebook"+
+            " applicationSubtype="+
+                AdventureBookPresentation.APPLICATION_SUBTYPE+
+            " presentationAuthority="+
+                AdventureBookPresentation.PRESENTATION_AUTHORITY+
+            " routeAuthority=EXACT_CURRENT_C2S103"+
+            " emptyProjection=true"+
+            " interface97Claim=false"+
+            " inputRouter=false"+
+            " objectiveCatalogClaim=false"+
+            " rewardPolicyClaim=false"+
+            " teleportPolicyClaim=false"+
+            " persistenceClaim=false"+
+            " originalNavigationClaim=false"
+        );
+
+        return true;
     }
 
     static boolean dispatchTaskScrollCommand(
@@ -1386,6 +1442,14 @@ final class LocalCommandDispatcher {
                 p[0].equalsIgnoreCase(
                     "activities"
                 )
+            );
+    }
+
+    static boolean isAdventureBookRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            p[0].equalsIgnoreCase(
+                "adventurebook"
             );
     }
 
