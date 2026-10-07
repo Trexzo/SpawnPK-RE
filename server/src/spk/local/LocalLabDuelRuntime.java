@@ -6,13 +6,39 @@ import java.util.Objects;
  * World-owned LocalLab binding from exact normal-Duel mode selection to the
  * reusable protocol-independent DuelSessionService proposal lifecycle.
  *
- * G10.1 deliberately owns proposal state only. Stake/escrow, weapon
- * restrictions, arena behavior, accept/start, winner policy and rewards remain
- * external authority.
+ * G10.1 binds proposal state. G10.2 adds explicit challenged-player accept
+ * and reusable MatchSession/WorldInstance start. Stake/escrow, weapon
+ * restrictions, arena behavior, winner policy and rewards remain external
+ * authority.
  */
 final class LocalLabDuelRuntime {
     static final String AUTHORITY=
         "LOCAL_LAB_POLICY_G101_NORMAL_DUEL_PROPOSAL_V1";
+
+    static final class StartResult {
+        final DuelSessionService.Snapshot snapshot;
+        final MatchSession match;
+        final WorldInstanceService.Snapshot instance;
+
+        StartResult(
+            DuelSessionService.Snapshot snapshot,
+            MatchSession match,
+            WorldInstanceService.Snapshot instance
+        ){
+            this.snapshot=Objects.requireNonNull(
+                snapshot,
+                "snapshot"
+            );
+            this.match=Objects.requireNonNull(
+                match,
+                "match"
+            );
+            this.instance=Objects.requireNonNull(
+                instance,
+                "instance"
+            );
+        }
+    }
 
     static final class ProposalResult {
         final NormalDuelPresentation.DuelMode mode;
@@ -50,6 +76,7 @@ final class LocalLabDuelRuntime {
         );
 
     private long challengeSequence=1L;
+    private long matchSequence=1L;
 
     LocalLabDuelRuntime(
         World world
@@ -154,6 +181,89 @@ final class LocalLabDuelRuntime {
         return new ProposalResult(
             checkedMode,
             proposed
+        );
+    }
+
+    synchronized StartResult acceptAndStart(
+        String challengedRef
+    ){
+        String challenged=
+            PartyService.requireRef(
+                challengedRef
+            );
+
+        DuelSessionService.Snapshot open=
+            duels.openFor(
+                challenged
+            );
+
+        if(open==null||
+           open.state!=
+                DuelSessionService.State.PROPOSED)
+            throw new IllegalStateException(
+                "G10.2 requires open PROPOSED Duel for "+
+                challenged
+            );
+
+        if(!open.challengedRef.equals(
+                challenged))
+            throw new IllegalArgumentException(
+                "only challenged player may accept Duel"
+            );
+
+        duels.accept(
+            open.challengeId,
+            challenged
+        );
+
+        long sequence=matchSequence;
+        MatchId matchId=
+            MatchId.of(
+                "locallab:duel:g102:match:"+
+                Long.toUnsignedString(
+                    sequence
+                )
+            );
+        WorldInstanceId instanceId=
+            WorldInstanceId.of(
+                "locallab:duel:g102:instance:"+
+                Long.toUnsignedString(
+                    sequence
+                )
+            );
+
+        DuelSessionService.Snapshot active=
+            duels.startAccepted(
+                open.challengeId,
+                matchId,
+                instanceId
+            );
+
+        matchSequence=
+            Math.addExact(
+                sequence,
+                1L
+            );
+
+        MatchSession match=
+            matches.get(
+                active.matchId
+            );
+        WorldInstanceService.Snapshot instance=
+            instances.get(
+                active.instanceId
+            );
+
+        if(match==null||
+           instance==null)
+            throw new IllegalStateException(
+                "G10.2 Duel child composition missing"
+            );
+
+        return new StartResult(
+            active,
+            match,
+            instance
         );
     }
 
