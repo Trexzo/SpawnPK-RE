@@ -22,6 +22,19 @@ public final class G103NormalDuelLiveUiIntegrationTest {
             String reason
         ){}
 
+        @Override public void clearDialogNumberKeys(){}
+
+        @Override public void handleDevPanelWidget(
+            int widget,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws java.io.IOException{}
+
+        @Override public void applyPetDialog(
+            LocalPetInventoryDialogHandler.Result result,
+            String tag
+        ){}
+
         @Override public boolean retireTournamentRoot(){
             boolean wasOpen=tournamentOpen;
             tournamentOpen=false;
