@@ -17,6 +17,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
         boolean pvpIsolation=false;
         boolean immediateSettlementCredit=false;
         boolean duplicateDeathSafe=false;
+        boolean terminalDedupeRetired=false;
         boolean sharedCompletionCount=false;
         boolean freshWorldSharedCount=false;
         boolean delayedSettlementCredit=false;
@@ -302,6 +303,14 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
                 "canonical immediate PvP settlement did not credit Bounty"
             );
 
+            terminalDedupeRetired=
+                runtime.bountyDeathCreditCount()==0;
+
+            require(
+                terminalDedupeRetired,
+                "terminal Bounty settlement retained death dedupe"
+            );
+
             immediateSettlement.coordinator
                 .settleCurrentDeathForSessionTeardown(
                     "[g7-immediate-replay] "
@@ -318,7 +327,8 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
                 afterReplay.task.taskId.equals(
                     afterImmediate.task.taskId
                 )&&
-                afterReplay.completions==1L;
+                afterReplay.completions==1L&&
+                runtime.bountyDeathCreditCount()==0;
 
             require(
                 duplicateDeathSafe,
@@ -402,6 +412,15 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
             require(
                 pvpIsolation,
                 "canonical PvP kill progressed Monster Hunter"
+            );
+
+            terminalDedupeRetired=
+                terminalDedupeRetired&&
+                runtime.bountyDeathCreditCount()==0;
+
+            require(
+                terminalDedupeRetired,
+                "non-Bounty terminal settlement retained no-op death dedupe"
             );
 
             LocalLabSlayerRuntime.KillCreditResult
@@ -876,6 +895,7 @@ public final class G71BloodSlayerBountyHunterIntegrationTest {
             " immediateSettlementCredit="+
                 immediateSettlementCredit+
             " duplicateDeathSafe="+duplicateDeathSafe+
+            " terminalDedupeRetired="+terminalDedupeRetired+
             " sharedCompletionCount="+
                 sharedCompletionCount+
             " freshWorldSharedCount="+

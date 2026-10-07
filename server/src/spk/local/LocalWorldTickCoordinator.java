@@ -1429,52 +1429,71 @@ final class LocalWorldTickCoordinator {
                             attacker,
                             lootOwner.attackerGeneration,
                             ()->{
-                                /*
-                                 * Credit Blood Slayer from the canonical
-                                 * verified death-settlement identity, not from
-                                 * the best-effort combat outcome observer.
-                                 * The runtime dedupes victim/deathSequence so a
-                                 * later settlement retry cannot double-credit.
-                                 */
-                                bountyCredit[0]=
-                                    world.localLabSlayer()
-                                        .recordBountyHunterKill(
-                                            attacker.username(),
-                                            worldPlayer.id(),
-                                            resolution.deathSequence,
-                                            resolution.deathTick
+                                try{
+                                    /*
+                                     * Credit Blood Slayer from the canonical
+                                     * verified death-settlement identity, not
+                                     * from the best-effort combat outcome
+                                     * observer. Keep the dedupe entry until
+                                     * ground settlement itself is committed.
+                                     */
+                                    bountyCredit[0]=
+                                        world.localLabSlayer()
+                                            .recordBountyHunterKill(
+                                                attacker.username(),
+                                                worldPlayer.id(),
+                                                resolution.deathSequence,
+                                                resolution.deathTick
+                                            );
+
+                                    committed[0]=
+                                        deathGroundSettlement.settle(
+                                            resolution,
+                                            lootOwner.lootOwner
                                         );
 
-                                committed[0]=
-                                    deathGroundSettlement.settle(
-                                        resolution,
-                                        lootOwner.lootOwner
-                                    );
+                                    reward[0]=
+                                        pvpKillRewards.settle(
+                                            world,
+                                            attacker,
+                                            lootOwner.attackerGeneration,
+                                            resolution.deathSequence
+                                        );
 
-                                reward[0]=
-                                    pvpKillRewards.settle(
-                                        world,
-                                        attacker,
-                                        lootOwner.attackerGeneration,
-                                        resolution.deathSequence
-                                    );
+                                    boolean saveBounty=
+                                        bountyCredit[0]!=null&&
+                                        bountyCredit[0].progressed;
 
-                                boolean saveBounty=
-                                    bountyCredit[0]!=null&&
-                                    bountyCredit[0].progressed;
-
-                                if(reward[0].granted||
-                                   saveBounty)
-                                    bridge.savePlayerAccount(
-                                        attacker,
-                                        lootOwner.attackerGeneration,
-                                        tag,
-                                        reward[0].granted&&saveBounty
-                                            ?"PVP_KILL_REWARD_BLOOD_SLAYER_BOUNTY"
-                                            :reward[0].granted
-                                                ?"PVP_KILL_REWARD"
-                                                :"BLOOD_SLAYER_BOUNTY_KILL"
-                                    );
+                                    if(reward[0].granted||
+                                       saveBounty)
+                                        bridge.savePlayerAccount(
+                                            attacker,
+                                            lootOwner.attackerGeneration,
+                                            tag,
+                                            reward[0].granted&&saveBounty
+                                                ?"PVP_KILL_REWARD_BLOOD_SLAYER_BOUNTY"
+                                                :reward[0].granted
+                                                    ?"PVP_KILL_REWARD"
+                                                    :"BLOOD_SLAYER_BOUNTY_KILL"
+                                        );
+                                }finally{
+                                    /*
+                                     * Once the victim's exact death sequence
+                                     * is committed, prepareDeathSettlement...
+                                     * will not re-enter this settlement path.
+                                     * Retain the dedupe only while a pre-
+                                     * commit retry is still possible.
+                                     */
+                                    if(deathGroundSettlement.get(
+                                            resolution.deathSequence
+                                        )!=null)
+                                        world.localLabSlayer()
+                                            .retireBountyHunterDeathCredit(
+                                                attacker.username(),
+                                                worldPlayer.id(),
+                                                resolution.deathSequence
+                                            );
+                                }
                             }
                         );
                 }catch(IOException impossible){
