@@ -2095,6 +2095,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1313DonationCartZeroFailClosedIntegrationTest',
     'spk.local.G1314ItemEnchantmentEmptyMainNavigationIntegrationTest',
     'spk.local.G1315DonorToZeroCartNavigationIntegrationTest',
+    'spk.local.G141DailyPvmLiveIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2123,10 +2124,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 276 ||
-    currentTrainFocusedTests.toSet().size() != 276) {
+if (currentTrainFocusedTests.size() != 277 ||
+    currentTrainFocusedTests.toSet().size() != 277) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 276 unique tests, found " +
+        "Current-train focused manifest drift: expected 277 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2442,6 +2443,14 @@ tasks.register('g1315DonorToZeroCartNavigationRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1315DonorToZeroCartNavigationIntegrationTest')
+}
+
+tasks.register('g141DailyPvmLiveRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates world-owned LocalLab Daily PvM assignment and canonical Monster Spawner terminal kill progress to goal 3.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G141DailyPvmLiveIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
