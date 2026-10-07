@@ -3,19 +3,20 @@ package spk.local;
 import java.util.*;
 
 /**
- * Snapshot-extension codec for explicit LocalLab Blood Slayer PvM policy.
+ * Snapshot-extension codec for explicit LocalLab Blood Slayer policy.
  *
  * v1 is the historical Monster-Hunter-only contract. Two hosted-green v2
  * sibling contracts exist: mode-aware Boss/Monster state, and Monster-only
- * completion-count state. v3 composes both while preserving exact decoding
- * of each earlier contract.
+ * completion-count state. v3 is the certified G6 Boss/Monster composition.
+ * v4 adds LocalLab Bounty Hunter while preserving exact earlier decoding.
  */
 final class LocalLabSlayerPersistence {
     static final String NAMESPACE=
         "blood-slayer-g4";
     static final String LEGACY_VERSION="1";
     static final String MODE_VERSION="2";
-    static final String VERSION="3";
+    static final String G6_VERSION="3";
+    static final String VERSION="4";
 
     enum State {
         ACTIVE,
@@ -235,10 +236,29 @@ final class LocalLabSlayerPersistence {
             return decodeVersion(
                 values,
                 mode,
-                LocalLabSlayerRuntime.AUTHORITY,
+                LocalLabSlayerRuntime.G6_AUTHORITY,
                 LocalLabSlayerRuntime
                     .taskKeyFor(mode),
                 0L
+            );
+        }
+
+        if(G6_VERSION.equals(version)){
+            requireExactKeys(
+                values,
+                true
+            );
+
+            BloodSlayerModeService.Mode mode=
+                decodeG6Mode(values);
+
+            return decodeVersion(
+                values,
+                mode,
+                LocalLabSlayerRuntime.G6_AUTHORITY,
+                LocalLabSlayerRuntime
+                    .taskKeyFor(mode),
+                completionCount(values)
             );
         }
 
@@ -434,6 +454,26 @@ final class LocalLabSlayerPersistence {
                 " actual="+
                 values.keySet()
             );
+    }
+
+    private static BloodSlayerModeService.Mode decodeG6Mode(
+        SortedMap<String,String> values
+    ){
+        BloodSlayerModeService.Mode mode=
+            decodeMode(values);
+
+        if(mode!=
+                BloodSlayerModeService.Mode
+                    .MONSTER_HUNTER_PVM&&
+           mode!=
+                BloodSlayerModeService.Mode
+                    .BOSS_HUNTER_PVM)
+            throw invalid(
+                "mode",
+                values.get("mode")
+            );
+
+        return mode;
     }
 
     private static BloodSlayerModeService.Mode decodeMode(
