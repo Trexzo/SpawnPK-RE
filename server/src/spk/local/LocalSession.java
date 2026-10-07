@@ -1204,6 +1204,16 @@ final class LocalSession implements Runnable {
                         .handleSalvage(intent);
                 }
 
+                @Override public LocalBloodFountainUiHandler.FuserResult
+                    handleBloodDiamondFuserWidget(
+                        BloodDiamondFuserPresentation.Input input,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .bloodFountainUi
+                        .handleFuser(input);
+                }
+
                 @Override public boolean openLottery(
                     LotteryService.Channel channel,
                     ServerPacketWriter writer,
