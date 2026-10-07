@@ -1,7 +1,6 @@
 package spk.local;
 
-import java.util.Collections;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * World-owned LocalLab registration slice over the reusable Tournament domain.
@@ -19,6 +18,8 @@ final class LocalLabTournamentRuntime {
         WorldEventId.of(
             "locallab:tournament:g91"
         );
+    static final String PVP_DEATH_AUTHORITY=
+        "LOCAL_LAB_CANONICAL_PVP_DEATH";
 
     /*
      * The event is registered SCHEDULED and advances only when this runtime
@@ -36,6 +37,28 @@ final class LocalLabTournamentRuntime {
             TournamentService.Snapshot snapshot
         ){
             this.created=created;
+            this.snapshot=Objects.requireNonNull(
+                snapshot,
+                "snapshot"
+            );
+        }
+    }
+
+    static final class PvpDeathResult {
+        final boolean tournamentMatch;
+        final boolean completedNow;
+        final MatchId matchId;
+        final TournamentService.Snapshot snapshot;
+
+        PvpDeathResult(
+            boolean tournamentMatch,
+            boolean completedNow,
+            MatchId matchId,
+            TournamentService.Snapshot snapshot
+        ){
+            this.tournamentMatch=tournamentMatch;
+            this.completedNow=completedNow;
+            this.matchId=matchId;
             this.snapshot=Objects.requireNonNull(
                 snapshot,
                 "snapshot"
@@ -81,6 +104,9 @@ final class LocalLabTournamentRuntime {
             instances
         );
     private long matchSequence=1L;
+    private final LinkedHashMap<String,PvpDeathResult>
+        pvpDeathByIdentity=
+            new LinkedHashMap<>();
 
     LocalLabTournamentRuntime(){
         TournamentService.Snapshot created=
@@ -289,6 +315,155 @@ final class LocalLabTournamentRuntime {
             "caller-resolved-win",
             AUTHORITY
         );
+    }
+
+    synchronized PvpDeathResult recordCanonicalPvpDeath(
+        String attackerRef,
+        String victimRef,
+        long deathSequence
+    ){
+        String attacker=
+            PartyService.requireRef(
+                attackerRef
+            );
+        String victim=
+            PartyService.requireRef(
+                victimRef
+            );
+
+        if(attacker.equals(victim))
+            throw new IllegalArgumentException(
+                "Tournament PvP attacker/victim identical"
+            );
+
+        String deathKey=
+            pvpDeathKey(
+                attacker,
+                victim,
+                deathSequence
+            );
+
+        PvpDeathResult existing=
+            pvpDeathByIdentity.get(
+                deathKey
+            );
+        if(existing!=null)
+            return existing;
+
+        TournamentService.Snapshot before=
+            tournament.get(
+                EVENT_ID
+            );
+        TournamentService.MatchSnapshot active=
+            null;
+
+        for(TournamentService.MatchSnapshot match:
+                before.matches){
+            if(match.state!=
+                    TournamentService
+                        .TournamentMatchState.ACTIVE)
+                continue;
+
+            boolean exactPair=
+                attacker.equals(
+                    match.firstParticipant
+                )&&
+                victim.equals(
+                    match.secondParticipant
+                )||
+                attacker.equals(
+                    match.secondParticipant
+                )&&
+                victim.equals(
+                    match.firstParticipant
+                );
+
+            if(!exactPair)
+                continue;
+
+            if(active!=null)
+                throw new IllegalStateException(
+                    "multiple ACTIVE Tournament matches for canonical PvP pair"
+                );
+
+            active=match;
+        }
+
+        if(active==null)
+            return new PvpDeathResult(
+                false,
+                false,
+                null,
+                before
+            );
+
+        TournamentService.Snapshot completed=
+            tournament.completeMatch(
+                EVENT_ID,
+                active.matchId,
+                attacker,
+                "canonical-pvp-death",
+                PVP_DEATH_AUTHORITY
+            );
+
+        PvpDeathResult result=
+            new PvpDeathResult(
+                true,
+                true,
+                active.matchId,
+                completed
+            );
+
+        pvpDeathByIdentity.put(
+            deathKey,
+            result
+        );
+
+        return result;
+    }
+
+    synchronized void retireCanonicalPvpDeath(
+        String attackerRef,
+        String victimRef,
+        long deathSequence
+    ){
+        String attacker=
+            PartyService.requireRef(
+                attackerRef
+            );
+        String victim=
+            PartyService.requireRef(
+                victimRef
+            );
+
+        pvpDeathByIdentity.remove(
+            pvpDeathKey(
+                attacker,
+                victim,
+                deathSequence
+            )
+        );
+    }
+
+    synchronized int pvpDeathDedupeCount(){
+        return pvpDeathByIdentity.size();
+    }
+
+    private static String pvpDeathKey(
+        String attacker,
+        String victim,
+        long deathSequence
+    ){
+        if(deathSequence<=0L)
+            throw new IllegalArgumentException(
+                "deathSequence="+deathSequence
+            );
+
+        return attacker+"|"+
+            victim+"|"+
+            Long.toUnsignedString(
+                deathSequence
+            );
     }
 
     synchronized TournamentService.Snapshot completeTournament(

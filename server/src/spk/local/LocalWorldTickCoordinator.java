@@ -1407,124 +1407,155 @@ final class LocalWorldTickCoordinator {
             lootOwner.reason;
 
         if(lootOwner.killerScoped()){
-            WorldPlayer attacker=
-                world.players().byId(
-                    lootOwner.attackerId
-                );
-            final PlayerDeathGroundSettlementService.Settlement[]
-                committed=
-                    new PlayerDeathGroundSettlementService.Settlement[1];
-            final PvpKillRewardService.Receipt[]
-                reward=
-                    new PvpKillRewardService.Receipt[1];
-            final LocalLabSlayerRuntime.KillCreditResult[]
-                bountyCredit=
-                    new LocalLabSlayerRuntime.KillCreditResult[1];
+            String canonicalKiller=
+                lootOwner.lootOwner;
+            String canonicalVictim=
+                worldPlayer.username();
 
-            boolean attackerStillCurrent=false;
-            if(attacker!=null)
-                try{
-                    attackerStillCurrent=
-                        world.withOpenPlayerOwnershipIfCurrent(
-                            attacker,
-                            lootOwner.attackerGeneration,
-                            ()->{
-                                try{
-                                    /*
-                                     * Credit Blood Slayer from the canonical
-                                     * verified death-settlement identity, not
-                                     * from the best-effort combat outcome
-                                     * observer. Keep the dedupe entry until
-                                     * ground settlement itself is committed.
-                                     */
-                                    bountyCredit[0]=
-                                        world.localLabSlayer()
-                                            .recordBountyHunterKill(
-                                                attacker.username(),
-                                                worldPlayer.id(),
-                                                resolution.deathSequence,
-                                                resolution.deathTick
+            /*
+             * Tournament winner authority consumes the already-verified
+             * PLAYER_PVP death identity. It is World-owned and deliberately
+             * does not depend on the attacker session still being present.
+             */
+            world.localTournament()
+                .recordCanonicalPvpDeath(
+                    canonicalKiller,
+                    canonicalVictim,
+                    resolution.deathSequence
+                );
+
+            try{
+                WorldPlayer attacker=
+                    world.players().byId(
+                        lootOwner.attackerId
+                    );
+                final PlayerDeathGroundSettlementService.Settlement[]
+                    committed=
+                        new PlayerDeathGroundSettlementService.Settlement[1];
+                final PvpKillRewardService.Receipt[]
+                    reward=
+                        new PvpKillRewardService.Receipt[1];
+                final LocalLabSlayerRuntime.KillCreditResult[]
+                    bountyCredit=
+                        new LocalLabSlayerRuntime.KillCreditResult[1];
+
+                boolean attackerStillCurrent=false;
+                if(attacker!=null)
+                    try{
+                        attackerStillCurrent=
+                            world.withOpenPlayerOwnershipIfCurrent(
+                                attacker,
+                                lootOwner.attackerGeneration,
+                                ()->{
+                                    try{
+                                        /*
+                                         * Credit Blood Slayer from the
+                                         * canonical verified death-settlement
+                                         * identity. Player-owned persistence
+                                         * still requires current ownership.
+                                         */
+                                        bountyCredit[0]=
+                                            world.localLabSlayer()
+                                                .recordBountyHunterKill(
+                                                    attacker.username(),
+                                                    worldPlayer.id(),
+                                                    resolution.deathSequence,
+                                                    resolution.deathTick
+                                                );
+
+                                        committed[0]=
+                                            deathGroundSettlement.settle(
+                                                resolution,
+                                                canonicalKiller
                                             );
 
-                                    committed[0]=
-                                        deathGroundSettlement.settle(
-                                            resolution,
-                                            lootOwner.lootOwner
-                                        );
-
-                                    reward[0]=
-                                        pvpKillRewards.settle(
-                                            world,
-                                            attacker,
-                                            lootOwner.attackerGeneration,
-                                            resolution.deathSequence
-                                        );
-
-                                    boolean saveBounty=
-                                        bountyCredit[0]!=null&&
-                                        bountyCredit[0].progressed;
-
-                                    if(reward[0].granted||
-                                       saveBounty)
-                                        bridge.savePlayerAccount(
-                                            attacker,
-                                            lootOwner.attackerGeneration,
-                                            tag,
-                                            reward[0].granted&&saveBounty
-                                                ?"PVP_KILL_REWARD_BLOOD_SLAYER_BOUNTY"
-                                                :reward[0].granted
-                                                    ?"PVP_KILL_REWARD"
-                                                    :"BLOOD_SLAYER_BOUNTY_KILL"
-                                        );
-                                }finally{
-                                    /*
-                                     * Once the victim's exact death sequence
-                                     * is committed, prepareDeathSettlement...
-                                     * will not re-enter this settlement path.
-                                     * Retain the dedupe only while a pre-
-                                     * commit retry is still possible.
-                                     */
-                                    if(deathGroundSettlement.get(
-                                            resolution.deathSequence
-                                        )!=null)
-                                        world.localLabSlayer()
-                                            .retireBountyHunterDeathCredit(
-                                                attacker.username(),
-                                                worldPlayer.id(),
+                                        reward[0]=
+                                            pvpKillRewards.settle(
+                                                world,
+                                                attacker,
+                                                lootOwner.attackerGeneration,
                                                 resolution.deathSequence
                                             );
-                                }
-                            }
-                        );
-                }catch(IOException impossible){
-                    throw new IllegalStateException(
-                        "death loot ownership settlement raised unexpected IO failure",
-                        impossible
-                    );
-                }
 
-            if(attackerStillCurrent){
-                if(committed[0]==null)
-                    throw new IllegalStateException(
-                        "killer-scoped death settlement produced no receipt"
-                    );
-                settlement=committed[0];
-                killRewardReceipt=reward[0];
-                bountyKillCredit=bountyCredit[0];
-            }else{
+                                        boolean saveBounty=
+                                            bountyCredit[0]!=null&&
+                                            bountyCredit[0].progressed;
+
+                                        if(reward[0].granted||
+                                           saveBounty)
+                                            bridge.savePlayerAccount(
+                                                attacker,
+                                                lootOwner.attackerGeneration,
+                                                tag,
+                                                reward[0].granted&&saveBounty
+                                                    ?"PVP_KILL_REWARD_BLOOD_SLAYER_BOUNTY"
+                                                    :reward[0].granted
+                                                        ?"PVP_KILL_REWARD"
+                                                        :"BLOOD_SLAYER_BOUNTY_KILL"
+                                            );
+                                    }finally{
+                                        /*
+                                         * Once the victim's exact death
+                                         * sequence is committed, this session
+                                         * cannot re-enter settlement for it.
+                                         */
+                                        if(deathGroundSettlement.get(
+                                                resolution.deathSequence
+                                            )!=null)
+                                            world.localLabSlayer()
+                                                .retireBountyHunterDeathCredit(
+                                                    attacker.username(),
+                                                    worldPlayer.id(),
+                                                    resolution.deathSequence
+                                                );
+                                    }
+                                }
+                            );
+                    }catch(IOException impossible){
+                        throw new IllegalStateException(
+                            "death loot ownership settlement raised unexpected IO failure",
+                            impossible
+                        );
+                    }
+
+                if(attackerStillCurrent){
+                    if(committed[0]==null)
+                        throw new IllegalStateException(
+                            "killer-scoped death settlement produced no receipt"
+                        );
+                    settlement=committed[0];
+                    killRewardReceipt=reward[0];
+                    bountyKillCredit=bountyCredit[0];
+                }else{
+                    /*
+                     * Loot ownership and Tournament result were already bound
+                     * to captured verified killer identity. Disconnect may
+                     * remove reward/persistence authority, but not those facts.
+                     */
+                    lootOwnerReason=
+                        "KILLER_CAPTURED_IDENTITY_ATTACKER_STALE_AT_SETTLEMENT";
+                    settlement=
+                        deathGroundSettlement.settle(
+                            resolution,
+                            canonicalKiller
+                        );
+                }
+            }finally{
                 /*
-                 * Loot ownership was already bound to the verified killer
-                 * identity at the lethal transition. A later disconnect may
-                 * remove reward/persistence authority, but must not erase that
-                 * already-proven ground-item owner.
+                 * A pre-commit settlement retry must see the same Tournament
+                 * death result. Once ground settlement is terminal, the
+                 * coordinator cannot legitimately re-enter this death, so the
+                 * exact dedupe entry can be retired.
                  */
-                lootOwnerReason=
-                    "KILLER_CAPTURED_IDENTITY_ATTACKER_STALE_AT_SETTLEMENT";
-                settlement=
-                    deathGroundSettlement.settle(
-                        resolution,
-                        lootOwner.lootOwner
-                    );
+                if(deathGroundSettlement.get(
+                        resolution.deathSequence
+                    )!=null)
+                    world.localTournament()
+                        .retireCanonicalPvpDeath(
+                            canonicalKiller,
+                            canonicalVictim,
+                            resolution.deathSequence
+                        );
             }
         }else{
             settlement=
