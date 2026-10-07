@@ -45,6 +45,50 @@ final class ApplicationControl126Service {
         );
     }
 
+    static void adventureBegin(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token.BEGIN_ADVENTURE
+            )
+        );
+    }
+
+    static void adventureOrb(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token.BEGIN_ADVENTURE_ORB
+            )
+        );
+    }
+
+    static void adventureBook(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token.BEGIN_ADVENTURE_BOOK
+            )
+        );
+    }
+
+    static void adventureEnd(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token.END_ADVENTURE
+            )
+        );
+    }
+
     static void raidInstance(
         ServerPacketWriter writer,
         boolean enabled
