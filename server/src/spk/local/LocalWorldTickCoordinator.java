@@ -1402,6 +1402,7 @@ final class LocalWorldTickCoordinator {
 
         PlayerDeathGroundSettlementService.Settlement settlement;
         PvpKillRewardService.Receipt killRewardReceipt=null;
+        LocalLabSlayerRuntime.KillCreditResult bountyKillCredit=null;
         String lootOwnerReason=
             lootOwner.reason;
 
@@ -1416,6 +1417,9 @@ final class LocalWorldTickCoordinator {
             final PvpKillRewardService.Receipt[]
                 reward=
                     new PvpKillRewardService.Receipt[1];
+            final LocalLabSlayerRuntime.KillCreditResult[]
+                bountyCredit=
+                    new LocalLabSlayerRuntime.KillCreditResult[1];
 
             boolean attackerStillCurrent=false;
             if(attacker!=null)
@@ -1425,6 +1429,22 @@ final class LocalWorldTickCoordinator {
                             attacker,
                             lootOwner.attackerGeneration,
                             ()->{
+                                /*
+                                 * Credit Blood Slayer from the canonical
+                                 * verified death-settlement identity, not from
+                                 * the best-effort combat outcome observer.
+                                 * The runtime dedupes victim/deathSequence so a
+                                 * later settlement retry cannot double-credit.
+                                 */
+                                bountyCredit[0]=
+                                    world.localLabSlayer()
+                                        .recordBountyHunterKill(
+                                            attacker.username(),
+                                            worldPlayer.id(),
+                                            resolution.deathSequence,
+                                            resolution.deathTick
+                                        );
+
                                 committed[0]=
                                     deathGroundSettlement.settle(
                                         resolution,
@@ -1439,12 +1459,21 @@ final class LocalWorldTickCoordinator {
                                         resolution.deathSequence
                                     );
 
-                                if(reward[0].granted)
+                                boolean saveBounty=
+                                    bountyCredit[0]!=null&&
+                                    bountyCredit[0].progressed;
+
+                                if(reward[0].granted||
+                                   saveBounty)
                                     bridge.savePlayerAccount(
                                         attacker,
                                         lootOwner.attackerGeneration,
                                         tag,
-                                        "PVP_KILL_REWARD"
+                                        reward[0].granted&&saveBounty
+                                            ?"PVP_KILL_REWARD_BLOOD_SLAYER_BOUNTY"
+                                            :reward[0].granted
+                                                ?"PVP_KILL_REWARD"
+                                                :"BLOOD_SLAYER_BOUNTY_KILL"
                                     );
                             }
                         );
@@ -1462,6 +1491,7 @@ final class LocalWorldTickCoordinator {
                     );
                 settlement=committed[0];
                 killRewardReceipt=reward[0];
+                bountyKillCredit=bountyCredit[0];
             }else{
                 /*
                  * Loot ownership was already bound to the verified killer
@@ -1501,6 +1531,22 @@ final class LocalWorldTickCoordinator {
                 tag+
                 "PVP_KILL_REWARD "+
                 killRewardReceipt
+            );
+
+        if(bountyKillCredit!=null)
+            System.out.println(
+                tag+
+                "G7_BLOOD_SLAYER_BOUNTY_CREDIT"+
+                " activeTask="+
+                bountyKillCredit.activeTask+
+                " progressed="+
+                bountyKillCredit.progressed+
+                " completedNow="+
+                bountyKillCredit.completedNow+
+                " completions="+
+                bountyKillCredit.status.completions+
+                " authority="+
+                LocalLabSlayerRuntime.AUTHORITY
             );
 
         System.out.println(
