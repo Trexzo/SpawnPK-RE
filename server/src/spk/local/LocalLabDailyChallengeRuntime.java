@@ -1,8 +1,6 @@
 package spk.local;
 
-import java.util.Collections;
-import java.util.Locale;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * World-owned LocalLab Daily Challenge runtime.
@@ -11,7 +9,8 @@ import java.util.Objects;
  * assigned on first status access and may then advance exclusively from the
  * caller-validated Monster Spawner terminal-finalization seam.
  *
- * Reset cadence, rewards, claims and persistence are intentionally absent.
+ * Reset cadence, rewards and claims remain absent. G14.2 persists only the
+ * explicit LocalLab assignment/progress through a versioned snapshot extension.
  */
 final class LocalLabDailyChallengeRuntime {
     static final String AUTHORITY=
@@ -69,6 +68,13 @@ final class LocalLabDailyChallengeRuntime {
     private final World world;
     private final DailyChallengeApplicationService service=
         new DailyChallengeApplicationService();
+    private final Set<WorldPlayer> hydratedPlayers=
+        Collections.newSetFromMap(
+            new IdentityHashMap<WorldPlayer,Boolean>()
+        );
+    private final IdentityHashMap<WorldPlayer,String>
+        invalidPersistence=
+            new IdentityHashMap<>();
 
     LocalLabDailyChallengeRuntime(
         World world
@@ -101,6 +107,24 @@ final class LocalLabDailyChallengeRuntime {
                     owner,
                     generation,
                     ()->{
+                        ensureRestoredOwned(
+                            player,
+                            owner
+                        );
+
+                        String invalid=
+                            invalidPersistence.get(
+                                owner
+                            );
+
+                        if(invalid!=null)
+                            throw new IllegalStateException(
+                                "Daily Challenge persistence invalid player="+
+                                player+
+                                " reason="+
+                                invalid
+                            );
+
                         DailyChallengeApplicationService
                             .PlayerSnapshot existing=
                                 service.get(
@@ -114,7 +138,7 @@ final class LocalLabDailyChallengeRuntime {
                             service.replaceAll(
                                 player,
                                 Collections.singletonList(
-                                    assignment()
+                                    assignment(0L)
                                 )
                             );
 
@@ -124,6 +148,12 @@ final class LocalLabDailyChallengeRuntime {
                                     player,
                                     CHALLENGE_KEY
                                 );
+
+                        if(assignedNow)
+                            persistOwned(
+                                owner,
+                                challenge
+                            );
 
                         result[0]=
                             new StatusResult(
@@ -183,6 +213,24 @@ final class LocalLabDailyChallengeRuntime {
                     owner,
                     generation,
                     ()->{
+                        ensureRestoredOwned(
+                            player,
+                            owner
+                        );
+
+                        String invalid=
+                            invalidPersistence.get(
+                                owner
+                            );
+
+                        if(invalid!=null)
+                            throw new IllegalStateException(
+                                "Daily Challenge persistence invalid player="+
+                                player+
+                                " reason="+
+                                invalid
+                            );
+
                         DailyChallengeApplicationService
                             .PlayerSnapshot existing=
                                 service.get(
@@ -237,6 +285,11 @@ final class LocalLabDailyChallengeRuntime {
                                     1L
                                 );
 
+                        persistOwned(
+                            owner,
+                            progress.challenge
+                        );
+
                         result[0]=
                             new ProgressResult(
                                 true,
@@ -286,7 +339,9 @@ final class LocalLabDailyChallengeRuntime {
     }
 
     private DailyChallengeApplicationService.AssignmentSpec
-        assignment()
+        assignment(
+            long initialProgress
+        )
     {
         return new DailyChallengeApplicationService
             .AssignmentSpec(
@@ -302,10 +357,98 @@ final class LocalLabDailyChallengeRuntime {
                     GOAL,
                     AUTHORITY
                 ),
-                0L,
+                initialProgress,
                 false,
                 AUTHORITY
             );
+    }
+
+    private void ensureRestoredOwned(
+        String player,
+        WorldPlayer owner
+    ){
+        synchronized(this){
+            if(hydratedPlayers.contains(owner))
+                return;
+        }
+
+        SortedMap<String,String> values=
+            owner.snapshotExtensions()
+                .namespace(
+                    LocalLabDailyChallengePersistence
+                        .NAMESPACE
+                );
+
+        final LocalLabDailyChallengePersistence.Snapshot
+            decoded;
+
+        try{
+            decoded=
+                LocalLabDailyChallengePersistence
+                    .decode(values);
+        }catch(RuntimeException failure){
+            synchronized(this){
+                invalidPersistence.put(
+                    owner,
+                    failure.getMessage()
+                );
+                hydratedPlayers.add(owner);
+            }
+            return;
+        }
+
+        if(decoded!=null){
+            DailyChallengeApplicationService.PlayerSnapshot
+                restored=
+                    service.replaceAll(
+                        player,
+                        Collections.singletonList(
+                            assignment(
+                                decoded.progress
+                            )
+                        )
+                    );
+
+            DailyChallengeApplicationService.ChallengeSnapshot
+                challenge=
+                    restored.challenge(
+                        CHALLENGE_KEY
+                    );
+
+            if(challenge==null||
+               challenge.current!=
+                    decoded.progress||
+               challenge.complete!=
+                    decoded.complete())
+                throw new IllegalStateException(
+                    "Daily Challenge persisted replay mismatch player="+
+                    player
+                );
+        }
+
+        synchronized(this){
+            invalidPersistence.remove(owner);
+            hydratedPlayers.add(owner);
+        }
+    }
+
+    private void persistOwned(
+        WorldPlayer owner,
+        DailyChallengeApplicationService.ChallengeSnapshot
+            challenge
+    ){
+        owner.snapshotExtensions()
+            .replaceNamespace(
+                LocalLabDailyChallengePersistence
+                    .NAMESPACE,
+                LocalLabDailyChallengePersistence
+                    .encode(challenge)
+            );
+
+        synchronized(this){
+            invalidPersistence.remove(owner);
+            hydratedPlayers.add(owner);
+        }
     }
 
     private WorldPlayer requireCurrentPlayer(
