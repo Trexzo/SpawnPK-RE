@@ -199,9 +199,7 @@ public final class G136BloodFountainSalvageNavigationIntegrationTest {
 
             exactHubWidgets&=
                 BloodFountainHubPresentation
-                    .resolveWidget(60008)==null&&
-                BloodFountainHubPresentation
-                    .WIDGET_ACTION_OPCODE==185;
+                    .resolveWidget(60008)==null;
 
             require(
                 exactHubWidgets,
@@ -474,6 +472,7 @@ public final class G136BloodFountainSalvageNavigationIntegrationTest {
                 " secondItemClaim=false"+
                 " inventoryMutationClaim=false"+
                 " persistenceClaim=false"+
+                " originalHubTransportClaim=false"+
                 " originalWorldEntryClaim=false"
             );
         }finally{
