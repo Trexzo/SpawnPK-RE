@@ -72,6 +72,12 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openDuel(
+            String targetRef,
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default RootReplacingCommandDispatch
             handleRootReplacingCommand(
                 RootReplacingCommandAction action
@@ -434,6 +440,32 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isDuelRoute(p)){
+            String target=
+                duelTarget(p);
+            boolean opened=
+                bridge.openDuel(
+                    target,
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G103_NORMAL_DUEL_UI_COMMAND"+
+                " opened="+opened+
+                " target="+target+
+                " root="+
+                NormalDuelPresentation.SELECTOR_ROOT+
+                " presentationAuthority="+
+                NormalDuelPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLabDuelRuntime.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " originalTargetTransportClaim=false"
+            );
+            return true;
+        }
+
         if(isDevPanelRoute(p)){
             bridge.openDevPanel(serverPackets);
             System.out.println(
@@ -637,6 +669,40 @@ final class LocalCommandDispatcher {
                     "tourny"
                 )
             );
+    }
+
+    static boolean isDuelRoute(String[] p){
+        return p!=null&&
+            p.length>=2&&
+            p[0].equalsIgnoreCase(
+                "duel"
+            );
+    }
+
+    static String duelTarget(String[] p){
+        if(!isDuelRoute(p))
+            throw new IllegalArgumentException(
+                "duel route requires target"
+            );
+
+        StringBuilder out=
+            new StringBuilder();
+
+        for(int i=1;i<p.length;i++){
+            if(i>1)
+                out.append(' ');
+            out.append(p[i]);
+        }
+
+        String target=
+            out.toString().trim();
+
+        if(target.isEmpty())
+            throw new IllegalArgumentException(
+                "duel target blank"
+            );
+
+        return target;
     }
 
     static boolean isDevPanelRoute(String[] p){
