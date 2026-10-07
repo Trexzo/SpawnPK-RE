@@ -293,28 +293,13 @@ final class LocalCommandDispatcher {
             return true;
         }
 
-        LocalDuelCommandHandler.Result duelCommand=
-            bridge.handleDuelCommand(
-                p
-            );
-        if(duelCommand!=null){
-            new SocialChatPresentationPublisher(
-                serverPackets
-            ).serverMessage(
-                duelCommand.clientMessage
-            );
-
-            System.out.println(
-                tag+
-                duelCommand.logText+
-                " clientFeedback=true"+
-                " route=EXACT_CURRENT_C2S103"+
-                " routeAuthority="+
-                LocalDuelCommandHandler.ROUTE_AUTHORITY+
-                " persistenceClaim=false"
-            );
+        if(dispatchDuelLifecycleCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
             return true;
-        }
 
         try{
             ContentResult content=
@@ -650,6 +635,45 @@ final class LocalCommandDispatcher {
         }
 
         return false;
+    }
+
+    static boolean dispatchDuelLifecycleCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        LocalDuelCommandHandler.Result duelCommand=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).handleDuelCommand(
+                tokens
+            );
+
+        if(duelCommand==null)
+            return false;
+
+        new SocialChatPresentationPublisher(
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            )
+        ).serverMessage(
+            duelCommand.clientMessage
+        );
+
+        System.out.println(
+            tag+
+            duelCommand.logText+
+            " clientFeedback=true"+
+            " route=EXACT_CURRENT_C2S103"+
+            " routeAuthority="+
+            LocalDuelCommandHandler.ROUTE_AUTHORITY+
+            " persistenceClaim=false"
+        );
+
+        return true;
     }
 
     static String clean(String command){
