@@ -1222,34 +1222,40 @@ public final class LocalSessionConstructionOwnershipTest {
             );
         closer.start();
 
-        long deadline=
-            System.nanoTime()+
-                TimeUnit.SECONDS.toNanos(
-                    5
+        try{
+            long deadline=
+                System.nanoTime()+
+                    TimeUnit.SECONDS.toNanos(
+                        5
+                    );
+
+            while((game.closeCalls.get()<2||
+                   !game.isClosed())&&
+                  System.nanoTime()<deadline)
+                Thread.yield();
+
+            if(game.closeCalls.get()<2||
+               !game.isClosed())
+                throw new AssertionError(
+                    "owner did not retry and retire fail-once game listener"
                 );
 
-        while(game.closeCalls.get()<2&&
-              System.nanoTime()<deadline)
-            Thread.yield();
-
-        if(game.closeCalls.get()<2||
-           !game.isClosed())
-            throw new AssertionError(
-                "owner did not retry and retire fail-once game listener"
+            if(!closer.isAlive())
+                throw new AssertionError(
+                    "closed game listener bypassed pending accept handoff barrier"
+                );
+        }finally{
+            // Always retire the scripted handoff, even when an assertion
+            // fails, so a test failure cannot strand non-daemon fixture
+            // threads and hang the hosted Gradle process.
+            releaseAccept.countDown();
+            accepter.join(
+                5_000L
             );
-
-        if(!closer.isAlive())
-            throw new AssertionError(
-                "closed game listener bypassed pending accept handoff barrier"
+            closer.join(
+                5_000L
             );
-
-        releaseAccept.countDown();
-        accepter.join(
-            5_000L
-        );
-        closer.join(
-            5_000L
-        );
+        }
 
         if(accepter.isAlive()||
            closer.isAlive())
