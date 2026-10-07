@@ -670,10 +670,9 @@ final class LocalPendingRequestDispatcher {
                     continue;
                 }
 
-                new SocialChatPresentationPublisher(
+                publishDailyChallengeResult(
+                    dailyResult,
                     serverPackets
-                ).serverMessage(
-                    dailyResult.clientMessage
                 );
 
                 System.out.println(
@@ -681,7 +680,10 @@ final class LocalPendingRequestDispatcher {
                     dailyResult.logText+
                     " clientFeedback=true"+
                     " route=EXACT_CURRENT_C2S103_TYPED"+
-                    " nativePresentationClaim=false"
+                    " nativeDefinitionPublished="+
+                    (dailyResult.nativeDefinition!=null)+
+                    " nativePresentationTarget55="+
+                    (dailyResult.nativeDefinition!=null)
                 );
                 continue;
             }
@@ -753,6 +755,35 @@ final class LocalPendingRequestDispatcher {
                 request
             );
         }
+    }
+
+    static void publishDailyChallengeResult(
+        LocalDailyChallengeCommandHandler.Result result,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        LocalDailyChallengeCommandHandler.Result checked=
+            Objects.requireNonNull(
+                result,
+                "result"
+            );
+        ServerPacketWriter writer=
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            );
+
+        if(checked.nativeDefinition!=null)
+            new LocalLabDailyChallengePresentation(
+                writer
+            ).publishDefinition(
+                checked.nativeDefinition
+            );
+
+        new SocialChatPresentationPublisher(
+            writer
+        ).serverMessage(
+            checked.clientMessage
+        );
     }
 
     static String loadoutEditorSaveFailClosedDiagnostic(

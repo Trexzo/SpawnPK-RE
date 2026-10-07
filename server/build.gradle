@@ -2099,6 +2099,7 @@ def currentTrainFocusedTests = [
     'spk.local.G142DailyPvmPersistenceIntegrationTest',
     'spk.local.G143DailyPvmTypedInfoIntegrationTest',
     'spk.local.G144DailyNativeDefinitionIntegrationTest',
+    'spk.local.G145DailyLiveNativeInfoIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2127,10 +2128,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 280 ||
-    currentTrainFocusedTests.toSet().size() != 280) {
+if (currentTrainFocusedTests.size() != 281 ||
+    currentTrainFocusedTests.toSet().size() != 281) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 280 unique tests, found " +
+        "Current-train focused manifest drift: expected 281 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2478,6 +2479,14 @@ tasks.register('g144DailyNativeDefinitionRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G144DailyNativeDefinitionIntegrationTest')
+}
+
+tasks.register('g145DailyLiveNativeInfoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact typed Daily INFO publishes native target 55 before existing chat feedback while CLAIM and foreign keys remain non-native.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G145DailyLiveNativeInfoIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
