@@ -6,9 +6,9 @@ import java.util.Objects;
 /**
  * World-owned LocalLab registration slice over the reusable Tournament domain.
  *
- * G9.1 deliberately keeps the backing event SCHEDULED. Event activation,
- * pairing, arenas, rewards and all original SpawnPK tournament policy remain
- * external authority.
+ * G9.1 keeps the backing event SCHEDULED until explicit runtime activation.
+ * G9.2 adds caller-paired 1v1 start only. Automatic pairing, arenas, rewards
+ * and all original SpawnPK tournament policy remain external authority.
  */
 final class LocalLabTournamentRuntime {
     static final String AUTHORITY=
@@ -19,13 +19,11 @@ final class LocalLabTournamentRuntime {
         );
 
     /*
-     * Sentinel semantic window only. G9.1 never advances the backing event;
-     * a later gameplay slice must explicitly own activation/scheduling.
+     * The event is registered SCHEDULED and advances only when this runtime
+     * explicitly ticks GlobalEventService. No World pulse is bound here.
      */
-    private static final long SENTINEL_START_TICK=
-        Long.MAX_VALUE-1L;
-    private static final long SENTINEL_END_TICK=
-        Long.MAX_VALUE;
+    private static final long START_TICK=0L;
+    private static final long END_TICK=Long.MAX_VALUE;
 
     static final class RegistrationResult {
         final boolean created;
@@ -36,6 +34,31 @@ final class LocalLabTournamentRuntime {
             TournamentService.Snapshot snapshot
         ){
             this.created=created;
+            this.snapshot=Objects.requireNonNull(
+                snapshot,
+                "snapshot"
+            );
+        }
+    }
+
+    static final class MatchStartResult {
+        final MatchId matchId;
+        final WorldInstanceId instanceId;
+        final TournamentService.Snapshot snapshot;
+
+        MatchStartResult(
+            MatchId matchId,
+            WorldInstanceId instanceId,
+            TournamentService.Snapshot snapshot
+        ){
+            this.matchId=Objects.requireNonNull(
+                matchId,
+                "matchId"
+            );
+            this.instanceId=Objects.requireNonNull(
+                instanceId,
+                "instanceId"
+            );
             this.snapshot=Objects.requireNonNull(
                 snapshot,
                 "snapshot"
@@ -55,19 +78,20 @@ final class LocalLabTournamentRuntime {
             matches,
             instances
         );
+    private long matchSequence=1L;
 
     LocalLabTournamentRuntime(){
         TournamentService.Snapshot created=
             tournament.registerTournament(
                 new WorldEventDefinition(
                     EVENT_ID,
-                    SENTINEL_START_TICK,
-                    SENTINEL_END_TICK,
+                    START_TICK,
+                    END_TICK,
                     Collections.singletonList(
                         new WorldEventDefinition
                             .PhaseDefinition(
                                 "registration",
-                                SENTINEL_START_TICK
+                                START_TICK
                             )
                     ),
                     AUTHORITY
@@ -123,6 +147,98 @@ final class LocalLabTournamentRuntime {
                 EVENT_ID,
                 participant
             )
+        );
+    }
+
+    synchronized MatchStartResult activateAndStartMatch(
+        String firstParticipant,
+        String secondParticipant,
+        long worldTick
+    ){
+        if(worldTick<0L)
+            throw new IllegalArgumentException(
+                "worldTick="+worldTick
+            );
+
+        String first=
+            PartyService.requireRef(
+                firstParticipant
+            );
+        String second=
+            PartyService.requireRef(
+                secondParticipant
+            );
+
+        if(first.equals(second))
+            throw new IllegalArgumentException(
+                "Tournament participants must differ"
+            );
+
+        TournamentService.Snapshot before=
+            tournament.get(
+                EVENT_ID
+            );
+
+        TournamentService.EntrantSnapshot firstEntrant=
+            before.entrant(first);
+        TournamentService.EntrantSnapshot secondEntrant=
+            before.entrant(second);
+
+        if(firstEntrant==null||
+           secondEntrant==null||
+           firstEntrant.state!=
+                TournamentService.EntrantState.REGISTERED||
+           secondEntrant.state!=
+                TournamentService.EntrantState.REGISTERED)
+            throw new IllegalStateException(
+                "G9.2 requires two REGISTERED entrants"
+            );
+
+        events.tick(worldTick);
+
+        GlobalEventService.Snapshot event=
+            events.get(
+                EVENT_ID
+            );
+
+        if(event.lifecycle!=
+                GlobalEventService.Lifecycle.ACTIVE)
+            throw new IllegalStateException(
+                "G9.2 Tournament did not activate lifecycle="+
+                event.lifecycle
+            );
+
+        long sequence=matchSequence;
+        MatchId matchId=
+            MatchId.of(
+                "locallab:tournament:g92:match:"+
+                sequence
+            );
+        WorldInstanceId instanceId=
+            WorldInstanceId.of(
+                "locallab:tournament:g92:instance:"+
+                sequence
+            );
+
+        TournamentService.Snapshot started=
+            tournament.startMatch(
+                EVENT_ID,
+                first,
+                second,
+                matchId,
+                instanceId
+            );
+
+        matchSequence=
+            Math.addExact(
+                sequence,
+                1L
+            );
+
+        return new MatchStartResult(
+            matchId,
+            instanceId,
+            started
         );
     }
 
