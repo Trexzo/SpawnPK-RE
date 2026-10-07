@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -84,10 +85,18 @@ final class LocalLootingBagBankHandler {
                 "writer"
             );
 
+        String owner=owner();
+        LootingBagService.Snapshot snapshot=
+            service.get(owner);
         LootingBagPresentation.Projection projection=
-            LootingBagPresentation.project(
-                service.get(owner())
-            );
+            snapshot==null
+                ?new LootingBagPresentation.Projection(
+                    owner,
+                    Collections.emptyList()
+                )
+                :LootingBagPresentation.project(
+                    snapshot
+                );
 
         packets.beginBatch();
         boolean ended=false;
