@@ -1252,6 +1252,7 @@ final class LocalSessionUiActionHandler {
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
         bridge.retireLootingBagRoot();
+        bridge.retireDuelRoot();
 
         return result;
     }
