@@ -82,6 +82,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openGoodwillWell(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -494,6 +499,29 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isGoodwillWellRoute(p)){
+            boolean opened=
+                bridge.openGoodwillWell(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G132_GOODWILL_COMMAND"+
+                " opened="+opened+
+                " root="+
+                GoodwillWellPresentation.ROOT+
+                " presentationAuthority="+
+                GoodwillWellPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalGoodwillWellUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " campaignInvented=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -826,6 +854,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "echest"
+                )
+            );
+    }
+
+    static boolean isGoodwillWellRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "goodwill"
+                )||
+                p[0].equalsIgnoreCase(
+                    "well"
                 )
             );
     }
