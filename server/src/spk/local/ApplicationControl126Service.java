@@ -168,6 +168,29 @@ final class ApplicationControl126Service {
         );
     }
 
+    static void dailyChallengeDefinition(
+        ServerPacketWriter writer,
+        int metadataA,
+        int metadataB,
+        String challengeKey,
+        String description,
+        int current,
+        int target
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command
+                .dailyChallengeDefinition(
+                    metadataA,
+                    metadataB,
+                    challengeKey,
+                    description,
+                    current,
+                    target
+                )
+        );
+    }
+
     static void bloodPoolResetSlots(
         ServerPacketWriter writer
     )throws IOException{
