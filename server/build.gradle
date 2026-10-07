@@ -2070,6 +2070,7 @@ def currentTrainFocusedTests = [
     'spk.local.G103NormalDuelLiveUiIntegrationTest',
     'spk.local.G104NormalDuelPvpDeathIntegrationTest',
     'spk.local.G105CompetitiveAdmissionFenceIntegrationTest',
+    'spk.local.G106DuelDisconnectCleanupIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2098,10 +2099,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 251 ||
-    currentTrainFocusedTests.toSet().size() != 251) {
+if (currentTrainFocusedTests.size() != 252 ||
+    currentTrainFocusedTests.toSet().size() != 252) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 251 unique tests, found " +
+        "Current-train focused manifest drift: expected 252 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2217,6 +2218,14 @@ tasks.register('g105CompetitiveAdmissionFenceRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G105CompetitiveAdmissionFenceIntegrationTest')
+}
+
+tasks.register('g106DuelDisconnectCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates fail-contained normal-Duel cancellation and child teardown on canonical World unregister.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G106DuelDisconnectCleanupIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
