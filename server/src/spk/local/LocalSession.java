@@ -206,6 +206,7 @@ final class LocalSession implements Runnable {
     private final LocalBloodcoreSynthesisUiHandler bloodcoreSynthesisUi;
     private final LocalEventActivityUiHandler eventActivityUi;
     private final LocalLegendaryPetFusionUiHandler legendaryPetFusionUi;
+    private final LocalItemEnchantmentUiHandler itemEnchantmentUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -606,6 +607,8 @@ final class LocalSession implements Runnable {
             new LocalEventActivityUiHandler();
         this.legendaryPetFusionUi=
             new LocalLegendaryPetFusionUiHandler();
+        this.itemEnchantmentUi=
+            new LocalItemEnchantmentUiHandler();
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -894,6 +897,23 @@ final class LocalSession implements Runnable {
                                         .legendaryPetFusionUi
                                         .open(writer);
                                     return "LEGENDARY_PET_FUSION_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openItemEnchantment(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithItemEnchantmentRoot(
+                                ()->{
+                                    LocalSession.this
+                                        .itemEnchantmentUi
+                                        .openCategories(writer);
+                                    return "ITEM_ENCHANTMENT_CATEGORY_ROOT_OPENED";
                                 }
                             );
 
@@ -1254,6 +1274,32 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .legendaryPetFusionUi
                         .handle(input);
+                }
+
+                @Override public boolean retireItemEnchantmentRoot(){
+                    return LocalSession.this
+                        .itemEnchantmentUi
+                        .close();
+                }
+
+                @Override public boolean openItemEnchantmentCategories(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .itemEnchantmentUi
+                        .openCategories(writer);
+                    return true;
+                }
+
+                @Override public LocalItemEnchantmentUiHandler.Result
+                    handleItemEnchantmentCategory(
+                        ItemEnchantmentPresentation.Input input,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .itemEnchantmentUi
+                        .handleCategory(input);
                 }
 
                 @Override public boolean openBloodFountainHub(
