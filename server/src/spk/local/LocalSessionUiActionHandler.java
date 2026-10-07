@@ -199,6 +199,25 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireLegendaryPetFusionRoot(){
+            return false;
+        }
+
+        default boolean openLegendaryPetFusion(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalLegendaryPetFusionUiHandler.Result
+            handleLegendaryPetFusionWidget(
+                LegendaryPetFusionPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default boolean openBloodFountainHub(
             ServerPacketWriter serverPackets,
             String tag
@@ -374,6 +393,7 @@ final class LocalSessionUiActionHandler {
     private volatile boolean lotteryUiOpen;
     private volatile boolean unclaimedCofferUiOpen;
     private volatile boolean bloodFountainUiOpen;
+    private volatile boolean legendaryPetFusionUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -524,6 +544,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         monsterSpawnerUiOpen=true;
@@ -633,6 +654,9 @@ final class LocalSessionUiActionHandler {
         boolean bloodFountainWasOpen=
             retireBloodFountainUi();
 
+        boolean legendaryPetFusionWasOpen=
+            retireLegendaryPetFusionUi();
+
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
@@ -677,6 +701,8 @@ final class LocalSessionUiActionHandler {
             " lotteryWasOpen="+lotteryWasOpen+
             " unclaimedCofferWasOpen="+unclaimedCofferWasOpen+
             " bloodFountainWasOpen="+bloodFountainWasOpen+
+            " legendaryPetFusionWasOpen="+
+                legendaryPetFusionWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
             " duelWasOpen="+duelWasOpen+
@@ -791,6 +817,46 @@ final class LocalSessionUiActionHandler {
                 " result="+result
             );
             return;
+        }
+
+        if(legendaryPetFusionUiOpen){
+            LegendaryPetFusionPresentation.Input petFusionInput=
+                LegendaryPetFusionPresentation.resolveWidget(
+                    LegendaryPetFusionPresentation.ROOT,
+                    widget
+                );
+
+            if(petFusionInput!=null){
+                LocalLegendaryPetFusionUiHandler.Result result=
+                    bridge.handleLegendaryPetFusionWidget(
+                        petFusionInput,
+                        tag
+                    );
+
+                if(result!=null&&
+                   result.kind==
+                        LegendaryPetFusionPresentation
+                            .InputKind.CLOSE&&
+                   result.succeeded)
+                    legendaryPetFusionUiOpen=false;
+
+                System.out.println(
+                    tag+
+                    "G1310_LEGENDARY_PET_FUSION widget="+
+                    widget+
+                    " kind="+petFusionInput.kind+
+                    " status="+
+                    (result==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :result.status)+
+                    " succeeded="+
+                    (result!=null&&result.succeeded)+
+                    " offeringClaim=false"+
+                    " legacyDefaultsUsed=false"+
+                    " rngClaim=false"
+                );
+                return;
+            }
         }
 
         BloodFountainHubService.Intent bloodFountainIntent=
@@ -1720,6 +1786,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1753,6 +1820,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1787,6 +1855,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1821,6 +1890,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bank.clientClosed();
@@ -1855,6 +1925,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1889,6 +1960,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -1922,6 +1994,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1933,6 +2006,42 @@ final class LocalSessionUiActionHandler {
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishLegendaryPetFusionRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
         return result;
     }
 
@@ -1991,6 +2100,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireLotteryUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2026,6 +2136,7 @@ final class LocalSessionUiActionHandler {
         retireGoodwillWellUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2061,6 +2172,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2096,6 +2208,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2131,6 +2244,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2167,6 +2281,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2202,6 +2317,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2237,6 +2353,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2272,6 +2389,7 @@ final class LocalSessionUiActionHandler {
         retireLotteryUi();
         retireUnclaimedCofferUi();
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2440,6 +2558,31 @@ final class LocalSessionUiActionHandler {
         );
     }
 
+    String replaceMonsterSpawnerWithLegendaryPetFusionRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireLegendaryPetFusionUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishLegendaryPetFusionRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            legendaryPetFusionUiOpen=true;
+
+        return result;
+    }
+
     String replaceMonsterSpawnerWithBloodFountainRoot(
         RootInterfaceAction publisher
     )throws IOException{
@@ -2450,6 +2593,7 @@ final class LocalSessionUiActionHandler {
             );
 
         retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
 
         String result=
             bridge.replaceMonsterSpawnerRoot(
@@ -2675,6 +2819,14 @@ final class LocalSessionUiActionHandler {
         bloodFountainUiOpen=false;
 
         return bridge.retireBloodFountainRoot()||
+            wasOpen;
+    }
+
+    private boolean retireLegendaryPetFusionUi(){
+        boolean wasOpen=legendaryPetFusionUiOpen;
+        legendaryPetFusionUiOpen=false;
+
+        return bridge.retireLegendaryPetFusionRoot()||
             wasOpen;
     }
 

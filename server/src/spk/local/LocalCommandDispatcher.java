@@ -118,6 +118,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openLegendaryPetFusion(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openDuel(
             String targetRef,
             ServerPacketWriter serverPackets
@@ -703,6 +708,31 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isLegendaryPetFusionRoute(p)){
+            boolean opened=
+                bridge.openLegendaryPetFusion(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G1310_LEGENDARY_PET_FUSION_COMMAND"+
+                " opened="+opened+
+                " root="+
+                LegendaryPetFusionPresentation.ROOT+
+                " fuseWire="+
+                LegendaryPetFusionPresentation.FUSE_WIRE_WIDGET+
+                " presentationAuthority="+
+                LegendaryPetFusionPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLegendaryPetFusionUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " legacyDefaultsUsed=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
         if(isDuelRoute(p)){
             String target=
                 duelTarget(p);
@@ -1138,6 +1168,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "activities"
+                )
+            );
+    }
+
+    static boolean isLegendaryPetFusionRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "petfusion"
+                )||
+                p[0].equalsIgnoreCase(
+                    "legendaryfusion"
                 )
             );
     }
