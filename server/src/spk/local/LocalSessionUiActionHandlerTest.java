@@ -20,6 +20,8 @@ public final class LocalSessionUiActionHandlerTest {
         int monsterSpawnerWidgetTransactions;
         int monsterSpawnerRootReplacements;
         int makeoverDesignerRetireCalls;
+        int lootingBagRetireCalls;
+        boolean lootingBagOpen;
         LocalMonsterSpawnerUiHandler.Result lastMonsterSpawnerResult;
 
         @Override public void saveAccount(
@@ -94,6 +96,13 @@ public final class LocalSessionUiActionHandlerTest {
         @Override public boolean retireMakeoverDesignerRoot(){
             makeoverDesignerRetireCalls++;
             return true;
+        }
+
+        @Override public boolean retireLootingBagRoot(){
+            lootingBagRetireCalls++;
+            boolean wasOpen=lootingBagOpen;
+            lootingBagOpen=false;
+            return wasOpen;
         }
 
         @Override public void handleMonsterSpawnerResult(
@@ -322,6 +331,65 @@ public final class LocalSessionUiActionHandlerTest {
                 equipment,
                 monsterSpawnerUi,
                 bridge
+            );
+
+        int lootingBagRetiresBefore=
+            bridge.lootingBagRetireCalls;
+
+        String lootingBagTarget=
+            routed.replaceMonsterSpawnerWithLootingBagRoot(
+                ()->{
+                    bridge.lootingBagOpen=true;
+                    return "LOOTING_BAG_TARGET_OPENED";
+                }
+            );
+
+        if(!"LOOTING_BAG_TARGET_OPENED".equals(
+                lootingBagTarget
+            )||
+           !bridge.lootingBagOpen||
+           bridge.lootingBagRetireCalls!=
+                lootingBagRetiresBefore)
+            throw new AssertionError(
+                "Looting Bag target root retired its own ownership"
+            );
+
+        String afterLootingBag=
+            routed.replaceMonsterSpawnerRoot(
+                ()->"AFTER_LOOTING_BAG"
+            );
+
+        if(!"AFTER_LOOTING_BAG".equals(
+                afterLootingBag
+            )||
+           bridge.lootingBagOpen||
+           bridge.lootingBagRetireCalls!=
+                lootingBagRetiresBefore+1)
+            throw new AssertionError(
+                "competing root did not retire Looting Bag ownership"
+            );
+
+        routed.replaceMonsterSpawnerWithLootingBagRoot(
+            ()->{
+                bridge.lootingBagOpen=true;
+                return "LOOTING_BAG_REOPENED";
+            }
+        );
+
+        int closeRetiresBefore=
+            bridge.lootingBagRetireCalls;
+
+        routed.handleInterfaceClose(
+            true,
+            w,
+            "[ui-test] "
+        );
+
+        if(bridge.lootingBagOpen||
+           bridge.lootingBagRetireCalls!=
+                closeRetiresBefore+1)
+            throw new AssertionError(
+                "interface close did not retire Looting Bag ownership"
             );
 
         int configuredPreOpenWire=
