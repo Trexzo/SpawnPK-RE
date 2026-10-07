@@ -5,12 +5,13 @@ import java.util.*;
 /**
  * World-owned CUSTOM_LOCALLAB Adventure gameplay runtime.
  *
- * G16.3 owns one explicit PvM chapter and one objective only. Progress is
+ * G16 owns one explicit PvM chapter and one objective only. Progress is
  * attributed exclusively from the already-certified Monster Spawner terminal
  * finalization seam after explicit per-player activation.
  *
- * Reward settlement, teleport execution, persistence and original SpawnPK
- * Adventure policy remain outside this runtime.
+ * G16.5 persists only activation/progress through a versioned PlayerSnapshot
+ * extension. Reward settlement, teleport execution, reset cadence and original
+ * SpawnPK Adventure policy remain outside this runtime.
  */
 final class LocalLabAdventureRuntime {
     static final String AUTHORITY=
@@ -90,6 +91,13 @@ final class LocalLabAdventureRuntime {
     private final World world;
     private final Map<String,PlayerState> byPlayer=
         new HashMap<>();
+    private final Set<WorldPlayer> hydratedPlayers=
+        Collections.newSetFromMap(
+            new IdentityHashMap<WorldPlayer,Boolean>()
+        );
+    private final IdentityHashMap<WorldPlayer,String>
+        invalidPersistence=
+            new IdentityHashMap<>();
 
     LocalLabAdventureRuntime(
         World world
@@ -122,6 +130,15 @@ final class LocalLabAdventureRuntime {
                     owner,
                     generation,
                     ()->{
+                        ensureRestoredOwned(
+                            player,
+                            owner
+                        );
+                        requirePersistenceValid(
+                            player,
+                            owner
+                        );
+
                         PlayerState existing=
                             state(
                                 player
@@ -138,7 +155,9 @@ final class LocalLabAdventureRuntime {
                         }
 
                         PlayerState created=
-                            createState();
+                            createState(
+                                0L
+                            );
 
                         synchronized(this){
                             PlayerState raced=
@@ -161,6 +180,13 @@ final class LocalLabAdventureRuntime {
                                 created
                             );
                         }
+
+                        persistOwned(
+                            owner,
+                            created.objectives.get(
+                                OBJECTIVE_KEY
+                            )
+                        );
 
                         result[0]=
                             new ActivationResult(
@@ -195,18 +221,9 @@ final class LocalLabAdventureRuntime {
     AdventureService.Snapshot snapshot(
         String playerRef
     ){
-        String player=
-            normalizePlayer(
-                playerRef
-            );
-
-        requireCurrentPlayer(
-            player
-        );
-
         PlayerState state=
-            state(
-                player
+            resolveState(
+                playerRef
             );
 
         return state==null
@@ -217,18 +234,9 @@ final class LocalLabAdventureRuntime {
     AdventureBookProjectionMapper.Snapshot projection(
         String playerRef
     ){
-        String player=
-            normalizePlayer(
-                playerRef
-            );
-
-        requireCurrentPlayer(
-            player
-        );
-
         PlayerState state=
-            state(
-                player
+            resolveState(
+                playerRef
             );
 
         return state==null
@@ -240,18 +248,9 @@ final class LocalLabAdventureRuntime {
     ObjectiveProgressService.Snapshot objective(
         String playerRef
     ){
-        String player=
-            normalizePlayer(
-                playerRef
-            );
-
-        requireCurrentPlayer(
-            player
-        );
-
         PlayerState state=
-            state(
-                player
+            resolveState(
+                playerRef
             );
 
         return state==null
@@ -289,6 +288,15 @@ final class LocalLabAdventureRuntime {
                     owner,
                     generation,
                     ()->{
+                        ensureRestoredOwned(
+                            player,
+                            owner
+                        );
+                        requirePersistenceValid(
+                            player,
+                            owner
+                        );
+
                         PlayerState state=
                             state(
                                 player
@@ -338,6 +346,11 @@ final class LocalLabAdventureRuntime {
                                         1L
                                     );
 
+                        persistOwned(
+                            owner,
+                            progress.after
+                        );
+
                         result[0]=
                             new ProgressResult(
                                 true,
@@ -383,7 +396,207 @@ final class LocalLabAdventureRuntime {
         return byPlayer.size();
     }
 
-    private PlayerState createState(){
+    private PlayerState resolveState(
+        String playerRef
+    ){
+        String player=
+            normalizePlayer(
+                playerRef
+            );
+        WorldPlayer owner=
+            requireCurrentPlayer(
+                player
+            );
+        long generation=
+            owner.generation();
+        final PlayerState[] result={null};
+
+        try{
+            boolean current=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    owner,
+                    generation,
+                    ()->{
+                        ensureRestoredOwned(
+                            player,
+                            owner
+                        );
+                        requirePersistenceValid(
+                            player,
+                            owner
+                        );
+                        result[0]=
+                            state(
+                                player
+                            );
+                    }
+                );
+
+            if(!current)
+                throw new IllegalStateException(
+                    "stale Adventure player "+
+                    player
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Adventure state ownership failed player="+
+                player,
+                failure
+            );
+        }
+
+        return result[0];
+    }
+
+    private void ensureRestoredOwned(
+        String player,
+        WorldPlayer owner
+    ){
+        synchronized(this){
+            if(hydratedPlayers.contains(
+                    owner))
+                return;
+        }
+
+        SortedMap<String,String> values=
+            owner.snapshotExtensions()
+                .namespace(
+                    LocalLabAdventurePersistence
+                        .NAMESPACE
+                );
+
+        try{
+            LocalLabAdventurePersistence.Snapshot
+                decoded=
+                    LocalLabAdventurePersistence
+                        .decode(values);
+
+            if(decoded==null){
+                synchronized(this){
+                    /*
+                     * Snapshot absence is authoritative for this player
+                     * identity. Do not leak a prior same-username runtime
+                     * entry across unregister/register boundaries.
+                     */
+                    byPlayer.remove(
+                        player
+                    );
+                }
+            }else{
+                PlayerState restored=
+                    createState(
+                        decoded.progress
+                    );
+
+                ObjectiveProgressService.Snapshot
+                    objective=
+                        restored.objectives.get(
+                            OBJECTIVE_KEY
+                        );
+
+                if(objective.progress!=
+                        decoded.progress||
+                   objective.goal!=GOAL||
+                   objective.complete!=
+                        decoded.complete()||
+                   objective.claimed)
+                    throw new IllegalStateException(
+                        "Adventure persisted replay mismatch player="+
+                        player
+                    );
+
+                synchronized(this){
+                    /*
+                     * The loaded namespace is authoritative for a newly
+                     * hydrated player identity, so it replaces any stale
+                     * same-username entry left by an older registration.
+                     */
+                    byPlayer.put(
+                        player,
+                        restored
+                    );
+                }
+            }
+        }catch(RuntimeException failure){
+            synchronized(this){
+                byPlayer.remove(
+                    player
+                );
+                invalidPersistence.put(
+                    owner,
+                    failure.getMessage()==null
+                        ?failure.getClass()
+                            .getSimpleName()
+                        :failure.getMessage()
+                );
+                hydratedPlayers.add(
+                    owner
+                );
+            }
+            return;
+        }
+
+        synchronized(this){
+            invalidPersistence.remove(
+                owner
+            );
+            hydratedPlayers.add(
+                owner
+            );
+        }
+    }
+
+    private void requirePersistenceValid(
+        String player,
+        WorldPlayer owner
+    ){
+        final String invalid;
+
+        synchronized(this){
+            invalid=
+                invalidPersistence.get(
+                    owner
+                );
+        }
+
+        if(invalid!=null)
+            throw new IllegalStateException(
+                "Adventure persistence invalid player="+
+                player+
+                " reason="+
+                invalid
+            );
+    }
+
+    private void persistOwned(
+        WorldPlayer owner,
+        ObjectiveProgressService.Snapshot objective
+    ){
+        owner.snapshotExtensions()
+            .replaceNamespace(
+                LocalLabAdventurePersistence
+                    .NAMESPACE,
+                LocalLabAdventurePersistence
+                    .encode(
+                        objective
+                    )
+            );
+
+        synchronized(this){
+            invalidPersistence.remove(
+                owner
+            );
+            hydratedPlayers.add(
+                owner
+            );
+        }
+    }
+
+    private PlayerState createState(
+        long initialProgress
+    ){
         ObjectiveProgressService objectives=
             new ObjectiveProgressService();
 
@@ -392,7 +605,9 @@ final class LocalLabAdventureRuntime {
                 OBJECTIVE_KEY,
                 GOAL,
                 AUTHORITY
-            )
+            ),
+            initialProgress,
+            false
         );
 
         AdventureService adventure=
