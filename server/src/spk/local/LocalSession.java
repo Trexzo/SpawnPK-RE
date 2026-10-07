@@ -901,15 +901,38 @@ final class LocalSession implements Runnable {
                 @Override public boolean openAdventureBook(
                     ServerPacketWriter writer
                 )throws IOException{
+                    LocalLabAdventureRuntime.ActivationResult
+                        activated=
+                            LocalSession.this.world
+                                .localLabAdventures()
+                                .activate(
+                                    LocalSession.this
+                                        .worldPlayer
+                                        .username()
+                                );
+
+                    ObjectiveProgressService.Snapshot
+                        objective=
+                            LocalSession.this.world
+                                .localLabAdventures()
+                                .objective(
+                                    LocalSession.this
+                                        .worldPlayer
+                                        .username()
+                                );
+
                     String result=
                         LocalSession.this.uiActions
                             .replaceMonsterSpawnerRoot(
                                 ()->{
-                                    AdventureBookPresentation
-                                        .openEmpty(
-                                            writer
+                                    LocalLabAdventureBookPresentation
+                                        .open(
+                                            writer,
+                                            objective
                                         );
-                                    return "ADVENTURE_BOOK_MODE_OPENED";
+                                    return activated.activatedNow
+                                        ?"ADVENTURE_BOOK_ACTIVATED_OPENED"
+                                        :"ADVENTURE_BOOK_ACTIVE_OPENED";
                                 }
                             );
 
