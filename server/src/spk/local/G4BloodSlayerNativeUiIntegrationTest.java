@@ -39,7 +39,7 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
                 handleAndPublish(
                     handler,
                     BloodSlayerPresentation.resolveWidget(
-                        BloodSlayerPresentation.BOUNTY_HUNTER_WIDGET
+                        BloodSlayerPresentation.SLAUGHTER_WIDGET
                     ),
                     0L,
                     packets
@@ -49,7 +49,7 @@ public final class G4BloodSlayerNativeUiIntegrationTest {
                     LocalBloodSlayerUiHandler.Status.UNSUPPORTED_MODE&&
                 world.localLabSlayer().status("opensrc").selectedMode==null&&
                 world.localLabSlayer().status("opensrc").task==null,
-                "unsupported exact PK mode mutated LocalLab Slayer"
+                "unsupported exact Slaughter mode mutated LocalLab Slayer"
             );
 
             LocalBloodSlayerUiHandler.Result prematureTask=
