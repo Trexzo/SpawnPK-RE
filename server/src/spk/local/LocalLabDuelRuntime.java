@@ -242,6 +242,39 @@ final class LocalLabDuelRuntime {
         }
     }
 
+    synchronized DuelSessionService.Snapshot decline(
+        String challengedRef
+    ){
+        String challenged=
+            PartyService.requireRef(
+                challengedRef
+            );
+
+        DuelSessionService.Snapshot open=
+            duels.openFor(
+                challenged
+            );
+
+        if(open==null||
+           open.state!=
+                DuelSessionService.State.PROPOSED)
+            throw new IllegalStateException(
+                "G10.7 requires open PROPOSED Duel for "+
+                challenged
+            );
+
+        if(!open.challengedRef.equals(
+                challenged))
+            throw new IllegalArgumentException(
+                "only challenged player may decline Duel"
+            );
+
+        return duels.decline(
+            open.challengeId,
+            challenged
+        );
+    }
+
     synchronized StartResult acceptAndStart(
         String challengedRef
     ){
