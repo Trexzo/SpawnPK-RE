@@ -206,29 +206,13 @@ final class LocalLabMonsterSpawnerProvisioning {
                 MonsterSpawnerNpcDeathFinalizationService.Result
                     finalization=result.finalization;
 
-                WorldPlayer recipient=
-                    checkedWorld.players().byName(
-                        finalization.recipientRef
-                    );
-
-                if(recipient==null)
-                    return;
-
-                long generation=
-                    recipient.generation();
-
-                if(!checkedWorld.players().owns(
-                        recipient,
-                        generation))
-                    return;
-
-                checkedWorld.localLabSlayer()
-                    .recordMonsterSpawnerFinalization(
-                        finalization.recipientRef,
-                        finalization.definitionId,
-                        finalization.deathTile,
-                        finalization.deathTick
-                    );
+                creditTerminalProgression(
+                    checkedWorld,
+                    finalization.recipientRef,
+                    finalization.definitionId,
+                    finalization.deathTile,
+                    finalization.deathTick
+                );
             }
         );
 
@@ -267,6 +251,69 @@ final class LocalLabMonsterSpawnerProvisioning {
                 }
             }
         );
+    }
+
+    /**
+     * Shared progression seam for one already-terminal, post-settlement
+     * Monster Spawner death.
+     *
+     * G4 Blood Slayer remains first. G14 Daily Challenges consume the same
+     * validated finalization only after that established progression hook.
+     */
+    static boolean creditTerminalProgression(
+        World world,
+        String recipientRef,
+        int definitionId,
+        Tile deathTile,
+        long deathTick
+    ){
+        World checkedWorld=
+            Objects.requireNonNull(
+                world,
+                "world"
+            );
+        String recipientRefChecked=
+            PartyService.requireRef(
+                recipientRef
+            );
+        Tile tile=
+            Objects.requireNonNull(
+                deathTile,
+                "deathTile"
+            );
+
+        WorldPlayer recipient=
+            checkedWorld.players().byName(
+                recipientRefChecked
+            );
+
+        if(recipient==null)
+            return false;
+
+        long generation=
+            recipient.generation();
+
+        if(!checkedWorld.players().owns(
+                recipient,
+                generation))
+            return false;
+
+        checkedWorld.localLabSlayer()
+            .recordMonsterSpawnerFinalization(
+                recipientRefChecked,
+                definitionId,
+                tile,
+                deathTick
+            );
+
+        checkedWorld.localLabDailyChallenges()
+            .recordMonsterSpawnerFinalization(
+                recipientRefChecked,
+                definitionId,
+                deathTick
+            );
+
+        return true;
     }
 
     static Tile resolveCurrentOwnerAdjacentTile(
