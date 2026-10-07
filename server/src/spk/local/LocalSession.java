@@ -202,6 +202,7 @@ final class LocalSession implements Runnable {
     private final LocalGoodwillWellUiHandler goodwillWellUi;
     private final LocalLotteryUiHandler lotteryUi;
     private final LocalUnclaimedRewardCofferUiHandler unclaimedCofferUi;
+    private final LocalBloodFountainUiHandler bloodFountainUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
@@ -594,6 +595,8 @@ final class LocalSession implements Runnable {
             new LocalUnclaimedRewardCofferUiHandler(
                 this.worldPlayer
             );
+        this.bloodFountainUi=
+            new LocalBloodFountainUiHandler();
         this.quickPrayerSelections=
             new QuickPrayerSelectionService(
                 this.worldPlayer,
@@ -814,6 +817,23 @@ final class LocalSession implements Runnable {
                                         .unclaimedCofferUi
                                         .open(writer);
                                     return "UNCLAIMED_COFFER_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
+                @Override public boolean openBloodFountain(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerWithBloodFountainRoot(
+                                ()->{
+                                    LocalSession.this
+                                        .bloodFountainUi
+                                        .openHub(writer);
+                                    return "BLOOD_FOUNTAIN_ROOT_OPENED";
                                 }
                             );
 
@@ -1142,6 +1162,46 @@ final class LocalSession implements Runnable {
                     return LocalSession.this
                         .unclaimedCofferUi
                         .handleBulk(intent);
+                }
+
+                @Override public boolean retireBloodFountainRoot(){
+                    return LocalSession.this
+                        .bloodFountainUi
+                        .close();
+                }
+
+                @Override public boolean openBloodFountainHub(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this
+                        .bloodFountainUi
+                        .openHub(writer);
+                    return true;
+                }
+
+                @Override public LocalBloodFountainUiHandler.HubResult
+                    handleBloodFountainHubIntent(
+                        BloodFountainHubService.Intent intent,
+                        ServerPacketWriter writer,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .bloodFountainUi
+                        .handleHubIntent(
+                            intent,
+                            writer
+                        );
+                }
+
+                @Override public LocalBloodFountainUiHandler.SalvageResult
+                    handleBloodShardSalvageWidget(
+                        BloodShardSalvagePresentation.Intent intent,
+                        String tag
+                    )throws IOException{
+                    return LocalSession.this
+                        .bloodFountainUi
+                        .handleSalvage(intent);
                 }
 
                 @Override public boolean openLottery(
