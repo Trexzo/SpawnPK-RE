@@ -55,6 +55,7 @@ final class World implements AutoCloseable {
     private final LocalLabShopRuntime localLabShops;
     private final LocalLabSlayerRuntime localLabSlayer;
     private final LocalLabDailyChallengeRuntime localLabDailyChallenges;
+    private final LocalLabTaskScrollRuntime localLabTaskScrolls;
     private final LootingBagService lootingBags=
         new LootingBagService();
     private final Object competitiveAdmissionLock=
@@ -214,6 +215,8 @@ final class World implements AutoCloseable {
             new LocalLabSlayerRuntime(this);
         localLabDailyChallenges=
             new LocalLabDailyChallengeRuntime(this);
+        localLabTaskScrolls=
+            new LocalLabTaskScrollRuntime(this);
         localDuels=
             new LocalLabDuelRuntime(this);
         localTournament.installMatchAdmissionFence(
@@ -446,6 +449,9 @@ final class World implements AutoCloseable {
     LocalLabSlayerRuntime localLabSlayer(){return localLabSlayer;}
     LocalLabDailyChallengeRuntime localLabDailyChallenges(){
         return localLabDailyChallenges;
+    }
+    LocalLabTaskScrollRuntime localLabTaskScrolls(){
+        return localLabTaskScrolls;
     }
     LootingBagService lootingBags(){return lootingBags;}
     LocalLabTournamentRuntime localTournament(){return localTournament;}
