@@ -1434,13 +1434,22 @@ final class LocalWorldTickCoordinator {
                     );
 
             if(tournamentDeathClaim&&
-               duelDeathClaim)
+               duelDeathClaim){
+                /*
+                 * Preserve the exact deferred settlement debt. The collision
+                 * is a fail-closed ownership error, not permission to discard
+                 * the victim's already-resolved death settlement.
+                 */
+                deferredDeathResolution=resolution;
+                deferredDeathPlan=plan;
+
                 throw new IllegalStateException(
                     "canonical PvP death has multiple competitive owners "+
                     "killer="+canonicalKiller+
                     " victim="+canonicalVictim+
                     " deathSequence="+resolution.deathSequence
                 );
+            }
 
             if(tournamentDeathClaim)
                 world.localTournament()
