@@ -473,7 +473,18 @@ final class LocalLabAdventureRuntime {
                     LocalLabAdventurePersistence
                         .decode(values);
 
-            if(decoded!=null){
+            if(decoded==null){
+                synchronized(this){
+                    /*
+                     * Snapshot absence is authoritative for this player
+                     * identity. Do not leak a prior same-username runtime
+                     * entry across unregister/register boundaries.
+                     */
+                    byPlayer.remove(
+                        player
+                    );
+                }
+            }else{
                 PlayerState restored=
                     createState(
                         decoded.progress
@@ -497,17 +508,11 @@ final class LocalLabAdventureRuntime {
                     );
 
                 synchronized(this){
-                    PlayerState existing=
-                        byPlayer.get(
-                            player
-                        );
-
-                    if(existing!=null)
-                        throw new IllegalStateException(
-                            "Adventure state already active before persistence hydration player="+
-                            player
-                        );
-
+                    /*
+                     * The loaded namespace is authoritative for a newly
+                     * hydrated player identity, so it replaces any stale
+                     * same-username entry left by an older registration.
+                     */
                     byPlayer.put(
                         player,
                         restored
