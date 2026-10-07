@@ -256,6 +256,25 @@ final class LocalSessionUiActionHandler {
             return null;
         }
 
+        default boolean retireDonationCartRoot(){
+            return false;
+        }
+
+        default boolean openDonationCart(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalDonationCartUiHandler.Result
+            handleDonationCartInput(
+                DonationCartPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default boolean openBloodFountainHub(
             ServerPacketWriter serverPackets,
             String tag
@@ -434,6 +453,7 @@ final class LocalSessionUiActionHandler {
     private volatile boolean legendaryPetFusionUiOpen;
     private volatile boolean itemEnchantmentUiOpen;
     private volatile boolean donorPanelUiOpen;
+    private volatile boolean donationCartUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -587,6 +607,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         bloodSlayerUiOpen=false;
         pkRatingsUiOpen=false;
         monsterSpawnerUiOpen=true;
@@ -705,6 +726,9 @@ final class LocalSessionUiActionHandler {
         boolean donorPanelWasOpen=
             retireDonorPanelUi();
 
+        boolean donationCartWasOpen=
+            retireDonationCartUi();
+
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
@@ -755,6 +779,8 @@ final class LocalSessionUiActionHandler {
                 itemEnchantmentWasOpen+
             " donorPanelWasOpen="+
                 donorPanelWasOpen+
+            " donationCartWasOpen="+
+                donationCartWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
             " duelWasOpen="+duelWasOpen+
@@ -869,6 +895,45 @@ final class LocalSessionUiActionHandler {
                 " result="+result
             );
             return;
+        }
+
+        if(donationCartUiOpen){
+            DonationCartPresentation.Input cartInput=
+                DonationCartPresentation.resolveWidget(
+                    widget
+                );
+
+            if(cartInput!=null){
+                LocalDonationCartUiHandler.Result result=
+                    bridge.handleDonationCartInput(
+                        cartInput,
+                        tag
+                    );
+
+                System.out.println(
+                    tag+
+                    "G1313_DONATION_CART widget="+
+                    widget+
+                    " kind="+cartInput.kind+
+                    " productIndex="+
+                    cartInput.productIndex+
+                    " delta="+
+                    cartInput.quantityDelta+
+                    " paymentMode="+
+                    cartInput.paymentMode+
+                    " status="+
+                    (result==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :result.status)+
+                    " succeeded="+
+                    (result!=null&&result.succeeded)+
+                    " catalogClaim=false"+
+                    " pricingClaim=false"+
+                    " checkoutClaim=false"+
+                    " paymentProcessingClaim=false"
+                );
+                return;
+            }
         }
 
         if(donorPanelUiOpen){
@@ -1907,6 +1972,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1943,6 +2009,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1980,6 +2047,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2017,6 +2085,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bank.clientClosed();
@@ -2054,6 +2123,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2091,6 +2161,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -2127,6 +2198,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2138,6 +2210,45 @@ final class LocalSessionUiActionHandler {
         bridge.retireLootingBagRoot();
         bridge.retireTournamentRoot();
         bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishDonationCartRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
         return result;
     }
 
@@ -2310,6 +2421,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2348,6 +2460,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2386,6 +2499,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2424,6 +2538,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2462,6 +2577,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2501,6 +2617,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2539,6 +2656,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2577,6 +2695,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2615,6 +2734,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -2783,6 +2903,31 @@ final class LocalSessionUiActionHandler {
         );
     }
 
+    String replaceMonsterSpawnerWithDonationCartRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireDonationCartUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishDonationCartRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            donationCartUiOpen=true;
+
+        return result;
+    }
+
     String replaceMonsterSpawnerWithDonorPanelRoot(
         RootInterfaceAction publisher
     )throws IOException{
@@ -2793,6 +2938,7 @@ final class LocalSessionUiActionHandler {
             );
 
         retireDonorPanelUi();
+        retireDonationCartUi();
 
         String result=
             bridge.replaceMonsterSpawnerRoot(
@@ -2819,6 +2965,7 @@ final class LocalSessionUiActionHandler {
 
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
 
         String result=
             bridge.replaceMonsterSpawnerRoot(
@@ -2846,6 +2993,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
 
         String result=
             bridge.replaceMonsterSpawnerRoot(
@@ -2874,6 +3022,7 @@ final class LocalSessionUiActionHandler {
         retireLegendaryPetFusionUi();
         retireItemEnchantmentUi();
         retireDonorPanelUi();
+        retireDonationCartUi();
 
         String result=
             bridge.replaceMonsterSpawnerRoot(
@@ -3123,6 +3272,14 @@ final class LocalSessionUiActionHandler {
         donorPanelUiOpen=false;
 
         return bridge.retireDonorPanelRoot()||
+            wasOpen;
+    }
+
+    private boolean retireDonationCartUi(){
+        boolean wasOpen=donationCartUiOpen;
+        donationCartUiOpen=false;
+
+        return bridge.retireDonationCartRoot()||
             wasOpen;
     }
 
