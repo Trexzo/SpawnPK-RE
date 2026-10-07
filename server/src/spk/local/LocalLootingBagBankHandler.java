@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Live LocalLab composition for exact-v308 Looting Bag per-item Deposit actions.
@@ -50,23 +51,20 @@ final class LocalLootingBagBankHandler {
         }
     }
 
-    private final String ownerRef;
+    private final Supplier<String> ownerRef;
     private final LootingBagService service;
     private final BankState bank;
     private boolean open;
 
     LocalLootingBagBankHandler(
-        String ownerRef,
+        Supplier<String> ownerRef,
         LootingBagService service,
         BankState bank
     ){
-        if(ownerRef==null||
-           ownerRef.trim().isEmpty())
-            throw new IllegalArgumentException(
-                "ownerRef blank"
-            );
-
-        this.ownerRef=ownerRef;
+        this.ownerRef=Objects.requireNonNull(
+            ownerRef,
+            "ownerRef"
+        );
         this.service=Objects.requireNonNull(
             service,
             "service"
@@ -88,7 +86,7 @@ final class LocalLootingBagBankHandler {
 
         LootingBagPresentation.Projection projection=
             LootingBagPresentation.project(
-                service.get(ownerRef)
+                service.get(owner())
             );
 
         packets.beginBatch();
@@ -167,7 +165,7 @@ final class LocalLootingBagBankHandler {
             );
 
         LootingBagService.Snapshot before=
-            service.get(ownerRef);
+            service.get(owner());
         LootingBagPresentation.Projection projection=
             LootingBagPresentation.project(
                 before
@@ -235,7 +233,7 @@ final class LocalLootingBagBankHandler {
         LootingBagService.SettlementSnapshot
             reservation=
                 service.beginBankDeposit(
-                    ownerRef,
+                    owner(),
                     intent.slotId,
                     amount
                 );
@@ -264,7 +262,7 @@ final class LocalLootingBagBankHandler {
         LootingBagPresentation.Projection postimage=
             LootingBagPresentation
                 .projectAfterBankDeposit(
-                    service.get(ownerRef),
+                    service.get(owner()),
                     reservation
                 );
 
@@ -326,6 +324,18 @@ final class LocalLootingBagBankHandler {
             bankCredit.destinationSlot,
             "LOOTING_BAG_BANK_DEPOSIT"
         );
+    }
+
+    private String owner(){
+        String value=ownerRef.get();
+
+        if(value==null||
+           value.trim().isEmpty())
+            throw new IllegalStateException(
+                "Looting Bag owner unavailable"
+            );
+
+        return value;
     }
 
     private int resolvedAmount(
