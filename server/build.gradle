@@ -2110,6 +2110,7 @@ def currentTrainFocusedTests = [
     'spk.local.G163AdventurePvmRuntimeIntegrationTest',
     'spk.local.G164AdventureLivePvmIntegrationTest',
     'spk.local.G165AdventurePersistenceIntegrationTest',
+    'spk.local.G171AchievementAuthorityIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2138,10 +2139,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 291 ||
-    currentTrainFocusedTests.toSet().size() != 291) {
+if (currentTrainFocusedTests.size() != 292 ||
+    currentTrainFocusedTests.toSet().size() != 292) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 291 unique tests, found " +
+        "Current-train focused manifest drift: expected 292 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2577,6 +2578,14 @@ tasks.register('g165AdventurePersistenceRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G165AdventurePersistenceIntegrationTest')
+}
+
+tasks.register('g171AchievementAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates the nine-row semantic Achievement binding service plus exact-current target-1 CLEAR/BUILD presentation controls.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G171AchievementAuthorityIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
