@@ -907,6 +907,7 @@ final class LocalSessionUiActionHandler {
         bank.clientClosed();
         compCapeCustomize.close();
         closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
         return result;
     }
 
@@ -931,6 +932,7 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
         return result;
     }
 
@@ -955,6 +957,7 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
         return result;
     }
 
@@ -979,6 +982,7 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
         return result;
     }
 
@@ -1004,6 +1008,7 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
         return result;
     }
 
@@ -1027,6 +1032,7 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
         return result;
     }
 
@@ -1052,6 +1058,33 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        return result;
+    }
+
+    String publishLootingBagRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+
         return result;
     }
 
@@ -1077,6 +1110,7 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
 
+        bridge.retireLootingBagRoot();
         return result;
     }
 
@@ -1178,6 +1212,23 @@ final class LocalSessionUiActionHandler {
         return bridge.replaceMonsterSpawnerRoot(
             ()->
                 publishBankRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithLootingBagRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishLootingBagRootForOwnedSession(
                     checked
                 )
         );
