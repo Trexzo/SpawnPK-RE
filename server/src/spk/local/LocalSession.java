@@ -1017,6 +1017,23 @@ final class LocalSession implements Runnable {
                     return true;
                 }
 
+                @Override public String handleQuickPrayerOff(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    String result=
+                        LocalSession.this.prayers
+                            .deactivateAll(writer);
+
+                    QuickPrayerSelectionPresentation
+                        .publishActive(
+                            writer,
+                            false
+                        );
+
+                    return result;
+                }
+
                 @Override public String handleQuickPrayerWidget(
                     int widget,
                     String tag
