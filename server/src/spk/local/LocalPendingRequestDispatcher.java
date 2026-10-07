@@ -37,6 +37,13 @@ final class LocalPendingRequestDispatcher {
             String tag
         )throws IOException;
 
+        default LocalDailyChallengeCommandHandler.Result
+            handleDailyChallengeRequest(
+                DailyChallengeClientRequest request
+            )throws IOException{
+            return null;
+        }
+
         default void handleRegionLoadAck(
             String tag
         ){}
@@ -647,11 +654,34 @@ final class LocalPendingRequestDispatcher {
                 DailyChallengeClientRequest dailyChallenge=
                     (DailyChallengeClientRequest)request;
 
+                LocalDailyChallengeCommandHandler.Result
+                    dailyResult=
+                        bridge.handleDailyChallengeRequest(
+                            dailyChallenge
+                        );
+
+                if(dailyResult==null){
+                    System.out.println(
+                        tag+
+                        dailyChallengeFailClosedDiagnostic(
+                            dailyChallenge
+                        )
+                    );
+                    continue;
+                }
+
+                new SocialChatPresentationPublisher(
+                    serverPackets
+                ).serverMessage(
+                    dailyResult.clientMessage
+                );
+
                 System.out.println(
                     tag+
-                    dailyChallengeFailClosedDiagnostic(
-                        dailyChallenge
-                    )
+                    dailyResult.logText+
+                    " clientFeedback=true"+
+                    " route=EXACT_CURRENT_C2S103_TYPED"+
+                    " nativePresentationClaim=false"
                 );
                 continue;
             }
