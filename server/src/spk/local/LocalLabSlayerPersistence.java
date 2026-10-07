@@ -231,7 +231,7 @@ final class LocalLabSlayerPersistence {
                 );
 
             BloodSlayerModeService.Mode mode=
-                decodeMode(values);
+                decodeG6Mode(values);
 
             return decodeVersion(
                 values,
