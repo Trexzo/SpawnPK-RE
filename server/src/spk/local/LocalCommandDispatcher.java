@@ -123,6 +123,15 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openTaskScroll(
+            boolean assignIfAbsent,
+            long worldTick,
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return openTaskScroll(
+                serverPackets
+            );
+        }
         default boolean openLegendaryPetFusion(
             ServerPacketWriter serverPackets
         )throws IOException{
@@ -763,6 +772,7 @@ final class LocalCommandDispatcher {
 
         if(dispatchTaskScrollCommand(
                 p,
+                sessionWorldTick,
                 bridge,
                 serverPackets,
                 tag
@@ -1059,7 +1069,29 @@ final class LocalCommandDispatcher {
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        if(!isTaskScrollRoute(tokens))
+        return dispatchTaskScrollCommand(
+            tokens,
+            0L,
+            bridge,
+            serverPackets,
+            tag
+        );
+    }
+
+    static boolean dispatchTaskScrollCommand(
+        String[] tokens,
+        long worldTick,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        boolean assign=
+            isTaskScrollAssignRoute(
+                tokens
+            );
+
+        if(!assign&&
+           !isTaskScrollRoute(tokens))
             return false;
 
         boolean opened=
@@ -1067,6 +1099,8 @@ final class LocalCommandDispatcher {
                 bridge,
                 "bridge"
             ).openTaskScroll(
+                assign,
+                worldTick,
                 Objects.requireNonNull(
                     serverPackets,
                     "serverPackets"
@@ -1075,8 +1109,10 @@ final class LocalCommandDispatcher {
 
         System.out.println(
             tag+
-            "G151_TASK_SCROLL_COMMAND"+
+            "G153_TASK_SCROLL_COMMAND"+
             " opened="+opened+
+            " assignRequested="+assign+
+            " worldTick="+worldTick+
             " root="+
             TaskScrollPresentation.ROOT+
             " infoRows="+
@@ -1085,11 +1121,12 @@ final class LocalCommandDispatcher {
             TaskScrollPresentation.REWARD_SLOTS+
             " presentationAuthority="+
             TaskScrollPresentation.PRESENTATION_AUTHORITY+
+            " gameplayAuthority="+
+            LocalLabTaskScrollRuntime.AUTHORITY+
             " routeAuthority=CUSTOM_LOCALLAB"+
-            " emptyProjection=true"+
             " inputRouter=false"+
-            " assignmentCreated=false"+
             " rewardPolicyClaim=false"+
+            " persistenceClaim=false"+
             " originalNavigationClaim=false"
         );
 
@@ -1362,6 +1399,22 @@ final class LocalCommandDispatcher {
                 p[0].equalsIgnoreCase(
                     "tscroll"
                 )
+            );
+    }
+
+    static boolean isTaskScrollAssignRoute(String[] p){
+        return p!=null&&
+            p.length==2&&
+            (
+                p[0].equalsIgnoreCase(
+                    "taskscroll"
+                )||
+                p[0].equalsIgnoreCase(
+                    "tscroll"
+                )
+            )&&
+            p[1].equalsIgnoreCase(
+                "assign"
             );
     }
 

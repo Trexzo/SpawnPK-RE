@@ -2103,6 +2103,7 @@ def currentTrainFocusedTests = [
     'spk.local.G146DailyControlAliasIntegrationTest',
     'spk.local.G151TaskScrollEmptyShellIntegrationTest',
     'spk.local.G152TaskScrollPvmRuntimeIntegrationTest',
+    'spk.local.G153TaskScrollLiveAssignIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2131,10 +2132,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 284 ||
-    currentTrainFocusedTests.toSet().size() != 284) {
+if (currentTrainFocusedTests.size() != 285 ||
+    currentTrainFocusedTests.toSet().size() != 285) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 284 unique tests, found " +
+        "Current-train focused manifest drift: expected 285 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2514,6 +2515,14 @@ tasks.register('g152TaskScrollPvmRuntimeRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G152TaskScrollPvmRuntimeIntegrationTest')
+}
+
+tasks.register('g153TaskScrollLiveAssignRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates explicit live Task Scroll assignment, populated exact-v308 projection, terminal-kill progress refresh and empty reward authority.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G153TaskScrollLiveAssignIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
