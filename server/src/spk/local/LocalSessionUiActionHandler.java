@@ -182,6 +182,15 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default PkRatingsService.Snapshot
+            handlePkRatingsNavigation(
+                PkRatingsService.Navigation navigation,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         default LocalDuelUiHandler.Result
             handleDuelWidget(
                 NormalDuelPresentation.Input input,
@@ -220,6 +229,7 @@ final class LocalSessionUiActionHandler {
     private volatile LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
     private volatile boolean monsterSpawnerUiOpen;
     private volatile boolean bloodSlayerUiOpen;
+    private volatile boolean pkRatingsUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
@@ -451,6 +461,9 @@ final class LocalSessionUiActionHandler {
         boolean bloodSlayerWasOpen=bloodSlayerUiOpen;
         bloodSlayerUiOpen=false;
 
+        boolean pkRatingsWasOpen=pkRatingsUiOpen;
+        pkRatingsUiOpen=false;
+
         boolean lootingBagWasOpen=
             bridge.retireLootingBagRoot();
 
@@ -488,6 +501,7 @@ final class LocalSessionUiActionHandler {
             " monsterSpawnerWasOpen="+monsterSpawnerWasOpen+
             " bossTeleportWasOpen="+bossTeleportWasOpen+
             " bloodSlayerWasOpen="+bloodSlayerWasOpen+
+            " pkRatingsWasOpen="+pkRatingsWasOpen+
             " lootingBagWasOpen="+lootingBagWasOpen+
             " tournamentWasOpen="+tournamentWasOpen+
             " duelWasOpen="+duelWasOpen+
@@ -646,49 +660,89 @@ final class LocalSessionUiActionHandler {
                 widget
             );
 
-        if(pkRatingsInput!=null&&
-           pkRatingsInput.kind==
-                PkRatingsPresentation.InputKind
-                    .OPEN_RATINGS_TAB){
-            final boolean[] opened={false};
+        if(pkRatingsInput!=null){
+            if(pkRatingsInput.kind==
+                    PkRatingsPresentation.InputKind
+                        .OPEN_RATINGS_TAB){
+                final boolean[] opened={false};
 
-            String result=
-                replaceMonsterSpawnerRoot(
-                    ()->{
-                        opened[0]=
-                            bridge.openPkRatings(
-                                serverPackets,
-                                tag
-                            );
-                        return opened[0]
-                            ?"PK_RATINGS_ROOT_OPENED"
-                            :"PK_RATINGS_ROOT_UNAVAILABLE";
-                    }
+                String result=
+                    replaceMonsterSpawnerWithPkRatingsRoot(
+                        ()->{
+                            opened[0]=
+                                bridge.openPkRatings(
+                                    serverPackets,
+                                    tag
+                                );
+                            return opened[0]
+                                ?"PK_RATINGS_ROOT_OPENED"
+                                :"PK_RATINGS_ROOT_UNAVAILABLE";
+                        }
+                    );
+
+                System.out.println(
+                    tag+
+                    "G112_PK_RATINGS_NATIVE_TAB widget="+
+                    widget+
+                    " status="+
+                    (result==null
+                        ?"LIFECYCLE_REJECTED"
+                        :opened[0]
+                            ?"OPENED"
+                            :"UNAVAILABLE")+
+                    " root="+
+                    PkRatingsPresentation.RATINGS_ROOT+
+                    " subtype="+
+                    PkRatingsPresentation.APPLICATION_SUBTYPE+
+                    " presentationAuthority="+
+                    PkRatingsPresentation.PRESENTATION_AUTHORITY+
+                    " gameplayAuthority="+
+                    LocalPkRatingsUiHandler.AUTHORITY+
+                    " dailyNavigationClaim=false"+
+                    " tournamentNavigationClaim=false"+
+                    " rowSelectionClaim=false"
                 );
+                return;
+            }
 
-            System.out.println(
-                tag+
-                "G112_PK_RATINGS_NATIVE_TAB widget="+
-                widget+
-                " status="+
-                (result==null
-                    ?"LIFECYCLE_REJECTED"
-                    :opened[0]
-                        ?"OPENED"
-                        :"UNAVAILABLE")+
-                " root="+
-                PkRatingsPresentation.RATINGS_ROOT+
-                " subtype="+
-                PkRatingsPresentation.APPLICATION_SUBTYPE+
-                " presentationAuthority="+
-                PkRatingsPresentation.PRESENTATION_AUTHORITY+
-                " gameplayAuthority="+
-                LocalPkRatingsUiHandler.AUTHORITY+
-                " dailyNavigationClaim=false"+
-                " tournamentNavigationClaim=false"+
-                " rowSelectionClaim=false"
-            );
-            return;
+            if(pkRatingsInput.kind==
+                    PkRatingsPresentation.InputKind
+                        .NAVIGATE){
+                if(!pkRatingsUiOpen){
+                    System.out.println(
+                        tag+
+                        "G113_PK_RATINGS_NAV widget="+
+                        widget+
+                        " status=CLOSED_UI_NOOP"
+                    );
+                    return;
+                }
+
+                PkRatingsService.Snapshot snapshot=
+                    bridge.handlePkRatingsNavigation(
+                        pkRatingsInput.navigation,
+                        serverPackets,
+                        tag
+                    );
+
+                System.out.println(
+                    tag+
+                    "G113_PK_RATINGS_NAV widget="+
+                    widget+
+                    " status="+
+                    (snapshot==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :"READ_ONLY_VIEW")+
+                    " navigation="+
+                    pkRatingsInput.navigation+
+                    " scoreClaim=false"+
+                    " rankingOrderClaim=false"+
+                    " rowSelectionClaim=false"
+                );
+                return;
+            }
+
+            // G11.3 deliberately leaves row selection unowned.
         }
 
         NormalDuelPresentation.Input duelInput=
@@ -1083,6 +1137,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1109,6 +1164,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1136,6 +1192,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1163,6 +1220,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bank.clientClosed();
@@ -1190,6 +1248,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1244,6 +1303,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1272,6 +1332,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1300,6 +1361,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1328,6 +1390,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1356,6 +1419,7 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
         itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
@@ -1522,6 +1586,29 @@ final class LocalSessionUiActionHandler {
                     checked
                 )
         );
+    }
+
+    String replaceMonsterSpawnerWithPkRatingsRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishCompetingRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            pkRatingsUiOpen=true;
+
+        return result;
     }
 
     String replaceMonsterSpawnerRoot(
