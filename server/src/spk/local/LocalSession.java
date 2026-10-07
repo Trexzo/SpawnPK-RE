@@ -981,6 +981,16 @@ final class LocalSession implements Runnable {
                     return LocalSession.this.duelUi.close();
                 }
 
+                @Override public boolean openPkRatings(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this.pkRatingsUi.open(
+                        writer
+                    );
+                    return true;
+                }
+
                 @Override public LocalDuelUiHandler.Result
                     handleDuelWidget(
                         NormalDuelPresentation.Input input,

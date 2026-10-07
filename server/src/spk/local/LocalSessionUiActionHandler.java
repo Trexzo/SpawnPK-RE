@@ -175,6 +175,13 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean openPkRatings(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
         default LocalDuelUiHandler.Result
             handleDuelWidget(
                 NormalDuelPresentation.Input input,
@@ -630,6 +637,56 @@ final class LocalSessionUiActionHandler {
                 " mode="+result.mode+
                 " c2s="+BloodSlayerPresentation.WIDGET_ACTION_OPCODE+
                 " authority="+LocalBloodSlayerUiHandler.AUTHORITY
+            );
+            return;
+        }
+
+        PkRatingsPresentation.Input pkRatingsInput=
+            PkRatingsPresentation.resolveWidget(
+                widget
+            );
+
+        if(pkRatingsInput!=null&&
+           pkRatingsInput.kind==
+                PkRatingsPresentation.InputKind
+                    .OPEN_RATINGS_TAB){
+            final boolean[] opened={false};
+
+            String result=
+                replaceMonsterSpawnerRoot(
+                    ()->{
+                        opened[0]=
+                            bridge.openPkRatings(
+                                serverPackets,
+                                tag
+                            );
+                        return opened[0]
+                            ?"PK_RATINGS_ROOT_OPENED"
+                            :"PK_RATINGS_ROOT_UNAVAILABLE";
+                    }
+                );
+
+            System.out.println(
+                tag+
+                "G112_PK_RATINGS_NATIVE_TAB widget="+
+                widget+
+                " status="+
+                (result==null
+                    ?"LIFECYCLE_REJECTED"
+                    :opened[0]
+                        ?"OPENED"
+                        :"UNAVAILABLE")+
+                " root="+
+                PkRatingsPresentation.RATINGS_ROOT+
+                " subtype="+
+                PkRatingsPresentation.APPLICATION_SUBTYPE+
+                " presentationAuthority="+
+                PkRatingsPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalPkRatingsUiHandler.AUTHORITY+
+                " dailyNavigationClaim=false"+
+                " tournamentNavigationClaim=false"+
+                " rowSelectionClaim=false"
             );
             return;
         }

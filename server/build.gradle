@@ -2075,6 +2075,7 @@ def currentTrainFocusedTests = [
     'spk.local.G108NormalDuelOpenCancelIntegrationTest',
     'spk.local.G109NormalDuelLiveCommandsIntegrationTest',
     'spk.local.G111PkRatingsReadOnlyIntegrationTest',
+    'spk.local.G112PkRatingsNativeTabIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2103,10 +2104,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 256 ||
-    currentTrainFocusedTests.toSet().size() != 256) {
+if (currentTrainFocusedTests.size() != 257 ||
+    currentTrainFocusedTests.toSet().size() != 257) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 256 unique tests, found " +
+        "Current-train focused manifest drift: expected 257 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2262,6 +2263,14 @@ tasks.register('g111PkRatingsReadOnlyRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G111PkRatingsReadOnlyIntegrationTest')
+}
+
+tasks.register('g112PkRatingsNativeTabRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact-v308 PK Ratings tab widget 32017 opens the certified read-only LocalLab feed.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G112PkRatingsNativeTabIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
