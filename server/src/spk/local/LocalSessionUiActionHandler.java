@@ -237,6 +237,18 @@ final class LocalSessionUiActionHandler {
             return null;
         }
 
+        default LocalItemEnchantmentUiHandler.Result
+            handleItemEnchantmentInput(
+                ItemEnchantmentPresentation.Input input,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws IOException{
+            return handleItemEnchantmentCategory(
+                input,
+                tag
+            );
+        }
+
         default boolean retireDonorPanelRoot(){
             return false;
         }
@@ -452,6 +464,7 @@ final class LocalSessionUiActionHandler {
     private volatile boolean bloodFountainUiOpen;
     private volatile boolean legendaryPetFusionUiOpen;
     private volatile boolean itemEnchantmentUiOpen;
+    private volatile boolean itemEnchantmentMainUiOpen;
     private volatile boolean donorPanelUiOpen;
     private volatile boolean donationCartUiOpen;
     private final LocalBossTeleportUiHandler bossTeleportUiHandler;
@@ -970,23 +983,40 @@ final class LocalSessionUiActionHandler {
         }
 
         if(itemEnchantmentUiOpen){
+            int activeRoot=
+                itemEnchantmentMainUiOpen
+                    ?ItemEnchantmentPresentation.MAIN_ROOT
+                    :ItemEnchantmentPresentation.CATEGORY_ROOT;
+
             ItemEnchantmentPresentation.Input enchantmentInput=
                 ItemEnchantmentPresentation.resolveWidget(
-                    ItemEnchantmentPresentation.CATEGORY_ROOT,
+                    activeRoot,
                     widget
                 );
 
             if(enchantmentInput!=null){
                 LocalItemEnchantmentUiHandler.Result result=
-                    bridge.handleItemEnchantmentCategory(
+                    bridge.handleItemEnchantmentInput(
                         enchantmentInput,
+                        serverPackets,
                         tag
                     );
 
+                if(result!=null&&
+                   "NAVIGATED_TO_EMPTY_MAIN".equals(
+                       result.status))
+                    itemEnchantmentMainUiOpen=true;
+                else if(result!=null&&
+                        "NAVIGATED_TO_CATEGORIES".equals(
+                            result.status))
+                    itemEnchantmentMainUiOpen=false;
+
                 System.out.println(
                     tag+
-                    "G1311_ITEM_ENCHANTMENT_CATEGORY widget="+
+                    "G1314_ITEM_ENCHANTMENT widget="+
                     widget+
+                    " activeRoot="+activeRoot+
+                    " kind="+enchantmentInput.kind+
                     " category="+enchantmentInput.category+
                     " status="+
                     (result==null
@@ -994,9 +1024,11 @@ final class LocalSessionUiActionHandler {
                         :result.status)+
                     " succeeded="+
                     (result!=null&&result.succeeded)+
-                    " mainRootOpened=false"+
+                    " mainRootOpen="+
+                    itemEnchantmentMainUiOpen+
                     " catalogClaim=false"+
-                    " recipeClaim=false"
+                    " recipeClaim=false"+
+                    " searchTransportClaim=false"
                 );
                 return;
             }
@@ -2975,8 +3007,10 @@ final class LocalSessionUiActionHandler {
                     )
             );
 
-        if(result!=null)
+        if(result!=null){
             itemEnchantmentUiOpen=true;
+            itemEnchantmentMainUiOpen=false;
+        }
 
         return result;
     }
@@ -3262,6 +3296,7 @@ final class LocalSessionUiActionHandler {
     private boolean retireItemEnchantmentUi(){
         boolean wasOpen=itemEnchantmentUiOpen;
         itemEnchantmentUiOpen=false;
+        itemEnchantmentMainUiOpen=false;
 
         return bridge.retireItemEnchantmentRoot()||
             wasOpen;
