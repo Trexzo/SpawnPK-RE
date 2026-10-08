@@ -19,9 +19,19 @@ final class MailboxAttachmentProjection {
         ServerPacketWriter writer,
         MailboxRewardDeliveryService.Snapshot snapshot
     )throws IOException{
-        ServerPacketWriter checkedWriter=
-            Objects.requireNonNull(writer,"writer");
+        Objects.requireNonNull(writer,"writer");
+        byte[] body=containerBody(snapshot);
+        writer.varShort(53,body);
+    }
 
+    /**
+     * Preflight the complete exact S2C53 body without advancing an outbound
+     * stream or ISAAC cipher. Shared by the G21.3 direct publisher and
+     * higher-level read-only detail composition.
+     */
+    static byte[] containerBody(
+        MailboxRewardDeliveryService.Snapshot snapshot
+    )throws IOException{
         MailboxRewardDeliveryService.Snapshot checked=
             Objects.requireNonNull(snapshot,"snapshot");
 
@@ -106,7 +116,7 @@ final class MailboxAttachmentProjection {
                 body.length
             );
 
-        checkedWriter.varShort(53,body);
+        return body;
     }
 
     private MailboxAttachmentProjection(){}
