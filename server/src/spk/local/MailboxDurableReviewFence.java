@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
@@ -24,9 +23,12 @@ import java.util.Objects;
  * deliberately cannot acknowledge a claim, release a fence or authorize
  * any inventory/mailbox mutation. Not a write-ahead COMMIT decision.
  *
- * This opt-in file primitive assumes no competing external fence writers.
- * Its successful return is a filesystem force contract only; any device
- * or process-level crash claims remain explicitly out of scope.
+ * G21.34: publication is a no-clobber hard-link creation on a local
+ * filesystem supporting atomic exclusive link-name creation. Competing
+ * independent marker writers cannot replace the winning marker through
+ * this API. Unsupported hard links fail closed, not via an unsafe rename
+ * fallback. Untrusted external deletions/edits and hardware power-loss
+ * guarantees remain outside this negative-only API.
  */
 final class MailboxDurableReviewFence {
     static final String STATE="REVIEW_REQUIRED_NO_GRANT";
@@ -186,7 +188,7 @@ final class MailboxDurableReviewFence {
         Path temp=Files.createTempFile(
             parent,file.getFileName().toString()+".g2132-",".tmp"
         );
-        boolean replaced=false;
+        boolean published=false;
         try{
             faults.check(Phase.AFTER_TEMP_CREATE);
             try(FileChannel channel=FileChannel.open(
@@ -200,10 +202,19 @@ final class MailboxDurableReviewFence {
                 channel.force(true);
             }
             faults.check(Phase.BEFORE_ATOMIC_REPLACE);
-            // Deliberately NO non-atomic move fallback.
-            Files.move(temp,file,StandardCopyOption.ATOMIC_MOVE);
-            replaced=true;
+            // G21.34: an ATOMIC_MOVE without REPLACE_EXISTING does
+            // NOT guarantee destination nonreplacement on every provider.
+            // Same-directory exclusive hard-link publication checks final
+            // name absence atomically, including competing JVM instances.
+            // An existing marker raises FileAlreadyExistsException; an
+            // unsupported filesystem raises IOException. NO rename/copy
+            // fallback is permitted because it could lose prior evidence.
+            Files.createLink(file,temp);
+            published=true;
             try{
+                // Publish the final marker first, then unlink its temp alias
+                // BEFORE forcing the resulting directory metadata.
+                Files.delete(temp);
                 faults.check(Phase.BEFORE_DIRECTORY_FORCE);
                 try(FileChannel directory=FileChannel.open(
                         parent,StandardOpenOption.READ)){
@@ -212,13 +223,13 @@ final class MailboxDurableReviewFence {
                 faults.check(Phase.AFTER_DIRECTORY_FORCE);
             }catch(IOException|RuntimeException uncertain){
                 throw new UnconfirmedFenceException(
-                    "G21.32 marker may already be visible; review required",
+                    "G21.34 no-clobber marker may already be visible; review required",
                     uncertain
                 );
             }
             return new Receipt(file,record);
         }finally{
-            if(!replaced)
+            if(!published)
                 Files.deleteIfExists(temp);
         }
     }
