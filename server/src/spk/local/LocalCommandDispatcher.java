@@ -328,10 +328,7 @@ final class LocalCommandDispatcher {
         // Explicit CUSTOM_LOCALLAB opt-in, NOT the native Mailbox root.
         // Rootless list packets are only published after this command,
         // preserving the native ::mail read-only status fallback.
-        if(p.length==2&&
-           ("mail".equalsIgnoreCase(p[0])||
-            "mailbox".equalsIgnoreCase(p[0]))&&
-           "sync".equalsIgnoreCase(p[1])){
+        if(isMailboxRootlessSyncRoute(p)){
             int rows=bridge.syncMailboxRootless(serverPackets);
             new SocialChatPresentationPublisher(serverPackets)
                 .serverMessage(rows<0
@@ -1397,6 +1394,13 @@ final class LocalCommandDispatcher {
                     .ITEMLIB_OPEN_ACTION_PREFIX+
                 ":"
             );
+    }
+
+    static boolean isMailboxRootlessSyncRoute(String[] tokens){
+        return tokens!=null&&tokens.length==2&&
+            ("mail".equalsIgnoreCase(tokens[0])||
+             "mailbox".equalsIgnoreCase(tokens[0]))&&
+            "sync".equalsIgnoreCase(tokens[1]);
     }
 
     static boolean isLootingBagRoute(String[] p){
