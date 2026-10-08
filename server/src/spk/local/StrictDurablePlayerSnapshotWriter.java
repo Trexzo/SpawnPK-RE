@@ -97,6 +97,27 @@ final class StrictDurablePlayerSnapshotWriter {
     synchronized Receipt saveStrict(
         PlayerSnapshot snapshot
     )throws IOException{
+        return saveInternal(snapshot,null);
+    }
+
+    /**
+     * G21.42: production strict PREPARED task through the exact
+     * FilePlayerRepository account path. The historical direct
+     * saveStrict() remains an explicit non-World/legacy primitive.
+     */
+    synchronized Receipt saveStrictForWorld(
+        PlayerSnapshot snapshot,Path expectedRepositoryFile
+    )throws IOException{
+        return saveInternal(
+            snapshot,Objects.requireNonNull(
+                expectedRepositoryFile,"expectedRepositoryFile"
+            ).toAbsolutePath().normalize()
+        );
+    }
+
+    private Receipt saveInternal(
+        PlayerSnapshot snapshot,Path worldFile
+    )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(
             snapshot,"snapshot"
         );
@@ -114,6 +135,22 @@ final class StrictDurablePlayerSnapshotWriter {
         if(parent==null)
             throw new IOException("no account parent directory");
 
+        if(worldFile!=null){
+            if(!file.equals(worldFile))
+                throw new IOException(
+                    "G21.42 STRICT_WORLD_ACCOUNT_PATH_MISMATCH "+
+                    account
+                );
+            if(MailboxPreparedRestartAdmission.inspect(checked).state!=
+                    MailboxPreparedRestartAdmission.State
+                        .VALID_PREPARED_UNCLAIMED)
+                throw new IOException(
+                    "G21.42 STRICT_WORLD_PREPARED_QUARANTINE "+
+                    account
+                );
+            requireUnfenced(account);
+        }
+
         // Validation is completed before creating/changing a file.
         // This writer is an opt-in primitive and does not coordinate
         // pre-existing WorldPlayerPersistence workers.
@@ -128,7 +165,7 @@ final class StrictDurablePlayerSnapshotWriter {
         Path temp=Files.createTempFile(
             parent,file.getFileName().toString()+".g2123-",".tmp"
         );
-        boolean replaced=false;
+        final boolean[] replaced={false};
         try{
             faults.check(Phase.AFTER_TEMP_CREATE);
             try(FileChannel channel=FileChannel.open(
@@ -145,39 +182,68 @@ final class StrictDurablePlayerSnapshotWriter {
             }
 
             faults.check(Phase.BEFORE_ATOMIC_REPLACE);
-            // Deliberately NO AtomicMoveNotSupportedException fallback.
-            Files.move(
-                temp,file,
-                StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.ATOMIC_MOVE
-            );
-            replaced=true;
-
-            try{
-                faults.check(Phase.BEFORE_DIRECTORY_FORCE);
-                // Not supported on every OS/filesystem; fail closed
-                // instead of silently lowering the guarantee.
-                try(FileChannel directory=FileChannel.open(
-                        parent,StandardOpenOption.READ)){
-                    directory.force(true);
-                }
-                faults.check(Phase.AFTER_DIRECTORY_FORCE);
-            }catch(IOException | RuntimeException failure){
-                // After atomic replace the file may already be the new
-                // version. Cannot assert rollback, even on fsync failure.
-                throw new UnconfirmedCommitException(
-                    "atomic replacement occurred; durability unconfirmed",
-                    failure
+            if(worldFile==null){
+                // Preserve the historical unguarded strict primitive.
+                publishStrictReplacement(
+                    temp,file,parent,replaced
                 );
+            }else{
+                // The marker publisher uses this SAME per-account lock.
+                // The final check, atomic replace and metadata force are
+                // serialized with its no-clobber hard-link publication.
+                MailboxAccountPublicationCoordinator
+                    .withExclusivePublication(worldFile,()->{
+                        requireUnfenced(account);
+                        publishStrictReplacement(
+                            temp,file,parent,replaced
+                        );
+                        return null;
+                    });
             }
 
             return new Receipt(
                 account,file,checked.version(),expectedSha256
             );
         }finally{
-            if(!replaced)
+            if(!replaced[0])
                 Files.deleteIfExists(temp);
         }
+    }
+
+    private void publishStrictReplacement(
+        Path temp,Path file,Path parent,boolean[] replaced
+    )throws IOException{
+        // Deliberately NO AtomicMoveNotSupportedException fallback.
+        Files.move(
+            temp,file,
+            StandardCopyOption.REPLACE_EXISTING,
+            StandardCopyOption.ATOMIC_MOVE
+        );
+        replaced[0]=true;
+
+        try{
+            faults.check(Phase.BEFORE_DIRECTORY_FORCE);
+            try(FileChannel directory=FileChannel.open(
+                    parent,StandardOpenOption.READ)){
+                directory.force(true);
+            }
+            faults.check(Phase.AFTER_DIRECTORY_FORCE);
+        }catch(IOException|RuntimeException failure){
+            // After replacement the account may be the NEW file,
+            // even when metadata durability was unconfirmed.
+            throw new UnconfirmedCommitException(
+                "atomic replacement occurred; durability unconfirmed",
+                failure
+            );
+        }
+    }
+
+    private void requireUnfenced(String account)throws IOException{
+        if(new MailboxDurableReviewFence(resolver).present(account))
+            throw new IOException(
+                "G21.42 STRICT_WORLD_MAILBOX_REVIEW_SAVE_VETO "+
+                account+" action=REJECT_STRICT_SAVE"
+            );
     }
 
     /**
