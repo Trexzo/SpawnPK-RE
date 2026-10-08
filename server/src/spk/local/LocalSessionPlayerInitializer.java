@@ -38,6 +38,9 @@ final class LocalSessionPlayerInitializer {
     private final PlayerState playerState;
     private final PetEffectState petEffects;
     private final PetAccessoryState petAccessoryState;
+    // Test-only deterministic injection; production default is a no-op.
+    // The actual admission policy is always enforced after this boundary.
+    private final Runnable beforeRegistration;
 
     LocalSessionPlayerInitializer(
         World world,
@@ -50,6 +53,26 @@ final class LocalSessionPlayerInitializer {
         PetEffectState petEffects,
         PetAccessoryState petAccessoryState
     ){
+        this(world,worldPlayer,bank,equipment,movement,petState,
+            playerState,petEffects,petAccessoryState,()->{});
+    }
+
+    /** Allows deterministic tests to arm a review fence after load. */
+    LocalSessionPlayerInitializer(
+        World world,
+        WorldPlayer worldPlayer,
+        BankState bank,
+        EquipmentState equipment,
+        MovementState movement,
+        PetState petState,
+        PlayerState playerState,
+        PetEffectState petEffects,
+        PetAccessoryState petAccessoryState,
+        Runnable beforeRegistration
+    ){
+        this.beforeRegistration=Objects.requireNonNull(
+            beforeRegistration,"beforeRegistration"
+        );
         this.world=Objects.requireNonNull(world,"world");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.persistence=world.persistence();
@@ -190,6 +213,15 @@ final class LocalSessionPlayerInitializer {
             g1Default.selectionRevision+
             " authority="+
             g1Default.policyAuthority
+        );
+
+        // G21.35: a review fence or account mutation may have appeared
+        // while starter/pet/default-loadout initialization was running.
+        // Recheck on the SAME normal persistence FIFO immediately before
+        // publishing World membership; never hydrate from forensic reads.
+        beforeRegistration.run();
+        MailboxLateSessionAdmission.requireStillAdmissible(
+            account,accountLoad,persistence
         );
 
         long generation=
