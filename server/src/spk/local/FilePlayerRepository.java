@@ -19,6 +19,14 @@ final class FilePlayerRepository
     }
 
     private final PathResolver paths;
+    /**
+     * G21.36 package-scoped deterministic test seam; it never relaxes the
+     * normal before-replacement account review-fence check.
+     */
+    interface BeforeWorldReplace {
+        void run(String account)throws IOException;
+    }
+    private final BeforeWorldReplace beforeWorldReplace;
 
     FilePlayerRepository(){
         this(
@@ -30,9 +38,15 @@ final class FilePlayerRepository
     }
 
     FilePlayerRepository(PathResolver paths){
-        this.paths=Objects.requireNonNull(
-            paths,
-            "paths"
+        this(paths,account->{});
+    }
+
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace
+    ){
+        this.paths=Objects.requireNonNull(paths,"paths");
+        this.beforeWorldReplace=Objects.requireNonNull(
+            beforeWorldReplace,"beforeWorldReplace"
         );
     }
 
@@ -94,8 +108,24 @@ final class FilePlayerRepository
         );
     }
 
+    /**
+     * Only the production WorldPlayerPersistence normal save path uses
+     * this guarded entry point. Legacy/manual/forensic direct save() is
+     * intentionally unchanged and MUST NOT be used as an admitted World
+     * save or interpreted as settling a native Mailbox claim.
+     */
+    void saveForWorld(PlayerSnapshot snapshot)throws IOException{
+        saveInternal(snapshot,true);
+    }
+
     @Override public void save(
         PlayerSnapshot snapshot
+    )throws IOException{
+        saveInternal(snapshot,false);
+    }
+
+    private void saveInternal(
+        PlayerSnapshot snapshot,boolean enforceWorldAdmission
     )throws IOException{
         Objects.requireNonNull(
             snapshot,
@@ -113,6 +143,18 @@ final class FilePlayerRepository
             normalizedPath(
                 snapshot.username()
             );
+
+        if(enforceWorldAdmission){
+            MailboxPreparedRestartAdmission.Decision admission=
+                MailboxPreparedRestartAdmission.inspect(snapshot);
+            if(!admission.admissionAllowed)
+                throw new IOException(
+                    "G21.36 MAILBOX_WORLD_SAVE_QUARANTINE"+
+                    " account="+snapshot.username()+
+                    " reason="+admission.state
+                );
+            requireUnfencedWorldSave(snapshot.username());
+        }
 
         Path parent=file.getParent();
         if(parent!=null)
@@ -148,6 +190,15 @@ final class FilePlayerRepository
                 );
             }
 
+            if(enforceWorldAdmission){
+                beforeWorldReplace.run(snapshot.username());
+                // The last check is immediately BEFORE replacement,
+                // after all serialization but before changing account
+                // bytes. A concurrent external arm after this check
+                // remains a real, documented cross-process race.
+                requireUnfencedWorldSave(snapshot.username());
+            }
+
             try{
                 Files.move(
                     tmp,
@@ -168,6 +219,16 @@ final class FilePlayerRepository
             if(!completed)
                 Files.deleteIfExists(tmp);
         }
+    }
+
+    private void requireUnfencedWorldSave(
+        String account
+    )throws IOException{
+        if(hasUnresolvedMailboxReviewFence(account))
+            throw new IOException(
+                "G21.36 MAILBOX_DURABLE_REVIEW_SAVE_VETO"+
+                " account="+account+" action=REJECT_WORLD_SAVE"
+            );
     }
 
     private Path normalizedPath(
