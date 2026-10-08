@@ -2135,6 +2135,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2115MailboxRowWidgetIntegrationTest',
     'spk.local.G2116MailboxRootlessSessionIntegrationTest',
     'spk.local.G2117NativeMailboxRootIntegrationTest',
+    'spk.local.G2118MailboxRootOwnershipIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2163,10 +2164,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 316 ||
-    currentTrainFocusedTests.toSet().size() != 316) {
+if (currentTrainFocusedTests.size() != 317 ||
+    currentTrainFocusedTests.toSet().size() != 317) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 316 unique tests, found " +
+        "Current-train focused manifest drift: expected 317 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2802,6 +2803,14 @@ tasks.register('g2117NativeMailboxRootRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2117NativeMailboxRootIntegrationTest')
+}
+
+tasks.register('g2118MailboxRootOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verifies competing native-root arbiter lifetime, Mailbox selection retirement and failed handoff safety.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2118MailboxRootOwnershipIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

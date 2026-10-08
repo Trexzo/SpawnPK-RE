@@ -25,6 +25,7 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
     private final WorldPlayer owner;
     private final long generation;
     private WorldMailboxPresentationSession active;
+    private boolean nativeRootOpen;
     private boolean closed;
 
     LocalMailboxRootlessSession(
@@ -39,6 +40,11 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
 
     boolean isActive(){
         return !closed&&active!=null;
+    }
+
+    /** Distinguish a real S2C97 Mailbox root from ::mail sync. */
+    boolean isNativeRootOpen(){
+        return isActive()&&nativeRootOpen;
     }
 
     /**
@@ -109,6 +115,7 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
 
             WorldMailboxPresentationSession previous=active;
             active=next;
+            nativeRootOpen=true;
             if(previous!=null)
                 previous.close();
             return count;
@@ -178,6 +185,7 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
     private void retire(){
         WorldMailboxPresentationSession previous=active;
         active=null;
+        nativeRootOpen=false;
         if(previous!=null)
             previous.close();
     }
