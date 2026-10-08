@@ -44,6 +44,16 @@ final class LocalPendingRequestDispatcher {
             return null;
         }
 
+        default boolean handleMailboxWidgetAction(
+            WidgetActionClientRequest request,
+            ServerPacketWriter writer,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default void onMailboxInterfaceClose(){}
+
         default void handleRegionLoadAck(
             String tag
         ){}
@@ -268,6 +278,7 @@ final class LocalPendingRequestDispatcher {
 
             if(request instanceof
                     InterfaceCloseClientRequest){
+                bridge.onMailboxInterfaceClose();
                 boolean makeoverCancelled=
                     makeoverMage.cancel();
                 if(makeoverCancelled)
@@ -372,6 +383,10 @@ final class LocalPendingRequestDispatcher {
                         continue;
                     }
                 }
+
+                if(bridge.handleMailboxWidgetAction(
+                        widget,serverPackets,tag))
+                    continue;
 
                 uiActions.handleWidget(
                     widget.widgetId(),

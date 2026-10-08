@@ -2133,6 +2133,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2113MailboxTrustedReadIntegrationTest',
     'spk.local.G2114MailboxLiveStatusCommandIntegrationTest',
     'spk.local.G2115MailboxRowWidgetIntegrationTest',
+    'spk.local.G2116MailboxRootlessSessionIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2161,10 +2162,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 314 ||
-    currentTrainFocusedTests.toSet().size() != 314) {
+if (currentTrainFocusedTests.size() != 315 ||
+    currentTrainFocusedTests.toSet().size() != 315) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 314 unique tests, found " +
+        "Current-train focused manifest drift: expected 315 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2784,6 +2785,14 @@ tasks.register('g2115MailboxRowWidgetRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2115MailboxRowWidgetIntegrationTest')
+}
+
+tasks.register('g2116MailboxRootlessSessionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact rootless Mailbox sync and WorldPlayer session-scoped widget handling.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2116MailboxRootlessSessionIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
