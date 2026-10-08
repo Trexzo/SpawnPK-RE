@@ -2118,6 +2118,7 @@ def currentTrainFocusedTests = [
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
+    'spk.local.G211MailboxAuthorityIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2146,10 +2147,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 299 ||
-    currentTrainFocusedTests.toSet().size() != 299) {
+if (currentTrainFocusedTests.size() != 300 ||
+    currentTrainFocusedTests.toSet().size() != 300) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 299 unique tests, found " +
+        "Current-train focused manifest drift: expected 300 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2649,6 +2650,14 @@ tasks.register('g201ConstructionAuthorityRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G201ConstructionAuthorityIntegrationTest')
+}
+
+tasks.register('g211MailboxAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates protocol-independent Mailbox reward-delivery state plus exact-v308 S2C250 subtype-31 presentation and enum mappings.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G211MailboxAuthorityIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
