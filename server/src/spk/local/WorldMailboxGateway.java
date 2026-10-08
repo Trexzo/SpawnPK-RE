@@ -50,6 +50,19 @@ final class WorldMailboxGateway {
     }
 
     /**
+     * Open a rootless exact-client presentation scope for the same
+     * WorldPlayer/generation/mailbox. No externally supplied store or
+     * recovered Mailbox UI root is accepted.
+     */
+    WorldMailboxPresentationSession openRootlessPresentation(){
+        return owned(()->new WorldMailboxPresentationSession(
+            world,
+            owner,
+            generation
+        ));
+    }
+
+    /**
      * Validate a hypothetical *complete* post-delivery semantic snapshot
      * before mutating the live account. Prevents unsavable or unrenderable
      * messages from entering a PlayerSnapshot or client-visible Mailbox.
