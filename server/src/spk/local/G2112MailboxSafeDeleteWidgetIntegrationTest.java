@@ -141,20 +141,19 @@ public final class G2112MailboxSafeDeleteWidgetIntegrationTest {
             );
             WorldPlayer restored=new WorldPlayer();
             PlayerSnapshotCodec.applyValidated(snapshot,restored);
+            // The snapshot itself must contain an explicit zero-row
+            // tombstone; hydration must preserve it across fresh capture.
             emptyTombstoneRoundTrip=
                 clean.mailbox().size()==0&&
                 restored.mailbox().size()==0&&
-                !clean.snapshotExtensions().namespace(
-                    LocalLabMailboxPersistence.NAMESPACE
-                ).isEmpty()==false;
-            // Capture owns the persisted zero-count tombstone; the
-            // hydrated Mailbox must not replay deleted messages.
-            emptyTombstoneRoundTrip &=
-                LocalLabMailboxPersistence.decode(
-                    restored.snapshotExtensions().namespace(
-                        LocalLabMailboxPersistence.NAMESPACE
-                    )
-                ).isEmpty();
+                clean.mailboxSnapshotKnown()&&
+                restored.mailboxSnapshotKnown()&&
+                "0".equals(snapshot.value(
+                    "extension.mailbox-g21.count"
+                ))&&
+                "0".equals(PlayerSnapshotCodec.capture(
+                    "g2112-empty-tombstone",restored
+                ).value("extension.mailbox-g21.count"));
             blank.close();
 
             boolean retired=world.unregisterPlayer(alice,ag);
