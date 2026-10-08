@@ -234,6 +234,13 @@ final class WorldPlayerPersistence
     private final HashMap<String,Long>
         strictPreparedAccountCutoffs=new HashMap<>();
 
+    // Opt-in G21.27 exclusion: in-memory admission/capture fence only.
+    // Existing writes already running inside repository.save may finish.
+    // No durable transaction, item credit or CLAIMED change is authorized.
+    static final int MAX_PREPARED_ACCOUNT_RESERVATIONS=32;
+    private final HashMap<String,PreparedAccountReservation>
+        preparedAccountReservations=new HashMap<>();
+
     /*
      * Protected by the persistence admission lock (io). A bound final
      * reservation becomes visible here only while it actually owns a FIFO
@@ -887,6 +894,11 @@ final class WorldPlayerPersistence
         if(task.owner==null)
             return;
 
+        if(preparedAccountBlockedLocked(task.owner.username()))
+            throw preparedWriteRejection(
+                task.owner.username()
+            );
+
         Long existing=
             finalReservationGenerations.get(
                 task.owner
@@ -987,6 +999,13 @@ final class WorldPlayerPersistence
         SaveTask task
     ){
         synchronized(io){
+            if(preparedAccountBlockedLocked(task.snapshot.username())){
+                task.reject(
+                    preparedWriteRejection(task.snapshot.username()),
+                    "G2127_PREPARED_WRITE_RESERVATION"
+                );
+                return;
+            }
             if(finalReservationBlocksLocked(
                     task)){
                 task.reject(
@@ -1029,6 +1048,13 @@ final class WorldPlayerPersistence
         try{
             for(;;){
                 synchronized(io){
+                    if(preparedAccountBlockedLocked(task.snapshot.username())){
+                        task.reject(
+                            preparedWriteRejection(task.snapshot.username()),
+                            "G2127_PREPARED_WRITE_RESERVATION"
+                        );
+                        return;
+                    }
                     if(finalReservationBlocksLocked(
                             task)){
                         task.reject(
@@ -1149,6 +1175,13 @@ final class WorldPlayerPersistence
                 if(!LocalAccountProfiles.isPersistent(
                         username))
                     continue;
+
+                // Prevent even capturing NEWER autosave snapshots for
+                // this account while the opt-in exclusive fence lives.
+                synchronized(io){
+                    if(preparedAccountBlockedLocked(username))
+                        continue;
+                }
 
                 synchronized(checkpointLock){
                     Long suppressed=
@@ -1677,6 +1710,8 @@ final class WorldPlayerPersistence
                     throw new RejectedExecutionException(
                         "strict prepared barrier after shutdown"
                     );
+                if(preparedAccountBlockedLocked(snapshot.username()))
+                    throw preparedWriteRejection(snapshot.username());
                 Long finalGeneration=
                     finalReservationGenerations.get(owner);
                 if(finalGeneration!=null&&
@@ -1699,6 +1734,196 @@ final class WorldPlayerPersistence
                 return task.completion;
             }
         }
+    }
+
+    /**
+     * G21.27 exclusive, fail-closed account WRITE reservation.
+     * No I/O receipt, actual transaction, or reward authorization.
+     * Deliberately no AutoCloseable: an arbitrary close() must never
+     * accidentally remove a fence around an uncertain claim.
+     */
+    final class PreparedAccountReservation {
+        final WorldPlayer owner;
+        final long generation;
+        final String account;
+        final String intentKey;
+        final PlayerSnapshot exactPreimage;
+        private boolean released;
+
+        private PreparedAccountReservation(
+            WorldPlayer owner,long generation,
+            MailboxSettlementPostimagePlanner.Proposal proposal
+        ){
+            this.owner=owner;
+            this.generation=generation;
+            this.account=proposal.account;
+            this.intentKey=proposal.idempotencyKey;
+            this.exactPreimage=proposal.preparedPreimage;
+        }
+
+        boolean isActive(){
+            synchronized(io){
+                return !released&&
+                    preparedAccountReservations.get(account)==this;
+            }
+        }
+
+        /**
+         * Explicit cancellation ONLY while the owner is still at the
+         * exact PREPARED/UNCLAIMED inventory+Mailbox preimage. Divergence,
+         * logout or generation replacement leaves the reservation held.
+         * Never interprets a disk write or saved intent as a grant.
+         */
+        boolean cancelIfStillUnclaimed(){
+            synchronized(owner.mutationLock()){
+                synchronized(io){
+                    if(released)
+                        return false;
+                    if(preparedAccountReservations.get(account)!=this||
+                       !world.players().owns(owner,generation)||
+                       !owner.accepts(generation))
+                        throw new IllegalStateException(
+                            "G21.27 reservation owner retired"
+                        );
+                    MailboxRewardDeliveryService.Snapshot row=
+                        owner.mailbox().get(
+                            preparedAccountMessageId(this)
+                        );
+                    if(row==null)
+                        throw new IllegalStateException(
+                            "G21.27 selected envelope missing"
+                        );
+                    // Full snapshot rather than just a stable key:
+                    // prevents releasing across changes to inventory,
+                    // mail, items or unrelated account state.
+                    PlayerSnapshot current=PlayerSnapshotCodec.capture(
+                        account,owner,
+                        PlayerSnapshotCodec.accessoryItem(
+                            exactPreimage
+                        )
+                    );
+                    if(!current.values().equals(
+                            exactPreimage.values())||
+                       row.claimState!=
+                           MailboxRewardDeliveryService.ClaimState.UNCLAIMED)
+                        throw new IllegalStateException(
+                            "G21.27 reservation preimage changed"
+                        );
+                    MailboxPreparedClaimJournal.Intent prepared=
+                        MailboxPreparedClaimJournal.inspectPrepared(owner);
+                    if(prepared==null||
+                       !intentKey.equals(prepared.idempotencyKey))
+                        throw new IllegalStateException(
+                            "G21.27 prepared intent changed"
+                        );
+                    preparedAccountReservations.remove(account);
+                    released=true;
+                    return true;
+                }
+            }
+        }
+    }
+
+    private static String preparedAccountMessageId(
+        PreparedAccountReservation reservation
+    ){
+        // The captured intent namespace is immutable and canonical.
+        String id=reservation.exactPreimage.value(
+            "extension."+MailboxPreparedClaimJournal.NAMESPACE+
+            ".message"
+        );
+        if(id==null)
+            throw new IllegalStateException(
+                "G21.27 missing prepared envelope"
+            );
+        return id;
+    }
+
+    PreparedAccountReservation reservePreparedAccount(
+        WorldPlayer owner,
+        long expectedGeneration,
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    ){
+        Objects.requireNonNull(owner,"owner");
+        Objects.requireNonNull(proposal,"proposal");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.27 reservation admission on World context"
+            );
+        synchronized(owner.mutationLock()){
+            if(!world.players().owns(owner,expectedGeneration)||
+               !owner.accepts(expectedGeneration)||
+               proposal.ownerGeneration!=expectedGeneration||
+               !proposal.account.equals(owner.username()))
+                throw new IllegalStateException(
+                    "G21.27 reservation account/generation mismatch"
+                );
+            MailboxRewardDeliveryService.Snapshot row=
+                owner.mailbox().get(proposal.messageId);
+            if(row==null)
+                throw new IllegalStateException(
+                    "G21.27 selected message absent"
+                );
+            MailboxSettlementPostimagePlanner.Proposal fresh=
+                MailboxSettlementPostimagePlanner.plan(
+                    owner,expectedGeneration,row
+                );
+            if(!fresh.idempotencyKey.equals(
+                    proposal.idempotencyKey)||
+               !fresh.preparedPreimage.values().equals(
+                    proposal.preparedPreimage.values())||
+               !fresh.hypotheticalPostimage.values().equals(
+                    proposal.hypotheticalPostimage.values()))
+                throw new IllegalStateException(
+                    "G21.27 stale PREPARED reservation proposal"
+                );
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.27 persistence already shut down"
+                    );
+                if(preparedAccountReservations.containsKey(
+                        proposal.account))
+                    throw new IllegalStateException(
+                        "G21.27 duplicate account reservation"
+                    );
+                if(preparedAccountReservations.size()>=
+                        MAX_PREPARED_ACCOUNT_RESERVATIONS)
+                    throw new RejectedExecutionException(
+                        "G21.27 prepared account reservation capacity"
+                    );
+                if(finalReservationGenerations.containsKey(owner))
+                    throw new RejectedExecutionException(
+                        "G21.27 final save already reserved"
+                    );
+
+                PreparedAccountReservation token=
+                    new PreparedAccountReservation(
+                        owner,expectedGeneration,proposal
+                    );
+                preparedAccountReservations.put(
+                    proposal.account,token
+                );
+                return token;
+            }
+        }
+    }
+
+    private boolean preparedAccountBlockedLocked(String username){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "G21.27 account fence requires io lock"
+            );
+        return username!=null&&
+            preparedAccountReservations.containsKey(username);
+    }
+
+    private RejectedExecutionException preparedWriteRejection(
+        String username
+    ){
+        return new RejectedExecutionException(
+            "G21.27 PREPARED_ACCOUNT_WRITE_RESERVED "+username
+        );
     }
 
     private final class SaveTask
@@ -1868,6 +2093,8 @@ final class WorldPlayerPersistence
     ){
         try{
             synchronized(io){
+                if(preparedAccountBlockedLocked(snapshot.username()))
+                    throw preparedWriteRejection(snapshot.username());
                 Long cutoff=strictPreparedAccountCutoffs.get(
                     snapshot.username()
                 );
