@@ -44,6 +44,8 @@ final class MailboxDurableReviewFence {
         AFTER_SERIALIZE,
         BEFORE_FILE_FORCE,
         BEFORE_ATOMIC_REPLACE,
+        // G21.38 deterministic race seam inside the exclusive lock.
+        INSIDE_EXCLUSIVE_PUBLICATION_BEFORE_LINK,
         BEFORE_DIRECTORY_FORCE,
         AFTER_DIRECTORY_FORCE
     }
@@ -188,7 +190,7 @@ final class MailboxDurableReviewFence {
         Path temp=Files.createTempFile(
             parent,file.getFileName().toString()+".g2132-",".tmp"
         );
-        boolean published=false;
+        final boolean[] published={false};
         try{
             faults.check(Phase.AFTER_TEMP_CREATE);
             try(FileChannel channel=FileChannel.open(
@@ -202,34 +204,42 @@ final class MailboxDurableReviewFence {
                 channel.force(true);
             }
             faults.check(Phase.BEFORE_ATOMIC_REPLACE);
-            // G21.34: an ATOMIC_MOVE without REPLACE_EXISTING does
-            // NOT guarantee destination nonreplacement on every provider.
-            // Same-directory exclusive hard-link publication checks final
-            // name absence atomically, including competing JVM instances.
-            // An existing marker raises FileAlreadyExistsException; an
-            // unsupported filesystem raises IOException. NO rename/copy
-            // fallback is permitted because it could lose prior evidence.
-            Files.createLink(file,temp);
-            published=true;
-            try{
-                // Publish the final marker first, then unlink its temp alias
-                // BEFORE forcing the resulting directory metadata.
-                Files.delete(temp);
-                faults.check(Phase.BEFORE_DIRECTORY_FORCE);
-                try(FileChannel directory=FileChannel.open(
-                        parent,StandardOpenOption.READ)){
-                    directory.force(true);
-                }
-                faults.check(Phase.AFTER_DIRECTORY_FORCE);
-            }catch(IOException|RuntimeException uncertain){
-                throw new UnconfirmedFenceException(
-                    "G21.34 no-clobber marker may already be visible; review required",
-                    uncertain
-                );
-            }
-            return new Receipt(file,record);
+            // G21.38: exclusive publication shares the SAME account
+            // lock as the final check+replacement in the guarded World
+            // repository save. The marker remains a no-clobber hard link.
+            // Neither snapshot serialization nor proposal planning is
+            // performed under this cross-process coordination lock.
+            Path accountFile=Objects.requireNonNull(
+                resolver.resolve(proposal.account),"account path"
+            ).toAbsolutePath().normalize();
+            return MailboxAccountPublicationCoordinator
+                .withExclusivePublication(accountFile,()->{
+                    // G21.34: the final hard-link name is created only
+                    // when absent. No ATOMIC_MOVE/copy fallback exists.
+                    faults.check(
+                        Phase.INSIDE_EXCLUSIVE_PUBLICATION_BEFORE_LINK
+                    );
+                    Files.createLink(file,temp);
+                    published[0]=true;
+                    try{
+                        Files.delete(temp);
+                        faults.check(Phase.BEFORE_DIRECTORY_FORCE);
+                        try(FileChannel directory=FileChannel.open(
+                                parent,StandardOpenOption.READ)){
+                            directory.force(true);
+                        }
+                        faults.check(Phase.AFTER_DIRECTORY_FORCE);
+                    }catch(IOException|RuntimeException uncertain){
+                        throw new UnconfirmedFenceException(
+                            "G21.38 negative marker publication may "+
+                            "already be visible; manual review required",
+                            uncertain
+                        );
+                    }
+                    return new Receipt(file,record);
+                });
         }finally{
-            if(!published)
+            if(!published[0])
                 Files.deleteIfExists(temp);
         }
     }
