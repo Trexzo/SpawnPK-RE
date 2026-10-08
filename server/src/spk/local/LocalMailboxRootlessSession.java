@@ -7,8 +7,8 @@ import java.util.Objects;
  * G21.16: explicit opt-in LocalLab rootless Mailbox session bridge.
  *
  * Caller holds the authoritative World command context. This bridge is
- * neither a recovered top-level Mailbox root nor a claim that the original
- * server automatically presents this UI. Every G21.10+ publisher rechecks
+ * scoped to a recovered client root but does not claim the original
+ * server's Mailbox opening order or authorization policy. Every publisher rechecks
  * WorldPlayer identity and registered generation before touching state.
  *
  * Scope is installed after explicit CUSTOM_LOCALLAB ::mail sync OR the
