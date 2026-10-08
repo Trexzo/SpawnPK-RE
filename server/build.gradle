@@ -2154,6 +2154,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2134MailboxReviewFenceNoClobberIntegrationTest',
     'spk.local.G2135MailboxLateSessionAdmissionIntegrationTest',
     'spk.local.G2136MailboxFencedWorldSaveIntegrationTest',
+    'spk.local.G2137MailboxActiveSessionReviewGuardIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2182,10 +2183,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 335 ||
-    currentTrainFocusedTests.toSet().size() != 335) {
+if (currentTrainFocusedTests.size() != 336 ||
+    currentTrainFocusedTests.toSet().size() != 336) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 335 unique tests, found " +
+        "Current-train focused manifest drift: expected 336 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2973,6 +2974,14 @@ tasks.register('g2136MailboxFencedWorldSaveRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2136MailboxFencedWorldSaveIntegrationTest')
+}
+
+tasks.register('g2137MailboxLiveSessionReviewRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves bounded LocalSession marker polling and fail-closed online review-fence detection.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2137MailboxActiveSessionReviewGuardIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

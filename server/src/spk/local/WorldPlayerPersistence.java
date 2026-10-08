@@ -1319,6 +1319,19 @@ final class WorldPlayerPersistence
             .getSimpleName();
     }
 
+    /** G21.37 socket-thread marker-only review check (not a world tick). */
+    boolean supportsDurableMailboxReviewFence(){
+        return repository instanceof FilePlayerRepository;
+    }
+
+    boolean hasDurableMailboxReviewFence(String account)
+        throws IOException{
+        if(!(repository instanceof FilePlayerRepository))
+            return false;
+        return ((FilePlayerRepository)repository)
+            .hasUnresolvedMailboxReviewFence(account);
+    }
+
     long checkpointCapturedCount(){
         return checkpointCaptured.get();
     }
