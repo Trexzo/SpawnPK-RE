@@ -127,6 +127,59 @@ final class WorldMailboxPresentationSession implements AutoCloseable {
     }
 
     /**
+     * Mark a previously trusted, selected row READ, and publish the exact
+     * S2C250 subtype31 operation-2 row read-state update. No client row
+     * click mapping or socket dispatcher is implied here.
+     *
+     * Commit occurs before packet publication. An IOException from the
+     * transport therefore does NOT undo the semantic read acknowledgement;
+     * an explicit inbox refresh can reconcile the wire.
+     *
+     * @return true only when UNREAD changed to READ (idempotent replay)
+     */
+    boolean publishSelectedReadState(
+        ServerPacketWriter writer
+    )throws IOException{
+        Objects.requireNonNull(writer,"writer");
+        return owned(()->{
+            // Every guard runs before mutation or network publication:
+            // registration/generation, selected identity and row range.
+            int row=view.selectedBoundRow();
+            String messageId=view.selectedMessageId();
+            if(row<0||
+                row>=MailboxInboxProjection.CLIENT_VISIBLE_ROW_LIMIT)
+                throw new IllegalStateException(
+                    "Mailbox selected row outside client view"
+                );
+
+            MailboxRewardDeliveryService.Snapshot current=
+                owner.mailbox().get(messageId);
+            if(current==null)
+                throw new IllegalStateException(
+                    "selected Mailbox message disappeared"
+                );
+
+            MailboxInboxProjection.validateSubject(
+                current.message.subject
+            );
+            MailboxPresentationAdapter.readStateCode(
+                MailboxRewardDeliveryService.ReadState.READ
+            );
+
+            boolean changed=owner.mailbox().markRead(messageId);
+            if(changed)
+                owner.markMailboxSnapshotKnown();
+
+            MailboxPresentationAdapter.readState(
+                writer,
+                row,
+                MailboxRewardDeliveryService.ReadState.READ
+            );
+            return changed;
+        });
+    }
+
+    /**
      * CUSTOM_LOCALLAB guarded delete for the exact-v308 C2S185
      * widget 32184, after an explicitly trusted row selection.
      *
