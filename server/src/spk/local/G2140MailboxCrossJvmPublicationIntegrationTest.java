@@ -3,6 +3,7 @@ package spk.local;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -439,12 +440,22 @@ public final class G2140MailboxCrossJvmPublicationIntegrationTest {
     )throws Exception{
         MailboxAccountPublicationCoordinator
             .withExclusivePublication(accountFile,()->{
+                // G21.45 test infrastructure repair: a CREATE_NEW
+                // ready file was visible to the parent BEFORE its PID
+                // bytes were written. Publish the completed handshake
+                // atomically so awaitReady() never parses empty text.
+                Path pending=ready.resolveSibling(
+                    ready.getFileName().toString()+".writing"
+                );
                 Files.writeString(
-                    ready,
+                    pending,
                     Long.toString(ProcessHandle.current().pid()),
                     StandardCharsets.US_ASCII,
                     StandardOpenOption.CREATE_NEW,
                     StandardOpenOption.WRITE
+                );
+                Files.move(
+                    pending,ready,StandardCopyOption.ATOMIC_MOVE
                 );
                 long deadline=System.nanoTime()+
                     TimeUnit.SECONDS.toNanos(DEADLINE_SECONDS);

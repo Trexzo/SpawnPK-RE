@@ -43,6 +43,16 @@ final class StrictDurablePlayerSnapshotWriter {
         void check(Phase phase)throws IOException;
     }
 
+    /**
+     * G21.45: read-only, synchronous last-chance live-owner check.
+     * The writer calls it after temp force, inside the cooperating
+     * file-publication lock and immediately before atomic replacement.
+     * It MUST NOT mutate player state or perform filesystem I/O.
+     */
+    interface BeforeWorldPublication {
+        void requireStillCurrent()throws IOException;
+    }
+
     static final class UnconfirmedCommitException extends IOException {
         UnconfirmedCommitException(
             String message,Throwable cause
@@ -97,7 +107,7 @@ final class StrictDurablePlayerSnapshotWriter {
     synchronized Receipt saveStrict(
         PlayerSnapshot snapshot
     )throws IOException{
-        return saveInternal(snapshot,null);
+        return saveInternal(snapshot,null,null);
     }
 
     /**
@@ -108,15 +118,26 @@ final class StrictDurablePlayerSnapshotWriter {
     synchronized Receipt saveStrictForWorld(
         PlayerSnapshot snapshot,Path expectedRepositoryFile
     )throws IOException{
+        return saveStrictForWorld(
+            snapshot,expectedRepositoryFile,()->{}
+        );
+    }
+
+    synchronized Receipt saveStrictForWorld(
+        PlayerSnapshot snapshot,Path expectedRepositoryFile,
+        BeforeWorldPublication publicationCheck
+    )throws IOException{
+        Objects.requireNonNull(publicationCheck,"publicationCheck");
         return saveInternal(
             snapshot,Objects.requireNonNull(
                 expectedRepositoryFile,"expectedRepositoryFile"
-            ).toAbsolutePath().normalize()
+            ).toAbsolutePath().normalize(),publicationCheck
         );
     }
 
     private Receipt saveInternal(
-        PlayerSnapshot snapshot,Path worldFile
+        PlayerSnapshot snapshot,Path worldFile,
+        BeforeWorldPublication publicationCheck
     )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(
             snapshot,"snapshot"
@@ -194,6 +215,12 @@ final class StrictDurablePlayerSnapshotWriter {
                 MailboxAccountPublicationCoordinator
                     .withExclusivePublication(worldFile,()->{
                         requireUnfenced(account);
+                        // G21.45: a World owner may have changed while
+                        // the strict snapshot temp was being serialized
+                        // or while this worker awaited this file lock.
+                        // Check complete live state before Files.move,
+                        // without holding its mutation lock over I/O.
+                        publicationCheck.requireStillCurrent();
                         publishStrictReplacement(
                             temp,file,parent,replaced
                         );
