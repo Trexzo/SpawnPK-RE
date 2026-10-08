@@ -153,41 +153,51 @@ public final class G2122MailboxPreparedClaimJournalIntegrationTest {
                 changedIds,changedQty
             );
 
-            SortedMap<String,String> bad=new TreeMap<>(canonical);
-            bad.put("key","0".repeat(64));
-            tamperingDenied=rejects(()->MailboxPreparedClaimJournal.decode(
-                bad
-            ));
-            bad=new TreeMap<>(canonical);
-            bad.put("after",bad.get("after").replaceFirst(
+            SortedMap<String,String> badKey=
+                new TreeMap<>(canonical);
+            badKey.put("key","0".repeat(64));
+            tamperingDenied=rejects(
+                ()->MailboxPreparedClaimJournal.decode(badKey)
+            );
+            SortedMap<String,String> badAfter=
+                new TreeMap<>(canonical);
+            badAfter.put("after",badAfter.get("after").replaceFirst(
                 "995:50","995:51"
             ));
             tamperingDenied &=rejects(
-                ()->MailboxPreparedClaimJournal.decode(bad)
+                ()->MailboxPreparedClaimJournal.decode(badAfter)
             );
-            bad=new TreeMap<>(canonical);
-            bad.put("extra","unexpected");
+            SortedMap<String,String> badExtra=
+                new TreeMap<>(canonical);
+            badExtra.put("extra","unexpected");
             tamperingDenied &=rejects(
-                ()->MailboxPreparedClaimJournal.decode(bad)
+                ()->MailboxPreparedClaimJournal.decode(badExtra)
             );
-            bad=new TreeMap<>(canonical);
-            bad.remove("before");
+            SortedMap<String,String> badMissing=
+                new TreeMap<>(canonical);
+            badMissing.remove("before");
             tamperingDenied &=rejects(
-                ()->MailboxPreparedClaimJournal.decode(bad)
+                ()->MailboxPreparedClaimJournal.decode(badMissing)
             );
 
-            bad=new TreeMap<>(canonical);
-            bad.put("state","COMMITTED");
-            unsupportedStateDenied=
-                rejects(()->MailboxPreparedClaimJournal.decode(bad));
-            bad=new TreeMap<>(canonical);
-            bad.put("version","2");
-            unsupportedStateDenied &=
-                rejects(()->MailboxPreparedClaimJournal.decode(bad));
-            bad=new TreeMap<>(canonical);
-            bad.put("authority","EXACT_CURRENT_CLIENT");
-            unsupportedStateDenied &=
-                rejects(()->MailboxPreparedClaimJournal.decode(bad));
+            SortedMap<String,String> badState=
+                new TreeMap<>(canonical);
+            badState.put("state","COMMITTED");
+            unsupportedStateDenied=rejects(
+                ()->MailboxPreparedClaimJournal.decode(badState)
+            );
+            SortedMap<String,String> badVersion=
+                new TreeMap<>(canonical);
+            badVersion.put("version","2");
+            unsupportedStateDenied &=rejects(
+                ()->MailboxPreparedClaimJournal.decode(badVersion)
+            );
+            SortedMap<String,String> badAuthority=
+                new TreeMap<>(canonical);
+            badAuthority.put("authority","EXACT_CURRENT_CLIENT");
+            unsupportedStateDenied &=rejects(
+                ()->MailboxPreparedClaimJournal.decode(badAuthority)
+            );
 
             PlayerSnapshot snapshot=PlayerSnapshotCodec.capture(
                 "g2122-alice",alice
