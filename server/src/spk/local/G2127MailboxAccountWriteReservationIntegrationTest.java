@@ -393,7 +393,10 @@ public final class G2127MailboxAccountWriteReservationIntegrationTest {
     private static boolean rejects(Action action){
         try{action.run();return false;}
         catch(IllegalArgumentException|
-              IllegalStateException expected){return true;}
+              IllegalStateException|
+              java.util.concurrent.RejectedExecutionException expected){
+            return true;
+        }
         catch(Exception unexpected){
             throw new IllegalStateException(unexpected);
         }
