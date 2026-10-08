@@ -88,7 +88,7 @@ final class MailboxInboxProjection {
      * LF is the client string terminator; control characters and text that
      * would undergo lossy charset replacement are never published.
      */
-    private static void validateSubject(String subject){
+    static void validateSubject(String subject){
         Objects.requireNonNull(subject,"subject");
 
         if(subject.isEmpty()||subject.length()>250)
