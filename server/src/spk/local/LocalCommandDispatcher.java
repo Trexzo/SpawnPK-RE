@@ -192,6 +192,12 @@ final class LocalCommandDispatcher {
             )throws IOException{
             return null;
         }
+        default int syncMailboxRootless(
+            ServerPacketWriter writer
+        )throws IOException{
+            return -1;
+        }
+
         default LocalMailboxStatusCommandHandler.Result
             handleMailboxStatusCommand(String[] tokens)
                 throws IOException{
@@ -318,6 +324,27 @@ final class LocalCommandDispatcher {
 
         String clean=clean(command);
         String[] p=tokens(clean);
+
+        // Explicit CUSTOM_LOCALLAB opt-in, NOT the native Mailbox root.
+        // Rootless list packets are only published after this command,
+        // preserving the native ::mail read-only status fallback.
+        if(p.length==2&&
+           ("mail".equalsIgnoreCase(p[0])||
+            "mailbox".equalsIgnoreCase(p[0]))&&
+           "sync".equalsIgnoreCase(p[1])){
+            int rows=bridge.syncMailboxRootless(serverPackets);
+            new SocialChatPresentationPublisher(serverPackets)
+                .serverMessage(rows<0
+                    ?"Mailbox rootless sync is not configured."
+                    :"Mailbox rootless sync: "+rows+
+                     " rows. Mailbox interface not opened.");
+            System.out.println(
+                tag+"G2116_MAILBOX_ROOTLESS_SYNC rows="+rows+
+                " exactC2S103=true rootOpened=false"+
+                " rewardSettlement=false"
+            );
+            return true;
+        }
 
         // Read-only CUSTOM_LOCALLAB command through the exact C2S103
         // text path. SessionBridge enforces WorldPlayer generation.
