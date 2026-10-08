@@ -162,11 +162,18 @@ public final class G2136MailboxFencedWorldSaveIntegrationTest {
 
                 // A direct normal captureAndSave shares the same guarded
                 // WorldPlayerPersistence.write implementation.
-                WorldPlayerPersistence.SaveTicket immediate=
-                    world.persistence().captureAndSave(
-                        alice,player,generation,0,
-                        "[g2136] ","FENCED_IMMEDIATE_SAVE"
+                AtomicReference<WorldPlayerPersistence.SaveTicket>
+                    immediateRef=new AtomicReference<>();
+                world.submitAndWait(player,generation,()->{
+                    immediateRef.set(
+                        world.persistence().captureAndSave(
+                            alice,player,generation,0,
+                            "[g2136] ","FENCED_IMMEDIATE_SAVE"
+                        )
                     );
+                },5000L);
+                WorldPlayerPersistence.SaveTicket immediate=
+                    immediateRef.get();
                 newWorldSaveDenied=failedWith(
                     immediate,"G21.36 MAILBOX_DURABLE_REVIEW_SAVE_VETO"
                 );
@@ -218,11 +225,20 @@ public final class G2136MailboxFencedWorldSaveIntegrationTest {
                 WorldPlayer independent=new WorldPlayer();
                 long independentGeneration=
                     world.registerPlayer(independent,bob);
+                AtomicReference<WorldPlayerPersistence.SaveTicket>
+                    otherRef=new AtomicReference<>();
+                world.submitAndWait(
+                    independent,independentGeneration,()->{
+                        otherRef.set(
+                            world.persistence().captureAndSave(
+                                bob,independent,independentGeneration,0,
+                                "[g2136] ","UNFENCED_ACCOUNT"
+                            )
+                        );
+                    },5000L
+                );
                 WorldPlayerPersistence.SaveTicket otherTicket=
-                    world.persistence().captureAndSave(
-                        bob,independent,independentGeneration,0,
-                        "[g2136] ","UNFENCED_ACCOUNT"
-                    );
+                    otherRef.get();
                 otherTicket.completion.get(8,TimeUnit.SECONDS);
                 unrelatedAccountWrites=
                     Files.exists(paths.resolve(bob))&&
