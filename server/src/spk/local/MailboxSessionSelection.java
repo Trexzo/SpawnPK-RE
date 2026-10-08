@@ -117,6 +117,32 @@ final class MailboxSessionSelection implements AutoCloseable {
         });
     }
 
+    /**
+     * Resolve the currently selected server-owned row using immutable
+     * identity, never a client-provided row-click or recycled message ID.
+     * Snapshot read/claim transitions retain the same message object.
+     */
+    int selectedBoundRow(){
+        return owned(()->{
+            requireBound();
+            if(selected==null)
+                throw new IllegalStateException(
+                    "Mailbox read requires a selected row"
+                );
+
+            requireSameEntry(selected);
+
+            for(int i=0;i<rows.size();i++){
+                if(rows.get(i)==selected)
+                    return i;
+            }
+
+            throw new IllegalStateException(
+                "selected Mailbox row was retired"
+            );
+        });
+    }
+
     MailboxWidgetIntentAdapter.Intent resolve(
         WidgetActionClientRequest request
     ){

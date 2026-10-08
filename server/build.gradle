@@ -2130,6 +2130,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2110WorldMailboxWireIntegrationTest',
     'spk.local.G2111MailboxRefreshWidgetIntegrationTest',
     'spk.local.G2112MailboxSafeDeleteWidgetIntegrationTest',
+    'spk.local.G2113MailboxTrustedReadIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2158,10 +2159,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 311 ||
-    currentTrainFocusedTests.toSet().size() != 311) {
+if (currentTrainFocusedTests.size() != 312 ||
+    currentTrainFocusedTests.toSet().size() != 312) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 311 unique tests, found " +
+        "Current-train focused manifest drift: expected 312 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2757,6 +2758,14 @@ tasks.register('g2112MailboxSafeDeleteWidgetRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2112MailboxSafeDeleteWidgetIntegrationTest')
+}
+
+tasks.register('g2113MailboxTrustedReadRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves owner-fenced trusted selected Mailbox READ, exact subtype31 packet and persistence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2113MailboxTrustedReadIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
