@@ -1199,6 +1199,21 @@ final class LocalSession implements Runnable {
                     ).handle(tokens);
                 }
 
+                @Override public int openMailboxNative(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    if(LocalSession.this.rootlessMailbox==null)
+                        LocalSession.this.rootlessMailbox=
+                            new LocalMailboxRootlessSession(
+                                LocalSession.this.world,
+                                LocalSession.this.worldPlayer,
+                                LocalSession.this.worldPlayerGeneration
+                            );
+
+                    return LocalSession.this
+                        .rootlessMailbox.openNativeRoot(writer);
+                }
+
                 @Override public int syncMailboxRootless(
                     ServerPacketWriter writer
                 )throws IOException{

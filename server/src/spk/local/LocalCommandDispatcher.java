@@ -192,6 +192,12 @@ final class LocalCommandDispatcher {
             )throws IOException{
             return null;
         }
+        default int openMailboxNative(
+            ServerPacketWriter writer
+        )throws IOException{
+            return -1;
+        }
+
         default int syncMailboxRootless(
             ServerPacketWriter writer
         )throws IOException{
@@ -324,6 +330,23 @@ final class LocalCommandDispatcher {
 
         String clean=clean(command);
         String[] p=tokens(clean);
+
+        // Exact-native v308 command ::mail opens the root recovered from
+        // pinned rs.n.c.c.a.a(); root+inbox order is LocalLab policy.
+        if(isNativeMailboxRootRoute(p)){
+            int rows=bridge.openMailboxNative(serverPackets);
+            new SocialChatPresentationPublisher(serverPackets)
+                .serverMessage(rows<0
+                    ?"Mailbox interface is not configured."
+                    :"Mailbox opened: "+rows+" messages.");
+            System.out.println(
+                tag+"G2117_MAILBOX_NATIVE_ROOT_OPEN rows="+rows+
+                " root=32019 exactC2S103=true"+
+                " originalServerOrderingClaim=false"+
+                " settlementOwned=false"
+            );
+            return true;
+        }
 
         // Explicit CUSTOM_LOCALLAB opt-in, NOT the native Mailbox root.
         // Rootless list packets are only published after this command,
@@ -1394,6 +1417,12 @@ final class LocalCommandDispatcher {
                     .ITEMLIB_OPEN_ACTION_PREFIX+
                 ":"
             );
+    }
+
+    /** Exact pinned-v308 notification C2S103 command. */
+    static boolean isNativeMailboxRootRoute(String[] tokens){
+        return tokens!=null&&tokens.length==1&&
+            "mail".equalsIgnoreCase(tokens[0]);
     }
 
     static boolean isMailboxRootlessSyncRoute(String[] tokens){
