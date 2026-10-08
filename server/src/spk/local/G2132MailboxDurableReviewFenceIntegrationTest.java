@@ -192,7 +192,7 @@ public final class G2132MailboxDurableReviewFenceIntegrationTest {
                         noLiveInventoryOrClaim &=
                             player.bank().inventorySlots()==0;
                         for(MailboxRewardDeliveryService.Snapshot mail:
-                                player.mailbox().all()){
+                                player.mailbox().snapshot()){
                             noLiveInventoryOrClaim &=
                                 mail.claimState==
                                     MailboxRewardDeliveryService
