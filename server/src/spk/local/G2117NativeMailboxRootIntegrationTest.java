@@ -131,8 +131,13 @@ public final class G2117NativeMailboxRootIntegrationTest {
             rowView.publishInbox(
                 writer(new ByteArrayOutputStream())
             );
+            ServerPacketWriter expectedRowWriter=
+                writer(expectedRow);
             rowView.publishTrustedRowDetail(
-                0,writer(expectedRow)
+                0,expectedRowWriter
+            );
+            rowView.publishSelectedReadState(
+                expectedRowWriter
             );
             clientRowAfterOpen &=
                 rowWire.size()>0&&
@@ -189,7 +194,9 @@ public final class G2117NativeMailboxRootIntegrationTest {
                 bob.mailbox().get("g2117:reward")==null;
 
             noRewardMutation=
-                alice.mailbox().unreadCount()==2&&
+                alice.mailbox().unreadCount()==1&&
+                alice.mailbox().get("g2117:reward").readState==
+                    MailboxRewardDeliveryService.ReadState.READ&&
                 bob.mailbox().unreadCount()==1&&
                 alice.mailbox().get("g2117:reward").claimState==
                     MailboxRewardDeliveryService.ClaimState.UNCLAIMED&&
