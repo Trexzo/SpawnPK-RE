@@ -294,12 +294,43 @@ public final class G2128MailboxReservedFifoDrainIntegrationTest {
                     );
                 })&&retired.isActive();
 
-            world.persistence().close();
-            shutdownAdmissionRejected=rejects(()->{
-                world.persistence().drainReservedPreparedAccount(
-                    retired,proposal
+            // Test SHUTDOWN admission against a still-valid, distinct
+            // account token, not just the already-retired old generation.
+            WorldPlayer other=new WorldPlayer();
+            long otherGeneration=world.registerPlayer(
+                other,"g2128-other"
+            );
+            AtomicReference<MailboxSettlementPostimagePlanner.Proposal>
+                otherProposal=new AtomicReference<>();
+            world.submitAndWait(other,otherGeneration,()->{
+                other.mailbox().deliver(new RewardDeliveryMessage(
+                    "g2128:other","Other prepared","No credit",
+                    Collections.singletonList(
+                        new RewardDeliveryMessage.Attachment(995,1)
+                    ),"CUSTOM_LOCALLAB_G2128_FIXTURE"
+                ));
+                MailboxRewardDeliveryService.Snapshot row=
+                    other.mailbox().get("g2128:other");
+                MailboxPreparedClaimJournal.stageOnly(
+                    other,MailboxPreparedClaimJournal.prepare(other,row)
                 );
-            });
+                otherProposal.set(
+                    MailboxSettlementPostimagePlanner.plan(
+                        other,otherGeneration,row
+                    )
+                );
+            },5000L);
+            WorldPlayerPersistence.PreparedAccountReservation
+                shutdownToken=world.persistence().reservePreparedAccount(
+                    other,otherGeneration,otherProposal.get()
+                );
+            world.persistence().close();
+            shutdownAdmissionRejected=shutdownToken.isActive()&&
+                rejects(()->{
+                    world.persistence().drainReservedPreparedAccount(
+                        shutdownToken,otherProposal.get()
+                    );
+                });
             noRewardCreditOrClaim=
                 owner.bank().inventorySlots()==0&&
                 owner.mailbox().get("g2128:reward").claimState==
