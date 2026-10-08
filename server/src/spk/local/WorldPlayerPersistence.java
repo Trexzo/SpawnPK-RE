@@ -1718,8 +1718,18 @@ final class WorldPlayerPersistence
             try{
                 if(completion.isDone())
                     return;
+                // G21.42: real file-backed World strict PREPARED saves
+                // coordinate with the G21.34 negative review marker.
+                // Keep legacy non-file adapters explicitly outside the
+                // exact FilePlayerRepository path guarantee.
                 StrictDurablePlayerSnapshotWriter.Receipt receipt=
-                    writer.saveStrict(snapshot);
+                    repository instanceof FilePlayerRepository
+                        ?writer.saveStrictForWorld(
+                            snapshot,
+                            ((FilePlayerRepository)repository)
+                                .accountFilePath(snapshot.username())
+                        )
+                        :writer.saveStrict(snapshot);
                 completion.complete(receipt);
             }catch(Throwable failure){
                 completion.completeExceptionally(failure);
