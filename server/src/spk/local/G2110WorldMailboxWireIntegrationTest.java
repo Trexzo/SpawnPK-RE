@@ -288,7 +288,11 @@ public final class G2110WorldMailboxWireIntegrationTest {
                             (type==WidgetActionClientRequest.class&&
                              !method.getName().equals(
                                  "publishRefreshFromWidget"
-                             ))
+                             )&&
+                             !(method.isSynthetic()&&
+                               method.getName().startsWith(
+                                 "lambda$publishRefreshFromWidget$"
+                               )))
                         )
                 );
         }
