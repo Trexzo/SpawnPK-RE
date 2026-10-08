@@ -181,15 +181,18 @@ final class WorldPlayerPersistence
 
     private static final class PendingCheckpoint {
         final long tick;
+        final long captureSequence;
         final PlayerSnapshot snapshot;
         final int petAccessoryItem;
 
         PendingCheckpoint(
             long tick,
+            long captureSequence,
             PlayerSnapshot snapshot,
             int petAccessoryItem
         ){
             this.tick=tick;
+            this.captureSequence=captureSequence;
             this.snapshot=snapshot;
             this.petAccessoryItem=petAccessoryItem;
         }
@@ -218,6 +221,18 @@ final class WorldPlayerPersistence
         new AtomicReference<>();
     private final AtomicReference<SaveTask> inFlightSave=
         new AtomicReference<>();
+    private final AtomicReference<PreparedStrictBarrierTask>
+        inFlightStrictBarrier=new AtomicReference<>();
+
+    /*
+     * Protected by io, shared with the single writer's admission lock.
+     * Prevents deferred pre-barrier captures/checkpoints admitted later
+     * from overwriting a strict PREPARED-only account snapshot.
+     * This is NOT a durable claim/grant transaction or a full account
+     * mutation epoch.
+     */
+    private final HashMap<String,Long>
+        strictPreparedAccountCutoffs=new HashMap<>();
 
     /*
      * Protected by the persistence admission lock (io). A bound final
@@ -1160,6 +1175,7 @@ final class WorldPlayerPersistence
                 pending=
                     new PendingCheckpoint(
                         tick,
+                        sequence.incrementAndGet(),
                         snapshot,
                         accessoryItem
                     );
@@ -1351,11 +1367,12 @@ final class WorldPlayerPersistence
                     playerId;
             }
 
-            long saveSequence=
-                sequence.incrementAndGet();
-
+            // The cutoff compares the World *capture* order,
+            // not the later worker drain order. A pending checkpoint
+            // older than a strict barrier is never allowed to overwrite
+            // the new durable PREPARED-only account snapshot.
             write(
-                saveSequence,
+                pending.captureSequence,
                 pending.snapshot,
                 pending.petAccessoryItem,
                 "[world] ",
@@ -1572,6 +1589,118 @@ final class WorldPlayerPersistence
         }
     }
 
+    /**
+     * An opt-in PREPARED_NO_GRANT strict-write barrier, serialized on the
+     * existing single persistence worker. Never invoked by live native
+     * Mailbox reward-claim widgets.
+     */
+    final class PreparedStrictBarrierTask implements Runnable {
+        final long barrierSequence;
+        final PlayerSnapshot snapshot;
+        final StrictDurablePlayerSnapshotWriter writer;
+        final CompletableFuture<
+            StrictDurablePlayerSnapshotWriter.Receipt> completion=
+                new CompletableFuture<>();
+
+        PreparedStrictBarrierTask(
+            long barrierSequence,
+            PlayerSnapshot snapshot,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+            this.barrierSequence=barrierSequence;
+            this.snapshot=snapshot;
+            this.writer=writer;
+        }
+
+        @Override public void run(){
+            inFlightStrictBarrier.set(this);
+            try{
+                if(completion.isDone())
+                    return;
+                StrictDurablePlayerSnapshotWriter.Receipt receipt=
+                    writer.saveStrict(snapshot);
+                completion.complete(receipt);
+            }catch(Throwable failure){
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightStrictBarrier.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+        }
+    }
+
+    /**
+     * Off-World admission only; snapshot must already be captured in
+     * current World ownership and contain G21.22 PREPARED_NO_GRANT.
+     * Existing queued and in-flight I/O precedes this FIFO barrier.
+     * Old deferred/captured saves are rejected by capture sequence.
+     *
+     * THIS IS NOT CLAIM SETTLEMENT: new captures after this barrier
+     * can still overwrite the snapshot unless their owner state has
+     * the committed postimage. No reward credit/CLAIMED allowed.
+     */
+    CompletableFuture<StrictDurablePlayerSnapshotWriter.Receipt>
+        submitPreparedStrictBarrier(
+            WorldPlayer owner,
+            long expectedGeneration,
+            PlayerSnapshot snapshot,
+            StrictDurablePlayerSnapshotWriter strictWriter
+        ){
+        Objects.requireNonNull(owner,"owner");
+        Objects.requireNonNull(snapshot,"snapshot");
+        Objects.requireNonNull(strictWriter,"strictWriter");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "strict file I/O barrier admission on World context"
+            );
+
+        if(!MailboxPreparedClaimJournal.STATE.equals(
+                snapshot.value("extension."+
+                    MailboxPreparedClaimJournal.NAMESPACE+
+                    ".state")))
+            throw new IllegalArgumentException(
+                "strict claim barrier requires PREPARED_NO_GRANT"
+            );
+
+        synchronized(owner.mutationLock()){
+            if(!world.players().owns(owner,expectedGeneration)||
+               !snapshot.username().equals(owner.username()))
+                throw new IllegalStateException(
+                    "strict prepared barrier World owner changed"
+                );
+
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "strict prepared barrier after shutdown"
+                    );
+                Long finalGeneration=
+                    finalReservationGenerations.get(owner);
+                if(finalGeneration!=null&&
+                   finalGeneration.longValue()==expectedGeneration)
+                    throw new RejectedExecutionException(
+                        "strict prepared barrier blocked by final-save reservation"
+                    );
+
+                long barrierSequence=sequence.incrementAndGet();
+                PreparedStrictBarrierTask task=
+                    new PreparedStrictBarrierTask(
+                        barrierSequence,snapshot,strictWriter
+                    );
+                // The cutoff must become visible only on a successful
+                // enqueue. Failed/backpressured admission changes nothing.
+                io.execute(task);
+                strictPreparedAccountCutoffs.put(
+                    snapshot.username(),barrierSequence
+                );
+                return task.completion;
+            }
+        }
+    }
+
     private final class SaveTask
         implements Runnable {
 
@@ -1738,6 +1867,17 @@ final class WorldPlayerPersistence
         boolean checkpoint
     ){
         try{
+            synchronized(io){
+                Long cutoff=strictPreparedAccountCutoffs.get(
+                    snapshot.username()
+                );
+                if(cutoff!=null&&saveSequence<=cutoff)
+                    throw new RejectedExecutionException(
+                        "stale prepared strict barrier capture account="+
+                        snapshot.username()+" capture="+saveSequence+
+                        " cutoff="+cutoff
+                    );
+            }
             repository.save(snapshot);
 
             synchronized(future){
@@ -1868,6 +2008,12 @@ final class WorldPlayerPersistence
                 continue;
             }
 
+            if(runnable instanceof PreparedStrictBarrierTask){
+                counts.saves++;
+                ((PreparedStrictBarrierTask)runnable).reject(error);
+                continue;
+            }
+
             if(runnable instanceof CheckpointDrainTask){
                 counts.checkpoints++;
                 ((CheckpointDrainTask)runnable).reject(
@@ -1977,6 +2123,16 @@ final class WorldPlayerPersistence
         );
     }
 
+    private boolean rejectInFlightStrictBarrier(String stage){
+        PreparedStrictBarrierTask active=inFlightStrictBarrier.get();
+        if(active==null)
+            return false;
+        active.reject(new RejectedExecutionException(
+            "strict prepared barrier outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
     private boolean rejectInFlightSave(
         String stage
     ){
@@ -2059,6 +2215,10 @@ final class WorldPlayerPersistence
                     !clean&&
                     rejectInFlightSave(
                         "SHUTDOWN_IN_FLIGHT"
+                    );
+                boolean strictBarrierSettled=
+                    !clean&&rejectInFlightStrictBarrier(
+                        "SHUTDOWN_STRICT_IN_FLIGHT"
                     );
                 boolean checkpointInFlightSettled=
                     !clean&&
