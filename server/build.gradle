@@ -2159,6 +2159,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2139MailboxAccountLockIsolationIntegrationTest',
     'spk.local.G2140MailboxCrossJvmPublicationIntegrationTest',
     'spk.local.G2141MailboxVerifiedReviewMarkerIntegrationTest',
+    'spk.local.G2142MailboxStrictWorldSaveFenceIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2187,10 +2188,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 340 ||
-    currentTrainFocusedTests.toSet().size() != 340) {
+if (currentTrainFocusedTests.size() != 341 ||
+    currentTrainFocusedTests.toSet().size() != 341) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 340 unique tests, found " +
+        "Current-train focused manifest drift: expected 341 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3018,6 +3019,14 @@ tasks.register('g2141MailboxVerifiedReviewMarkerRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2141MailboxVerifiedReviewMarkerIntegrationTest')
+}
+
+tasks.register('g2142MailboxStrictWorldSaveFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves real file-backed strict PREPARED World save cannot bypass persistent negative review marker.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2142MailboxStrictWorldSaveFenceIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
