@@ -76,16 +76,13 @@ public final class G192LoginRewardEmptyShellIntegrationTest {
             );
 
         boolean handled=
-            LocalCommandDispatcher.dispatch(
-                new String[]{"loginrewards"},
-                "",
-                "",
-                "",
-                0L,
-                writer,
-                bridge,
-                "[g192] "
-            );
+            LocalCommandDispatcher
+                .dispatchLoginRewardCommand(
+                    new String[]{"loginrewards"},
+                    bridge,
+                    writer,
+                    "[g192] "
+                );
 
         commandRoute=
             commandRoute&&handled&&
