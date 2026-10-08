@@ -97,7 +97,7 @@ public final class G2118MailboxRootOwnershipIntegrationTest {
             // Reopening a malformed inbox must abort the root+inbox
             // batch and preserve the previously published native scope.
             alice.mailbox().deliver(message(
-                "g2118:invalid","Invalid\\nsubject",false
+                "g2118:invalid","Invalid\nsubject",false
             ));
             ByteArrayOutputStream rejectedMailbox=
                 new ByteArrayOutputStream();
