@@ -342,6 +342,40 @@ final class WorldMailboxPresentationSession implements AutoCloseable {
         });
     }
 
+    /**
+     * Typed v308 C2S185 widget32181 may only perform a read-only inventory
+     * feasibility preview. No durable atomic Mailbox+inventory transaction
+     * has been certified; this must not acknowledge attachment settlement.
+     */
+    MailboxInventoryClaimPreflight.Preview
+        previewSelectedInventoryClaimFromWidget(
+            WidgetActionClientRequest request
+        )throws IOException{
+        Objects.requireNonNull(request,"request");
+        return owned(()->{
+            view.selectedBoundRow();
+            MailboxWidgetIntentAdapter.Intent intent=
+                view.resolve(request);
+            if(intent==null||
+               intent.kind!=
+                   MailboxWidgetIntentAdapter.Kind.DEPOSIT_TO_INVENTORY||
+               intent.messageId==null)
+                throw new IllegalArgumentException(
+                    "not an exact current Mailbox inventory claim"
+                );
+
+            MailboxRewardDeliveryService.Snapshot row=
+                owner.mailbox().get(intent.messageId);
+            if(row==null)
+                throw new IllegalStateException(
+                    "stale selected Mailbox reward"
+                );
+            return MailboxInventoryClaimPreflight.inspect(
+                owner,row
+            );
+        });
+    }
+
     private interface Owned<T> {
         T run()throws Exception;
     }
