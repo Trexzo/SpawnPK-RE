@@ -27,6 +27,8 @@ final class FilePlayerRepository
         void run(String account)throws IOException;
     }
     private final BeforeWorldReplace beforeWorldReplace;
+    /** Test-only hook inside the exclusive last-check/replace section. */
+    private final BeforeWorldReplace insideWorldPublication;
 
     FilePlayerRepository(){
         this(
@@ -44,9 +46,19 @@ final class FilePlayerRepository
     FilePlayerRepository(
         PathResolver paths,BeforeWorldReplace beforeWorldReplace
     ){
+        this(paths,beforeWorldReplace,account->{});
+    }
+
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication
+    ){
         this.paths=Objects.requireNonNull(paths,"paths");
         this.beforeWorldReplace=Objects.requireNonNull(
             beforeWorldReplace,"beforeWorldReplace"
+        );
+        this.insideWorldPublication=Objects.requireNonNull(
+            insideWorldPublication,"insideWorldPublication"
         );
     }
 
@@ -192,32 +204,43 @@ final class FilePlayerRepository
 
             if(enforceWorldAdmission){
                 beforeWorldReplace.run(snapshot.username());
-                // The last check is immediately BEFORE replacement,
-                // after all serialization but before changing account
-                // bytes. A concurrent external arm after this check
-                // remains a real, documented cross-process race.
-                requireUnfencedWorldSave(snapshot.username());
-            }
-
-            try{
-                Files.move(
-                    tmp,
-                    file,
-                    StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.ATOMIC_MOVE
-                );
-            }catch(AtomicMoveNotSupportedException e){
-                Files.move(
-                    tmp,
-                    file,
-                    StandardCopyOption.REPLACE_EXISTING
-                );
+                // G21.38: the last review-fence check and account-file
+                // replacement are one exclusive publication critical
+                // section shared with cooperating G21.34 marker writers.
+                // This does NOT coordinate direct manual save() calls.
+                MailboxAccountPublicationCoordinator
+                    .withExclusivePublication(file,()->{
+                        requireUnfencedWorldSave(snapshot.username());
+                        insideWorldPublication.run(snapshot.username());
+                        replaceSnapshotTemp(tmp,file);
+                        return null;
+                    });
+            }else{
+                replaceSnapshotTemp(tmp,file);
             }
 
             completed=true;
         }finally{
             if(!completed)
                 Files.deleteIfExists(tmp);
+        }
+    }
+
+    private static void replaceSnapshotTemp(
+        Path temp,Path file
+    )throws IOException{
+        try{
+            Files.move(
+                temp,file,
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE
+            );
+        }catch(AtomicMoveNotSupportedException unsupported){
+            // Retain original account-file writer compatibility. This
+            // fallback is NOT used for the no-clobber review marker.
+            Files.move(
+                temp,file,StandardCopyOption.REPLACE_EXISTING
+            );
         }
     }
 
