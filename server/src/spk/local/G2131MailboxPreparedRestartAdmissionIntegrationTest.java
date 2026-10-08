@@ -23,6 +23,7 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
         boolean loadedPreparedStillUnclaimed=false;
         boolean hypotheticalClassifiedQuarantine=false;
         boolean actualLoadBlocksHypothetical=false;
+        boolean sessionInitializerRejectsHypothetical=false;
         boolean diskHypotheticalLeftUntouched=false;
         boolean forensicFifoObservationStillSeesUntrusted=false;
         boolean inventoryOnlyMismatchBlocked=false;
@@ -133,6 +134,19 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
             actualLoadBlocksHypothetical=quarantined(
                 world,proposal.account,"QUARANTINE_CLAIMED_OR_EMPTY_MESSAGE"
             );
+            WorldPlayer rejectedSessionPlayer=new WorldPlayer();
+            LocalAccountLifecycle.LoadResult sessionRejected=
+                LocalAccountLifecycle.load(
+                    new LocalAccountLifecycle.Selection(
+                        proposal.account,true
+                    ),
+                    rejectedSessionPlayer,world.persistence(),
+                    itemId->true,"[g2131-session] "
+                );
+            sessionInitializerRejectsHypothetical=
+                sessionRejected.failed&&
+                rejectedSessionPlayer.bank().inventorySlots()==0&&
+                rejectedSessionPlayer.mailbox().size()==0;
             forensicFifoObservationStillSeesUntrusted=
                 world.persistence().observeUntrustedMailboxAccount(
                     proposal.account
@@ -251,6 +265,8 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
             " noPreparedGrant="+loadedPreparedStillUnclaimed+
             " hypotheticalQuarantined="+hypotheticalClassifiedQuarantine+
             " actualHypotheticalLoadBlocked="+actualLoadBlocksHypothetical+
+            " realSessionHydrationRejected="+
+                sessionInitializerRejectsHypothetical+
             " uncertainFileUntouched="+diskHypotheticalLeftUntouched+
             " forensicFifoObservationOnly="+
                 forensicFifoObservationStillSeesUntrusted+
@@ -268,7 +284,9 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
             noJournalUnchanged&&validPreparedClassified&&
             actualLoadAcceptsPrepared&&loadedPreparedStillUnclaimed&&
             hypotheticalClassifiedQuarantine&&
-            actualLoadBlocksHypothetical&&diskHypotheticalLeftUntouched&&
+            actualLoadBlocksHypothetical&&
+            sessionInitializerRejectsHypothetical&&
+            diskHypotheticalLeftUntouched&&
             forensicFifoObservationStillSeesUntrusted&&
             inventoryOnlyMismatchBlocked&&missingEnvelopeBlocked&&
             invalidJournalBlocked&&foreignJournalBlocked&&
