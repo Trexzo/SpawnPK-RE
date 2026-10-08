@@ -123,6 +123,11 @@ final class LocalCommandDispatcher {
         )throws IOException{
             return false;
         }
+        default boolean openLoginRewards(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         default boolean openTaskScroll(
             ServerPacketWriter serverPackets
         )throws IOException{
@@ -770,6 +775,38 @@ final class LocalCommandDispatcher {
                 LocalEventActivityUiHandler.AUTHORITY+
                 " routeAuthority=CUSTOM_LOCALLAB"+
                 " zeroRows=true"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isLoginRewardRoute(p)){
+            boolean opened=
+                bridge.openLoginRewards(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G192_LOGIN_REWARD_COMMAND"+
+                " opened="+opened+
+                " root="+
+                    LoginRewardPresentation.ROOT+
+                " container="+
+                    LoginRewardPresentation.ITEM_CONTAINER_WIDGET+
+                " slots="+
+                    LoginRewardPresentation.SLOT_COUNT+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " emptyProjection=true"+
+                " indexPublished=false"+
+                " inputRouter=false"+
+                " gameplayState=false"+
+                " rewardPolicyClaim=false"+
+                " cadenceClaim=false"+
+                " streakClaim=false"+
+                " claimTransportClaim=false"+
+                " settlementClaim=false"+
+                " persistenceClaim=false"+
                 " originalNavigationClaim=false"
             );
             return true;
@@ -1441,6 +1478,19 @@ final class LocalCommandDispatcher {
                 )||
                 p[0].equalsIgnoreCase(
                     "activities"
+                )
+            );
+    }
+
+    static boolean isLoginRewardRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "loginrewards"
+                )||
+                p[0].equalsIgnoreCase(
+                    "loginreward"
                 )
             );
     }
