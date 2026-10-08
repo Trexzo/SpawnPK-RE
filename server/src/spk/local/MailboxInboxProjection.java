@@ -30,6 +30,30 @@ final class MailboxInboxProjection {
                 Objects.requireNonNull(snapshots,"snapshots")
             );
 
+        validateRows(rows);
+
+        MailboxPresentationAdapter.clear(checkedWriter);
+
+        for(MailboxRewardDeliveryService.Snapshot row:rows)
+            MailboxPresentationAdapter.append(
+                checkedWriter,
+                row
+            );
+
+        MailboxPresentationAdapter.finalizeRows(
+            checkedWriter
+        );
+    }
+
+    /**
+     * Validate a hypothetical complete inbox projection without publishing
+     * any bytes or advancing an outbound cipher. Used before irreversible
+     * CUSTOM_LOCALLAB delete to preflight every surviving row.
+     */
+    static void validateRows(
+        List<MailboxRewardDeliveryService.Snapshot> rows
+    ){
+        Objects.requireNonNull(rows,"rows");
         if(rows.size()>CLIENT_VISIBLE_ROW_LIMIT)
             throw new IllegalArgumentException(
                 "client Mailbox row limit "+
@@ -66,18 +90,6 @@ final class MailboxInboxProjection {
 
             validateSubject(message.subject);
         }
-
-        MailboxPresentationAdapter.clear(checkedWriter);
-
-        for(MailboxRewardDeliveryService.Snapshot row:rows)
-            MailboxPresentationAdapter.append(
-                checkedWriter,
-                row
-            );
-
-        MailboxPresentationAdapter.finalizeRows(
-            checkedWriter
-        );
     }
 
     /**
