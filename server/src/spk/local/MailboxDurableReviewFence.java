@@ -44,6 +44,8 @@ final class MailboxDurableReviewFence {
         AFTER_SERIALIZE,
         BEFORE_FILE_FORCE,
         BEFORE_ATOMIC_REPLACE,
+        // G21.38 deterministic race seam inside the exclusive lock.
+        INSIDE_EXCLUSIVE_PUBLICATION_BEFORE_LINK,
         BEFORE_DIRECTORY_FORCE,
         AFTER_DIRECTORY_FORCE
     }
@@ -214,6 +216,9 @@ final class MailboxDurableReviewFence {
                 .withExclusivePublication(accountFile,()->{
                     // G21.34: the final hard-link name is created only
                     // when absent. No ATOMIC_MOVE/copy fallback exists.
+                    faults.check(
+                        Phase.INSIDE_EXCLUSIVE_PUBLICATION_BEFORE_LINK
+                    );
                     Files.createLink(file,temp);
                     published[0]=true;
                     try{
