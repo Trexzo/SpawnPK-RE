@@ -215,6 +215,8 @@ final class LocalSession implements Runnable {
     private final LocalDuelUiHandler duelUi;
     private final LocalCommandDispatcher commandDispatcher;
     private LocalMailboxRootlessSession rootlessMailbox;
+    /** True only inside the exact-native ::mail root-replacement handoff. */
+    private boolean mailboxNativeRootOpening;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRealtimeScheduler petRealtime;
@@ -1210,8 +1212,31 @@ final class LocalSession implements Runnable {
                                 LocalSession.this.worldPlayerGeneration
                             );
 
-                    return LocalSession.this
-                        .rootlessMailbox.openNativeRoot(writer);
+                    // Reuse the identical World/lifecycle/trade arbiter
+                    // used by all existing competing native root opens.
+                    // The shared post-commit retirement must NOT close
+                    // the new Mailbox scope during its own publication.
+                    if(LocalSession.this.mailboxNativeRootOpening)
+                        throw new IllegalStateException(
+                            "nested native Mailbox root replacement"
+                        );
+                    LocalSession.this.mailboxNativeRootOpening=true;
+                    try{
+                        final int[] rows={-1};
+                        String published=LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRoot(
+                                ()->{
+                                    rows[0]=LocalSession.this
+                                        .rootlessMailbox.openNativeRoot(
+                                            writer
+                                        );
+                                    return "G2118_MAILBOX_ROOT_OPENED";
+                                }
+                            );
+                        return published==null?-1:rows[0];
+                    }finally{
+                        LocalSession.this.mailboxNativeRootOpening=false;
+                    }
                 }
 
                 @Override public int syncMailboxRootless(
@@ -1394,11 +1419,13 @@ final class LocalSession implements Runnable {
                 @Override public String replaceMonsterSpawnerRoot(
                     LocalSessionUiActionHandler.RootInterfaceAction action
                 )throws IOException{
-                    return replaceMonsterSpawnerRootForCurrentSession(
+                    return replaceRootAndRetireMailboxIfCompeting(
                         LocalSession.this.world,
                         LocalSession.this.worldPlayer,
                         LocalSession.this.worldPlayerGeneration,
-                        action
+                        action,
+                        LocalSession.this.rootlessMailbox,
+                        LocalSession.this.mailboxNativeRootOpening
                     );
                 }
 
@@ -2540,6 +2567,29 @@ final class LocalSession implements Runnable {
                     checkedAction
                 )
         );
+    }
+
+    /**
+     * Central native root arbitration and Mailbox scope retirement.
+     *
+     * A failed/stale competing publication never retires the old view.
+     * The successful native Mailbox publisher is distinguished explicitly
+     * so its own new root is not immediately invalidated.
+     */
+    static String replaceRootAndRetireMailboxIfCompeting(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        LocalSessionUiActionHandler.RootInterfaceAction action,
+        LocalMailboxRootlessSession mailbox,
+        boolean openingNativeMailbox
+    )throws IOException{
+        String result=replaceMonsterSpawnerRootForCurrentSession(
+            world,player,expectedGeneration,action
+        );
+        if(result!=null&&mailbox!=null&&!openingNativeMailbox)
+            mailbox.onInterfaceClose();
+        return result;
     }
 
     static String replaceMonsterSpawnerRootForCurrentSession(
