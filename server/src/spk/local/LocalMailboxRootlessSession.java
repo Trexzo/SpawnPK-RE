@@ -133,9 +133,10 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
     }
 
     /**
-     * Handle only native v308 inbox rows and safe Refresh in the active
-     * explicitly synchronized scope. Suppress claim/delete controls so no
-     * unowned settlement/deletion path can run through later UI handlers.
+     * Handle native v308 inbox row detail plus CUSTOM_LOCALLAB READ
+     * acknowledgement, and safe Refresh in the active scoped session.
+     * Suppress claim/delete controls so no unowned settlement/deletion path
+     * can run through later UI handlers.
      *
      * Returns false for other widgets, preserving ordinary precedence.
      */
@@ -150,7 +151,31 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
 
         int row=MailboxRowWidgetIntentAdapter.resolveIfRow(request);
         if(row>=0){
-            active.publishRowDetailFromWidget(request,writer);
+            // CUSTOM_LOCALLAB_G2119: viewing a native-v308 Mailbox row
+            // acknowledges READ only after the exact detail projection
+            // succeeds. The original SpawnPK read timing is unknown.
+            //
+            // Packet serialization is batched (SELECT, detail, READ)
+            // so preflight failure cannot leak an incomplete selection.
+            // Semantic READ commits before transport flush; a failed
+            // endBatch does NOT roll back read status. Refresh repairs
+            // any client-side presentation missed by the transport.
+            boolean begun=false;
+            try{
+                writer.beginBatch();
+                begun=true;
+                active.publishRowDetailFromWidget(request,writer);
+                active.publishSelectedReadState(writer);
+                writer.endBatch();
+                begun=false;
+            }finally{
+                if(begun)
+                    try{
+                        writer.abortBatch();
+                    }catch(Throwable ignored){
+                        // Preserve original publication/transport error.
+                    }
+            }
             return true;
         }
 
