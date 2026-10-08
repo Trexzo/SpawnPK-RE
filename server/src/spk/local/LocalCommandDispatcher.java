@@ -780,37 +780,13 @@ final class LocalCommandDispatcher {
             return true;
         }
 
-        if(isLoginRewardRoute(p)){
-            boolean opened=
-                bridge.openLoginRewards(
-                    serverPackets
-                );
-
-            System.out.println(
-                tag+
-                "G192_LOGIN_REWARD_COMMAND"+
-                " opened="+opened+
-                " root="+
-                    LoginRewardPresentation.ROOT+
-                " container="+
-                    LoginRewardPresentation.ITEM_CONTAINER_WIDGET+
-                " slots="+
-                    LoginRewardPresentation.SLOT_COUNT+
-                " routeAuthority=CUSTOM_LOCALLAB"+
-                " emptyProjection=true"+
-                " indexPublished=false"+
-                " inputRouter=false"+
-                " gameplayState=false"+
-                " rewardPolicyClaim=false"+
-                " cadenceClaim=false"+
-                " streakClaim=false"+
-                " claimTransportClaim=false"+
-                " settlementClaim=false"+
-                " persistenceClaim=false"+
-                " originalNavigationClaim=false"
-            );
+        if(dispatchLoginRewardCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
             return true;
-        }
 
         if(dispatchAdventureBookCommand(
                 p,
@@ -1111,6 +1087,53 @@ final class LocalCommandDispatcher {
         }
 
         return false;
+    }
+
+    static boolean dispatchLoginRewardCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(!isLoginRewardRoute(tokens))
+            return false;
+
+        boolean opened=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).openLoginRewards(
+                Objects.requireNonNull(
+                    serverPackets,
+                    "serverPackets"
+                )
+            );
+
+        System.out.println(
+            tag+
+            "G192_LOGIN_REWARD_COMMAND"+
+            " opened="+opened+
+            " root="+
+                LoginRewardPresentation.ROOT+
+            " container="+
+                LoginRewardPresentation.ITEM_CONTAINER_WIDGET+
+            " slots="+
+                LoginRewardPresentation.SLOT_COUNT+
+            " routeAuthority=CUSTOM_LOCALLAB"+
+            " emptyProjection=true"+
+            " indexPublished=false"+
+            " inputRouter=false"+
+            " gameplayState=false"+
+            " rewardPolicyClaim=false"+
+            " cadenceClaim=false"+
+            " streakClaim=false"+
+            " claimTransportClaim=false"+
+            " settlementClaim=false"+
+            " persistenceClaim=false"+
+            " originalNavigationClaim=false"
+        );
+
+        return true;
     }
 
     static boolean dispatchAdventureBookCommand(
