@@ -2,6 +2,10 @@ package spk.local;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Map;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -51,11 +55,25 @@ final class StrictDurablePlayerSnapshotWriter {
         final String account;
         final Path file;
         final String authority;
+        final int snapshotVersion;
+        final String snapshotSha256;
 
-        private Receipt(String account,Path file){
+        private Receipt(
+            String account,Path file,int version,String sha256
+        ){
             this.account=account;
             this.file=file;
             this.authority=AUTHORITY;
+            this.snapshotVersion=version;
+            this.snapshotSha256=sha256;
+        }
+
+        /** This proves which immutable snapshot this *operation* saved. */
+        boolean matchesSnapshot(PlayerSnapshot snapshot){
+            return snapshot!=null&&
+                snapshot.version()==snapshotVersion&&
+                account.equals(snapshot.username())&&
+                snapshotSha256.equals(canonicalSnapshotSha256(snapshot));
         }
     }
 
@@ -85,6 +103,9 @@ final class StrictDurablePlayerSnapshotWriter {
         if(checked.version()!=PlayerSnapshot.CURRENT_VERSION)
             throw new IOException("unsupported account snapshot version");
 
+        // G21.30: bind the opt-in strict-operation receipt to exact
+        // canonical snapshot content. This is not a transaction ID.
+        final String expectedSha256=canonicalSnapshotSha256(checked);
         String account=checked.username();
         Path file=Objects.requireNonNull(
             resolver.resolve(account),"account path"
@@ -150,10 +171,64 @@ final class StrictDurablePlayerSnapshotWriter {
                 );
             }
 
-            return new Receipt(account,file);
+            return new Receipt(
+                account,file,checked.version(),expectedSha256
+            );
         }finally{
             if(!replaced)
                 Files.deleteIfExists(temp);
         }
     }
+
+    /**
+     * Domain-separated, length-delimited UTF-8 encoding independent of
+     * Properties.store order, timestamps and platform line endings.
+     * Version, normalized account and *all* sorted gameplay keys are
+     * covered, including Mailbox staged intent, inventory and claim state.
+     */
+    static String canonicalSnapshotSha256(PlayerSnapshot snapshot){
+        PlayerSnapshot checked=Objects.requireNonNull(
+            snapshot,"snapshot"
+        );
+        final MessageDigest digest;
+        try{
+            digest=MessageDigest.getInstance("SHA-256");
+        }catch(NoSuchAlgorithmException unavailable){
+            throw new IllegalStateException(
+                "required SHA-256 digest unavailable",unavailable
+            );
+        }
+        feedString(digest,"SPK.G2130.StrictSnapshotReceipt.v1");
+        feedInt(digest,checked.version());
+        feedString(digest,checked.username());
+        feedInt(digest,checked.values().size());
+        for(Map.Entry<String,String> item:checked.values().entrySet()){
+            feedString(digest,item.getKey());
+            feedString(digest,item.getValue());
+        }
+        byte[] bytes=digest.digest();
+        char[] hex=new char[bytes.length*2];
+        final char[] digits="0123456789abcdef".toCharArray();
+        for(int i=0;i<bytes.length;i++){
+            int unsigned=bytes[i]&0xff;
+            hex[2*i]=digits[unsigned>>>4];
+            hex[2*i+1]=digits[unsigned&0xf];
+        }
+        return new String(hex);
+    }
+
+    private static void feedString(MessageDigest digest,String value){
+        byte[] utf8=Objects.requireNonNull(value,"digest field")
+            .getBytes(StandardCharsets.UTF_8);
+        feedInt(digest,utf8.length);
+        digest.update(utf8);
+    }
+
+    private static void feedInt(MessageDigest digest,int n){
+        digest.update((byte)(n>>>24));
+        digest.update((byte)(n>>>16));
+        digest.update((byte)(n>>>8));
+        digest.update((byte)n);
+    }
 }
+
