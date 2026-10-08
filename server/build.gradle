@@ -2122,6 +2122,7 @@ def currentTrainFocusedTests = [
     'spk.local.G212MailboxInboxProjectionIntegrationTest',
     'spk.local.G213MailboxAttachmentProjectionIntegrationTest',
     'spk.local.G214MailboxSelectedDetailIntegrationTest',
+    'spk.local.G215MailboxWidgetIntentIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2150,10 +2151,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 303 ||
-    currentTrainFocusedTests.toSet().size() != 303) {
+if (currentTrainFocusedTests.size() != 304 ||
+    currentTrainFocusedTests.toSet().size() != 304) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 303 unique tests, found " +
+        "Current-train focused manifest drift: expected 304 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2685,6 +2686,14 @@ tasks.register('g214MailboxSelectedDetailRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G214MailboxSelectedDetailIntegrationTest')
+}
+
+tasks.register('g215MailboxWidgetIntentRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verifies exact Mailbox C2S185 widget intents and fail-closed selection without settlement.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G215MailboxWidgetIntentIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
