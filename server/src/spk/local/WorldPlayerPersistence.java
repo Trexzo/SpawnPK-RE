@@ -1949,7 +1949,6 @@ final class WorldPlayerPersistence
 
         @Override public void run(){
             inFlightPreparedDrain.set(this);
-            boolean exact=false;
             try{
                 if(completion.isDone())
                     return;
@@ -1976,14 +1975,16 @@ final class WorldPlayerPersistence
                             break;
                     }
                 }
-                exact=state==PreparedDrainObservation.State.EXACT_PREPARED;
+                // Unpin BEFORE waking any waiting futures, so a caller
+                // can immediately attempt the matching safe cancellation.
+                unpin(state==PreparedDrainObservation.State.EXACT_PREPARED);
                 completion.complete(new PreparedDrainObservation(
                     state,token.account,token.intentKey,token.generation
                 ));
             }catch(Throwable failure){
+                unpin(false);
                 completion.completeExceptionally(failure);
             }finally{
-                unpin(exact&&!completion.isCompletedExceptionally());
                 inFlightPreparedDrain.compareAndSet(this,null);
             }
         }
