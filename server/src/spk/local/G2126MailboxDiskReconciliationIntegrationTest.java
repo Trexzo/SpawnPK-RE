@@ -423,7 +423,7 @@ public final class G2126MailboxDiskReconciliationIntegrationTest {
     }
 
     private interface Action{
-        Object run()throws Exception;
+        void run()throws Exception;
     }
 
     private static boolean rejects(Action action){
