@@ -52,6 +52,40 @@ final class WorldMailboxPresentationSession implements AutoCloseable {
     }
 
     /**
+     * Read-only exact-v308 C2S185 Refresh control (widget 32185).
+     * The request must already have been decoded by the existing typed
+     * client packet boundary. This method does not attach a socket
+     * dispatch route or claim any Mailbox root has been opened.
+     *
+     * Refresh deliberately tolerates stale selected message identity;
+     * after a successful rebind, selection is cleared.
+     */
+    int publishRefreshFromWidget(
+        WidgetActionClientRequest request,
+        ServerPacketWriter writer
+    )throws IOException{
+        Objects.requireNonNull(request,"request");
+        Objects.requireNonNull(writer,"writer");
+        return owned(()->{
+            MailboxWidgetIntentAdapter.Intent intent=
+                view.resolve(request);
+
+            if(intent==null||
+                intent.kind!=MailboxWidgetIntentAdapter.Kind.REFRESH_INBOX)
+                throw new IllegalArgumentException(
+                    "not an exact Mailbox refresh widget request"
+                );
+
+            List<MailboxRewardDeliveryService.Snapshot> rows=
+                view.bindInbox();
+
+            // G21.2 validates every row before writing CLEAR.
+            MailboxInboxProjection.publish(writer,rows);
+            return rows.size();
+        });
+    }
+
+    /**
      * A *trusted server-side* row index resolves against the currently
      * bound immutable inbox view. Preflight S2C53 and S2C126 BEFORE any
      * S2C250 subtype31 selection opcode or detail packet is written.
