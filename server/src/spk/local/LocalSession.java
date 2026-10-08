@@ -898,6 +898,24 @@ final class LocalSession implements Runnable {
                     return result!=null;
                 }
 
+                @Override public boolean openLoginRewards(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRoot(
+                                ()->{
+                                    LoginRewardPresentation
+                                        .openEmpty(
+                                            writer
+                                        );
+                                    return "LOGIN_REWARD_EMPTY_ROOT_OPENED";
+                                }
+                            );
+
+                    return result!=null;
+                }
+
                 @Override public boolean openAdventureBook(
                     ServerPacketWriter writer
                 )throws IOException{
