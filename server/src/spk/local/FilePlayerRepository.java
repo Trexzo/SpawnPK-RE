@@ -81,6 +81,19 @@ final class FilePlayerRepository
         return Optional.of(snapshot);
     }
 
+    /**
+     * G21.32 negative review-fence check for the actual file-backed
+     * account source. Presence blocks login regardless of account bytes;
+     * unreadable marker metadata fails closed through IOException.
+     */
+    boolean hasUnresolvedMailboxReviewFence(
+        String username
+    )throws IOException{
+        return new MailboxDurableReviewFence(paths).present(
+            clean(username)
+        );
+    }
+
     @Override public void save(
         PlayerSnapshot snapshot
     )throws IOException{
