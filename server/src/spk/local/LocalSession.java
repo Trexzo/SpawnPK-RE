@@ -214,6 +214,7 @@ final class LocalSession implements Runnable {
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
     private final LocalDuelUiHandler duelUi;
     private final LocalCommandDispatcher commandDispatcher;
+    private LocalMailboxRootlessSession rootlessMailbox;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRealtimeScheduler petRealtime;
@@ -1196,6 +1197,21 @@ final class LocalSession implements Runnable {
                         LocalSession.this.worldPlayer,
                         LocalSession.this.worldPlayerGeneration
                     ).handle(tokens);
+                }
+
+                @Override public int syncMailboxRootless(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    if(LocalSession.this.rootlessMailbox==null)
+                        LocalSession.this.rootlessMailbox=
+                            new LocalMailboxRootlessSession(
+                                LocalSession.this.world,
+                                LocalSession.this.worldPlayer,
+                                LocalSession.this.worldPlayerGeneration
+                            );
+
+                    return LocalSession.this
+                        .rootlessMailbox.sync(writer);
                 }
 
                 @Override public LocalDuelCommandHandler.Result
@@ -2193,6 +2209,23 @@ final class LocalSession implements Runnable {
                     return LocalSession.this.sessionWorldTick;
                 }
 
+                @Override public boolean handleMailboxWidgetAction(
+                    WidgetActionClientRequest request,
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    return LocalSession.this.rootlessMailbox!=null&&
+                        LocalSession.this.rootlessMailbox.handleWidget(
+                            request,writer
+                        );
+                }
+
+                @Override public void onMailboxInterfaceClose(){
+                    if(LocalSession.this.rootlessMailbox!=null)
+                        LocalSession.this.rootlessMailbox
+                            .onInterfaceClose();
+                }
+
                 @Override public LocalDailyChallengeCommandHandler.Result
                     handleDailyChallengeRequest(
                         DailyChallengeClientRequest request
@@ -3187,6 +3220,12 @@ final class LocalSession implements Runnable {
              * held while teardown waits here.
              */
             worldCommandGate.disableAndAwait();
+
+            // No Mailbox root/socket authority survives session teardown.
+            if(rootlessMailbox!=null){
+                rootlessMailbox.close();
+                rootlessMailbox=null;
+            }
 
             if(worldTickAttached){
                 /*
