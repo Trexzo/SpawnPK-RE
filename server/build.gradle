@@ -2124,6 +2124,7 @@ def currentTrainFocusedTests = [
     'spk.local.G214MailboxSelectedDetailIntegrationTest',
     'spk.local.G215MailboxWidgetIntentIntegrationTest',
     'spk.local.G216MailboxSessionSelectionIntegrationTest',
+    'spk.local.G217MailboxPersistenceIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2152,10 +2153,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 305 ||
-    currentTrainFocusedTests.toSet().size() != 305) {
+if (currentTrainFocusedTests.size() != 306 ||
+    currentTrainFocusedTests.toSet().size() != 306) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 305 unique tests, found " +
+        "Current-train focused manifest drift: expected 306 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2703,6 +2704,14 @@ tasks.register('g216MailboxSessionSelectionRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G216MailboxSessionSelectionIntegrationTest')
+}
+
+tasks.register('g217MailboxPersistenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves versioned Mailbox PlayerSnapshot persistence round-trip and atomic malformed restore rejection.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G217MailboxPersistenceIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
