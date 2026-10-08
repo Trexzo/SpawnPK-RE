@@ -1458,9 +1458,21 @@ final class WorldPlayerPersistence
                 if(future.isDone())
                     return;
 
-                future.complete(
-                    repository.load(username)
-                );
+                java.util.Optional<PlayerSnapshot> loaded=
+                    repository.load(username);
+                if(loaded.isPresent()){
+                    MailboxPreparedRestartAdmission.Decision admission=
+                        MailboxPreparedRestartAdmission.inspect(
+                            loaded.get()
+                        );
+                    if(!admission.admissionAllowed)
+                        throw new IOException(
+                            "G21.31 MAILBOX_PREPARED_LOAD_QUARANTINE"+
+                            " account="+username+
+                            " reason="+admission.state
+                        );
+                }
+                future.complete(loaded);
             }catch(Throwable error){
                 future.completeExceptionally(
                     error
