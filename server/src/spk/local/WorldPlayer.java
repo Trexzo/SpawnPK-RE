@@ -23,6 +23,13 @@ final class WorldPlayer {
     private final PetAccessoryState petAccessoryState=new PetAccessoryState();
     private final PlayerSnapshotExtensionState snapshotExtensions=
         new PlayerSnapshotExtensionState();
+    // Explicit LocalLab policy: account-owned messages, max 128 envelopes.
+    // Server-only until a session/root/input routing authority is established.
+    private final MailboxRewardDeliveryService mailbox=
+        new MailboxRewardDeliveryService(
+            LocalLabMailboxPersistence.MAX_MESSAGES
+        );
+    private boolean mailboxSnapshotKnown;
     private final Object mutationLock=new Object();
     private String username;
     private long generation;
@@ -47,6 +54,25 @@ final class WorldPlayer {
     PlayerSnapshotExtensionState snapshotExtensions(){
         return snapshotExtensions;
     }
+    MailboxRewardDeliveryService mailbox(){return mailbox;}
+
+    /**
+     * Tracks a namespace that was restored or first captured, so a later
+     * delete-all saves an explicit empty mailbox rather than replaying
+     * an older nonempty account snapshot.
+     */
+    boolean mailboxSnapshotKnown(){
+        synchronized(mutationLock){
+            return mailboxSnapshotKnown;
+        }
+    }
+
+    void markMailboxSnapshotKnown(){
+        synchronized(mutationLock){
+            mailboxSnapshotKnown=true;
+        }
+    }
+
     Object mutationLock(){return mutationLock;}
 
     synchronized String username(){return username;}
