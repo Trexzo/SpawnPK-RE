@@ -11,12 +11,15 @@ import java.util.Objects;
  * server automatically presents this UI. Every G21.10+ publisher rechecks
  * WorldPlayer identity and registered generation before touching state.
  *
- * Scope is installed ONLY after the explicit CUSTOM_LOCALLAB ::mail sync
- * command, and retired on C2S130 interface-close or session teardown.
+ * Scope is installed after explicit CUSTOM_LOCALLAB ::mail sync OR the
+ * recovered native ::mail command opening root 32019. Both retire on
+ * C2S130 interface-close or session teardown.
  */
 final class LocalMailboxRootlessSession implements AutoCloseable {
     static final String AUTHORITY=
         "CUSTOM_LOCALLAB_G2116_ROOTLESS_MAILBOX_SYNC";
+    /** Verified from pinned-v308 rs.n.c.c.a.a() bytecode. */
+    static final int NATIVE_V308_MAILBOX_ROOT=32019;
 
     private final World world;
     private final WorldPlayer owner;
@@ -64,6 +67,61 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
         }catch(IOException|RuntimeException failure){
             next.close();
             throw failure;
+        }
+    }
+
+    /**
+     * Open the exact pinned-v308 native root widget 32019 via certified
+     * S2C97, then populate its bounded subtype31 inbox projection.
+     *
+     * Packet ordering is explicitly CUSTOM_LOCALLAB_G2117, not a claim
+     * to have recovered the original live server's opening transaction.
+     * Validation failures abort the buffered batch before any root bytes
+     * can escape; transport failures after commit are not reversible.
+     */
+    int openNativeRoot(ServerPacketWriter writer)throws IOException{
+        Objects.requireNonNull(writer,"writer");
+        if(closed)
+            throw new IllegalStateException(
+                "closed Mailbox root presentation scope"
+            );
+
+        WorldMailboxPresentationSession next=
+            new WorldMailboxGateway(
+                world,owner,generation
+            ).openRootlessPresentation();
+
+        boolean begun=false;
+        boolean committed=false;
+        try{
+            writer.beginBatch();
+            begun=true;
+            writer.fixed(
+                97,
+                BootstrapPackets.interface97(
+                    NATIVE_V308_MAILBOX_ROOT
+                )
+            );
+            int count=next.publishInbox(writer);
+            writer.endBatch();
+            begun=false;
+            committed=true;
+
+            WorldMailboxPresentationSession previous=active;
+            active=next;
+            if(previous!=null)
+                previous.close();
+            return count;
+        }finally{
+            if(begun){
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){
+                    // Preserve the first publication failure.
+                }
+            }
+            if(!committed)
+                next.close();
         }
     }
 
