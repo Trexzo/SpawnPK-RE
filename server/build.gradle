@@ -2119,6 +2119,7 @@ def currentTrainFocusedTests = [
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
     'spk.local.G211MailboxAuthorityIntegrationTest',
+    'spk.local.G212MailboxInboxProjectionIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2147,10 +2148,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 300 ||
-    currentTrainFocusedTests.toSet().size() != 300) {
+if (currentTrainFocusedTests.size() != 301 ||
+    currentTrainFocusedTests.toSet().size() != 301) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 300 unique tests, found " +
+        "Current-train focused manifest drift: expected 301 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2658,6 +2659,14 @@ tasks.register('g211MailboxAuthorityRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G211MailboxAuthorityIntegrationTest')
+}
+
+tasks.register('g212MailboxInboxProjectionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates bounded semantic Mailbox inbox projection, exact subtype-31 row ordering, and fail-closed preflight.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G212MailboxInboxProjectionIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
