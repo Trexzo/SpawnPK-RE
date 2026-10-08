@@ -254,6 +254,11 @@ final class FilePlayerRepository
             );
     }
 
+    /** G21.42: exact file-backed path bound to the World barrier. */
+    Path accountFilePath(String username){
+        return normalizedPath(username);
+    }
+
     private Path normalizedPath(
         String username
     ){
