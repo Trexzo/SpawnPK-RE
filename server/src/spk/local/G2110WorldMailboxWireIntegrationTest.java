@@ -295,12 +295,18 @@ public final class G2110WorldMailboxWireIntegrationTest {
                              !method.getName().equals(
                                  "publishRowDetailFromWidget"
                              )&&
+                             !method.getName().equals(
+                                 "deleteSafeAndPublishInboxFromWidget"
+                             )&&
                              !(method.isSynthetic()&&
                                (method.getName().startsWith(
                                  "lambda$publishRefreshFromWidget$"
                                )||
                                method.getName().startsWith(
                                  "lambda$deleteSafeFromWidget$"
+                               )||
+                               method.getName().startsWith(
+                                 "lambda$deleteSafeAndPublishInboxFromWidget$"
                                ))))
                         )
                 );
