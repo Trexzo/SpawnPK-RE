@@ -2125,6 +2125,7 @@ def currentTrainFocusedTests = [
     'spk.local.G215MailboxWidgetIntentIntegrationTest',
     'spk.local.G216MailboxSessionSelectionIntegrationTest',
     'spk.local.G217MailboxPersistenceIntegrationTest',
+    'spk.local.G218WorldMailboxSnapshotIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2153,10 +2154,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 306 ||
-    currentTrainFocusedTests.toSet().size() != 306) {
+if (currentTrainFocusedTests.size() != 307 ||
+    currentTrainFocusedTests.toSet().size() != 307) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 306 unique tests, found " +
+        "Current-train focused manifest drift: expected 307 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2712,6 +2713,14 @@ tasks.register('g217MailboxPersistenceRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G217MailboxPersistenceIntegrationTest')
+}
+
+tasks.register('g218WorldMailboxSnapshotRegression', JavaExec) {
+    group = 'verification'
+    description = 'WorldPlayer Mailbox PlayerSnapshot capture/restore, malformed-load rollback, delete-all tombstone.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G218WorldMailboxSnapshotIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
