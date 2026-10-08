@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /**
  * CUSTOM_LOCALLAB player-facing Mailbox counts over the existing
- * exact-current C2S103 text command pipeline.
+ * exact-current C2S103 text command pipeline. The native v308\n * `::mail` entry command is recognized, but only offers a read-only\n * status fallback until its top-level UI-opening contract is certified.
  *
  * No Mailbox client root/row-click is recovered, and this command
  * never opens an interface, exposes mail bodies, grants rewards,
@@ -40,7 +40,8 @@ final class LocalMailboxStatusCommandHandler {
 
     static boolean matches(String[] tokens){
         return tokens!=null&&tokens.length>0&&
-            "mailbox".equalsIgnoreCase(tokens[0]);
+            ("mailbox".equalsIgnoreCase(tokens[0])||
+             "mail".equalsIgnoreCase(tokens[0]));
     }
 
     Result handle(String[] tokens){
@@ -61,7 +62,7 @@ final class LocalMailboxStatusCommandHandler {
                 "G2114_MAILBOX_COMMAND result=REJECTED_SYNTAX"+
                 " authority="+AUTHORITY+
                 " stateMutation=false liveRoot=false",
-                "Usage: ::mailbox or ::mailbox status. "+
+                "Usage: ::mail, ::mailbox or ::mailbox status. "+
                 "The Mailbox interface is not available yet."
             );
 
