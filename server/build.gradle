@@ -2144,6 +2144,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2124OrderedPreparedAccountSaveIntegrationTest',
     'spk.local.G2125MailboxImmutablePostimageIntegrationTest',
     'spk.local.G2126MailboxDiskReconciliationIntegrationTest',
+    'spk.local.G2127MailboxAccountWriteReservationIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2172,10 +2173,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 325 ||
-    currentTrainFocusedTests.toSet().size() != 325) {
+if (currentTrainFocusedTests.size() != 326 ||
+    currentTrainFocusedTests.toSet().size() != 326) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 325 unique tests, found " +
+        "Current-train focused manifest drift: expected 326 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2883,6 +2884,14 @@ tasks.register('g2126MailboxDiskReconciliationRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2126MailboxDiskReconciliationIntegrationTest')
+}
+
+tasks.register('g2127MailboxAccountWriteReservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verifies opt-in PREPARED account write reservation across ordinary and checkpoint saves.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2127MailboxAccountWriteReservationIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
