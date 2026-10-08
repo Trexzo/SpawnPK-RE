@@ -333,7 +333,7 @@ final class LocalCommandDispatcher {
 
         // Exact-native v308 command ::mail opens the root recovered from
         // pinned rs.n.c.c.a.a(); root+inbox order is LocalLab policy.
-        if(p.length==1&&"mail".equalsIgnoreCase(p[0])){
+        if(isNativeMailboxRootRoute(p)){
             int rows=bridge.openMailboxNative(serverPackets);
             new SocialChatPresentationPublisher(serverPackets)
                 .serverMessage(rows<0
@@ -1417,6 +1417,12 @@ final class LocalCommandDispatcher {
                     .ITEMLIB_OPEN_ACTION_PREFIX+
                 ":"
             );
+    }
+
+    /** Exact pinned-v308 notification C2S103 command. */
+    static boolean isNativeMailboxRootRoute(String[] tokens){
+        return tokens!=null&&tokens.length==1&&
+            "mail".equalsIgnoreCase(tokens[0]);
     }
 
     static boolean isMailboxRootlessSyncRoute(String[] tokens){
