@@ -298,6 +298,9 @@ public final class G2110WorldMailboxWireIntegrationTest {
                              !method.getName().equals(
                                  "deleteSafeAndPublishInboxFromWidget"
                              )&&
+                             !method.getName().equals(
+                                 "previewSelectedInventoryClaimFromWidget"
+                             )&&
                              !(method.isSynthetic()&&
                                (method.getName().startsWith(
                                  "lambda$publishRefreshFromWidget$"
@@ -307,6 +310,9 @@ public final class G2110WorldMailboxWireIntegrationTest {
                                )||
                                method.getName().startsWith(
                                  "lambda$deleteSafeAndPublishInboxFromWidget$"
+                               )||
+                               method.getName().startsWith(
+                                 "lambda$previewSelectedInventoryClaimFromWidget$"
                                ))))
                         )
                 );

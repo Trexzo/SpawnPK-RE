@@ -210,10 +210,17 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
             return true;
         }
 
-        if(widget==MailboxWidgetIntentAdapter.DEPOSIT_BANK_WIDGET||
-           widget==MailboxWidgetIntentAdapter.DEPOSIT_INVENTORY_WIDGET){
-            // Original settlement authorization remains unknown.
-            // Consume exact-current widget without touching items.
+        if(widget==MailboxWidgetIntentAdapter.DEPOSIT_INVENTORY_WIDGET){
+            // Source-wired v308 click now performs an owner-scoped,
+            // selected-message and inventory-capacity preview ONLY.
+            // No item mutation, no claim acknowledgement and no wire
+            // presentation until atomic account-durable grant exists.
+            active.previewSelectedInventoryClaimFromWidget(request);
+            return true;
+        }
+
+        if(widget==MailboxWidgetIntentAdapter.DEPOSIT_BANK_WIDGET){
+            // Bank settlement remains a separate unverified lane.
             ClientRequestMetadata metadata=request.metadata();
             if(metadata.opcode!=185||
                metadata.provenance!=
