@@ -1740,7 +1740,10 @@ final class WorldPlayerPersistence
                         ?writer.saveStrictForWorld(
                             snapshot,
                             ((FilePlayerRepository)repository)
-                                .accountFilePath(snapshot.username())
+                                .accountFilePath(snapshot.username()),
+                            ()->requirePreparedOwnerStillCurrentAtPublication(
+                                owner,expectedGeneration,snapshot
+                            )
                         )
                         :writer.saveStrict(snapshot);
                 completion.complete(receipt);
@@ -1790,6 +1793,27 @@ final class WorldPlayerPersistence
                 throw new IllegalStateException(
                     "G21.44 STRICT_PREPARED_WORKER_SNAPSHOT_DIVERGED"
                 );
+        }
+    }
+
+    /**
+     * G21.45: fail the actual World strict writer just before the
+     * account-file atomic replacement if gameplay changed during temp
+     * serialization or cross-process publication lock acquisition.
+     * Do not hold the owner mutation lock over disk write/fsync.
+     */
+    private void requirePreparedOwnerStillCurrentAtPublication(
+        WorldPlayer owner,long expectedGeneration,PlayerSnapshot snapshot
+    )throws IOException{
+        try{
+            requirePreparedOwnerStillCurrentBeforeWrite(
+                owner,expectedGeneration,snapshot
+            );
+        }catch(IllegalStateException stale){
+            throw new IOException(
+                "G21.45 STRICT_PREPARED_FINAL_RECHECK_VETO "+
+                stale.getMessage(),stale
+            );
         }
     }
 
