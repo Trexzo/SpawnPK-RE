@@ -125,9 +125,9 @@ public final class G2116MailboxRootlessSessionIntegrationTest {
                 session.handleWidget(
                     widget(185,32181),writer(controlsWire)
                 )&&
-                session.handleWidget(
+                rejects(()->session.handleWidget(
                     widget(185,32184),writer(controlsWire)
-                )&&
+                ))&&
                 controlsWire.size()==0&&
                 alice.mailbox().get("g2116:a").claimState==
                     MailboxRewardDeliveryService.ClaimState.UNCLAIMED&&

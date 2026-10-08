@@ -135,8 +135,8 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
     /**
      * Handle native v308 inbox row detail plus CUSTOM_LOCALLAB READ
      * acknowledgement, and safe Refresh in the active scoped session.
-     * Suppress claim/delete controls so no unowned settlement/deletion path
-     * can run through later UI handlers.
+     * Authorize guarded non-reward DELETE; suppress bank/inventory claim
+     * controls so no unowned settlement can reach later UI handlers.
      *
      * Returns false for other widgets, preserving ordinary precedence.
      */
@@ -185,11 +185,35 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
             return true;
         }
 
+        if(widget==MailboxWidgetIntentAdapter.DELETE_MESSAGE_WIDGET){
+            // CUSTOM_LOCALLAB_G2120: guarded deletion only for EMPTY
+            // or already externally CLAIMED messages. Never claim items.
+            // A bad selected/remaining row aborts before mutation/output.
+            // Domain tombstone survives a failed final transport commit.
+            boolean begun=false;
+            try{
+                writer.beginBatch();
+                begun=true;
+                active.deleteSafeAndPublishInboxFromWidget(
+                    request,writer
+                );
+                writer.endBatch();
+                begun=false;
+            }finally{
+                if(begun)
+                    try{
+                        writer.abortBatch();
+                    }catch(Throwable ignored){
+                        // Preserve the original refusal or I/O failure.
+                    }
+            }
+            return true;
+        }
+
         if(widget==MailboxWidgetIntentAdapter.DEPOSIT_BANK_WIDGET||
-           widget==MailboxWidgetIntentAdapter.DEPOSIT_INVENTORY_WIDGET||
-           widget==MailboxWidgetIntentAdapter.DELETE_MESSAGE_WIDGET){
-            // C2S185 is verified, but authorization to settle or delete
-            // from a live Mailbox root has NOT been recovered.
+           widget==MailboxWidgetIntentAdapter.DEPOSIT_INVENTORY_WIDGET){
+            // Original settlement authorization remains unknown.
+            // Consume exact-current widget without touching items.
             ClientRequestMetadata metadata=request.metadata();
             if(metadata.opcode!=185||
                metadata.provenance!=
