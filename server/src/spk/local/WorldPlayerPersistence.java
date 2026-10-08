@@ -1479,8 +1479,28 @@ final class WorldPlayerPersistence
                 if(future.isDone())
                     return;
 
+                // G21.32: detect a durable negative review marker BEFORE
+                // any session snapshot hydration, including absent accounts.
+                // Read-only G21.26 forensic observations intentionally skip
+                // admission but must never be used as session loads.
+                if(enforceAdmission&&
+                   repository instanceof FilePlayerRepository&&
+                   ((FilePlayerRepository)repository)
+                       .hasUnresolvedMailboxReviewFence(username))
+                    throw new IOException(
+                        "G21.32 MAILBOX_DURABLE_REVIEW_FENCE"+
+                        " account="+username+" action=REJECT_SESSION"
+                    );
                 java.util.Optional<PlayerSnapshot> loaded=
                     repository.load(username);
+                if(enforceAdmission&&
+                   repository instanceof FilePlayerRepository&&
+                   ((FilePlayerRepository)repository)
+                       .hasUnresolvedMailboxReviewFence(username))
+                    throw new IOException(
+                        "G21.32 MAILBOX_DURABLE_REVIEW_FENCE"+
+                        " account="+username+" action=REJECT_SESSION"
+                    );
                 if(enforceAdmission&&loaded.isPresent()){
                     MailboxPreparedRestartAdmission.Decision admission=
                         MailboxPreparedRestartAdmission.inspect(
