@@ -153,7 +153,9 @@ final class LocalAccountLifecycle {
 
             return new LoadResult(
                 accessoryItem,
-                LoadStatus.LOADED
+                LoadStatus.LOADED,
+                StrictDurablePlayerSnapshotWriter
+                    .canonicalSnapshotSha256(normalized)
             );
         }catch(Throwable e){
             System.err.println(
@@ -358,12 +360,23 @@ final class LocalAccountLifecycle {
         final boolean loaded;
         final boolean missing;
         final boolean failed;
+        /** Immutable digest of canonical snapshot for final login admission. */
+        final String loadedSnapshotSha256;
 
         LoadResult(
             int accessoryItem,
             LoadStatus status
         ){
+            this(accessoryItem,status,null);
+        }
+
+        LoadResult(
+            int accessoryItem,
+            LoadStatus status,
+            String loadedSnapshotSha256
+        ){
             this.accessoryItem=accessoryItem;
+            this.loadedSnapshotSha256=loadedSnapshotSha256;
             this.status=java.util.Objects.requireNonNull(
                 status,
                 "status"
