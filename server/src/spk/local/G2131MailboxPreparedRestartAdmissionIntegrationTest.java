@@ -24,6 +24,7 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
         boolean hypotheticalClassifiedQuarantine=false;
         boolean actualLoadBlocksHypothetical=false;
         boolean diskHypotheticalLeftUntouched=false;
+        boolean forensicFifoObservationStillSeesUntrusted=false;
         boolean inventoryOnlyMismatchBlocked=false;
         boolean missingEnvelopeBlocked=false;
         boolean invalidJournalBlocked=false;
@@ -121,6 +122,12 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
             actualLoadBlocksHypothetical=quarantined(
                 world,proposal.account,"QUARANTINE_CLAIMED_OR_EMPTY_MESSAGE"
             );
+            forensicFifoObservationStillSeesUntrusted=
+                world.persistence().observeUntrustedMailboxAccount(
+                    proposal.account
+                ).get().values().equals(
+                    proposal.hypotheticalPostimage.values()
+                );
             diskHypotheticalLeftUntouched=
                 repository.load(proposal.account).get().values().equals(
                     proposal.hypotheticalPostimage.values()
@@ -234,6 +241,8 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
             " hypotheticalQuarantined="+hypotheticalClassifiedQuarantine+
             " actualHypotheticalLoadBlocked="+actualLoadBlocksHypothetical+
             " uncertainFileUntouched="+diskHypotheticalLeftUntouched+
+            " forensicFifoObservationOnly="+
+                forensicFifoObservationStillSeesUntrusted+
             " inventoryOnlyVeto="+inventoryOnlyMismatchBlocked+
             " missingEnvelopeVeto="+missingEnvelopeBlocked+
             " corruptedJournalVeto="+invalidJournalBlocked+
@@ -249,6 +258,7 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
             actualLoadAcceptsPrepared&&loadedPreparedStillUnclaimed&&
             hypotheticalClassifiedQuarantine&&
             actualLoadBlocksHypothetical&&diskHypotheticalLeftUntouched&&
+            forensicFifoObservationStillSeesUntrusted&&
             inventoryOnlyMismatchBlocked&&missingEnvelopeBlocked&&
             invalidJournalBlocked&&foreignJournalBlocked&&
             normalForeignAccountStillLoads&&repairedPreparedLoads&&
