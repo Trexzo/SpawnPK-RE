@@ -100,11 +100,13 @@ final class LocalMailboxRootlessSession implements AutoCloseable {
            widget==MailboxWidgetIntentAdapter.DELETE_MESSAGE_WIDGET){
             // C2S185 is verified, but authorization to settle or delete
             // from a live Mailbox root has NOT been recovered.
-            MailboxWidgetIntentAdapter.resolve(
-                request,owner.mailbox(),null
-            );
-            // resolve rejects missing selection, but never mutates;
-            // only exact-current metadata may enter this path.
+            ClientRequestMetadata metadata=request.metadata();
+            if(metadata.opcode!=185||
+               metadata.provenance!=
+                   ClientRequestProvenance.EXACT_CURRENT_CLIENT)
+                throw new IllegalArgumentException(
+                    "Mailbox control must be exact current C2S185"
+                );
             return true;
         }
 
