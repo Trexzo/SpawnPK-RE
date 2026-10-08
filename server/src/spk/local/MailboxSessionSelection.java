@@ -121,12 +121,26 @@ final class MailboxSessionSelection implements AutoCloseable {
         WidgetActionClientRequest request
     ){
         return owned(()->{
-            Objects.requireNonNull(request,"request");
+            WidgetActionClientRequest checked=
+                Objects.requireNonNull(request,"request");
+
+            // Refresh needs no selected envelope. In particular, an old
+            // bound row may have been removed/replaced under the same ID.
+            // Its stale identity must not prevent a safe exact C2S185
+            // refresh from rebuilding the server-owned inbox view.
+            if(checked.widgetId()==
+                    MailboxWidgetIntentAdapter.REFRESH_INBOX_WIDGET)
+                return MailboxWidgetIntentAdapter.resolve(
+                    checked,
+                    mailbox,
+                    null
+                );
+
             String selectedId=selected==null
                 ?null
                 :requireSameEntry(selected).message.messageId;
             return MailboxWidgetIntentAdapter.resolve(
-                request,
+                checked,
                 mailbox,
                 selectedId
             );
