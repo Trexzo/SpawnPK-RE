@@ -136,6 +136,25 @@ final class MailboxDurableReviewFence {
     synchronized Receipt arm(
         MailboxSettlementPostimagePlanner.Proposal proposal
     )throws IOException{
+        return armInternal(proposal,false);
+    }
+
+    /**
+     * G21.41 strictly opt-in: verify the CURRENT file-backed account is
+     * exactly this PREPARED preimage while holding the same exclusive
+     * publication lock before linking the durable negative marker.
+     * Does not authorize claim/grant/replay or change arm() semantics.
+     */
+    synchronized Receipt armVerifiedAgainstCurrentFile(
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    )throws IOException{
+        return armInternal(proposal,true);
+    }
+
+    private Receipt armInternal(
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        boolean requireExactDiskPrepared
+    )throws IOException{
         Objects.requireNonNull(proposal,"proposal");
         if(proposal.preparedPreimage.version()!=
                 PlayerSnapshot.CURRENT_VERSION||
@@ -219,6 +238,10 @@ final class MailboxDurableReviewFence {
                     faults.check(
                         Phase.INSIDE_EXCLUSIVE_PUBLICATION_BEFORE_LINK
                     );
+                    if(requireExactDiskPrepared)
+                        requireMatchingPersistedPrepared(
+                            proposal,record.preparedSha256
+                        );
                     Files.createLink(file,temp);
                     published[0]=true;
                     try{
@@ -242,6 +265,50 @@ final class MailboxDurableReviewFence {
             if(!published[0])
                 Files.deleteIfExists(temp);
         }
+    }
+
+    /**
+     * Must be called under MailboxAccountPublicationCoordinator for the
+     * SAME resolver path. A cooperating World save cannot replace the
+     * account between this exact-state observation and marker link.
+     */
+    private void requireMatchingPersistedPrepared(
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        String expectedSha
+    )throws IOException{
+        final java.util.Optional<PlayerSnapshot> disk=
+            new FilePlayerRepository(resolver).load(proposal.account);
+        if(!disk.isPresent())
+            throw new IOException(
+                "G21.41 VERIFIED_REVIEW_PREIMAGE_MISSING account="+
+                proposal.account
+            );
+        final PlayerSnapshot snapshot=disk.get();
+        final PlayerSnapshot normalized;
+        try{
+            normalized=PlayerSnapshotCodec.validateAndNormalize(
+                snapshot
+            );
+        }catch(RuntimeException malformed){
+            throw new IOException(
+                "G21.41 VERIFIED_REVIEW_PREIMAGE_INVALID account="+
+                proposal.account,malformed
+            );
+        }
+        if(!snapshot.username().equals(proposal.account)||
+           !normalized.username().equals(proposal.account)||
+           snapshot.version()!=PlayerSnapshot.CURRENT_VERSION||
+           !snapshot.values().equals(normalized.values())||
+           MailboxPreparedRestartAdmission.inspect(snapshot).state!=
+                MailboxPreparedRestartAdmission.State
+                    .VALID_PREPARED_UNCLAIMED||
+           !StrictDurablePlayerSnapshotWriter
+                .canonicalSnapshotSha256(normalized)
+                .equals(expectedSha))
+            throw new IOException(
+                "G21.41 VERIFIED_REVIEW_PREIMAGE_DIVERGENT account="+
+                proposal.account+" action=REFUSE_NEGATIVE_RECEIPT"
+            );
     }
 
     /** Presence of ANY marker blocks login, including malformed/symlink. */
