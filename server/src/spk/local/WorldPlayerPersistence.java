@@ -1783,6 +1783,48 @@ final class WorldPlayerPersistence
                     "strict prepared barrier World owner changed"
                 );
 
+            // G21.43: for the concrete file-backed World persistence
+            // path, a caller-supplied PREPARED snapshot is never accepted
+            // merely because its account/generation or journal-state
+            // fields look correct. Check the FULL canonical snapshot
+            // against the actual currently owned player under the same
+            // mutation lock, BEFORE reserving any worker sequence/cutoff.
+            // Historical custom PlayerRepository adapters retain their
+            // separate strict-barrier semantics and are not claimed safe.
+            if(repository instanceof FilePlayerRepository){
+                final PlayerSnapshot current;
+                final PlayerSnapshot normalized;
+                try{
+                    normalized=PlayerSnapshotCodec
+                        .validateAndNormalize(snapshot);
+                    current=PlayerSnapshotCodec.capture(
+                        snapshot.username(),
+                        owner,
+                        PlayerSnapshotCodec.accessoryItem(snapshot)
+                    );
+                }catch(RuntimeException invalid){
+                    throw new IllegalStateException(
+                        "G21.43 STRICT_PREPARED_ACCOUNT_SNAPSHOT_INVALID",
+                        invalid
+                    );
+                }
+                if(!normalized.values().equals(snapshot.values())||
+                   normalized.version()!=snapshot.version()||
+                   MailboxPreparedRestartAdmission.inspect(snapshot)
+                       .state!=MailboxPreparedRestartAdmission.State
+                           .VALID_PREPARED_UNCLAIMED)
+                    throw new IllegalStateException(
+                        "G21.43 STRICT_PREPARED_ACCOUNT_NOT_CANONICAL"
+                    );
+                if(!StrictDurablePlayerSnapshotWriter
+                       .canonicalSnapshotSha256(snapshot)
+                       .equals(StrictDurablePlayerSnapshotWriter
+                           .canonicalSnapshotSha256(current)))
+                    throw new IllegalStateException(
+                        "G21.43 STRICT_PREPARED_STALE_LIVE_OWNER_SNAPSHOT"
+                    );
+            }
+
             synchronized(io){
                 if(io.isShutdown())
                     throw new RejectedExecutionException(
