@@ -16,6 +16,16 @@ For marked snapshots, require a complete canonical v2 account snapshot; decode i
 
 If the snapshot is still exactly PREPARED+UNCLAIMED, it can load as an inert record, **without any grant, replay or implicit unprepare**. Old accounts without a journal remain untouched. If an operator repairs/reconciles the on-disk record to a valid PREPARED state, the same existing login path can read it again.
 
+## G21.26 read-only recovery observer compatibility (CI-failing edge resolved)
+
+The first hosted build on original head `ec4c937f...` **failed**, correctly refusing a hypothetical CLAIMED disk postimage that old G21.26 regression tried to read via `WorldPlayerPersistence.load()`. This was not evidence that an unsafe file should be admitted to login.
+
+The final implementation splits **two explicit same-worker FIFO load purposes**, not two I/O workers or bypass of the persistence queue:
+- `WorldPlayerPersistence.load(username)`: unchanged public session use; G21.31 classifier denies potentially credited/CLAIMED G21.22 records before returning them to `LocalAccountLifecycle.loadSnapshot` and `LocalSessionPlayerInitializer.initialize` (failed account load rejects session).
+- `WorldPlayerPersistence.observeUntrustedMailboxAccount(username)`: package-local, read-only forensic disk observation solely for G21.26 `MailboxDiskPostimageObserver.observe`, whose owner/generation/immutable-proposal checks bracket the read and whose output is a non-granting typed classification. **Raw snapshot bytes are never returned to session hydration by this call.** The queue, load rejection/exception propagation and thread affinity remain the same.
+
+The G21.31 test also checks the same exact hypothetical file is **rejected on real login path** and **observable only through the bounded forensic FIFO path**. Original G21.26 recovery coverage remains meaningful. No G21.26 assertion is weakened or removed.
+
 ## Regression and remaining boundary
 
 `G2131MailboxPreparedRestartAdmissionIntegrationTest` drives `world.persistence().load` (the actual asynchronous loader), verifying: ordinary account unchanged, PREPARED restoration without reward, hypothetical CLAIMED file rejected and preserved, inventory-only mutation rejected, missing mail rejected, corrupted or foreign journal rejected, unrelated account unaffected, repaired PREPARED accepted again, repeated load idempotent and original live owner untouched.
