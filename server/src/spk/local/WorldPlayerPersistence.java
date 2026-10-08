@@ -326,13 +326,32 @@ final class WorldPlayerPersistence
     Optional<PlayerSnapshot> load(
         String username
     )throws IOException{
+        return loadInternal(username,true);
+    }
+
+    /**
+     * Read-only G21.26 disk observation, NOT a session hydration entry.
+     * Preserves the FIFO worker and intentionally permits inspecting
+     * untrusted hypothetical account bytes which the normal loader denies.
+     * Caller must enforce G21.26 exact owner/proposal validation; this
+     * method never applies account state or authorizes a settlement.
+     */
+    Optional<PlayerSnapshot> observeUntrustedMailboxAccount(
+        String username
+    )throws IOException{
+        return loadInternal(username,false);
+    }
+
+    private Optional<PlayerSnapshot> loadInternal(
+        String username,boolean enforceAdmission
+    )throws IOException{
         if(world.pulse().inExecutionContext())
             throw new IllegalStateException(
                 "repository load on World execution context"
             );
 
         LoadTask task=
-            new LoadTask(username);
+            new LoadTask(username,enforceAdmission);
 
         enqueueLoad(task);
 
@@ -1443,12 +1462,14 @@ final class WorldPlayerPersistence
         implements Runnable {
 
         private final String username;
+        private final boolean enforceAdmission;
         private final CompletableFuture<
             Optional<PlayerSnapshot>
         > future=new CompletableFuture<>();
 
-        LoadTask(String username){
+        LoadTask(String username,boolean enforceAdmission){
             this.username=username;
+            this.enforceAdmission=enforceAdmission;
         }
 
         @Override public void run(){
@@ -1458,9 +1479,21 @@ final class WorldPlayerPersistence
                 if(future.isDone())
                     return;
 
-                future.complete(
-                    repository.load(username)
-                );
+                java.util.Optional<PlayerSnapshot> loaded=
+                    repository.load(username);
+                if(enforceAdmission&&loaded.isPresent()){
+                    MailboxPreparedRestartAdmission.Decision admission=
+                        MailboxPreparedRestartAdmission.inspect(
+                            loaded.get()
+                        );
+                    if(!admission.admissionAllowed)
+                        throw new IOException(
+                            "G21.31 MAILBOX_PREPARED_LOAD_QUARANTINE"+
+                            " account="+username+
+                            " reason="+admission.state
+                        );
+                }
+                future.complete(loaded);
             }catch(Throwable error){
                 future.completeExceptionally(
                     error

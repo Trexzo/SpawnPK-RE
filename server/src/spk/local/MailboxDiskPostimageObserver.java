@@ -7,7 +7,8 @@ import java.util.Optional;
 /**
  * G21.26: read-only disk observation of a hypothetical Mailbox settlement.
  *
- * WorldPlayerPersistence.load() queues the repository read behind already
+ * WorldPlayerPersistence.observeUntrustedMailboxAccount() queues the
+ * repository read behind already
  * admitted saves on its SINGLE bounded I/O worker. The observation tells us
  * which exact account snapshot is visible at this point in that queue.
  * It is NOT a durability receipt, a commit decision, a reward-grant permit,
@@ -68,10 +69,14 @@ final class MailboxDiskPostimageObserver {
             Objects.requireNonNull(planned,"planned");
 
         verifyCurrent(checkedWorld,player,generation,proposal);
-        // This is the *existing* persistence FIFO: do not open a second
-        // repository or bypass a previously admitted strict save.
+        // Preserve the *existing* persistence FIFO. This observation
+        // intentionally reads untrusted bytes, unlike the G21.31
+        // session-admission load() which must reject CLAIMED postimages.
+        // Never return the observed snapshot to session hydration.
         Optional<PlayerSnapshot> candidate=
-            checkedWorld.persistence().load(proposal.account);
+            checkedWorld.persistence().observeUntrustedMailboxAccount(
+                proposal.account
+            );
         verifyCurrent(checkedWorld,player,generation,proposal);
 
         State state;
