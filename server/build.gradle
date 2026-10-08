@@ -2127,6 +2127,7 @@ def currentTrainFocusedTests = [
     'spk.local.G217MailboxPersistenceIntegrationTest',
     'spk.local.G218WorldMailboxSnapshotIntegrationTest',
     'spk.local.G219WorldMailboxGatewayIntegrationTest',
+    'spk.local.G2110WorldMailboxWireIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2155,10 +2156,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 308 ||
-    currentTrainFocusedTests.toSet().size() != 308) {
+if (currentTrainFocusedTests.size() != 309 ||
+    currentTrainFocusedTests.toSet().size() != 309) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 308 unique tests, found " +
+        "Current-train focused manifest drift: expected 309 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2730,6 +2731,14 @@ tasks.register('g219WorldMailboxGatewayRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G219WorldMailboxGatewayIntegrationTest')
+}
+
+tasks.register('g2110WorldMailboxWireRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exact ISAAC-decoded WorldPlayer-owned Mailbox inbox/detail packet order and generation fences.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2110WorldMailboxWireIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
