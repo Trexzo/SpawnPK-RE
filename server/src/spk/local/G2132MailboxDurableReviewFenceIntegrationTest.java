@@ -187,7 +187,7 @@ public final class G2132MailboxDurableReviewFenceIntegrationTest {
                 }
 
                 noLiveInventoryOrClaim=true;
-                for(WorldPlayer player:world.players().all()){
+                for(WorldPlayer player:world.players().snapshot()){
                     if(player.username().startsWith("g2132-")){
                         noLiveInventoryOrClaim &=
                             player.bank().inventorySlots()==0;
