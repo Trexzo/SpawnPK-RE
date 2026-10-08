@@ -86,6 +86,23 @@ final class WorldMailboxPresentationSession implements AutoCloseable {
     }
 
     /**
+     * Verified native v308 row-click, decoded by the existing typed
+     * C2S185 boundary. No separate Mailbox socket route is attached.
+     *
+     * Requires an already-bound server-owned inbox. Delegation to the
+     * certified trusted-row publisher retains immutable selection checks,
+     * packet preflight and WorldPlayer registration-generation fencing.
+     */
+    MailboxRewardDeliveryService.Snapshot
+        publishRowDetailFromWidget(
+            WidgetActionClientRequest request,
+            ServerPacketWriter writer
+        )throws IOException{
+        int row=MailboxRowWidgetIntentAdapter.requireRow(request);
+        return publishTrustedRowDetail(row,writer);
+    }
+
+    /**
      * A *trusted server-side* row index resolves against the currently
      * bound immutable inbox view. Preflight S2C53 and S2C126 BEFORE any
      * S2C250 subtype31 selection opcode or detail packet is written.
