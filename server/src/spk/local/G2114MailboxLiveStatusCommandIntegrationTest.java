@@ -33,13 +33,19 @@ public final class G2114MailboxLiveStatusCommandIntegrationTest {
         String[] second=LocalCommandDispatcher.tokens(
             LocalCommandDispatcher.clean(" ::mailbox status ")
         );
+        String[] nativeMail=LocalCommandDispatcher.tokens(
+            LocalCommandDispatcher.clean("::mail")
+        );
 
         exactAliases=
             LocalMailboxStatusCommandHandler.matches(first)&&
             LocalMailboxStatusCommandHandler.matches(second)&&
+            LocalMailboxStatusCommandHandler.matches(nativeMail)&&
             first.length==1&&
             second.length==2&&
+            nativeMail.length==1&&
             "mailbox".equalsIgnoreCase(first[0])&&
+            "mail".equalsIgnoreCase(nativeMail[0])&&
             "status".equalsIgnoreCase(second[1]);
 
         unrelatedPassThrough=
@@ -99,10 +105,13 @@ public final class G2114MailboxLiveStatusCommandIntegrationTest {
                 aliceCommand.handle(first);
             LocalMailboxStatusCommandHandler.Result statusAlias=
                 aliceCommand.handle(second);
+            LocalMailboxStatusCommandHandler.Result nativeStatus=
+                aliceCommand.handle(nativeMail);
 
             ownedTotals=
-                status!=null&&statusAlias!=null&&
+                status!=null&&statusAlias!=null&&nativeStatus!=null&&
                 status.clientMessage.equals(statusAlias.clientMessage)&&
+                status.clientMessage.equals(nativeStatus.clientMessage)&&
                 status.clientMessage.contains(
                     "Mailbox: 3 messages, 2 unread, "+
                     "1 with unclaimed attachments."
