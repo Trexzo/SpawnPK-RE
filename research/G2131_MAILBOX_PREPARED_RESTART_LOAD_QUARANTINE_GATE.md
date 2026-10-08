@@ -8,7 +8,7 @@ G21.22 persists `PREPARED_NO_GRANT` intent together with the original UNCLAIMED 
 
 ## Actual load seam
 
-New `MailboxPreparedRestartAdmission.inspect(snapshot)` runs on a **detached** WorldPlayer, never on the live player. It examines the G21.22 namespace `extension.mailbox-claim-intent`. Accounts containing no such namespace retain the existing loader behavior (no additional canonicalization or journal semantics).
+New `MailboxPreparedRestartAdmission.inspect(snapshot)` runs on a **detached** WorldPlayer, never on the live player. It examines the G21.22 namespace `extension.mailbox-claim-intent`. Accounts containing no such namespace retain the existing loader behavior (no additional canonicalization or journal semantics). Marker detection requires the exact `extension.mailbox-claim-intent.` namespace delimiter; similarly named but distinct extensions must never be treated as claim journals.
 
 For marked snapshots, require a complete canonical v2 account snapshot; decode its full journal; verify canonical account/message ID, selected Mailbox UNCLAIMED state, attachment fingerprint and **all 28 inventory slots exactly equal the journal BEFORE image**. In particular, a CLAIMED Mailbox or an inventory changed toward a hypothetical reward must be refused before normal hydration. Missing/recycled selected envelope, corrupted/foreign journal and malformed account bytes must also be refused. The classifier does not infer an authorized transaction from `idempotencyKey`, file contents, a G21.30 receipt, or a message status.
 
