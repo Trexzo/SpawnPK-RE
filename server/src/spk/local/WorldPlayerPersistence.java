@@ -2411,7 +2411,13 @@ final class WorldPlayerPersistence
                         " cutoff="+cutoff
                     );
             }
-            repository.save(snapshot);
+            // G21.36: ordinary, checkpoint and final session writes use
+            // the same file-backed review-fence admission boundary. This
+            // does NOT change non-file PlayerRepository adapter contracts.
+            if(repository instanceof FilePlayerRepository)
+                ((FilePlayerRepository)repository).saveForWorld(snapshot);
+            else
+                repository.save(snapshot);
 
             synchronized(future){
                 if(future.isDone())
