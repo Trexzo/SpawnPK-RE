@@ -82,11 +82,16 @@ public final class G2126MailboxDiskReconciliationIntegrationTest {
 
             // Captured before the PREPARED writer, the older ordinary
             // account write occupies the same FIFO I/O worker.
-            WorldPlayerPersistence.CapturedSave old=
-                world.persistence().captureDeferredSave(
+            java.util.concurrent.atomic.AtomicReference<
+                WorldPlayerPersistence.CapturedSave> captured=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            world.submitAndWait(alice,generation,()->{
+                captured.set(world.persistence().captureDeferredSave(
                     "g2126-alice",alice,generation,0,
                     "[g2126] ","OLDER_PREPARED_SAVE"
-                );
+                ));
+            },5_000L);
+            WorldPlayerPersistence.CapturedSave old=captured.get();
             WorldPlayerPersistence.SaveTicket oldTicket=
                 world.persistence().submitCapturedWithBackpressure(
                     old,2_000L
