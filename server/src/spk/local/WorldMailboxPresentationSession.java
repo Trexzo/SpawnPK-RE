@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -247,6 +248,96 @@ final class WorldMailboxPresentationSession implements AutoCloseable {
             owner.markMailboxSnapshotKnown();
             // The old row selection is no longer valid after mutation.
             view.bindInbox();
+            return removed;
+        });
+    }
+
+    /**
+     * CUSTOM_LOCALLAB_G2120: an already selected exact C2S185 DELETE
+     * (32184) may remove only EMPTY or externally CLAIMED mail.
+     *
+     * Validate all surviving rows before the irreversible domain delete.
+     * The caller batches the exact-v308 inbox rebind packets; a failed
+     * transport after deletion does not roll back the semantic tombstone.
+     * Refresh is the deliberate presentation recovery mechanism.
+     */
+    MailboxRewardDeliveryService.Snapshot
+        deleteSafeAndPublishInboxFromWidget(
+            WidgetActionClientRequest request,
+            ServerPacketWriter writer
+        )throws IOException{
+        Objects.requireNonNull(request,"request");
+        Objects.requireNonNull(writer,"writer");
+        return owned(()->{
+            // Authentic selection must still identify the same message
+            // object in the original bound row, not merely the same ID.
+            int selectedRow=view.selectedBoundRow();
+            MailboxWidgetIntentAdapter.Intent intent=
+                view.resolve(request);
+            if(intent==null||
+               intent.kind!=
+                   MailboxWidgetIntentAdapter.Kind.DELETE_MESSAGE||
+               intent.messageId==null)
+                throw new IllegalArgumentException(
+                    "not an exact selected Mailbox delete action"
+                );
+
+            MailboxRewardDeliveryService mailbox=owner.mailbox();
+            MailboxRewardDeliveryService.Snapshot selected=
+                mailbox.get(intent.messageId);
+            if(selected==null)
+                throw new IllegalStateException(
+                    "selected Mailbox envelope disappeared"
+                );
+            if(selected.claimState==
+                    MailboxRewardDeliveryService.ClaimState.UNCLAIMED)
+                throw new IllegalStateException(
+                    "CUSTOM_LOCALLAB cannot delete unclaimed attachments"
+                );
+            if(selectedRow<0||
+               selectedRow>=
+                   MailboxInboxProjection.CLIENT_VISIBLE_ROW_LIMIT)
+                throw new IllegalStateException(
+                    "invalid bound Mailbox row selection"
+                );
+
+            // A direct/older domain writer could have inserted a
+            // malformed survivor since the inbox was first bound.
+            // Reject the whole deletion without altering any state.
+            List<MailboxRewardDeliveryService.Snapshot> survivors=
+                new ArrayList<>();
+            boolean exactSelectedFound=false;
+            for(MailboxRewardDeliveryService.Snapshot candidate:
+                    mailbox.snapshot()){
+                if(candidate.message.messageId.equals(
+                        intent.messageId)){
+                    if(candidate.message!=selected.message)
+                        throw new IllegalStateException(
+                            "recycled Mailbox message identity"
+                        );
+                    exactSelectedFound=true;
+                }else
+                    survivors.add(candidate);
+            }
+            if(!exactSelectedFound)
+                throw new IllegalStateException(
+                    "selected Mailbox envelope absent from snapshot"
+                );
+            MailboxInboxProjection.validateRows(survivors);
+
+            MailboxRewardDeliveryService.Snapshot removed=
+                mailbox.delete(intent.messageId);
+            if(removed==null||removed.message!=selected.message)
+                throw new IllegalStateException(
+                    "Mailbox delete identity changed during commit"
+                );
+            owner.markMailboxSnapshotKnown();
+
+            // Rebind clears the selected row after successful deletion.
+            // In-memory validation already completed before mutation.
+            List<MailboxRewardDeliveryService.Snapshot> rebound=
+                view.bindInbox();
+            MailboxInboxProjection.publish(writer,rebound);
             return removed;
         });
     }
