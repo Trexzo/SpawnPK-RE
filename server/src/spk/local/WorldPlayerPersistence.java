@@ -1697,6 +1697,8 @@ final class WorldPlayerPersistence
      */
     final class PreparedStrictBarrierTask implements Runnable {
         final long barrierSequence;
+        final WorldPlayer owner;
+        final long expectedGeneration;
         final PlayerSnapshot snapshot;
         final StrictDurablePlayerSnapshotWriter writer;
         final CompletableFuture<
@@ -1704,11 +1706,13 @@ final class WorldPlayerPersistence
                 new CompletableFuture<>();
 
         PreparedStrictBarrierTask(
-            long barrierSequence,
-            PlayerSnapshot snapshot,
+            long barrierSequence,WorldPlayer owner,
+            long expectedGeneration,PlayerSnapshot snapshot,
             StrictDurablePlayerSnapshotWriter writer
         ){
             this.barrierSequence=barrierSequence;
+            this.owner=Objects.requireNonNull(owner,"strict barrier owner");
+            this.expectedGeneration=expectedGeneration;
             this.snapshot=snapshot;
             this.writer=writer;
         }
@@ -1718,6 +1722,15 @@ final class WorldPlayerPersistence
             try{
                 if(completion.isDone())
                     return;
+                // G21.44: queued strict work may have waited behind an
+                // earlier slow file operation. Recheck complete current
+                // owner/generation/snapshot on THIS existing persistence
+                // worker before invoking any strict writer file I/O.
+                if(repository instanceof FilePlayerRepository)
+                    requirePreparedOwnerStillCurrentBeforeWrite(
+                        owner,expectedGeneration,snapshot
+                    );
+
                 // G21.42: real file-backed World strict PREPARED saves
                 // coordinate with the G21.34 negative review marker.
                 // Keep legacy non-file adapters explicitly outside the
@@ -1740,6 +1753,43 @@ final class WorldPlayerPersistence
 
         void reject(Throwable failure){
             completion.completeExceptionally(failure);
+        }
+    }
+
+    /**
+     * G21.44 worker-side last-chance exact-state gate. Never performs
+     * disk I/O or holds a live owner lock across the strict file writer.
+     * A subsequent World mutation during serialization is a separate
+     * lifetime/epoch problem, not covered by this read-only check.
+     */
+    private void requirePreparedOwnerStillCurrentBeforeWrite(
+        WorldPlayer owner,long expectedGeneration,PlayerSnapshot snapshot
+    ){
+        synchronized(owner.mutationLock()){
+            if(!owner.accepts(expectedGeneration)||
+               !snapshot.username().equals(owner.username()))
+                throw new IllegalStateException(
+                    "G21.44 STRICT_PREPARED_WORKER_OWNER_RETIRED"
+                );
+            final PlayerSnapshot now;
+            try{
+                now=PlayerSnapshotCodec.capture(
+                    snapshot.username(),owner,
+                    PlayerSnapshotCodec.accessoryItem(snapshot)
+                );
+            }catch(RuntimeException invalid){
+                throw new IllegalStateException(
+                    "G21.44 STRICT_PREPARED_WORKER_SNAPSHOT_INVALID",
+                    invalid
+                );
+            }
+            if(!StrictDurablePlayerSnapshotWriter
+                    .canonicalSnapshotSha256(snapshot)
+                    .equals(StrictDurablePlayerSnapshotWriter
+                        .canonicalSnapshotSha256(now)))
+                throw new IllegalStateException(
+                    "G21.44 STRICT_PREPARED_WORKER_SNAPSHOT_DIVERGED"
+                );
         }
     }
 
@@ -1843,7 +1893,8 @@ final class WorldPlayerPersistence
                 long barrierSequence=sequence.incrementAndGet();
                 PreparedStrictBarrierTask task=
                     new PreparedStrictBarrierTask(
-                        barrierSequence,snapshot,strictWriter
+                        barrierSequence,owner,expectedGeneration,
+                        snapshot,strictWriter
                     );
                 // The cutoff must become visible only on a successful
                 // enqueue. Failed/backpressured admission changes nothing.
