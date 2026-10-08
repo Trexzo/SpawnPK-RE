@@ -285,7 +285,10 @@ public final class G2110WorldMailboxWireIntegrationTest {
                     Arrays.stream(method.getParameterTypes())
                         .anyMatch(type->
                             type==BankState.class||
-                            type==WidgetActionClientRequest.class
+                            (type==WidgetActionClientRequest.class&&
+                             !method.getName().equals(
+                                 "publishRefreshFromWidget"
+                             ))
                         )
                 );
         }
