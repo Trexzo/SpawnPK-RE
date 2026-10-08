@@ -414,7 +414,7 @@ public final class G2110WorldMailboxWireIntegrationTest {
         int row,String subject,
         int[] items,int[] quantities,
         int claimState
-    ){
+    )throws java.io.IOException{
         IsaacCipher cipher=new IsaacCipher(SEED.clone());
         int pos=assert250(
             wire,0,cipher,
