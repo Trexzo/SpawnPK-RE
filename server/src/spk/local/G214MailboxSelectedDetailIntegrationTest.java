@@ -327,7 +327,7 @@ public final class G214MailboxSelectedDetailIntegrationTest {
             )
         );
 
-        require(pos+5==wire.length,
+        require(pos+6==wire.length,
             "truncated or excess final S2C250");
 
         int opcode=
