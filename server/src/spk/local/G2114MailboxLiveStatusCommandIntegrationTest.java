@@ -216,6 +216,22 @@ public final class G2114MailboxLiveStatusCommandIntegrationTest {
                     )!=null;
         }
 
+        System.out.println(
+            "G2114_MAILBOX_DIAGNOSTICS"+
+            " exactAliases="+exactAliases+
+            " unrelatedPassThrough="+unrelatedPassThrough+
+            " ownedTotals="+ownedTotals+
+            " liveS2C253="+liveS2C253+
+            " zeroAccountSafe="+zeroAccountSafe+
+            " accountIsolation="+accountIsolation+
+            " usageFailClosed="+usageFailClosed+
+            " noStateMutation="+noStateMutation+
+            " foreignWorldDenied="+foreignWorldDenied+
+            " staleGenerationDenied="+staleGenerationDenied+
+            " newGenerationAccepted="+newGenerationAccepted+
+            " noRootOrSettlement="+noRootOrSettlement
+        );
+
         require(
             exactAliases&&unrelatedPassThrough&&ownedTotals&&
             liveS2C253&&zeroAccountSafe&&accountIsolation&&
