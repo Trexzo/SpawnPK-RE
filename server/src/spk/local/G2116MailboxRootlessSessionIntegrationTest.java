@@ -99,8 +99,13 @@ public final class G2116MailboxRootlessSessionIntegrationTest {
             boolean selected=session.handleWidget(
                 widget(185,32026),writer(rowWire)
             );
+            ServerPacketWriter expectedRowWriter=
+                writer(rowReference);
             baseline.publishTrustedRowDetail(
-                0,writer(rowReference)
+                0,expectedRowWriter
+            );
+            baseline.publishSelectedReadState(
+                expectedRowWriter
             );
             typedRowWire=
                 selected&&
@@ -178,7 +183,9 @@ public final class G2116MailboxRootlessSessionIntegrationTest {
                 bob.mailbox().get("g2116:a")==null&&
                 alice.mailbox().get("g2116:bob")==null&&
                 bob.mailbox().unreadCount()==1&&
-                alice.mailbox().unreadCount()==2;
+                alice.mailbox().unreadCount()==1&&
+                alice.mailbox().get("g2116:a").readState==
+                    MailboxRewardDeliveryService.ReadState.READ;
 
             session.onInterfaceClose();
             ByteArrayOutputStream afterInterfaceClose=
