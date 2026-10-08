@@ -5,10 +5,12 @@ import java.util.Objects;
 
 /**
  * CUSTOM_LOCALLAB player-facing Mailbox counts over the existing
- * exact-current C2S103 text command pipeline. The native v308\n * `::mail` entry command is recognized, but only offers a read-only\n * status fallback until its top-level UI-opening contract is certified.
+ * exact-current C2S103 text command pipeline. The native ::mail entry
+ * is intercepted by the session dispatcher for root opening; explicit
+ * ::mailbox status remains a read-only safe fallback.
  *
- * No Mailbox client root/row-click is recovered, and this command
- * never opens an interface, exposes mail bodies, grants rewards,
+ * This status-only handler never opens an interface, exposes mail
+ * bodies, grants rewards,
  * or mutates any player/domain state.
  */
 final class LocalMailboxStatusCommandHandler {
@@ -63,7 +65,7 @@ final class LocalMailboxStatusCommandHandler {
                 " authority="+AUTHORITY+
                 " stateMutation=false liveRoot=false",
                 "Usage: ::mail, ::mailbox or ::mailbox status. "+
-                "The Mailbox interface is not available yet."
+                "Use ::mail to open the Mailbox."
             );
 
         int unread=0;
