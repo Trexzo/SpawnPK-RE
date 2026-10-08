@@ -29,7 +29,7 @@ final class ApplicationControl126Service {
         );
     }
 
-    static void constructionBuild(
+    static void constructionBuildMode(
         ServerPacketWriter writer,
         boolean enabled
     )throws IOException{
@@ -42,6 +42,16 @@ final class ApplicationControl126Service {
                     :ApplicationControl126Command.Token
                         .CONSTRUCTION_BUILD_OFF
             )
+        );
+    }
+
+    static void constructionBuild(
+        ServerPacketWriter writer,
+        boolean enabled
+    )throws IOException{
+        constructionBuildMode(
+            writer,
+            enabled
         );
     }
 
