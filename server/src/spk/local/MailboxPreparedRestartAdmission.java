@@ -51,7 +51,7 @@ final class MailboxPreparedRestartAdmission {
         // Leave every historical/non-G21.22 account untouched.
         final String namespacePrefix=
             PlayerSnapshotExtensionState.PREFIX+
-            MailboxPreparedClaimJournal.NAMESPACE;
+            MailboxPreparedClaimJournal.NAMESPACE+".";
         boolean marked=false;
         for(String key:snapshot.values().keySet()){
             if(key.startsWith(namespacePrefix)){
