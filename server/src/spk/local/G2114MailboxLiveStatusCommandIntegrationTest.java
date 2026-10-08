@@ -155,7 +155,9 @@ public final class G2114MailboxLiveStatusCommandIntegrationTest {
                 aliceCommand.handle(new String[]{"mailbox","claim"});
             usageFailClosed=
                 invalid!=null&&
-                invalid.clientMessage.startsWith("Usage: ::mailbox")&&
+                invalid.clientMessage.startsWith(
+                    "Usage: ::mail, ::mailbox"
+                )&&
                 invalid.logText.contains("REJECTED_SYNTAX")&&
                 aliceCommand.handle(new String[]{"bank"})==null&&
                 aliceCommand.handle(null)==null;
