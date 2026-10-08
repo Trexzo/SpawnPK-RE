@@ -192,6 +192,12 @@ final class LocalCommandDispatcher {
             )throws IOException{
             return null;
         }
+        default LocalMailboxStatusCommandHandler.Result
+            handleMailboxStatusCommand(String[] tokens)
+                throws IOException{
+            return null;
+        }
+
         default LocalDailyChallengeCommandHandler.Result
             handleDailyChallengeCommand(
                 String[] tokens
@@ -312,6 +318,22 @@ final class LocalCommandDispatcher {
 
         String clean=clean(command);
         String[] p=tokens(clean);
+
+        // Read-only CUSTOM_LOCALLAB command through the exact C2S103
+        // text path. SessionBridge enforces WorldPlayer generation.
+        LocalMailboxStatusCommandHandler.Result mailboxStatus=
+            bridge.handleMailboxStatusCommand(p);
+        if(mailboxStatus!=null){
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(mailboxStatus.clientMessage);
+            System.out.println(
+                tag+mailboxStatus.logText+
+                " route=EXACT_CURRENT_C2S103"+
+                " rootOpened=false rewardSettlement=false"
+            );
+            return true;
+        }
 
         LocalShopCommandHandler.Result shopCommand=
             bridge.handleShopCommand(

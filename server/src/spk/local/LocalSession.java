@@ -1184,6 +1184,20 @@ final class LocalSession implements Runnable {
                         .handle(tokens);
                 }
 
+                @Override public LocalMailboxStatusCommandHandler.Result
+                    handleMailboxStatusCommand(
+                        String[] tokens
+                    ){
+                    if(!LocalMailboxStatusCommandHandler.matches(tokens))
+                        return null;
+
+                    return new LocalMailboxStatusCommandHandler(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration
+                    ).handle(tokens);
+                }
+
                 @Override public LocalDuelCommandHandler.Result
                     handleDuelCommand(
                         String[] tokens

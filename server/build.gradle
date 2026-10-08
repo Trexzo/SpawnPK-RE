@@ -2131,6 +2131,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2111MailboxRefreshWidgetIntegrationTest',
     'spk.local.G2112MailboxSafeDeleteWidgetIntegrationTest',
     'spk.local.G2113MailboxTrustedReadIntegrationTest',
+    'spk.local.G2114MailboxLiveStatusCommandIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2159,10 +2160,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 312 ||
-    currentTrainFocusedTests.toSet().size() != 312) {
+if (currentTrainFocusedTests.size() != 313 ||
+    currentTrainFocusedTests.toSet().size() != 313) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 312 unique tests, found " +
+        "Current-train focused manifest drift: expected 313 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2766,6 +2767,14 @@ tasks.register('g2113MailboxTrustedReadRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2113MailboxTrustedReadIntegrationTest')
+}
+
+tasks.register('g2114MailboxLiveStatusCommandRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves World-owned C2S103 Mailbox status command with exact S2C253 and stale-account denial.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2114MailboxLiveStatusCommandIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
