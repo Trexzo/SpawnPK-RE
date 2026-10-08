@@ -2128,6 +2128,7 @@ def currentTrainFocusedTests = [
     'spk.local.G218WorldMailboxSnapshotIntegrationTest',
     'spk.local.G219WorldMailboxGatewayIntegrationTest',
     'spk.local.G2110WorldMailboxWireIntegrationTest',
+    'spk.local.G2111MailboxRefreshWidgetIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2156,10 +2157,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 309 ||
-    currentTrainFocusedTests.toSet().size() != 309) {
+if (currentTrainFocusedTests.size() != 310 ||
+    currentTrainFocusedTests.toSet().size() != 310) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 309 unique tests, found " +
+        "Current-train focused manifest drift: expected 310 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2739,6 +2740,14 @@ tasks.register('g2110WorldMailboxWireRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2110WorldMailboxWireIntegrationTest')
+}
+
+tasks.register('g2111MailboxRefreshWidgetRegression', JavaExec) {
+    group = 'verification'
+    description = 'Checks exact C2S185 Mailbox refresh, stale-row recovery and ISAAC-decoded inbox publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2111MailboxRefreshWidgetIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
