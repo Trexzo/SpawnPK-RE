@@ -76,8 +76,19 @@ public final class G2131MailboxPreparedRestartAdmissionIntegrationTest {
 
             WorldPlayer ordinary=new WorldPlayer();
             ordinary.markRegistered("g2131-ordinary");
-            PlayerSnapshot noJournal=
+            PlayerSnapshot cleanOrdinary=
                 PlayerSnapshotCodec.capture("g2131-ordinary",ordinary);
+            TreeMap<String,String> unrelatedExtension=new TreeMap<>(
+                cleanOrdinary.values()
+            );
+            // An unrelated namespace with a similar prefix is NOT a journal.
+            unrelatedExtension.put(
+                "extension.mailbox-claim-intent-extra.keep","untouched"
+            );
+            PlayerSnapshot noJournal=new PlayerSnapshot(
+                PlayerSnapshot.CURRENT_VERSION,
+                "g2131-ordinary",unrelatedExtension
+            );
             repository.save(noJournal);
             MailboxPreparedRestartAdmission.Decision plain=
                 MailboxPreparedRestartAdmission.inspect(noJournal);
