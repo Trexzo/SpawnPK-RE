@@ -289,10 +289,16 @@ public final class G2110WorldMailboxWireIntegrationTest {
                              !method.getName().equals(
                                  "publishRefreshFromWidget"
                              )&&
+                             !method.getName().equals(
+                                 "deleteSafeFromWidget"
+                             )&&
                              !(method.isSynthetic()&&
-                               method.getName().startsWith(
+                               (method.getName().startsWith(
                                  "lambda$publishRefreshFromWidget$"
-                               )))
+                               )||
+                               method.getName().startsWith(
+                                 "lambda$deleteSafeFromWidget$"
+                               ))))
                         )
                 );
         }

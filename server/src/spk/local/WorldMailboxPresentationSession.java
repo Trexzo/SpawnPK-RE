@@ -126,6 +126,61 @@ final class WorldMailboxPresentationSession implements AutoCloseable {
         });
     }
 
+    /**
+     * CUSTOM_LOCALLAB guarded delete for the exact-v308 C2S185
+     * widget 32184, after an explicitly trusted row selection.
+     *
+     * This boundary does not connect LocalSession or send any packet;
+     * callers may explicitly publish the newly bound inbox afterward.
+     * The original server's Mailbox deletion policy is unknown.
+     */
+    MailboxRewardDeliveryService.Snapshot deleteSafeFromWidget(
+        WidgetActionClientRequest request
+    )throws IOException{
+        Objects.requireNonNull(request,"request");
+        return owned(()->{
+            MailboxWidgetIntentAdapter.Intent intent=
+                view.resolve(request);
+
+            if(intent==null||
+                intent.kind!=
+                    MailboxWidgetIntentAdapter.Kind.DELETE_MESSAGE||
+                intent.messageId==null)
+                throw new IllegalArgumentException(
+                    "not an exact selected Mailbox delete request"
+                );
+
+            MailboxRewardDeliveryService.Snapshot current=
+                owner.mailbox().get(intent.messageId);
+
+            if(current==null)
+                throw new IllegalStateException(
+                    "selected Mailbox envelope no longer exists"
+                );
+
+            if(current.claimState==
+                    MailboxRewardDeliveryService.ClaimState.UNCLAIMED)
+                throw new IllegalStateException(
+                    "CUSTOM_LOCALLAB: cannot delete unclaimed rewards"
+                );
+
+            // All checks above run inside the registered WorldPlayer's
+            // mutation ownership fence, before any domain mutation.
+            MailboxRewardDeliveryService.Snapshot removed=
+                owner.mailbox().delete(intent.messageId);
+
+            if(removed==null)
+                throw new IllegalStateException(
+                    "Mailbox envelope disappeared before deletion"
+                );
+
+            owner.markMailboxSnapshotKnown();
+            // The old row selection is no longer valid after mutation.
+            view.bindInbox();
+            return removed;
+        });
+    }
+
     private interface Owned<T> {
         T run()throws Exception;
     }
