@@ -3155,6 +3155,15 @@ final class LocalSession implements Runnable {
             // Login response 2 is followed by the exact bytes consumed as Client.cT
             // and the client boolean flag. 205 passes both current privileged gate families
             // used by the native Spawn Tab/debug surfaces; server authority remains LOCAL only.
+            // G21.37: a durable negative review marker can appear even
+            // after the initial G21.35 pre-registration check.
+            // Refuse LOGIN_SUCCESS when the file-backed account is
+            // now review-fenced; normal session teardown handles failure.
+            MailboxActiveSessionReviewGuard reviewGuard=
+                MailboxActiveSessionReviewGuard.forSession(
+                    world.persistence(),username,persistentAccount
+                );
+            reviewGuard.requireAtBoundary();
             LocalLoginTransport.writeLoginSuccess(out);
             System.out.println(tag + "LOGIN_SUCCESS_LOCAL rank=205 localDevAuthority=true flag=false account="+username+" loginAlias="+loginAlias+" persistent="+persistentAccount+" at " + Instant.now());
 
@@ -3223,6 +3232,7 @@ final class LocalSession implements Runnable {
              * legitimate callback. If attachment itself fails, roll the
              * session-local gate back immediately.
              */
+            reviewGuard.requireAtBoundary();
             worldTickGate.activate();
             try{
                 world.attachTickTarget(new WorldTickTarget(){
@@ -3244,6 +3254,10 @@ final class LocalSession implements Runnable {
 
             socket.setSoTimeout(100);
             while (true) {
+                // Socket-thread-only metadata probe, throttled to once
+                // per second. A newly armed negative fence terminates
+                // the session before further client commands execute.
+                reviewGuard.poll(System.nanoTime());
                 long now = System.currentTimeMillis();
                 requireLiveSessionWriter(
                     serverPackets
