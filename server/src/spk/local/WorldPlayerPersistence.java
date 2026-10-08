@@ -1747,6 +1747,7 @@ final class WorldPlayerPersistence
         final long generation;
         final String account;
         final String intentKey;
+        final RewardDeliveryMessage envelopeIdentity;
         final PlayerSnapshot exactPreimage;
         private boolean released;
 
@@ -1758,6 +1759,13 @@ final class WorldPlayerPersistence
             this.generation=generation;
             this.account=proposal.account;
             this.intentKey=proposal.idempotencyKey;
+            MailboxRewardDeliveryService.Snapshot bound=
+                owner.mailbox().get(proposal.messageId);
+            if(bound==null)
+                throw new IllegalStateException(
+                    "G21.27 reservation envelope missing"
+                );
+            this.envelopeIdentity=bound.message;
             this.exactPreimage=proposal.preparedPreimage;
         }
 
@@ -1789,9 +1797,9 @@ final class WorldPlayerPersistence
                         owner.mailbox().get(
                             preparedAccountMessageId(this)
                         );
-                    if(row==null)
+                    if(row==null||row.message!=envelopeIdentity)
                         throw new IllegalStateException(
-                            "G21.27 selected envelope missing"
+                            "G21.27 selected envelope identity changed"
                         );
                     // Full snapshot rather than just a stable key:
                     // prevents releasing across changes to inventory,
