@@ -24,7 +24,7 @@ The final implementation splits **two explicit same-worker FIFO load purposes**,
 - `WorldPlayerPersistence.load(username)`: unchanged public session use; G21.31 classifier denies potentially credited/CLAIMED G21.22 records before returning them to `LocalAccountLifecycle.loadSnapshot` and `LocalSessionPlayerInitializer.initialize` (failed account load rejects session).
 - `WorldPlayerPersistence.observeUntrustedMailboxAccount(username)`: package-local, read-only forensic disk observation solely for G21.26 `MailboxDiskPostimageObserver.observe`, whose owner/generation/immutable-proposal checks bracket the read and whose output is a non-granting typed classification. **Raw snapshot bytes are never returned to session hydration by this call.** The queue, load rejection/exception propagation and thread affinity remain the same.
 
-The G21.31 test also checks the same exact hypothetical file is **rejected on real login path** and **observable only through the bounded forensic FIFO path**. Original G21.26 recovery coverage remains meaningful. No G21.26 assertion is weakened or removed.
+The G21.31 test also checks the same exact hypothetical file is **rejected on real login path** and **observable only through the bounded forensic FIFO path**. It separately calls `LocalAccountLifecycle.load(...)` and asserts the normal session initializer returns `LoadStatus.FAILED` before ever applying the claimed record to a fresh player. Original G21.26 recovery coverage remains meaningful. No G21.26 assertion is weakened or removed.
 
 ## Regression and remaining boundary
 
