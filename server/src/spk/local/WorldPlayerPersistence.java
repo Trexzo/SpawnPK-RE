@@ -223,6 +223,8 @@ final class WorldPlayerPersistence
         new AtomicReference<>();
     private final AtomicReference<PreparedStrictBarrierTask>
         inFlightStrictBarrier=new AtomicReference<>();
+    private final AtomicReference<ReservedPreparedDrainTask>
+        inFlightPreparedDrain=new AtomicReference<>();
 
     /*
      * Protected by io, shared with the single writer's admission lock.
@@ -1750,6 +1752,9 @@ final class WorldPlayerPersistence
         final RewardDeliveryMessage envelopeIdentity;
         final PlayerSnapshot exactPreimage;
         private boolean released;
+        private int pendingDrains;
+        private boolean drainAttempted;
+        private boolean lastDrainWasExactPrepared;
 
         private PreparedAccountReservation(
             WorldPlayer owner,long generation,
@@ -1787,6 +1792,14 @@ final class WorldPlayerPersistence
                 synchronized(io){
                     if(released)
                         return false;
+                    if(pendingDrains!=0)
+                        throw new IllegalStateException(
+                            "G21.28 cannot release reservation while disk drain pending"
+                        );
+                    if(drainAttempted&&!lastDrainWasExactPrepared)
+                        throw new IllegalStateException(
+                            "G21.28 last disk drain was not exact PREPARED"
+                        );
                     if(preparedAccountReservations.get(account)!=this||
                        !world.players().owns(owner,generation)||
                        !owner.accepts(generation))
@@ -1829,6 +1842,237 @@ final class WorldPlayerPersistence
                     return true;
                 }
             }
+        }
+    }
+
+    /**
+     * A FIFO drain is a point-in-time repository observation after all
+     * previously admitted tasks. This is NOT file fsync proof or permission
+     * to mutate inventory or Mailbox state.
+     */
+    static final class PreparedDrainObservation {
+        enum State {
+            MISSING_ACCOUNT,
+            EXACT_PREPARED,
+            EXACT_HYPOTHETICAL,
+            DIVERGENT
+        }
+
+        final State state;
+        final String account;
+        final String intentKey;
+        final long generation;
+        final boolean workerQuiescentAtRead;
+        final boolean durabilityReceipt=false;
+        final boolean grantAuthorized=false;
+
+        PreparedDrainObservation(
+            State state,String account,String key,long generation
+        ){
+            this.state=state;
+            this.account=account;
+            this.intentKey=key;
+            this.generation=generation;
+            this.workerQuiescentAtRead=true;
+        }
+    }
+
+    private void verifyReservedProposal(
+        PreparedAccountReservation token,
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    ){
+        // Lock order must remain owner -> io, even on the I/O worker.
+        synchronized(token.owner.mutationLock()){
+            if(!world.players().owns(token.owner,token.generation)||
+               !token.owner.accepts(token.generation)||
+               !proposal.account.equals(token.account)||
+               proposal.ownerGeneration!=token.generation||
+               !proposal.idempotencyKey.equals(token.intentKey))
+                throw new IllegalStateException(
+                    "G21.28 reservation owner or proposal retired"
+                );
+
+            MailboxRewardDeliveryService.Snapshot row=
+                token.owner.mailbox().get(proposal.messageId);
+            if(row==null||row.message!=token.envelopeIdentity)
+                throw new IllegalStateException(
+                    "G21.28 selected immutable message replaced"
+                );
+
+            MailboxSettlementPostimagePlanner.Proposal current=
+                MailboxSettlementPostimagePlanner.plan(
+                    token.owner,token.generation,row
+                );
+            if(!current.preparedPreimage.values().equals(
+                    proposal.preparedPreimage.values())||
+               !current.hypotheticalPostimage.values().equals(
+                    proposal.hypotheticalPostimage.values()))
+                throw new IllegalStateException(
+                    "G21.28 live account postimage changed"
+                );
+
+            synchronized(io){
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.pendingDrains<1)
+                    throw new IllegalStateException(
+                        "G21.28 reservation no longer owns drain"
+                    );
+            }
+        }
+    }
+
+    private final class ReservedPreparedDrainTask implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final CompletableFuture<PreparedDrainObservation> completion=
+            new CompletableFuture<>();
+        private boolean unpinned;
+
+        ReservedPreparedDrainTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal
+        ){
+            this.token=token;
+            this.proposal=proposal;
+        }
+
+        private void unpin(boolean exact){
+            synchronized(io){
+                if(unpinned)
+                    return;
+                unpinned=true;
+                token.pendingDrains--;
+                token.lastDrainWasExactPrepared=exact;
+            }
+        }
+
+        @Override public void run(){
+            inFlightPreparedDrain.set(this);
+            boolean exact=false;
+            try{
+                if(completion.isDone())
+                    return;
+                verifyReservedProposal(token,proposal);
+                java.util.Optional<PlayerSnapshot> disk=
+                    repository.load(token.account);
+                verifyReservedProposal(token,proposal);
+
+                PreparedDrainObservation.State state;
+                if(!disk.isPresent()){
+                    state=PreparedDrainObservation.State.MISSING_ACCOUNT;
+                }else{
+                    MailboxSettlementPostimagePlanner.RecoveryClass match=
+                        proposal.classify(disk.get());
+                    switch(match){
+                        case EXACT_PREPARED_PREIMAGE:
+                            state=PreparedDrainObservation.State.EXACT_PREPARED;
+                            break;
+                        case EXACT_HYPOTHETICAL_POSTIMAGE:
+                            state=PreparedDrainObservation.State.EXACT_HYPOTHETICAL;
+                            break;
+                        default:
+                            state=PreparedDrainObservation.State.DIVERGENT;
+                            break;
+                    }
+                }
+                exact=state==PreparedDrainObservation.State.EXACT_PREPARED;
+                completion.complete(new PreparedDrainObservation(
+                    state,token.account,token.intentKey,token.generation
+                ));
+            }catch(Throwable failure){
+                completion.completeExceptionally(failure);
+            }finally{
+                unpin(exact&&!completion.isCompletedExceptionally());
+                inFlightPreparedDrain.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+            unpin(false);
+        }
+    }
+
+    /**
+     * Asynchronous, bounded-queue, off-World FIFO admission.
+     * The reservation remains pinned until the task resolves; no
+     * concurrent cancellation can unfreeze conflicting writers.
+     */
+    CompletableFuture<PreparedDrainObservation>
+        drainReservedPreparedAccount(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.28 drain cannot perform file I/O on World"
+            );
+
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.28 persistence worker closed"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.generation!=proposal.ownerGeneration||
+                   !token.intentKey.equals(proposal.idempotencyKey))
+                    throw new IllegalStateException(
+                        "G21.28 stale reserved drain admission"
+                    );
+                // Only one in-flight observation per token; no unbounded
+                // competing queued readers and no premature release.
+                if(token.pendingDrains!=0)
+                    throw new IllegalStateException(
+                        "G21.28 duplicate pending account drain"
+                    );
+
+                ReservedPreparedDrainTask task=
+                    new ReservedPreparedDrainTask(token,proposal);
+                io.execute(task); // if rejected, no reservation changes
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
+    private void verifyReservedAdmission(
+        PreparedAccountReservation token,
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    ){
+        synchronized(token.owner.mutationLock()){
+            if(!world.players().owns(token.owner,token.generation)||
+               !token.owner.accepts(token.generation)||
+               !proposal.account.equals(token.account)||
+               !proposal.idempotencyKey.equals(token.intentKey)||
+               proposal.ownerGeneration!=token.generation)
+                throw new IllegalStateException(
+                    "G21.28 drain requested for stale owner"
+                );
+            MailboxRewardDeliveryService.Snapshot row=
+                token.owner.mailbox().get(proposal.messageId);
+            if(row==null||row.message!=token.envelopeIdentity)
+                throw new IllegalStateException(
+                    "G21.28 drain envelope identity changed"
+                );
+            MailboxSettlementPostimagePlanner.Proposal current=
+                MailboxSettlementPostimagePlanner.plan(
+                    token.owner,token.generation,row
+                );
+            if(!current.preparedPreimage.values().equals(
+                    proposal.preparedPreimage.values())||
+               !current.hypotheticalPostimage.values().equals(
+                    proposal.hypotheticalPostimage.values()))
+                throw new IllegalStateException(
+                    "G21.28 drain postimage changed"
+                );
         }
     }
 
@@ -2249,6 +2493,12 @@ final class WorldPlayerPersistence
                 continue;
             }
 
+            if(runnable instanceof ReservedPreparedDrainTask){
+                counts.loads++;
+                ((ReservedPreparedDrainTask)runnable).reject(error);
+                continue;
+            }
+
             if(runnable instanceof CheckpointDrainTask){
                 counts.checkpoints++;
                 ((CheckpointDrainTask)runnable).reject(
@@ -2358,6 +2608,16 @@ final class WorldPlayerPersistence
         );
     }
 
+    private boolean rejectInFlightPreparedDrain(String stage){
+        ReservedPreparedDrainTask active=inFlightPreparedDrain.get();
+        if(active==null)
+            return false;
+        active.reject(new RejectedExecutionException(
+            "G21.28 reserved drain outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
     private boolean rejectInFlightStrictBarrier(String stage){
         PreparedStrictBarrierTask active=inFlightStrictBarrier.get();
         if(active==null)
@@ -2454,6 +2714,10 @@ final class WorldPlayerPersistence
                 boolean strictBarrierSettled=
                     !clean&&rejectInFlightStrictBarrier(
                         "SHUTDOWN_STRICT_IN_FLIGHT"
+                    );
+                boolean reservedDrainSettled=
+                    !clean&&rejectInFlightPreparedDrain(
+                        "SHUTDOWN_RESERVED_DRAIN_IN_FLIGHT"
                     );
                 boolean checkpointInFlightSettled=
                     !clean&&
