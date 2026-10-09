@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
@@ -27,7 +28,16 @@ final class MailboxFencedRestartForensics {
         INVALID_OR_DIVERGENT_ACCOUNT,
         EXACT_PREPARED_UNCLAIMED,
         EXACT_HYPOTHETICAL_CLAIMED,
-        OTHER_ACCOUNT_POSTIMAGE
+        OTHER_ACCOUNT_POSTIMAGE,
+        // G21.48: separate strict checkpoint uncertainty format. These
+        // remain read-only, never success/replay/recovery authority.
+        STRICT_UNCERTAIN_EXACT_SNAPSHOT,
+        STRICT_UNCERTAIN_DIVERGENT_SNAPSHOT,
+        STRICT_UNCERTAIN_MISSING_ACCOUNT,
+        STRICT_UNCERTAIN_INVALID_ACCOUNT,
+        STRICT_UNCERTAIN_ACCOUNT_READ_FAILED,
+        STRICT_UNCERTAIN_INVALID_MARKER,
+        STRICT_UNCERTAIN_MARKER_CHANGED
     }
 
     static final class Report {
@@ -60,6 +70,24 @@ final class MailboxFencedRestartForensics {
         Objects.requireNonNull(persistence,"persistence");
         Objects.requireNonNull(fence,"fence");
         Objects.requireNonNull(account,"account");
+
+        // G21.48: a valid G21.47 strict post-publication uncertainty
+        // marker is NOT an unreadable G21.32 hypothetical-postimage
+        // record. If both distinct negative markers exist, prefer the
+        // stricter postpublication uncertainty classification.
+        final Path strictAccountFile;
+        try{
+            strictAccountFile=fence.accountFileForStrictReview(account);
+            if(MailboxStrictUnconfirmedReviewFence.present(
+                    strictAccountFile))
+                return inspectStrictUncertain(
+                    persistence,account,strictAccountFile
+                );
+        }catch(IOException|RuntimeException invalid){
+            return result(
+                State.STRICT_UNCERTAIN_INVALID_MARKER,account,null
+            );
+        }
 
         final MailboxDurableReviewFence.Record marker;
         try{
@@ -143,6 +171,101 @@ final class MailboxFencedRestartForensics {
         }
 
         return result(State.OTHER_ACCOUNT_POSTIMAGE,account,hash);
+    }
+
+    /**
+     * G21.48: a valid G21.47 marker means only postpublication
+     * uncertainty requiring human review. Never classify it as
+     * a positive settlement or a G21.32 hypothetical reward outcome.
+     *
+     * This rechecks two separate file reads; it is NOT an atomic
+     * account+marker snapshot, power-loss proof, or grant authority.
+     */
+    private static Report inspectStrictUncertain(
+        WorldPlayerPersistence persistence,String account,
+        Path accountFile
+    ){
+        final MailboxStrictUnconfirmedReviewFence.Record before;
+        try{
+            before=MailboxStrictUnconfirmedReviewFence.inspect(
+                accountFile
+            );
+            if(!account.equals(before.account))
+                return result(
+                    State.STRICT_UNCERTAIN_INVALID_MARKER,account,null
+                );
+        }catch(IOException|RuntimeException corrupted){
+            return result(
+                State.STRICT_UNCERTAIN_INVALID_MARKER,account,null
+            );
+        }
+
+        final Optional<PlayerSnapshot> snapshot;
+        try{
+            // The existing bounded persistence worker owns this
+            // forensic observation; this never hydrates a session.
+            snapshot=persistence.observeUntrustedMailboxAccount(account);
+        }catch(IOException|RuntimeException readFailure){
+            return result(
+                State.STRICT_UNCERTAIN_ACCOUNT_READ_FAILED,
+                account,null
+            );
+        }
+
+        // The marker may be replaced or disappear while the FIFO read
+        // runs. A detected change vetoes all strong classifications.
+        try{
+            if(!MailboxStrictUnconfirmedReviewFence.present(accountFile))
+                return result(
+                    State.STRICT_UNCERTAIN_MARKER_CHANGED,account,null
+                );
+            MailboxStrictUnconfirmedReviewFence.Record after=
+                MailboxStrictUnconfirmedReviewFence.inspect(accountFile);
+            if(!before.account.equals(after.account)||
+               !before.strictSnapshotSha256.equals(
+                    after.strictSnapshotSha256))
+                return result(
+                    State.STRICT_UNCERTAIN_MARKER_CHANGED,account,null
+                );
+        }catch(IOException|RuntimeException markerReadFailed){
+            return result(
+                State.STRICT_UNCERTAIN_MARKER_CHANGED,account,null
+            );
+        }
+
+        if(!snapshot.isPresent())
+            return result(
+                State.STRICT_UNCERTAIN_MISSING_ACCOUNT,account,null
+            );
+
+        PlayerSnapshot saved=snapshot.get();
+        if(!account.equals(saved.username())||
+           saved.version()!=PlayerSnapshot.CURRENT_VERSION)
+            return result(
+                State.STRICT_UNCERTAIN_INVALID_ACCOUNT,account,null
+            );
+
+        final PlayerSnapshot canonical;
+        try{
+            canonical=PlayerSnapshotCodec.validateAndNormalize(saved);
+        }catch(RuntimeException malformed){
+            return result(
+                State.STRICT_UNCERTAIN_INVALID_ACCOUNT,account,null
+            );
+        }
+        if(!saved.values().equals(canonical.values()))
+            return result(
+                State.STRICT_UNCERTAIN_INVALID_ACCOUNT,account,null
+            );
+
+        String digest=StrictDurablePlayerSnapshotWriter
+            .canonicalSnapshotSha256(canonical);
+        return result(
+            digest.equals(before.strictSnapshotSha256)
+                ?State.STRICT_UNCERTAIN_EXACT_SNAPSHOT
+                :State.STRICT_UNCERTAIN_DIVERGENT_SNAPSHOT,
+            account,digest
+        );
     }
 
     private static boolean matchesIntentIdentity(
