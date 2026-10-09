@@ -1105,6 +1105,30 @@ final class World implements AutoCloseable {
         }
     }
 
+    /**
+     * G21.70: narrow NO_GRANT freshness-command submission that
+     * never waits for lifecycleLock. A running World command retains
+     * lifecycleLock while executing; a blocked caller of ordinary
+     * World.submit could otherwise defeat the admission deadline.
+     *
+     * The existing bounded command inbox still fences World.close(),
+     * generation ownership, per-player queue limits and late execution.
+     * This method MUST ONLY enqueue read-only freshness checks; it
+     * does not grant items or bypass tick execution ownership.
+     */
+    CompletableFuture<Void> submitTerminalFreshnessReadOnly(
+        WorldPlayer owner,long expectedGeneration,
+        WorldCommandInbox.Action observation
+    ){
+        Objects.requireNonNull(owner,"owner");
+        Objects.requireNonNull(observation,"observation");
+        if(closed.get())
+            return rejectedCommandSubmission();
+        return commands.submit(
+            owner,expectedGeneration,observation
+        );
+    }
+
     private static void rethrowUnchecked(
         Throwable failure
     ){

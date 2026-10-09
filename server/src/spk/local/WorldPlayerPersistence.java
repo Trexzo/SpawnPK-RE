@@ -20,6 +20,10 @@ final class WorldPlayerPersistence
 
     static final long AUTOSAVE_INTERVAL_TICKS=100L;
     static final int MAX_PENDING_WRITES=64;
+    // G21.70: the full FIFO + lock + World command + final read uses
+    // one monotonic budget, not a fresh five seconds after dispatch.
+    static final long TERMINAL_FRESHNESS_BUDGET_NANOS=
+        TimeUnit.SECONDS.toNanos(5L);
 
     static final class SaveTicket {
         final long sequence;
@@ -3259,7 +3263,33 @@ final class WorldPlayerPersistence
             new CompletableFuture<>();
         final java.util.concurrent.atomic.AtomicBoolean active=
             new java.util.concurrent.atomic.AtomicBoolean(true);
+        final long admittedAtNanos=System.nanoTime();
+        final AtomicReference<CompletableFuture<Void>> worldContinuation=
+            new AtomicReference<>();
         private boolean unpinned;
+
+        void cancelLateWorldContinuation(){
+            CompletableFuture<Void> pending=worldContinuation.get();
+            if(pending!=null&&!pending.isDone())
+                pending.cancel(false);
+        }
+
+        long requireTimeRemaining()throws IOException{
+            if(!active.get())
+                throw new IOException(
+                    "G21.70 TERMINAL_FRESHNESS_CANCELED_NO_GRANT"
+                );
+            long remaining=TERMINAL_FRESHNESS_BUDGET_NANOS-
+                (System.nanoTime()-admittedAtNanos);
+            if(remaining<=0L){
+                active.set(false);
+                cancelLateWorldContinuation();
+                throw new IOException(
+                    "G21.70 TERMINAL_FRESHNESS_DEADLINE_EXPIRED_NO_GRANT"
+                );
+            }
+            return remaining;
+        }
 
         ReservedTerminalWorldFreshnessTask(
             PreparedAccountReservation token,
@@ -3286,6 +3316,7 @@ final class WorldPlayerPersistence
             inFlightTerminalWorldFreshness.set(this);
             try{
                 if(completion.isDone())return;
+                requireTimeRemaining();
                 verifyReservedProposal(token,proposal);
                 if(!MailboxAtomicTerminalSnapshot.compose(proposal)
                         .values().equals(terminal.values())||
@@ -3296,15 +3327,13 @@ final class WorldPlayerPersistence
                         "G21.69 terminal candidate changed before I/O"
                     );
 
+                requireTimeRemaining();
                 final Path pinned=((FilePlayerRepository)repository)
                     .accountFilePath(token.account)
                     .toAbsolutePath().normalize();
                 MailboxAccountPublicationCoordinator
                     .withExclusivePublication(pinned,()->{
-                        if(!active.get())
-                            throw new IOException(
-                                "G21.69 terminal task canceled"
-                            );
+                        requireTimeRemaining();
                         requireFencedTerminalDisk(
                             token,proposal,terminal,pinned
                         );
@@ -3314,9 +3343,13 @@ final class WorldPlayerPersistence
                         final java.util.concurrent.atomic.AtomicBoolean
                             worldChecked=
                                 new java.util.concurrent.atomic.AtomicBoolean();
-                        CompletableFuture<Void> tick=world.submit(
+                        requireTimeRemaining();
+                        CompletableFuture<Void> tick=
+                            world.submitTerminalFreshnessReadOnly(
                             token.owner,token.generation,()->{
                                 if(!active.get()||
+                                   System.nanoTime()-admittedAtNanos>=
+                                       TERMINAL_FRESHNESS_BUDGET_NANOS||
                                    !world.pulse().inExecutionContext())
                                     throw new IllegalStateException(
                                         "G21.69 fenced World task expired"
@@ -3345,18 +3378,25 @@ final class WorldPlayerPersistence
                                 if(!now.values().equals(
                                         proposal.preparedPreimage.values())||
                                    !now.username().equals(token.account)||
-                                   !active.get())
+                                   !active.get()||
+                                   System.nanoTime()-admittedAtNanos>=
+                                       TERMINAL_FRESHNESS_BUDGET_NANOS)
                                     throw new IllegalStateException(
                                         "G21.69 live PREPARED account stale"
                                     );
                                 worldChecked.set(true);
                             }
                         );
+                        worldContinuation.set(tick);
                         try{
-                            tick.get(5L,TimeUnit.SECONDS);
+                            tick.get(
+                                requireTimeRemaining(),
+                                TimeUnit.NANOSECONDS
+                            );
                         }catch(InterruptedException interrupted){
                             Thread.currentThread().interrupt();
                             active.set(false);
+                            cancelLateWorldContinuation();
                             throw new IOException(
                                 "G21.69 World freshness interrupted",
                                 interrupted
@@ -3364,12 +3404,14 @@ final class WorldPlayerPersistence
                         }catch(ExecutionException|
                                 java.util.concurrent.TimeoutException failure){
                             active.set(false);
+                            cancelLateWorldContinuation();
                             throw new IOException(
                                 "G21.69 World freshness unconfirmed "+
                                 "action=NO_GRANT",failure
                             );
                         }
-                        if(!active.get()||!worldChecked.get())
+                        requireTimeRemaining();
+                        if(!worldChecked.get())
                             throw new IOException(
                                 "G21.69 World freshness not confirmed"
                             );
@@ -3379,23 +3421,29 @@ final class WorldPlayerPersistence
                         requireFencedTerminalDisk(
                             token,proposal,terminal,pinned
                         );
+                        requireTimeRemaining();
                         return null;
                     });
+                requireTimeRemaining();
                 unpin();
                 completion.complete(new TerminalWorldFreshnessEvidence(
                     token,candidate
                 ));
             }catch(Throwable failure){
+                active.set(false);
+                cancelLateWorldContinuation();
                 unpin();
                 completion.completeExceptionally(failure);
             }finally{
                 active.set(false);
+                cancelLateWorldContinuation();
                 inFlightTerminalWorldFreshness.compareAndSet(this,null);
             }
         }
 
         void reject(Throwable failure){
             active.set(false);
+            cancelLateWorldContinuation();
             completion.completeExceptionally(failure);
             unpin();
         }
