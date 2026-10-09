@@ -106,10 +106,19 @@ public final class G2147MailboxStrictUncertainFenceIntegrationTest {
                 otherGood=disk.load(other).isPresent()&&
                     !disk.hasUnresolvedMailboxReviewFence(other);
                 try{
-                    fence.armInsidePublicationLock(
-                        account,StrictDurablePlayerSnapshotWriter
-                            .canonicalSnapshotSha256(prepared.get())
-                    );
+                    MailboxAccountPublicationCoordinator
+                        .withExclusivePublication(
+                            paths.resolve(account),()->{
+                                fence.armInsidePublicationLock(
+                                    account,
+                                    StrictDurablePlayerSnapshotWriter
+                                        .canonicalSnapshotSha256(
+                                            prepared.get()
+                                        )
+                                );
+                                return null;
+                            }
+                        );
                 }catch(IOException expected){
                     duplicateVeto=fence.present(account);
                 }
