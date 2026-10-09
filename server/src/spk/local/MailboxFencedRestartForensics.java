@@ -86,6 +86,34 @@ final class MailboxFencedRestartForensics {
         Objects.requireNonNull(persistence,"persistence");
         Objects.requireNonNull(fence,"fence");
         Objects.requireNonNull(account,"account");
+        final MarkerSet before;
+        try{
+            before=inspectMarkerSet(fence,account);
+        }catch(IOException|RuntimeException invalid){
+            return result(State.MULTIPLE_NEGATIVE_MARKERS_INVALID_NO_AUTHORITY,account,null);
+        }
+        if(before.problem!=null)return result(before.problem,account,null);
+        Report report=inspectSingleMarker(persistence,fence,account);
+        final MarkerSet after;
+        try{
+            after=inspectMarkerSet(fence,account);
+        }catch(IOException|RuntimeException changed){
+            return result(State.MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,account,null);
+        }
+        if((before.count>=2||after.count>=2)&&!before.matches(after))
+            return result(State.MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,account,null);
+        if(after.problem!=null)return result(after.problem,account,null);
+        return report;
+    }
+
+    private static Report inspectSingleMarker(
+        WorldPlayerPersistence persistence,
+        MailboxDurableReviewFence fence,
+        String account
+    ){
+        Objects.requireNonNull(persistence,"persistence");
+        Objects.requireNonNull(fence,"fence");
+        Objects.requireNonNull(account,"account");
 
         // Distinct B negative markers must not be passed to the G21.32
         // parser and mislabeled as a malformed proposal.
