@@ -507,10 +507,46 @@ final class FilePlayerRepository
         return paths;
     }
 
-    private static BasicFileAttributes[] restartRecoveryCensus(
+    /**
+     * G21.75: POSIX ctime is an inode CHANGE timestamp, distinct from
+     * user-resettable mtime. Some Java/Windows providers do not expose
+     * unix:ctime; on those providers retain G21.74 identity checks and
+     * explicitly DO NOT claim to detect restored-byte same-inode ABA.
+     *
+     * Any genuine filesystem read failure, rather than an unsupported
+     * attribute view, fails the forensic read closed.
+     */
+    private static java.nio.file.attribute.FileTime
+        optionalRestartChangeTime(Path file)throws IOException{
+        try{
+            return (java.nio.file.attribute.FileTime)Files.getAttribute(
+                file,"unix:ctime",LinkOption.NOFOLLOW_LINKS
+            );
+        }catch(UnsupportedOperationException|
+                IllegalArgumentException viewUnavailable){
+            return null;
+        }
+    }
+
+    private static final class RestartObjectCensus {
+        final BasicFileAttributes[] objects;
+        final java.nio.file.attribute.FileTime[] changeTimes;
+
+        RestartObjectCensus(
+            BasicFileAttributes[] objects,
+            java.nio.file.attribute.FileTime[] changeTimes
+        ){
+            this.objects=objects;
+            this.changeTimes=changeTimes;
+        }
+    }
+
+    private static RestartObjectCensus restartRecoveryCensus(
         Path[] files
     )throws IOException{
         BasicFileAttributes[] census=new BasicFileAttributes[files.length];
+        java.nio.file.attribute.FileTime[] changeTimes=
+            new java.nio.file.attribute.FileTime[files.length];
         for(int i=0;i<files.length;i++){
             BasicFileAttributes item=admittedAccountFileEvidence(
                 files[i].getFileName().toString(),files[i]
@@ -523,25 +559,45 @@ final class FilePlayerRepository
                     "G21.74 RECOVERY_OBJECT_IDENTITY_UNAVAILABLE_NO_GRANT"
                 );
             census[i]=item;
+            if(item!=null){
+                changeTimes[i]=optionalRestartChangeTime(files[i]);
+                // Protect the extra stat itself from a replace/unlink
+                // before the ctime observation was taken.
+                BasicFileAttributes after=admittedAccountFileEvidence(
+                    files[i].getFileName().toString(),files[i]
+                );
+                if(!sameAdmittedAccountObject(item,after)||
+                   !Objects.equals(item.creationTime(),
+                       after.creationTime()))
+                    throw new IOException(
+                        "G21.74 RECOVERY_OBJECT_REPLACED_NO_GRANT"
+                    );
+            }
         }
-        return census;
+        return new RestartObjectCensus(census,changeTimes);
     }
 
     private static void requireUnchangedRecoveryCensus(
-        Path[] files,BasicFileAttributes[] initial
+        Path[] files,RestartObjectCensus initial
     )throws IOException{
-        BasicFileAttributes[] latest=restartRecoveryCensus(files);
-        if(latest.length!=initial.length)
+        RestartObjectCensus latest=restartRecoveryCensus(files);
+        if(latest.objects.length!=initial.objects.length)
             throw new IOException(
                 "G21.74 RECOVERY_OBJECT_CENSUS_INVALID_NO_GRANT"
             );
-        for(int i=0;i<initial.length;i++){
-            if(!sameAdmittedAccountObject(initial[i],latest[i])||
-               (initial[i]!=null&&
-                !Objects.equals(initial[i].creationTime(),
-                    latest[i].creationTime())))
+        for(int i=0;i<initial.objects.length;i++){
+            if(!sameAdmittedAccountObject(initial.objects[i],
+                    latest.objects[i])||
+               (initial.objects[i]!=null&&
+                !Objects.equals(initial.objects[i].creationTime(),
+                    latest.objects[i].creationTime())))
                 throw new IOException(
                     "G21.74 RECOVERY_OBJECT_REPLACED_NO_GRANT"
+                );
+            if(!Objects.equals(initial.changeTimes[i],
+                    latest.changeTimes[i]))
+                throw new IOException(
+                    "G21.75 RECOVERY_INPLACE_CHANGE_NO_GRANT"
                 );
         }
     }
@@ -573,7 +629,7 @@ final class FilePlayerRepository
         return MailboxAccountPublicationCoordinator
             .withExclusivePublicationBounded(pinned,1500L,()->{
                 Path[] files=restartRecoveryCensusPaths(pinned);
-                BasicFileAttributes[] baseline=restartRecoveryCensus(
+                RestartObjectCensus baseline=restartRecoveryCensus(
                     files
                 );
                 String first=restartWitnessInsidePublication(
