@@ -46,14 +46,14 @@ public final class G2152MailboxSingleMarkerMembershipRaceIntegrationTest {
             // it and inject its bytes at the start of the AFTER census,
             // after the baseline single-marker inspector saw NO_FENCE.
             // G21.54 uses ONE resolver invocation per marker census;
-            // after-census now begins on invocation five, not six.
+            // after-census now begins on invocation two; the inner parser is anchored.
             writePermanent(permanent,paths,"g2152-new",digest(created));
             Path newborn=permanent.fencePath("g2152-new");
             byte[] payload=Files.readAllBytes(newborn);
             Files.delete(newborn);
             AtomicInteger calls=new AtomicInteger();
             FilePlayerRepository.PathResolver timed=account->{
-                if("g2152-new".equals(account)&&calls.incrementAndGet()==5){
+                if("g2152-new".equals(account)&&calls.incrementAndGet()==2){
                     try{
                         Files.write(newborn,payload);
                     }catch(IOException problem){
@@ -69,7 +69,7 @@ public final class G2152MailboxSingleMarkerMembershipRaceIntegrationTest {
                         world.persistence(),new MailboxDurableReviewFence(timed),
                         "g2152-new");
                 newDuringNoFence=isChange(appeared)&&
-                    calls.get()>=5&&
+                    calls.get()>=2&&
                     permanent.present("g2152-new")&&
                     refused(world,"g2152-new");
                 allNonAuthorizing&=noAuthority(appeared);
