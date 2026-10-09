@@ -2169,6 +2169,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2149MailboxStrictWriteIntentPostmoveForceIntegrationTest',
     'spk.local.G2149MailboxStrictNegativeForensicsIntegrationTest',
     'spk.local.G2150MailboxNegativeMarkerCorrelationIntegrationTest',
+    'spk.local.G2151MailboxBoundedNegativeMarkerReadIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2197,10 +2198,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 350 ||
-    currentTrainFocusedTests.toSet().size() != 350) {
+if (currentTrainFocusedTests.size() != 351 ||
+    currentTrainFocusedTests.toSet().size() != 351) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 350 unique tests, found " +
+        "Current-train focused manifest drift: expected 351 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3108,6 +3109,14 @@ tasks.register('g2150MailboxNegativeMarkerCorrelationRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2150MailboxNegativeMarkerCorrelationIntegrationTest')
+}
+
+tasks.register('g2151MailboxBoundedNegativeMarkerReadRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves negative review markers are bounded and nofollow even when oversized or replaced.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2151MailboxBoundedNegativeMarkerReadIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
