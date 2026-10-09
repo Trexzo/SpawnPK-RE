@@ -123,5 +123,4 @@ final class MailboxStrictUncertainFence {
         }
     }
 
-    private MailboxStrictUncertainFence(){}
 }
