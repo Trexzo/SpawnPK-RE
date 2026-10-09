@@ -344,7 +344,9 @@ final class MailboxDurableReviewFence {
     /** Optional diagnostic parser. Malformed content never clears a veto. */
     Record inspect(String account)throws IOException{
         Path file=fencePath(account);
-        byte[] content=Files.readAllBytes(file);
+        byte[] content=MailboxNegativeMarkerBoundedRead.read(
+            file,80,MAX_BYTES
+        );
         if(content.length>MAX_BYTES||content.length<80)
             throw new IOException("G21.32 review marker size invalid");
         String raw=new String(content,StandardCharsets.US_ASCII);
