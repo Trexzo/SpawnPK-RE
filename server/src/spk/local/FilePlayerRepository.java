@@ -117,7 +117,8 @@ final class FilePlayerRepository
     )throws IOException{
         String account=clean(username);
         return new MailboxDurableReviewFence(paths).present(account)||
-            new MailboxStrictUncertainFence(paths).present(account);
+            new MailboxStrictUncertainFence(paths).present(account)||
+            new MailboxStrictWriteIntentFence(paths).present(account);
     }
 
     /**
