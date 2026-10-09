@@ -104,7 +104,7 @@ public final class G2177MailboxBoundedRecoveryDecodeIntegrationTest {
                 fresh.compareRestartContinuityReadOnly(
                     marked,reviewedToken));
             try{
-                fresh.load(marked);
+                fresh.loadForWorldSession(marked);
             }catch(IOException markerDenied){
                 markerStillSessionVeto=markerDenied.getMessage()
                     .contains("MAILBOX_DURABLE_REVIEW_FENCE");
