@@ -119,7 +119,7 @@ final class StrictDurablePlayerSnapshotWriter {
     synchronized Receipt saveStrict(
         PlayerSnapshot snapshot
     )throws IOException{
-        return saveInternal(snapshot,null,null,null,false);
+        return saveInternal(snapshot,null,null,null,false,false,null);
     }
 
     /**
@@ -178,7 +178,41 @@ final class StrictDurablePlayerSnapshotWriter {
             snapshot,Objects.requireNonNull(
                 expectedRepositoryFile,"expectedRepositoryFile"
             ).toAbsolutePath().normalize(),publicationCheck,
-            postPublicationCheck,writeAheadIntent
+            postPublicationCheck,writeAheadIntent,false,null
+        );
+    }
+
+    /**
+     * G21.66: opt-in STRICT terminal account save. The caller's
+     * publication callback must verify the active World reservation,
+     * current full player preimage AND exact disk PREPARED account under
+     * the same file lock immediately before the atomic replacement.
+     *
+     * Neither file-operation success nor marker cleanup grants rewards.
+     * Native claim policy remains OFF and restart admission quarantines.
+     */
+    synchronized Receipt saveStrictTerminalForWorld(
+        PlayerSnapshot terminal,Path expectedRepositoryFile,
+        String preparedSha256,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck
+    )throws IOException{
+        Objects.requireNonNull(publicationCheck,"publicationCheck");
+        Objects.requireNonNull(postPublicationCheck,"postPublicationCheck");
+        if(preparedSha256==null||
+           !preparedSha256.matches("[0-9a-f]{64}")||
+           terminal==null||
+           MailboxAtomicTerminalSnapshot.inspect(terminal).state!=
+               MailboxAtomicTerminalSnapshot.State.COHERENT_TERMINAL_NO_GRANT||
+           !preparedSha256.equals(terminal.value(
+               "extension."+MailboxAtomicTerminalSnapshot.NAMESPACE+".before")))
+            throw new IOException(
+                "G21.66 STRICT_TERMINAL_SNAPSHOT_INVALID_NO_GRANT"
+            );
+        return saveInternal(
+            terminal,Objects.requireNonNull(expectedRepositoryFile,
+                "terminal repository file").toAbsolutePath().normalize(),
+            publicationCheck,postPublicationCheck,true,true,preparedSha256
         );
     }
 
@@ -186,7 +220,8 @@ final class StrictDurablePlayerSnapshotWriter {
         PlayerSnapshot snapshot,Path worldFile,
         BeforeWorldPublication publicationCheck,
         AfterWorldPublication postPublicationCheck,
-        boolean writeAheadIntent
+        boolean writeAheadIntent,boolean terminalMode,
+        String terminalPreparedSha256
     )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(
             snapshot,"snapshot"
@@ -224,7 +259,15 @@ final class StrictDurablePlayerSnapshotWriter {
                     "G21.42 STRICT_WORLD_ACCOUNT_PATH_MISMATCH "+
                     account
                 );
-            if(MailboxPreparedRestartAdmission.inspect(checked).state!=
+            if(terminalMode){
+                if(MailboxAtomicTerminalSnapshot.inspect(checked).state!=
+                        MailboxAtomicTerminalSnapshot.State
+                            .COHERENT_TERMINAL_NO_GRANT)
+                    throw new IOException(
+                        "G21.66 STRICT_WORLD_TERMINAL_QUARANTINE "+
+                        account
+                    );
+            }else if(MailboxPreparedRestartAdmission.inspect(checked).state!=
                     MailboxPreparedRestartAdmission.State
                         .VALID_PREPARED_UNCLAIMED)
                 throw new IOException(
@@ -233,6 +276,9 @@ final class StrictDurablePlayerSnapshotWriter {
                 );
             requireUnfenced(account,markerResolver);
         }
+
+        final String markerSha256=terminalMode
+            ?terminalPreparedSha256:expectedSha256;
 
         // Validation is completed before creating/changing a file.
         // This writer is an opt-in primitive and does not coordinate
@@ -295,7 +341,7 @@ final class StrictDurablePlayerSnapshotWriter {
                                     :null;
                             if(intent!=null){
                                 intent.armInsidePublicationLock(
-                                    account,expectedSha256
+                                    account,markerSha256
                                 );
                                 // Test seam: failure at this point leaves
                                 // intent published BEFORE any account move.
@@ -326,7 +372,7 @@ final class StrictDurablePlayerSnapshotWriter {
                                     // verified. Permanent G21.32/G21.47
                                     // manual-review fences remain intact.
                                     intent.clearOnlyAfterConfirmedInsidePublicationLock(
-                                        account,expectedSha256
+                                        account,markerSha256
                                     );
                                 }catch(IOException|RuntimeException badCleanup){
                                     throw new UnconfirmedCommitException(
@@ -341,7 +387,7 @@ final class StrictDurablePlayerSnapshotWriter {
                             try{
                                 new MailboxStrictUncertainFence(markerResolver)
                                     .armInsidePublicationLock(
-                                        account,expectedSha256
+                                        account,markerSha256
                                     );
                             }catch(IOException|RuntimeException markerFailure){
                                 // Failure to publish a marker must never

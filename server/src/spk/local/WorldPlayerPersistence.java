@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -227,6 +228,8 @@ final class WorldPlayerPersistence
         inFlightPreparedDrain=new AtomicReference<>();
     private final AtomicReference<ReservedTerminalPreflightTask>
         inFlightTerminalPreflight=new AtomicReference<>();
+    private final AtomicReference<ReservedTerminalPublicationTask>
+        inFlightTerminalPublication=new AtomicReference<>();
 
     /*
      * Protected by io, shared with the single writer's admission lock.
@@ -2466,6 +2469,240 @@ final class WorldPlayerPersistence
         }
     }
 
+
+    /**
+     * G21.66: strict file-operation evidence ONLY. No item grant, Mailbox
+     * CLAIMED mutation on the live owner, client success or reservation
+     * release is implied even if the exact terminal file is forced.
+     */
+    static final class TerminalPublicationEvidence {
+        final String account;
+        final String intentKey;
+        final long generation;
+        final StrictDurablePlayerSnapshotWriter.Receipt strictReceipt;
+        final boolean fileOperationConfirmed=true;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean rollbackAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+        TerminalPublicationEvidence(
+            PreparedAccountReservation token,
+            StrictDurablePlayerSnapshotWriter.Receipt receipt
+        ){
+            account=token.account;
+            intentKey=token.intentKey;
+            generation=token.generation;
+            strictReceipt=Objects.requireNonNull(receipt,"strict receipt");
+        }
+    }
+
+    /**
+     * Checked while the G21.39 cross-JVM publication FileLock is held,
+     * immediately before or after atomic replacement. Do NOT acquire that
+     * lock recursively. Uncooperative raw file mutators remain untrusted.
+     */
+    private void requireTerminalDisk(
+        PreparedAccountReservation token,
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        Path expectedPath,PlayerSnapshot expected
+    )throws IOException{
+        verifyReservedProposal(token,proposal);
+        FilePlayerRepository files=(FilePlayerRepository)repository;
+        final Path pinned=files.accountFilePath(token.account)
+            .toAbsolutePath().normalize();
+        if(!pinned.equals(expectedPath))
+            throw new IOException(
+                "G21.66 TERMINAL_ACCOUNT_PATH_CHANGED_NO_GRANT"
+            );
+        final java.nio.file.attribute.BasicFileAttributes before=
+            java.nio.file.Files.readAttributes(
+                pinned,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS
+            );
+        if(!before.isRegularFile())
+            throw new IOException(
+                "G21.66 TERMINAL_ACCOUNT_NOT_REGULAR_NO_GRANT"
+            );
+        // A raw, pinned forensic read is mandatory: loadForWorldSession
+        // would recursively acquire the same account publication lock.
+        java.util.Optional<PlayerSnapshot> disk=
+            new FilePlayerRepository(a->{
+                if(!token.account.equals(a))
+                    throw new IllegalArgumentException(
+                        "G21.66 account identity changed"
+                    );
+                return pinned;
+            }).load(token.account);
+        final java.nio.file.attribute.BasicFileAttributes after=
+            java.nio.file.Files.readAttributes(
+                pinned,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS
+            );
+        if(!after.isRegularFile()||
+           !Objects.equals(before.fileKey(),after.fileKey())||
+           before.size()!=after.size()||
+           !Objects.equals(before.lastModifiedTime(),
+                           after.lastModifiedTime())||
+           !disk.isPresent()||
+           disk.get().version()!=expected.version()||
+           !disk.get().username().equals(expected.username())||
+           !disk.get().values().equals(expected.values()))
+            throw new IOException(
+                "G21.66 TERMINAL_ACCOUNT_IMAGE_MISMATCH_NO_GRANT"
+            );
+        verifyReservedProposal(token,proposal);
+    }
+
+    private final class ReservedTerminalPublicationTask implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final PlayerSnapshot terminal;
+        final StrictDurablePlayerSnapshotWriter writer;
+        final CompletableFuture<TerminalPublicationEvidence> completion=
+            new CompletableFuture<>();
+        private boolean unpinned;
+
+        ReservedTerminalPublicationTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+            this.token=token;
+            this.proposal=proposal;
+            this.terminal=terminal;
+            this.writer=writer;
+        }
+
+        private void unpin(){
+            synchronized(io){
+                if(unpinned)return;
+                unpinned=true;
+                token.pendingDrains--;
+                // A terminal publication attempt is never a safe
+                // PREPARED-only cancellation basis, even if it failed.
+                token.lastDrainWasExactPrepared=false;
+            }
+        }
+
+        @Override public void run(){
+            inFlightTerminalPublication.set(this);
+            try{
+                if(completion.isDone())return;
+                verifyReservedProposal(token,proposal);
+                if(!MailboxAtomicTerminalSnapshot.compose(proposal)
+                        .values().equals(terminal.values()))
+                    throw new IllegalStateException(
+                        "G21.66 terminal snapshot stale at worker"
+                    );
+                final FilePlayerRepository files=
+                    (FilePlayerRepository)repository;
+                final Path accountFile=files.accountFilePath(token.account)
+                    .toAbsolutePath().normalize();
+                final String preparedSha=
+                    StrictDurablePlayerSnapshotWriter
+                        .canonicalSnapshotSha256(proposal.preparedPreimage);
+                StrictDurablePlayerSnapshotWriter.Receipt receipt=
+                    writer.saveStrictTerminalForWorld(
+                        terminal,accountFile,preparedSha,
+                        ()->requireTerminalDisk(
+                            token,proposal,accountFile,
+                            proposal.preparedPreimage
+                        ),
+                        ()->requireTerminalDisk(
+                            token,proposal,accountFile,terminal
+                        )
+                    );
+                if(!receipt.matchesSnapshot(terminal))
+                    throw new IllegalStateException(
+                        "G21.66 strict file receipt snapshot mismatch"
+                    );
+                unpin();
+                completion.complete(new TerminalPublicationEvidence(
+                    token,receipt
+                ));
+            }catch(Throwable failure){
+                unpin();
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightTerminalPublication.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+            unpin();
+        }
+    }
+
+    /**
+     * Opt-in reserved NO_GRANT terminal file publication. This is not
+     * invoked by the native Mailbox claim handler. All old admitted
+     * writes precede this task in the existing World persistence FIFO.
+     * The held account reservation blocks later competing autosaves,
+     * deferred writes, and final account snapshots.
+     */
+    CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictly(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(terminal,"terminal");
+        Objects.requireNonNull(writer,"writer");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.66 terminal file publication forbidden on World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.66 exact FilePlayerRepository required"
+            );
+        if(terminal.version()!=PlayerSnapshot.CURRENT_VERSION||
+           !terminal.username().equals(proposal.account)||
+           MailboxAtomicTerminalSnapshot.inspect(terminal).state!=
+               MailboxAtomicTerminalSnapshot.State
+                   .COHERENT_TERMINAL_NO_GRANT||
+           !MailboxAtomicTerminalSnapshot.compose(proposal)
+               .values().equals(terminal.values()))
+            throw new IllegalArgumentException(
+                "G21.66 terminal snapshot does not match proposal"
+            );
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.66 terminal publication worker closed"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.generation!=proposal.ownerGeneration||
+                   !token.intentKey.equals(proposal.idempotencyKey))
+                    throw new IllegalStateException(
+                        "G21.66 stale reserved publication admission"
+                    );
+                if(token.pendingDrains!=0)
+                    throw new IllegalStateException(
+                        "G21.66 duplicate terminal account IO pending"
+                    );
+                ReservedTerminalPublicationTask task=
+                    new ReservedTerminalPublicationTask(
+                        token,proposal,terminal,writer
+                    );
+                io.execute(task);
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
     private static String preparedAccountMessageId(
         PreparedAccountReservation reservation
     ){
@@ -2901,6 +3138,12 @@ final class WorldPlayerPersistence
                 continue;
             }
 
+            if(runnable instanceof ReservedTerminalPublicationTask){
+                counts.saves++;
+                ((ReservedTerminalPublicationTask)runnable).reject(error);
+                continue;
+            }
+
             if(runnable instanceof CheckpointDrainTask){
                 counts.checkpoints++;
                 ((CheckpointDrainTask)runnable).reject(
@@ -3020,6 +3263,16 @@ final class WorldPlayerPersistence
         return true;
     }
 
+    private boolean rejectInFlightTerminalPublication(String stage){
+        ReservedTerminalPublicationTask task=
+            inFlightTerminalPublication.get();
+        if(task==null)return false;
+        task.reject(new RejectedExecutionException(
+            "G21.66 terminal file outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
     private boolean rejectInFlightTerminalPreflight(String stage){
         ReservedTerminalPreflightTask active=
             inFlightTerminalPreflight.get();
@@ -3135,6 +3388,10 @@ final class WorldPlayerPersistence
                     !clean&&rejectInFlightTerminalPreflight(
                         "SHUTDOWN_TERMINAL_PREFLIGHT_IN_FLIGHT"
                     );
+                boolean terminalPublicationSettled=
+                    !clean&&rejectInFlightTerminalPublication(
+                        "SHUTDOWN_TERMINAL_PUBLICATION_IN_FLIGHT"
+                    );
                 boolean checkpointInFlightSettled=
                     !clean&&
                     abortInFlightCheckpoint(
@@ -3183,6 +3440,10 @@ final class WorldPlayerPersistence
             boolean terminalPreflightSettled=
                 rejectInFlightTerminalPreflight(
                     "SHUTDOWN_INTERRUPTED_TERMINAL_PREFLIGHT"
+                );
+            boolean terminalPublicationSettled=
+                rejectInFlightTerminalPublication(
+                    "SHUTDOWN_INTERRUPTED_TERMINAL_PUBLICATION"
                 );
             boolean checkpointInFlightSettled=
                 abortInFlightCheckpoint(
