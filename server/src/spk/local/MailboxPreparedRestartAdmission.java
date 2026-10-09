@@ -26,7 +26,9 @@ final class MailboxPreparedRestartAdmission {
         QUARANTINE_CLAIMED_OR_EMPTY_MESSAGE,
         QUARANTINE_ATTACHMENT_MISMATCH,
         QUARANTINE_INVENTORY_PREIMAGE_MISMATCH,
-        QUARANTINE_INVALID_ACCOUNT_SNAPSHOT
+        QUARANTINE_INVALID_ACCOUNT_SNAPSHOT,
+        QUARANTINE_TERMINAL_NO_GRANT,
+        QUARANTINE_INVALID_TERMINAL_SNAPSHOT
     }
 
     static final class Decision {
@@ -47,6 +49,16 @@ final class MailboxPreparedRestartAdmission {
         PlayerSnapshot snapshot=Objects.requireNonNull(
             account,"account"
         );
+
+        // G21.64: terminal transaction evidence never bypasses the
+        // no-journal fast path, including malformed or orphaned records.
+        MailboxAtomicTerminalSnapshot.Observation terminal=
+            MailboxAtomicTerminalSnapshot.inspect(snapshot);
+        if(terminal.state!=MailboxAtomicTerminalSnapshot.State.ABSENT)
+            return deny(terminal.state==
+                MailboxAtomicTerminalSnapshot.State.COHERENT_TERMINAL_NO_GRANT
+                ?State.QUARANTINE_TERMINAL_NO_GRANT
+                :State.QUARANTINE_INVALID_TERMINAL_SNAPSHOT);
 
         // Leave every historical/non-G21.22 account untouched.
         final String namespacePrefix=
