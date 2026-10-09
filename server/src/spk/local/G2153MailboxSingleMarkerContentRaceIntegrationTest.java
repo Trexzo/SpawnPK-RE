@@ -129,9 +129,11 @@ public final class G2153MailboxSingleMarkerContentRaceIntegrationTest {
             account,"0".repeat(64).equals(sha)
                 ?"1".repeat(64):"0".repeat(64),kind
         ).getBytes(StandardCharsets.US_ASCII);
+        // G21.54 removed the second G21.32 path lookup per census;
+        // the outer AFTER read now begins on resolver invocation three.
         AtomicInteger calls=new AtomicInteger();
         FilePlayerRepository.PathResolver injected=name->{
-            if(account.equals(name)&&calls.incrementAndGet()==4){
+            if(account.equals(name)&&calls.incrementAndGet()==3){
                 try{
                     Files.write(marker,replacement);
                 }catch(IOException failure){
@@ -142,7 +144,7 @@ public final class G2153MailboxSingleMarkerContentRaceIntegrationTest {
         };
         MailboxFencedRestartForensics.Report report=inspect(
             world,new MailboxDurableReviewFence(injected),account);
-        return calls.get()>=5&&report.state==
+        return calls.get()>=3&&report.state==
             MailboxFencedRestartForensics.State
                 .SINGLE_NEGATIVE_MARKER_CONTENT_CHANGED_NO_AUTHORITY&&
             nonAuthorizing(report)&&refused(world,account);
