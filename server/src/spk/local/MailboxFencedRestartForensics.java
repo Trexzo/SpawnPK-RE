@@ -232,6 +232,59 @@ final class MailboxFencedRestartForensics {
     }
 
 
+    /** Secondary files never authorize recovery. A mismatched or corrupt
+     * companion marker must not be hidden by the first readable marker. */
+    private static MarkerSet inspectMarkerSet(
+        MailboxDurableReviewFence fence,String account
+    )throws IOException{
+        Path file=fence.accountFileForStrictReview(account);
+        Path[] paths={
+            sidecarPath(file,".g2147-strict-uncertain"),
+            sidecarPath(file,".g2148-strict-write-intent"),
+            sidecarPath(file,".g2147-strict-postpublication-review"),
+            fence.fencePath(account)
+        };
+        boolean[] present=new boolean[paths.length];
+        byte[][] evidence=new byte[paths.length][];
+        int count=0;
+        for(int i=0;i<paths.length;i++){
+            present[i]=markerPresent(paths[i]);
+            if(present[i])count++;
+        }
+        if(count<2)return new MarkerSet(present,evidence,count,null);
+        String strict=null;
+        MailboxDurableReviewFence.Record proposal=null;
+        try{
+            for(int i=0;i<paths.length;i++){
+                if(!present[i])continue;
+                if(i==3){
+                    proposal=fence.inspect(account);
+                    evidence[i]=Files.readAllBytes(paths[i]);
+                    if(evidence[i].length>2048)
+                        throw new IOException("G21.50 oversize proposal");
+                }else{
+                    StrictNegativeRecord record=i==2
+                        ?readLegacyNegative(paths[i],account)
+                        :readStrictNegative(paths[i],account,i==0);
+                    evidence[i]=record.bytes;
+                    if(strict==null)strict=record.snapshotSha;
+                    else if(!strict.equals(record.snapshotSha))
+                        return new MarkerSet(present,evidence,count,
+                            State.MULTIPLE_NEGATIVE_MARKERS_CONFLICT_NO_AUTHORITY);
+                }
+            }
+        }catch(IOException|RuntimeException unreadable){
+            return new MarkerSet(present,evidence,count,
+                State.MULTIPLE_NEGATIVE_MARKERS_INVALID_NO_AUTHORITY);
+        }
+        if(proposal!=null&&strict!=null&&
+           !strict.equals(proposal.preparedSha256)&&
+           !strict.equals(proposal.hypotheticalSha256))
+            return new MarkerSet(present,evidence,count,
+                State.MULTIPLE_NEGATIVE_MARKERS_CONFLICT_NO_AUTHORITY);
+        return new MarkerSet(present,evidence,count,null);
+    }
+
     private static final class MarkerSet {
         final boolean[] present;
         final byte[][] evidence;
