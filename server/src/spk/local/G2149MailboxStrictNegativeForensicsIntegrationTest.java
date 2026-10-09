@@ -249,9 +249,9 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
         String account,String sha
     )throws Exception{
         String payload=
-            "SPK-G2147-STRICT-POSTPUBLICATION-UNCERTAIN-V1\\n"+
-            "REVIEW_REQUIRED_NO_GRANT\\n"+
-            account+"\\n"+sha+"\\n";
+            "SPK-G2147-STRICT-POSTPUBLICATION-UNCERTAIN-V1\n"+
+            "REVIEW_REQUIRED_NO_GRANT\n"+
+            account+"\n"+sha+"\n";
         byte[] digest=java.security.MessageDigest
             .getInstance("SHA-256").digest(
                 payload.getBytes(StandardCharsets.US_ASCII)
@@ -263,7 +263,7 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
             chars[2*i]=hex[b>>>4];
             chars[2*i+1]=hex[b&15];
         }
-        return payload+new String(chars)+"\\n";
+        return payload+new String(chars)+"\n";
     }
 
     private static PlayerSnapshot seed(
