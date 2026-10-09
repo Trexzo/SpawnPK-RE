@@ -354,6 +354,18 @@ final class MailboxDurableReviewFence {
         return parsed;
     }
 
+    // G21.49: read-only forensic locator shared with original G21.32.
+    // This does not create, remove or authorize any marker.
+    Path accountFileForStrictReview(String account){
+        if(account==null||!account.matches("[a-z0-9_-]{1,64}"))
+            throw new IllegalArgumentException(
+                "G21.49 noncanonical strict review account"
+            );
+        return Objects.requireNonNull(
+            resolver.resolve(account),"account path"
+        ).toAbsolutePath().normalize();
+    }
+
     Path fencePath(String account){
         if(account==null||!account.matches("[a-z0-9_-]{1,64}"))
             throw new IllegalArgumentException(
