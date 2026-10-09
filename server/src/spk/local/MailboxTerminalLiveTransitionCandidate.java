@@ -103,5 +103,4 @@ final class MailboxTerminalLiveTransitionCandidate {
         return new MailboxTerminalLiveTransitionCandidate(p,after);
     }
 
-    private MailboxTerminalLiveTransitionCandidate(){}
 }
