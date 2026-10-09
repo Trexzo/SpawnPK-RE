@@ -1344,9 +1344,17 @@ final class WorldPlayerPersistence
         if(!files.hasStrictWriteIntent(account))
             return false;
         PreparedStrictBarrierTask current=inFlightStrictBarrier.get();
-        return current==null||
-            current.completion.isDone()||
-            !account.equals(current.snapshot.username());
+        if(current!=null&&!current.completion.isDone()&&
+           account.equals(current.snapshot.username()))
+            return false;
+        // G21.66: terminal file publication also owns a transient
+        // G21.48 marker while its strict writer is still active.
+        // Only the exact in-flight account is exempt; a stranded
+        // marker or ANY permanent review fence remains a veto.
+        ReservedTerminalPublicationTask terminal=
+            inFlightTerminalPublication.get();
+        return terminal==null||terminal.completion.isDone()||
+            !account.equals(terminal.token.account);
     }
 
     long checkpointCapturedCount(){

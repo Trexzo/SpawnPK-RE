@@ -53,6 +53,9 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
         boolean reservationStillBlocksSaves=false;
         boolean repeatPublicationRejected=false;
         boolean originalLiveOwnerUnclaimed=false;
+        boolean activeTerminalMarkerNotSelfKick=false;
+        boolean confirmedTerminalMarkerCleared=false;
+        boolean permanentMarkerStillVetoes=false;
         boolean staleAdmissionRejected=false;
         boolean lateOwnerChangedRejected=false;
         boolean lateOwnerDiskPrepared=false;
@@ -127,6 +130,61 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
                 clean.owner.mailbox().get(clean.proposal.messageId)
                     .claimState==
                     MailboxRewardDeliveryService.ClaimState.UNCLAIMED;
+
+
+            // A live socket's marker-only review gate must not treat
+            // THIS same-account, still-running strict terminal writer's
+            // temporary G21.48 intent as a permanent review marker.
+            Seed selfMarker=seed(world,"g2166-selfmarker");
+            writer.saveStrict(selfMarker.proposal.preparedPreimage);
+            WorldPlayerPersistence.PreparedAccountReservation markerToken=
+                world.persistence().reservePreparedAccount(
+                    selfMarker.owner,selfMarker.generation,
+                    selfMarker.proposal);
+            java.util.concurrent.CountDownLatch markerArmed=
+                new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch markerRelease=
+                new java.util.concurrent.CountDownLatch(1);
+            StrictDurablePlayerSnapshotWriter markerWriter=
+                new StrictDurablePlayerSnapshotWriter(paths,phase->{
+                    if(phase==StrictDurablePlayerSnapshotWriter.Phase
+                            .AFTER_WRITE_AHEAD_INTENT){
+                        markerArmed.countDown();
+                        try{
+                            if(!markerRelease.await(8,TimeUnit.SECONDS))
+                                throw new IOException(
+                                    "G21.66 marker fixture timeout");
+                        }catch(InterruptedException interrupted){
+                            Thread.currentThread().interrupt();
+                            throw new IOException(
+                                "G21.66 marker fixture interrupted",
+                                interrupted
+                            );
+                        }
+                    }
+                });
+            CompletableFuture<
+                WorldPlayerPersistence.TerminalPublicationEvidence
+            > markerTask=world.persistence()
+                .publishReservedTerminalStrictly(
+                    markerToken,selfMarker.proposal,
+                    selfMarker.terminal,markerWriter);
+            try{
+                if(!markerArmed.await(5,TimeUnit.SECONDS))
+                    throw new AssertionError(
+                        "G21.66 terminal write-ahead marker not armed");
+                activeTerminalMarkerNotSelfKick=
+                    intent.present(selfMarker.proposal.account)&&
+                    !world.persistence().hasDurableMailboxReviewFence(
+                        selfMarker.proposal.account);
+            }finally{
+                markerRelease.countDown();
+            }
+            markerTask.get(8,TimeUnit.SECONDS);
+            confirmedTerminalMarkerCleared=
+                !intent.present(selfMarker.proposal.account)&&
+                !world.persistence().hasDurableMailboxReviewFence(
+                    selfMarker.proposal.account);
 
             Seed stale=seed(world,"g2166-stale");
             writer.saveStrict(stale.proposal.preparedPreimage);
@@ -228,6 +286,9 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
             uncertainMarkerPersisted=
                 uncertain.present(afterMove.proposal.account)&&
                 intent.present(afterMove.proposal.account);
+            permanentMarkerStillVetoes=
+                world.persistence().hasDurableMailboxReviewFence(
+                    afterMove.proposal.account);
             uncertainDiskTerminal=repo.load(afterMove.proposal.account)
                 .get().values().equals(afterMove.terminal.values());
             try{
@@ -279,6 +340,12 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
             " reservationStillBlocksSaves="+reservationStillBlocksSaves+
             " repeatPublicationRejected="+repeatPublicationRejected+
             " originalLiveOwnerUnclaimed="+originalLiveOwnerUnclaimed+
+            " activeTerminalMarkerNotSelfKick="+
+                activeTerminalMarkerNotSelfKick+
+            " confirmedTerminalMarkerCleared="+
+                confirmedTerminalMarkerCleared+
+            " permanentMarkerStillVetoes="+
+                permanentMarkerStillVetoes+
             " staleAdmissionRejected="+staleAdmissionRejected+
             " lateOwnerChangedRejected="+lateOwnerChangedRejected+
             " lateOwnerDiskPrepared="+lateOwnerDiskPrepared+
@@ -296,6 +363,9 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
              terminalDiskExact&&restartTerminalRefused&&
              confirmedMarkerCleared&&reservationStillBlocksSaves&&
              repeatPublicationRejected&&originalLiveOwnerUnclaimed&&
+             activeTerminalMarkerNotSelfKick&&
+             confirmedTerminalMarkerCleared&&
+             permanentMarkerStillVetoes&&
              staleAdmissionRejected&&lateOwnerChangedRejected&&
              lateOwnerDiskPrepared&&divergentDiskRejected&&
              divergentDiskNotOverwritten&&permanentMarkerVeto&&
