@@ -27,7 +27,17 @@ final class MailboxFencedRestartForensics {
         INVALID_OR_DIVERGENT_ACCOUNT,
         EXACT_PREPARED_UNCLAIMED,
         EXACT_HYPOTHETICAL_CLAIMED,
-        OTHER_ACCOUNT_POSTIMAGE
+        OTHER_ACCOUNT_POSTIMAGE,
+        // G21.49: negative-only read of actual B permanent/intent files.
+        STRICT_UNCERTAIN_DIGEST_MATCH_NO_AUTHORITY,
+        STRICT_UNCERTAIN_DIGEST_MISMATCH_NO_AUTHORITY,
+        STRICT_INTENT_DIGEST_MATCH_NO_AUTHORITY,
+        STRICT_INTENT_DIGEST_MISMATCH_NO_AUTHORITY,
+        STRICT_MARKER_INVALID,
+        STRICT_MARKER_CHANGED,
+        STRICT_MARKER_ACCOUNT_READ_FAILED,
+        STRICT_MARKER_MISSING_ACCOUNT,
+        STRICT_MARKER_INVALID_ACCOUNT
     }
 
     static final class Report {
@@ -60,6 +70,28 @@ final class MailboxFencedRestartForensics {
         Objects.requireNonNull(persistence,"persistence");
         Objects.requireNonNull(fence,"fence");
         Objects.requireNonNull(account,"account");
+
+        // Distinct B negative markers must not be passed to the G21.32
+        // parser and mislabeled as a malformed proposal.
+        try{
+            Path accountFile=fence.accountFileForStrictReview(account);
+            Path permanent=sidecarPath(
+                accountFile,".g2147-strict-uncertain"
+            );
+            Path intent=sidecarPath(
+                accountFile,".g2148-strict-write-intent"
+            );
+            if(markerPresent(permanent))
+                return inspectStrictNegative(
+                    persistence,account,permanent,true
+                );
+            if(markerPresent(intent))
+                return inspectStrictNegative(
+                    persistence,account,intent,false
+                );
+        }catch(IOException|RuntimeException badMarkerLocator){
+            return result(State.STRICT_MARKER_INVALID,account,null);
+        }
 
         final MailboxDurableReviewFence.Record marker;
         try{
@@ -143,6 +175,131 @@ final class MailboxFencedRestartForensics {
         }
 
         return result(State.OTHER_ACCOUNT_POSTIMAGE,account,hash);
+    }
+
+
+    private static final class StrictNegativeRecord {
+        final String account;
+        final String snapshotSha;
+        final byte[] bytes;
+        StrictNegativeRecord(String account,String sha,byte[] bytes){
+            this.account=account;
+            this.snapshotSha=sha;
+            this.bytes=bytes;
+        }
+    }
+
+    private static Path sidecarPath(Path accountFile,String suffix){
+        return accountFile.resolveSibling(
+            accountFile.getFileName().toString()+suffix
+        );
+    }
+
+    private static boolean markerPresent(Path path)throws IOException{
+        try{
+            Files.readAttributes(
+                path,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+            );
+            return true;
+        }catch(NoSuchFileException missing){
+            return false;
+        }
+    }
+
+    /**
+     * Read only the two exact currently shipped B formats. Their
+     * SHA field is *not signed or checksummed*: it is diagnostic
+     * evidence, NEVER a trusted approval/recovery receipt.
+     */
+    private static StrictNegativeRecord readStrictNegative(
+        Path path,String expectedAccount,boolean permanent
+    )throws IOException{
+        BasicFileAttributes attrs=Files.readAttributes(
+            path,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+        );
+        if(!attrs.isRegularFile()||attrs.size()<60||attrs.size()>384)
+            throw new IOException("G21.49 invalid strict marker inode/size");
+        byte[] bytes=Files.readAllBytes(path);
+        if(bytes.length<60||bytes.length>384)
+            throw new IOException("G21.49 invalid strict marker byte count");
+        String data=new String(bytes,StandardCharsets.US_ASCII);
+        if(!Arrays.equals(data.getBytes(StandardCharsets.US_ASCII),bytes))
+            throw new IOException("G21.49 strict marker non ASCII");
+        String[] fields=data.split("\\n",-1);
+        String format=permanent
+            ?"SPK-G2147-STRICT-UNCERTAIN-NO-GRANT-V1"
+            :"SPK-G2148-STRICT-WRITE-IN-PROGRESS-V1";
+        String status=permanent
+            ?"MANUAL_REVIEW_NO_GRANT":"IN_PROGRESS_NO_GRANT";
+        if(fields.length!=5||!fields[4].isEmpty()||
+           !format.equals(fields[0])||
+           !expectedAccount.equals(fields[1])||
+           !fields[2].matches("[0-9a-f]{64}")||
+           !status.equals(fields[3]))
+            throw new IOException("G21.49 strict marker format/identity");
+        return new StrictNegativeRecord(fields[1],fields[2],bytes);
+    }
+
+    private static Report inspectStrictNegative(
+        WorldPlayerPersistence persistence,String account,
+        Path markerPath,boolean permanent
+    ){
+        final StrictNegativeRecord before;
+        try{
+            before=readStrictNegative(markerPath,account,permanent);
+        }catch(IOException|RuntimeException corrupt){
+            return result(State.STRICT_MARKER_INVALID,account,null);
+        }
+        final Optional<PlayerSnapshot> snapshot;
+        try{
+            snapshot=persistence.observeUntrustedMailboxAccount(account);
+        }catch(IOException|RuntimeException readFault){
+            return result(
+                State.STRICT_MARKER_ACCOUNT_READ_FAILED,account,null
+            );
+        }
+        try{
+            StrictNegativeRecord after=readStrictNegative(
+                markerPath,account,permanent
+            );
+            if(!Arrays.equals(before.bytes,after.bytes))
+                return result(State.STRICT_MARKER_CHANGED,account,null);
+        }catch(IOException|RuntimeException changed){
+            return result(State.STRICT_MARKER_CHANGED,account,null);
+        }
+        if(!snapshot.isPresent())
+            return result(
+                State.STRICT_MARKER_MISSING_ACCOUNT,account,null
+            );
+        PlayerSnapshot stored=snapshot.get();
+        if(!account.equals(stored.username())||
+           stored.version()!=PlayerSnapshot.CURRENT_VERSION)
+            return result(
+                State.STRICT_MARKER_INVALID_ACCOUNT,account,null
+            );
+        final PlayerSnapshot canonical;
+        try{
+            canonical=PlayerSnapshotCodec.validateAndNormalize(stored);
+            if(!canonical.values().equals(stored.values()))
+                return result(
+                    State.STRICT_MARKER_INVALID_ACCOUNT,account,null
+                );
+        }catch(RuntimeException damaged){
+            return result(
+                State.STRICT_MARKER_INVALID_ACCOUNT,account,null
+            );
+        }
+        String digest=StrictDurablePlayerSnapshotWriter
+            .canonicalSnapshotSha256(canonical);
+        boolean same=digest.equals(before.snapshotSha);
+        return result(
+            permanent
+                ?(same?State.STRICT_UNCERTAIN_DIGEST_MATCH_NO_AUTHORITY
+                      :State.STRICT_UNCERTAIN_DIGEST_MISMATCH_NO_AUTHORITY)
+                :(same?State.STRICT_INTENT_DIGEST_MATCH_NO_AUTHORITY
+                      :State.STRICT_INTENT_DIGEST_MISMATCH_NO_AUTHORITY),
+            account,digest
+        );
     }
 
     private static boolean matchesIntentIdentity(
