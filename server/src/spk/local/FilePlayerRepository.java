@@ -603,6 +603,77 @@ final class FilePlayerRepository
     }
 
     /**
+     * G21.76: NOFOLLOW on the leaf account/marker is insufficient if
+     * an ancestor directory is a symlink or replaced while the witness
+     * is sampled. Keep a local (NOT portable-token) directory-inode
+     * census up to the filesystem root.
+     *
+     * Do not compare directory mtime/ctime: other accounts can be
+     * created or saved in the same directory independently.
+     */
+    private static final class RestartDirectoryAncestry {
+        final Path[] directories;
+        final BasicFileAttributes[] identities;
+        RestartDirectoryAncestry(
+            Path[] directories,BasicFileAttributes[] identities
+        ){
+            this.directories=directories;
+            this.identities=identities;
+        }
+    }
+
+    private static BasicFileAttributes restartRealDirectory(
+        Path directory
+    )throws IOException{
+        BasicFileAttributes info=Files.readAttributes(
+            directory,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+        );
+        if(!info.isDirectory()||info.isSymbolicLink()||
+           info.fileKey()==null)
+            throw new IOException(
+                "G21.76 RECOVERY_DIRECTORY_ANCESTOR_UNSAFE_NO_GRANT "+
+                directory
+            );
+        return info;
+    }
+
+    private static RestartDirectoryAncestry restartAncestryCensus(
+        Path pinned
+    )throws IOException{
+        java.util.ArrayList<Path> all=new java.util.ArrayList<>();
+        for(Path dir=pinned.getParent();dir!=null;dir=dir.getParent())
+            all.add(dir);
+        if(all.isEmpty())
+            throw new IOException(
+                "G21.76 RECOVERY_DIRECTORY_ANCESTOR_MISSING_NO_GRANT"
+            );
+        Path[] dirs=all.toArray(new Path[0]);
+        BasicFileAttributes[] identities=
+            new BasicFileAttributes[dirs.length];
+        for(int i=0;i<dirs.length;i++)
+            identities[i]=restartRealDirectory(dirs[i]);
+        return new RestartDirectoryAncestry(dirs,identities);
+    }
+
+    private static void requireUnchangedRestartAncestry(
+        RestartDirectoryAncestry original
+    )throws IOException{
+        for(int i=0;i<original.directories.length;i++){
+            BasicFileAttributes now=restartRealDirectory(
+                original.directories[i]
+            );
+            BasicFileAttributes before=original.identities[i];
+            if(!Objects.equals(before.fileKey(),now.fileKey())||
+               !Objects.equals(before.creationTime(),
+                    now.creationTime()))
+                throw new IOException(
+                    "G21.76 RECOVERY_DIRECTORY_ANCESTOR_CHANGED_NO_GRANT "+
+                    original.directories[i]
+                );
+        }
+    }
+
+    /**
      * Can be saved by the caller as text and rechecked in a different
      * process with the SAME resolver root. No change to the account,
      * no marker cleanup, and no possible positive settlement authority.
@@ -628,6 +699,8 @@ final class FilePlayerRepository
         // This bounds acquisition, not the subsequent disk read.
         return MailboxAccountPublicationCoordinator
             .withExclusivePublicationBounded(pinned,1500L,()->{
+                RestartDirectoryAncestry ancestry=
+                    restartAncestryCensus(pinned);
                 Path[] files=restartRecoveryCensusPaths(pinned);
                 RestartObjectCensus baseline=restartRecoveryCensus(
                     files
@@ -635,14 +708,17 @@ final class FilePlayerRepository
                 String first=restartWitnessInsidePublication(
                     account,pinned,bound);
                 requireUnchangedRecoveryCensus(files,baseline);
+                requireUnchangedRestartAncestry(ancestry);
                 // Test-only seam simulates a raw/uncooperative atomic
                 // replacement with identical bytes while G21.39 is
                 // still held by the observer.
                 betweenRestartWitnessPasses.run(account);
                 requireUnchangedRecoveryCensus(files,baseline);
+                requireUnchangedRestartAncestry(ancestry);
                 String second=restartWitnessInsidePublication(
                     account,pinned,bound);
                 requireUnchangedRecoveryCensus(files,baseline);
+                requireUnchangedRestartAncestry(ancestry);
                 if(!first.equals(second)||!pinned.equals(
                         normalizedPath(account)))
                     throw new IOException(
@@ -653,6 +729,7 @@ final class FilePlayerRepository
                         account,pinned,bound
                     );
                 requireUnchangedRecoveryCensus(files,baseline);
+                requireUnchangedRestartAncestry(ancestry);
                 return RESTART_WITNESS_VERSION+"|"+account+"|"+
                     finalState.state.name()+"|"+first;
             });
