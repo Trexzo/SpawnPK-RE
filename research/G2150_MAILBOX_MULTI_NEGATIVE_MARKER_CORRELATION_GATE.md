@@ -15,6 +15,7 @@ No filesystem lock is held during the observer read. The pre/post checks detect 
 - agreeing B permanent + write-ahead intent, and independent unfenced account;
 - conflicting B permanent + intent, malformed companion, and checksum-valid but divergent legacy-A sidecar;
 - actual G21.32 PREPARED proposal plus matching vs conflicting G21.47 strict checkpoint SHA, with no inventory grant or Mailbox CLAIMED;
+- deterministic pause on the real persistence FIFO while a secondary marker is modified, resulting in the changed-evidence state, not an exact-match diagnostic;
 - restart admission veto for every reviewed account, no tmp or publication lease leaks, all seven authorization flags false.
 
 Focused Java11 manifest **349 → 350**, unique `g2150MailboxNegativeMarkerCorrelationRegression`. Exact-head hosted CI SUCCESS mandatory before certification. **NO_GRANT** remains authoritative for C2S185 widget32181. No positive transaction settlement, replay/rollback, auto marker release, or power-loss exactly-once claims. R25 PR #1847 untouched.
