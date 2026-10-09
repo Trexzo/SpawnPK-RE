@@ -120,7 +120,10 @@ final class MailboxStrictWriteIntentFence {
         Path marker=fencePath(account);
         byte[] expected=record(account,expectedPreparedSha);
         if(!Files.isRegularFile(marker,LinkOption.NOFOLLOW_LINKS)||
-           !Arrays.equals(Files.readAllBytes(marker),expected))
+           !Arrays.equals(
+               MailboxNegativeMarkerBoundedRead.read(
+                   marker,expected.length,expected.length
+               ),expected))
             throw new IOException(
                 "G21.48 intent absent or identity diverged; "+
                 "no confirmed checkpoint receipt"
