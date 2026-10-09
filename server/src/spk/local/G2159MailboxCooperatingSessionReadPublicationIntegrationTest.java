@@ -94,6 +94,9 @@ public final class G2159MailboxCooperatingSessionReadPublicationIntegrationTest 
             try(World world=World.isolatedForTest(60000L,repository)){
                 world.start();
 
+                byte[] readOriginalFileBytes=
+                    Files.readAllBytes(paths.resolve(readFirst));
+
                 // A: the admitted read owns the cooperating lock first.
                 // An independently queued World save must not replace
                 // account bytes until the read has completed.
@@ -116,7 +119,7 @@ public final class G2159MailboxCooperatingSessionReadPublicationIntegrationTest 
                     5,TimeUnit.SECONDS).get().values().equals(
                         independentOriginal.values());
                 boolean waitingForReader=!saving.isDone()&&
-                    Arrays.equals(Files.readAllBytes(paths.resolve(readFirst)),
+                    Arrays.equals(readOriginalFileBytes,
                         Files.readAllBytes(paths.resolve(readFirst)));
                 releaseRead.countDown();
                 PlayerSnapshot firstObserved=reading.get(
