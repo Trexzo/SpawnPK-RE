@@ -55,7 +55,8 @@ final class MailboxFencedRestartForensics {
         MULTIPLE_NEGATIVE_MARKERS_INVALID_NO_AUTHORITY,
         MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,
         SINGLE_NEGATIVE_MARKER_MEMBERSHIP_CHANGED_NO_AUTHORITY,
-        SINGLE_NEGATIVE_MARKER_CONTENT_CHANGED_NO_AUTHORITY
+        SINGLE_NEGATIVE_MARKER_CONTENT_CHANGED_NO_AUTHORITY,
+        NEGATIVE_MARKER_ACCOUNT_PATH_CHANGED_NO_AUTHORITY
     }
 
     static final class Report {
@@ -102,6 +103,11 @@ final class MailboxFencedRestartForensics {
         }catch(IOException|RuntimeException changed){
             return result(State.MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,account,null);
         }
+        if(!before.accountFile.equals(after.accountFile))
+            return result(
+                State.NEGATIVE_MARKER_ACCOUNT_PATH_CHANGED_NO_AUTHORITY,
+                account,null
+            );
         if(!Arrays.equals(before.present,after.present)){
             // G21.52: zero/one marker is NOT exempt from evidence
             // membership stability. A newly published fence may otherwise
@@ -277,7 +283,7 @@ final class MailboxFencedRestartForensics {
             sidecarPath(file,".g2147-strict-uncertain"),
             sidecarPath(file,".g2148-strict-write-intent"),
             sidecarPath(file,".g2147-strict-postpublication-review"),
-            fence.fencePath(account)
+            sidecarPath(file,".g2132-mailbox-review")
         };
         boolean[] present=new boolean[paths.length];
         byte[][] evidence=new byte[paths.length][];
@@ -306,16 +312,18 @@ final class MailboxFencedRestartForensics {
                     evidence[i]=null;
                 }
             }
-            return new MarkerSet(present,evidence,count,null);
+            return new MarkerSet(file,present,evidence,count,null);
         }
-        if(count==0)return new MarkerSet(present,evidence,count,null);
+        if(count==0)return new MarkerSet(file,present,evidence,count,null);
         String strict=null;
         MailboxDurableReviewFence.Record proposal=null;
         try{
             for(int i=0;i<paths.length;i++){
                 if(!present[i])continue;
                 if(i==3){
-                    proposal=fence.inspect(account);
+                    proposal=fence.inspectExactMarkerPath(
+                        account,paths[i]
+                    );
                     evidence[i]=MailboxNegativeMarkerBoundedRead.read(
                         paths[i],80,2048
                     );
@@ -326,35 +334,40 @@ final class MailboxFencedRestartForensics {
                     evidence[i]=record.bytes;
                     if(strict==null)strict=record.snapshotSha;
                     else if(!strict.equals(record.snapshotSha))
-                        return new MarkerSet(present,evidence,count,
+                        return new MarkerSet(file,present,evidence,count,
                             State.MULTIPLE_NEGATIVE_MARKERS_CONFLICT_NO_AUTHORITY);
                 }
             }
         }catch(IOException|RuntimeException unreadable){
-            return new MarkerSet(present,evidence,count,
+            return new MarkerSet(file,present,evidence,count,
                 State.MULTIPLE_NEGATIVE_MARKERS_INVALID_NO_AUTHORITY);
         }
         if(proposal!=null&&strict!=null&&
            !strict.equals(proposal.preparedSha256)&&
            !strict.equals(proposal.hypotheticalSha256))
-            return new MarkerSet(present,evidence,count,
+            return new MarkerSet(file,present,evidence,count,
                 State.MULTIPLE_NEGATIVE_MARKERS_CONFLICT_NO_AUTHORITY);
-        return new MarkerSet(present,evidence,count,null);
+        return new MarkerSet(file,present,evidence,count,null);
     }
 
     private static final class MarkerSet {
+        final Path accountFile;
         final boolean[] present;
         final byte[][] evidence;
         final int count;
         final State problem;
-        MarkerSet(boolean[] found,byte[][] raw,int count,State problem){
+        MarkerSet(
+            Path file,boolean[] found,byte[][] raw,int count,State problem
+        ){
+            this.accountFile=file;
             this.present=found;
             this.evidence=raw;
             this.count=count;
             this.problem=problem;
         }
         boolean matches(MarkerSet other){
-            if(count!=other.count||problem!=other.problem||
+            if(!accountFile.equals(other.accountFile)||
+               count!=other.count||problem!=other.problem||
                !Arrays.equals(present,other.present))return false;
             for(int i=0;i<evidence.length;i++)
                 if(!Arrays.equals(evidence[i],other.evidence[i]))
