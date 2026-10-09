@@ -21,6 +21,7 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
         boolean permanentChangedSnapshot=false,missingAccount=false;
         boolean corruptMarker=false,dualPrefersPermanent=false;
         boolean cleanAccountUnfenced=false,restartVeto=false;
+        boolean legacyMarkerStillVetoes=false;
         boolean noAuthority=true,noCleanup=true,noLeases=true;
 
         Path root=Files.createTempDirectory("g2149-negative-forensics-");
@@ -38,6 +39,10 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
             PlayerSnapshot i=seed(repository,"g2149-intent");
             PlayerSnapshot d=seed(repository,"g2149-dual");
             seed(repository,"g2149-clean");
+            seed(repository,"g2149-legacy");
+            Path legacy=paths.resolve("g2149-legacy.properties"+
+                ".g2147-strict-postpublication-review");
+            Files.writeString(legacy,"legacy-A-marker-untrusted");
             String pSha=StrictDurablePlayerSnapshotWriter
                 .canonicalSnapshotSha256(p);
             String iSha=StrictDurablePlayerSnapshotWriter
@@ -87,6 +92,14 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
                     world.persistence().load("g2149-clean").isPresent();
                 noAuthority&=nonAuthorizing(pr)&&nonAuthorizing(ir)&&
                     nonAuthorizing(dr)&&nonAuthorizing(cr);
+                MailboxFencedRestartForensics.Report lr=inspect(
+                    world,proposalMarker,"g2149-legacy"
+                );
+                legacyMarkerStillVetoes=
+                    lr.state==MailboxFencedRestartForensics.State
+                        .STRICT_LEGACY_UNVERIFIED_NO_AUTHORITY&&
+                    denied(world,"g2149-legacy");
+                noAuthority&=nonAuthorizing(lr);
 
                 TreeMap<String,String> changed=
                     new TreeMap<>(p.values());
@@ -156,13 +169,15 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
             " permanentPriority="+dualPrefersPermanent+
             " cleanAccount="+cleanAccountUnfenced+
             " restartedAccountVeto="+restartVeto+
+            " legacyMarkerDenied="+legacyMarkerStillVetoes+
             " noAuthority="+noAuthority+
             " noMarkerCleanup="+noCleanup+
             " noLeaseOrTempLeak="+noLeases
         );
         if(!(permanentExact&&intentExact&&permanentChangedSnapshot&&
             missingAccount&&corruptMarker&&dualPrefersPermanent&&
-            cleanAccountUnfenced&&restartVeto&&noAuthority&&
+            cleanAccountUnfenced&&restartVeto&&
+            legacyMarkerStillVetoes&&noAuthority&&
             noCleanup&&noLeases))
             throw new AssertionError(
                 "G21.49 strict negative read-only forensic regression"
