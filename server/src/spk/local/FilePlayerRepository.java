@@ -100,16 +100,25 @@ final class FilePlayerRepository
                 );
             return file;
         };
-        requireUnfencedSessionLoad(account,markerPaths);
-        Optional<PlayerSnapshot> observed=loadExactFile(account,file);
-        afterWorldSessionRead.run(account);
-        requireUnfencedSessionLoad(account,markerPaths);
-        if(!file.equals(normalizedPath(account)))
-            throw new IOException(
-                "G21.58 MAILBOX_SESSION_ACCOUNT_PATH_CHANGED"+
-                " account="+account+" action=REJECT_SESSION"
-            );
-        return observed;
+        // G21.59: make the entire admitted account observation one
+        // cooperating account-local publication critical section. A
+        // marker or account writer holding this lock must run wholly
+        // BEFORE or wholly AFTER the negative checks and snapshot read.
+        // This is not an atomic disk snapshot or a lock on raw save().
+        return MailboxAccountPublicationCoordinator
+            .withExclusivePublication(file,()->{
+                requireUnfencedSessionLoad(account,markerPaths);
+                Optional<PlayerSnapshot> observed=
+                    loadExactFile(account,file);
+                afterWorldSessionRead.run(account);
+                requireUnfencedSessionLoad(account,markerPaths);
+                if(!file.equals(normalizedPath(account)))
+                    throw new IOException(
+                        "G21.58 MAILBOX_SESSION_ACCOUNT_PATH_CHANGED"+
+                        " account="+account+" action=REJECT_SESSION"
+                    );
+                return observed;
+            });
     }
 
     private void requireUnfencedSessionLoad(
