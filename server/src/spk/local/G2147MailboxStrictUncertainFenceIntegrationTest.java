@@ -90,6 +90,11 @@ public final class G2147MailboxStrictUncertainFenceIntegrationTest {
                             .UnconfirmedCommitException;
                 }
                 quarantined=fence.present(account)&&
+                    // G21.48: the prewrite intent also survives any
+                    // post-move unconfirmed outcome; neither marker is
+                    // automatically cleared or treated as a grant.
+                    new MailboxStrictWriteIntentFence(paths)
+                        .present(account)&&
                     disk.hasUnresolvedMailboxReviewFence(account);
                 noOriginalMarker=!new MailboxDurableReviewFence(paths)
                     .present(account);
