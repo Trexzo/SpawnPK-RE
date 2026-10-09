@@ -2182,6 +2182,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2161MailboxAdmittedByteFingerprintIntegrationTest',
     'spk.local.G2162MailboxStrictSettlementCrashMatrixIntegrationTest',
     'spk.local.G2163MailboxDurableTerminalObservationIntegrationTest',
+    'spk.local.G2164MailboxAtomicTerminalSnapshotIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2210,10 +2211,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 363 ||
-    currentTrainFocusedTests.toSet().size() != 363) {
+if (currentTrainFocusedTests.size() != 364 ||
+    currentTrainFocusedTests.toSet().size() != 364) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 363 unique tests, found " +
+        "Current-train focused manifest drift: expected 364 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3225,6 +3226,14 @@ tasks.register('g2163MailboxDurableTerminalObservationRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2163MailboxDurableTerminalObservationIntegrationTest')
+}
+
+tasks.register('g2164MailboxAtomicTerminalSnapshotRegression', JavaExec) {
+    group = 'verification'
+    description = 'Checks single-account Mailbox terminal snapshot and restart quarantine.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2164MailboxAtomicTerminalSnapshotIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
