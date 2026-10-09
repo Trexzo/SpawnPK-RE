@@ -212,7 +212,7 @@ public final class G2169MailboxFencedTerminalWorldFreshnessIntegrationTest {
             wrongDiskDenied=failed(world.persistence()
                 .attestReservedTerminalWorldFreshness(
                     diskChanged.token,diskChanged.proposal,
-                    diskChanged.candidate))!=null&&
+                    diskChanged.candidate))&&
                 diskChanged.token.isActive()&&
                 diskChanged.owner.bank().inventorySlots()==0;
 
