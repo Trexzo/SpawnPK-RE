@@ -1328,8 +1328,20 @@ final class WorldPlayerPersistence
         throws IOException{
         if(!(repository instanceof FilePlayerRepository))
             return false;
-        return ((FilePlayerRepository)repository)
-            .hasUnresolvedMailboxReviewFence(account);
+        FilePlayerRepository files=(FilePlayerRepository)repository;
+        // Permanent G21.32/G21.47 review markers ALWAYS end a live
+        // session. A G21.48 transient intent may be the marker of this
+        // session's own still-running strict checkpoint; do not kick
+        // its owner solely because the writer has reached the small
+        // write-ahead publication interval.
+        if(files.hasPermanentMailboxReviewFence(account))
+            return true;
+        if(!files.hasStrictWriteIntent(account))
+            return false;
+        PreparedStrictBarrierTask current=inFlightStrictBarrier.get();
+        return current==null||
+            current.completion.isDone()||
+            !account.equals(current.snapshot.username());
     }
 
     long checkpointCapturedCount(){
@@ -1746,7 +1758,8 @@ final class WorldPlayerPersistence
                             ),
                             ()->requirePreparedOwnerStillCurrentAtPublication(
                                 owner,expectedGeneration,snapshot
-                            )
+                            ),
+                            true // G21.48: write-ahead negative intent
                         )
                         :writer.saveStrict(snapshot);
                 completion.complete(receipt);

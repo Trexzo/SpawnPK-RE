@@ -35,6 +35,9 @@ final class StrictDurablePlayerSnapshotWriter {
         AFTER_SERIALIZE,
         BEFORE_FILE_FORCE,
         BEFORE_ATOMIC_REPLACE,
+        // G21.48: a write-ahead intent exists, but account bytes have
+        // NOT yet been atomically replaced.
+        AFTER_WRITE_AHEAD_INTENT,
         BEFORE_DIRECTORY_FORCE,
         AFTER_DIRECTORY_FORCE
     }
@@ -116,7 +119,7 @@ final class StrictDurablePlayerSnapshotWriter {
     synchronized Receipt saveStrict(
         PlayerSnapshot snapshot
     )throws IOException{
-        return saveInternal(snapshot,null,null,null);
+        return saveInternal(snapshot,null,null,null,false);
     }
 
     /**
@@ -150,18 +153,40 @@ final class StrictDurablePlayerSnapshotWriter {
         Objects.requireNonNull(
             postPublicationCheck,"postPublicationCheck"
         );
+        return saveStrictForWorld(
+            snapshot,expectedRepositoryFile,publicationCheck,
+            postPublicationCheck,false
+        );
+    }
+
+    /**
+     * G21.48: the actual concrete World worker opts into a negative
+     * in-progress WAL marker; compatibility/forensic entry points
+     * retain their established explicit behavior.
+     */
+    synchronized Receipt saveStrictForWorld(
+        PlayerSnapshot snapshot,Path expectedRepositoryFile,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck,
+        boolean writeAheadIntent
+    )throws IOException{
+        Objects.requireNonNull(publicationCheck,"publicationCheck");
+        Objects.requireNonNull(
+            postPublicationCheck,"postPublicationCheck"
+        );
         return saveInternal(
             snapshot,Objects.requireNonNull(
                 expectedRepositoryFile,"expectedRepositoryFile"
             ).toAbsolutePath().normalize(),publicationCheck,
-            postPublicationCheck
+            postPublicationCheck,writeAheadIntent
         );
     }
 
     private Receipt saveInternal(
         PlayerSnapshot snapshot,Path worldFile,
         BeforeWorldPublication publicationCheck,
-        AfterWorldPublication postPublicationCheck
+        AfterWorldPublication postPublicationCheck,
+        boolean writeAheadIntent
     )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(
             snapshot,"snapshot"
@@ -251,6 +276,18 @@ final class StrictDurablePlayerSnapshotWriter {
                         // account's publication FileLock. NEVER reacquire
                         // that lock inside this callback (deadlock).
                         try{
+                            MailboxStrictWriteIntentFence intent=
+                                writeAheadIntent
+                                    ?new MailboxStrictWriteIntentFence(resolver)
+                                    :null;
+                            if(intent!=null){
+                                intent.armInsidePublicationLock(
+                                    account,expectedSha256
+                                );
+                                // Test seam: failure at this point leaves
+                                // intent published BEFORE any account move.
+                                faults.check(Phase.AFTER_WRITE_AHEAD_INTENT);
+                            }
                             publishStrictReplacement(
                                 temp,file,parent,replaced
                             );
@@ -267,6 +304,25 @@ final class StrictDurablePlayerSnapshotWriter {
                                     " action=MANUAL_REVIEW_NO_GRANT",
                                     divergent
                                 );
+                            }
+                            if(intent!=null){
+                                try{
+                                    // Only the matching transient
+                                    // IN-PROGRESS marker is removed once
+                                    // account file and current owner are
+                                    // verified. Permanent G21.32/G21.47
+                                    // manual-review fences remain intact.
+                                    intent.clearOnlyAfterConfirmedInsidePublicationLock(
+                                        account,expectedSha256
+                                    );
+                                }catch(IOException|RuntimeException badCleanup){
+                                    throw new UnconfirmedCommitException(
+                                        "G21.48 STRICT_WRITE_INTENT_CLEANUP_UNCONFIRMED "+
+                                        "account="+account+
+                                        " action=MANUAL_REVIEW_NO_GRANT",
+                                        badCleanup
+                                    );
+                                }
                             }
                         }catch(UnconfirmedCommitException uncertain){
                             try{
@@ -326,7 +382,8 @@ final class StrictDurablePlayerSnapshotWriter {
 
     private void requireUnfenced(String account)throws IOException{
         if(new MailboxDurableReviewFence(resolver).present(account)||
-           new MailboxStrictUncertainFence(resolver).present(account))
+           new MailboxStrictUncertainFence(resolver).present(account)||
+           new MailboxStrictWriteIntentFence(resolver).present(account))
             throw new IOException(
                 "G21.42 STRICT_WORLD_MAILBOX_REVIEW_SAVE_VETO "+
                 account+" action=REJECT_STRICT_SAVE"
