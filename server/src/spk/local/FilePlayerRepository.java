@@ -35,6 +35,8 @@ final class FilePlayerRepository
     private final BeforeWorldReplace insideWorldPublication;
     /** G21.58 test seam after bytes are read, before session marker recheck. */
     private final BeforeWorldReplace afterWorldSessionRead;
+    /** G21.74 deterministic test-only replacement between witness passes. */
+    private final BeforeWorldReplace betweenRestartWitnessPasses;
 
     FilePlayerRepository(){
         this(
@@ -68,6 +70,17 @@ final class FilePlayerRepository
         BeforeWorldReplace insideWorldPublication,
         BeforeWorldReplace afterWorldSessionRead
     ){
+        this(paths,beforeWorldReplace,insideWorldPublication,
+            afterWorldSessionRead,account->{});
+    }
+
+    /** G21.74 package-scoped deterministic test injection only. */
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication,
+        BeforeWorldReplace afterWorldSessionRead,
+        BeforeWorldReplace betweenRestartWitnessPasses
+    ){
         this.paths=Objects.requireNonNull(paths,"paths");
         this.beforeWorldReplace=Objects.requireNonNull(
             beforeWorldReplace,"beforeWorldReplace"
@@ -77,6 +90,9 @@ final class FilePlayerRepository
         );
         this.afterWorldSessionRead=Objects.requireNonNull(
             afterWorldSessionRead,"afterWorldSessionRead"
+        );
+        this.betweenRestartWitnessPasses=Objects.requireNonNull(
+            betweenRestartWitnessPasses,"betweenRestartWitnessPasses"
         );
     }
 
@@ -475,6 +491,62 @@ final class FilePlayerRepository
     }
 
     /**
+     * G21.74: retain NOFOLLOW identity of all five forensic objects
+     * over BOTH complete G21.72 witness passes. The portable witness
+     * deliberately omits fileKey: it compares bytes across restarts,
+     * while this census only rejects replacement DURING a capture.
+     */
+    private static Path[] restartRecoveryCensusPaths(Path pinned){
+        Path[] paths=new Path[1+RESTART_MARKER_SUFFIXES.length];
+        paths[0]=pinned;
+        for(int i=0;i<RESTART_MARKER_SUFFIXES.length;i++)
+            paths[i+1]=pinned.resolveSibling(
+                pinned.getFileName().toString()+
+                RESTART_MARKER_SUFFIXES[i]
+            );
+        return paths;
+    }
+
+    private static BasicFileAttributes[] restartRecoveryCensus(
+        Path[] files
+    )throws IOException{
+        BasicFileAttributes[] census=new BasicFileAttributes[files.length];
+        for(int i=0;i<files.length;i++){
+            BasicFileAttributes item=admittedAccountFileEvidence(
+                files[i].getFileName().toString(),files[i]
+            );
+            // Without a stable filesystem object key, same-size and
+            // same-mtime atomic replacement cannot be distinguished.
+            // Fail closed rather than report a fictitious identity.
+            if(item!=null&&item.fileKey()==null)
+                throw new IOException(
+                    "G21.74 RECOVERY_OBJECT_IDENTITY_UNAVAILABLE_NO_GRANT"
+                );
+            census[i]=item;
+        }
+        return census;
+    }
+
+    private static void requireUnchangedRecoveryCensus(
+        Path[] files,BasicFileAttributes[] initial
+    )throws IOException{
+        BasicFileAttributes[] latest=restartRecoveryCensus(files);
+        if(latest.length!=initial.length)
+            throw new IOException(
+                "G21.74 RECOVERY_OBJECT_CENSUS_INVALID_NO_GRANT"
+            );
+        for(int i=0;i<initial.length;i++){
+            if(!sameAdmittedAccountObject(initial[i],latest[i])||
+               (initial[i]!=null&&
+                !Objects.equals(initial[i].creationTime(),
+                    latest[i].creationTime())))
+                throw new IOException(
+                    "G21.74 RECOVERY_OBJECT_REPLACED_NO_GRANT"
+                );
+        }
+    }
+
+    /**
      * Can be saved by the caller as text and rechecked in a different
      * process with the SAME resolver root. No change to the account,
      * no marker cleanup, and no possible positive settlement authority.
@@ -500,10 +572,21 @@ final class FilePlayerRepository
         // This bounds acquisition, not the subsequent disk read.
         return MailboxAccountPublicationCoordinator
             .withExclusivePublicationBounded(pinned,1500L,()->{
+                Path[] files=restartRecoveryCensusPaths(pinned);
+                BasicFileAttributes[] baseline=restartRecoveryCensus(
+                    files
+                );
                 String first=restartWitnessInsidePublication(
                     account,pinned,bound);
+                requireUnchangedRecoveryCensus(files,baseline);
+                // Test-only seam simulates a raw/uncooperative atomic
+                // replacement with identical bytes while G21.39 is
+                // still held by the observer.
+                betweenRestartWitnessPasses.run(account);
+                requireUnchangedRecoveryCensus(files,baseline);
                 String second=restartWitnessInsidePublication(
                     account,pinned,bound);
+                requireUnchangedRecoveryCensus(files,baseline);
                 if(!first.equals(second)||!pinned.equals(
                         normalizedPath(account)))
                     throw new IOException(
@@ -513,6 +596,7 @@ final class FilePlayerRepository
                     inspectRestartRecoveryLocked(
                         account,pinned,bound
                     );
+                requireUnchangedRecoveryCensus(files,baseline);
                 return RESTART_WITNESS_VERSION+"|"+account+"|"+
                     finalState.state.name()+"|"+first;
             });

@@ -1,0 +1,19 @@
+# G21.74 — intra-capture filesystem object replacement veto (NO GRANT)
+
+**Base:** certified G21.73 `86fb9fb81973a65361a89e6531a7ea034b5c9e5a`, [Actions #37972035796](https://github.com/Trexzo/SpawnPK-RE/actions/runs/37972035796) SUCCESS, 373 focused Java11. [Issue #2324](https://github.com/Trexzo/SpawnPK-RE/issues/2324).
+
+## Threat and fix
+
+G21.72's portable token compares exact account and negative marker **content**, not filesystem object identity. A raw/uncooperative publisher can replace the account file or a negative review sidecar with a new inode carrying **byte-for-byte identical contents and matching size/mtime** while G21.73's cooperating publication lock is held. Existing content checksum/classification and per-part local metadata validation can return an unchanged witness, even though the selected filesystem object was replaced between two valid sampling passes. This is not a positive grant path, but it weakens the forensic meaning of a single read.
+
+G21.74 introduces a **local, in-memory, NOFOLLOW identity census** for all five pinned filesystem paths: account and the G21.32 durable review, G21.49 legacy review, G21.47 uncertain, and G21.48 write-ahead intent sidecars. Captured at entry **under the same bounded G21.73 cooperating lock**, this census is rechecked after first full hash/semantic sampling pass, after a deterministic test-only seam, after the second full pass, and after final restart classification but before the token is returned. Each present item requires non-null BasicFileAttributes.fileKey, a regular object, unchanged fileKey, byte size, modified timestamp and creation timestamp; missing/present transitions fail closed. Filesystems that cannot provide fileKey cannot claim this identity guarantee and receive an explicit `IOException G21.74 RECOVERY_OBJECT_IDENTITY_UNAVAILABLE_NO_GRANT`. Replacement detected returns `IOException G21.74 RECOVERY_OBJECT_REPLACED_NO_GRANT`.
+
+The **portable G2172 witness format is unchanged**: it still includes exact *content/path/classification* SHA256 for comparison across fresh repository processes. Transient fileKey identity is intentionally **not embedded** in the portable token; legitimate account-file replacement between *different* captures with identical bytes may still compare unchanged. G21.74 guarantees only that the observed filesystem object set did not change across one capture (subject to fileKey support), not that no uncooperative writer can touch files before/after that capture, not protection from in-place same-inode ABA, nor physical durability or origin authentication.
+
+Existing G21.71 direct inspector, session-load gates and normal World writers are left unchanged. G21.73's 1500ms lock acquisition timeout remains applicable. Added a fifth package-scoped constructor argument, a deterministic **test-only** after-first-pass hook; production constructors use a no-op. This seam cannot authorize a claim and is never invoked for ordinary World session admission.
+
+## Regression
+
+`G2174MailboxRestartIdentityReplacementIntegrationTest` exercises stable cross-instance G21.72 witness, coherent G21.64 terminal file replaced atomically with EXACT original bytes and restored modified timestamp between passes, genuine PREPARED journal replacement, G21.48 marker replaced atomically with exact original body and restored timestamp, delete/recreate same marker contents, token stability in later separately completed captures, unrelated account and missing-account controls, unmodified live inventory and Mailbox UNCLAIMED, terminal and marker restart quarantine, and no leaked JVM leases/temp files.
+
+**Focused Java11 train:** 373→374; require exact-head hosted full build before certification. Draft/unmerged. **No grant, positive transaction COMMIT, replay, release, client ACK or login.** Native C2S185 widget32181 remains gated; frozen R25 PR #1847 untouched.
