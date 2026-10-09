@@ -10,6 +10,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /** G21.48: negative write-ahead intent exists before account replacement. */
@@ -51,7 +52,9 @@ public final class G2148MailboxStrictWriteIntentIntegrationTest {
         boolean duplicateIntentNoClobber=false;
         boolean unrelatedAccountUnaffected=false;
         boolean noRewardCredit=false;
+        boolean activeOwnWriteNotRevoked=false;
         boolean noTempOrLeaseLeaks=false;
+        AtomicBoolean exemptDuringOwnStrict=new AtomicBoolean();
         try{
             try(World world=World.isolatedForTest(60000L,disk)){
                 world.start();
@@ -69,10 +72,17 @@ public final class G2148MailboxStrictWriteIntentIntegrationTest {
                 StrictDurablePlayerSnapshotWriter interrupted=
                     new StrictDurablePlayerSnapshotWriter(paths,phase->{
                         if(phase==StrictDurablePlayerSnapshotWriter.Phase
-                                .AFTER_WRITE_AHEAD_INTENT)
+                                .AFTER_WRITE_AHEAD_INTENT){
+                            exemptDuringOwnStrict.set(
+                                !world.persistence()
+                                    .hasDurableMailboxReviewFence(
+                                        failed.name
+                                    )
+                            );
                             throw new IOException(
                                 "G21.48 deliberate pre-ATOMIC_MOVE failure"
                             );
+                        }
                     });
                 CompletableFuture<StrictDurablePlayerSnapshotWriter.Receipt>
                     failedTask=submit(world,failed,interrupted);
@@ -92,7 +102,11 @@ public final class G2148MailboxStrictWriteIntentIntegrationTest {
                     )
                 );
                 strandedIntentVetoes=
-                    disk.hasUnresolvedMailboxReviewFence(failed.name);
+                    disk.hasUnresolvedMailboxReviewFence(failed.name)&&
+                    world.persistence()
+                        .hasDurableMailboxReviewFence(failed.name);
+                activeOwnWriteNotRevoked=
+                    exemptDuringOwnStrict.get();
                 noSpuriousPermanentMarker=
                     !permanent.present(failed.name);
 
@@ -140,7 +154,8 @@ public final class G2148MailboxStrictWriteIntentIntegrationTest {
                         item.player.bank().inventorySlots()==0&&
                         item.player.mailbox().get(
                             "g2148:"+item.name.substring(6)
-                        )!=null;
+                        ).claimState==
+                            MailboxRewardDeliveryService.ClaimState.UNCLAIMED;
             }
 
             try(World reboot=World.isolatedForTest(
@@ -194,6 +209,7 @@ public final class G2148MailboxStrictWriteIntentIntegrationTest {
             " duplicateIntentDenied="+duplicateIntentNoClobber+
             " otherAccountPreserved="+unrelatedAccountUnaffected+
             " noInventoryGrant="+noRewardCredit+
+            " inFlightOwnSessionExempt="+activeOwnWriteNotRevoked+
             " noTempOrLeaseLeaks="+noTempOrLeaseLeaks
         );
         if(!(beganBeforeMove&&earlyTaskFailed&&
@@ -203,7 +219,8 @@ public final class G2148MailboxStrictWriteIntentIntegrationTest {
               strandedPlayerDeniedAfterRestart&&
               normalAccountUnfenced&&malformedIntentStillBlocks&&
               duplicateIntentNoClobber&&unrelatedAccountUnaffected&&
-              noRewardCredit&&noTempOrLeaseLeaks))
+              noRewardCredit&&activeOwnWriteNotRevoked&&
+              noTempOrLeaseLeaks))
             throw new AssertionError("G21.48 write-ahead negative intent");
 
         System.out.println("G2148_MAILBOX_STRICT_WRITE_AHEAD_INTENT_PASS"+
