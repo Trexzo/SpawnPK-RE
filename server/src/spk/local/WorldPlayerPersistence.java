@@ -225,6 +225,8 @@ final class WorldPlayerPersistence
         inFlightStrictBarrier=new AtomicReference<>();
     private final AtomicReference<ReservedPreparedDrainTask>
         inFlightPreparedDrain=new AtomicReference<>();
+    private final AtomicReference<ReservedTerminalPreflightTask>
+        inFlightTerminalPreflight=new AtomicReference<>();
 
     /*
      * Protected by io, shared with the single writer's admission lock.
@@ -2278,6 +2280,192 @@ final class WorldPlayerPersistence
         }
     }
 
+
+    /**
+     * G21.65 real FIFO prepublication check for a single-account
+     * terminal postimage. It never writes or authorizes reward settlement.
+     * The observation expires immediately on return: a future writer
+     * MUST revalidate owner, reservation, disk and markers at publication.
+     */
+    static final class TerminalPrepublicationEvidence {
+        enum State {
+            EXACT_PREPARED_NO_GRANT,
+            MISSING_ACCOUNT,
+            DIVERGENT_ACCOUNT
+        }
+        final State state;
+        final String account;
+        final String intentKey;
+        final long generation;
+        final boolean workerFifoObservation=true;
+        final boolean durabilityReceipt=false;
+        final boolean publicationAuthorized=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+
+        TerminalPrepublicationEvidence(
+            State state,PreparedAccountReservation token
+        ){
+            this.state=Objects.requireNonNull(state,"state");
+            this.account=token.account;
+            this.intentKey=token.intentKey;
+            this.generation=token.generation;
+        }
+    }
+
+    private final class ReservedTerminalPreflightTask implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final PlayerSnapshot terminal;
+        final CompletableFuture<TerminalPrepublicationEvidence> completion=
+            new CompletableFuture<>();
+        private boolean unpinned;
+
+        ReservedTerminalPreflightTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal
+        ){
+            this.token=token;
+            this.proposal=proposal;
+            this.terminal=terminal;
+        }
+
+        private void unpin(boolean exact){
+            synchronized(io){
+                if(unpinned)return;
+                unpinned=true;
+                token.pendingDrains--;
+                token.lastDrainWasExactPrepared=exact;
+            }
+        }
+
+        @Override public void run(){
+            inFlightTerminalPreflight.set(this);
+            try{
+                if(completion.isDone())return;
+                verifyReservedProposal(token,proposal);
+                // This method performs an exact pinned account path read,
+                // cross-JVM cooperating publication lock and G21.58-61
+                // admission-style no-follow object/content verification.
+                // It still CANNOT reserve that disk image for a future
+                // write: no positive receipt is returned.
+                java.util.Optional<PlayerSnapshot> disk=
+                    ((FilePlayerRepository)repository)
+                        .loadForWorldSession(token.account);
+                verifyReservedProposal(token,proposal);
+                TerminalPrepublicationEvidence.State state=
+                    !disk.isPresent()
+                        ?TerminalPrepublicationEvidence.State.MISSING_ACCOUNT
+                        :(disk.get().version()==
+                              proposal.preparedPreimage.version()&&
+                          disk.get().values().equals(
+                              proposal.preparedPreimage.values())&&
+                          MailboxPreparedRestartAdmission.inspect(
+                              disk.get()).state==
+                              MailboxPreparedRestartAdmission.State
+                                  .VALID_PREPARED_UNCLAIMED)
+                            ?TerminalPrepublicationEvidence.State
+                                .EXACT_PREPARED_NO_GRANT
+                            :TerminalPrepublicationEvidence.State
+                                .DIVERGENT_ACCOUNT;
+                // Recheck original immutable terminal bytes, not merely
+                // its message/account identity; no caller-supplied
+                // alternate or tampered postimage may pass a queued task.
+                if(!MailboxAtomicTerminalSnapshot.compose(proposal)
+                        .values().equals(terminal.values()))
+                    throw new IllegalStateException(
+                        "G21.65 terminal postimage changed in worker");
+                boolean exact=state==
+                    TerminalPrepublicationEvidence.State
+                        .EXACT_PREPARED_NO_GRANT;
+                unpin(exact);
+                completion.complete(new TerminalPrepublicationEvidence(
+                    state,token
+                ));
+            }catch(Throwable failure){
+                unpin(false);
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightTerminalPreflight.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+            unpin(false);
+        }
+    }
+
+    /**
+     * Reserves a FIFO position AFTER all earlier admitted account saves.
+     * Later account saves are blocked by G21.27's held reservation.
+     * Terminal bytes are independently re-derived from the exact proposal
+     * both on admission and on the existing persistence worker.
+     *
+     * All evidence returned is non-persistent and NON-GRANTING.
+     */
+    CompletableFuture<TerminalPrepublicationEvidence>
+        preflightReservedTerminalPublication(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(terminal,"terminal");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.65 terminal preflight cannot run on World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.65 file-backed repository required"
+            );
+        if(terminal.version()!=PlayerSnapshot.CURRENT_VERSION||
+           !terminal.username().equals(proposal.account)||
+           MailboxAtomicTerminalSnapshot.inspect(terminal).state!=
+               MailboxAtomicTerminalSnapshot.State
+                   .COHERENT_TERMINAL_NO_GRANT||
+           !MailboxAtomicTerminalSnapshot.compose(proposal)
+               .values().equals(terminal.values()))
+            throw new IllegalArgumentException(
+                "G21.65 supplied terminal snapshot not exact"
+            );
+
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.65 terminal preflight worker shut down"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.generation!=proposal.ownerGeneration||
+                   !token.intentKey.equals(proposal.idempotencyKey))
+                    throw new IllegalStateException(
+                        "G21.65 reservation retired at enqueue"
+                    );
+                if(token.pendingDrains!=0)
+                    throw new IllegalStateException(
+                        "G21.65 duplicate reserved account IO pending"
+                    );
+                ReservedTerminalPreflightTask task=
+                    new ReservedTerminalPreflightTask(
+                        token,proposal,terminal
+                    );
+                io.execute(task);
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
     private static String preparedAccountMessageId(
         PreparedAccountReservation reservation
     ){
@@ -2707,6 +2895,12 @@ final class WorldPlayerPersistence
                 continue;
             }
 
+            if(runnable instanceof ReservedTerminalPreflightTask){
+                counts.loads++;
+                ((ReservedTerminalPreflightTask)runnable).reject(error);
+                continue;
+            }
+
             if(runnable instanceof CheckpointDrainTask){
                 counts.checkpoints++;
                 ((CheckpointDrainTask)runnable).reject(
@@ -2826,6 +3020,16 @@ final class WorldPlayerPersistence
         return true;
     }
 
+    private boolean rejectInFlightTerminalPreflight(String stage){
+        ReservedTerminalPreflightTask active=
+            inFlightTerminalPreflight.get();
+        if(active==null)return false;
+        active.reject(new RejectedExecutionException(
+            "G21.65 terminal preflight outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
     private boolean rejectInFlightStrictBarrier(String stage){
         PreparedStrictBarrierTask active=inFlightStrictBarrier.get();
         if(active==null)
@@ -2927,6 +3131,10 @@ final class WorldPlayerPersistence
                     !clean&&rejectInFlightPreparedDrain(
                         "SHUTDOWN_RESERVED_DRAIN_IN_FLIGHT"
                     );
+                boolean terminalPreflightSettled=
+                    !clean&&rejectInFlightTerminalPreflight(
+                        "SHUTDOWN_TERMINAL_PREFLIGHT_IN_FLIGHT"
+                    );
                 boolean checkpointInFlightSettled=
                     !clean&&
                     abortInFlightCheckpoint(
@@ -2971,6 +3179,10 @@ final class WorldPlayerPersistence
             boolean inFlightSettled=
                 rejectInFlightSave(
                     "SHUTDOWN_INTERRUPTED_IN_FLIGHT"
+                );
+            boolean terminalPreflightSettled=
+                rejectInFlightTerminalPreflight(
+                    "SHUTDOWN_INTERRUPTED_TERMINAL_PREFLIGHT"
                 );
             boolean checkpointInFlightSettled=
                 abortInFlightCheckpoint(
