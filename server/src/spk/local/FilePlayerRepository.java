@@ -29,6 +29,8 @@ final class FilePlayerRepository
     private final BeforeWorldReplace beforeWorldReplace;
     /** Test-only hook inside the exclusive last-check/replace section. */
     private final BeforeWorldReplace insideWorldPublication;
+    /** G21.58 test seam after bytes are read, before session marker recheck. */
+    private final BeforeWorldReplace afterWorldSessionRead;
 
     FilePlayerRepository(){
         this(
@@ -53,6 +55,15 @@ final class FilePlayerRepository
         PathResolver paths,BeforeWorldReplace beforeWorldReplace,
         BeforeWorldReplace insideWorldPublication
     ){
+        this(paths,beforeWorldReplace,insideWorldPublication,account->{});
+    }
+
+    /** Package-scoped deterministic guarded-read injection only. */
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication,
+        BeforeWorldReplace afterWorldSessionRead
+    ){
         this.paths=Objects.requireNonNull(paths,"paths");
         this.beforeWorldReplace=Objects.requireNonNull(
             beforeWorldReplace,"beforeWorldReplace"
@@ -60,13 +71,62 @@ final class FilePlayerRepository
         this.insideWorldPublication=Objects.requireNonNull(
             insideWorldPublication,"insideWorldPublication"
         );
+        this.afterWorldSessionRead=Objects.requireNonNull(
+            afterWorldSessionRead,"afterWorldSessionRead"
+        );
     }
 
     @Override public Optional<PlayerSnapshot> load(
         String username
     )throws IOException{
-        Path file=normalizedPath(username);
+        return loadExactFile(username,normalizedPath(username));
+    }
 
+    /**
+     * G21.58 session-only negative admission: read the very same account
+     * file that supplies all four negative marker names. A resolver drift
+     * before return is a refusal, not a fresh file-selection instruction.
+     * Raw repository.load remains a non-admitting forensic primitive.
+     */
+    Optional<PlayerSnapshot> loadForWorldSession(
+        String username
+    )throws IOException{
+        final String account=clean(username);
+        final Path file=normalizedPath(account);
+        final PathResolver markerPaths=requested->{
+            if(!account.equals(clean(requested)))
+                throw new IllegalArgumentException(
+                    "G21.58 session marker account identity changed"
+                );
+            return file;
+        };
+        requireUnfencedSessionLoad(account,markerPaths);
+        Optional<PlayerSnapshot> observed=loadExactFile(account,file);
+        afterWorldSessionRead.run(account);
+        requireUnfencedSessionLoad(account,markerPaths);
+        if(!file.equals(normalizedPath(account)))
+            throw new IOException(
+                "G21.58 MAILBOX_SESSION_ACCOUNT_PATH_CHANGED"+
+                " account="+account+" action=REJECT_SESSION"
+            );
+        return observed;
+    }
+
+    private void requireUnfencedSessionLoad(
+        String account,PathResolver markerPaths
+    )throws IOException{
+        if(new MailboxDurableReviewFence(markerPaths).present(account)||
+           new MailboxStrictUncertainFence(markerPaths).present(account)||
+           new MailboxStrictWriteIntentFence(markerPaths).present(account))
+            throw new IOException(
+                "G21.32 MAILBOX_DURABLE_REVIEW_FENCE"+
+                " account="+account+" action=REJECT_SESSION"
+            );
+    }
+
+    private Optional<PlayerSnapshot> loadExactFile(
+        String username,Path file
+    )throws IOException{
         if(!Files.isRegularFile(file))
             return Optional.empty();
 
