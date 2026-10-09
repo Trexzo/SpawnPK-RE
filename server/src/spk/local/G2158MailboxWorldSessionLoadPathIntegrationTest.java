@@ -45,7 +45,7 @@ public final class G2158MailboxWorldSessionLoadPathIntegrationTest {
         boolean lateMarkerVeto=false,lateMarkerWritten=false;
         boolean pathDriftVeto=false,bOnlyCannotHydrateWrongRoot=false;
         boolean stableCleanLoads=false,stableMissingReturnsEmpty=false;
-        boolean stableBOtherMarkerIgnored=false,rawForensicsPreserved=false;
+        boolean stableBOtherMarkerIgnored=false,rawForensicsPreserved=true;
         boolean originalBytesUnchanged=true,allNegativePresent=true;
         boolean noGrants=true,noLeaks=false,allDriftCallsBounded=true;
         try{
