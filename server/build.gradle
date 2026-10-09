@@ -2179,6 +2179,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2158MailboxWorldSessionLoadPathIntegrationTest',
     'spk.local.G2159MailboxCooperatingSessionReadPublicationIntegrationTest',
     'spk.local.G2160MailboxAdmittedFileIdentityIntegrationTest',
+    'spk.local.G2161MailboxAdmittedByteFingerprintIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2207,10 +2208,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 360 ||
-    currentTrainFocusedTests.toSet().size() != 360) {
+if (currentTrainFocusedTests.size() != 361 ||
+    currentTrainFocusedTests.toSet().size() != 361) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 360 unique tests, found " +
+        "Current-train focused manifest drift: expected 361 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3198,6 +3199,14 @@ tasks.register('g2160MailboxAdmittedFileIdentityRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2160MailboxAdmittedFileIdentityIntegrationTest')
+}
+
+tasks.register('g2161MailboxAdmittedByteFingerprintRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject same-size timestamp-preserving admitted account byte rewrites.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2161MailboxAdmittedByteFingerprintIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
