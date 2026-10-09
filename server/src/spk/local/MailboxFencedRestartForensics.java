@@ -2,6 +2,8 @@ package spk.local;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.LinkOption;
@@ -44,7 +46,11 @@ final class MailboxFencedRestartForensics {
         STRICT_MARKER_ACCOUNT_READ_FAILED,
         STRICT_MARKER_MISSING_ACCOUNT,
         STRICT_MARKER_INVALID_ACCOUNT,
-        STRICT_LEGACY_UNVERIFIED_NO_AUTHORITY
+        STRICT_LEGACY_UNVERIFIED_NO_AUTHORITY,
+        STRICT_LEGACY_CHECKSUM_VALID_EXACT_NO_AUTHORITY,
+        STRICT_LEGACY_CHECKSUM_VALID_DIVERGENT_NO_AUTHORITY,
+        STRICT_LEGACY_INVALID_RECORD_NO_AUTHORITY,
+        STRICT_LEGACY_CHANGED_NO_AUTHORITY
     }
 
     static final class Report {
@@ -103,9 +109,8 @@ final class MailboxFencedRestartForensics {
                 accountFile,".g2147-strict-postpublication-review"
             );
             if(markerPresent(legacy))
-                return result(
-                    State.STRICT_LEGACY_UNVERIFIED_NO_AUTHORITY,
-                    account,null
+                return inspectLegacyStrictNegative(
+                    persistence,account,legacy
                 );
         }catch(IOException|RuntimeException badMarkerLocator){
             return result(State.STRICT_MARKER_INVALID,account,null);
@@ -256,6 +261,117 @@ final class MailboxFencedRestartForensics {
            !status.equals(fields[3]))
             throw new IOException("G21.49 strict marker format/identity");
         return new StrictNegativeRecord(fields[1],fields[2],bytes);
+    }
+
+
+    /**
+     * Prior A branch has a DIFFERENT (checksum-protected) write-once
+     * pathname and format. Support strictly read-only parsing here so
+     * operators do not confuse valid legacy review with corrupt G21.32
+     * proposal evidence. SHA-256 is unkeyed: this proves neither authorship
+     * nor a successful inventory/mailbox settlement.
+     */
+    private static StrictNegativeRecord readLegacyNegative(
+        Path markerPath,String expectedAccount
+    )throws IOException{
+        BasicFileAttributes attrs=Files.readAttributes(
+            markerPath,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+        );
+        if(!attrs.isRegularFile()||attrs.size()<80||attrs.size()>512)
+            throw new IOException("G21.49 old strict marker type/size");
+        byte[] bytes=Files.readAllBytes(markerPath);
+        if(bytes.length<80||bytes.length>512)
+            throw new IOException("G21.49 old strict marker size");
+        String raw=new String(bytes,StandardCharsets.US_ASCII);
+        if(!Arrays.equals(raw.getBytes(StandardCharsets.US_ASCII),bytes))
+            throw new IOException("G21.49 old marker not ASCII");
+        String[] fields=raw.split("\\n",-1);
+        if(fields.length!=6||!fields[5].isEmpty()||
+           !"SPK-G2147-STRICT-POSTPUBLICATION-UNCERTAIN-V1".equals(
+               fields[0]
+           )||
+           !"REVIEW_REQUIRED_NO_GRANT".equals(fields[1])||
+           !expectedAccount.equals(fields[2])||
+           !fields[3].matches("[0-9a-f]{64}")||
+           !fields[4].matches("[0-9a-f]{64}"))
+            throw new IOException("G21.49 old marker identity/format");
+        String payload=fields[0]+"\\n"+fields[1]+"\\n"+
+            fields[2]+"\\n"+fields[3]+"\\n";
+        final byte[] checksum;
+        try{
+            checksum=MessageDigest.getInstance("SHA-256").digest(
+                payload.getBytes(StandardCharsets.US_ASCII)
+            );
+        }catch(NoSuchAlgorithmException unavailable){
+            throw new IOException("SHA-256 unavailable",unavailable);
+        }
+        char[] hex=new char[checksum.length*2];
+        final char[] alphabet="0123456789abcdef".toCharArray();
+        for(int k=0;k<checksum.length;k++){
+            int b=checksum[k]&255;
+            hex[k*2]=alphabet[b>>>4];
+            hex[k*2+1]=alphabet[b&15];
+        }
+        if(!fields[4].equals(new String(hex)))
+            throw new IOException("G21.49 old marker checksum mismatch");
+        return new StrictNegativeRecord(fields[2],fields[3],bytes);
+    }
+
+    private static Report inspectLegacyStrictNegative(
+        WorldPlayerPersistence persistence,String account,Path marker
+    ){
+        final StrictNegativeRecord before;
+        try{
+            before=readLegacyNegative(marker,account);
+        }catch(IOException|RuntimeException malformed){
+            return result(
+                State.STRICT_LEGACY_INVALID_RECORD_NO_AUTHORITY,
+                account,null
+            );
+        }
+        final Optional<PlayerSnapshot> snapshot;
+        try{
+            snapshot=persistence.observeUntrustedMailboxAccount(account);
+        }catch(IOException|RuntimeException readFailure){
+            return result(
+                State.STRICT_MARKER_ACCOUNT_READ_FAILED,account,null
+            );
+        }
+        try{
+            StrictNegativeRecord after=readLegacyNegative(marker,account);
+            if(!Arrays.equals(before.bytes,after.bytes))
+                return result(
+                    State.STRICT_LEGACY_CHANGED_NO_AUTHORITY,account,null
+                );
+        }catch(IOException|RuntimeException changed){
+            return result(
+                State.STRICT_LEGACY_CHANGED_NO_AUTHORITY,account,null
+            );
+        }
+        if(!snapshot.isPresent())
+            return result(State.STRICT_MARKER_MISSING_ACCOUNT,account,null);
+        PlayerSnapshot saved=snapshot.get();
+        if(!account.equals(saved.username())||
+           saved.version()!=PlayerSnapshot.CURRENT_VERSION)
+            return result(State.STRICT_MARKER_INVALID_ACCOUNT,account,null);
+        final PlayerSnapshot canonical;
+        try{
+            canonical=PlayerSnapshotCodec.validateAndNormalize(saved);
+            if(!canonical.values().equals(saved.values()))
+                return result(
+                    State.STRICT_MARKER_INVALID_ACCOUNT,account,null
+                );
+        }catch(RuntimeException invalid){
+            return result(State.STRICT_MARKER_INVALID_ACCOUNT,account,null);
+        }
+        String sha=StrictDurablePlayerSnapshotWriter
+            .canonicalSnapshotSha256(canonical);
+        return result(
+            sha.equals(before.snapshotSha)
+                ?State.STRICT_LEGACY_CHECKSUM_VALID_EXACT_NO_AUTHORITY
+                :State.STRICT_LEGACY_CHECKSUM_VALID_DIVERGENT_NO_AUTHORITY,
+            account,sha
+        );
     }
 
     private static Report inspectStrictNegative(
