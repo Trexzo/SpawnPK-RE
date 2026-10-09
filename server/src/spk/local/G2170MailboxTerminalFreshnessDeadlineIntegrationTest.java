@@ -154,6 +154,17 @@ public final class G2170MailboxTerminalFreshnessDeadlineIntegrationTest {
                         throw new IllegalStateException(
                             "G21.70 unrelated World blocker expired");
                 });
+            Thread timedWorldRelease=new Thread(()->{
+                try{
+                    // Release only AFTER the full G21.70 5s budget,
+                    // but BEFORE the fixture's own 8s timeout.
+                    Thread.sleep(6200L);
+                }catch(InterruptedException interruption){
+                    Thread.currentThread().interrupt();
+                }finally{
+                    worldRelease.countDown();
+                }
+            },"g2170-world-stall-controlled-release");
             try{
                 if(!worldEntered.await(5L,TimeUnit.SECONDS))
                     throw new AssertionError(
@@ -164,6 +175,7 @@ public final class G2170MailboxTerminalFreshnessDeadlineIntegrationTest {
                     .attestReservedTerminalWorldFreshness(
                         tickDelayed.token,tickDelayed.proposal,
                         tickDelayed.candidate);
+                timedWorldRelease.start();
                 Throwable delayedOutcome=failed(delayed);
                 blockedWorldDeadlineEnforced=delayedOutcome!=null&&
                     tickDelayed.token.isActive();
@@ -183,6 +195,8 @@ public final class G2170MailboxTerminalFreshnessDeadlineIntegrationTest {
                             tickDelayed.candidate));
             }finally{
                 worldRelease.countDown();
+                if(timedWorldRelease.isAlive())
+                    timedWorldRelease.join(4000L);
             }
 
             Seed retired=seed(world,writer,"g2170-retired");
