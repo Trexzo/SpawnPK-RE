@@ -1746,7 +1746,8 @@ final class WorldPlayerPersistence
                             ),
                             ()->requirePreparedOwnerStillCurrentAtPublication(
                                 owner,expectedGeneration,snapshot
-                            )
+                            ),
+                            true // G21.48: write-ahead negative intent
                         )
                         :writer.saveStrict(snapshot);
                 completion.complete(receipt);
