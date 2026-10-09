@@ -1508,24 +1508,16 @@ final class WorldPlayerPersistence
                 // any session snapshot hydration, including absent accounts.
                 // Read-only G21.26 forensic observations intentionally skip
                 // admission but must never be used as session loads.
-                if(enforceAdmission&&
-                   repository instanceof FilePlayerRepository&&
-                   ((FilePlayerRepository)repository)
-                       .hasUnresolvedMailboxReviewFence(username))
-                    throw new IOException(
-                        "G21.32 MAILBOX_DURABLE_REVIEW_FENCE"+
-                        " account="+username+" action=REJECT_SESSION"
-                    );
+                // G21.58: anchor both negative-marker admission checks
+                // and the account snapshot read to one file-backed path.
+                // Unadmitted read-only forensic observations and non-file
+                // PlayerRepository adapters retain their old read path.
                 java.util.Optional<PlayerSnapshot> loaded=
-                    repository.load(username);
-                if(enforceAdmission&&
-                   repository instanceof FilePlayerRepository&&
-                   ((FilePlayerRepository)repository)
-                       .hasUnresolvedMailboxReviewFence(username))
-                    throw new IOException(
-                        "G21.32 MAILBOX_DURABLE_REVIEW_FENCE"+
-                        " account="+username+" action=REJECT_SESSION"
-                    );
+                    enforceAdmission&&
+                        repository instanceof FilePlayerRepository
+                        ?((FilePlayerRepository)repository)
+                            .loadForWorldSession(username)
+                        :repository.load(username);
                 if(enforceAdmission&&loaded.isPresent()){
                     MailboxPreparedRestartAdmission.Decision admission=
                         MailboxPreparedRestartAdmission.inspect(
