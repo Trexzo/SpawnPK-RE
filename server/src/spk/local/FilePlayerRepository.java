@@ -495,8 +495,11 @@ final class FilePlayerRepository
                 );
             return pinned;
         };
+        // G21.73: forensic observations must never remain queued
+        // indefinitely behind another cooperating process's writer.
+        // This bounds acquisition, not the subsequent disk read.
         return MailboxAccountPublicationCoordinator
-            .withExclusivePublication(pinned,()->{
+            .withExclusivePublicationBounded(pinned,1500L,()->{
                 String first=restartWitnessInsidePublication(
                     account,pinned,bound);
                 String second=restartWitnessInsidePublication(
