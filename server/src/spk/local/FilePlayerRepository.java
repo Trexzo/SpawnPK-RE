@@ -161,6 +161,186 @@ final class FilePlayerRepository
             });
     }
 
+
+    /**
+     * G21.71: non-admitting restart recovery FORENSICS for an expired,
+     * interrupted or uncertain Mailbox terminal attempt.
+     *
+     * This observation intentionally does not return a PlayerSnapshot,
+     * clear markers, authorize replay, or accept an existing account
+     * into World. Only the ordinary World session admission can do so.
+     */
+    static final class RestartRecoveryEvidence {
+        enum State {
+            DURABLE_REVIEW_MARKER,
+            UNCERTAIN_COMMIT_MARKER,
+            STRANDED_WRITE_INTENT_MARKER,
+            MISSING_ACCOUNT_NO_REPLAY,
+            COHERENT_TERMINAL_QUARANTINE,
+            INVALID_TERMINAL_QUARANTINE,
+            PREPARED_UNCLAIMED_NO_REPLAY,
+            INVALID_PREPARED_QUARANTINE,
+            LEGACY_NO_JOURNAL_NON_ADMITTING
+        }
+        final State state;
+        final String account;
+        final boolean pinnedPublicationLockObserved=true;
+        final boolean exactObjectAndBytesObserved;
+        final boolean restartAdmissionAuthorized=false;
+        final boolean durabilityConfirmed=false;
+        final boolean transactionCommitted=false;
+        final boolean liveApplied=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean rollbackAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+
+        private RestartRecoveryEvidence(
+            String account,State state,boolean exact
+        ){
+            this.account=account;
+            this.state=Objects.requireNonNull(state,"state");
+            this.exactObjectAndBytesObserved=exact;
+        }
+    }
+
+    /**
+     * Bit-presence, not marker-body acceptance. Any marker (including
+     * malformed/nonregular/symlink) denies automatic recovery; marker
+     * metadata failures throw IOException and cannot grant access.
+     */
+    private static int restartReviewMask(
+        String account,PathResolver pinned
+    )throws IOException{
+        int mask=0;
+        if(new MailboxDurableReviewFence(pinned).present(account))
+            mask|=1;
+        if(new MailboxStrictUncertainFence(pinned).present(account))
+            mask|=2;
+        if(new MailboxStrictWriteIntentFence(pinned).present(account))
+            mask|=4;
+        return mask;
+    }
+
+    private static RestartRecoveryEvidence.State restartMarkerReason(
+        int mask
+    ){
+        if((mask&1)!=0)
+            return RestartRecoveryEvidence.State.DURABLE_REVIEW_MARKER;
+        if((mask&2)!=0)
+            return RestartRecoveryEvidence.State.UNCERTAIN_COMMIT_MARKER;
+        return RestartRecoveryEvidence.State.STRANDED_WRITE_INTENT_MARKER;
+    }
+
+    RestartRecoveryEvidence inspectRestartRecoveryReadOnly(
+        String username
+    )throws IOException{
+        final String account=clean(username);
+        final Path pinned=normalizedPath(account);
+        final PathResolver sameFile=requested->{
+            if(!account.equals(clean(requested)))
+                throw new IllegalArgumentException(
+                    "G21.71 recovery account identity changed"
+                );
+            return pinned;
+        };
+        return MailboxAccountPublicationCoordinator
+            .withExclusivePublication(pinned,()->{
+                final int markersBefore=restartReviewMask(
+                    account,sameFile
+                );
+                // A negative sidecar is sufficient to quarantine
+                // regardless of the current account bytes. Recheck the
+                // exact marker set before returning, under the lock.
+                if(markersBefore!=0){
+                    afterWorldSessionRead.run(account);
+                    if(markersBefore!=restartReviewMask(
+                            account,sameFile)||
+                       !pinned.equals(normalizedPath(account)))
+                        throw new IOException(
+                            "G21.71 RECOVERY_MARKER_OR_PATH_CHANGED_NO_GRANT"
+                        );
+                    return new RestartRecoveryEvidence(
+                        account,restartMarkerReason(markersBefore),false
+                    );
+                }
+
+                // Reuse G21.60/61 session-quality NOFOLLOW metadata,
+                // digest during decoded read, and independent digest.
+                BasicFileAttributes before=
+                    admittedAccountFileEvidence(account,pinned);
+                MessageDigest firstDigest=newAccountDigest();
+                Optional<PlayerSnapshot> read=loadExactFile(
+                    account,pinned,true,firstDigest
+                );
+                afterWorldSessionRead.run(account);
+                int markersAfter=restartReviewMask(account,sameFile);
+                if(markersAfter!=markersBefore||
+                   !pinned.equals(normalizedPath(account)))
+                    throw new IOException(
+                        "G21.71 RECOVERY_MARKER_OR_PATH_CHANGED_NO_GRANT"
+                    );
+                BasicFileAttributes after=
+                    admittedAccountFileEvidence(account,pinned);
+                if(!sameAdmittedAccountObject(before,after))
+                    throw new IOException(
+                        "G21.71 RECOVERY_FILE_OBJECT_CHANGED_NO_GRANT"
+                    );
+                if(before==null){
+                    if(read.isPresent())
+                        throw new IOException(
+                            "G21.71 MISSING_ACCOUNT_OBJECT_INCONSISTENT"
+                        );
+                    return new RestartRecoveryEvidence(
+                        account,
+                        RestartRecoveryEvidence.State
+                            .MISSING_ACCOUNT_NO_REPLAY,
+                        false
+                    );
+                }
+                if(!read.isPresent()||
+                   !MessageDigest.isEqual(firstDigest.digest(),
+                       digestAdmittedAccountFile(pinned))||
+                   !sameAdmittedAccountObject(before,
+                       admittedAccountFileEvidence(account,pinned))||
+                   restartReviewMask(account,sameFile)!=markersBefore||
+                   !pinned.equals(normalizedPath(account)))
+                    throw new IOException(
+                        "G21.71 RECOVERY_ACCOUNT_BYTES_CHANGED_NO_GRANT"
+                    );
+                PlayerSnapshot disk=read.get();
+                MailboxAtomicTerminalSnapshot.Observation terminal=
+                    MailboxAtomicTerminalSnapshot.inspect(disk);
+                final RestartRecoveryEvidence.State state;
+                if(terminal.state==
+                        MailboxAtomicTerminalSnapshot.State
+                            .COHERENT_TERMINAL_NO_GRANT)
+                    state=RestartRecoveryEvidence.State
+                        .COHERENT_TERMINAL_QUARANTINE;
+                else if(terminal.state==
+                        MailboxAtomicTerminalSnapshot.State.INVALID_TERMINAL)
+                    state=RestartRecoveryEvidence.State
+                        .INVALID_TERMINAL_QUARANTINE;
+                else{
+                    MailboxPreparedRestartAdmission.Decision restart=
+                        MailboxPreparedRestartAdmission.inspect(disk);
+                    if(restart.state==
+                            MailboxPreparedRestartAdmission.State
+                                .VALID_PREPARED_UNCLAIMED)
+                        state=RestartRecoveryEvidence.State
+                            .PREPARED_UNCLAIMED_NO_REPLAY;
+                    else if(restart.state==
+                            MailboxPreparedRestartAdmission.State.NO_JOURNAL)
+                        state=RestartRecoveryEvidence.State
+                            .LEGACY_NO_JOURNAL_NON_ADMITTING;
+                    else state=RestartRecoveryEvidence.State
+                        .INVALID_PREPARED_QUARANTINE;
+                }
+                return new RestartRecoveryEvidence(account,state,true);
+            });
+    }
+
     private void requireUnfencedSessionLoad(
         String account,PathResolver markerPaths
     )throws IOException{
