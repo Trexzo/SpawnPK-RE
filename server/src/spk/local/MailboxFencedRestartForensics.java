@@ -96,7 +96,9 @@ final class MailboxFencedRestartForensics {
             return result(State.MULTIPLE_NEGATIVE_MARKERS_INVALID_NO_AUTHORITY,account,null);
         }
         if(before.problem!=null)return result(before.problem,account,null);
-        Report report=inspectSingleMarker(persistence,fence,account);
+        Report report=inspectSingleMarker(
+            persistence,fence,account,before.accountFile
+        );
         final MarkerSet after;
         try{
             after=inspectMarkerSet(fence,account);
@@ -150,7 +152,7 @@ final class MailboxFencedRestartForensics {
     private static Report inspectSingleMarker(
         WorldPlayerPersistence persistence,
         MailboxDurableReviewFence fence,
-        String account
+        String account,Path anchoredAccountFile
     ){
         Objects.requireNonNull(persistence,"persistence");
         Objects.requireNonNull(fence,"fence");
@@ -159,7 +161,10 @@ final class MailboxFencedRestartForensics {
         // Distinct B negative markers must not be passed to the G21.32
         // parser and mislabeled as a malformed proposal.
         try{
-            Path accountFile=fence.accountFileForStrictReview(account);
+            // G21.55: the inner observer must not resolve an
+            // independently changing account root. Both inner formats
+            // and the two outer marker censuses use this same anchor.
+            Path accountFile=anchoredAccountFile;
             Path permanent=sidecarPath(
                 accountFile,".g2147-strict-uncertain"
             );
@@ -188,11 +193,14 @@ final class MailboxFencedRestartForensics {
             return result(State.STRICT_MARKER_INVALID,account,null);
         }
 
+        final Path review=sidecarPath(
+            anchoredAccountFile,".g2132-mailbox-review"
+        );
         final MailboxDurableReviewFence.Record marker;
         try{
-            if(!fence.present(account))
+            if(!markerPresent(review))
                 return result(State.NO_FENCE_NO_AUTHORITY,account,null);
-            marker=fence.inspect(account);
+            marker=fence.inspectExactMarkerPath(account,review);
         }catch(IOException|RuntimeException unreadable){
             return result(State.INVALID_OR_UNREADABLE_FENCE,account,null);
         }
@@ -209,12 +217,12 @@ final class MailboxFencedRestartForensics {
         // from being presented as stable evidence. This does NOT provide
         // transaction-wide atomicity across two independent files.
         try{
-            if(!fence.present(account))
+            if(!markerPresent(review))
                 return result(
                     State.FENCE_DISAPPEARED_OR_CHANGED,account,null
                 );
             MailboxDurableReviewFence.Record rechecked=
-                fence.inspect(account);
+                fence.inspectExactMarkerPath(account,review);
             if(!sameMarker(marker,rechecked))
                 return result(
                     State.FENCE_DISAPPEARED_OR_CHANGED,account,null
