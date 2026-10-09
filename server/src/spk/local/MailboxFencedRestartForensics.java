@@ -54,7 +54,8 @@ final class MailboxFencedRestartForensics {
         MULTIPLE_NEGATIVE_MARKERS_CONFLICT_NO_AUTHORITY,
         MULTIPLE_NEGATIVE_MARKERS_INVALID_NO_AUTHORITY,
         MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,
-        SINGLE_NEGATIVE_MARKER_MEMBERSHIP_CHANGED_NO_AUTHORITY
+        SINGLE_NEGATIVE_MARKER_MEMBERSHIP_CHANGED_NO_AUTHORITY,
+        SINGLE_NEGATIVE_MARKER_CONTENT_CHANGED_NO_AUTHORITY
     }
 
     static final class Report {
@@ -113,7 +114,31 @@ final class MailboxFencedRestartForensics {
         if((before.count>=2||after.count>=2)&&!before.matches(after))
             return result(State.MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,account,null);
         if(after.problem!=null)return result(after.problem,account,null);
+        if(before.count==1&&after.count==1&&!before.matches(after)&&
+           !alreadyInvalidOrChanged(report.state))
+            return result(
+                State.SINGLE_NEGATIVE_MARKER_CONTENT_CHANGED_NO_AUTHORITY,
+                account,null
+            );
         return report;
+    }
+
+    /**
+     * Preserve G21.33/G21.49's more specific single-marker diagnostic
+     * when its own inner parser has already detected invalid/change.
+     */
+    private static boolean alreadyInvalidOrChanged(State state){
+        switch(state){
+            case INVALID_OR_UNREADABLE_FENCE:
+            case FENCE_DISAPPEARED_OR_CHANGED:
+            case STRICT_MARKER_INVALID:
+            case STRICT_MARKER_CHANGED:
+            case STRICT_LEGACY_INVALID_RECORD_NO_AUTHORITY:
+            case STRICT_LEGACY_CHANGED_NO_AUTHORITY:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static Report inspectSingleMarker(
@@ -261,7 +286,29 @@ final class MailboxFencedRestartForensics {
             present[i]=markerPresent(paths[i]);
             if(present[i])count++;
         }
-        if(count<2)return new MarkerSet(present,evidence,count,null);
+        if(count==1){
+            // G21.53: the inner G21.33/G21.49 parser may have finished
+            // before this final census. Pin bounded raw bytes on both
+            // sides to detect a late same-path rewrite without trusting
+            // the bytes or altering the existing parser classifications.
+            for(int i=0;i<paths.length;i++){
+                if(!present[i])continue;
+                final int min=i==3||i==2?80:60;
+                final int max=i==3?2048:(i==2?512:384);
+                try{
+                    evidence[i]=MailboxNegativeMarkerBoundedRead.read(
+                        paths[i],min,max
+                    );
+                }catch(IOException|RuntimeException invalid){
+                    // Let the original single-marker parser emit its
+                    // historical invalid/read-failure classification.
+                    // Null vs valid evidence still detects a late rewrite.
+                    evidence[i]=null;
+                }
+            }
+            return new MarkerSet(present,evidence,count,null);
+        }
+        if(count==0)return new MarkerSet(present,evidence,count,null);
         String strict=null;
         MailboxDurableReviewFence.Record proposal=null;
         try{
