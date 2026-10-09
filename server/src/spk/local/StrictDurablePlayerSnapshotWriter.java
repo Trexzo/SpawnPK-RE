@@ -247,9 +247,30 @@ final class StrictDurablePlayerSnapshotWriter {
                         // Check complete live state before Files.move,
                         // without holding its mutation lock over I/O.
                         publicationCheck.requireStillCurrent();
-                        publishStrictReplacement(
-                            temp,file,parent,replaced
-                        );
+                        try{
+                            publishStrictReplacement(
+                                temp,file,parent,replaced
+                            );
+                        }catch(UnconfirmedCommitException postmove){
+                            // G21.48: ATOMIC_MOVE already happened, but
+                            // parent-directory metadata force failed.
+                            // This was an uncertainty path even before
+                            // G21.46's late-owner recheck. Keep its
+                            // original exception and publish the same
+                            // negative-only G21.47 sidecar under this
+                            // already-held per-account publication lock.
+                            try{
+                                MailboxStrictUncertainFence
+                                    .publishWhileAccountLocked(worldFile);
+                            }catch(IOException|RuntimeException fenceFault){
+                                postmove.addSuppressed(new IOException(
+                                    "G21.48 POSTMOVE_QUARANTINE_UNPROVEN "+
+                                    "account="+account,
+                                    fenceFault
+                                ));
+                            }
+                            throw postmove;
+                        }
                         // G21.46: if World-owned state changed while
                         // the file was being moved/forced, the filesystem
                         // may already contain this older snapshot.
