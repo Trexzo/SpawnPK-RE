@@ -44,7 +44,7 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
             PlayerSnapshot d=seed(repository,"g2149-dual");
             seed(repository,"g2149-clean");
             PlayerSnapshot legacySnapshot=seed(repository,"g2149-legacy");
-            Path legacy=paths.resolve("g2149-legacy.properties"+
+            Path legacy=root.resolve("g2149-legacy.properties"+
                 ".g2147-strict-postpublication-review");
             Files.writeString(
                 legacy,legacyRecord(
