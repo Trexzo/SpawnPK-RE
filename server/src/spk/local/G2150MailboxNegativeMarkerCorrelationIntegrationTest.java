@@ -7,6 +7,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /** G21.50: multiple negative files require consistent diagnostic evidence.
@@ -23,6 +29,7 @@ public final class G2150MailboxNegativeMarkerCorrelationIntegrationTest {
         boolean agrees=false,conflict=false,damaged=false,legacyConflict=false;
         boolean clean=false,allNegative=true,veto=true,resourceClean=false;
         boolean proposalAgree=false,proposalConflict=false,noItemCredit=false;
+        boolean changedWhileForensicRead=false;
         try{
             PlayerSnapshot a=seed(repo,"g2150-agree");
             PlayerSnapshot b=seed(repo,"g2150-conflict");
@@ -102,6 +109,36 @@ public final class G2150MailboxNegativeMarkerCorrelationIntegrationTest {
                         "g2150-corrupt","g2150-legacy"})
                     veto&=refused(world,account);
             }
+            // Reproduce actual FIFO forensic observation while a second
+            // sidecar changes: never retain the first marker's exact label.
+            HoldingRepository holding=new HoldingRepository(
+                repo,"g2150-agree");
+            try(World observation=World.isolatedForTest(60000L,holding)){
+                observation.start();
+                ExecutorService thread=Executors.newSingleThreadExecutor();
+                try{
+                    CompletableFuture<MailboxFencedRestartForensics.Report>
+                        pending=CompletableFuture.supplyAsync(
+                            ()->inspect(observation,proposals,"g2150-agree"),
+                            thread);
+                    if(!holding.entered.await(5,TimeUnit.SECONDS))
+                        throw new AssertionError("G21.50 FIFO pause missing");
+                    Files.writeString(
+                        intent.fencePath("g2150-agree"),
+                        "changed during forensic FIFO read"
+                    );
+                    holding.resume.countDown();
+                    MailboxFencedRestartForensics.Report changed=
+                        pending.get(8,TimeUnit.SECONDS);
+                    changedWhileForensicRead=changed.state==
+                        MailboxFencedRestartForensics.State
+                            .MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY;
+                    allNegative&=noAuthority(changed);
+                }finally{
+                    holding.resume.countDown();
+                    thread.shutdownNow();
+                }
+            }
             try(Stream<Path> p=Files.list(root)){
                 resourceClean=p.noneMatch(x->
                     x.getFileName().toString().endsWith(".tmp"))&&
@@ -118,14 +155,43 @@ public final class G2150MailboxNegativeMarkerCorrelationIntegrationTest {
             " malformedSecondary="+damaged+" legacyConflict="+legacyConflict+
             " clean="+clean+" proposalAgree="+proposalAgree+
             " proposalConflict="+proposalConflict+
-            " noItemCredit="+noItemCredit+" allNoAuthority="+allNegative+
+            " noItemCredit="+noItemCredit+
+            " markerChangedDuringFIFO="+changedWhileForensicRead+
+            " allNoAuthority="+allNegative+
             " allRestartVeto="+veto+" resourceClean="+resourceClean);
         if(!(agrees&&conflict&&damaged&&legacyConflict&&clean&&
              proposalAgree&&proposalConflict&&noItemCredit&&
-             allNegative&&veto&&resourceClean))
+             changedWhileForensicRead&&allNegative&&veto&&resourceClean))
             throw new AssertionError("G21.50 marker correlation failure");
         System.out.println("G2150_MARKER_CORRELATION_PASS"+
             " grant=false replay=false release=false");
+    }
+
+    private static final class HoldingRepository implements PlayerRepository {
+        private final FilePlayerRepository underlying;
+        private final String heldAccount;
+        final CountDownLatch entered=new CountDownLatch(1);
+        final CountDownLatch resume=new CountDownLatch(1);
+        HoldingRepository(FilePlayerRepository repo,String account){
+            underlying=repo;heldAccount=account;
+        }
+        @Override public Optional<PlayerSnapshot> load(String account)
+            throws IOException{
+            if(heldAccount.equals(account)){
+                entered.countDown();
+                try{
+                    if(!resume.await(8,TimeUnit.SECONDS))
+                        throw new IOException("G21.50 forensic release timed out");
+                }catch(InterruptedException interrupted){
+                    Thread.currentThread().interrupt();
+                    throw new IOException("G21.50 forensic read interrupted",interrupted);
+                }
+            }
+            return underlying.load(account);
+        }
+        @Override public void save(PlayerSnapshot snapshot)throws IOException{
+            underlying.save(snapshot);
+        }
     }
 
     private static WorldPlayer prepare(
