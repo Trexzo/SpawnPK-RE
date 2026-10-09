@@ -230,6 +230,8 @@ final class WorldPlayerPersistence
         inFlightTerminalPreflight=new AtomicReference<>();
     private final AtomicReference<ReservedTerminalPublicationTask>
         inFlightTerminalPublication=new AtomicReference<>();
+    private final AtomicReference<ReservedTerminalReconciliationTask>
+        inFlightTerminalReconciliation=new AtomicReference<>();
 
     /*
      * Protected by io, shared with the single writer's admission lock.
@@ -2711,6 +2713,286 @@ final class WorldPlayerPersistence
         }
     }
 
+
+    /**
+     * G21.67: read-only terminal/live reconciliation evidence from the
+     * existing World FIFO. Even EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT
+     * is NOT an item transaction COMMIT or live state apply permit.
+     */
+    static final class TerminalReconciliationEvidence {
+        enum State {
+            EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT,
+            EXACT_TERMINAL_NO_RECEIPT,
+            EXACT_TERMINAL_RECEIPT_MISMATCH,
+            EXACT_PREPARED_NO_GRANT,
+            MISSING_ACCOUNT_QUARANTINE,
+            DIVERGENT_ACCOUNT_QUARANTINE,
+            NEGATIVE_FENCE_QUARANTINE
+        }
+        final State state;
+        final String account;
+        final String intentKey;
+        final long generation;
+        final boolean worldFifoReadOnly=true;
+        final boolean liveOwnerExactlyPrepared=true;
+        final boolean durabilityConfirmed=false;
+        final boolean settlementCommitted=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean rollbackAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+        TerminalReconciliationEvidence(
+            State state,PreparedAccountReservation token
+        ){
+            this.state=Objects.requireNonNull(state,"state");
+            this.account=token.account;
+            this.intentKey=token.intentKey;
+            this.generation=token.generation;
+        }
+    }
+
+    private final class ReservedTerminalReconciliationTask
+        implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final PlayerSnapshot terminal;
+        final TerminalPublicationEvidence receiptEvidence;
+        final CompletableFuture<TerminalReconciliationEvidence> completion=
+            new CompletableFuture<>();
+        private boolean unpinned;
+
+        ReservedTerminalReconciliationTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            TerminalPublicationEvidence receiptEvidence
+        ){
+            this.token=token;
+            this.proposal=proposal;
+            this.terminal=terminal;
+            this.receiptEvidence=receiptEvidence;
+        }
+
+        private void unpin(){
+            synchronized(io){
+                if(unpinned)return;
+                unpinned=true;
+                token.pendingDrains--;
+                // Even a matching terminal+file receipt never justifies
+                // releasing a G21.27 reserved PREPARED account.
+                token.lastDrainWasExactPrepared=false;
+            }
+        }
+
+        private TerminalReconciliationEvidence.State classifyDisk()
+            throws IOException{
+            FilePlayerRepository files=(FilePlayerRepository)repository;
+            final Path selected=files.accountFilePath(token.account)
+                .toAbsolutePath().normalize();
+            return MailboxAccountPublicationCoordinator
+                .withExclusivePublication(selected,()->{
+                    // The selected account path is the ONLY allowed file
+                    // for both marker evidence and raw account decoding.
+                    if(!selected.equals(files.accountFilePath(
+                            token.account).toAbsolutePath().normalize()))
+                        throw new IOException(
+                            "G21.67 pinned account resolver changed"
+                        );
+                    FilePlayerRepository.PathResolver pinned=
+                        requested->{
+                            if(!token.account.equals(requested))
+                                throw new IllegalArgumentException(
+                                    "G21.67 account identity changed");
+                            return selected;
+                        };
+                    if(new MailboxDurableReviewFence(pinned)
+                            .present(token.account)||
+                       new MailboxStrictUncertainFence(pinned)
+                            .present(token.account)||
+                       new MailboxStrictWriteIntentFence(pinned)
+                            .present(token.account))
+                        return TerminalReconciliationEvidence.State
+                            .NEGATIVE_FENCE_QUARANTINE;
+
+                    final java.nio.file.attribute.BasicFileAttributes before;
+                    try{
+                        before=java.nio.file.Files.readAttributes(
+                            selected,
+                            java.nio.file.attribute.BasicFileAttributes.class,
+                            java.nio.file.LinkOption.NOFOLLOW_LINKS
+                        );
+                    }catch(java.nio.file.NoSuchFileException missing){
+                        return TerminalReconciliationEvidence.State
+                            .MISSING_ACCOUNT_QUARANTINE;
+                    }
+                    if(!before.isRegularFile())
+                        throw new IOException(
+                            "G21.67 nonregular account file denied");
+                    // Deliberately use RAW read: the World session loader
+                    // must quarantine terminal snapshots and can never be
+                    // used as a recovery/settlement replay mechanism.
+                    java.util.Optional<PlayerSnapshot> read=
+                        new FilePlayerRepository(pinned).load(token.account);
+                    java.nio.file.attribute.BasicFileAttributes after=
+                        java.nio.file.Files.readAttributes(
+                            selected,
+                            java.nio.file.attribute.BasicFileAttributes.class,
+                            java.nio.file.LinkOption.NOFOLLOW_LINKS
+                        );
+                    if(!after.isRegularFile()||
+                       !Objects.equals(before.fileKey(),after.fileKey())||
+                       before.size()!=after.size()||
+                       !Objects.equals(before.lastModifiedTime(),
+                                       after.lastModifiedTime())||
+                       !selected.equals(files.accountFilePath(
+                           token.account).toAbsolutePath().normalize()))
+                        throw new IOException(
+                            "G21.67 account changed during pinned read");
+                    if(new MailboxDurableReviewFence(pinned)
+                            .present(token.account)||
+                       new MailboxStrictUncertainFence(pinned)
+                            .present(token.account)||
+                       new MailboxStrictWriteIntentFence(pinned)
+                            .present(token.account))
+                        return TerminalReconciliationEvidence.State
+                            .NEGATIVE_FENCE_QUARANTINE;
+                    verifyReservedProposal(token,proposal);
+                    if(!read.isPresent())
+                        return TerminalReconciliationEvidence.State
+                            .MISSING_ACCOUNT_QUARANTINE;
+                    PlayerSnapshot disk=read.get();
+                    if(disk.version()==terminal.version()&&
+                       disk.username().equals(terminal.username())&&
+                       disk.values().equals(terminal.values())&&
+                       MailboxAtomicTerminalSnapshot.inspect(disk).state==
+                           MailboxAtomicTerminalSnapshot.State
+                               .COHERENT_TERMINAL_NO_GRANT){
+                        if(receiptEvidence==null)
+                            return TerminalReconciliationEvidence.State
+                                .EXACT_TERMINAL_NO_RECEIPT;
+                        StrictDurablePlayerSnapshotWriter.Receipt receipt=
+                            receiptEvidence.strictReceipt;
+                        if(receiptEvidence.fileOperationConfirmed&&
+                           receiptEvidence.account.equals(token.account)&&
+                           receiptEvidence.intentKey.equals(token.intentKey)&&
+                           receiptEvidence.generation==token.generation&&
+                           receipt.matchesSnapshot(terminal)&&
+                           receipt.file.toAbsolutePath().normalize()
+                               .equals(selected))
+                            return TerminalReconciliationEvidence.State
+                                .EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT;
+                        return TerminalReconciliationEvidence.State
+                            .EXACT_TERMINAL_RECEIPT_MISMATCH;
+                    }
+                    if(disk.version()==proposal.preparedPreimage.version()&&
+                       disk.username().equals(token.account)&&
+                       disk.values().equals(
+                           proposal.preparedPreimage.values())&&
+                       MailboxPreparedRestartAdmission.inspect(disk).state==
+                           MailboxPreparedRestartAdmission.State
+                               .VALID_PREPARED_UNCLAIMED)
+                        return TerminalReconciliationEvidence.State
+                            .EXACT_PREPARED_NO_GRANT;
+                    return TerminalReconciliationEvidence.State
+                        .DIVERGENT_ACCOUNT_QUARANTINE;
+                });
+        }
+
+        @Override public void run(){
+            inFlightTerminalReconciliation.set(this);
+            try{
+                if(completion.isDone())return;
+                verifyReservedProposal(token,proposal);
+                if(!MailboxAtomicTerminalSnapshot.compose(proposal)
+                        .values().equals(terminal.values()))
+                    throw new IllegalStateException(
+                        "G21.67 terminal snapshot stale on FIFO");
+                TerminalReconciliationEvidence.State state=classifyDisk();
+                verifyReservedProposal(token,proposal);
+                unpin();
+                completion.complete(new TerminalReconciliationEvidence(
+                    state,token
+                ));
+            }catch(Throwable failure){
+                unpin();
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightTerminalReconciliation.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+            unpin();
+        }
+    }
+
+    /**
+     * Explicit read-only post-G21.66 reconciliation. A matching file
+     * receipt remains informative, never authorizes a live grant.
+     * Duplicate pending same-account observations and stale World owner
+     * are rejected. Uses the same bounded persistence worker.
+     */
+    CompletableFuture<TerminalReconciliationEvidence>
+        reconcileReservedTerminalReadOnly(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            TerminalPublicationEvidence receiptEvidence
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(terminal,"terminal");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.67 reconciliation forbidden on World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.67 exact file repository required"
+            );
+        if(terminal.version()!=PlayerSnapshot.CURRENT_VERSION||
+           !proposal.account.equals(terminal.username())||
+           MailboxAtomicTerminalSnapshot.inspect(terminal).state!=
+               MailboxAtomicTerminalSnapshot.State
+                   .COHERENT_TERMINAL_NO_GRANT||
+           !MailboxAtomicTerminalSnapshot.compose(proposal)
+               .values().equals(terminal.values()))
+            throw new IllegalArgumentException(
+                "G21.67 invalid terminal proposal or snapshot"
+            );
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.67 reconciliation worker shut down"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.generation!=proposal.ownerGeneration||
+                   !token.intentKey.equals(proposal.idempotencyKey))
+                    throw new IllegalStateException(
+                        "G21.67 reservation retired before enqueue"
+                    );
+                if(token.pendingDrains!=0)
+                    throw new IllegalStateException(
+                        "G21.67 duplicate reserved account IO pending"
+                    );
+                ReservedTerminalReconciliationTask task=
+                    new ReservedTerminalReconciliationTask(
+                        token,proposal,terminal,receiptEvidence
+                    );
+                io.execute(task);
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
     private static String preparedAccountMessageId(
         PreparedAccountReservation reservation
     ){
@@ -3152,6 +3434,12 @@ final class WorldPlayerPersistence
                 continue;
             }
 
+            if(runnable instanceof ReservedTerminalReconciliationTask){
+                counts.loads++;
+                ((ReservedTerminalReconciliationTask)runnable).reject(error);
+                continue;
+            }
+
             if(runnable instanceof CheckpointDrainTask){
                 counts.checkpoints++;
                 ((CheckpointDrainTask)runnable).reject(
@@ -3267,6 +3555,16 @@ final class WorldPlayerPersistence
             return false;
         active.reject(new RejectedExecutionException(
             "G21.28 reserved drain outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
+    private boolean rejectInFlightTerminalReconciliation(String stage){
+        ReservedTerminalReconciliationTask current=
+            inFlightTerminalReconciliation.get();
+        if(current==null)return false;
+        current.reject(new RejectedExecutionException(
+            "G21.67 reconciliation unconfirmed during "+stage
         ));
         return true;
     }
@@ -3400,6 +3698,10 @@ final class WorldPlayerPersistence
                     !clean&&rejectInFlightTerminalPublication(
                         "SHUTDOWN_TERMINAL_PUBLICATION_IN_FLIGHT"
                     );
+                boolean terminalReconciliationSettled=
+                    !clean&&rejectInFlightTerminalReconciliation(
+                        "SHUTDOWN_TERMINAL_RECONCILIATION_IN_FLIGHT"
+                    );
                 boolean checkpointInFlightSettled=
                     !clean&&
                     abortInFlightCheckpoint(
@@ -3452,6 +3754,10 @@ final class WorldPlayerPersistence
             boolean terminalPublicationSettled=
                 rejectInFlightTerminalPublication(
                     "SHUTDOWN_INTERRUPTED_TERMINAL_PUBLICATION"
+                );
+            boolean terminalReconciliationSettled=
+                rejectInFlightTerminalReconciliation(
+                    "SHUTDOWN_INTERRUPTED_TERMINAL_RECONCILIATION"
                 );
             boolean checkpointInFlightSettled=
                 abortInFlightCheckpoint(
