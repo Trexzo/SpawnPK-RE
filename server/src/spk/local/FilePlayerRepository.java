@@ -134,6 +134,13 @@ final class FilePlayerRepository
             new MailboxStrictUncertainFence(paths).present(account);
     }
 
+    /** Read-only: no account file I/O or intent cancellation. */
+    boolean hasStrictWriteIntent(String username)throws IOException{
+        return new MailboxStrictWriteIntentFence(paths).present(
+            clean(username)
+        );
+    }
+
     /**
      * Only the production WorldPlayerPersistence normal save path uses
      * this guarded entry point. Legacy/manual/forensic direct save() is
