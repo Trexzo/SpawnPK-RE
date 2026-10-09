@@ -194,6 +194,7 @@ final class StrictDurablePlayerSnapshotWriter {
                     account
                 );
             requireUnfenced(account);
+            MailboxStrictUncertainFence.requireClear(file);
         }
 
         // Validation is completed before creating/changing a file.
@@ -239,6 +240,7 @@ final class StrictDurablePlayerSnapshotWriter {
                 MailboxAccountPublicationCoordinator
                     .withExclusivePublication(worldFile,()->{
                         requireUnfenced(account);
+                        MailboxStrictUncertainFence.requireClear(worldFile);
                         // G21.45: a World owner may have changed while
                         // the strict snapshot temp was being serialized
                         // or while this worker awaited this file lock.
@@ -255,12 +257,37 @@ final class StrictDurablePlayerSnapshotWriter {
                         try{
                             postPublicationCheck.requireStillCurrent();
                         }catch(IOException|RuntimeException divergent){
-                            throw new UnconfirmedCommitException(
-                                "G21.46 STRICT_PREPARED_POSTPUBLICATION_UNCONFIRMED "+
-                                "account="+account+
-                                " action=MANUAL_REVIEW_NO_GRANT",
-                                divergent
-                            );
+                            // G21.47: the account may already contain
+                            // this snapshot. Publish a durable NEGATIVE
+                            // marker before releasing the account lock,
+                            // without claiming rollback or granting items.
+                            // A crash before marker publication or failed
+                            // marker I/O means persistence is unproven.
+                            IOException markerError=null;
+                            try{
+                                MailboxStrictUncertainFence
+                                    .publishWhileAccountLocked(worldFile);
+                            }catch(IOException|RuntimeException markerFailure){
+                                markerError=new IOException(
+                                    "G21.47 UNCERTAIN_FENCE_PUBLICATION_FAILED"+
+                                    " quarantineDurability=UNPROVEN",
+                                    markerFailure
+                                );
+                            }
+                            UnconfirmedCommitException unknown=
+                                new UnconfirmedCommitException(
+                                    "G21.46 STRICT_PREPARED_POSTPUBLICATION_UNCONFIRMED "+
+                                    "account="+account+
+                                    " G21.47_negativeFence="+
+                                    (markerError==null
+                                        ?"publicationAttemptCompleted"
+                                        :"UNPROVEN")+
+                                    " action=MANUAL_REVIEW_NO_GRANT",
+                                    divergent
+                                );
+                            if(markerError!=null)
+                                unknown.addSuppressed(markerError);
+                            throw unknown;
                         }
                         return null;
                     });
