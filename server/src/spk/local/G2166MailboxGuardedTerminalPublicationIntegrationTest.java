@@ -153,9 +153,18 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
                     if(phase==StrictDurablePlayerSnapshotWriter.Phase
                             .BEFORE_ATOMIC_REPLACE){
                         faultTriggered.set(true);
-                        world.submitAndWait(late.owner,late.generation,()->{
-                            late.owner.movement().setRunEnergy(37);
-                        },5000L);
+                        try{
+                            world.submitAndWait(
+                                late.owner,late.generation,()->{
+                                    late.owner.movement().setRunEnergy(37);
+                                },5000L
+                            );
+                        }catch(Exception injectionFailure){
+                            throw new IOException(
+                                "G21.66 late-owner fixture failed",
+                                injectionFailure
+                            );
+                        }
                     }
                 });
             Throwable lateFailure=failed(world.persistence()
