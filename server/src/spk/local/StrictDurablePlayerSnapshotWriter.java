@@ -53,6 +53,15 @@ final class StrictDurablePlayerSnapshotWriter {
         void requireStillCurrent()throws IOException;
     }
 
+    /**
+     * G21.46: post-move/parent-force read-only check before issuing a
+     * strict receipt. A late mismatch is UNCONFIRMED: file replacement
+     * may already be durable and must never be misreported as rollback.
+     */
+    interface AfterWorldPublication {
+        void requireStillCurrent()throws IOException;
+    }
+
     static final class UnconfirmedCommitException extends IOException {
         UnconfirmedCommitException(
             String message,Throwable cause
@@ -107,7 +116,7 @@ final class StrictDurablePlayerSnapshotWriter {
     synchronized Receipt saveStrict(
         PlayerSnapshot snapshot
     )throws IOException{
-        return saveInternal(snapshot,null,null);
+        return saveInternal(snapshot,null,null,null);
     }
 
     /**
@@ -119,7 +128,7 @@ final class StrictDurablePlayerSnapshotWriter {
         PlayerSnapshot snapshot,Path expectedRepositoryFile
     )throws IOException{
         return saveStrictForWorld(
-            snapshot,expectedRepositoryFile,()->{}
+            snapshot,expectedRepositoryFile,()->{},()->{}
         );
     }
 
@@ -127,17 +136,32 @@ final class StrictDurablePlayerSnapshotWriter {
         PlayerSnapshot snapshot,Path expectedRepositoryFile,
         BeforeWorldPublication publicationCheck
     )throws IOException{
+        return saveStrictForWorld(
+            snapshot,expectedRepositoryFile,publicationCheck,()->{}
+        );
+    }
+
+    synchronized Receipt saveStrictForWorld(
+        PlayerSnapshot snapshot,Path expectedRepositoryFile,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck
+    )throws IOException{
         Objects.requireNonNull(publicationCheck,"publicationCheck");
+        Objects.requireNonNull(
+            postPublicationCheck,"postPublicationCheck"
+        );
         return saveInternal(
             snapshot,Objects.requireNonNull(
                 expectedRepositoryFile,"expectedRepositoryFile"
-            ).toAbsolutePath().normalize(),publicationCheck
+            ).toAbsolutePath().normalize(),publicationCheck,
+            postPublicationCheck
         );
     }
 
     private Receipt saveInternal(
         PlayerSnapshot snapshot,Path worldFile,
-        BeforeWorldPublication publicationCheck
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck
     )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(
             snapshot,"snapshot"
@@ -224,6 +248,20 @@ final class StrictDurablePlayerSnapshotWriter {
                         publishStrictReplacement(
                             temp,file,parent,replaced
                         );
+                        // G21.46: if World-owned state changed while
+                        // the file was being moved/forced, the filesystem
+                        // may already contain this older snapshot.
+                        // Never return an ordinary strict Receipt then.
+                        try{
+                            postPublicationCheck.requireStillCurrent();
+                        }catch(IOException|RuntimeException divergent){
+                            throw new UnconfirmedCommitException(
+                                "G21.46 STRICT_PREPARED_POSTPUBLICATION_UNCONFIRMED "+
+                                "account="+account+
+                                " action=MANUAL_REVIEW_NO_GRANT",
+                                divergent
+                            );
+                        }
                         return null;
                     });
             }
