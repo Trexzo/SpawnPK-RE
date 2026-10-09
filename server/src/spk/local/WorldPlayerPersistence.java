@@ -1971,6 +1971,9 @@ final class WorldPlayerPersistence
         private int pendingDrains;
         private boolean drainAttempted;
         private boolean lastDrainWasExactPrepared;
+        private boolean liveTransitionPending;
+        private boolean liveTransitionCandidateIssued;
+        private TerminalReconciliationEvidence lastBoundTerminalObservation;
 
         private PreparedAccountReservation(
             WorldPlayer owner,long generation,
@@ -2011,6 +2014,10 @@ final class WorldPlayerPersistence
                     if(pendingDrains!=0)
                         throw new IllegalStateException(
                             "G21.28 cannot release reservation while disk drain pending"
+                        );
+                    if(liveTransitionPending||liveTransitionCandidateIssued)
+                        throw new IllegalStateException(
+                            "G21.68 live terminal candidate prohibits prepared release"
                         );
                     if(drainAttempted&&!lastDrainWasExactPrepared)
                         throw new IllegalStateException(
@@ -2910,10 +2917,19 @@ final class WorldPlayerPersistence
                         "G21.67 terminal snapshot stale on FIFO");
                 TerminalReconciliationEvidence.State state=classifyDisk();
                 verifyReservedProposal(token,proposal);
+                TerminalReconciliationEvidence observed=
+                    new TerminalReconciliationEvidence(state,token);
+                synchronized(io){
+                    // Only THIS worker-produced exact matching receipt
+                    // is accepted by the later World-tick gate. A later
+                    // non-exact observation invalidates older evidence.
+                    token.lastBoundTerminalObservation=
+                        state==TerminalReconciliationEvidence.State
+                                .EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT
+                            ?observed:null;
+                }
                 unpin();
-                completion.complete(new TerminalReconciliationEvidence(
-                    state,token
-                ));
+                completion.complete(observed);
             }catch(Throwable failure){
                 unpin();
                 completion.completeExceptionally(failure);
@@ -2991,6 +3007,127 @@ final class WorldPlayerPersistence
                 return task.completion;
             }
         }
+    }
+
+
+    /**
+     * G21.68: one-use World-owned transition CANDIDATE, not a transition.
+     * Prepared on a detached player off the tick and checked under the
+     * actual WorldCommandInbox execution-ownership guard.
+     *
+     * The immutable postimage is never applied to the live WorldPlayer.
+     */
+    CompletableFuture<MailboxTerminalLiveTransitionCandidate>
+        stageReservedTerminalWorldCandidate(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            TerminalReconciliationEvidence observed
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(terminal,"terminal");
+        Objects.requireNonNull(observed,"observed");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.68 candidate admission must be off the World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.68 file-backed World persistence required"
+            );
+        if(observed.state!=
+                TerminalReconciliationEvidence.State
+                    .EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT||
+           !observed.account.equals(token.account)||
+           !observed.intentKey.equals(token.intentKey)||
+           observed.generation!=token.generation)
+            throw new IllegalArgumentException(
+                "G21.68 missing exact bound terminal receipt evidence"
+            );
+        // Do all heavyweight decode/projection before World admission.
+        MailboxTerminalLiveTransitionCandidate candidate=
+            MailboxTerminalLiveTransitionCandidate.stageDetached(
+                proposal,terminal
+            );
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.68 persistence closed"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.pendingDrains!=0||
+                   token.lastBoundTerminalObservation!=observed||
+                   token.liveTransitionPending||
+                   token.liveTransitionCandidateIssued)
+                    throw new IllegalStateException(
+                        "G21.68 duplicate or unbound live transition candidate"
+                    );
+                token.liveTransitionPending=true;
+            }
+        }
+        CompletableFuture<MailboxTerminalLiveTransitionCandidate> result=
+            new CompletableFuture<>();
+        final CompletableFuture<Void> scheduled;
+        try{
+            scheduled=world.submit(
+                token.owner,token.generation,()->{
+                    if(!world.pulse().inExecutionContext())
+                        throw new IllegalStateException(
+                            "G21.68 World command did not execute on World"
+                        );
+                    // World runs this command under the owned player's
+                    // mutation lock. G21.27 token lock order is owner->io.
+                    verifyReservedAdmission(token,proposal);
+                    synchronized(io){
+                        if(io.isShutdown()||token.released||
+                           preparedAccountReservations.get(token.account)!=token||
+                           !token.liveTransitionPending||
+                           token.liveTransitionCandidateIssued||
+                           token.pendingDrains!=0||
+                           token.lastBoundTerminalObservation!=observed)
+                            throw new IllegalStateException(
+                                "G21.68 candidate invalidated before World execution"
+                            );
+                        // Revalidate FULL live account on this World tick.
+                        PlayerSnapshot now=PlayerSnapshotCodec.capture(
+                            token.account,token.owner,
+                            PlayerSnapshotCodec.accessoryItem(
+                                proposal.preparedPreimage)
+                        );
+                        if(!now.values().equals(
+                               proposal.preparedPreimage.values())||
+                           !now.username().equals(token.account)||
+                           !candidate.account.equals(token.account)||
+                           !candidate.intentKey.equals(token.intentKey)||
+                           candidate.generation!=token.generation)
+                            throw new IllegalStateException(
+                                "G21.68 live PREPARED image changed"
+                            );
+                        // Irreversible single-use *candidate issuance*
+                        // only. No inventory/CLAIMED or extension writes.
+                        token.liveTransitionCandidateIssued=true;
+                    }
+                    result.complete(candidate);
+                }
+            );
+        }catch(RuntimeException enqueueFailure){
+            synchronized(io){token.liveTransitionPending=false;}
+            result.completeExceptionally(enqueueFailure);
+            return result;
+        }
+        scheduled.whenComplete((done,failure)->{
+            synchronized(io){token.liveTransitionPending=false;}
+            if(failure!=null)
+                result.completeExceptionally(failure);
+            else if(!result.isDone())
+                result.completeExceptionally(new IllegalStateException(
+                    "G21.68 World candidate finished without output"));
+        });
+        return result;
     }
 
     private static String preparedAccountMessageId(
