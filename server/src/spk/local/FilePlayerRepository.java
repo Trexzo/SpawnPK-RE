@@ -246,7 +246,15 @@ final class FilePlayerRepository
             return pinned;
         };
         return MailboxAccountPublicationCoordinator
-            .withExclusivePublication(pinned,()->{
+            .withExclusivePublication(pinned,()->
+                inspectRestartRecoveryLocked(account,pinned,sameFile)
+            );
+    }
+
+    /** Called with G21.39's cooperating account publication lock HELD. */
+    private RestartRecoveryEvidence inspectRestartRecoveryLocked(
+        String account,Path pinned,PathResolver sameFile
+    )throws IOException{
                 final int markersBefore=restartReviewMask(
                     account,sameFile
                 );
@@ -338,7 +346,207 @@ final class FilePlayerRepository
                         .INVALID_PREPARED_QUARANTINE;
                 }
                 return new RestartRecoveryEvidence(account,state,true);
+
+    }
+
+
+    /**
+     * G21.72 portable read-only forensic continuity. This is an
+     * UNAUTHENTICATED comparison string, NEVER a grant/replay/COMMIT or
+     * restart admission credential. Every use must freshly inspect disk.
+     */
+    static final class RestartContinuityComparison {
+        enum State {
+            UNCHANGED_FORENSICS_NO_GRANT,
+            CHANGED_FORENSICS_QUARANTINE
+        }
+        final State state;
+        final boolean restartAdmissionAuthorized=false;
+        final boolean transactionCommitted=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+        RestartContinuityComparison(State state){this.state=state;}
+    }
+
+    private static final String RESTART_WITNESS_VERSION="G2172";
+    private static final long RESTART_WITNESS_MAX_ACCOUNT_BYTES=64L*1024*1024;
+    private static final long RESTART_WITNESS_MAX_MARKER_BYTES=4096L;
+    // Exactly the original four negative sidecar paths; the account
+    // publication .lock is NOT a transactional record or claim.
+    private static final String[] RESTART_MARKER_SUFFIXES={
+        ".g2132-mailbox-review",
+        ".g2147-strict-postpublication-review",
+        MailboxStrictUncertainFence.SUFFIX,
+        MailboxStrictWriteIntentFence.SUFFIX
+    };
+
+    private static String restartDigestHex(byte[] input){
+        char[] encoded=new char[input.length*2];
+        char[] digits="0123456789abcdef".toCharArray();
+        for(int i=0;i<input.length;i++){
+            encoded[2*i]=digits[(input[i]&255)>>>4];
+            encoded[2*i+1]=digits[input[i]&15];
+        }
+        return new String(encoded);
+    }
+
+    /**
+     * A fresh, bounded, NOFOLLOW file digest. Comparing two complete
+     * captures catches ordinary raw overwrites which restore mtime.
+     * Cooperating publishers are excluded by G21.39 lock; uncooperative
+     * adversarial ABA and physical-media crash safety are NOT solved.
+     */
+    private static String restartFingerprintPart(
+        Path file,long maximum
+    )throws IOException{
+        BasicFileAttributes before=admittedAccountFileEvidence(
+            file.getFileName().toString(),file
+        );
+        if(before==null)return "absent";
+        if(before.size()>maximum)
+            throw new IOException(
+                "G21.72 RECOVERY_WITNESS_FILE_TOO_LARGE_NO_GRANT"
+            );
+        MessageDigest digest=newAccountDigest();
+        long read=0L;
+        try(InputStream input=new DigestInputStream(
+            java.nio.channels.Channels.newInputStream(
+                java.nio.channels.FileChannel.open(
+                    file,StandardOpenOption.READ,LinkOption.NOFOLLOW_LINKS
+                )),digest)){
+            byte[] buffer=new byte[8192];
+            int count;
+            while((count=input.read(buffer))!=-1){
+                read+=count;
+                if(read>maximum)
+                    throw new IOException(
+                        "G21.72 RECOVERY_WITNESS_CHANGED_SIZE_NO_GRANT"
+                    );
+            }
+        }
+        BasicFileAttributes after=admittedAccountFileEvidence(
+            file.getFileName().toString(),file
+        );
+        if(!sameAdmittedAccountObject(before,after)||read!=before.size())
+            throw new IOException(
+                "G21.72 RECOVERY_WITNESS_OBJECT_CHANGED_NO_GRANT"
+            );
+        return "sha256:"+restartDigestHex(digest.digest());
+    }
+
+    /** Called only while holding the same account's G21.39 lock. */
+    private String restartWitnessInsidePublication(
+        String account,Path pinned,PathResolver sameFile
+    )throws IOException{
+        RestartRecoveryEvidence state=inspectRestartRecoveryLocked(
+            account,pinned,sameFile
+        );
+        StringBuilder bits=new StringBuilder();
+        bits.append(RESTART_WITNESS_VERSION).append('|')
+            .append(account).append('|')
+            .append(pinned).append('|')
+            .append(state.state).append('|')
+            .append(restartFingerprintPart(
+                pinned,RESTART_WITNESS_MAX_ACCOUNT_BYTES));
+        for(String suffix:RESTART_MARKER_SUFFIXES){
+            Path marker=pinned.resolveSibling(
+                pinned.getFileName().toString()+suffix
+            );
+            bits.append('|').append(suffix).append('=')
+                .append(restartFingerprintPart(
+                    marker,RESTART_WITNESS_MAX_MARKER_BYTES));
+        }
+        // Re-check all marker names, account path and G21.71's
+        // authoritative classification before returning this witness.
+        RestartRecoveryEvidence second=inspectRestartRecoveryLocked(
+            account,pinned,sameFile
+        );
+        if(second.state!=state.state||!pinned.equals(
+                normalizedPath(account)))
+            throw new IOException(
+                "G21.72 RECOVERY_WITNESS_STATE_CHANGED_NO_GRANT"
+            );
+        return restartDigestHex(newAccountDigest().digest(
+            bits.toString().getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )));
+    }
+
+    /**
+     * Can be saved by the caller as text and rechecked in a different
+     * process with the SAME resolver root. No change to the account,
+     * no marker cleanup, and no possible positive settlement authority.
+     */
+    String captureRestartContinuityTokenReadOnly(
+        String username
+    )throws IOException{
+        final String account=clean(username);
+        if(!account.matches("[a-z0-9_-]{1,64}"))
+            throw new IllegalArgumentException(
+                "G21.72 noncanonical forensic account"
+            );
+        final Path pinned=normalizedPath(account);
+        final PathResolver bound=other->{
+            if(!account.equals(clean(other)))
+                throw new IllegalArgumentException(
+                    "G21.72 recovery account drift"
+                );
+            return pinned;
+        };
+        return MailboxAccountPublicationCoordinator
+            .withExclusivePublication(pinned,()->{
+                String first=restartWitnessInsidePublication(
+                    account,pinned,bound);
+                String second=restartWitnessInsidePublication(
+                    account,pinned,bound);
+                if(!first.equals(second)||!pinned.equals(
+                        normalizedPath(account)))
+                    throw new IOException(
+                        "G21.72 RECOVERY_WITNESS_UNSTABLE_NO_GRANT"
+                    );
+                RestartRecoveryEvidence finalState=
+                    inspectRestartRecoveryLocked(
+                        account,pinned,bound
+                    );
+                return RESTART_WITNESS_VERSION+"|"+account+"|"+
+                    finalState.state.name()+"|"+first;
             });
+    }
+
+    RestartContinuityComparison compareRestartContinuityReadOnly(
+        String username,String previousToken
+    )throws IOException{
+        String account=clean(username);
+        if(previousToken==null)
+            throw new IllegalArgumentException(
+                "G21.72 missing portable forensic witness"
+            );
+        String[] fields=previousToken.split("\\|",-1);
+        if(fields.length!=4||
+           !RESTART_WITNESS_VERSION.equals(fields[0])||
+           !account.equals(fields[1])||
+           !fields[3].matches("[0-9a-f]{64}"))
+            throw new IllegalArgumentException(
+                "G21.72 invalid/foreign forensic witness"
+            );
+        try{
+            RestartRecoveryEvidence.State.valueOf(fields[2]);
+        }catch(IllegalArgumentException invalid){
+            throw new IllegalArgumentException(
+                "G21.72 invalid forensic witness classification",
+                invalid
+            );
+        }
+        String current=captureRestartContinuityTokenReadOnly(account);
+        return new RestartContinuityComparison(
+            current.equals(previousToken)
+                ?RestartContinuityComparison.State
+                    .UNCHANGED_FORENSICS_NO_GRANT
+                :RestartContinuityComparison.State
+                    .CHANGED_FORENSICS_QUARANTINE
+        );
     }
 
     private void requireUnfencedSessionLoad(
