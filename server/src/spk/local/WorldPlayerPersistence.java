@@ -3344,7 +3344,8 @@ final class WorldPlayerPersistence
                             worldChecked=
                                 new java.util.concurrent.atomic.AtomicBoolean();
                         requireTimeRemaining();
-                        CompletableFuture<Void> tick=world.submit(
+                        CompletableFuture<Void> tick=
+                            world.submitTerminalFreshnessReadOnly(
                             token.owner,token.generation,()->{
                                 if(!active.get()||
                                    System.nanoTime()-admittedAtNanos>=
