@@ -10,6 +10,8 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * G21.39: cooperating, account-local publication boundary.
@@ -40,7 +42,7 @@ final class MailboxAccountPublicationCoordinator {
     private static final Map<Path,JvmLease> ACTIVE=new HashMap<>();
 
     private static final class JvmLease {
-        final Object monitor=new Object();
+        final ReentrantLock monitor=new ReentrantLock(true);
         int references;
     }
 
@@ -104,7 +106,8 @@ final class MailboxAccountPublicationCoordinator {
             // G21.39: ONLY this account's Java monitor is held across
             // filesystem work. Independent accounts are not blocked by
             // a slow or stalled writer on some other account.
-            synchronized(lease.monitor){
+            lease.monitor.lock();
+            try{
                 Files.createDirectories(lock.getParent());
                 try(FileChannel channel=FileChannel.open(
                         lock,StandardOpenOption.CREATE,
@@ -122,8 +125,99 @@ final class MailboxAccountPublicationCoordinator {
                         overlap
                     );
                 }
+            }finally{
+                lease.monitor.unlock();
             }
         }finally{
+            release(lock,lease);
+        }
+    }
+
+    /**
+     * G21.73: recovery-FORENSICS ONLY. A bounded observation must
+     * not hang indefinitely behind a cooperating JVM or another
+     * process holding the account's OS advisory publication lock.
+     *
+     * The deadline covers LOCK ACQUISITION only; disk inspection may
+     * take longer. Neither acquiring nor timing out confers grant,
+     * replay, restart admission or settlement authority.
+     */
+    static <T> T withExclusivePublicationBounded(
+        Path accountFile,long timeoutMillis,Operation<T> operation
+    )throws IOException{
+        Objects.requireNonNull(operation,"operation");
+        if(timeoutMillis<1L||timeoutMillis>60000L)
+            throw new IllegalArgumentException(
+                "G21.73 invalid bounded publication lock timeout");
+        final Path lock=lockPath(accountFile);
+        final long started=System.nanoTime();
+        final long budget=TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+        final JvmLease lease=acquire(lock);
+        boolean jvmOwned=false;
+        try{
+            try{
+                jvmOwned=lease.monitor.tryLock(
+                    budget,TimeUnit.NANOSECONDS
+                );
+            }catch(InterruptedException interrupted){
+                Thread.currentThread().interrupt();
+                throw new IOException(
+                    "G21.73 RECOVERY_PUBLICATION_INTERRUPTED_NO_GRANT",
+                    interrupted
+                );
+            }
+            if(!jvmOwned)
+                throw new IOException(
+                    "G21.73 RECOVERY_PUBLICATION_BUSY_NO_GRANT"
+                );
+            Files.createDirectories(lock.getParent());
+            try(FileChannel channel=FileChannel.open(
+                    lock,StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE
+                )){
+                for(;;){
+                    FileLock osOwned=null;
+                    try{
+                        osOwned=channel.tryLock();
+                    }catch(OverlappingFileLockException busy){
+                        // Another channel, possibly in another JVM,
+                        // already owns this stable advisory lock.
+                    }
+                    if(osOwned!=null){
+                        try(FileLock held=osOwned){
+                            if(!held.isValid())
+                                throw new IOException(
+                                    "G21.73 RECOVERY_PUBLICATION_INVALID_LOCK"
+                                );
+                            if(System.nanoTime()-started>=budget)
+                                throw new IOException(
+                                    "G21.73 RECOVERY_PUBLICATION_BUSY_NO_GRANT"
+                                );
+                            return operation.execute();
+                        }
+                    }
+                    long remaining=budget-
+                        (System.nanoTime()-started);
+                    if(remaining<=0L)
+                        throw new IOException(
+                            "G21.73 RECOVERY_PUBLICATION_BUSY_NO_GRANT"
+                        );
+                    try{
+                        TimeUnit.NANOSECONDS.sleep(
+                            Math.min(remaining,
+                                TimeUnit.MILLISECONDS.toNanos(10L))
+                        );
+                    }catch(InterruptedException interrupted){
+                        Thread.currentThread().interrupt();
+                        throw new IOException(
+                            "G21.73 RECOVERY_PUBLICATION_INTERRUPTED_NO_GRANT",
+                            interrupted
+                        );
+                    }
+                }
+            }
+        }finally{
+            if(jvmOwned)lease.monitor.unlock();
             release(lock,lease);
         }
     }
