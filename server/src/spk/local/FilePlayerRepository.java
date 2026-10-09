@@ -3,6 +3,7 @@ package spk.local;
 import java.io.*;
 import java.nio.file.*;
 import java.time.Instant;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 /**
@@ -108,13 +109,25 @@ final class FilePlayerRepository
         return MailboxAccountPublicationCoordinator
             .withExclusivePublication(file,()->{
                 requireUnfencedSessionLoad(account,markerPaths);
+                // G21.60: metadata describes the selected filesystem
+                // object, not merely the path text. NOFOLLOW refuses
+                // symlink roots even when they resolve to valid players.
+                BasicFileAttributes before=
+                    admittedAccountFileEvidence(account,file);
                 Optional<PlayerSnapshot> observed=
-                    loadExactFile(account,file);
+                    loadExactFile(account,file,true);
                 afterWorldSessionRead.run(account);
                 requireUnfencedSessionLoad(account,markerPaths);
                 if(!file.equals(normalizedPath(account)))
                     throw new IOException(
                         "G21.58 MAILBOX_SESSION_ACCOUNT_PATH_CHANGED"+
+                        " account="+account+" action=REJECT_SESSION"
+                    );
+                BasicFileAttributes after=
+                    admittedAccountFileEvidence(account,file);
+                if(!sameAdmittedAccountObject(before,after))
+                    throw new IOException(
+                        "G21.60 MAILBOX_SESSION_ACCOUNT_FILE_CHANGED"+
                         " account="+account+" action=REJECT_SESSION"
                     );
                 return observed;
@@ -133,8 +146,47 @@ final class FilePlayerRepository
             );
     }
 
+    /**
+     * NOFOLLOW evidence is only an admission gate. File keys and file
+     * timestamps are not cryptographic identity or a power-loss proof.
+     */
+    private static BasicFileAttributes admittedAccountFileEvidence(
+        String account,Path file
+    )throws IOException{
+        final BasicFileAttributes attrs;
+        try{
+            attrs=Files.readAttributes(
+                file,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+            );
+        }catch(NoSuchFileException missing){
+            return null;
+        }
+        if(!attrs.isRegularFile())
+            throw new IOException(
+                "G21.60 MAILBOX_SESSION_ACCOUNT_NONREGULAR"+
+                " account="+account+" action=REJECT_SESSION"
+            );
+        return attrs;
+    }
+
+    private static boolean sameAdmittedAccountObject(
+        BasicFileAttributes first,BasicFileAttributes last
+    ){
+        if(first==null||last==null)return first==null&&last==null;
+        return Objects.equals(first.fileKey(),last.fileKey())&&
+            first.size()==last.size()&&
+            Objects.equals(first.lastModifiedTime(),
+                           last.lastModifiedTime());
+    }
+
     private Optional<PlayerSnapshot> loadExactFile(
         String username,Path file
+    )throws IOException{
+        return loadExactFile(username,file,false);
+    }
+
+    private Optional<PlayerSnapshot> loadExactFile(
+        String username,Path file,boolean noFollow
     )throws IOException{
         if(!Files.isRegularFile(file))
             return Optional.empty();
@@ -142,8 +194,16 @@ final class FilePlayerRepository
         Properties properties=
             new Properties();
 
-        try(InputStream input=
-                Files.newInputStream(file)){
+        // The admitted decoder never follows a substituted symbolic
+        // link after its NOFOLLOW metadata check. Raw forensic reading
+        // preserves its pre-existing compatibility semantics.
+        try(InputStream input=noFollow
+                ?java.nio.channels.Channels.newInputStream(
+                    java.nio.channels.FileChannel.open(
+                        file,StandardOpenOption.READ,
+                        LinkOption.NOFOLLOW_LINKS
+                    ))
+                :Files.newInputStream(file)){
             properties.load(input);
         }
 
