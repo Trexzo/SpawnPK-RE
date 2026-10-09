@@ -232,6 +232,27 @@ final class MailboxFencedRestartForensics {
     }
 
 
+    private static final class MarkerSet {
+        final boolean[] present;
+        final byte[][] evidence;
+        final int count;
+        final State problem;
+        MarkerSet(boolean[] found,byte[][] raw,int count,State problem){
+            this.present=found;
+            this.evidence=raw;
+            this.count=count;
+            this.problem=problem;
+        }
+        boolean matches(MarkerSet other){
+            if(count!=other.count||problem!=other.problem||
+               !Arrays.equals(present,other.present))return false;
+            for(int i=0;i<evidence.length;i++)
+                if(!Arrays.equals(evidence[i],other.evidence[i]))
+                    return false;
+            return true;
+        }
+    }
+
     private static final class StrictNegativeRecord {
         final String account;
         final String snapshotSha;
