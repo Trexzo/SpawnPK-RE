@@ -24,6 +24,8 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
         boolean legacyMarkerStillVetoes=false;
         boolean legacyChecksumDivergence=false;
         boolean legacyTamperStillVetoes=false;
+        String legacyObservedState="UNSEEN";
+        boolean legacyLoginDenied=false;
         boolean noAuthority=true,noCleanup=true,noLeases=true;
 
         Path root=Files.createTempDirectory("g2149-negative-forensics-");
@@ -103,10 +105,12 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
                 MailboxFencedRestartForensics.Report lr=inspect(
                     world,proposalMarker,"g2149-legacy"
                 );
+                legacyObservedState=lr.state.name();
+                legacyLoginDenied=denied(world,"g2149-legacy");
                 legacyMarkerStillVetoes=
                     lr.state==MailboxFencedRestartForensics.State
                         .STRICT_LEGACY_CHECKSUM_VALID_EXACT_NO_AUTHORITY&&
-                    denied(world,"g2149-legacy");
+                    legacyLoginDenied;
                 noAuthority&=nonAuthorizing(lr);
                 TreeMap<String,String> legacyChanged=
                     new TreeMap<>(legacySnapshot.values());
@@ -203,6 +207,8 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
             " permanentPriority="+dualPrefersPermanent+
             " cleanAccount="+cleanAccountUnfenced+
             " restartedAccountVeto="+restartVeto+
+            " legacyObservedState="+legacyObservedState+
+            " legacyLoginDenied="+legacyLoginDenied+
             " legacyMarkerDenied="+legacyMarkerStillVetoes+
             " legacyChecksumDivergence="+legacyChecksumDivergence+
             " legacyTamperDenied="+legacyTamperStillVetoes+
