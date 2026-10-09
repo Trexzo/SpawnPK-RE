@@ -2163,6 +2163,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2143MailboxStrictCurrentOwnerAdmissionIntegrationTest',
     'spk.local.G2144MailboxStrictWorkerOwnerRecheckIntegrationTest',
     'spk.local.G2145MailboxStrictFinalPublicationRecheckIntegrationTest',
+    'spk.local.G2146MailboxStrictPostpublicationUnconfirmedIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2191,10 +2192,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 344 ||
-    currentTrainFocusedTests.toSet().size() != 344) {
+if (currentTrainFocusedTests.size() != 345 ||
+    currentTrainFocusedTests.toSet().size() != 345) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 344 unique tests, found " +
+        "Current-train focused manifest drift: expected 345 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3054,6 +3055,14 @@ tasks.register('g2145MailboxStrictFinalPublicationRecheckRegression', JavaExec) 
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2145MailboxStrictFinalPublicationRecheckIntegrationTest')
+}
+
+tasks.register('g2146MailboxStrictPostpublicationUnconfirmedRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves post-move live owner divergence cannot return a false strict PREPARED World receipt.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2146MailboxStrictPostpublicationUnconfirmedIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
