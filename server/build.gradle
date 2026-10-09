@@ -2187,6 +2187,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2166MailboxGuardedTerminalPublicationIntegrationTest',
     'spk.local.G2167MailboxReservedTerminalLiveReconciliationIntegrationTest',
     'spk.local.G2168MailboxWorldTerminalCandidateIntegrationTest',
+    'spk.local.G2169MailboxFencedTerminalWorldFreshnessIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2215,10 +2216,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 368 ||
-    currentTrainFocusedTests.toSet().size() != 368) {
+if (currentTrainFocusedTests.size() != 369 ||
+    currentTrainFocusedTests.toSet().size() != 369) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 368 unique tests, found " +
+        "Current-train focused manifest drift: expected 369 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3270,6 +3271,14 @@ tasks.register('g2168MailboxWorldTerminalCandidateRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2168MailboxWorldTerminalCandidateIntegrationTest')
+}
+
+tasks.register('g2169MailboxFencedTerminalWorldFreshnessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves one-use exact terminal-file and real World-tick freshness under account publication lock, NO_GRANT.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2169MailboxFencedTerminalWorldFreshnessIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
