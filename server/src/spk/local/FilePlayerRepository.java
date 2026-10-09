@@ -115,9 +115,9 @@ final class FilePlayerRepository
     boolean hasUnresolvedMailboxReviewFence(
         String username
     )throws IOException{
-        return new MailboxDurableReviewFence(paths).present(
-            clean(username)
-        );
+        String account=clean(username);
+        return new MailboxDurableReviewFence(paths).present(account)||
+            new MailboxStrictUncertainFence(paths).present(account);
     }
 
     /**

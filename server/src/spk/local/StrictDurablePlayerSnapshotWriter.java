@@ -245,22 +245,43 @@ final class StrictDurablePlayerSnapshotWriter {
                         // Check complete live state before Files.move,
                         // without holding its mutation lock over I/O.
                         publicationCheck.requireStillCurrent();
-                        publishStrictReplacement(
-                            temp,file,parent,replaced
-                        );
-                        // G21.46: if World-owned state changed while
-                        // the file was being moved/forced, the filesystem
-                        // may already contain this older snapshot.
-                        // Never return an ordinary strict Receipt then.
+                        // G21.47: on an outcome which may ALREADY have
+                        // replaced account bytes, publish the permanent
+                        // NEGATIVE restart sidecar before releasing this
+                        // account's publication FileLock. NEVER reacquire
+                        // that lock inside this callback (deadlock).
                         try{
-                            postPublicationCheck.requireStillCurrent();
-                        }catch(IOException|RuntimeException divergent){
-                            throw new UnconfirmedCommitException(
-                                "G21.46 STRICT_PREPARED_POSTPUBLICATION_UNCONFIRMED "+
-                                "account="+account+
-                                " action=MANUAL_REVIEW_NO_GRANT",
-                                divergent
+                            publishStrictReplacement(
+                                temp,file,parent,replaced
                             );
+                            // G21.46: owner may have changed during
+                            // replacement/force. Never emit a normal
+                            // strict Receipt for a divergent owner.
+                            try{
+                                postPublicationCheck
+                                    .requireStillCurrent();
+                            }catch(IOException|RuntimeException divergent){
+                                throw new UnconfirmedCommitException(
+                                    "G21.46 STRICT_PREPARED_POSTPUBLICATION_UNCONFIRMED "+
+                                    "account="+account+
+                                    " action=MANUAL_REVIEW_NO_GRANT",
+                                    divergent
+                                );
+                            }
+                        }catch(UnconfirmedCommitException uncertain){
+                            try{
+                                new MailboxStrictUncertainFence(resolver)
+                                    .armInsidePublicationLock(
+                                        account,expectedSha256
+                                    );
+                            }catch(IOException|RuntimeException markerFailure){
+                                // Failure to publish a marker must never
+                                // transform uncertainty into success.
+                                // A crash or failed marker force may leave
+                                // account state without a durable veto.
+                                uncertain.addSuppressed(markerFailure);
+                            }
+                            throw uncertain;
                         }
                         return null;
                     });
@@ -304,7 +325,8 @@ final class StrictDurablePlayerSnapshotWriter {
     }
 
     private void requireUnfenced(String account)throws IOException{
-        if(new MailboxDurableReviewFence(resolver).present(account))
+        if(new MailboxDurableReviewFence(resolver).present(account)||
+           new MailboxStrictUncertainFence(resolver).present(account))
             throw new IOException(
                 "G21.42 STRICT_WORLD_MAILBOX_REVIEW_SAVE_VETO "+
                 account+" action=REJECT_STRICT_SAVE"
