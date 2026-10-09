@@ -5,6 +5,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /** G21.50: multiple negative files require consistent diagnostic evidence.
@@ -20,6 +22,7 @@ public final class G2150MailboxNegativeMarkerCorrelationIntegrationTest {
         MailboxStrictWriteIntentFence intent=new MailboxStrictWriteIntentFence(paths);
         boolean agrees=false,conflict=false,damaged=false,legacyConflict=false;
         boolean clean=false,allNegative=true,veto=true,resourceClean=false;
+        boolean proposalAgree=false,proposalConflict=false,noItemCredit=false;
         try{
             PlayerSnapshot a=seed(repo,"g2150-agree");
             PlayerSnapshot b=seed(repo,"g2150-conflict");
@@ -49,6 +52,27 @@ public final class G2150MailboxNegativeMarkerCorrelationIntegrationTest {
             );
             try(World world=World.isolatedForTest(60000L,repo)){
                 world.start();
+                WorldPlayer sameOwner=prepare(world,repo,proposals,permanent,
+                    paths,"g2150-proposal-agree",false);
+                WorldPlayer diffOwner=prepare(world,repo,proposals,permanent,
+                    paths,"g2150-proposal-conflict",true);
+                noItemCredit=sameOwner.bank().inventorySlots()==0&&
+                    diffOwner.bank().inventorySlots()==0&&
+                    sameOwner.mailbox().get("g2150:gift").claimState==
+                        MailboxRewardDeliveryService.ClaimState.UNCLAIMED&&
+                    diffOwner.mailbox().get("g2150:gift").claimState==
+                        MailboxRewardDeliveryService.ClaimState.UNCLAIMED;
+                MailboxFencedRestartForensics.Report pa=
+                    inspect(world,proposals,"g2150-proposal-agree");
+                MailboxFencedRestartForensics.Report pb=
+                    inspect(world,proposals,"g2150-proposal-conflict");
+                proposalAgree=pa.state==MailboxFencedRestartForensics.State
+                    .STRICT_UNCERTAIN_DIGEST_MATCH_NO_AUTHORITY;
+                proposalConflict=pb.state==MailboxFencedRestartForensics.State
+                    .MULTIPLE_NEGATIVE_MARKERS_CONFLICT_NO_AUTHORITY;
+                allNegative&=noAuthority(pa)&&noAuthority(pb);
+                veto&=refused(world,"g2150-proposal-agree")&&
+                    refused(world,"g2150-proposal-conflict");
                 MailboxFencedRestartForensics.Report ar=
                     inspect(world,proposals,"g2150-agree");
                 MailboxFencedRestartForensics.Report br=
@@ -92,13 +116,48 @@ public final class G2150MailboxNegativeMarkerCorrelationIntegrationTest {
         System.out.println("G2150_MARKER_CORRELATION_DIAGNOSTICS"+
             " agreeing="+agrees+" conflict="+conflict+
             " malformedSecondary="+damaged+" legacyConflict="+legacyConflict+
-            " clean="+clean+" allNoAuthority="+allNegative+
+            " clean="+clean+" proposalAgree="+proposalAgree+
+            " proposalConflict="+proposalConflict+
+            " noItemCredit="+noItemCredit+" allNoAuthority="+allNegative+
             " allRestartVeto="+veto+" resourceClean="+resourceClean);
         if(!(agrees&&conflict&&damaged&&legacyConflict&&clean&&
+             proposalAgree&&proposalConflict&&noItemCredit&&
              allNegative&&veto&&resourceClean))
             throw new AssertionError("G21.50 marker correlation failure");
         System.out.println("G2150_MARKER_CORRELATION_PASS"+
             " grant=false replay=false release=false");
+    }
+
+    private static WorldPlayer prepare(
+        World world,FilePlayerRepository repo,
+        MailboxDurableReviewFence fence,MailboxStrictUncertainFence permanent,
+        FilePlayerRepository.PathResolver paths,String account,boolean conflict
+    )throws Exception{
+        WorldPlayer owner=new WorldPlayer();
+        long generation=world.registerPlayer(owner,account);
+        AtomicReference<MailboxSettlementPostimagePlanner.Proposal> ref=
+            new AtomicReference<>();
+        world.submitAndWait(owner,generation,()->{
+            owner.mailbox().deliver(new RewardDeliveryMessage(
+                "g2150:gift","Negative marker correlation","NO_GRANT",
+                Collections.singletonList(
+                    new RewardDeliveryMessage.Attachment(995,25)),
+                "CUSTOM_LOCALLAB_G2150_FIXTURE"));
+            MailboxRewardDeliveryService.Snapshot row=
+                owner.mailbox().get("g2150:gift");
+            MailboxPreparedClaimJournal.stageOnly(
+                owner,MailboxPreparedClaimJournal.prepare(owner,row));
+            ref.set(MailboxSettlementPostimagePlanner.plan(
+                owner,generation,row));
+        },5000L);
+        MailboxSettlementPostimagePlanner.Proposal proposed=ref.get();
+        repo.save(proposed.preparedPreimage);
+        fence.arm(proposed);
+        String sha=sha(proposed.preparedPreimage);
+        writeMarkers(paths.resolve(account),()->
+            permanent.armInsidePublicationLock(
+                account,conflict?badSha(sha):sha));
+        return owner;
     }
 
     private interface Checked {void run()throws IOException;}
