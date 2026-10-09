@@ -1,0 +1,11 @@
+# G21.65 — reserved World FIFO terminal prepublication gate (NO GRANT)
+
+Parent: G21.64 certified `e2a8d65e5cf360aa2f704cabd43b66bc9eb1418c` ([CI #37947135476](https://github.com/Trexzo/SpawnPK-RE/actions/runs/37947135476), 364 focused Java11). [Issue #2306](https://github.com/Trexzo/SpawnPK-RE/issues/2306).
+
+`WorldPlayerPersistence.preflightReservedTerminalPublication` is an explicit opt-in *read-only* gate on the real, bounded, single World persistence I/O worker. It requires the held G21.27 per-account reservation (token/owner/generation/message), exact immutable G21.25 proposal and G21.64 complete terminal snapshot. It does not support opaque/non-file repositories. After earlier admitted file operations finish, the worker revalidates the live owner, selected immutable Mailbox message and full PREPARED snapshot, performs G21.58–61 guarded account session-byte/marker read under the cooperating account publication lock, rechecks current live state, and classifies the observed bytes as exact PREPARED, missing or divergent.
+
+An exact observation is NEVER a transaction COMMIT, durable write receipt, publication permit, live reward grant or replay instruction. Future durable publication must repeat the full owner/reservation/disk/marker checks INSIDE the same exclusive publication lock and manage uncertain post-rename crashes. The reservation stays active after the gate. The only existing cancellation rule is explicit exact-PREPARED safe cancellation; all divergent/failed outcomes leave the reservation fenced. Shutdown/in-flight rejections complete futures rather than hanging queued callers.
+
+Real FilePlayerRepository test holds an older World save behind a latch, queues the gate, rejects duplicate/prepared competing writes and autosaves, verifies FIFO ordering, exact read and no disk mutation after first release, denies forged terminal / changed live owner, detects an uncooperative divergent raw-file change, continues protecting the reservation, and allows an independent account to save.
+
+Java 11 focused train 364→365. No positive reward, CLAIMED live mutation, ACK, replay, auto-release, terminal publication or frozen R25 PR #1847 change. Draft/unmerged. Hosted exact-head full Gradle CI required before certification.
