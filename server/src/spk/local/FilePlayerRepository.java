@@ -481,7 +481,7 @@ final class FilePlayerRepository
      * incomplete or paired with a stale caller snapshot. This does not
      * change the intentionally unguarded raw forensic save() method.
      */
-    private static void requireNoTerminalAccountPostimage(
+    static void requireNoTerminalAccountPostimage(
         String account,Path pinned
     )throws IOException{
         final BasicFileAttributes before;

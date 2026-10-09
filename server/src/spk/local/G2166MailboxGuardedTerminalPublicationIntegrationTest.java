@@ -57,6 +57,7 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
         boolean confirmedTerminalMarkerCleared=false;
         boolean permanentMarkerStillVetoes=false;
         boolean competingWorldSaveCannotEraseTerminal=false;
+        boolean competingStrictSaveCannotEraseTerminal=false;
         boolean staleAdmissionRejected=false;
         boolean lateOwnerChangedRejected=false;
         boolean lateOwnerDiskPrepared=false;
@@ -111,6 +112,17 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
             }catch(IOException forbidden){
                 competingWorldSaveCannotEraseTerminal=
                     forbidden.getMessage().contains(
+                        "G21.66 WORLD_SAVE_TERMINAL_ACCOUNT_VETO")&&
+                    repo.load(clean.proposal.account).get().values()
+                        .equals(clean.terminal.values());
+            }
+            try{
+                writer.saveStrictForWorld(
+                    clean.proposal.preparedPreimage,
+                    paths.resolve(clean.proposal.account));
+            }catch(IOException denied){
+                competingStrictSaveCannotEraseTerminal=
+                    denied.getMessage().contains(
                         "G21.66 WORLD_SAVE_TERMINAL_ACCOUNT_VETO")&&
                     repo.load(clean.proposal.account).get().values()
                         .equals(clean.terminal.values());
@@ -360,6 +372,8 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
                 permanentMarkerStillVetoes+
             " competingWorldSaveCannotEraseTerminal="+
                 competingWorldSaveCannotEraseTerminal+
+            " competingStrictSaveCannotEraseTerminal="+
+                competingStrictSaveCannotEraseTerminal+
             " staleAdmissionRejected="+staleAdmissionRejected+
             " lateOwnerChangedRejected="+lateOwnerChangedRejected+
             " lateOwnerDiskPrepared="+lateOwnerDiskPrepared+
@@ -381,6 +395,7 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
              confirmedTerminalMarkerCleared&&
              permanentMarkerStillVetoes&&
              competingWorldSaveCannotEraseTerminal&&
+             competingStrictSaveCannotEraseTerminal&&
              staleAdmissionRejected&&lateOwnerChangedRejected&&
              lateOwnerDiskPrepared&&divergentDiskRejected&&
              divergentDiskNotOverwritten&&permanentMarkerVeto&&

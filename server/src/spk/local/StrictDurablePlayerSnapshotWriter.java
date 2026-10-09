@@ -323,6 +323,16 @@ final class StrictDurablePlayerSnapshotWriter {
                 MailboxAccountPublicationCoordinator
                     .withExclusivePublication(worldFile,()->{
                         requireUnfenced(account,markerResolver);
+                        if(!terminalMode){
+                            // G21.66: same negative lock check as the
+                            // ordinary guarded World save. A stale
+                            // PREPARED strict barrier in a second JVM
+                            // may not erase an existing terminal record.
+                            FilePlayerRepository
+                                .requireNoTerminalAccountPostimage(
+                                    account,file
+                                );
+                        }
                         // G21.45: a World owner may have changed while
                         // the strict snapshot temp was being serialized
                         // or while this worker awaited this file lock.
