@@ -122,6 +122,19 @@ final class FilePlayerRepository
     }
 
     /**
+     * G21.48 active-session policy distinguishes permanent manual-review
+     * markers from the short-lived intent created by this session's own
+     * in-flight strict persistence worker. A stranded intent is still a
+     * session veto once its worker is no longer demonstrably in flight.
+     */
+    boolean hasPermanentMailboxReviewFence(String username)
+        throws IOException{
+        String account=clean(username);
+        return new MailboxDurableReviewFence(paths).present(account)||
+            new MailboxStrictUncertainFence(paths).present(account);
+    }
+
+    /**
      * Only the production WorldPlayerPersistence normal save path uses
      * this guarded entry point. Legacy/manual/forensic direct save() is
      * intentionally unchanged and MUST NOT be used as an admitted World
