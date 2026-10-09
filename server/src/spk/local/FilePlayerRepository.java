@@ -3,6 +3,9 @@ package spk.local;
 import java.io.*;
 import java.nio.file.*;
 import java.time.Instant;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
@@ -114,8 +117,12 @@ final class FilePlayerRepository
                 // symlink roots even when they resolve to valid players.
                 BasicFileAttributes before=
                     admittedAccountFileEvidence(account,file);
+                // G21.61: bind the decoded byte stream to its own
+                // SHA-256 fingerprint; G21.60 metadata alone cannot
+                // detect a same-size rewrite with restored mtime.
+                MessageDigest decodedHash=newAccountDigest();
                 Optional<PlayerSnapshot> observed=
-                    loadExactFile(account,file,true);
+                    loadExactFile(account,file,true,decodedHash);
                 afterWorldSessionRead.run(account);
                 requireUnfencedSessionLoad(account,markerPaths);
                 if(!file.equals(normalizedPath(account)))
@@ -130,6 +137,26 @@ final class FilePlayerRepository
                         "G21.60 MAILBOX_SESSION_ACCOUNT_FILE_CHANGED"+
                         " account="+account+" action=REJECT_SESSION"
                     );
+                if(before!=null){
+                    // Re-read only the pinned admitted account path.
+                    // The independent digest catches a content rewrite
+                    // that preserves size, file key and timestamp.
+                    if(!MessageDigest.isEqual(
+                            decodedHash.digest(),
+                            digestAdmittedAccountFile(file)))
+                        throw new IOException(
+                            "G21.61 MAILBOX_SESSION_ACCOUNT_BYTES_CHANGED"+
+                            " account="+account+" action=REJECT_SESSION"
+                        );
+                    // Check identity again after the second read.
+                    BasicFileAttributes afterDigest=
+                        admittedAccountFileEvidence(account,file);
+                    if(!sameAdmittedAccountObject(before,afterDigest))
+                        throw new IOException(
+                            "G21.60 MAILBOX_SESSION_ACCOUNT_FILE_CHANGED"+
+                            " account="+account+" action=REJECT_SESSION"
+                        );
+                }
                 return observed;
             });
     }
@@ -179,14 +206,40 @@ final class FilePlayerRepository
                            last.lastModifiedTime());
     }
 
-    private Optional<PlayerSnapshot> loadExactFile(
-        String username,Path file
+    private static MessageDigest newAccountDigest()throws IOException{
+        try{
+            return MessageDigest.getInstance("SHA-256");
+        }catch(NoSuchAlgorithmException impossible){
+            throw new IOException("SHA-256 unavailable",impossible);
+        }
+    }
+
+    /** Second NOFOLLOW read; not an atomic snapshot or ABA proof. */
+    private static byte[] digestAdmittedAccountFile(
+        Path file
     )throws IOException{
-        return loadExactFile(username,file,false);
+        MessageDigest digest=newAccountDigest();
+        try(InputStream input=new DigestInputStream(
+                java.nio.channels.Channels.newInputStream(
+                    java.nio.channels.FileChannel.open(
+                        file,StandardOpenOption.READ,
+                        LinkOption.NOFOLLOW_LINKS
+                    )),digest)){
+            byte[] buffer=new byte[8192];
+            while(input.read(buffer)!=-1){}
+        }
+        return digest.digest();
     }
 
     private Optional<PlayerSnapshot> loadExactFile(
-        String username,Path file,boolean noFollow
+        String username,Path file
+    )throws IOException{
+        return loadExactFile(username,file,false,null);
+    }
+
+    private Optional<PlayerSnapshot> loadExactFile(
+        String username,Path file,boolean noFollow,
+        MessageDigest contentDigest
     )throws IOException{
         if(!Files.isRegularFile(file))
             return Optional.empty();
@@ -204,7 +257,10 @@ final class FilePlayerRepository
                         LinkOption.NOFOLLOW_LINKS
                     ))
                 :Files.newInputStream(file)){
-            properties.load(input);
+            if(contentDigest==null)properties.load(input);
+            else properties.load(new DigestInputStream(
+                input,contentDigest
+            ));
         }
 
         final PlayerSnapshot snapshot;
