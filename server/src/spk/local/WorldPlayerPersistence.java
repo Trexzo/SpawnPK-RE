@@ -1743,6 +1743,9 @@ final class WorldPlayerPersistence
                                 .accountFilePath(snapshot.username()),
                             ()->requirePreparedOwnerStillCurrentAtPublication(
                                 owner,expectedGeneration,snapshot
+                            ),
+                            ()->requirePreparedOwnerStillCurrentAtPublication(
+                                owner,expectedGeneration,snapshot
                             )
                         )
                         :writer.saveStrict(snapshot);
