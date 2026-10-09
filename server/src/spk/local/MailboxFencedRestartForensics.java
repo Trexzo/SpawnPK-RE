@@ -53,7 +53,8 @@ final class MailboxFencedRestartForensics {
         STRICT_LEGACY_CHANGED_NO_AUTHORITY,
         MULTIPLE_NEGATIVE_MARKERS_CONFLICT_NO_AUTHORITY,
         MULTIPLE_NEGATIVE_MARKERS_INVALID_NO_AUTHORITY,
-        MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY
+        MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,
+        SINGLE_NEGATIVE_MARKER_MEMBERSHIP_CHANGED_NO_AUTHORITY
     }
 
     static final class Report {
@@ -99,6 +100,15 @@ final class MailboxFencedRestartForensics {
             after=inspectMarkerSet(fence,account);
         }catch(IOException|RuntimeException changed){
             return result(State.MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,account,null);
+        }
+        if(!Arrays.equals(before.present,after.present)){
+            // G21.52: zero/one marker is NOT exempt from evidence
+            // membership stability. A newly published fence may otherwise
+            // be silently reported as absent by this read-only inspector.
+            State state=(before.count>=2||after.count>=2)
+                ?State.MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY
+                :State.SINGLE_NEGATIVE_MARKER_MEMBERSHIP_CHANGED_NO_AUTHORITY;
+            return result(state,account,null);
         }
         if((before.count>=2||after.count>=2)&&!before.matches(after))
             return result(State.MULTIPLE_NEGATIVE_MARKERS_CHANGED_NO_AUTHORITY,account,null);
