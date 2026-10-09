@@ -363,14 +363,23 @@ final class MailboxDurableReviewFence {
         return parsed;
     }
 
-    Path fencePath(String account){
+    /**
+     * G21.48: reuse the exact same validated concrete account locator
+     * for the separate G21.47 read-only forensic marker inspector.
+     * This does not alter the existing fence file name or authority.
+     */
+    Path accountFileForStrictReview(String account){
         if(account==null||!account.matches("[a-z0-9_-]{1,64}"))
             throw new IllegalArgumentException(
                 "G21.32 noncanonical review fence account"
             );
-        Path accountFile=Objects.requireNonNull(
+        return Objects.requireNonNull(
             resolver.resolve(account),"account path"
         ).toAbsolutePath().normalize();
+    }
+
+    Path fencePath(String account){
+        Path accountFile=accountFileForStrictReview(account);
         return accountFile.resolveSibling(
             accountFile.getFileName().toString()+SUFFIX
         );
