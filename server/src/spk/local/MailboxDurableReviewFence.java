@@ -311,8 +311,25 @@ final class MailboxDurableReviewFence {
             );
     }
 
-    /** Presence of ANY marker blocks login, including malformed/symlink. */
+    /**
+     * G21.49: A-branch compatibility. Its old independent strict review
+     * pathname must also veto real World admission, including malformed
+     * files and symlinks. This does NOT import or trust its format.
+     */
     boolean present(String account)throws IOException{
+        Path accountFile=accountFileForStrictReview(account);
+        Path legacy=accountFile.resolveSibling(
+            accountFile.getFileName().toString()+
+            ".g2147-strict-postpublication-review"
+        );
+        try{
+            Files.readAttributes(
+                legacy,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+            );
+            return true;
+        }catch(NoSuchFileException absent){
+            // Fall through to original G21.32 marker.
+        }
         Path path=fencePath(account);
         try{
             Files.readAttributes(
@@ -352,6 +369,18 @@ final class MailboxDurableReviewFence {
         if(!lines[7].equals(hex(sha256(prefix))))
             throw new IOException("G21.32 review marker checksum mismatch");
         return parsed;
+    }
+
+    // G21.49: read-only forensic locator shared with original G21.32.
+    // This does not create, remove or authorize any marker.
+    Path accountFileForStrictReview(String account){
+        if(account==null||!account.matches("[a-z0-9_-]{1,64}"))
+            throw new IllegalArgumentException(
+                "G21.49 noncanonical strict review account"
+            );
+        return Objects.requireNonNull(
+            resolver.resolve(account),"account path"
+        ).toAbsolutePath().normalize();
     }
 
     Path fencePath(String account){
