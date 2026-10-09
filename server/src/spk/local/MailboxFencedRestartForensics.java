@@ -43,7 +43,8 @@ final class MailboxFencedRestartForensics {
         STRICT_MARKER_CHANGED,
         STRICT_MARKER_ACCOUNT_READ_FAILED,
         STRICT_MARKER_MISSING_ACCOUNT,
-        STRICT_MARKER_INVALID_ACCOUNT
+        STRICT_MARKER_INVALID_ACCOUNT,
+        STRICT_LEGACY_UNVERIFIED_NO_AUTHORITY
     }
 
     static final class Report {
@@ -94,6 +95,17 @@ final class MailboxFencedRestartForensics {
             if(markerPresent(intent))
                 return inspectStrictNegative(
                     persistence,account,intent,false
+                );
+            // Former independent A branch sidecar is deliberately a
+            // fail-closed legacy observation until its parser/migration
+            // is explicitly reconciled. Never silently admit or clear.
+            Path legacy=sidecarPath(
+                accountFile,".g2147-strict-postpublication-review"
+            );
+            if(markerPresent(legacy))
+                return result(
+                    State.STRICT_LEGACY_UNVERIFIED_NO_AUTHORITY,
+                    account,null
                 );
         }catch(IOException|RuntimeException badMarkerLocator){
             return result(State.STRICT_MARKER_INVALID,account,null);
