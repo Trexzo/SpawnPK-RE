@@ -2174,6 +2174,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2153MailboxSingleMarkerContentRaceIntegrationTest',
     'spk.local.G2154MailboxForensicAccountPathIdentityIntegrationTest',
     'spk.local.G2155MailboxAnchoredInnerForensicsIntegrationTest',
+    'spk.local.G2156MailboxStrictWorldWalAccountPathIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2202,10 +2203,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 355 ||
-    currentTrainFocusedTests.toSet().size() != 355) {
+if (currentTrainFocusedTests.size() != 356 ||
+    currentTrainFocusedTests.toSet().size() != 356) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 355 unique tests, found " +
+        "Current-train focused manifest drift: expected 356 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3153,6 +3154,14 @@ tasks.register('g2155MailboxAnchoredInnerForensicsRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2155MailboxAnchoredInnerForensicsIntegrationTest')
+}
+
+tasks.register('g2156MailboxStrictWorldWalAccountPathRegression', JavaExec) {
+    group = 'verification'
+    description = 'Asserts real World strict WAL and uncertain negative markers use the locked exact account path across resolver drift.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2156MailboxStrictWorldWalAccountPathIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

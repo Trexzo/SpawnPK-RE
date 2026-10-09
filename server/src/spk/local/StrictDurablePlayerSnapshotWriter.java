@@ -205,6 +205,19 @@ final class StrictDurablePlayerSnapshotWriter {
         if(parent==null)
             throw new IOException("no account parent directory");
 
+        // G21.56: when the World repository supplies its exact account
+        // file, every NEGATIVE marker in this strict operation must use
+        // that same path. Do not independently re-resolve account markers
+        // after the file is selected, locked, or atomically replaced.
+        final FilePlayerRepository.PathResolver markerResolver=
+            worldFile==null?resolver:requestedAccount->{
+                if(!account.equals(requestedAccount))
+                    throw new IllegalArgumentException(
+                        "G21.56 strict marker account identity changed"
+                    );
+                return file;
+            };
+
         if(worldFile!=null){
             if(!file.equals(worldFile))
                 throw new IOException(
@@ -218,7 +231,7 @@ final class StrictDurablePlayerSnapshotWriter {
                     "G21.42 STRICT_WORLD_PREPARED_QUARANTINE "+
                     account
                 );
-            requireUnfenced(account);
+            requireUnfenced(account,markerResolver);
         }
 
         // Validation is completed before creating/changing a file.
@@ -263,7 +276,7 @@ final class StrictDurablePlayerSnapshotWriter {
                 // serialized with its no-clobber hard-link publication.
                 MailboxAccountPublicationCoordinator
                     .withExclusivePublication(worldFile,()->{
-                        requireUnfenced(account);
+                        requireUnfenced(account,markerResolver);
                         // G21.45: a World owner may have changed while
                         // the strict snapshot temp was being serialized
                         // or while this worker awaited this file lock.
@@ -278,7 +291,7 @@ final class StrictDurablePlayerSnapshotWriter {
                         try{
                             MailboxStrictWriteIntentFence intent=
                                 writeAheadIntent
-                                    ?new MailboxStrictWriteIntentFence(resolver)
+                                    ?new MailboxStrictWriteIntentFence(markerResolver)
                                     :null;
                             if(intent!=null){
                                 intent.armInsidePublicationLock(
@@ -326,7 +339,7 @@ final class StrictDurablePlayerSnapshotWriter {
                             }
                         }catch(UnconfirmedCommitException uncertain){
                             try{
-                                new MailboxStrictUncertainFence(resolver)
+                                new MailboxStrictUncertainFence(markerResolver)
                                     .armInsidePublicationLock(
                                         account,expectedSha256
                                     );
@@ -380,10 +393,12 @@ final class StrictDurablePlayerSnapshotWriter {
         }
     }
 
-    private void requireUnfenced(String account)throws IOException{
-        if(new MailboxDurableReviewFence(resolver).present(account)||
-           new MailboxStrictUncertainFence(resolver).present(account)||
-           new MailboxStrictWriteIntentFence(resolver).present(account))
+    private void requireUnfenced(
+        String account,FilePlayerRepository.PathResolver markerResolver
+    )throws IOException{
+        if(new MailboxDurableReviewFence(markerResolver).present(account)||
+           new MailboxStrictUncertainFence(markerResolver).present(account)||
+           new MailboxStrictWriteIntentFence(markerResolver).present(account))
             throw new IOException(
                 "G21.42 STRICT_WORLD_MAILBOX_REVIEW_SAVE_VETO "+
                 account+" action=REJECT_STRICT_SAVE"
