@@ -295,8 +295,8 @@ final class MailboxFencedRestartForensics {
            !fields[3].matches("[0-9a-f]{64}")||
            !fields[4].matches("[0-9a-f]{64}"))
             throw new IOException("G21.49 old marker identity/format");
-        String payload=fields[0]+"\\n"+fields[1]+"\\n"+
-            fields[2]+"\\n"+fields[3]+"\\n";
+        String payload=fields[0]+"\n"+fields[1]+"\n"+
+            fields[2]+"\n"+fields[3]+"\n";
         final byte[] checksum;
         try{
             checksum=MessageDigest.getInstance("SHA-256").digest(
