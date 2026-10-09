@@ -343,7 +343,16 @@ final class MailboxDurableReviewFence {
 
     /** Optional diagnostic parser. Malformed content never clears a veto. */
     Record inspect(String account)throws IOException{
-        Path file=fencePath(account);
+        return inspectExactMarkerPath(account,fencePath(account));
+    }
+
+    /**
+     * G21.54 read-only parser for an already anchored G21.32 sidecar.
+     * Avoids a second resolver invocation within the multi-marker census.
+     */
+    Record inspectExactMarkerPath(
+        String account,Path file
+    )throws IOException{
         byte[] content=MailboxNegativeMarkerBoundedRead.read(
             file,80,MAX_BYTES
         );
