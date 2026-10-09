@@ -434,6 +434,12 @@ final class FilePlayerRepository
                         requireUnfencedWorldSave(
                 snapshot.username(),guardedMarkerPaths
             );
+                        // G21.66: a different cooperating World must
+                        // not overwrite a completed terminal account
+                        // with an older PREPARED/autosave snapshot.
+                        requireNoTerminalAccountPostimage(
+                            worldAccount,file
+                        );
                         insideWorldPublication.run(snapshot.username());
                         replaceSnapshotTemp(tmp,file);
                         return null;
@@ -464,6 +470,63 @@ final class FilePlayerRepository
             Files.move(
                 temp,file,StandardCopyOption.REPLACE_EXISTING
             );
+        }
+    }
+
+
+    /**
+     * G21.66: read the pinned current disk account while holding this
+     * account's G21.39 publication lock. An embedded terminal namespace
+     * is a permanent negative World-save veto, even when corrupted,
+     * incomplete or paired with a stale caller snapshot. This does not
+     * change the intentionally unguarded raw forensic save() method.
+     */
+    static void requireNoTerminalAccountPostimage(
+        String account,Path pinned
+    )throws IOException{
+        final BasicFileAttributes before;
+        try{
+            before=Files.readAttributes(
+                pinned,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+            );
+        }catch(NoSuchFileException missing){
+            return;
+        }
+        if(!before.isRegularFile())
+            throw new IOException(
+                "G21.66 WORLD_SAVE_DISK_ACCOUNT_NONREGULAR "+
+                account+" action=REJECT_WORLD_SAVE"
+            );
+        Optional<PlayerSnapshot> observed=
+            new FilePlayerRepository(a->{
+                if(!account.equals(a))
+                    throw new IllegalArgumentException(
+                        "G21.66 guarded World save account changed"
+                    );
+                return pinned;
+            }).load(account);
+        BasicFileAttributes after=Files.readAttributes(
+            pinned,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+        );
+        if(!after.isRegularFile()||
+           !Objects.equals(before.fileKey(),after.fileKey())||
+           before.size()!=after.size()||
+           !Objects.equals(before.lastModifiedTime(),
+                           after.lastModifiedTime()))
+            throw new IOException(
+                "G21.66 WORLD_SAVE_DISK_ACCOUNT_CHANGED "+
+                account+" action=REJECT_WORLD_SAVE"
+            );
+        if(observed.isPresent()){
+            String markerPrefix="extension."+
+                MailboxAtomicTerminalSnapshot.NAMESPACE+".";
+            for(String key:observed.get().values().keySet()){
+                if(key.startsWith(markerPrefix))
+                    throw new IOException(
+                        "G21.66 WORLD_SAVE_TERMINAL_ACCOUNT_VETO "+
+                        account+" action=REJECT_WORLD_SAVE"
+                    );
+            }
         }
     }
 
