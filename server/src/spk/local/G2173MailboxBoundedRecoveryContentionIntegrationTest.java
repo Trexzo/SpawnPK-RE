@@ -62,7 +62,7 @@ public final class G2173MailboxBoundedRecoveryContentionIntegrationTest {
             PlayerSnapshot terminal=
                 MailboxAtomicTerminalSnapshot.compose(proposal);
             strict.saveStrict(terminal);
-            Path file=paths.resolve(account+".properties");
+            Path file=paths.resolve(account);
             String baseline=repo.captureRestartContinuityTokenReadOnly(
                 account);
             FilePlayerRepository fresh=new FilePlayerRepository(paths);
