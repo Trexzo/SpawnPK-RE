@@ -22,6 +22,8 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
         boolean corruptMarker=false,dualPrefersPermanent=false;
         boolean cleanAccountUnfenced=false,restartVeto=false;
         boolean legacyMarkerStillVetoes=false;
+        boolean legacyChecksumDivergence=false;
+        boolean legacyTamperStillVetoes=false;
         boolean noAuthority=true,noCleanup=true,noLeases=true;
 
         Path root=Files.createTempDirectory("g2149-negative-forensics-");
@@ -39,10 +41,16 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
             PlayerSnapshot i=seed(repository,"g2149-intent");
             PlayerSnapshot d=seed(repository,"g2149-dual");
             seed(repository,"g2149-clean");
-            seed(repository,"g2149-legacy");
+            PlayerSnapshot legacySnapshot=seed(repository,"g2149-legacy");
             Path legacy=paths.resolve("g2149-legacy.properties"+
                 ".g2147-strict-postpublication-review");
-            Files.writeString(legacy,"legacy-A-marker-untrusted");
+            Files.writeString(
+                legacy,legacyRecord(
+                    "g2149-legacy",
+                    StrictDurablePlayerSnapshotWriter
+                        .canonicalSnapshotSha256(legacySnapshot)
+                )
+            );
             String pSha=StrictDurablePlayerSnapshotWriter
                 .canonicalSnapshotSha256(p);
             String iSha=StrictDurablePlayerSnapshotWriter
@@ -97,9 +105,35 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
                 );
                 legacyMarkerStillVetoes=
                     lr.state==MailboxFencedRestartForensics.State
-                        .STRICT_LEGACY_UNVERIFIED_NO_AUTHORITY&&
+                        .STRICT_LEGACY_CHECKSUM_VALID_EXACT_NO_AUTHORITY&&
                     denied(world,"g2149-legacy");
                 noAuthority&=nonAuthorizing(lr);
+                TreeMap<String,String> legacyChanged=
+                    new TreeMap<>(legacySnapshot.values());
+                legacyChanged.put(
+                    "extension.g2149.legacy","manual divergence"
+                );
+                repository.save(new PlayerSnapshot(
+                    PlayerSnapshot.CURRENT_VERSION,
+                    "g2149-legacy",legacyChanged
+                ));
+                MailboxFencedRestartForensics.Report ld=inspect(
+                    world,proposalMarker,"g2149-legacy"
+                );
+                legacyChecksumDivergence=ld.state==
+                    MailboxFencedRestartForensics.State
+                        .STRICT_LEGACY_CHECKSUM_VALID_DIVERGENT_NO_AUTHORITY;
+                noAuthority&=nonAuthorizing(ld);
+                Files.writeString(legacy,"tampered");
+                MailboxFencedRestartForensics.Report invalidLegacy=inspect(
+                    world,proposalMarker,"g2149-legacy"
+                );
+                legacyTamperStillVetoes=
+                    invalidLegacy.state==
+                        MailboxFencedRestartForensics.State
+                            .STRICT_LEGACY_INVALID_RECORD_NO_AUTHORITY&&
+                    denied(world,"g2149-legacy");
+                noAuthority&=nonAuthorizing(invalidLegacy);
 
                 TreeMap<String,String> changed=
                     new TreeMap<>(p.values());
@@ -170,6 +204,8 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
             " cleanAccount="+cleanAccountUnfenced+
             " restartedAccountVeto="+restartVeto+
             " legacyMarkerDenied="+legacyMarkerStillVetoes+
+            " legacyChecksumDivergence="+legacyChecksumDivergence+
+            " legacyTamperDenied="+legacyTamperStillVetoes+
             " noAuthority="+noAuthority+
             " noMarkerCleanup="+noCleanup+
             " noLeaseOrTempLeak="+noLeases
@@ -177,7 +213,8 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
         if(!(permanentExact&&intentExact&&permanentChangedSnapshot&&
             missingAccount&&corruptMarker&&dualPrefersPermanent&&
             cleanAccountUnfenced&&restartVeto&&
-            legacyMarkerStillVetoes&&noAuthority&&
+            legacyMarkerStillVetoes&&legacyChecksumDivergence&&
+            legacyTamperStillVetoes&&noAuthority&&
             noCleanup&&noLeases))
             throw new AssertionError(
                 "G21.49 strict negative read-only forensic regression"
@@ -200,6 +237,27 @@ public final class G2149MailboxStrictNegativeForensicsIntegrationTest {
                 return null;
             }
         );
+    }
+
+    private static String legacyRecord(
+        String account,String sha
+    )throws Exception{
+        String payload=
+            "SPK-G2147-STRICT-POSTPUBLICATION-UNCERTAIN-V1\\n"+
+            "REVIEW_REQUIRED_NO_GRANT\\n"+
+            account+"\\n"+sha+"\\n";
+        byte[] digest=java.security.MessageDigest
+            .getInstance("SHA-256").digest(
+                payload.getBytes(StandardCharsets.US_ASCII)
+            );
+        char[] chars=new char[digest.length*2];
+        char[] hex="0123456789abcdef".toCharArray();
+        for(int i=0;i<digest.length;i++){
+            int b=digest[i]&255;
+            chars[2*i]=hex[b>>>4];
+            chars[2*i+1]=hex[b&15];
+        }
+        return payload+new String(chars)+"\\n";
     }
 
     private static PlayerSnapshot seed(
