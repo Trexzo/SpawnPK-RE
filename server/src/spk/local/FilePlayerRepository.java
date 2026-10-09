@@ -177,6 +177,19 @@ final class FilePlayerRepository
                 snapshot.username()
             );
 
+        // G21.57: the guarded World save uses ONE account-file
+        // location for both the actual replacement and negative markers.
+        // A mutable resolver must never make review checks look at B while
+        // the account FileLock/ATOMIC_MOVE targets A.
+        final String worldAccount=clean(snapshot.username());
+        final PathResolver guardedMarkerPaths=requested->{
+            if(!worldAccount.equals(clean(requested)))
+                throw new IllegalArgumentException(
+                    "G21.57 marker account identity changed"
+                );
+            return file;
+        };
+
         if(enforceWorldAdmission){
             MailboxPreparedRestartAdmission.Decision admission=
                 MailboxPreparedRestartAdmission.inspect(snapshot);
@@ -186,7 +199,9 @@ final class FilePlayerRepository
                     " account="+snapshot.username()+
                     " reason="+admission.state
                 );
-            requireUnfencedWorldSave(snapshot.username());
+            requireUnfencedWorldSave(
+                snapshot.username(),guardedMarkerPaths
+            );
         }
 
         Path parent=file.getParent();
@@ -231,7 +246,9 @@ final class FilePlayerRepository
                 // This does NOT coordinate direct manual save() calls.
                 MailboxAccountPublicationCoordinator
                     .withExclusivePublication(file,()->{
-                        requireUnfencedWorldSave(snapshot.username());
+                        requireUnfencedWorldSave(
+                snapshot.username(),guardedMarkerPaths
+            );
                         insideWorldPublication.run(snapshot.username());
                         replaceSnapshotTemp(tmp,file);
                         return null;
@@ -266,9 +283,14 @@ final class FilePlayerRepository
     }
 
     private void requireUnfencedWorldSave(
-        String account
+        String account,PathResolver markerPaths
     )throws IOException{
-        if(hasUnresolvedMailboxReviewFence(account))
+        // The guarded World save must check ALL four negative marker
+        // names against the locked/replaced account file, not a second
+        // independently resolved account root.
+        if(new MailboxDurableReviewFence(markerPaths).present(account)||
+           new MailboxStrictUncertainFence(markerPaths).present(account)||
+           new MailboxStrictWriteIntentFence(markerPaths).present(account))
             throw new IOException(
                 "G21.36 MAILBOX_DURABLE_REVIEW_SAVE_VETO"+
                 " account="+account+" action=REJECT_WORLD_SAVE"
