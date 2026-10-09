@@ -259,9 +259,9 @@ final class MailboxFencedRestartForensics {
                 if(!present[i])continue;
                 if(i==3){
                     proposal=fence.inspect(account);
-                    evidence[i]=Files.readAllBytes(paths[i]);
-                    if(evidence[i].length>2048)
-                        throw new IOException("G21.50 oversize proposal");
+                    evidence[i]=MailboxNegativeMarkerBoundedRead.read(
+                        paths[i],80,2048
+                    );
                 }else{
                     StrictNegativeRecord record=i==2
                         ?readLegacyNegative(paths[i],account)
@@ -347,7 +347,9 @@ final class MailboxFencedRestartForensics {
         );
         if(!attrs.isRegularFile()||attrs.size()<60||attrs.size()>384)
             throw new IOException("G21.49 invalid strict marker inode/size");
-        byte[] bytes=Files.readAllBytes(path);
+        byte[] bytes=MailboxNegativeMarkerBoundedRead.read(
+            path,60,384
+        );
         if(bytes.length<60||bytes.length>384)
             throw new IOException("G21.49 invalid strict marker byte count");
         String data=new String(bytes,StandardCharsets.US_ASCII);
@@ -384,7 +386,9 @@ final class MailboxFencedRestartForensics {
         );
         if(!attrs.isRegularFile()||attrs.size()<80||attrs.size()>512)
             throw new IOException("G21.49 old strict marker type/size");
-        byte[] bytes=Files.readAllBytes(markerPath);
+        byte[] bytes=MailboxNegativeMarkerBoundedRead.read(
+            markerPath,80,512
+        );
         if(bytes.length<80||bytes.length>512)
             throw new IOException("G21.49 old strict marker size");
         String raw=new String(bytes,StandardCharsets.US_ASCII);
