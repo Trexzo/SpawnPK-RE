@@ -1,0 +1,19 @@
+# G21.75 — same-inode in-place mutation detection using optional POSIX ctime (NO GRANT)
+
+**Base:** exact hosted-certified G21.74 `e93e04eb73196763d990177f3923d5b083209d4f`, [Actions #37976070272](https://github.com/Trexzo/SpawnPK-RE/actions/runs/37976070272), 374 focused Java 11. [Issue #2326](https://github.com/Trexzo/SpawnPK-RE/issues/2326).
+
+## Narrow new guarantee
+
+G21.74 catches file-object **replacement** within one read-only forensic witness capture through a NOFOLLOW fileKey+size+mtime+creation-time census. A different uncooperative writer can instead modify an **existing inode** in place, replace the edited content with exactly the original bytes, then restore mtime. The original fileKey, SHA-256 content, length and mtime may all match. There is no generic Java11/Windows filesystem primitive that guarantees detection of malicious write-and-restore between two checks.
+
+G21.75 strengthens the existing G21.74 census on filesystems exposing `unix:ctime`: sample the NOFOLLOW **change timestamp** for every present pinned forensic file (account plus all four G21.32/G21.49/G21.47/G21.48 negative review sidecars). Compare it across all existing witness boundaries—first content/classification pass, G21.74 deterministic between-pass test seam, second full pass, final classification and return. A changed ctime triggers `IOException G21.75 RECOVERY_INPLACE_CHANGE_NO_GRANT` even when the fileKey, contents, size, original mtime and creationTime match. The additional stat is surrounded by before/after existing object identity checks. Other I/O errors fail closed. `unix:ctime` is never recorded in the portable witness, so valid cross-process G2172 comparisons remain based on exact byte content and pinned pathname.
+
+On Windows or other Java providers where the `unix` attribute view is unavailable, the optional ctime sample is null and G21.74 identity/size/mtime plus G21.72 double SHA-256/content comparisons remain authoritative. **Do not claim G21.75's restored-byte in-place edit detection on those filesystems.** The test reports `posixCtimeAccountAvailable` and `posixCtimeMarkerAvailable` so the hosted run's actual coverage is explicit. An unsupported view is NOT an error because the current service must remain Java11/Windows compatible.
+
+Even POSIX ctime is not an unforgeable write log. An attacker with filesystem-level privileges, snapshots, coarse clock granularity, same-inode ABA outside a sample interval or uncooperative post-return edits can evade point-in-time forensic checks. This is NOT positive COMMIT, authenticated provenance or crash-durable exactly-once reward settlement, and never authorizes account restart admission or claims. The G21.73 acquisition deadline and G21.39 cooperative account-lock remain as previously certified.
+
+## Test matrix
+
+`G2175MailboxRestartInPlaceChangeStampIntegrationTest` uses genuine G21.64 terminal and G21.48 stranded intent files. For each, the G21.74 between-pass seam performs an **in-place edit then restores the original bytes**, mtime and same inode (not atomic replacement); change-time is separately read before and after. The test asserts the original file identity/content/mtime match, POSIX ctime advanced when supported, and the capture returns `RECOVERY_INPLACE_CHANGE_NO_GRANT` when ctime is available. Afterwards a fresh repository sees the unchanged portable prior witness; no file edit originates from the forensic API. Covers absent/unrelated account, existing restart quarantine, live inventory still unchanged/Mailbox UNCLAIMED and no file-temp/JVM lease leaks. Test explicitly distinguishes unsupported provider fallback from POSIX assertions.
+
+Java11 focused train advances 374→375; exact-head GitHub-hosted full Gradle green required for certification. Draft/unmerged. **No grant, replay, rollback, positive COMMIT, file rewrite, review-marker release, session admission, ACK or native C2S185/widget32181 grant.** Frozen R25 PR #1847 untouched.
