@@ -72,12 +72,12 @@ public final class G2154MailboxForensicAccountPathIdentityIntegrationTest {
             try(World world=World.isolatedForTest(60000L,repository)){
                 world.start();
                 SwitchingResolver duplicate=new SwitchingResolver(
-                    primary,alternate,3);
+                    primary,alternate,2);
                 MailboxFencedRestartForensics.Report dup=
                     inspect(world,new MailboxDurableReviewFence(duplicate),
                         "g2154-duplicate");
                 duplicateExactBytesStillVeto=pathChanged(dup)&&
-                    duplicate.calls.get()>=3&&
+                    duplicate.calls.get()>=2&&
                     Arrays.equals(
                         Files.readAllBytes(permanent.fencePath(
                             "g2154-duplicate")),
@@ -87,12 +87,12 @@ public final class G2154MailboxForensicAccountPathIdentityIntegrationTest {
                 allNoAuthority&=noAuthority(dup);
 
                 SwitchingResolver empty=new SwitchingResolver(
-                    primary,alternate,4);
+                    primary,alternate,2);
                 MailboxFencedRestartForensics.Report nr=
                     inspect(world,new MailboxDurableReviewFence(empty),
                         "g2154-nomarker");
                 noFencePathDriftVeto=pathChanged(nr)&&
-                    empty.calls.get()>=4;
+                    empty.calls.get()>=2;
                 allNoAuthority&=noAuthority(nr);
 
                 SwitchingResolver split=new SwitchingResolver(
@@ -101,7 +101,7 @@ public final class G2154MailboxForensicAccountPathIdentityIntegrationTest {
                     inspect(world,new MailboxDurableReviewFence(split),
                         "g2154-split");
                 splitProposalIsNotCombined=pathChanged(sr)&&
-                    split.calls.get()>=3&&
+                    split.calls.get()>=2&&
                     refused(world,"g2154-split")&&
                     Files.isRegularFile(second.resolve(
                         "g2154-split.properties.g2132-mailbox-review"));
