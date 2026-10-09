@@ -56,6 +56,7 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
         boolean activeTerminalMarkerNotSelfKick=false;
         boolean confirmedTerminalMarkerCleared=false;
         boolean permanentMarkerStillVetoes=false;
+        boolean competingWorldSaveCannotEraseTerminal=false;
         boolean staleAdmissionRejected=false;
         boolean lateOwnerChangedRejected=false;
         boolean lateOwnerDiskPrepared=false;
@@ -103,6 +104,17 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
             confirmedMarkerCleared=
                 !intent.present(clean.proposal.account)&&
                 !uncertain.present(clean.proposal.account);
+            try{
+                // Simulates a separate cooperating JVM saving a stale
+                // PREPARED snapshot after the strict terminal COMMIT.
+                repo.saveForWorld(clean.proposal.preparedPreimage);
+            }catch(IOException forbidden){
+                competingWorldSaveCannotEraseTerminal=
+                    forbidden.getMessage().contains(
+                        "G21.66 WORLD_SAVE_TERMINAL_ACCOUNT_VETO")&&
+                    repo.load(clean.proposal.account).get().values()
+                        .equals(clean.terminal.values());
+            }
             try{
                 world.persistence().load(clean.proposal.account);
             }catch(IOException refused){
@@ -346,6 +358,8 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
                 confirmedTerminalMarkerCleared+
             " permanentMarkerStillVetoes="+
                 permanentMarkerStillVetoes+
+            " competingWorldSaveCannotEraseTerminal="+
+                competingWorldSaveCannotEraseTerminal+
             " staleAdmissionRejected="+staleAdmissionRejected+
             " lateOwnerChangedRejected="+lateOwnerChangedRejected+
             " lateOwnerDiskPrepared="+lateOwnerDiskPrepared+
@@ -366,6 +380,7 @@ public final class G2166MailboxGuardedTerminalPublicationIntegrationTest {
              activeTerminalMarkerNotSelfKick&&
              confirmedTerminalMarkerCleared&&
              permanentMarkerStillVetoes&&
+             competingWorldSaveCannotEraseTerminal&&
              staleAdmissionRejected&&lateOwnerChangedRejected&&
              lateOwnerDiskPrepared&&divergentDiskRejected&&
              divergentDiskNotOverwritten&&permanentMarkerVeto&&
