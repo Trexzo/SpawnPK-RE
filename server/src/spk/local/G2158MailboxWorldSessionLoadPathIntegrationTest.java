@@ -110,9 +110,13 @@ public final class G2158MailboxWorldSessionLoadPathIntegrationTest {
             DriftingResolver lateDrift=new DriftingResolver(a,b);
             FilePlayerRepository lateRepo=new FilePlayerRepository(
                 lateDrift,account->{},account->{},account->{
-                    publish(actual.resolve(account),()->
-                        permanent.armInsidePublicationLock(
-                            account,sha(seeded.load(account).get())));
+                    // G21.59 holds the account publication lock for the
+                    // whole admitted read. Deliberately inject an
+                    // UNCOOPERATIVE malformed sidecar here instead of
+                    // recursively reacquiring the same FileLock.
+                    // Its mere presence must remain a negative veto.
+                    Files.writeString(permanent.fencePath(account),
+                        "G2158_EXTERNAL_LATE_NO_GRANT");
                     added.set(true);
                 });
             lateMarkerVeto=refusedSession(lateRepo,late,
