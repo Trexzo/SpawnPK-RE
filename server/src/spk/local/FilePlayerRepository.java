@@ -117,6 +117,8 @@ final class FilePlayerRepository
     )throws IOException{
         return new MailboxDurableReviewFence(paths).present(
             clean(username)
+        )||MailboxStrictUncertainFence.present(
+            normalizedPath(username)
         );
     }
 
@@ -211,6 +213,10 @@ final class FilePlayerRepository
                 MailboxAccountPublicationCoordinator
                     .withExclusivePublication(file,()->{
                         requireUnfencedWorldSave(snapshot.username());
+                        // G21.47 also checks the negative strict
+                        // uncertainty sidecar at the final publication
+                        // boundary, not only before temp creation.
+                        MailboxStrictUncertainFence.requireClear(file);
                         insideWorldPublication.run(snapshot.username());
                         replaceSnapshotTemp(tmp,file);
                         return null;
