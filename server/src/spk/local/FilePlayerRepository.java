@@ -271,6 +271,14 @@ final class FilePlayerRepository
     private RestartRecoveryEvidence inspectRestartRecoveryLocked(
         String account,Path pinned,PathResolver sameFile
     )throws IOException{
+        return inspectRestartRecoveryLocked(
+            account,pinned,sameFile,Long.MAX_VALUE);
+    }
+
+    /** Bounded only for G21.77 portable witness, not normal session. */
+    private RestartRecoveryEvidence inspectRestartRecoveryLocked(
+        String account,Path pinned,PathResolver sameFile,long maximum
+    )throws IOException{
                 final int markersBefore=restartReviewMask(
                     account,sameFile
                 );
@@ -294,9 +302,13 @@ final class FilePlayerRepository
                 // digest during decoded read, and independent digest.
                 BasicFileAttributes before=
                     admittedAccountFileEvidence(account,pinned);
+                if(before!=null&&before.size()>maximum)
+                    throw new IOException(
+                        "G21.77 RECOVERY_ACCOUNT_OVERSIZE_NO_GRANT"
+                    );
                 MessageDigest firstDigest=newAccountDigest();
                 Optional<PlayerSnapshot> read=loadExactFile(
-                    account,pinned,true,firstDigest
+                    account,pinned,true,firstDigest,maximum
                 );
                 afterWorldSessionRead.run(account);
                 int markersAfter=restartReviewMask(account,sameFile);
@@ -325,7 +337,7 @@ final class FilePlayerRepository
                 }
                 if(!read.isPresent()||
                    !MessageDigest.isEqual(firstDigest.digest(),
-                       digestAdmittedAccountFile(pinned))||
+                       digestAdmittedAccountFile(pinned,maximum))||
                    !sameAdmittedAccountObject(before,
                        admittedAccountFileEvidence(account,pinned))||
                    restartReviewMask(account,sameFile)!=markersBefore||
@@ -457,7 +469,7 @@ final class FilePlayerRepository
         String account,Path pinned,PathResolver sameFile
     )throws IOException{
         RestartRecoveryEvidence state=inspectRestartRecoveryLocked(
-            account,pinned,sameFile
+            account,pinned,sameFile,RESTART_WITNESS_MAX_ACCOUNT_BYTES
         );
         StringBuilder bits=new StringBuilder();
         bits.append(RESTART_WITNESS_VERSION).append('|')
@@ -477,7 +489,7 @@ final class FilePlayerRepository
         // Re-check all marker names, account path and G21.71's
         // authoritative classification before returning this witness.
         RestartRecoveryEvidence second=inspectRestartRecoveryLocked(
-            account,pinned,sameFile
+            account,pinned,sameFile,RESTART_WITNESS_MAX_ACCOUNT_BYTES
         );
         if(second.state!=state.state||!pinned.equals(
                 normalizedPath(account)))
@@ -603,6 +615,29 @@ final class FilePlayerRepository
     }
 
     /**
+     * G21.77: enforce the original G21.72 advertised forensic byte caps
+     * BEFORE the G21.71 Properties parser touches account contents.
+     * A G21.48 marker takes precedence for admission, but an oversize
+     * marker still rejects this optional forensic witness.
+     */
+    private static void requireBoundedRestartFiles(
+        RestartObjectCensus census
+    )throws IOException{
+        for(int i=0;i<census.objects.length;i++){
+            BasicFileAttributes object=census.objects[i];
+            long limit=i==0
+                ?RESTART_WITNESS_MAX_ACCOUNT_BYTES
+                :RESTART_WITNESS_MAX_MARKER_BYTES;
+            if(object!=null&&object.size()>limit)
+                throw new IOException(
+                    (i==0
+                        ?"G21.77 RECOVERY_ACCOUNT_OVERSIZE_NO_GRANT"
+                        :"G21.77 RECOVERY_MARKER_OVERSIZE_NO_GRANT")
+                );
+        }
+    }
+
+    /**
      * G21.76: NOFOLLOW on the leaf account/marker is insufficient if
      * an ancestor directory is a symlink or replaced while the witness
      * is sampled. Keep a local (NOT portable-token) directory-inode
@@ -705,6 +740,7 @@ final class FilePlayerRepository
                 RestartObjectCensus baseline=restartRecoveryCensus(
                     files
                 );
+                requireBoundedRestartFiles(baseline);
                 String first=restartWitnessInsidePublication(
                     account,pinned,bound);
                 requireUnchangedRecoveryCensus(files,baseline);
@@ -726,7 +762,8 @@ final class FilePlayerRepository
                     );
                 RestartRecoveryEvidence finalState=
                     inspectRestartRecoveryLocked(
-                        account,pinned,bound
+                        account,pinned,bound,
+                        RESTART_WITNESS_MAX_ACCOUNT_BYTES
                     );
                 requireUnchangedRecoveryCensus(files,baseline);
                 requireUnchangedRestartAncestry(ancestry);
@@ -822,17 +859,69 @@ final class FilePlayerRepository
         }
     }
 
+    /**
+     * Reject bytes beyond the configured forensic limit, including
+     * when a raw writer grows a previously small file after its stat.
+     * Normal account loads and the standalone G21.71 inspector retain
+     * their preexisting, unbounded compatibility semantics.
+     */
+    private static final class BoundedRecoveryInputStream
+        extends java.io.FilterInputStream{
+        private final long maximum;
+        private long consumed;
+        BoundedRecoveryInputStream(InputStream input,long maximum){
+            super(input);
+            this.maximum=maximum;
+        }
+        @Override public int read()throws IOException{
+            if(consumed>=maximum){
+                int overflow=in.read();
+                if(overflow!=-1)
+                    throw new IOException(
+                        "G21.77 RECOVERY_STREAM_OVERSIZE_NO_GRANT");
+                return -1;
+            }
+            int result=in.read();
+            if(result!=-1)consumed++;
+            return result;
+        }
+        @Override public int read(byte[] data,int offset,int length)
+            throws IOException{
+            if(length==0)return 0;
+            if(consumed>=maximum){
+                int overflow=in.read();
+                if(overflow!=-1)
+                    throw new IOException(
+                        "G21.77 RECOVERY_STREAM_OVERSIZE_NO_GRANT");
+                return -1;
+            }
+            int count=in.read(
+                data,offset,(int)Math.min((long)length,maximum-consumed)
+            );
+            if(count>0)consumed+=count;
+            return count;
+        }
+    }
+
     /** Second NOFOLLOW read; not an atomic snapshot or ABA proof. */
     private static byte[] digestAdmittedAccountFile(
         Path file
     )throws IOException{
+        return digestAdmittedAccountFile(file,Long.MAX_VALUE);
+    }
+
+    private static byte[] digestAdmittedAccountFile(
+        Path file,long maximum
+    )throws IOException{
         MessageDigest digest=newAccountDigest();
-        try(InputStream input=new DigestInputStream(
-                java.nio.channels.Channels.newInputStream(
-                    java.nio.channels.FileChannel.open(
-                        file,StandardOpenOption.READ,
-                        LinkOption.NOFOLLOW_LINKS
-                    )),digest)){
+        try(InputStream raw=java.nio.channels.Channels.newInputStream(
+                java.nio.channels.FileChannel.open(
+                    file,StandardOpenOption.READ,
+                    LinkOption.NOFOLLOW_LINKS
+                ))){
+            InputStream limited=maximum==Long.MAX_VALUE
+                ?raw:new BoundedRecoveryInputStream(raw,maximum);
+            InputStream input=new DigestInputStream(limited,digest);
             byte[] buffer=new byte[8192];
             while(input.read(buffer)!=-1){}
         }
@@ -849,6 +938,14 @@ final class FilePlayerRepository
         String username,Path file,boolean noFollow,
         MessageDigest contentDigest
     )throws IOException{
+        return loadExactFile(
+            username,file,noFollow,contentDigest,Long.MAX_VALUE);
+    }
+
+    private Optional<PlayerSnapshot> loadExactFile(
+        String username,Path file,boolean noFollow,
+        MessageDigest contentDigest,long maximum
+    )throws IOException{
         if(!Files.isRegularFile(file))
             return Optional.empty();
 
@@ -858,13 +955,15 @@ final class FilePlayerRepository
         // The admitted decoder never follows a substituted symbolic
         // link after its NOFOLLOW metadata check. Raw forensic reading
         // preserves its pre-existing compatibility semantics.
-        try(InputStream input=noFollow
+        try(InputStream raw=noFollow
                 ?java.nio.channels.Channels.newInputStream(
                     java.nio.channels.FileChannel.open(
                         file,StandardOpenOption.READ,
                         LinkOption.NOFOLLOW_LINKS
                     ))
                 :Files.newInputStream(file)){
+            InputStream input=maximum==Long.MAX_VALUE
+                ?raw:new BoundedRecoveryInputStream(raw,maximum);
             if(contentDigest==null)properties.load(input);
             else properties.load(new DigestInputStream(
                 input,contentDigest
