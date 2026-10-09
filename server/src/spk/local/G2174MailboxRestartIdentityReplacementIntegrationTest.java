@@ -113,6 +113,11 @@ public final class G2174MailboxRestartIdentityReplacementIntegrationTest {
                         "G21.74 RECOVERY_OBJECT_REPLACED_NO_GRANT");
             }
             strict.saveStrict(terminal);
+            // The strict writer intentionally refreshed saved.at when
+            // restoring the terminal after the PREPARED fixture.
+            // Compare later read-only captures to THIS new baseline,
+            // not to serialization bytes from before that write.
+            byte[] restoredTerminalBytes=Files.readAllBytes(accountPath);
 
             // A negative review marker has stable PATH/PRESENCE/BYTES
             // but a different filesystem inode after raw replacement.
@@ -215,7 +220,7 @@ public final class G2174MailboxRestartIdentityReplacementIntegrationTest {
                         independent,unrelated));
 
             callerCaptureOnlyReads=callerCaptureOnlyReads&&
-                Arrays.equals(exactAccount,
+                Arrays.equals(restoredTerminalBytes,
                     Files.readAllBytes(accountPath))&&
                 Arrays.equals(exactMarker,
                     Files.readAllBytes(marker));
