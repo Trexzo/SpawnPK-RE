@@ -255,12 +255,32 @@ final class StrictDurablePlayerSnapshotWriter {
                         try{
                             postPublicationCheck.requireStillCurrent();
                         }catch(IOException|RuntimeException divergent){
-                            throw new UnconfirmedCommitException(
-                                "G21.46 STRICT_PREPARED_POSTPUBLICATION_UNCONFIRMED "+
-                                "account="+account+
-                                " action=MANUAL_REVIEW_NO_GRANT",
-                                divergent
-                            );
+                            // G21.47: the file MAY ALREADY contain the
+                            // published PREPARED snapshot. While STILL
+                            // holding the same account publication FileLock,
+                            // independently persist a separate negative
+                            // restart/admission veto. Never reenter that
+                            // FileLock via G21.32.arm() from here.
+                            UnconfirmedCommitException uncertain=
+                                new UnconfirmedCommitException(
+                                    "G21.46 STRICT_PREPARED_POSTPUBLICATION_UNCONFIRMED "+
+                                    "account="+account+
+                                    " action=MANUAL_REVIEW_NO_GRANT",
+                                    divergent
+                                );
+                            try{
+                                MailboxStrictUnconfirmedReviewFence
+                                    .armInsidePublicationLock(
+                                        worldFile,account,expectedSha256
+                                    );
+                            }catch(IOException|RuntimeException markerFailure){
+                                // The pre-existing account replacement is
+                                // still uncertain. A failed marker force
+                                // must NOT become a fictitious confirmed
+                                // quarantine or a successful strict receipt.
+                                uncertain.addSuppressed(markerFailure);
+                            }
+                            throw uncertain;
                         }
                         return null;
                     });

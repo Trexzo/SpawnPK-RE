@@ -314,6 +314,15 @@ final class MailboxDurableReviewFence {
     /** Presence of ANY marker blocks login, including malformed/symlink. */
     boolean present(String account)throws IOException{
         Path path=fencePath(account);
+        // G21.47: either independently persisted NEGATIVE marker must
+        // veto real file-backed World login and guarded account saves.
+        // The strict-uncertain format is intentionally NOT interpreted
+        // as a G21.32 hypothetical-CLAIMED proposal receipt.
+        Path accountFile=Objects.requireNonNull(
+            resolver.resolve(account),"account path"
+        ).toAbsolutePath().normalize();
+        if(MailboxStrictUnconfirmedReviewFence.present(accountFile))
+            return true;
         try{
             Files.readAttributes(
                 path,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS

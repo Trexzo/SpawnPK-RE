@@ -199,10 +199,16 @@ public final class G2146MailboxStrictPostpublicationUnconfirmedIntegrationTest {
                     Arrays.equals(unrelatedBytes,
                         Files.readAllBytes(paths.resolve(unrelated.account)));
 
-                noFalseReviewMarkerCreated=true;
+                // G21.47 strengthens the earlier G21.46 unconfirmed
+                // result: only already-published uncertain accounts
+                // receive negative restart fences; clean receipts do not.
+                noFalseReviewMarkerCreated=
+                    fences.present(moved.account)&&
+                    fences.present(retired.account)&&
+                    !fences.present(steady.account)&&
+                    !fences.present(unrelated.account);
                 noInventoryCreditOrClaim=true;
                 for(Seed s:new Seed[]{moved,retired,steady,unrelated}){
-                    noFalseReviewMarkerCreated &=!fences.present(s.account);
                     noInventoryCreditOrClaim &=
                         s.player.bank().inventorySlots()==0&&
                         s.player.mailbox().get(s.messageId).claimState==
@@ -252,7 +258,7 @@ public final class G2146MailboxStrictPostpublicationUnconfirmedIntegrationTest {
             " unchangedOwnerReceipt="+normalUnchangedOwnerGetsReceipt+
             " unchangedDiskRoundtrip="+normalStrictAccountRoundTrip+
             " otherAccountUnchanged="+independentAccountUnchanged+
-            " noInventedReviewMarker="+noFalseReviewMarkerCreated+
+            " negativeOnlyOnUnconfirmed="+noFalseReviewMarkerCreated+
             " noTempArtifacts="+noTempArtifacts+
             " noPublicationLeaseLeaks="+noJvmPublicationLeaseLeak+
             " noItemGrantOrClaim="+noInventoryCreditOrClaim+
