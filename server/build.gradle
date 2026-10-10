@@ -2202,6 +2202,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2181MailboxRestartTerminalIdentityIntegrationTest',
     'spk.local.G2182MailboxRestartIdempotencyIntegrationTest',
     'spk.local.G2183MailboxDurableIntentJournalIntegrationTest',
+    'spk.local.G2184MailboxJournalWorldAdmissionIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2230,10 +2231,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 383 ||
-    currentTrainFocusedTests.toSet().size() != 383) {
+if (currentTrainFocusedTests.size() != 384 ||
+    currentTrainFocusedTests.toSet().size() != 384) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 383 unique tests, found " +
+        "Current-train focused manifest drift: expected 384 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3405,6 +3406,14 @@ tasks.register('g2183MailboxDurableIntentJournalRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2183MailboxDurableIntentJournalIntegrationTest')
+}
+
+tasks.register('g2184MailboxJournalWorldAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Guarded World session admission with optional G21.83 PREPARED journal (NO GRANT).'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2184MailboxJournalWorldAdmissionIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
