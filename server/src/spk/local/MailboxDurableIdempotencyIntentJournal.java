@@ -214,9 +214,27 @@ final class MailboxDurableIdempotencyIntentJournal {
      */
     Observation inspect(String username)throws IOException{
         final Path account=accountFile(username);
-        final Path journal=journalPath(username);
         return MailboxAccountPublicationCoordinator
-            .withExclusivePublicationBounded(account,1500L,()->{
+            .withExclusivePublicationBounded(account,1500L,()->
+                inspectInsidePublicationLock(username,account));
+    }
+
+    /**
+     * G21.85: read-only semantic classification INSIDE an already-held
+     * account publication lock. Called by the versioned continuity
+     * witness; MUST NEVER reacquire G21.39/G21.73's lock.
+     * Neither this observation nor its digest grants or replays.
+     */
+    Observation inspectInsidePublicationLock(
+        String username,Path selectedFile
+    )throws IOException{
+        final Path account=accountFile(username);
+        if(!account.equals(Objects.requireNonNull(selectedFile,
+                "G21.85 pinned recovery account")
+                .toAbsolutePath().normalize()))
+            throw new IOException(
+                "G21.85 RECOVERY_JOURNAL_ACCOUNT_PATH_CHANGED_NO_GRANT");
+        final Path journal=journalPath(username);
                 if(!Files.exists(journal,LinkOption.NOFOLLOW_LINKS))
                     return new Observation(Status.ABSENT,username,null);
                 if(negative(username,account))
@@ -262,7 +280,6 @@ final class MailboxDurableIdempotencyIntentJournal {
                         Status.TERMINAL_MATCH_NO_COMMIT,username,stored);
                 return new Observation(
                     Status.ACCOUNT_DIVERGED_QUARANTINE,username,stored);
-            });
     }
 
 
