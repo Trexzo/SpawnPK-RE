@@ -409,7 +409,7 @@ final class FilePlayerRepository
         RestartContinuityComparison(State state){this.state=state;}
     }
 
-    private static final String RESTART_WITNESS_VERSION="G2185";
+    private static final String RESTART_WITNESS_VERSION="G2187";
     private static final long RESTART_WITNESS_MAX_ACCOUNT_BYTES=64L*1024*1024;
     private static final long RESTART_WITNESS_MAX_MARKER_BYTES=4096L;
     // G21.85: bind the four pre-existing NEGATIVE markers plus G21.83's
@@ -421,7 +421,8 @@ final class FilePlayerRepository
         ".g2147-strict-postpublication-review",
         MailboxStrictUncertainFence.SUFFIX,
         MailboxStrictWriteIntentFence.SUFFIX,
-        MailboxDurableIdempotencyIntentJournal.SUFFIX
+        MailboxDurableIdempotencyIntentJournal.SUFFIX,
+        MailboxGuardedDiskCommitRecord.SUFFIX
     };
     private static final long RESTART_WITNESS_MAX_JOURNAL_BYTES=1024L;
 
@@ -499,8 +500,9 @@ final class FilePlayerRepository
             );
             bits.append('|').append(suffix).append('=')
                 .append(restartFingerprintPart(
-                    marker,suffix.equals(
-                        MailboxDurableIdempotencyIntentJournal.SUFFIX)
+                    marker,(suffix.equals(
+                        MailboxDurableIdempotencyIntentJournal.SUFFIX)||
+                        suffix.equals(MailboxGuardedDiskCommitRecord.SUFFIX))
                             ?RESTART_WITNESS_MAX_JOURNAL_BYTES
                             :RESTART_WITNESS_MAX_MARKER_BYTES));
         }
@@ -511,6 +513,10 @@ final class FilePlayerRepository
             new MailboxDurableIdempotencyIntentJournal(sameFile)
                 .inspectInsidePublicationLock(account,pinned);
         bits.append("|g2183-status=").append(intent.status);
+        MailboxGuardedDiskCommitRecord.Observation commit=
+            new MailboxGuardedDiskCommitRecord(sameFile)
+                .inspectInsidePublicationLock(account,pinned);
+        bits.append("|g2186-status=").append(commit.status);
         // Re-check all marker names, account path and G21.71's
         // authoritative classification before returning this witness.
         RestartRecoveryEvidence second=inspectRestartRecoveryLocked(
@@ -653,7 +659,7 @@ final class FilePlayerRepository
             BasicFileAttributes object=census.objects[i];
             long limit=i==0
                 ?RESTART_WITNESS_MAX_ACCOUNT_BYTES
-                :i==census.objects.length-1
+                :i>=census.objects.length-2
                     ?RESTART_WITNESS_MAX_JOURNAL_BYTES
                     :RESTART_WITNESS_MAX_MARKER_BYTES;
             if(object!=null&&object.size()>limit)
@@ -661,8 +667,10 @@ final class FilePlayerRepository
                     (i==0
                         ?"G21.77 RECOVERY_ACCOUNT_OVERSIZE_NO_GRANT"
                         :i==census.objects.length-1
-                            ?"G21.85 RECOVERY_JOURNAL_OVERSIZE_NO_GRANT"
-                            :"G21.77 RECOVERY_MARKER_OVERSIZE_NO_GRANT")
+                            ?"G21.87 RECOVERY_DISK_COMMIT_OVERSIZE_NO_GRANT"
+                            :i==census.objects.length-2
+                                ?"G21.85 RECOVERY_JOURNAL_OVERSIZE_NO_GRANT"
+                                :"G21.77 RECOVERY_MARKER_OVERSIZE_NO_GRANT")
                 );
         }
     }
