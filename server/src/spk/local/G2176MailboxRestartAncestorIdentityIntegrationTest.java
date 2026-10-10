@@ -126,8 +126,11 @@ public final class G2176MailboxRestartAncestorIdentityIntegrationTest {
             try{
                 repo.captureRestartContinuityTokenReadOnly(name);
             }catch(IOException denied){
-                upfrontSymlinkAncestorDenied=denied.getMessage().contains(
-                    "G21.76 RECOVERY_DIRECTORY_ANCESTOR_UNSAFE_NO_GRANT");
+                upfrontSymlinkAncestorDenied=
+                    denied.getMessage().contains(
+                        "G21.76 RECOVERY_DIRECTORY_ANCESTOR_UNSAFE_NO_GRANT")||
+                    denied.getMessage().contains(
+                        "G21.77 RECOVERY_LOCK_ANCESTRY_UNSAFE_NO_GRANT");
             }
             restoreOriginalAncestry(active,parked);
             terminalAfterRestoreStable=unchanged(
@@ -166,8 +169,11 @@ public final class G2176MailboxRestartAncestorIdentityIntegrationTest {
                     nested.resolve(a+".properties"))
                     .captureRestartContinuityTokenReadOnly(name);
             }catch(IOException refused){
-                nestedSymlinkDenied=refused.getMessage().contains(
-                    "G21.76 RECOVERY_DIRECTORY_ANCESTOR_UNSAFE_NO_GRANT");
+                nestedSymlinkDenied=
+                    refused.getMessage().contains(
+                        "G21.76 RECOVERY_DIRECTORY_ANCESTOR_UNSAFE_NO_GRANT")||
+                    refused.getMessage().contains(
+                        "G21.77 RECOVERY_LOCK_ANCESTRY_UNSAFE_NO_GRANT");
             }
             Files.delete(nested);
 
