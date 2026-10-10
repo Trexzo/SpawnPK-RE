@@ -58,7 +58,7 @@ public final class G2185MailboxJournalRestartWitnessIntegrationTest {
             restarted.start();
             String absent="g2185-absent";
             String absentToken=repo.captureRestartContinuityTokenReadOnly(absent);
-            missingUnchanged=absentToken.startsWith("G2185|")&&
+            missingUnchanged=absentToken.startsWith("G2187|")&&
                 unchanged(new FilePlayerRepository(paths)
                     .compareRestartContinuityReadOnly(absent,absentToken));
             cases++;
@@ -98,7 +98,7 @@ public final class G2185MailboxJournalRestartWitnessIntegrationTest {
                 account);
             stableAcrossInstances=unchanged(
                 repo.compareRestartContinuityReadOnly(account,withJournal))&&
-                withJournal.startsWith("G2185|")&&
+                withJournal.startsWith("G2187|")&&
                 journal.inspect(account).status==
                     MailboxDurableIdempotencyIntentJournal.Status
                         .PREPARED_MATCH_NO_REPLAY&&
