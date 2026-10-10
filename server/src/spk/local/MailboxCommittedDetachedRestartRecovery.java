@@ -30,6 +30,11 @@ final class MailboxCommittedDetachedRestartRecovery {
         final String terminalSha256;
         final PlayerSnapshot exactRestoredSnapshot;
         final int occupiedInventorySlots;
+        // Retained only for negative comparison, never a live/positive
+        // transaction capability or a filesystem lock.
+        private final StableLeaf accountObject;
+        private final StableLeaf journalObject;
+        private final StableLeaf commitObject;
         final boolean claimedBeforeAnyReplay=true;
         final boolean detachedRoundTrip=true;
         final boolean transactionCommitted=false;
@@ -43,7 +48,9 @@ final class MailboxCommittedDetachedRestartRecovery {
 
         private Result(
             MailboxGuardedDiskCommitRecord.Observation record,
-            PlayerSnapshot exact,int occupied
+            PlayerSnapshot exact,int occupied,
+            StableLeaf accountLeaf,StableLeaf journalLeaf,
+            StableLeaf commitLeaf
         ){
             account=record.account;
             messageId=record.messageId;
@@ -51,6 +58,20 @@ final class MailboxCommittedDetachedRestartRecovery {
             terminalSha256=record.terminalSha256;
             exactRestoredSnapshot=exact;
             occupiedInventorySlots=occupied;
+            accountObject=accountLeaf;
+            journalObject=journalLeaf;
+            commitObject=commitLeaf;
+        }
+
+        // G21.91: independently recovered checksums can be identical
+        // after a same-byte inode swap. Preserve the file-object
+        // identity witness already captured and checked by G21.89.
+        // This proves only continuity over the two observations.
+        boolean sameDiskObjects(Result other){
+            return other!=null&&account.equals(other.account)&&
+                accountObject.same(other.accountObject)&&
+                journalObject.same(other.journalObject)&&
+                commitObject.same(other.commitObject);
         }
     }
 
@@ -215,7 +236,8 @@ final class MailboxCommittedDetachedRestartRecovery {
                        resolver.resolve(username).toAbsolutePath().normalize()))
                     throw new IOException(
                         "G21.89 RECOVERY_FILE_OR_RECORD_CHANGED_NO_GRANT");
-                return new Result(first,roundTrip,occupied);
+                return new Result(first,roundTrip,occupied,
+                    accountBefore,journalBefore,commitBefore);
             });
     }
 }
