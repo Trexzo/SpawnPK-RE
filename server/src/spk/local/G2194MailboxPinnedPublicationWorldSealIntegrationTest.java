@@ -76,7 +76,7 @@ public final class G2194MailboxPinnedPublicationWorldSealIntegrationTest {
             new MailboxCommittedDetachedRestartRecovery(paths);
         boolean pinned=false,repeatDenied=false,afterPinCancelDenied=false;
         boolean inodeSwapRejected=false,staleDenied=false;
-        boolean heldCooperatingWriterOut=false;
+        AtomicBoolean heldCooperatingWriterOut=new AtomicBoolean();
         boolean diskAndOwnerUnchanged=false,ordinarySaveVeto=false;
         boolean allAuthorityFalse=false,noLeases=false;
         final String good="g2194-good",swap="g2194-swap",
@@ -135,8 +135,8 @@ public final class G2194MailboxPinnedPublicationWorldSealIntegrationTest {
                     competing.start();
                     check(writerStarted.await(1,TimeUnit.SECONDS),
                         "cooperating writer did not start");
-                    heldCooperatingWriterOut=!writerInside.get()&&
-                        !writerDone.await(100,TimeUnit.MILLISECONDS);
+                    heldCooperatingWriterOut.set(!writerInside.get()&&
+                        !writerDone.await(100,TimeUnit.MILLISECONDS));
                     return WorldPlayerPersistence.RecoverySealDecision
                         .REJECT_EVIDENCE;
                 };
@@ -242,13 +242,13 @@ public final class G2194MailboxPinnedPublicationWorldSealIntegrationTest {
             " sameBytesNewInodeDenied="+inodeSwapRejected+
             " staleGenerationDenied="+staleDenied+
             " cooperatingWriterExcludedDuringPin="+
-                heldCooperatingWriterOut+
+                heldCooperatingWriterOut.get()+
             " realWorldSaveDenied="+ordinarySaveVeto+
             " diskAndOwnerUnchanged="+diskAndOwnerUnchanged+
             " allAuthorityFalse="+allAuthorityFalse+
             " noPublicationLeases="+noLeases);
         check(pinned&&repeatDenied&&afterPinCancelDenied&&
-            inodeSwapRejected&&staleDenied&&heldCooperatingWriterOut&&
+            inodeSwapRejected&&staleDenied&&heldCooperatingWriterOut.get()&&
             ordinarySaveVeto&&diskAndOwnerUnchanged&&
             allAuthorityFalse&&noLeases,
             "pinned publication/World negative recovery seal");
