@@ -120,6 +120,10 @@ final class FilePlayerRepository
                 );
             return file;
         };
+        // G21.84: use exactly the selected account file and existing
+        // cooperating publication lock for optional journal admission.
+        final MailboxDurableIdempotencyIntentJournal sessionJournal=
+            new MailboxDurableIdempotencyIntentJournal(markerPaths);
         // G21.59: make the entire admitted account observation one
         // cooperating account-local publication critical section. A
         // marker or account writer holding this lock must run wholly
@@ -128,6 +132,9 @@ final class FilePlayerRepository
         return MailboxAccountPublicationCoordinator
             .withExclusivePublication(file,()->{
                 requireUnfencedSessionLoad(account,markerPaths);
+                final byte[] journalBefore=
+                    sessionJournal.sessionJournalWitnessInsidePublicationLock(
+                        account,file);
                 // G21.60: metadata describes the selected filesystem
                 // object, not merely the path text. NOFOLLOW refuses
                 // symlink roots even when they resolve to valid players.
@@ -173,6 +180,10 @@ final class FilePlayerRepository
                             " account="+account+" action=REJECT_SESSION"
                         );
                 }
+                // Same critical section, after existing independent
+                // account-byte digest. An absent journal stays optional.
+                sessionJournal.requireWorldSessionPreparedInsidePublicationLock(
+                    account,file,journalBefore,observed);
                 return observed;
             });
     }

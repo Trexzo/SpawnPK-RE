@@ -11,6 +11,7 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -262,6 +263,85 @@ final class MailboxDurableIdempotencyIntentJournal {
                 return new Observation(
                     Status.ACCOUNT_DIVERGED_QUARANTINE,username,stored);
             });
+    }
+
+
+    /**
+     * G21.84: called only inside FilePlayerRepository's already-held
+     * G21.59 per-account publication lock. NEVER acquire another lock.
+     * Returns a bounded NOFOLLOW witness, null only when absent.
+     */
+    byte[] sessionJournalWitnessInsidePublicationLock(
+        String username,Path selectedFile
+    )throws IOException{
+        Path file=accountFile(username);
+        if(!file.equals(Objects.requireNonNull(selectedFile,
+                "G21.84 selected file").toAbsolutePath().normalize()))
+            throw new IOException(
+                "G21.84 SESSION_JOURNAL_ACCOUNT_PATH_CHANGED_NO_GRANT");
+        Path marker=file.resolveSibling(
+            file.getFileName().toString()+SUFFIX);
+        if(!Files.exists(marker,LinkOption.NOFOLLOW_LINKS))
+            return null;
+        try{
+            return MailboxNegativeMarkerBoundedRead.read(
+                marker,1,MAX_BYTES);
+        }catch(IOException|RuntimeException invalid){
+            throw new IOException(
+                "G21.84 SESSION_JOURNAL_UNREADABLE_QUARANTINE_NO_GRANT",
+                invalid);
+        }
+    }
+
+    /** Negative-only equality + G21.31/G21.22 PREPARED validation. */
+    void requireWorldSessionPreparedInsidePublicationLock(
+        String username,Path file,byte[] before,
+        Optional<PlayerSnapshot> decoded
+    )throws IOException{
+        byte[] after=sessionJournalWitnessInsidePublicationLock(
+            username,file);
+        if(before==null&&after==null)return;
+        if(before==null||after==null||!Arrays.equals(before,after))
+            throw new IOException(
+                "G21.84 SESSION_JOURNAL_CHANGED_QUARANTINE_NO_GRANT");
+        final Record stored;
+        try{
+            stored=decode(before);
+        }catch(IOException|RuntimeException corrupt){
+            throw new IOException(
+                "G21.84 SESSION_JOURNAL_INVALID_QUARANTINE_NO_GRANT",
+                corrupt);
+        }
+        if(!username.equals(stored.account)||decoded==null||
+           !decoded.isPresent())
+            throw new IOException(
+                "G21.84 SESSION_JOURNAL_OWNER_OR_ACCOUNT_MISSING_NO_GRANT");
+        PlayerSnapshot snapshot=decoded.get();
+        if(!username.equals(snapshot.username())||
+           MailboxPreparedRestartAdmission.inspect(snapshot).state!=
+               MailboxPreparedRestartAdmission.State
+                   .VALID_PREPARED_UNCLAIMED||
+           !stored.prepared.equals(
+               StrictDurablePlayerSnapshotWriter
+                   .canonicalSnapshotSha256(snapshot)))
+            throw new IOException(
+                "G21.84 SESSION_JOURNAL_PREPARED_DIVERGED_NO_GRANT");
+        try{
+            WorldPlayer detached=new WorldPlayer();
+            PlayerSnapshotCodec.applyValidated(snapshot,detached);
+            MailboxPreparedClaimJournal.Intent intent=
+                MailboxPreparedClaimJournal.inspectPrepared(detached);
+            if(intent==null||
+               !username.equals(intent.account)||
+               !stored.message.equals(intent.messageId)||
+               !stored.key.equals(intent.idempotencyKey))
+                throw new IllegalArgumentException(
+                    "G21.84 decoded PREPARED identity differs");
+        }catch(RuntimeException mismatched){
+            throw new IOException(
+                "G21.84 SESSION_JOURNAL_INTENT_DIVERGED_NO_GRANT",
+                mismatched);
+        }
     }
 
     private static boolean negative(String name,Path file)
