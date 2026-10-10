@@ -193,10 +193,21 @@ final class FilePlayerRepository
                 // just in the outer WorldPlayerPersistence caller.
                 if(observed.isPresent()&&
                    MailboxAtomicTerminalSnapshot.inspect(observed.get())
-                       .state!=MailboxAtomicTerminalSnapshot.State.ABSENT)
+                       .state!=MailboxAtomicTerminalSnapshot.State.ABSENT){
+                    // Preserve G21.31's established terminal/invalid
+                    // classification for callers and legacy regressions.
+                    // This only moves the same denial INSIDE the existing
+                    // account publication lock; no positive admission.
+                    MailboxPreparedRestartAdmission.Decision refusal=
+                        MailboxPreparedRestartAdmission.inspect(
+                            observed.get());
                     throw new IOException(
-                        "G21.96 ORPHANED_TERMINAL_SESSION_QUARANTINE_NO_GRANT"+
-                        " account="+account+" action=REJECT_SESSION");
+                        "G21.31 MAILBOX_PREPARED_LOAD_QUARANTINE"+
+                        " account="+account+
+                        " reason="+refusal.state+
+                        " action=REJECT_SESSION"+
+                        " boundary=G21.96_ORPHANED_TERMINAL");
+                }
                 return observed;
             });
     }
