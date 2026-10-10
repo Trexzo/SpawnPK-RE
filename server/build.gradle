@@ -2195,6 +2195,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2174MailboxRestartIdentityReplacementIntegrationTest',
     'spk.local.G2175MailboxRestartInPlaceChangeStampIntegrationTest',
     'spk.local.G2176MailboxRestartAncestorIdentityIntegrationTest',
+    'spk.local.G2177MailboxForensicLockPreflightIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2223,10 +2224,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 376 ||
-    currentTrainFocusedTests.toSet().size() != 376) {
+if (currentTrainFocusedTests.size() != 377 ||
+    currentTrainFocusedTests.toSet().size() != 377) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 376 unique tests, found " +
+        "Current-train focused manifest drift: expected 377 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3342,6 +3343,13 @@ tasks.register('g2176MailboxRestartAncestorIdentityRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2176MailboxRestartAncestorIdentityIntegrationTest')
+}
+
+tasks.register('g2177MailboxForensicLockPreflightRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2177MailboxForensicLockPreflightIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
