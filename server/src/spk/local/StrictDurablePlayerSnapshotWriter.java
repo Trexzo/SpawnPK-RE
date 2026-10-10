@@ -233,7 +233,7 @@ final class StrictDurablePlayerSnapshotWriter {
             selected,()->saveInternalTracked(
                 snapshot,worldFile,publicationCheck,
                 postPublicationCheck,writeAheadIntent,terminalMode,
-                terminalPreparedSha256));
+                terminalPreparedSha256,selected));
     }
 
     private Receipt saveInternalTracked(
@@ -241,7 +241,7 @@ final class StrictDurablePlayerSnapshotWriter {
         BeforeWorldPublication publicationCheck,
         AfterWorldPublication postPublicationCheck,
         boolean writeAheadIntent,boolean terminalMode,
-        String terminalPreparedSha256
+        String terminalPreparedSha256,Path pinnedAccountFile
     )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(
             snapshot,"snapshot"
@@ -253,9 +253,10 @@ final class StrictDurablePlayerSnapshotWriter {
         // canonical snapshot content. This is not a transaction ID.
         final String expectedSha256=canonicalSnapshotSha256(checked);
         String account=checked.username();
-        Path file=Objects.requireNonNull(
-            resolver.resolve(account),"account path"
-        ).toAbsolutePath().normalize();
+        // G21.100: the resolver may be stateful or adversarial. Use
+        // EXACTLY the file selected before lifecycle acquisition; never
+        // re-resolve it after obtaining the per-account lifetime lock.
+        Path file=pinnedAccountFile;
         Path parent=file.getParent();
         if(parent==null)
             throw new IOException("no account parent directory");
