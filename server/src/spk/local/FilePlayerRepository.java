@@ -186,6 +186,17 @@ final class FilePlayerRepository
                 // account-byte digest. An absent journal stays optional.
                 sessionJournal.requireWorldSessionPreparedInsidePublicationLock(
                     account,file,journalBefore,observed);
+                // G21.96: even when BOTH external COMMIT and PREPARED
+                // sidecars have vanished, the embedded terminal account
+                // is still a durable NEGATIVE admission witness. Reject
+                // here, while the G21.59 publication lock is held, not
+                // just in the outer WorldPlayerPersistence caller.
+                if(observed.isPresent()&&
+                   MailboxAtomicTerminalSnapshot.inspect(observed.get())
+                       .state!=MailboxAtomicTerminalSnapshot.State.ABSENT)
+                    throw new IOException(
+                        "G21.96 ORPHANED_TERMINAL_SESSION_QUARANTINE_NO_GRANT"+
+                        " account="+account+" action=REJECT_SESSION");
                 return observed;
             });
     }
