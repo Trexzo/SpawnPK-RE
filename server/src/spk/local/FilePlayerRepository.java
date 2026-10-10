@@ -132,6 +132,7 @@ final class FilePlayerRepository
         return MailboxAccountPublicationCoordinator
             .withExclusivePublication(file,()->{
                 requireUnfencedSessionLoad(account,markerPaths);
+                requireNoDiskCommitForSession(account,file);
                 final byte[] journalBefore=
                     sessionJournal.sessionJournalWitnessInsidePublicationLock(
                         account,file);
@@ -148,6 +149,7 @@ final class FilePlayerRepository
                     loadExactFile(account,file,true,decodedHash);
                 afterWorldSessionRead.run(account);
                 requireUnfencedSessionLoad(account,markerPaths);
+                requireNoDiskCommitForSession(account,file);
                 if(!file.equals(normalizedPath(account)))
                     throw new IOException(
                         "G21.58 MAILBOX_SESSION_ACCOUNT_PATH_CHANGED"+
@@ -534,8 +536,9 @@ final class FilePlayerRepository
     }
 
     /**
-     * G21.85: retain NOFOLLOW identity of all six forensic objects
-     * (account + four negative sidecars + PREPARED journal) over BOTH
+     * G21.87: retain NOFOLLOW identity of all seven forensic objects
+     * (account + four negative sidecars + PREPARED + disk COMMIT)
+     * over BOTH
      * complete G21.72 witness passes. The portable witness
      * deliberately omits fileKey: it compares bytes across restarts,
      * while this census only rejects replacement DURING a capture.
@@ -747,8 +750,8 @@ final class FilePlayerRepository
     }
 
     /**
-     * G21.85 token version is G2185 because the file-set changed;
-     * older G2172 tokens are intentionally NOT comparable here.
+     * G21.87 tokens use G2187 because the file-set changed;
+     * older G2172/G2185 tokens are intentionally incompatible.
      * Can be saved as text and rechecked in a different process with
      * the SAME resolver root. No change to the account,
      * no marker cleanup, and no possible positive settlement authority.
@@ -844,6 +847,31 @@ final class FilePlayerRepository
                 :RestartContinuityComparison.State
                     .CHANGED_FORENSICS_QUARANTINE
         );
+    }
+
+
+    /**
+     * G21.87: any disk COMMIT sidecar is an account-session veto,
+     * including if raw test-only writes restored an older PREPARED image.
+     * Called under the existing G21.59 account publication lock;
+     * never read a second independently resolved account location.
+     */
+    private static void requireNoDiskCommitForSession(
+        String account,Path selectedFile
+    )throws IOException{
+        Path commit=selectedFile.resolveSibling(
+            selectedFile.getFileName().toString()+
+            MailboxGuardedDiskCommitRecord.SUFFIX);
+        try{
+            // A symlink or malformed record counts as present, not safe.
+            Files.readAttributes(
+                commit,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        }catch(NoSuchFileException absent){
+            return;
+        }
+        throw new IOException(
+            "G21.87 DISK_COMMIT_RESTART_QUARANTINE_NO_GRANT "+
+            "account="+account+" action=REJECT_SESSION");
     }
 
     private void requireUnfencedSessionLoad(
