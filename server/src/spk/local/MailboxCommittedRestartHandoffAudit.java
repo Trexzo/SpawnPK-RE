@@ -27,6 +27,8 @@ final class MailboxCommittedRestartHandoffAudit {
         final State state;
         final String account;
         final String terminalSha256;
+        private final MailboxCommittedDetachedRestartRecovery.Result
+            finalDiskWitness;
         final MailboxCommittedWorldGenerationCandidate.Decision worldFirst;
         final MailboxCommittedWorldGenerationCandidate.Decision worldLast;
         final boolean transactionCommitted=false;
@@ -40,11 +42,38 @@ final class MailboxCommittedRestartHandoffAudit {
         Result(State s,String account,String sha,
                MailboxCommittedWorldGenerationCandidate.Decision first,
                MailboxCommittedWorldGenerationCandidate.Decision last){
-            this.state=s;
+            this(s,account,sha,first,last,null);
+        }
+
+        private Result(State s,String account,String sha,
+               MailboxCommittedWorldGenerationCandidate.Decision first,
+               MailboxCommittedWorldGenerationCandidate.Decision last,
+               MailboxCommittedDetachedRestartRecovery.Result witness){
+            state=s;
             this.account=account;
-            this.terminalSha256=sha;
-            this.worldFirst=first;
-            this.worldLast=last;
+            terminalSha256=sha;
+            worldFirst=first;
+            worldLast=last;
+            finalDiskWitness=witness;
+        }
+
+        // G21.94: not a grant, simply continuity of three physical disk
+        // leaves and exact terminal after reacquiring bounded publication.
+        boolean matchesPinnedDisk(
+            MailboxCommittedDetachedRestartRecovery.Result current
+        ){
+            return state==State.STABLE_CANDIDATE_NO_ADMISSION&&
+                finalDiskWitness!=null&&current!=null&&
+                account.equals(current.account)&&
+                terminalSha256.equals(current.terminalSha256)&&
+                finalDiskWitness.messageId.equals(current.messageId)&&
+                finalDiskWitness.idempotencyKey.equals(
+                    current.idempotencyKey)&&
+                finalDiskWitness.sameDiskObjects(current)&&
+                finalDiskWitness.exactRestoredSnapshot.version()==
+                    current.exactRestoredSnapshot.version()&&
+                finalDiskWitness.exactRestoredSnapshot.values().equals(
+                    current.exactRestoredSnapshot.values());
         }
     }
 
@@ -123,7 +152,7 @@ final class MailboxCommittedRestartHandoffAudit {
         // escapes here. Another concurrent change immediately makes
         // this historical observation stale.
         return new Result(State.STABLE_CANDIDATE_NO_ADMISSION,account,
-            first.terminalSha256,firstWorld,lastWorld);
+            first.terminalSha256,firstWorld,lastWorld,second);
     }
 
     private MailboxCommittedRestartHandoffAudit(){}

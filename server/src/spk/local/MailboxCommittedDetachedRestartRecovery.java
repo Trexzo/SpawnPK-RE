@@ -120,9 +120,20 @@ final class MailboxCommittedDetachedRestartRecovery {
                     "G21.89 foreign recovery account");
             return account;
         };
-        // Bounded cooperating lock, NOT nested with G21.86 or G21.83.
+        // Ordinary G21.89 remains one bounded cooperating lock.
         return MailboxAccountPublicationCoordinator
-            .withExclusivePublicationBounded(account,1500L,()->{
+            .withExclusivePublicationBounded(account,1500L,
+                ()->recoverInsideHeldPublicationLock(username,account,pinned));
+    }
+
+    /**
+     * G21.94: caller MUST already own the bounded, cooperating account
+     * publication lock. No nested OS FileLock (overlap/deadlock).
+     */
+    private Result recoverInsideHeldPublicationLock(
+        String username,Path account,
+        FilePlayerRepository.PathResolver pinned
+    )throws IOException{
                 final MailboxGuardedDiskCommitRecord record=
                     new MailboxGuardedDiskCommitRecord(pinned);
                 final Path commit=record.recordPath(username);
@@ -238,6 +249,63 @@ final class MailboxCommittedDetachedRestartRecovery {
                         "G21.89 RECOVERY_FILE_OR_RECORD_CHANGED_NO_GRANT");
                 return new Result(first,roundTrip,occupied,
                     accountBefore,journalBefore,commitBefore);
+    }
+
+    interface PinnedReadOnlyAction<T>{
+        T inspectUnderPublication(Result independentlyVerified)
+            throws Exception;
+    }
+
+    /**
+     * G21.94: keep the SAME cooperating advisory lock across the
+     * filesystem witness -> caller World-owner check -> final filesystem
+     * witness. Caller must do NO filesystem IO under World locks.
+     * Outside cooperating processes this is NOT atomic disk/World commit.
+     */
+    <T> T withPinnedPublication(
+        String username,PinnedReadOnlyAction<T> action
+    )throws IOException{
+        Objects.requireNonNull(action,"action");
+        if(username==null||!username.matches("[a-z0-9_-]{1,64}"))
+            throw new IllegalArgumentException(
+                "G21.94 invalid canonical account");
+        final Path selected=Objects.requireNonNull(
+            resolver.resolve(username),"G21.94 account file")
+            .toAbsolutePath().normalize();
+        final FilePlayerRepository.PathResolver pinned=other->{
+            if(!username.equals(other))
+                throw new IllegalArgumentException(
+                    "G21.94 foreign account in pinned publication");
+            return selected;
+        };
+        return MailboxAccountPublicationCoordinator
+            .withExclusivePublicationBounded(selected,1500L,()->{
+                Result before=recoverInsideHeldPublicationLock(
+                    username,selected,pinned);
+                final T observed;
+                try{
+                    observed=action.inspectUnderPublication(before);
+                }catch(IOException failure){
+                    throw failure;
+                }catch(Exception failure){
+                    throw new IOException(
+                        "G21.94 PINNED_WORLD_SEAL_ABORTED_NO_ADMISSION",
+                        failure);
+                }
+                Result after=recoverInsideHeldPublicationLock(
+                    username,selected,pinned);
+                if(!before.sameDiskObjects(after)||
+                   !before.account.equals(after.account)||
+                   !before.messageId.equals(after.messageId)||
+                   !before.idempotencyKey.equals(after.idempotencyKey)||
+                   !before.terminalSha256.equals(after.terminalSha256)||
+                   before.exactRestoredSnapshot.version()!=
+                       after.exactRestoredSnapshot.version()||
+                   !before.exactRestoredSnapshot.values().equals(
+                       after.exactRestoredSnapshot.values()))
+                    throw new IOException(
+                        "G21.94 PINNED_POST_SEAL_DISK_CHANGED_NO_ADMISSION");
+                return observed;
             });
     }
 }
