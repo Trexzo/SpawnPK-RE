@@ -409,17 +409,21 @@ final class FilePlayerRepository
         RestartContinuityComparison(State state){this.state=state;}
     }
 
-    private static final String RESTART_WITNESS_VERSION="G2172";
+    private static final String RESTART_WITNESS_VERSION="G2185";
     private static final long RESTART_WITNESS_MAX_ACCOUNT_BYTES=64L*1024*1024;
     private static final long RESTART_WITNESS_MAX_MARKER_BYTES=4096L;
-    // Exactly the original four negative sidecar paths; the account
-    // publication .lock is NOT a transactional record or claim.
+    // G21.85: bind the four pre-existing NEGATIVE markers plus G21.83's
+    // optional PREPARED intent journal to one physical-file census.
+    // The last entry is a NON-GRANTING journal with its own 1 KiB cap.
+    // The .lock leaf is NOT part of the portable transaction identity.
     private static final String[] RESTART_MARKER_SUFFIXES={
         ".g2132-mailbox-review",
         ".g2147-strict-postpublication-review",
         MailboxStrictUncertainFence.SUFFIX,
-        MailboxStrictWriteIntentFence.SUFFIX
+        MailboxStrictWriteIntentFence.SUFFIX,
+        MailboxDurableIdempotencyIntentJournal.SUFFIX
     };
+    private static final long RESTART_WITNESS_MAX_JOURNAL_BYTES=1024L;
 
     private static String restartDigestHex(byte[] input){
         char[] encoded=new char[input.length*2];
@@ -495,8 +499,18 @@ final class FilePlayerRepository
             );
             bits.append('|').append(suffix).append('=')
                 .append(restartFingerprintPart(
-                    marker,RESTART_WITNESS_MAX_MARKER_BYTES));
+                    marker,suffix.equals(
+                        MailboxDurableIdempotencyIntentJournal.SUFFIX)
+                            ?RESTART_WITNESS_MAX_JOURNAL_BYTES
+                            :RESTART_WITNESS_MAX_MARKER_BYTES));
         }
+        // G21.85: journal semantics are observed under the SAME
+        // already-held account lock. Never call inspect() here: it
+        // would attempt a nested lock and risk deadlocking this thread.
+        MailboxDurableIdempotencyIntentJournal.Observation intent=
+            new MailboxDurableIdempotencyIntentJournal(sameFile)
+                .inspectInsidePublicationLock(account,pinned);
+        bits.append("|g2183-status=").append(intent.status);
         // Re-check all marker names, account path and G21.71's
         // authoritative classification before returning this witness.
         RestartRecoveryEvidence second=inspectRestartRecoveryLocked(
@@ -514,8 +528,9 @@ final class FilePlayerRepository
     }
 
     /**
-     * G21.74: retain NOFOLLOW identity of all five forensic objects
-     * over BOTH complete G21.72 witness passes. The portable witness
+     * G21.85: retain NOFOLLOW identity of all six forensic objects
+     * (account + four negative sidecars + PREPARED journal) over BOTH
+     * complete G21.72 witness passes. The portable witness
      * deliberately omits fileKey: it compares bytes across restarts,
      * while this census only rejects replacement DURING a capture.
      */
@@ -638,12 +653,16 @@ final class FilePlayerRepository
             BasicFileAttributes object=census.objects[i];
             long limit=i==0
                 ?RESTART_WITNESS_MAX_ACCOUNT_BYTES
-                :RESTART_WITNESS_MAX_MARKER_BYTES;
+                :i==census.objects.length-1
+                    ?RESTART_WITNESS_MAX_JOURNAL_BYTES
+                    :RESTART_WITNESS_MAX_MARKER_BYTES;
             if(object!=null&&object.size()>limit)
                 throw new IOException(
                     (i==0
                         ?"G21.77 RECOVERY_ACCOUNT_OVERSIZE_NO_GRANT"
-                        :"G21.77 RECOVERY_MARKER_OVERSIZE_NO_GRANT")
+                        :i==census.objects.length-1
+                            ?"G21.85 RECOVERY_JOURNAL_OVERSIZE_NO_GRANT"
+                            :"G21.77 RECOVERY_MARKER_OVERSIZE_NO_GRANT")
                 );
         }
     }
@@ -720,8 +739,10 @@ final class FilePlayerRepository
     }
 
     /**
-     * Can be saved by the caller as text and rechecked in a different
-     * process with the SAME resolver root. No change to the account,
+     * G21.85 token version is G2185 because the file-set changed;
+     * older G2172 tokens are intentionally NOT comparable here.
+     * Can be saved as text and rechecked in a different process with
+     * the SAME resolver root. No change to the account,
      * no marker cleanup, and no possible positive settlement authority.
      */
     String captureRestartContinuityTokenReadOnly(
