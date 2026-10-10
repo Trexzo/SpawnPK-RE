@@ -1,0 +1,11 @@
+# G21.88 — World-save disk COMMIT write-fence (NO GRANT)
+
+Parent: hosted-certified G21.87 `27e2642ae9d87879ab120d8868a8824d857b4d5e`, [Actions #38048544051](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38048544051), 387 focused Java11. Tracks [issue #2355](https://github.com/Trexzo/SpawnPK-RE/issues/2355).
+
+G21.87 refused World **session loading** of accounts with a G21.86 disk COMMIT record. G21.88 closes the complementary **save** gap: both `FilePlayerRepository.saveForWorld` and `StrictDurablePlayerSnapshotWriter.saveStrictForWorld/saveStrictTerminalForWorld` now refuse any existing G21.86 COMMIT sidecar. Both already check markers before writing and inside their same G21.39 account-local cooperating publication lock immediately prior to replacing account bytes. The added presence veto is pinned to that account file path, NOFOLLOW, and does not require a valid or checksum-decodable record: invalid or symlink COMMIT records *also* fence saves.
+
+This matters when a raw/uncooperative file overwrite restored an older PREPARED account after a COMMIT. The existing G21.66 terminal-namespace veto alone cannot detect this rollback; the persistent sidecar can. We do **not** block the intentionally unguarded raw `FilePlayerRepository.save` forensic/test primitive, nor do we grant, replay, release reservations, or ACK clients.
+
+Regression `G2188MailboxCommitWorldSaveFenceIntegrationTest` constructs a genuine G21.83 PREPARED intent, strict G21.66 terminal receipt and G21.86 disk COMMIT, then simulates a raw PREPARED rollback and verifies ordinary World, strict PREPARED and strict terminal publication are rejected while record and account remain unchanged. It checks corrupted and symlink record presence, unrelated valid PREPARED and legacy saves, unchanged UNCLAIMED live inventory, no temporary/lease leaks. Suite 387 -> **388 unique focused Java 11 tests**, standalone Gradle task. Frozen R25 PR #1847 unchanged; Draft PR/unmerged pending exact-head hosted CI.
+
+**This is a negative write barrier, not positive settlement or complete crash recovery.**
