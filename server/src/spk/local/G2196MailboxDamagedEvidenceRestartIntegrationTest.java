@@ -219,6 +219,13 @@ public final class G2196MailboxDamagedEvidenceRestartIntegrationTest {
             repository.loadForWorldSession(account);
         }catch(IOException denial){
             directWorldReadDenied=true;
+            if(fault==Fault.BOTH_SIDECARS_MISSING)
+                require(String.valueOf(denial.getMessage()).contains(
+                            "QUARANTINE_TERMINAL_NO_GRANT")&&
+                        String.valueOf(denial.getMessage()).contains(
+                            "boundary=G21.96_ORPHANED_TERMINAL"),
+                    "both missing sidecars must use hardened G21.96"+
+                    " embedded terminal admission refusal");
         }
         require(directWorldReadDenied,
             "low-level guarded World-session read must reject all cases");
