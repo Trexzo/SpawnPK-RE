@@ -67,7 +67,7 @@ public final class G2177MailboxForensicLockPreflightIntegrationTest {
             String token=repository.captureRestartContinuityTokenReadOnly(
                 "g2177-leaf");
             standardWitnessWorks=token.startsWith(
-                "G2185|g2177-leaf|MISSING_ACCOUNT_NO_REPLAY|");
+                "G2187|g2177-leaf|MISSING_ACCOUNT_NO_REPLAY|");
             FilePlayerRepository fresh=new FilePlayerRepository(
                 a->ordinary.resolve(a+".properties"));
             missingAccountStable=fresh
