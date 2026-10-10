@@ -72,11 +72,11 @@ public final class G21100MailboxWriterLifecycleQuiescenceIntegrationTest {
     private static boolean separateJvmBusy(
         Path root,String account)throws Exception{
         Path log=root.resolve("g21100-independent-observer.log");
-        String java=Paths.get(System.getProperty("java.home"),
+        String javaBin=Paths.get(System.getProperty("java.home"),
             "bin",System.getProperty("os.name")
                 .toLowerCase(Locale.ROOT).contains("win")
                     ?"java.exe":"java").toString();
-        ProcessBuilder builder=new ProcessBuilder(java,"-cp",
+        ProcessBuilder builder=new ProcessBuilder(javaBin,"-cp",
             System.getProperty("java.class.path"),
             G21100MailboxWriterLifecycleQuiescenceIntegrationTest
                 .class.getName(),"--child",root.toString(),account);
