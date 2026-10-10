@@ -160,7 +160,10 @@ final class MailboxGuardedDiskCommitRecord {
                 terminal)
         );
         final Path marker=recordPath(p.account);
-        MailboxAccountPublicationCoordinator.withExclusivePublication(
+        // G21.100: lifecycle covers forced temp through link/cleanup.
+        // Keep lock order lifecycle before existing account lock.
+        MailboxPublicationWriterLifecycle.withWriter(file,()->
+            MailboxAccountPublicationCoordinator.withExclusivePublication(
             file,()->{
                 if(Files.exists(marker,LinkOption.NOFOLLOW_LINKS))
                     throw new IOException(
@@ -224,7 +227,7 @@ final class MailboxGuardedDiskCommitRecord {
                     // COMMIT record after uncertain force or crash.
                     Files.deleteIfExists(temp);
                 }
-            });
+            }));
     }
 
     /**

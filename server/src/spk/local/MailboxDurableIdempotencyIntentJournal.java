@@ -156,7 +156,10 @@ final class MailboxDurableIdempotencyIntentJournal {
         final Record wanted=checked(proposal);
         final Path account=accountFile(wanted.account);
         final Path journal=journalPath(wanted.account);
-        MailboxAccountPublicationCoordinator.withExclusivePublication(
+        // G21.100: cover temp creation/force/hard-link and cleanup.
+        // Lock order lifetime -> existing account publication.
+        MailboxPublicationWriterLifecycle.withWriter(account,()->
+            MailboxAccountPublicationCoordinator.withExclusivePublication(
             account,()->{
                 if(Files.exists(journal,LinkOption.NOFOLLOW_LINKS))
                     throw new IOException(
@@ -204,7 +207,7 @@ final class MailboxDurableIdempotencyIntentJournal {
                     // when a force/fault reports an uncertain outcome.
                     Files.deleteIfExists(temp);
                 }
-            });
+            }));
     }
 
     /**
