@@ -7,6 +7,9 @@ import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -142,6 +145,35 @@ final class MailboxAccountPublicationCoordinator {
      * take longer. Neither acquiring nor timing out confers grant,
      * replay, restart admission or settlement authority.
      */
+    /** G21.77: forensic-only NOFOLLOW ancestry check BEFORE lock-file I/O. */
+    private static void verifyForensicLockAncestry(Path lock)
+        throws IOException{
+        for(Path dir=lock.getParent();dir!=null;dir=dir.getParent()){
+            BasicFileAttributes attrs=Files.readAttributes(
+                dir,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+            if(!attrs.isDirectory()||attrs.isSymbolicLink()||
+               attrs.fileKey()==null)
+                throw new IOException(
+                    "G21.77 RECOVERY_LOCK_ANCESTRY_UNSAFE_NO_GRANT "+dir);
+        }
+    }
+
+    /** Existing lock leaf must never be a symlink, directory, or device. */
+    private static void verifyForensicLockLeaf(Path lock)
+        throws IOException{
+        try{
+            BasicFileAttributes a=Files.readAttributes(
+                lock,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+            if(!a.isRegularFile()||a.isSymbolicLink())
+                throw new IOException(
+                    "G21.77 RECOVERY_LOCK_FILE_UNSAFE_NO_GRANT "+lock);
+        }catch(NoSuchFileException absent){
+            // Opening a not-yet-created leaf is allowed only after
+            // preflight; NOFOLLOW_LINKS on FileChannel.open closes the
+            // final-component symlink race.
+        }
+    }
+
     static <T> T withExclusivePublicationBounded(
         Path accountFile,long timeoutMillis,Operation<T> operation
     )throws IOException{
@@ -150,6 +182,9 @@ final class MailboxAccountPublicationCoordinator {
             throw new IllegalArgumentException(
                 "G21.73 invalid bounded publication lock timeout");
         final Path lock=lockPath(accountFile);
+        // Refuse redirected ancestors before creating the lock leaf.
+        verifyForensicLockAncestry(lock);
+        verifyForensicLockLeaf(lock);
         final long started=System.nanoTime();
         final long budget=TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
         final JvmLease lease=acquire(lock);
@@ -170,11 +205,13 @@ final class MailboxAccountPublicationCoordinator {
                 throw new IOException(
                     "G21.73 RECOVERY_PUBLICATION_BUSY_NO_GRANT"
                 );
-            Files.createDirectories(lock.getParent());
+            verifyForensicLockAncestry(lock);
+            verifyForensicLockLeaf(lock);
             try(FileChannel channel=FileChannel.open(
                     lock,StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE
+                    StandardOpenOption.WRITE,LinkOption.NOFOLLOW_LINKS
                 )){
+                verifyForensicLockAncestry(lock);
                 for(;;){
                     FileLock osOwned=null;
                     try{
