@@ -162,10 +162,11 @@ public final class G2187MailboxCommitSessionWitnessIntegrationTest {
                 });
             try(World testWorld=World.isolatedForTest(60000L,hooked)){
                 testWorld.start();
-                appearanceDuringSessionVetoed=injected.get()||
-                    rejectsCommit(testWorld,appearing.plan.account);
+                appearanceDuringSessionVetoed=
+                    rejectsCommit(testWorld,appearing.plan.account)&&
+                    injected.get();
             }
-            appearanceDuringSessionVetoed=injected.get()&&
+            appearanceDuringSessionVetoed&=
                 Files.exists(inject,LinkOption.NOFOLLOW_LINKS)&&
                 rejectsCommit(restarted,appearing.plan.account);
             cases++;
