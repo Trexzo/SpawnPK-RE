@@ -3631,6 +3631,8 @@ final class WorldPlayerPersistence
         private boolean released;
         private ReadOnlyRecoveryEvidence issuedEvidence;
         private boolean sealedNoAdmission;
+        private boolean publicationPinAttempted;
+        private boolean publicationPinVerified;
 
         private CommittedRecoveryReservation(
             WorldPlayer player,long expected,String selected,
@@ -3656,6 +3658,14 @@ final class WorldPlayerPersistence
         boolean sealedNoAdmission(){
             synchronized(io){
                 return sealedNoAdmission&&!released&&
+                    committedRecoveryReservations.get(account)==this;
+            }
+        }
+
+        boolean publicationPinVerified(){
+            synchronized(io){
+                return publicationPinVerified&&
+                    sealedNoAdmission&&!released&&
                     committedRecoveryReservations.get(account)==this;
             }
         }
@@ -3791,12 +3801,68 @@ final class WorldPlayerPersistence
                 RecoverySealDecision.REJECT_NOT_OWNED;
         }
 
+        /**
+         * G21.94: use a single bounded cooperating disk publication
+         * lock across disk witness check, G21.93 World/persistence
+         * negative-only seal, and a second disk witness check.
+         *
+         * Never hold World lifecycle/player locks while reading disk.
+         * The attempt itself permanently retains the account fence,
+         * even on a lock timeout, corrupt disk or stale World player.
+         */
+        RecoverySealDecision sealWithPinnedPublication(
+            MailboxCommittedDetachedRestartRecovery restorer,
+            ReadOnlyRecoveryEvidence evidence
+        )throws IOException{
+            Objects.requireNonNull(restorer,"restorer");
+            if(world.pulse().inExecutionContext())
+                throw new IllegalStateException(
+                    "G21.94 publication pin on World context");
+            synchronized(io){
+                if(released||
+                   committedRecoveryReservations.get(account)!=this)
+                    return RecoverySealDecision.REJECT_NOT_RESERVED;
+                if(publicationPinAttempted)
+                    return RecoverySealDecision.REJECT_PIN_ALREADY_ATTEMPTED;
+                if(sealedNoAdmission||issuedEvidence==null||
+                   issuedEvidence!=evidence||evidence.token!=this)
+                    return RecoverySealDecision.REJECT_EVIDENCE;
+                // Irreversible *negative* fence before any possible
+                // competing cancellation. No positive authority minted.
+                publicationPinAttempted=true;
+            }
+            RecoverySealDecision result=restorer.withPinnedPublication(
+                account,current->{
+                    if(!evidence.audit.matchesPinnedDisk(current))
+                        return RecoverySealDecision.REJECT_DISK_CHANGED;
+                    try{
+                        return sealNoAdmission(evidence);
+                    }catch(Exception unexpected){
+                        throw new IOException(
+                            "G21.94 PINNED_WORLD_SEAL_UNCONFIRMED_NO_ADMISSION",
+                            unexpected);
+                    }
+                });
+            if(result==RecoverySealDecision
+                    .SEALED_QUARANTINE_NO_ADMISSION){
+                synchronized(io){
+                    if(committedRecoveryReservations.get(account)!=this||
+                       released||!sealedNoAdmission)
+                        throw new IOException(
+                            "G21.94 seal disappeared after pinned check");
+                    publicationPinVerified=true;
+                }
+            }
+            return result;
+        }
+
         // Explicit, owner-safe cancellation only. A stale generation,
         // divergent player, or uncertain FIFO boundary stays fenced.
         boolean cancelIfStillFresh(){
             synchronized(owner.mutationLock()){
                 synchronized(io){
                     if(released||sealedNoAdmission||
+                       publicationPinAttempted||
                        committedRecoveryReservations.get(account)!=this)
                         return false;
                     if(!fifoDrained.isDone()||
@@ -3855,7 +3921,9 @@ final class WorldPlayerPersistence
         REJECT_EVIDENCE,
         REJECT_UNDRAINED_OR_CONFLICT,
         REJECT_NONFRESH,
-        REJECT_ALREADY_SEALED
+        REJECT_ALREADY_SEALED,
+        REJECT_DISK_CHANGED,
+        REJECT_PIN_ALREADY_ATTEMPTED
     }
 
     private final class CommittedRecoveryFifoBarrier
