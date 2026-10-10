@@ -46,7 +46,9 @@ public final class G2179MailboxSettlementCutoverContractIntegrationTest {
         boolean liveInventoryUnchanged=true;
         boolean noForensicWrites=true;
         boolean noTempOrLeaseLeaks=false;
-        try(World world=World.isolatedForTest(60000L)){
+        try(World world=World.isolatedForTest(60000L);
+            World restarted=World.isolatedForTest(60000L,repo)){
+            restarted.start();
             String preparedName="g2179-prepared";
             Seed prepared=seed(world,preparedName);
             strict.saveStrict(prepared.plan.preparedPreimage);
@@ -58,7 +60,7 @@ public final class G2179MailboxSettlementCutoverContractIntegrationTest {
                 MailboxSettlementCutoverReadiness.Disposition
                     .PREPARED_ONLY_NO_SETTLEMENT,seen);
             preparedStillNonGrant=
-                repo.loadForWorldSession(preparedName).isPresent()&&
+                restarted.persistence().load(preparedName).isPresent()&&
                 prepared.owner.bank().inventorySlots()==0&&
                 prepared.owner.mailbox().get(prepared.plan.messageId)
                     .claimState==
@@ -80,7 +82,7 @@ public final class G2179MailboxSettlementCutoverContractIntegrationTest {
             noForensicWrites&=Arrays.equals(stored,
                 Files.readAllBytes(paths.resolve(terminalName)));
             try{
-                repo.loadForWorldSession(terminalName);
+                restarted.persistence().load(terminalName);
             }catch(IOException veto){
                 terminalStillQuarantined=veto.getMessage().contains(
                     "QUARANTINE_TERMINAL_NO_GRANT");
