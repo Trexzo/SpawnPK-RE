@@ -1,0 +1,11 @@
+# G21.91 — two-disk/two-World committed recovery audit (NO ADMISSION)
+
+**Parent:** certified G21.90 `9f3c65c13fd11766f9bb2193deeeb0fc923cd4b9`; [Actions #38055063345](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38055063345) SUCCESS, 390 focused Java 11 tests. [Issue #2361](https://github.com/Trexzo/SpawnPK-RE/issues/2361).
+
+This milestone composes the existing opt-in G21.89 detached committed-state recovery with the G21.90 read-only World generation freshness check, then performs both checks **again**. It is not a World-load call. Each G21.89 recovery independently binds actual disk account + PREPARED intent journal + COMMIT record; G21.91 retains the G21.89 physical NOFOLLOW file identity, size, creation and modification witnesses across recovery calls, detecting same-byte inode changes that checksums alone would miss. It checks exact transaction identity and canonical snapshot equality before the final World generation check.
+
+The audit never holds World lifecycle or mutation locks over disk work and returns **no restored snapshot, lease, reservation or positive capability**. Its best result, `STABLE_CANDIDATE_NO_ADMISSION`, is an historical observation: another uncooperative writer or World mutation can invalidate it immediately afterward. It is not a linearizable cross-domain transaction, cannot resolve arbitrary power loss, and must never be used directly to hydrate or register a client session.
+
+The real-filesystem regression performs an actual PREPARED journal → strict terminal receipt → G21.86 disk COMMIT, checks successful read-only audits, then intentionally replaces each one of the three disk objects with identical bytes on a fresh inode between reads. It also mutates the COMMIT, removes one, retires a World generation and dirties a receiver between checkpoints, and rejects cross-World/foreign owner. Successful audit leaves the clean receiver, original live UNCLAIMED owner and disk bytes unchanged. `G21.87` session admission and `G21.88` ordinary/strict World save vetoes, native widget32181 disablement and frozen R25 PR #1847 are untouched.
+
+Focused Java 11 manifest 390 → 391; standalone Gradle `g2191MailboxRestartHandoffAuditRegression`. PR remains Draft and unmerged until exact-head hosted CI.
