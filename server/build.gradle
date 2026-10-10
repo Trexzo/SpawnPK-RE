@@ -2198,6 +2198,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2177MailboxBoundedRecoveryDecodeIntegrationTest',
     'spk.local.G2177MailboxForensicLockPreflightIntegrationTest',
     'spk.local.G2179MailboxSettlementCutoverContractIntegrationTest',
+    'spk.local.G2180MailboxStrictTerminalOrderingAuditIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2226,10 +2227,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 379 ||
-    currentTrainFocusedTests.toSet().size() != 379) {
+if (currentTrainFocusedTests.size() != 380 ||
+    currentTrainFocusedTests.toSet().size() != 380) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 379 unique tests, found " +
+        "Current-train focused manifest drift: expected 380 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3369,6 +3370,14 @@ tasks.register('g2179MailboxSettlementCutoverContractRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2179MailboxSettlementCutoverContractIntegrationTest')
+}
+
+tasks.register('g2180MailboxStrictTerminalOrderingAuditRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real G21.66 strict terminal fault ordering matrix with negative marker precedence (NO GRANT).'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2180MailboxStrictTerminalOrderingAuditIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
