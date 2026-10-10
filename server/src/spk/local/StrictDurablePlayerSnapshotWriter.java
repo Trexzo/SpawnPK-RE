@@ -452,6 +452,19 @@ final class StrictDurablePlayerSnapshotWriter {
     private void requireUnfenced(
         String account,FilePlayerRepository.PathResolver markerResolver
     )throws IOException{
+        // G21.88: no cooperating strict World replacement may erase
+        // a recorded disk COMMIT, including when an uncooperative raw
+        // write has restored a seemingly valid PREPARED account.
+        Path selected=markerResolver.resolve(account)
+            .toAbsolutePath().normalize();
+        Path diskCommit=selected.resolveSibling(
+            selected.getFileName().toString()+
+            MailboxGuardedDiskCommitRecord.SUFFIX);
+        if(Files.exists(diskCommit,java.nio.file.LinkOption.NOFOLLOW_LINKS))
+            throw new IOException(
+                "G21.88 DISK_COMMIT_STRICT_SAVE_VETO account="+
+                account+" action=REJECT_STRICT_SAVE");
+
         if(new MailboxDurableReviewFence(markerResolver).present(account)||
            new MailboxStrictUncertainFence(markerResolver).present(account)||
            new MailboxStrictWriteIntentFence(markerResolver).present(account))

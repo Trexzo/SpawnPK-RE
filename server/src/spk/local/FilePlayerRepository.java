@@ -1308,6 +1308,20 @@ final class FilePlayerRepository
     private void requireUnfencedWorldSave(
         String account,PathResolver markerPaths
     )throws IOException{
+        // G21.88: the disk COMMIT sidecar (including invalid/symlinked
+        // records) is an immutable negative World-save fence. This
+        // method is called before temp and again under the SAME G21.39
+        // pinned-account publication lock before atomic replacement.
+        Path selected=markerPaths.resolve(account)
+            .toAbsolutePath().normalize();
+        Path diskCommit=selected.resolveSibling(
+            selected.getFileName().toString()+
+            MailboxGuardedDiskCommitRecord.SUFFIX);
+        if(Files.exists(diskCommit,LinkOption.NOFOLLOW_LINKS))
+            throw new IOException(
+                "G21.88 DISK_COMMIT_WORLD_SAVE_VETO account="+
+                account+" action=REJECT_WORLD_SAVE");
+
         // The guarded World save must check ALL four negative marker
         // names against the locked/replaced account file, not a second
         // independently resolved account root.

@@ -2206,6 +2206,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2185MailboxJournalRestartWitnessIntegrationTest',
     'spk.local.G2186MailboxGuardedDiskCommitIntegrationTest',
     'spk.local.G2187MailboxCommitSessionWitnessIntegrationTest',
+    'spk.local.G2188MailboxCommitWorldSaveFenceIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2234,10 +2235,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 387 ||
-    currentTrainFocusedTests.toSet().size() != 387) {
+if (currentTrainFocusedTests.size() != 388 ||
+    currentTrainFocusedTests.toSet().size() != 388) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 387 unique tests, found " +
+        "Current-train focused manifest drift: expected 388 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3441,6 +3442,14 @@ tasks.register('g2187MailboxCommitSessionWitnessRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2187MailboxCommitSessionWitnessIntegrationTest')
+}
+
+tasks.register('g2188MailboxCommitWorldSaveFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Block ordinary and strict World writes when disk COMMIT exists (NO GRANT).'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2188MailboxCommitWorldSaveFenceIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
