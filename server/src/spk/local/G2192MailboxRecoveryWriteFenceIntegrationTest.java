@@ -163,11 +163,28 @@ public final class G2192MailboxRecoveryWriteFenceIntegrationTest {
             stale.drained().get(5,TimeUnit.SECONDS);
             restart.unregisterPlayer(receiver,generation);
             staleReleaseDenied=!stale.cancelIfStillFresh()&&stale.isActive();
-            noReservationLeaks=restart.persistence()
-                .committedRecoveryReservationsForTest()==1;
 
-            // Independent clean World proves dirty receiver holds fence.
-            // Stale fence intentionally stays quarantined on this World.
+            // A separate receiver becomes nonfresh *after* reservation.
+            // Its token must stay fenced even though its generation is
+            // still current. No disk claim or reward is performed here.
+            WorldPlayer dirty=new WorldPlayer();
+            long dirtyGeneration=restart.registerPlayer(
+                dirty,"g2192-dirty");
+            WorldPlayerPersistence.CommittedRecoveryReservation dirtyToken=
+                restart.persistence().reserveCommittedRecovery(
+                    dirty,dirtyGeneration,"g2192-dirty");
+            dirtyToken.drained().get(5,TimeUnit.SECONDS);
+            dirty.mailbox().deliver(new RewardDeliveryMessage(
+                "g2192-dirty-marker","Marker","NO_GRANT",
+                Collections.singletonList(
+                    new RewardDeliveryMessage.Attachment(995,1)),
+                "CUSTOM_LOCALLAB_G2192_FIXTURE"));
+            dirtyReleaseDenied=!dirtyToken.cancelIfStillFresh()&&
+                dirtyToken.isActive();
+            restart.unregisterPlayer(dirty,dirtyGeneration);
+
+            noReservationLeaks=restart.persistence()
+                .committedRecoveryReservationsForTest()==2;
         }finally{
             releaseRead.countDown();
             noLeaks=MailboxAccountPublicationCoordinator
@@ -186,13 +203,15 @@ public final class G2192MailboxRecoveryWriteFenceIntegrationTest {
             " stableNoGrantAudit="+stableAudit+
             " safeCancel="+releaseWorked+
             " staleGenerationCannotCancel="+staleReleaseDenied+
-            " staleFenceRetained="+noReservationLeaks+
+            " dirtyReceiverCannotCancel="+dirtyReleaseDenied+
+            " staleAndDirtyFencesRetained="+noReservationLeaks+
             " sourceUnclaimed="+sourceUnclaimed+
             " accountJournalCommitUnchanged="+unchangedDisk+
             " noJvmLeases="+noLeaks);
         if(!(fifoWaited&&duplicateDenied&&earlyCancelDenied&&
              ordinarySaveDenied&&stableAudit&&releaseWorked&&
-             staleReleaseDenied&&noReservationLeaks&&sourceUnclaimed&&
+             staleReleaseDenied&&dirtyReleaseDenied&&noReservationLeaks&&
+             sourceUnclaimed&&
              unchangedDisk&&noLeaks))
             throw new AssertionError("G21.92 recovery write fence failed");
         System.out.println("G2192_RECOVERY_WRITE_FENCE_PASS"+
