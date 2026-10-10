@@ -3629,6 +3629,8 @@ final class WorldPlayerPersistence
         final PlayerSnapshot exactFreshPreimage;
         final CompletableFuture<Void> fifoDrained=new CompletableFuture<>();
         private boolean released;
+        private ReadOnlyRecoveryEvidence issuedEvidence;
+        private boolean sealedNoAdmission;
 
         private CommittedRecoveryReservation(
             WorldPlayer player,long expected,String selected,
@@ -3649,6 +3651,13 @@ final class WorldPlayerPersistence
 
         CompletableFuture<Void> drained(){
             return fifoDrained;
+        }
+
+        boolean sealedNoAdmission(){
+            synchronized(io){
+                return sealedNoAdmission&&!released&&
+                    committedRecoveryReservations.get(account)==this;
+            }
         }
 
         MailboxCommittedRestartHandoffAudit.Result
@@ -3675,12 +3684,119 @@ final class WorldPlayerPersistence
             return observed;
         }
 
+
+        /**
+         * Bind one successful G21.91 forensic observation to this exact
+         * reservation. Read-only disk work runs before World seal locks.
+         */
+        ReadOnlyRecoveryEvidence inspectOneShotHandoff(
+            MailboxCommittedDetachedRestartRecovery restorer
+        )throws Exception{
+            synchronized(io){
+                if(released||sealedNoAdmission||issuedEvidence!=null||
+                   committedRecoveryReservations.get(account)!=this)
+                    throw new IllegalStateException(
+                        "G21.93 handoff token retired or already issued");
+            }
+            MailboxCommittedRestartHandoffAudit.Result audit=
+                inspectReadOnlyAfterDrain(restorer);
+            if(audit.state!=
+                   MailboxCommittedRestartHandoffAudit.State
+                       .STABLE_CANDIDATE_NO_ADMISSION||
+               !account.equals(audit.account)||
+               audit.terminalSha256==null||
+               audit.transactionCommitted||audit.liveApplied||
+               audit.grantAuthorized||audit.replayAuthorized||
+               audit.restartAdmissionAuthorized||
+               audit.releaseAuthorized||audit.clientAckAuthorized)
+                throw new IllegalStateException(
+                    "G21.93 untrusted handoff audit");
+            synchronized(io){
+                if(released||sealedNoAdmission||issuedEvidence!=null||
+                   committedRecoveryReservations.get(account)!=this)
+                    throw new IllegalStateException(
+                        "G21.93 handoff token superseded");
+                issuedEvidence=new ReadOnlyRecoveryEvidence(this,audit);
+                return issuedEvidence;
+            }
+        }
+
+        /**
+         * Single-use NEGATIVE quarantine seal, not disk/World adoption.
+         * Lock order: World.lifecycle -> player.mutationLock -> io.
+         * Never perform filesystem I/O inside those locks.
+         */
+        RecoverySealDecision sealNoAdmission(
+            ReadOnlyRecoveryEvidence evidence
+        )throws Exception{
+            java.util.concurrent.atomic.AtomicReference<RecoverySealDecision>
+                decision=new java.util.concurrent.atomic.AtomicReference<>(
+                    RecoverySealDecision.REJECT_NOT_OWNED);
+            boolean owned=world.withOpenPlayerMutationOwnershipIfCurrent(
+                owner,generation,()->{
+                    synchronized(io){
+                        if(released||
+                           committedRecoveryReservations.get(account)!=this||
+                           io.isShutdown()){
+                            decision.set(
+                                RecoverySealDecision.REJECT_NOT_RESERVED);
+                            return;
+                        }
+                        if(sealedNoAdmission){
+                            decision.set(
+                                RecoverySealDecision.REJECT_ALREADY_SEALED);
+                            return;
+                        }
+                        if(evidence==null||issuedEvidence!=evidence||
+                           evidence.token!=this||
+                           evidence.generation!=generation||
+                           !account.equals(evidence.account)||
+                           evidence.audit.state!=
+                               MailboxCommittedRestartHandoffAudit.State
+                                   .STABLE_CANDIDATE_NO_ADMISSION||
+                           !account.equals(evidence.audit.account)||
+                           evidence.terminalSha256==null||
+                           !evidence.terminalSha256.equals(
+                               evidence.audit.terminalSha256)){
+                            decision.set(
+                                RecoverySealDecision.REJECT_EVIDENCE);
+                            return;
+                        }
+                        if(!fifoDrained.isDone()||
+                           fifoDrained.isCompletedExceptionally()||
+                           preparedAccountReservations.containsKey(account)||
+                           finalReservationGenerations.containsKey(owner)){
+                            decision.set(
+                                RecoverySealDecision.REJECT_UNDRAINED_OR_CONFLICT);
+                            return;
+                        }
+                        if(!owner.accepts(generation)||
+                           !account.equals(owner.username())||
+                           owner.mailboxSnapshotKnown()||
+                           owner.mailbox().size()!=0||
+                           owner.bank().inventorySlots()!=0||
+                           !exactFreshPreimage.values().equals(
+                               PlayerSnapshotCodec.capture(
+                                   account,owner).values())){
+                            decision.set(
+                                RecoverySealDecision.REJECT_NONFRESH);
+                            return;
+                        }
+                        sealedNoAdmission=true;
+                        decision.set(
+                            RecoverySealDecision.SEALED_QUARANTINE_NO_ADMISSION);
+                    }
+                });
+            return owned?decision.get():
+                RecoverySealDecision.REJECT_NOT_OWNED;
+        }
+
         // Explicit, owner-safe cancellation only. A stale generation,
         // divergent player, or uncertain FIFO boundary stays fenced.
         boolean cancelIfStillFresh(){
             synchronized(owner.mutationLock()){
                 synchronized(io){
-                    if(released||
+                    if(released||sealedNoAdmission||
                        committedRecoveryReservations.get(account)!=this)
                         return false;
                     if(!fifoDrained.isDone()||
@@ -3703,6 +3819,43 @@ final class WorldPlayerPersistence
                 }
             }
         }
+    }
+
+
+    /** Not a transferable recovery capability or admission ticket. */
+    final class ReadOnlyRecoveryEvidence {
+        final CommittedRecoveryReservation token;
+        final String account;
+        final long generation;
+        final String terminalSha256;
+        final MailboxCommittedRestartHandoffAudit.Result audit;
+        final boolean transactionCommitted=false;
+        final boolean liveApplied=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean restartAdmissionAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+        private ReadOnlyRecoveryEvidence(
+            CommittedRecoveryReservation token,
+            MailboxCommittedRestartHandoffAudit.Result audit
+        ){
+            this.token=token;
+            this.account=token.account;
+            this.generation=token.generation;
+            this.terminalSha256=audit.terminalSha256;
+            this.audit=audit;
+        }
+    }
+
+    enum RecoverySealDecision {
+        SEALED_QUARANTINE_NO_ADMISSION,
+        REJECT_NOT_OWNED,
+        REJECT_NOT_RESERVED,
+        REJECT_EVIDENCE,
+        REJECT_UNDRAINED_OR_CONFLICT,
+        REJECT_NONFRESH,
+        REJECT_ALREADY_SEALED
     }
 
     private final class CommittedRecoveryFifoBarrier
