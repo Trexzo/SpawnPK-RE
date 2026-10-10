@@ -216,7 +216,27 @@ final class StrictDurablePlayerSnapshotWriter {
         );
     }
 
+    // G21.100: lifetime acquired before ANY strict temp creation,
+    // held across publication and cleanup; order lifetime -> account.
     private Receipt saveInternal(
+        PlayerSnapshot snapshot,Path worldFile,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck,
+        boolean writeAheadIntent,boolean terminalMode,
+        String terminalPreparedSha256
+    )throws IOException{
+        PlayerSnapshot checked=Objects.requireNonNull(snapshot,"snapshot");
+        Path selected=Objects.requireNonNull(
+            resolver.resolve(checked.username()),"account file")
+            .toAbsolutePath().normalize();
+        return MailboxPublicationWriterLifecycle.withWriter(
+            selected,()->saveInternalTracked(
+                snapshot,worldFile,publicationCheck,
+                postPublicationCheck,writeAheadIntent,terminalMode,
+                terminalPreparedSha256));
+    }
+
+    private Receipt saveInternalTracked(
         PlayerSnapshot snapshot,Path worldFile,
         BeforeWorldPublication publicationCheck,
         AfterWorldPublication postPublicationCheck,
