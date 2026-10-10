@@ -2208,6 +2208,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2187MailboxCommitSessionWitnessIntegrationTest',
     'spk.local.G2188MailboxCommitWorldSaveFenceIntegrationTest',
     'spk.local.G2189MailboxCommittedDetachedRecoveryIntegrationTest',
+    'spk.local.G2190MailboxWorldGenerationCandidateIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2236,10 +2237,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 389 ||
-    currentTrainFocusedTests.toSet().size() != 389) {
+if (currentTrainFocusedTests.size() != 390 ||
+    currentTrainFocusedTests.toSet().size() != 390) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 389 unique tests, found " +
+        "Current-train focused manifest drift: expected 390 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3459,6 +3460,14 @@ tasks.register('g2189MailboxCommittedDetachedRecoveryRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2189MailboxCommittedDetachedRecoveryIntegrationTest')
+}
+
+tasks.register('g2190MailboxWorldGenerationCandidateRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only World generation and fresh receiver gate after detached COMMIT recovery (NO ADMISSION).'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2190MailboxWorldGenerationCandidateIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
