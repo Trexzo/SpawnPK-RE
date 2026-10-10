@@ -256,6 +256,13 @@ final class WorldPlayerPersistence
     private final HashMap<String,PreparedAccountReservation>
         preparedAccountReservations=new HashMap<>();
 
+    // G21.92 opt-in recovery quarantine: under the same persistence
+    // admission lock as ordinary/checkpoint/final writers. Never grants
+    // committed state, and never bypasses G21.87/88 disk fences.
+    static final int MAX_COMMITTED_RECOVERY_RESERVATIONS=32;
+    private final HashMap<String,CommittedRecoveryReservation>
+        committedRecoveryReservations=new HashMap<>();
+
     /*
      * Protected by the persistence admission lock (io). A bound final
      * reservation becomes visible here only while it actually owns a FIFO
@@ -1747,6 +1754,13 @@ final class WorldPlayerPersistence
             try{
                 if(completion.isDone())
                     return;
+                // G21.92: a recovery fence admitted while strict work
+                // waited in FIFO must also exclude this pre-existing task.
+                synchronized(io){
+                    if(committedRecoveryReservations.containsKey(
+                            snapshot.username()))
+                        throw preparedWriteRejection(snapshot.username());
+                }
                 // G21.44: queued strict work may have waited behind an
                 // earlier slow file operation. Recheck complete current
                 // owner/generation/snapshot on THIS existing persistence
@@ -3602,20 +3616,202 @@ final class WorldPlayerPersistence
         }
     }
 
+
+    /**
+     * G21.92: a live owner/generation-bound **negative** write exclusion.
+     * No acquired capability, apply, reward, replay, session admission or
+     * disk COMMIT release can be derived from this token.
+     */
+    final class CommittedRecoveryReservation {
+        final WorldPlayer owner;
+        final long generation;
+        final String account;
+        final PlayerSnapshot exactFreshPreimage;
+        final CompletableFuture<Void> fifoDrained=new CompletableFuture<>();
+        private boolean released;
+
+        private CommittedRecoveryReservation(
+            WorldPlayer player,long expected,String selected,
+            PlayerSnapshot fresh
+        ){
+            owner=player;
+            generation=expected;
+            account=selected;
+            exactFreshPreimage=fresh;
+        }
+
+        boolean isActive(){
+            synchronized(io){
+                return !released&&
+                    committedRecoveryReservations.get(account)==this;
+            }
+        }
+
+        CompletableFuture<Void> drained(){
+            return fifoDrained;
+        }
+
+        MailboxCommittedRestartHandoffAudit.Result
+            inspectReadOnlyAfterDrain(
+                MailboxCommittedDetachedRestartRecovery restorer
+            )throws Exception{
+            Objects.requireNonNull(restorer,"restorer");
+            if(world.pulse().inExecutionContext())
+                throw new IllegalStateException(
+                    "G21.92 disk audit on World context");
+            // FIFO ensures all tasks admitted before the token's worker
+            // marker have FINISHED (or failed) on this persistence worker.
+            // Does not fence raw/uncooperative writers or disk power loss.
+            fifoDrained.get();
+            if(!isActive())
+                throw new IllegalStateException(
+                    "G21.92 recovery reservation released or superseded");
+            MailboxCommittedRestartHandoffAudit.Result observed=
+                MailboxCommittedRestartHandoffAudit.inspect(
+                    world,owner,generation,account,restorer);
+            if(!isActive())
+                throw new IllegalStateException(
+                    "G21.92 recovery reservation changed during audit");
+            return observed;
+        }
+
+        // Explicit, owner-safe cancellation only. A stale generation,
+        // divergent player, or uncertain FIFO boundary stays fenced.
+        boolean cancelIfStillFresh(){
+            synchronized(owner.mutationLock()){
+                synchronized(io){
+                    if(released||
+                       committedRecoveryReservations.get(account)!=this)
+                        return false;
+                    if(!fifoDrained.isDone()||
+                       fifoDrained.isCompletedExceptionally()||
+                       !world.players().owns(owner,generation)||
+                       !owner.accepts(generation)||
+                       !account.equals(owner.username()))
+                        return false;
+                    if(owner.mailboxSnapshotKnown()||
+                       owner.mailbox().size()!=0||
+                       owner.bank().inventorySlots()!=0)
+                        return false;
+                    PlayerSnapshot now=PlayerSnapshotCodec.capture(
+                        account,owner);
+                    if(!exactFreshPreimage.values().equals(now.values()))
+                        return false;
+                    committedRecoveryReservations.remove(account);
+                    released=true;
+                    return true;
+                }
+            }
+        }
+    }
+
+    private final class CommittedRecoveryFifoBarrier
+        implements Runnable{
+        final CommittedRecoveryReservation token;
+        CommittedRecoveryFifoBarrier(CommittedRecoveryReservation token){
+            this.token=token;
+        }
+        @Override public void run(){
+            synchronized(io){
+                if(!token.released&&
+                   committedRecoveryReservations.get(token.account)==token)
+                    token.fifoDrained.complete(null);
+                else
+                    token.fifoDrained.completeExceptionally(
+                        new RejectedExecutionException(
+                            "G21.92 RECOVERY_FIFO_TOKEN_NOT_ACTIVE"));
+            }
+        }
+        void reject(Throwable reason){
+            token.fifoDrained.completeExceptionally(reason);
+        }
+    }
+
+    CommittedRecoveryReservation reserveCommittedRecovery(
+        WorldPlayer owner,long expectedGeneration,String account
+    ){
+        Objects.requireNonNull(owner,"owner");
+        if(account==null||!account.matches("[a-z0-9_-]{1,64}"))
+            throw new IllegalArgumentException(
+                "G21.92 recovery account not canonical");
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.92 requires real FilePlayerRepository");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.92 reservation on World execution context");
+
+        synchronized(owner.mutationLock()){
+            if(!world.players().owns(owner,expectedGeneration)||
+               !owner.accepts(expectedGeneration)||
+               !account.equals(owner.username()))
+                throw new IllegalStateException(
+                    "G21.92 recovery reservation owner changed");
+            if(owner.mailboxSnapshotKnown()||
+               owner.mailbox().size()!=0||
+               owner.bank().inventorySlots()!=0)
+                throw new IllegalStateException(
+                    "G21.92 recovery receiver not fresh");
+            PlayerSnapshot exact=PlayerSnapshotCodec.capture(
+                account,owner);
+            PlayerSnapshot fresh=PlayerSnapshotCodec.capture(
+                account,new WorldPlayer());
+            if(!exact.values().equals(fresh.values()))
+                throw new IllegalStateException(
+                    "G21.92 recovery receiver snapshot not fresh");
+
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.92 persistence worker closed");
+                if(committedRecoveryReservations.containsKey(account)||
+                   preparedAccountReservations.containsKey(account)||
+                   finalReservationGenerations.containsKey(owner))
+                    throw new IllegalStateException(
+                        "G21.92 overlapping account reservation");
+                if(committedRecoveryReservations.size()>=
+                        MAX_COMMITTED_RECOVERY_RESERVATIONS)
+                    throw new RejectedExecutionException(
+                        "G21.92 recovery fence capacity");
+                CommittedRecoveryReservation token=
+                    new CommittedRecoveryReservation(
+                        owner,expectedGeneration,account,exact);
+                committedRecoveryReservations.put(account,token);
+                try{
+                    io.execute(new CommittedRecoveryFifoBarrier(token));
+                }catch(RejectedExecutionException rejected){
+                    committedRecoveryReservations.remove(account,token);
+                    token.fifoDrained.completeExceptionally(rejected);
+                    throw rejected;
+                }
+                return token;
+            }
+        }
+    }
+
+    int committedRecoveryReservationsForTest(){
+        synchronized(io){
+            return committedRecoveryReservations.size();
+        }
+    }
+
     private boolean preparedAccountBlockedLocked(String username){
         if(!Thread.holdsLock(io))
             throw new IllegalStateException(
                 "G21.27 account fence requires io lock"
             );
         return username!=null&&
-            preparedAccountReservations.containsKey(username);
+            (preparedAccountReservations.containsKey(username)||
+             committedRecoveryReservations.containsKey(username));
     }
 
     private RejectedExecutionException preparedWriteRejection(
         String username
     ){
         return new RejectedExecutionException(
-            "G21.27 PREPARED_ACCOUNT_WRITE_RESERVED "+username
+            committedRecoveryReservations.containsKey(username)
+                ?"G21.92 COMMITTED_RECOVERY_WRITE_FENCED "+username
+                :"G21.27 PREPARED_ACCOUNT_WRITE_RESERVED "+username
         );
     }
 
@@ -3937,6 +4133,12 @@ final class WorldPlayerPersistence
             if(runnable instanceof PreparedStrictBarrierTask){
                 counts.saves++;
                 ((PreparedStrictBarrierTask)runnable).reject(error);
+                continue;
+            }
+
+            if(runnable instanceof CommittedRecoveryFifoBarrier){
+                counts.loads++;
+                ((CommittedRecoveryFifoBarrier)runnable).reject(error);
                 continue;
             }
 
