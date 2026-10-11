@@ -272,7 +272,7 @@ public final class G21109MailboxRealStrictRecordedWriterIntegrationTest {
         }
     }
     public static void main(String[] args)throws Exception{
-        if(args.length==4&&"--child".equals(args[0])){
+        if(args.length==3&&"--child".equals(args[0])){
             child(Paths.get(args[1]).toAbsolutePath().normalize(),
                 args[2]);return;
         }
