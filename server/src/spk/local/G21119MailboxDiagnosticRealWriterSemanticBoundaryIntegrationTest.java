@@ -143,7 +143,7 @@ public final class G21119MailboxDiagnosticRealWriterSemanticBoundaryIntegrationT
         MailboxWriterKindEvidenceV2.Kind kind
     )throws IOException{
         Path selected=r.resolve(account);
-        MailboxPublicationWriterLifecycle.withWriter(selected,->
+        MailboxPublicationWriterLifecycle.withWriter(selected,()->
             MailboxWriterAttemptEvidenceV1.runRecordedInsideWriter(
                 selected,account,kind,()->Boolean.TRUE));
     }
