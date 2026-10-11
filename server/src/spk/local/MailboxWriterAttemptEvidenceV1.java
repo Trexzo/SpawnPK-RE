@@ -200,7 +200,9 @@ final class MailboxWriterAttemptEvidenceV1 {
             StandardCharsets.US_ASCII);
     }
 
-    private static Report inspectInside(
+    // G21.105: re-used ONLY by a caller already holding the same
+    // bounded G21.100 writer lifecycle lock; no separate lock acquisition.
+    static Report inspectInside(
         Path file,String account
     )throws IOException{
         final String prefix=prefix(file);
