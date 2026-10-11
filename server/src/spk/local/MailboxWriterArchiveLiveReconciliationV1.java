@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -30,6 +31,8 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
         // True only for the separately pinned, opt-in G21.107 observation.
         // Never a transferable cleanup, session or reward capability.
         final boolean pinnedCanonicalBytesMatched;
+        // Explicitly pinned SHA-256 or ABSENT for BOTH recovery sidecars.
+        final boolean pinnedRecoverySidecarBytesMatched;
         final boolean sourceMatchedAcrossTwoPasses=true;
         final boolean participatingWriterLeasesObservedQuiet=true;
         final boolean authoritativeAccountContentProved=false;
@@ -48,11 +51,12 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
         final boolean clientAckAuthorized=false;
         private Report(
             MailboxWriterEvidencePortableArchiveV1.Verified v,
-            boolean pinnedCanonical
+            boolean pinnedCanonical,boolean pinnedSidecars
         ){
             archive=v;
             matchedRecords=v.records;
             pinnedCanonicalBytesMatched=pinnedCanonical;
+            pinnedRecoverySidecarBytesMatched=pinnedSidecars;
         }
     }
 
@@ -105,6 +109,48 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
      * Caller-provided between-pass callback runs only after ALL locks
      * have been released and can model a legacy raw publisher.
      */
+    // A sidecar pin is either an independently trusted SHA-256 or
+    // the explicit, independently observed ABSENT expectation. Neither
+    // means a valid PREPARED/COMMIT payload or permits settlement.
+    private static final class SidecarPins {
+        final String prepared;
+        final String commit;
+        SidecarPins(String p,String c){prepared=p;commit=c;}
+    }
+    private static boolean validSidecarPin(String p){
+        return p!=null&&("ABSENT".equals(p)||
+            p.matches("[0-9a-f]{64}"));
+    }
+    private static IOException sidecarMismatch(String reason){
+        return new IOException(
+            "G21.108 PINNED_SIDECAR_CONTENT_MISMATCH_NO_AUTHORITY "+
+            reason+" unlink=false grant=false");
+    }
+
+    static Report comparePinnedRecoveryLeaves(
+        FilePlayerRepository.PathResolver resolver,
+        String account,String portable,String archiveSha256,
+        String canonicalSha256,String preparedPin,String commitPin,
+        BetweenPasses between
+    )throws IOException{
+        if(canonicalSha256==null||
+           !canonicalSha256.matches("[0-9a-f]{64}"))
+            throw pinnedMismatch("missing independent canonical SHA-256");
+        if(!validSidecarPin(preparedPin)||!validSidecarPin(commitPin))
+            throw sidecarMismatch("malformed/missing independent sidecar pin");
+        return compareInternal(resolver,account,portable,archiveSha256,
+            canonicalSha256,new SidecarPins(preparedPin,commitPin),between);
+    }
+    static Report comparePinnedRecoveryLeaves(
+        FilePlayerRepository.PathResolver resolver,
+        String account,String portable,String archiveSha256,
+        String canonicalSha256,String preparedPin,String commitPin
+    )throws IOException{
+        return comparePinnedRecoveryLeaves(resolver,account,
+            portable,archiveSha256,canonicalSha256,preparedPin,
+            commitPin,()->{});
+    }
+
     // G21.107 is strictly opt-in: callers must independently pin BOTH
     // the portable writer ledger SHA-256 and the canonical account SHA-256.
     static Report comparePinnedAccount(
@@ -117,7 +163,7 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
            !trustedCanonicalSha256.matches("[0-9a-f]{64}"))
             throw pinnedMismatch("missing independent canonical SHA-256");
         return compareInternal(resolver,account,externallyPinnedPortable,
-            trustedArchiveSha256,trustedCanonicalSha256,between);
+            trustedArchiveSha256,trustedCanonicalSha256,null,between);
     }
 
     static Report comparePinnedAccount(
@@ -135,14 +181,14 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
         String trustedSha256,BetweenPasses between
     )throws IOException{
         return compareInternal(resolver,account,externallyPinnedPortable,
-            trustedSha256,null,between);
+            trustedSha256,null,null,between);
     }
 
     private static Report compareInternal(
         FilePlayerRepository.PathResolver resolver,
         String account,String externallyPinnedPortable,
         String trustedSha256,String pinnedCanonicalSha256,
-        BetweenPasses between
+        SidecarPins sidecars,BetweenPasses between
     )throws IOException{
         Objects.requireNonNull(resolver,"resolver");
         Objects.requireNonNull(between,"between");
@@ -161,15 +207,18 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
             return selected;
         };
         Pass first=observe(exact,selected,account,
-            externallyPinnedPortable,trustedSha256,pinnedCanonicalSha256);
+            externallyPinnedPortable,trustedSha256,pinnedCanonicalSha256,
+            sidecars);
         between.run();
         Pass second=observe(exact,selected,account,
-            externallyPinnedPortable,trustedSha256,pinnedCanonicalSha256);
+            externallyPinnedPortable,trustedSha256,pinnedCanonicalSha256,
+            sidecars);
         if(!first.sha256.equals(second.sha256)||
            !first.portable.equals(second.portable)||
            !same(first.witness,second.witness))
             throw mismatch("interpass canonical or temp physical drift");
-        return new Report(trusted,pinnedCanonicalSha256!=null);
+        return new Report(trusted,pinnedCanonicalSha256!=null,
+            sidecars!=null);
     }
 
     static Report compare(
@@ -183,7 +232,7 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
     private static Pass observe(
         FilePlayerRepository.PathResolver exact,Path selected,
         String account,String expected,String trustedDigest,
-        String pinnedCanonicalSha256
+        String pinnedCanonicalSha256,SidecarPins sidecars
     )throws IOException{
         return MailboxAccountPublicationCoordinator
             .withExclusivePublicationBounded(
@@ -196,12 +245,16 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
                     if(pinnedCanonicalSha256!=null)
                         checkPinnedCanonicalContent(
                             selected,pinnedCanonicalSha256);
+                    if(sidecars!=null)
+                        checkPinnedSidecars(selected,sidecars);
                     MailboxWriterEvidencePortableArchiveV1.Snapshot live=
                         MailboxWriterEvidencePortableArchiveV1
                             .captureInside(selected,account);
                     if(pinnedCanonicalSha256!=null)
                         checkPinnedCanonicalContent(
                             selected,pinnedCanonicalSha256);
+                    if(sidecars!=null)
+                        checkPinnedSidecars(selected,sidecars);
                     MailboxOrphanPublicationCleanupAudit.Result after=
                         auditor.inspect(account);
                     if(!same(before,after))
@@ -273,6 +326,84 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
                     throw pinnedMismatch("canonical bytes disagree");
                 return null;
             });
+    }
+
+    // G21.108: pinned sidecar-byte evidence, not protocol parsing or
+    // writer-generation enrollment. Called inside lifecycle ownership,
+    // before/after v1 evidence recapture, same publication lock domain.
+    private static final int MAX_PINNED_SIDECAR_BYTES=1024*1024;
+    private static void checkPinnedSidecars(
+        Path selected,SidecarPins pins
+    )throws IOException{
+        MailboxAccountPublicationCoordinator
+            .withExclusivePublicationBounded(selected,1500L,()->{
+                String filename=selected.getFileName().toString();
+                checkPinnedSidecar(
+                    selected.resolveSibling(filename+
+                        MailboxDurableIdempotencyIntentJournal.SUFFIX),
+                    pins.prepared,"PREPARED");
+                checkPinnedSidecar(
+                    selected.resolveSibling(filename+
+                        MailboxGuardedDiskCommitRecord.SUFFIX),
+                    pins.commit,"COMMIT");
+                return null;
+            });
+    }
+
+    private static void checkPinnedSidecar(
+        Path file,String expected,String label
+    )throws IOException{
+        final BasicFileAttributes before;
+        try{
+            before=Files.readAttributes(file,BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        }catch(NoSuchFileException absent){
+            if("ABSENT".equals(expected))return;
+            throw sidecarMismatch(label+" expected present but missing");
+        }
+        if("ABSENT".equals(expected))
+            throw sidecarMismatch(label+" expected absent but present");
+        if(!before.isRegularFile()||before.isSymbolicLink()||
+           before.fileKey()==null||before.size()<1||
+           before.size()>MAX_PINNED_SIDECAR_BYTES)
+            throw sidecarMismatch(label+" unsafe/oversized leaf");
+        ByteBuffer data=ByteBuffer.allocate((int)before.size()+1);
+        try(FileChannel channel=FileChannel.open(file,
+                StandardOpenOption.READ,LinkOption.NOFOLLOW_LINKS)){
+            while(data.hasRemaining()){
+                int n=channel.read(data);
+                if(n<0)break;
+                if(n==0)throw sidecarMismatch(label+" stalled read");
+            }
+        }catch(NoSuchFileException disappeared){
+            throw sidecarMismatch(label+" vanished during read");
+        }
+        BasicFileAttributes after;
+        try{
+            after=Files.readAttributes(file,BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        }catch(NoSuchFileException vanished){
+            throw sidecarMismatch(label+" vanished after read");
+        }
+        if(!after.isRegularFile()||after.isSymbolicLink()||
+           !Objects.equals(before.fileKey(),after.fileKey())||
+           before.size()!=after.size()||
+           !Objects.equals(before.lastModifiedTime(),
+               after.lastModifiedTime())||
+           data.position()!=before.size())
+            throw sidecarMismatch(label+" changed physical/read witness");
+        final byte[] digest;
+        try{
+            digest=MessageDigest.getInstance("SHA-256").digest(
+                Arrays.copyOf(data.array(),(int)before.size()));
+        }catch(NoSuchAlgorithmException impossible){
+            throw new IllegalStateException(impossible);
+        }
+        StringBuilder hex=new StringBuilder(64);
+        for(byte b:digest)
+            hex.append(String.format(Locale.ROOT,"%02x",b&255));
+        if(!expected.equals(hex.toString()))
+            throw sidecarMismatch(label+" changed content digest");
     }
 
     private MailboxWriterArchiveLiveReconciliationV1(){}
