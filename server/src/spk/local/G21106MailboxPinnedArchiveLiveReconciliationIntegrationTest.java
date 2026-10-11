@@ -334,9 +334,15 @@ public final class G21106MailboxPinnedArchiveLiveReconciliationIntegrationTest {
                 MailboxWriterEvidencePortableArchiveV1.capture(
                     resolver,MISSING);
             Files.delete(firstRecord(root,MISSING));
+            // G21.106: directory enumeration order is not guaranteed.
+            // Removing COMPLETE leaves an incomplete BEGIN (archive drift);
+            // removing BEGIN leaves orphan COMPLETE (G21.103 veto).
+            // Both are negative-only rejections, never valid adoption.
             missingSourceDenied=sourceRejected(
                 root,MISSING,missingArchive,
-                "G21.106 LIVE_ARCHIVE_WITNESS_DRIFT_NO_ROLLOVER");
+                "G21.106 LIVE_ARCHIVE_WITNESS_DRIFT_NO_ROLLOVER")||
+                sourceRejected(root,MISSING,missingArchive,
+                    "G21.103 COMPLETE_WITHOUT_BEGIN_NO_UNLINK");
 
             MailboxWriterEvidencePortableArchiveV1.Snapshot versionArchive=
                 MailboxWriterEvidencePortableArchiveV1.capture(
