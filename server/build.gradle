@@ -2223,6 +2223,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21102MailboxCrossVersionTwoPassEvidenceIntegrationTest',
     'spk.local.G21103MailboxWriterAttemptEvidenceIntegrationTest',
     'spk.local.G21104MailboxBoundedEvidenceRetentionIntegrationTest',
+    'spk.local.G21105MailboxPortableEvidenceArchiveIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2251,10 +2252,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 404 ||
-    currentTrainFocusedTests.toSet().size() != 404) {
+if (currentTrainFocusedTests.size() != 405 ||
+    currentTrainFocusedTests.toSet().size() != 405) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 404 unique tests, found " +
+        "Current-train focused manifest drift: expected 405 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3594,6 +3595,14 @@ tasks.register('g21104MailboxBoundedEvidenceRetentionRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21104MailboxBoundedEvidenceRetentionIntegrationTest')
+}
+
+tasks.register('g21105MailboxPortableEvidenceArchiveRegression', JavaExec) {
+    group = 'verification'
+    description = 'Portable read-only v1 writer evidence archive: real JVM verify and no rollover.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21105MailboxPortableEvidenceArchiveIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
