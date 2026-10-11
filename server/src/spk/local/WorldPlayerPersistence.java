@@ -2599,6 +2599,7 @@ final class WorldPlayerPersistence
         final MailboxSettlementPostimagePlanner.Proposal proposal;
         final PlayerSnapshot terminal;
         final StrictDurablePlayerSnapshotWriter writer;
+        final boolean recordWriterEvidence;
         final CompletableFuture<TerminalPublicationEvidence> completion=
             new CompletableFuture<>();
         private boolean unpinned;
@@ -2607,12 +2608,14 @@ final class WorldPlayerPersistence
             PreparedAccountReservation token,
             MailboxSettlementPostimagePlanner.Proposal proposal,
             PlayerSnapshot terminal,
-            StrictDurablePlayerSnapshotWriter writer
+            StrictDurablePlayerSnapshotWriter writer,
+            boolean recordWriterEvidence
         ){
             this.token=token;
             this.proposal=proposal;
             this.terminal=terminal;
             this.writer=writer;
+            this.recordWriterEvidence=recordWriterEvidence;
         }
 
         private void unpin(){
@@ -2643,17 +2646,21 @@ final class WorldPlayerPersistence
                 final String preparedSha=
                     StrictDurablePlayerSnapshotWriter
                         .canonicalSnapshotSha256(proposal.preparedPreimage);
+                // G21.113: both paths use the EXACT same reserved
+                // proposal checks and pre/post-publication callbacks.
+                StrictDurablePlayerSnapshotWriter.BeforeWorldPublication
+                    before=()->requireTerminalDisk(
+                        token,proposal,accountFile,
+                        proposal.preparedPreimage);
+                StrictDurablePlayerSnapshotWriter.AfterWorldPublication
+                    after=()->requireTerminalDisk(
+                        token,proposal,accountFile,terminal);
                 StrictDurablePlayerSnapshotWriter.Receipt receipt=
-                    writer.saveStrictTerminalForWorld(
-                        terminal,accountFile,preparedSha,
-                        ()->requireTerminalDisk(
-                            token,proposal,accountFile,
-                            proposal.preparedPreimage
-                        ),
-                        ()->requireTerminalDisk(
-                            token,proposal,accountFile,terminal
-                        )
-                    );
+                    recordWriterEvidence
+                        ?writer.saveStrictTerminalForWorldWithWriterEvidence(
+                            terminal,accountFile,preparedSha,before,after)
+                        :writer.saveStrictTerminalForWorld(
+                            terminal,accountFile,preparedSha,before,after);
                 if(!receipt.matchesSnapshot(terminal))
                     throw new IllegalStateException(
                         "G21.66 strict file receipt snapshot mismatch"
@@ -2689,6 +2696,34 @@ final class WorldPlayerPersistence
             MailboxSettlementPostimagePlanner.Proposal proposal,
             PlayerSnapshot terminal,
             StrictDurablePlayerSnapshotWriter writer
+        ){
+        return publishReservedTerminalStrictlyInternal(
+            token,proposal,terminal,writer,false);
+    }
+
+    /**
+     * G21.113: individually opted-in World FIFO terminal write. This
+     * retains the G21.66 reservation and task admission without making
+     * v1 evidence mandatory for any ordinary World persistence path.
+     */
+    CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictlyWithWriterEvidence(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+        return publishReservedTerminalStrictlyInternal(
+            token,proposal,terminal,writer,true);
+    }
+
+    private CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictlyInternal(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer,
+            boolean recordWriterEvidence
         ){
         Objects.requireNonNull(token,"token");
         Objects.requireNonNull(proposal,"proposal");
@@ -2732,7 +2767,7 @@ final class WorldPlayerPersistence
                     );
                 ReservedTerminalPublicationTask task=
                     new ReservedTerminalPublicationTask(
-                        token,proposal,terminal,writer
+                        token,proposal,terminal,writer,recordWriterEvidence
                     );
                 io.execute(task);
                 token.pendingDrains++;

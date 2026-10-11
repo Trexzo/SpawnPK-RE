@@ -213,6 +213,36 @@ final class StrictDurablePlayerSnapshotWriter {
         BeforeWorldPublication publicationCheck,
         AfterWorldPublication postPublicationCheck
     )throws IOException{
+        return saveStrictTerminalForWorldInternal(
+            terminal,expectedRepositoryFile,preparedSha256,
+            publicationCheck,postPublicationCheck,false);
+    }
+
+    /**
+     * G21.113: explicit real G21.66 terminal World strict publication
+     * with forced v1 BEGIN/COMPLETE inside the SAME existing G21.100
+     * lifetime lease. G21.48 WAL, both owner checks, and publication
+     * fences are identical to the ordinary terminal method.
+     * Never called by the native Mailbox claim handler.
+     */
+    synchronized Receipt saveStrictTerminalForWorldWithWriterEvidence(
+        PlayerSnapshot terminal,Path expectedRepositoryFile,
+        String preparedSha256,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck
+    )throws IOException{
+        return saveStrictTerminalForWorldInternal(
+            terminal,expectedRepositoryFile,preparedSha256,
+            publicationCheck,postPublicationCheck,true);
+    }
+
+    private Receipt saveStrictTerminalForWorldInternal(
+        PlayerSnapshot terminal,Path expectedRepositoryFile,
+        String preparedSha256,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck,
+        boolean recordWriterEvidence
+    )throws IOException{
         Objects.requireNonNull(publicationCheck,"publicationCheck");
         Objects.requireNonNull(postPublicationCheck,"postPublicationCheck");
         if(preparedSha256==null||
@@ -228,7 +258,8 @@ final class StrictDurablePlayerSnapshotWriter {
         return saveInternal(
             terminal,Objects.requireNonNull(expectedRepositoryFile,
                 "terminal repository file").toAbsolutePath().normalize(),
-            publicationCheck,postPublicationCheck,true,true,preparedSha256
+            publicationCheck,postPublicationCheck,true,true,
+            preparedSha256,recordWriterEvidence
         );
     }
 
