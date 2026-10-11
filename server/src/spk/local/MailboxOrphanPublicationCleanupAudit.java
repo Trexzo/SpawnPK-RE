@@ -58,6 +58,10 @@ final class MailboxOrphanPublicationCleanupAudit {
     static final class Result {
         final String account;
         final List<Candidate> candidates;
+        // G21.102: identity-only, negative canonical physical witnesses,
+        // collected INSIDE the G21.99 account publication lock.
+        // These are diagnostics, never transferable deletion permits.
+        final List<String> canonicalWitnesses;
         final boolean cleanupAuthorized=false;
         final boolean unlinkAuthorized=false;
         final boolean accountMutationAuthorized=false;
@@ -65,10 +69,14 @@ final class MailboxOrphanPublicationCleanupAudit {
         final boolean replayAuthorized=false;
         final boolean restartAdmissionAuthorized=false;
         final boolean clientAckAuthorized=false;
-        private Result(String name,List<Candidate> observed){
+        private Result(
+            String name,List<Candidate> observed,List<String> canonical
+        ){
             account=name;
             candidates=Collections.unmodifiableList(
                 new ArrayList<>(observed));
+            canonicalWitnesses=Collections.unmodifiableList(
+                new ArrayList<>(canonical));
         }
         int count(Disposition d){
             int n=0;
@@ -138,7 +146,18 @@ final class MailboxOrphanPublicationCleanupAudit {
                     "G21.99 CANONICAL_CHANGED_DURING_AUDIT_NO_UNLINK");
         }
         seen.sort(Comparator.comparing(c->c.path.toString()));
-        return new Result(account,seen);
+        List<String> canonicalWitnesses=new ArrayList<>();
+        for(int i=0;i<canonical.length;i++){
+            BasicFileAttributes attrs=before[i];
+            canonicalWitnesses.add(
+                canonical[i].toAbsolutePath().normalize().toString()+
+                (attrs==null?"|ABSENT":
+                    "|KEY="+attrs.fileKey()+
+                    "|SIZE="+attrs.size()+
+                    "|MTIME="+attrs.lastModifiedTime().toMillis())
+            );
+        }
+        return new Result(account,seen,canonicalWitnesses);
     }
 
     private static void scanKind(
