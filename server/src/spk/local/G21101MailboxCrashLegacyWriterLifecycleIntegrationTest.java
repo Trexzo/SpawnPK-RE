@@ -415,7 +415,7 @@ public final class G21101MailboxCrashLegacyWriterLifecycleIntegrationTest {
                 report.tempAudit.candidates.get(0).modifiedMillis<
                     System.currentTimeMillis()-
                     TimeUnit.DAYS.toMillis(59);
-            check(legacyOverlap,
+            require(legacyOverlap,
                 "quiescence could not observe paused legacy temp");
             Path temp=report.tempAudit.candidates.get(0).path;
             String tempKey=identity(temp);
