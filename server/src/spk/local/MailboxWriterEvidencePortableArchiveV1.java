@@ -278,7 +278,9 @@ final class MailboxWriterEvidencePortableArchiveV1 {
                 LOCK_TIMEOUT_MS,()->captureInside(file,account));
     }
 
-    private static Snapshot captureInside(
+    // G21.106: may be called only while the caller already owns
+    // the G21.100 lifecycle lease; avoid nested lifecycle locks.
+    static Snapshot captureInside(
         Path accountFile,String account
     )throws IOException{
         MailboxWriterAttemptEvidenceV1.Report first=
