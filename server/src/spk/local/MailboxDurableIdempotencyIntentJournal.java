@@ -150,17 +150,55 @@ final class MailboxDurableIdempotencyIntentJournal {
      * publishers during the final check+link, not arbitrary raw writers.
      * Never automatically replace or unlink an existing journal.
      */
+    /** Existing G21.83 entry point; default writer remains UNENROLLED. */
     void publishPreparedIntent(
         MailboxSettlementPostimagePlanner.Proposal proposal
     )throws IOException{
+        publishPreparedIntentInternal(proposal,false);
+    }
+
+    /**
+     * G21.110: explicitly opted-in real G21.83 PREPARED journal
+     * publication with forced v1 BEGIN and, only on confirmed success,
+     * COMPLETE. No live settlement, no default hot-path enrollment.
+     */
+    void publishPreparedIntentWithWriterEvidence(
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    )throws IOException{
+        publishPreparedIntentInternal(proposal,true);
+    }
+
+    private void publishPreparedIntentInternal(
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        boolean recordWriterEvidence
+    )throws IOException{
         final Record wanted=checked(proposal);
+        // Pin the exact path from ONE resolver selection BEFORE any lock.
         final Path account=accountFile(wanted.account);
-        final Path journal=journalPath(wanted.account);
-        // G21.100: cover temp creation/force/hard-link and cleanup.
-        // Lock order lifetime -> existing account publication.
-        MailboxPublicationWriterLifecycle.withWriter(account,()->
-            MailboxAccountPublicationCoordinator.withExclusivePublication(
-            account,()->{
+        final Path journal=account.resolveSibling(
+            account.getFileName().toString()+SUFFIX);
+        // G21.100 lock order remains lifecycle -> G21.39 publication.
+        // v1 BEGIN is created under lifecycle ownership, before
+        // G21.83 creates any journal staging temp. The original
+        // default route does NOT create writer evidence.
+        MailboxPublicationWriterLifecycle.withWriter(account,()->{
+            if(recordWriterEvidence){
+                return MailboxWriterAttemptEvidenceV1
+                    .runRecordedInsideWriter(
+                        account,wanted.account,
+                        ()->publishPreparedIntentInsideLifecycle(
+                            wanted,account,journal));
+            }
+            return publishPreparedIntentInsideLifecycle(
+                wanted,account,journal);
+        });
+    }
+
+    private Void publishPreparedIntentInsideLifecycle(
+        Record wanted,Path account,Path journal
+    )throws IOException{
+        return MailboxAccountPublicationCoordinator
+            .withExclusivePublication(account,()->{
                 if(Files.exists(journal,LinkOption.NOFOLLOW_LINKS))
                     throw new IOException(
                         "G21.83 JOURNAL_ALREADY_EXISTS_NO_GRANT");
@@ -207,7 +245,7 @@ final class MailboxDurableIdempotencyIntentJournal {
                     // when a force/fault reports an uncertain outcome.
                     Files.deleteIfExists(temp);
                 }
-            }));
+            });
     }
 
     /**
