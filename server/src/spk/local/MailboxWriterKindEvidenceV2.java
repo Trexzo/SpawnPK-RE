@@ -271,6 +271,19 @@ final class MailboxWriterKindEvidenceV2 {
             portable=p;sha256=hash;report=r;
         }
     }
+    static Snapshot capture(
+        FilePlayerRepository.PathResolver resolver,String account
+    )throws IOException{
+        Objects.requireNonNull(resolver,"resolver");
+        final Path file=Objects.requireNonNull(
+            resolver.resolve(checked(account)),"file")
+            .toAbsolutePath().normalize();
+        return MailboxAccountPublicationCoordinator
+            .withExclusivePublicationBounded(
+                MailboxPublicationWriterLifecycle.domain(file),
+                LOCK_MS,()->captureInside(file,account));
+    }
+
     static Snapshot captureInside(Path selected,String account)
         throws IOException{
         final Path file=Objects.requireNonNull(selected,"selected")
