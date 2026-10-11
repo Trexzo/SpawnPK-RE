@@ -1,0 +1,11 @@
+# G21.107 — independently pinned canonical account bytes, negative only
+
+Certified baseline: G21.106 PR #2392 exact `2cdf028404ec0b9ecf53c5155d6cd38d9b610e96`, Actions #38138454114 SUCCESS, 406/406 focused Java 11. Issue #2393.
+
+G21.106 compares a separately pinned v1 writer-ledger archive against live record payloads and canonical account/journal/COMMIT **physical** witnesses. Identity, size and mtime cannot establish canonical file **contents** when a legacy/raw writer mutates the same inode without altering its size or restores the original mtime.
+
+G21.107 adds opt-in `comparePinnedAccount`: require an **independently trusted canonical account SHA-256 in addition to the independent archive SHA-256**, freeze the resolved account path once, and inside *each* G21.106 lifecycle observation, perform two bounded 1 MiB maximum canonical-byte reads under the existing publication lock (one before and one after record capture). Each read opens with NOFOLLOW, validates regular file, file key, byte count and metadata stability, hashes the exact captured bytes, and denies mismatches. Strict lifecycle → publication order is preserved. The existing unpinned G21.106 API is left untouched and reports `pinnedCanonicalBytesMatched=false`. The pinned Report flag documents a bounded match only; all reward, admission, cleanup, unlink and rollover permits remain false.
+
+Focused Java 11 manifest 406→407, standalone `g21107MailboxPinnedCanonicalContentRegression`. The test checks valid independently pinned bytes, bogus/malformed digests, changed content at the original inode with unchanged length and restored mtime, interpass content change, bounded oversize refusal, zero leaked leases and negative-only flags. The test also proves legacy G21.106 remains a physical-witness check, not canonical-byte evidence.
+
+**Not proven:** trust provenance of the independently provided hashes; hardware power-loss durability; universal atomic snapshots against nonparticipating writers; absence of future writes; whole-writer-population enrollment; archive retention rollover, record pruning, temp cleanup/deletion, World adoption, live grants, replay, release or client ACK. No native settlement activation, G21.87/88 veto removal, or changes to frozen R25 PR #1847. Leave Draft/unmerged until exact-head CI.
