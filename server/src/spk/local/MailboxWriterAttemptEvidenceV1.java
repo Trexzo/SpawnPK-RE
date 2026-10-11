@@ -46,6 +46,11 @@ final class MailboxWriterAttemptEvidenceV1 {
         final Status status;
         final int started;
         final int completed;
+        // G21.104: bounded RETENTION counters, never cleanup authority.
+        final int recordCount;
+        final int remainingRecordSlots;
+        final int additionalCompleteAttemptSlots;
+        final boolean historicalEvidencePruningAllowed=false;
         final boolean completeWriterPopulationKnown=false;
         final boolean everyHistoricalGenerationParticipates=false;
         final boolean crashEpochSealed=false;
@@ -64,6 +69,11 @@ final class MailboxWriterAttemptEvidenceV1 {
             this.status=status;
             started=begin;
             completed=complete;
+            recordCount=begin+complete;
+            remainingRecordSlots=MAX_RECORDS-recordCount;
+            additionalCompleteAttemptSlots=
+                status==Status.INCOMPLETE_ATTEMPT_NO_CLEANUP
+                    ?0:remainingRecordSlots/2;
         }
     }
 
@@ -142,6 +152,21 @@ final class MailboxWriterAttemptEvidenceV1 {
         Path file=pinned(Objects.requireNonNull(resolver,"resolver"),
             account);
         return MailboxPublicationWriterLifecycle.withWriter(file,()->{
+            // G21.104: examine ALL prior evidence under the SAME
+            // cooperating writer lifecycle lease BEFORE adding BEGIN.
+            // Reserve TWO immutable leaves now, so a successful action
+            // always has room for its matching COMPLETE. A crash
+            // leaving BEGIN or foreign/mixed-version evidence blocks
+            // subsequent opt-in operations rather than erasing history.
+            Report prior=inspectInside(file,account);
+            if(prior.status==Status.INCOMPLETE_ATTEMPT_NO_CLEANUP)
+                throw new IOException(
+                    "G21.104 PRIOR_INCOMPLETE_WRITER_ATTEMPT_NO_ENROLL"+
+                    " account="+account+" cleanup=false grant=false");
+            if(prior.remainingRecordSlots<2)
+                throw new IOException(
+                    "G21.104 WRITER_EVIDENCE_RETENTION_FULL_NO_ENROLL"+
+                    " account="+account+" cleanup=false grant=false");
             String uuid=UUID.randomUUID().toString();
             createImmutable(file,account,uuid,Stage.BEGIN);
             T result=operation.execute();
