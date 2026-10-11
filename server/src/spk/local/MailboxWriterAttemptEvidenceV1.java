@@ -180,13 +180,25 @@ final class MailboxWriterAttemptEvidenceV1 {
     )throws IOException{
         final String prefix=prefix(file);
         Map<String,Integer> stages=new HashMap<>();
-        int records=0;
+        // First bound the WHOLE account-scoped candidate set before
+        // touching record contents. Otherwise an early malformed file
+        // could mask an over-capacity directory and give inconsistent
+        // failure classification depending on enumeration order.
+        List<Path> discovered=new ArrayList<>();
         try(DirectoryStream<Path> dir=Files.newDirectoryStream(
                 file.getParent(),prefix+"*")){
             for(Path p:dir){
-                if(++records>MAX_RECORDS)
+                if(discovered.size()>=MAX_RECORDS)
                     throw new IOException(
                         "G21.103 WRITER_EVIDENCE_OVER_CAPACITY_NO_UNLINK");
+                discovered.add(p);
+            }
+        }catch(NoSuchFileException vanished){
+            throw new IOException(
+                "G21.103 EVIDENCE_VANISHED_NO_UNLINK",vanished);
+        }
+        try{
+            for(Path p:discovered){
                 String name=p.getFileName().toString();
                 String tail=name.substring(prefix.length());
                 if(!tail.matches(
