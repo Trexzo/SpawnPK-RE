@@ -123,6 +123,22 @@ final class StrictDurablePlayerSnapshotWriter {
     }
 
     /**
+     * G21.109: opt-in for ONE real non-World strict file save.
+     * Under the already existing G21.100 lifecycle lease, forced v1
+     * BEGIN precedes the actual G21.23 strict temp/create/force/move;
+     * forced COMPLETE follows only a returned strict file receipt.
+     * Ordinary saveStrict and every World save retain their old flow.
+     * An exception AFTER a move can leave account changed and BEGIN-only:
+     * this is quarantine, NOT a rollback or live-settlement path.
+     */
+    synchronized Receipt saveStrictWithWriterEvidence(
+        PlayerSnapshot snapshot
+    )throws IOException{
+        return saveInternal(
+            snapshot,null,null,null,false,false,null,true);
+    }
+
+    /**
      * G21.42: production strict PREPARED task through the exact
      * FilePlayerRepository account path. The historical direct
      * saveStrict() remains an explicit non-World/legacy primitive.
@@ -225,15 +241,41 @@ final class StrictDurablePlayerSnapshotWriter {
         boolean writeAheadIntent,boolean terminalMode,
         String terminalPreparedSha256
     )throws IOException{
+        return saveInternal(snapshot,worldFile,publicationCheck,
+            postPublicationCheck,writeAheadIntent,terminalMode,
+            terminalPreparedSha256,false);
+    }
+
+    private Receipt saveInternal(
+        PlayerSnapshot snapshot,Path worldFile,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck,
+        boolean writeAheadIntent,boolean terminalMode,
+        String terminalPreparedSha256,boolean recordWriterEvidence
+    )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(snapshot,"snapshot");
         Path selected=Objects.requireNonNull(
             resolver.resolve(checked.username()),"account file")
             .toAbsolutePath().normalize();
+        // G21.100 is acquired exactly ONCE and before BEGIN or any
+        // strict temporary-file I/O. No nested G21.100 lock cycle.
         return MailboxPublicationWriterLifecycle.withWriter(
-            selected,()->saveInternalTracked(
-                snapshot,worldFile,publicationCheck,
-                postPublicationCheck,writeAheadIntent,terminalMode,
-                terminalPreparedSha256,selected));
+            selected,()->{
+                if(recordWriterEvidence){
+                    return MailboxWriterAttemptEvidenceV1
+                        .runRecordedInsideWriter(
+                            selected,checked.username(),
+                            ()->saveInternalTracked(
+                                snapshot,worldFile,publicationCheck,
+                                postPublicationCheck,writeAheadIntent,
+                                terminalMode,terminalPreparedSha256,
+                                selected));
+                }
+                return saveInternalTracked(
+                    snapshot,worldFile,publicationCheck,
+                    postPublicationCheck,writeAheadIntent,terminalMode,
+                    terminalPreparedSha256,selected);
+            });
     }
 
     private Receipt saveInternalTracked(

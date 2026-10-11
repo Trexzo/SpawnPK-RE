@@ -22,9 +22,10 @@ import java.util.UUID;
 /**
  * G21.103: OPT-IN immutable versioned per-attempt writer evidence.
  *
- * Not installed into the three existing save hot paths: that would
- * change write frequency/latency and requires a separate deployment
- * and migration contract. No status authorizes temporary-file unlink,
+ * Not installed into the three existing DEFAULT save hot paths; G21.109
+ * adds explicit per-call opt-in for the G21.23 non-World strict writer.
+ * No other writer generation is thereby enrolled and historical legacy
+ * writers remain unknown. No status authorizes temporary-file unlink,
  * COMMIT deletion, reward granting or automatic session restoration.
  */
 final class MailboxWriterAttemptEvidenceV1 {
@@ -151,9 +152,25 @@ final class MailboxWriterAttemptEvidenceV1 {
         Objects.requireNonNull(operation,"operation");
         Path file=pinned(Objects.requireNonNull(resolver,"resolver"),
             account);
-        return MailboxPublicationWriterLifecycle.withWriter(file,()->{
-            // G21.104: examine ALL prior evidence under the SAME
-            // cooperating writer lifecycle lease BEFORE adding BEGIN.
+        return MailboxPublicationWriterLifecycle.withWriter(file,()->
+            runRecordedInsideWriter(file,account,operation));
+    }
+
+    /**
+     * G21.109: called by a REAL strict writer which ALREADY holds the
+     * G21.100 lifetime lock. No nested lock acquisition is permitted.
+     * This helper is never an admission, cleanup or rollover token.
+     */
+    static <T> T runRecordedInsideWriter(
+        Path selectedFile,String account,
+        MailboxAccountPublicationCoordinator.Operation<T> operation
+    )throws IOException{
+        Objects.requireNonNull(operation,"operation");
+        checkedAccount(account);
+        Path file=Objects.requireNonNull(selectedFile,"selectedFile")
+            .toAbsolutePath().normalize();
+        // G21.104: examine ALL prior evidence under the SAME
+        // cooperating writer lifecycle lease BEFORE adding BEGIN.
             // Reserve TWO immutable leaves now, so a successful action
             // always has room for its matching COMPLETE. A crash
             // leaving BEGIN or foreign/mixed-version evidence blocks
@@ -172,7 +189,6 @@ final class MailboxWriterAttemptEvidenceV1 {
             T result=operation.execute();
             createImmutable(file,account,uuid,Stage.COMPLETE);
             return result;
-        });
     }
 
     private static BasicFileAttributes physical(Path p)

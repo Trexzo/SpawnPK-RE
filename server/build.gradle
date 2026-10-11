@@ -2227,6 +2227,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21106MailboxPinnedArchiveLiveReconciliationIntegrationTest',
     'spk.local.G21107MailboxPinnedCanonicalContentIntegrationTest',
     'spk.local.G21108MailboxPinnedRecoverySidecarsIntegrationTest',
+    'spk.local.G21109MailboxRealStrictRecordedWriterIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2255,10 +2256,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 408 ||
-    currentTrainFocusedTests.toSet().size() != 408) {
+if (currentTrainFocusedTests.size() != 409 ||
+    currentTrainFocusedTests.toSet().size() != 409) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 408 unique tests, found " +
+        "Current-train focused manifest drift: expected 409 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3630,6 +3631,14 @@ tasks.register('g21108MailboxPinnedRecoverySidecarsRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21108MailboxPinnedRecoverySidecarsIntegrationTest')
+}
+
+tasks.register('g21109MailboxRealStrictRecordedWriterRegression', JavaExec) {
+    group = 'verification'
+    description = 'Opt-in real strict save with durable BEGIN/COMPLETE and hard-JVM crash denial.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21109MailboxRealStrictRecordedWriterIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
