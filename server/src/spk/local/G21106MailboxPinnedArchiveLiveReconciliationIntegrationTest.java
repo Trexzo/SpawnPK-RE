@@ -405,12 +405,6 @@ public final class G21106MailboxPinnedArchiveLiveReconciliationIntegrationTest {
             }
         }
     }
-    private static Path name(
-        Path root,String account,String suffix
-    ){
-        return root.resolve(account+
-            ".properties.g21103-writer-attempt-"+suffix);
-    }
     public static void main(String[] args)throws Exception{
         if(args.length==4&&"--child".equals(args[0])){
             child(Paths.get(args[1]).toAbsolutePath().normalize(),
