@@ -39,7 +39,14 @@ final class MailboxPublicationWriterLifecycle {
         Files.createDirectories(account.getParent());
         return MailboxAccountPublicationCoordinator
             .withExclusivePublicationBounded(
-                domain(account),WRITER_TIMEOUT_MILLIS,action);
+                domain(account),WRITER_TIMEOUT_MILLIS,()->{
+                    // G21.116: JVM-local diagnostic only. This is AFTER
+                    // ownership of G21.100, BEFORE callback/any temp I/O.
+                    // Notification has no I/O and never grants a token.
+                    MailboxLocalWriterAttemptWatchV1.noteLocalAttempt(
+                        account);
+                    return action.execute();
+                });
     }
 
     static final class Report {
