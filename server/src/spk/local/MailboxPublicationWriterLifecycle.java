@@ -47,6 +47,13 @@ final class MailboxPublicationWriterLifecycle {
         final boolean participatingWriterQuiescenceObserved=true;
         final boolean allWriterGenerationsCovered=false;
         final boolean uncooperativeWritersExcluded=false;
+        // G21.101: an abrupt JVM death discards the active lease, while
+        // an older writer may have created an orphan temp without ever
+        // taking this lifecycle domain. Neither state proves cleanup.
+        final boolean crashEpochDurabilityVerified=false;
+        final boolean historicalWriterParticipationVerified=false;
+        final boolean legacyWriterCanStillPublish=true;
+        final boolean orphanTempDisposalSafe=false;
         final boolean unlinkAuthorized=false;
         final boolean cleanupAuthorized=false;
         final boolean grantAuthorized=false;

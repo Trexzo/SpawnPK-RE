@@ -2219,6 +2219,7 @@ def currentTrainFocusedTests = [
     'spk.local.G2198MailboxOrphanPublicationTempRestartIntegrationTest',
     'spk.local.G2199MailboxOrphanCleanupAuditIntegrationTest',
     'spk.local.G21100MailboxWriterLifecycleQuiescenceIntegrationTest',
+    'spk.local.G21101MailboxCrashLegacyWriterLifecycleIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2247,10 +2248,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 400 ||
-    currentTrainFocusedTests.toSet().size() != 400) {
+if (currentTrainFocusedTests.size() != 401 ||
+    currentTrainFocusedTests.toSet().size() != 401) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 400 unique tests, found " +
+        "Current-train focused manifest drift: expected 401 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3558,6 +3559,14 @@ tasks.register('g21100MailboxWriterLifecycleQuiescenceRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21100MailboxWriterLifecycleQuiescenceIntegrationTest')
+}
+
+tasks.register('g21101MailboxCrashLegacyWriterLifecycleRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real JVM death and legacy untracked writer negative-only quiescence proof.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21101MailboxCrashLegacyWriterLifecycleIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
