@@ -36,7 +36,11 @@ final class MailboxWriterKindEvidenceV2 {
 
     enum Kind {
         STRICT_PREPARED, PREPARED_JOURNAL,
-        WORLD_TERMINAL, DISK_COMMIT
+        WORLD_TERMINAL, DISK_COMMIT,
+        // G21.118: opt-in cooperating DIAGNOSTIC attempt only.
+        // NOT a fifth business/World publication kind and NOT
+        // proof of whole-version, future or legacy participation.
+        COOPERATING_DIAGNOSTIC
     }
     enum Status {
         NO_TYPED_EVIDENCE_UNKNOWN,
