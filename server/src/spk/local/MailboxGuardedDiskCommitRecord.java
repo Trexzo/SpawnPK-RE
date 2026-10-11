@@ -190,6 +190,7 @@ final class MailboxGuardedDiskCommitRecord {
             if(recordWriterEvidence){
                 return MailboxWriterAttemptEvidenceV1
                     .runRecordedInsideWriter(file,p.account,
+                        MailboxWriterKindEvidenceV2.Kind.DISK_COMMIT,
                         ()->recordConfirmedDiskTerminalInsideLifecycle(
                             p,desired,file,marker));
             }

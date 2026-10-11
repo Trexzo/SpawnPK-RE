@@ -296,6 +296,9 @@ final class StrictDurablePlayerSnapshotWriter {
                     return MailboxWriterAttemptEvidenceV1
                         .runRecordedInsideWriter(
                             selected,checked.username(),
+                            terminalMode
+                                ?MailboxWriterKindEvidenceV2.Kind.WORLD_TERMINAL
+                                :MailboxWriterKindEvidenceV2.Kind.STRICT_PREPARED,
                             ()->saveInternalTracked(
                                 snapshot,worldFile,publicationCheck,
                                 postPublicationCheck,writeAheadIntent,
