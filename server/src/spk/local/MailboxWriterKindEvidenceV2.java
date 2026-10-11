@@ -68,8 +68,9 @@ final class MailboxWriterKindEvidenceV2 {
         ){
             status=s;typedBegins=b;typedCompletes=c;
             untypedV1Leaves=u;
-            pairedByKind=java.util.Collections.unmodifiableMap(
-                new EnumMap<>(pair));
+            EnumMap<Kind,Integer> copied=new EnumMap<>(Kind.class);
+            copied.putAll(pair);
+            pairedByKind=java.util.Collections.unmodifiableMap(copied);
         }
     }
     private static String checked(String a){
