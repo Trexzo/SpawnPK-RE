@@ -131,9 +131,30 @@ final class MailboxGuardedDiskCommitRecord {
      * receipt checked, then forced record bytes, create-only hard link,
      * then force record directory. No overwrite/rollback/cleanup.
      */
+    /** Existing G21.86 entry point; it remains unenrolled by default. */
     void recordConfirmedDiskTerminal(
-        MailboxSettlementPostimagePlanner.Proposal p,
+        MailboxSettlementPostimagePlanner.Proposal proposal,
         StrictDurablePlayerSnapshotWriter.Receipt receipt
+    )throws IOException{
+        recordConfirmedDiskTerminalInternal(proposal,receipt,false);
+    }
+
+    /**
+     * G21.111: explicitly opted-in, real G21.86 COMMIT publication.
+     * The G21.103/104 durable v1 BEGIN is forced before COMMIT temp
+     * creation, and COMPLETE only follows confirmed publication.
+     */
+    void recordConfirmedDiskTerminalWithWriterEvidence(
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        StrictDurablePlayerSnapshotWriter.Receipt receipt
+    )throws IOException{
+        recordConfirmedDiskTerminalInternal(proposal,receipt,true);
+    }
+
+    private void recordConfirmedDiskTerminalInternal(
+        MailboxSettlementPostimagePlanner.Proposal p,
+        StrictDurablePlayerSnapshotWriter.Receipt receipt,
+        boolean recordWriterEvidence
     )throws IOException{
         if(p==null||receipt==null)
             throw new IOException("G21.86 MISSING_STRICT_RECEIPT_NO_GRANT");
@@ -143,6 +164,8 @@ final class MailboxGuardedDiskCommitRecord {
         }catch(RuntimeException invalid){
             throw new IOException("G21.86 invalid proposal",invalid);
         }
+        // Exactly one path selection before either lock, for both
+        // legacy-compatible and recorded variants.
         final Path file=accountFile(p.account);
         if(!receipt.file.equals(file)||!receipt.matchesSnapshot(terminal)||
            !StrictDurablePlayerSnapshotWriter.AUTHORITY.equals(
@@ -159,12 +182,28 @@ final class MailboxGuardedDiskCommitRecord {
             StrictDurablePlayerSnapshotWriter.canonicalSnapshotSha256(
                 terminal)
         );
-        final Path marker=recordPath(p.account);
-        // G21.100: lifecycle covers forced temp through link/cleanup.
-        // Keep lock order lifecycle before existing account lock.
-        MailboxPublicationWriterLifecycle.withWriter(file,()->
-            MailboxAccountPublicationCoordinator.withExclusivePublication(
-            file,()->{
+        final Path marker=file.resolveSibling(
+            file.getFileName().toString()+SUFFIX);
+        // G21.100 -> G21.39. G21.104 preflight + forced BEGIN
+        // run within the first lock, BEFORE entering publication.
+        MailboxPublicationWriterLifecycle.withWriter(file,()->{
+            if(recordWriterEvidence){
+                return MailboxWriterAttemptEvidenceV1
+                    .runRecordedInsideWriter(file,p.account,
+                        ()->recordConfirmedDiskTerminalInsideLifecycle(
+                            p,desired,file,marker));
+            }
+            return recordConfirmedDiskTerminalInsideLifecycle(
+                p,desired,file,marker);
+        });
+    }
+
+    private Void recordConfirmedDiskTerminalInsideLifecycle(
+        MailboxSettlementPostimagePlanner.Proposal p,
+        Record desired,Path file,Path marker
+    )throws IOException{
+        return MailboxAccountPublicationCoordinator
+            .withExclusivePublication(file,()->{
                 if(Files.exists(marker,LinkOption.NOFOLLOW_LINKS))
                     throw new IOException(
                         "G21.86 COMMIT_RECORD_ALREADY_EXISTS_NO_GRANT");
@@ -227,7 +266,7 @@ final class MailboxGuardedDiskCommitRecord {
                     // COMMIT record after uncertain force or crash.
                     Files.deleteIfExists(temp);
                 }
-            }));
+            });
     }
 
     /**
