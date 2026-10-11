@@ -186,6 +186,7 @@ final class MailboxDurableIdempotencyIntentJournal {
                 return MailboxWriterAttemptEvidenceV1
                     .runRecordedInsideWriter(
                         account,wanted.account,
+                        MailboxWriterKindEvidenceV2.Kind.PREPARED_JOURNAL,
                         ()->publishPreparedIntentInsideLifecycle(
                             wanted,account,journal));
             }

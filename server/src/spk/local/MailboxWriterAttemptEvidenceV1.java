@@ -165,6 +165,21 @@ final class MailboxWriterAttemptEvidenceV1 {
         Path selectedFile,String account,
         MailboxAccountPublicationCoordinator.Operation<T> operation
     )throws IOException{
+        return runRecordedInsideWriter(
+            selectedFile,account,null,operation);
+    }
+
+    /**
+     * G21.114: kind only for explicitly enrolled real opt-in writers.
+     * V1 remains byte-for-byte unchanged; the separately versioned
+     * companion is bound to the SAME v1 attempt UUID. Neither proves
+     * participation of untyped, default or historical writers.
+     */
+    static <T> T runRecordedInsideWriter(
+        Path selectedFile,String account,
+        MailboxWriterKindEvidenceV2.Kind kind,
+        MailboxAccountPublicationCoordinator.Operation<T> operation
+    )throws IOException{
         Objects.requireNonNull(operation,"operation");
         checkedAccount(account);
         Path file=Objects.requireNonNull(selectedFile,"selectedFile")
@@ -184,10 +199,19 @@ final class MailboxWriterAttemptEvidenceV1 {
                 throw new IOException(
                     "G21.104 WRITER_EVIDENCE_RETENTION_FULL_NO_ENROLL"+
                     " account="+account+" cleanup=false grant=false");
+            if(kind!=null)
+                MailboxWriterKindEvidenceV2.requireAdmissibleInside(
+                    file,account);
             String uuid=UUID.randomUUID().toString();
             createImmutable(file,account,uuid,Stage.BEGIN);
+            if(kind!=null)
+                MailboxWriterKindEvidenceV2.recordInside(
+                    file,account,uuid,kind,true);
             T result=operation.execute();
             createImmutable(file,account,uuid,Stage.COMPLETE);
+            if(kind!=null)
+                MailboxWriterKindEvidenceV2.recordInside(
+                    file,account,uuid,kind,false);
             return result;
     }
 
