@@ -206,10 +206,13 @@ public final class G21108MailboxPinnedRecoverySidecarsIntegrationTest {
             oversizedDenied=true;
             Files.delete(prepared);
             Files.createDirectory(prepared);
+            // G21.99's existing canonical-leaf preflight rejects a
+            // nonregular journal BEFORE the G21.108 byte-pin verifier.
             rejected(()->MailboxWriterArchiveLiveReconciliationV1
                 .comparePinnedRecoveryLeaves(paths,ACCOUNT,
                     archive.portable,archive.sha256,canonical,
-                    pinnedJournal,pinnedCommit),NEGATIVE);
+                    pinnedJournal,pinnedCommit),
+                "G21.99 CANONICAL_NONREGULAR_OR_UNKEYED_NO_UNLINK");
             nonregularDenied=true;
             Files.delete(prepared);
             Files.write(prepared,journal);
