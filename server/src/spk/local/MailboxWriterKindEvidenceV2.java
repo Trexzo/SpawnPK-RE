@@ -290,8 +290,8 @@ final class MailboxWriterKindEvidenceV2 {
         if(paths.size()!=first.typedBegins+first.typedCompletes)
             throw unsafe("CAPTURE_LEAF_COUNT_CHANGED");
         StringBuilder portable=new StringBuilder();
-        portable.append("SPK-G21115-READONLY-TYPED-CAPTURE-V1\\n")
-            .append("ACCOUNT=").append(checked(account)).append('\\n');
+        portable.append("SPK-G21115-READONLY-TYPED-CAPTURE-V1\n")
+            .append("ACCOUNT=").append(checked(account)).append('\n');
         for(Path p:paths){
             BasicFileAttributes before=attrs(p);
             String body=read(p,before);
@@ -304,7 +304,7 @@ final class MailboxWriterKindEvidenceV2 {
             portable.append("LEAF|").append(p.getFileName())
                 .append('|').append(java.util.Base64.getEncoder()
                     .encodeToString(body.getBytes(
-                        StandardCharsets.US_ASCII))).append('\\n');
+                        StandardCharsets.US_ASCII))).append('\n');
             if(portable.length()>32768)
                 throw unsafe("CAPTURE_TOO_LARGE");
         }
