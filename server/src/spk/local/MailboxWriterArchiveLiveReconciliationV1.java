@@ -33,6 +33,10 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
         final boolean pinnedCanonicalBytesMatched;
         // Explicitly pinned SHA-256 or ABSENT for BOTH recovery sidecars.
         final boolean pinnedRecoverySidecarBytesMatched;
+        // Only G21.115 opt-in compares a separately pinned v2 content
+        // digest from both lifecycle-locked observations.
+        final boolean pinnedTypedWriterKindBytesMatched;
+        final MailboxWriterKindEvidenceV2.Report typedWriterKindReport;
         final boolean sourceMatchedAcrossTwoPasses=true;
         final boolean participatingWriterLeasesObservedQuiet=true;
         final boolean authoritativeAccountContentProved=false;
@@ -51,12 +55,15 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
         final boolean clientAckAuthorized=false;
         private Report(
             MailboxWriterEvidencePortableArchiveV1.Verified v,
-            boolean pinnedCanonical,boolean pinnedSidecars
+            boolean pinnedCanonical,boolean pinnedSidecars,
+            MailboxWriterKindEvidenceV2.Snapshot typed
         ){
             archive=v;
             matchedRecords=v.records;
             pinnedCanonicalBytesMatched=pinnedCanonical;
             pinnedRecoverySidecarBytesMatched=pinnedSidecars;
+            pinnedTypedWriterKindBytesMatched=typed!=null;
+            typedWriterKindReport=typed==null?null:typed.report;
         }
     }
 
@@ -94,13 +101,16 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
         final MailboxOrphanPublicationCleanupAudit.Result witness;
         final String portable;
         final String sha256;
+        final MailboxWriterKindEvidenceV2.Snapshot typed;
         Pass(
             MailboxOrphanPublicationCleanupAudit.Result w,
-            MailboxWriterEvidencePortableArchiveV1.Snapshot evidence
+            MailboxWriterEvidencePortableArchiveV1.Snapshot evidence,
+            MailboxWriterKindEvidenceV2.Snapshot typedSnapshot
         ){
             witness=w;
             portable=evidence.portable;
             sha256=evidence.sha256;
+            typed=typedSnapshot;
         }
     }
 
@@ -151,6 +161,48 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
             commitPin,()->{});
     }
 
+    /**
+     * G21.115: opt-in FIVE independently pinned recovery planes.
+     * The v1 portable SHA-256, typed v2 capture SHA-256, canonical,
+     * PREPARED and COMMIT pins must originate from trusted, separate
+     * observations. A matching check is NOT a writer population census,
+     * historical attestation, safe archival epoch or settlement token.
+     */
+    static Report comparePinnedTypedRecoveryLeaves(
+        FilePlayerRepository.PathResolver resolver,
+        String account,String portable,String archiveSha256,
+        String canonicalSha256,String preparedPin,String commitPin,
+        String typedSha256,BetweenPasses between
+    )throws IOException{
+        if(canonicalSha256==null||
+           !canonicalSha256.matches("[0-9a-f]{64}"))
+            throw pinnedMismatch("missing independent canonical SHA-256");
+        if(!validSidecarPin(preparedPin)||!validSidecarPin(commitPin))
+            throw sidecarMismatch("malformed/missing independent sidecar pin");
+        if(typedSha256==null||
+           !typedSha256.matches("[0-9a-f]{64}"))
+            throw typedMismatch("missing independent v2 SHA-256");
+        return compareInternal(resolver,account,portable,archiveSha256,
+            canonicalSha256,new SidecarPins(preparedPin,commitPin),
+            typedSha256,between);
+    }
+
+    static Report comparePinnedTypedRecoveryLeaves(
+        FilePlayerRepository.PathResolver resolver,
+        String account,String portable,String archiveSha256,
+        String canonicalSha256,String preparedPin,String commitPin,
+        String typedSha256
+    )throws IOException{
+        return comparePinnedTypedRecoveryLeaves(
+            resolver,account,portable,archiveSha256,
+            canonicalSha256,preparedPin,commitPin,typedSha256,()->{});
+    }
+    private static IOException typedMismatch(String reason){
+        return new IOException(
+            "G21.115 TYPED_WITNESS_MISMATCH_NO_AUTHORITY "+
+            reason+" rollover=false cleanup=false grant=false");
+    }
+
     // G21.107 is strictly opt-in: callers must independently pin BOTH
     // the portable writer ledger SHA-256 and the canonical account SHA-256.
     static Report comparePinnedAccount(
@@ -190,6 +242,17 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
         String trustedSha256,String pinnedCanonicalSha256,
         SidecarPins sidecars,BetweenPasses between
     )throws IOException{
+        return compareInternal(resolver,account,
+            externallyPinnedPortable,trustedSha256,pinnedCanonicalSha256,
+            sidecars,null,between);
+    }
+
+    private static Report compareInternal(
+        FilePlayerRepository.PathResolver resolver,
+        String account,String externallyPinnedPortable,
+        String trustedSha256,String pinnedCanonicalSha256,
+        SidecarPins sidecars,String typedSha256,BetweenPasses between
+    )throws IOException{
         Objects.requireNonNull(resolver,"resolver");
         Objects.requireNonNull(between,"between");
         MailboxWriterEvidencePortableArchiveV1.Verified trusted=
@@ -208,17 +271,21 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
         };
         Pass first=observe(exact,selected,account,
             externallyPinnedPortable,trustedSha256,pinnedCanonicalSha256,
-            sidecars);
+            sidecars,typedSha256);
         between.run();
         Pass second=observe(exact,selected,account,
             externallyPinnedPortable,trustedSha256,pinnedCanonicalSha256,
-            sidecars);
+            sidecars,typedSha256);
         if(!first.sha256.equals(second.sha256)||
            !first.portable.equals(second.portable)||
            !same(first.witness,second.witness))
             throw mismatch("interpass canonical or temp physical drift");
+        if(typedSha256!=null&&
+            (!first.typed.sha256.equals(second.typed.sha256)||
+             !first.typed.portable.equals(second.typed.portable)))
+            throw typedMismatch("interpass typed filename/content drift");
         return new Report(trusted,pinnedCanonicalSha256!=null,
-            sidecars!=null);
+            sidecars!=null,second.typed);
     }
 
     static Report compare(
@@ -232,7 +299,8 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
     private static Pass observe(
         FilePlayerRepository.PathResolver exact,Path selected,
         String account,String expected,String trustedDigest,
-        String pinnedCanonicalSha256,SidecarPins sidecars
+        String pinnedCanonicalSha256,SidecarPins sidecars,
+        String typedSha256
     )throws IOException{
         return MailboxAccountPublicationCoordinator
             .withExclusivePublicationBounded(
@@ -247,9 +315,19 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
                             selected,pinnedCanonicalSha256);
                     if(sidecars!=null)
                         checkPinnedSidecars(selected,sidecars);
+                    MailboxWriterKindEvidenceV2.Snapshot typedBefore=
+                        typedSha256==null?null:typedSnapshot(
+                            selected,account,typedSha256);
                     MailboxWriterEvidencePortableArchiveV1.Snapshot live=
                         MailboxWriterEvidencePortableArchiveV1
                             .captureInside(selected,account);
+                    MailboxWriterKindEvidenceV2.Snapshot typedAfter=
+                        typedSha256==null?null:typedSnapshot(
+                            selected,account,typedSha256);
+                    if(typedSha256!=null&&
+                       !typedBefore.portable.equals(typedAfter.portable))
+                        throw typedMismatch(
+                            "typed leaves changed during locked pass");
                     if(pinnedCanonicalSha256!=null)
                         checkPinnedCanonicalContent(
                             selected,pinnedCanonicalSha256);
@@ -263,8 +341,25 @@ final class MailboxWriterArchiveLiveReconciliationV1 {
                     if(!trustedDigest.equals(live.sha256)||
                        !expected.equals(live.portable))
                         throw mismatch("current v1 record bytes differ");
-                    return new Pass(before,live);
+                    return new Pass(before,live,typedAfter);
                 });
+    }
+
+    private static MailboxWriterKindEvidenceV2.Snapshot typedSnapshot(
+        Path accountFile,String account,String pinnedSha
+    )throws IOException{
+        final MailboxWriterKindEvidenceV2.Snapshot current=
+            MailboxWriterKindEvidenceV2.captureInside(
+                accountFile,account);
+        if(current.report.status!=
+                MailboxWriterKindEvidenceV2.Status
+                    .OBSERVED_TYPED_PAIRED_NO_AUTHORITY||
+           current.report.untypedV1Leaves!=0)
+            throw typedMismatch(
+                "untyped, missing or incomplete kind companions");
+        if(!pinnedSha.equals(current.sha256))
+            throw typedMismatch("typed source digest disagreement");
+        return current;
     }
 
     // Bounded exact canonical byte capture inside a cooperating publication

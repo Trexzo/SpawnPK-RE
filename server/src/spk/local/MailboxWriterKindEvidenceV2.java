@@ -253,6 +253,83 @@ final class MailboxWriterKindEvidenceV2 {
             v1.recordCount-leaves,byKind);
     }
 
+    /**
+     * G21.115: bounded, in-memory portable capture of exactly the
+     * currently observed v2 bytes. No file is written or removed.
+     * An accompanying SHA-256 is error detection; expected digest must
+     * come from an independently trusted source before reconciliation.
+     */
+    static final class Snapshot {
+        final String portable;
+        final String sha256;
+        final Report report;
+        final boolean sourceAuthenticityProved=false;
+        final boolean allWriterVersionsFenced=false;
+        final boolean cleanupAuthorized=false;
+        final boolean rolloverAuthorized=false;
+        private Snapshot(String p,String hash,Report r){
+            portable=p;sha256=hash;report=r;
+        }
+    }
+    static Snapshot captureInside(Path selected,String account)
+        throws IOException{
+        final Path file=Objects.requireNonNull(selected,"selected")
+            .toAbsolutePath().normalize();
+        final Report first=inspectInside(file,account);
+        final String prefix=prefix(file);
+        java.util.List<Path> paths=new java.util.ArrayList<>();
+        try(DirectoryStream<Path> found=Files.newDirectoryStream(
+                file.getParent(),prefix+"*")){
+            for(Path p:found){
+                if(paths.size()>=MAX_LEAVES)
+                    throw unsafe("CAPTURE_OVER_CAPACITY");
+                paths.add(p);
+            }
+        }
+        java.util.Collections.sort(paths);
+        if(paths.size()!=first.typedBegins+first.typedCompletes)
+            throw unsafe("CAPTURE_LEAF_COUNT_CHANGED");
+        StringBuilder portable=new StringBuilder();
+        portable.append("SPK-G21115-READONLY-TYPED-CAPTURE-V1\\n")
+            .append("ACCOUNT=").append(checked(account)).append('\\n');
+        for(Path p:paths){
+            BasicFileAttributes before=attrs(p);
+            String body=read(p,before);
+            BasicFileAttributes after=attrs(p);
+            if(!Objects.equals(before.fileKey(),after.fileKey())||
+               before.size()!=after.size()||
+               !Objects.equals(before.lastModifiedTime(),
+                   after.lastModifiedTime()))
+                throw unsafe("CAPTURE_CHANGED_PHYSICAL_LEAF");
+            portable.append("LEAF|").append(p.getFileName())
+                .append('|').append(java.util.Base64.getEncoder()
+                    .encodeToString(body.getBytes(
+                        StandardCharsets.US_ASCII))).append('\\n');
+            if(portable.length()>32768)
+                throw unsafe("CAPTURE_TOO_LARGE");
+        }
+        final Report after=inspectInside(file,account);
+        if(after.status!=first.status||
+           after.typedBegins!=first.typedBegins||
+           after.typedCompletes!=first.typedCompletes||
+           after.untypedV1Leaves!=first.untypedV1Leaves||
+           !after.pairedByKind.equals(first.pairedByKind))
+            throw unsafe("CAPTURE_CROSS_SCAN_DRIFT");
+        final byte[] digest;
+        try{
+            digest=java.security.MessageDigest.getInstance("SHA-256")
+                .digest(portable.toString().getBytes(
+                    StandardCharsets.US_ASCII));
+        }catch(java.security.NoSuchAlgorithmException impossible){
+            throw new IllegalStateException(impossible);
+        }
+        StringBuilder hex=new StringBuilder(64);
+        for(byte b:digest)
+            hex.append(String.format(java.util.Locale.ROOT,
+                "%02x",b&255));
+        return new Snapshot(portable.toString(),hex.toString(),after);
+    }
+
     /** Do not enroll into a new typed operation over an orphan BEGIN. */
     static void requireAdmissibleInside(Path file,String account)
         throws IOException{
