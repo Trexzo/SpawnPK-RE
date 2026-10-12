@@ -1,13 +1,16 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–147: purely in-memory comparison of TWO existing G21.129
+ * G21.144–148: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -81,6 +84,40 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
             throw unsafe("MALFORMED_IDENTITY_"+label);
     }
 
+    /**
+     * G21.148: Check only consistency of the bytes in a retained
+     * in-memory portable archive against its accompanying digest.
+     * Both may be controlled by the SAME actor; this does not
+     * authenticate external provenance or reproduce disk evidence.
+     */
+    private static void requirePortableSelfHash(
+        String label,String portable,String claimedSha,int maxLength
+    )throws IOException{
+        if(portable==null||portable.isEmpty()||
+           portable.length()>maxLength||claimedSha==null)
+            throw unsafe("BAD_PORTABLE_LENGTH_OR_ENCODING_"+label);
+        for(int i=0;i<portable.length();i++){
+            if(portable.charAt(i)>127)
+                throw unsafe("BAD_PORTABLE_LENGTH_OR_ENCODING_"+label);
+        }
+        if(!claimedSha.matches("[0-9a-f]{64}"))
+            throw unsafe("PORTABLE_SHA_MISMATCH_"+label);
+        try{
+            byte[] digest=MessageDigest.getInstance("SHA-256")
+                .digest(portable.getBytes(StandardCharsets.US_ASCII));
+            StringBuilder hex=new StringBuilder(64);
+            final char[] digits="0123456789abcdef".toCharArray();
+            for(byte b:digest){
+                hex.append(digits[(b>>>4)&15]);
+                hex.append(digits[b&15]);
+            }
+            if(!claimedSha.equals(hex.toString()))
+                throw unsafe("PORTABLE_SHA_MISMATCH_"+label);
+        }catch(NoSuchAlgorithmException impossible){
+            throw unsafe("SHA256_UNAVAILABLE_"+label);
+        }
+    }
+
     private static void requireObservation(
         String label,
         MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation o
@@ -92,6 +129,12 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
            o.v2.portable==null||o.v2.sha256==null||
            o.v3.portable==null||o.v3.sha256==null)
             throw unsafe("MALFORMED_PORTABLE_ARCHIVE_"+label);
+        requirePortableSelfHash(
+            label+"_V1",o.v1.portable,o.v1.sha256,32768);
+        requirePortableSelfHash(
+            label+"_V2",o.v2.portable,o.v2.sha256,32768);
+        requirePortableSelfHash(
+            label+"_V3",o.v3.portable,o.v3.sha256,4000);
         requireIdentity(label+"_ACCOUNT",o.accountIdentity);
         requireIdentity(label+"_PREPARED_JOURNAL",o.journalIdentity);
         requireIdentity(label+"_COMMIT",o.commitIdentity);
