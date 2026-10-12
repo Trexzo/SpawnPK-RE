@@ -148,13 +148,33 @@ final class MailboxGuardedDiskCommitRecord {
         MailboxSettlementPostimagePlanner.Proposal proposal,
         StrictDurablePlayerSnapshotWriter.Receipt receipt
     )throws IOException{
-        recordConfirmedDiskTerminalInternal(proposal,receipt,true);
+        recordConfirmedDiskTerminalInternal(proposal,receipt,true,false);
+    }
+
+    /** G21.120: explicit opt-in only, actual G21.86 COMMIT + v3
+     * immutable digest tied to the SAME v1/v2 attempt UUID.
+     * Existing default/G21.111 entry points remain unchanged.
+     */
+    void recordConfirmedDiskTerminalWithResultBinding(
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        StrictDurablePlayerSnapshotWriter.Receipt receipt
+    )throws IOException{
+        recordConfirmedDiskTerminalInternal(proposal,receipt,true,true);
     }
 
     private void recordConfirmedDiskTerminalInternal(
         MailboxSettlementPostimagePlanner.Proposal p,
         StrictDurablePlayerSnapshotWriter.Receipt receipt,
         boolean recordWriterEvidence
+    )throws IOException{
+        recordConfirmedDiskTerminalInternal(
+            p,receipt,recordWriterEvidence,false);
+    }
+
+    private void recordConfirmedDiskTerminalInternal(
+        MailboxSettlementPostimagePlanner.Proposal p,
+        StrictDurablePlayerSnapshotWriter.Receipt receipt,
+        boolean recordWriterEvidence,boolean bindResult
     )throws IOException{
         if(p==null||receipt==null)
             throw new IOException("G21.86 MISSING_STRICT_RECEIPT_NO_GRANT");
@@ -192,7 +212,12 @@ final class MailboxGuardedDiskCommitRecord {
                     .runRecordedInsideWriter(file,p.account,
                         MailboxWriterKindEvidenceV2.Kind.DISK_COMMIT,
                         ()->recordConfirmedDiskTerminalInsideLifecycle(
-                            p,desired,file,marker));
+                            p,desired,file,marker),
+                        bindResult
+                            ?(uuid,confirmed)->MailboxCommitResultBindingV3
+                                .recordInside(
+                                    file,p.account,uuid,marker,receipt)
+                            :null);
             }
             return recordConfirmedDiskTerminalInsideLifecycle(
                 p,desired,file,marker);
