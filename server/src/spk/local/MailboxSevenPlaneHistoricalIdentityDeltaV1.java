@@ -10,7 +10,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–150: purely in-memory comparison of TWO existing G21.129
+ * G21.144–151: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -149,10 +149,27 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
             throw unsafe("INCONSISTENT_SIDECAR_SHA_"+label);
         if(o.evidenceLeafIdentities==null)
             throw unsafe("NULL_EVIDENCE_MAP_"+label);
+        // G21.151: G21.129's real scanner admits at most 32 v1,
+        // 32 v2 and 4 v3 leaves. A post-lease report may be altered
+        // in memory, so even four identically enlarged maps must not
+        // be accepted as a bounded original observation.
+        if(o.evidenceLeafIdentities.size()>68)
+            throw unsafe("EXCESS_EVIDENCE_LEAVES_"+label);
         for(Map.Entry<String,MailboxSevenPlaneContinuousPhysicalWitnessV1.PhysicalIdentity>
                 e:o.evidenceLeafIdentities.entrySet()){
-            if(e.getKey()==null)
+            String name=e.getKey();
+            if(name==null)
                 throw unsafe("NULL_EVIDENCE_NAME_"+label);
+            // Original leaf names are bounded plain filenames; a
+            // slash, backslash or control character cannot be a
+            // canonical v1/v2/v3 writer-evidence name.
+            if(name.isEmpty()||name.length()>200)
+                throw unsafe("BAD_EVIDENCE_NAME_"+label);
+            for(int i=0;i<name.length();i++){
+                char ch=name.charAt(i);
+                if(ch=='/'||ch=='\\'||ch<32||ch==127)
+                    throw unsafe("BAD_EVIDENCE_NAME_"+label);
+            }
             requireIdentity(label+"_EVIDENCE_LEAF",e.getValue());
         }
     }
