@@ -2243,6 +2243,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21122MailboxStrictPreparedResultBindingIntegrationTest',
     'spk.local.G21123MailboxWorldTerminalResultBindingIntegrationTest',
     'spk.local.G21124MailboxFourBoundWriterCohortIntegrationTest',
+    'spk.local.G21125MailboxPinnedFourV3ResultLeavesIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2271,10 +2272,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 424 ||
-    currentTrainFocusedTests.toSet().size() != 424) {
+if (currentTrainFocusedTests.size() != 425 ||
+    currentTrainFocusedTests.toSet().size() != 425) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 424 unique tests, found " +
+        "Current-train focused manifest drift: expected 425 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3774,6 +3775,14 @@ tasks.register('g21124MailboxFourBoundWriterCohortRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21124MailboxFourBoundWriterCohortIntegrationTest')
+}
+
+tasks.register('g21125MailboxPinnedFourV3ResultLeavesRegression', JavaExec) {
+    group = 'verification'
+    description = 'Independent four-v3 pinned filename/byte witness and exact G21.124 cohort.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21125MailboxPinnedFourV3ResultLeavesIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
