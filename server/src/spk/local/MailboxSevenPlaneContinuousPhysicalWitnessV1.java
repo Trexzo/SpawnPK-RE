@@ -301,6 +301,11 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
             throws IOException;
     }
 
+    // G21.136: stable sentinel keeps legacy G21.129 method EXACTLY
+    // two physical scans; only new opt-in observer pays tail rescan.
+    private static final InsideLeaseObserver LEGACY_NOOP_OBSERVER=
+        (selected,account,sample)->{};
+
     static Report compareWithContinuousLease(
         FilePlayerRepository.PathResolver resolver,String account,
         String pinnedResultV3,String v1Portable,String pinnedV1,
@@ -311,7 +316,7 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
         return compareWithContinuousLease(
             resolver,account,pinnedResultV3,v1Portable,pinnedV1,
             pinnedAccount,pinnedJournal,pinnedCommit,pinnedV2,
-            acquisitionMillis,callback,(selected,name,sample)->{});
+            acquisitionMillis,callback,LEGACY_NOOP_OBSERVER);
     }
 
     static Report compareWithContinuousLease(
@@ -376,6 +381,43 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
                        !before.journalSha.equals(after.journalSha)||
                        !before.commitSha.equals(after.commitSha))
                         throw veto("BETWEEN_CAPTURE_BYTES_CHANGED");
+
+                    // G21.136: second observer executes AFTER the
+                    // physical 'after' scan. Without a tail scan it
+                    // could alter a raw or evidence leaf, then return
+                    // a stale apparent success. Opt-in only; old
+                    // G21.129 two-capture signature stays unchanged.
+                    if(observer!=LEGACY_NOOP_OBSERVER){
+                        Observation finalInside=scanInside(
+                            selected,name,pinnedResultV3,v1Portable,
+                            pinnedV1,pinnedAccount,pinnedJournal,
+                            pinnedCommit,pinnedV2);
+                        if(!sameEvidenceMetadata(
+                               after.evidenceLeafIdentities,
+                               finalInside.evidenceLeafIdentities)||
+                           !after.accountIdentity.sameMetadata(
+                               finalInside.accountIdentity)||
+                           !after.journalIdentity.sameMetadata(
+                               finalInside.journalIdentity)||
+                           !after.commitIdentity.sameMetadata(
+                               finalInside.commitIdentity))
+                            throw veto(
+                                "AFTER_FINAL_OBSERVER_METADATA_CHANGED");
+                        if(!after.v1.portable.equals(
+                               finalInside.v1.portable)||
+                           !after.v2.portable.equals(
+                               finalInside.v2.portable)||
+                           !after.v3.portable.equals(
+                               finalInside.v3.portable)||
+                           !after.accountSha.equals(
+                               finalInside.accountSha)||
+                           !after.journalSha.equals(
+                               finalInside.journalSha)||
+                           !after.commitSha.equals(
+                               finalInside.commitSha))
+                            throw veto(
+                                "AFTER_FINAL_OBSERVER_BYTES_CHANGED");
+                    }
                     return new Report(before,after);
                 });
     }
