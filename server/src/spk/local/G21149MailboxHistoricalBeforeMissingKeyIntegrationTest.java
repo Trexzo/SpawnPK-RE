@@ -72,13 +72,40 @@ public final class G21149MailboxHistoricalBeforeMissingKeyIntegrationTest {
         return c.newInstance(body,digest(body),null);
     }
 
+
+    /**
+     * Synthetic shape-only v3 portable inventory. Physical fixture
+     * source bytes are NOT authenticated by this string. Use actual
+     * G21.125 KIND/LEAF/BYTES_BASE64 formatting so G21.155 can
+     * compare leaf names without changing inherited test purpose.
+     */
+    private static String fixtureV3Portable(String basename){
+        String uuid="ffffffff-ffff-ffff-ffff-ffffffffffff";
+        String[] leaves={
+            basename+".g21120-commit-result-v3-"+uuid+".result",
+            basename+".g21121-prepared-result-v3-"+uuid+".result",
+            basename+".g21122-strict-prepared-result-v3-"+uuid+".result",
+            basename+".g21123-world-terminal-result-v3-"+uuid+".result"
+        };
+        String account=basename.endsWith(".properties")?
+            basename.substring(0,basename.length()-11):basename;
+        StringBuilder result=new StringBuilder(
+            "SPK-G21125-FOUR-V3-LEAVES-V1\n"+
+            "ACCOUNT="+account+"\nCOUNT=4\n");
+        for(int kind=0;kind<4;kind++)
+            result.append("KIND=").append(kind).append('\n')
+                .append("LEAF=").append(leaves[kind]).append('\n')
+                .append("BYTES_BASE64=WA==\n");
+        return result.toString();
+    }
+
     private static MailboxFourBoundResultLeavesArchiveV1.Snapshot
         v3()throws Exception{
         Constructor<MailboxFourBoundResultLeavesArchiveV1.Snapshot>
             c=MailboxFourBoundResultLeavesArchiveV1.Snapshot.class
                 .getDeclaredConstructor(String.class,String.class);
         c.setAccessible(true);
-        String body="G21149_TEST_ONLY_V3\\n";
+        String body=fixtureV3Portable("g21149.properties");
         return c.newInstance(body,digest(body));
     }
 
