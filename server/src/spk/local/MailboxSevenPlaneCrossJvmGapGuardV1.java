@@ -17,6 +17,27 @@ import java.util.Objects;
 final class MailboxSevenPlaneCrossJvmGapGuardV1 {
     private static final long MAX_ACQUISITION_MS=1500L;
 
+    /** Same bounded lease entry used by the real seven-plane
+     * callback. Exposed to test active foreign contention separately
+     * from the independently locked pre/post seven-plane captures.
+     */
+    static <T> T withGuardedCallback(
+        Path selected,long acquisitionMillis,
+        MailboxAccountPublicationCoordinator.Operation<T> action
+    )throws IOException{
+        Objects.requireNonNull(action,"action");
+        if(acquisitionMillis<1L||
+           acquisitionMillis>MAX_ACQUISITION_MS)
+            throw new IllegalArgumentException(
+                "G21.128 invalid bounded gap-lease timeout");
+        Path file=Objects.requireNonNull(selected,"selected")
+            .toAbsolutePath().normalize();
+        return MailboxAccountPublicationCoordinator
+            .withExclusivePublicationBounded(
+                MailboxPublicationWriterLifecycle.domain(file),
+                acquisitionMillis,action);
+    }
+
     static MailboxFourBoundResultLeavesArchiveV1.Comparison
         comparePinnedWithGuardedInterpass(
         FilePlayerRepository.PathResolver resolver,
@@ -54,13 +75,10 @@ final class MailboxSevenPlaneCrossJvmGapGuardV1 {
                 exact,account,resultLeavesSha256,
                 v1Portable,v1Sha,accountSha,
                 preparedSha,commitSha,v2Sha,()->{
-                    MailboxAccountPublicationCoordinator
-                        .withExclusivePublicationBounded(
-                            MailboxPublicationWriterLifecycle.domain(file),
-                            acquisitionMillis,()->{
-                                callback.run();
-                                return Boolean.TRUE;
-                            });
+                    withGuardedCallback(file,acquisitionMillis,()->{
+                        callback.run();
+                        return Boolean.TRUE;
+                    });
                 });
     }
 
