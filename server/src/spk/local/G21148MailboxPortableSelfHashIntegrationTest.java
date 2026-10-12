@@ -650,8 +650,8 @@ public final class G21148MailboxPortableSelfHashIntegrationTest {
                 for(String field:new String[]{"portable","sha256"}){
                     check(archiveSelfHashVeto(
                         historic,current,target,null,field,null,
-                        "PORTABLE_SHA_MISMATCH"),
-                        "single corrupt portable or hash accepted v="+v+
+                        "INTERNAL_BEFORE_AFTER_DRIFT_"),
+                        "single corrupt portable or hash accepted v="+v+,
                         " pos="+pos+" field="+field);
                     passed++;
                 }
@@ -676,12 +676,15 @@ public final class G21148MailboxPortableSelfHashIntegrationTest {
         }
         // Original v1/v2 max=32768 ASCII bytes, v3 max=4000.
         for(int v=0;v<3;v++){
-            Object target=archive(historic.after,v);
+            Object first=archive(historic.before,v);
+            Object second=archive(historic.after,v);
             for(String bad:new String[]{"","\u00e9",
                     new String(new char[v==2?4001:32769])
                         .replace('\0','a')}){
+                // Change BOTH historical observations identically,
+                // leaving their G21.147 comparison consistent.
                 check(archiveSelfHashVeto(
-                    historic,current,target,null,"portable",bad,
+                    historic,current,first,second,"portable",bad,
                     "BAD_PORTABLE_LENGTH_OR_ENCODING"),
                     "noncanonical empty/Unicode/oversized archive accepted"+
                         " version="+v);
