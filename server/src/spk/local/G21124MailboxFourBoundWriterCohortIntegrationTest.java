@@ -207,7 +207,7 @@ public final class G21124MailboxFourBoundWriterCohortIntegrationTest {
             Seed extra=seed(world,EXTRA);
             completed(world,extra,writer,journal,commit,true);
             Path selected=r.resolve(EXTRA);
-            MailboxPublicationWriterLifecycle.withWriter(selected,->
+            MailboxPublicationWriterLifecycle.withWriter(selected,()->
                 MailboxWriterAttemptEvidenceV1.runRecordedInsideWriter(
                     selected,EXTRA,
                     MailboxWriterKindEvidenceV2.Kind.STRICT_PREPARED,
