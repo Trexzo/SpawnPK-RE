@@ -2256,6 +2256,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21135MailboxInsideLeaseFailureContainmentIntegrationTest',
     'spk.local.G21136MailboxPostObserverPhysicalRescanIntegrationTest',
     'spk.local.G21137MailboxRestoredMtimeFileKeySwapIntegrationTest',
+    'spk.local.G21138MailboxLateEvidenceNamespaceIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2284,10 +2285,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 437 ||
-    currentTrainFocusedTests.toSet().size() != 437) {
+if (currentTrainFocusedTests.size() != 438 ||
+    currentTrainFocusedTests.toSet().size() != 438) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 437 unique tests, found " +
+        "Current-train focused manifest drift: expected 438 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3891,6 +3892,14 @@ tasks.register('g21137MailboxRestoredMtimeFileKeySwapRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21137MailboxRestoredMtimeFileKeySwapIntegrationTest')
+}
+
+tasks.register('g21138MailboxLateEvidenceNamespaceRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.138: opt-in in-lease final scan refuses late malformed v1/v2/v3 and extra canonical v1 evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21138MailboxLateEvidenceNamespaceIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
