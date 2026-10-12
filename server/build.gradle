@@ -2262,6 +2262,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21141MailboxTransientRawMutationBlindSpotIntegrationTest',
     'spk.local.G21142MailboxPostLeaseStaleReportIntegrationTest',
     'spk.local.G21143MailboxPostLeaseSameBytesNewInodeIntegrationTest',
+    'spk.local.G21144MailboxHistoricalIdentityDeltaIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2290,10 +2291,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 443 ||
-    currentTrainFocusedTests.toSet().size() != 443) {
+if (currentTrainFocusedTests.size() != 444 ||
+    currentTrainFocusedTests.toSet().size() != 444) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 443 unique tests, found " +
+        "Current-train focused manifest drift: expected 444 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3945,6 +3946,14 @@ tasks.register('g21143MailboxPostLeaseNewInodeBlindSpotRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21143MailboxPostLeaseSameBytesNewInodeIntegrationTest')
+}
+
+tasks.register('g21144MailboxHistoricalIdentityDeltaRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.144 retained historical-to-current physical report identity delta, negative-only.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21144MailboxHistoricalIdentityDeltaIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
