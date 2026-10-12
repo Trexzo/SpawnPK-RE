@@ -10,7 +10,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–152: purely in-memory comparison of TWO existing G21.129
+ * G21.144–153: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -18,6 +18,12 @@ import java.util.TreeSet;
  * a lease, read disk, exclude RAW writers or authorize anything.
  */
 final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
+    // G21.153: exact source reader UUID syntax (v1, v2, v3).
+    // This verifies format only, NEVER source provenance/authenticity.
+    private static final String CANONICAL_UUID=
+        "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"+
+        "[0-9a-f]{4}-[0-9a-f]{12}";
+
     enum Status {
         MATCHED_OBSERVED_METADATA_NO_AUTHORITY,
         CHANGED_OBSERVED_METADATA_NO_AUTHORITY,
@@ -189,22 +195,34 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
             String suffix=name.substring(at);
             int family=-1;
             if(suffix.matches(
-                    "\\.g21103-writer-attempt-v1-[a-z0-9-]+\\.(begin|complete)"))
+                    "\\.g21103-writer-attempt-v1-[A-Za-z0-9-]+\\.(begin|complete)"))
                 family=0;
             else if(suffix.matches(
-                    "\\.g21114-writer-kind-v2-[a-z0-9-]+\\.(begin|complete)"))
+                    "\\.g21114-writer-kind-v2-[A-Za-z0-9-]+\\.(begin|complete)"))
                 family=1;
             else if(suffix.matches(
-                    "\\.g21120-commit-result-v3-[a-z0-9-]+\\.result")||
+                    "\\.g21120-commit-result-v3-[A-Za-z0-9-]+\\.result")||
                 suffix.matches(
-                    "\\.g21121-prepared-result-v3-[a-z0-9-]+\\.result")||
+                    "\\.g21121-prepared-result-v3-[A-Za-z0-9-]+\\.result")||
                 suffix.matches(
-                    "\\.g21122-strict-prepared-result-v3-[a-z0-9-]+\\.result")||
+                    "\\.g21122-strict-prepared-result-v3-[A-Za-z0-9-]+\\.result")||
                 suffix.matches(
-                    "\\.g21123-world-terminal-result-v3-[a-z0-9-]+\\.result"))
+                    "\\.g21123-world-terminal-result-v3-[A-Za-z0-9-]+\\.result"))
                 family=2;
             if(family<0)
                 throw unsafe("UNKNOWN_EVIDENCE_FAMILY_"+label);
+            // G21.153: G21.152 recognized only a broad source-family
+            // suffix. The original v1/v2/v3 readers all insist on
+            // precisely 8-4-4-4-12 lowercase hexadecimal UUIDs.
+            // Check UUID AFTER recognizing the unchanged stage/version
+            // family so unsupported filenames retain their old veto.
+            String versionMarker="-v"+(family+1)+"-";
+            int markerAt=suffix.indexOf(versionMarker);
+            int extensionAt=suffix.lastIndexOf('.');
+            if(markerAt<0||extensionAt<=markerAt+versionMarker.length()||
+               !suffix.substring(markerAt+versionMarker.length(),
+                    extensionAt).matches(CANONICAL_UUID))
+                throw unsafe("NONCANONICAL_EVIDENCE_UUID_"+label);
             if(++counts[family]>maxima[family])
                 throw unsafe("EXCESS_EVIDENCE_FAMILY_"+label+"_V"+(family+1));
             requireIdentity(label+"_EVIDENCE_LEAF",e.getValue());
