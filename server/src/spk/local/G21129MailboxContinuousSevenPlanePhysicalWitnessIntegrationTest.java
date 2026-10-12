@@ -259,13 +259,18 @@ public final class G21129MailboxContinuousSevenPlanePhysicalWitnessIntegrationTe
             child(root,ACCOUNT,"probe-quiet");
 
             // RAW/uncooperative writes bypass OS advisory file locks.
-            // Same-byte write deliberately produces NO retrospective
-            // evidence; success cannot be elevated to writer census.
-            negative(compare(r,pins,()->child(
-                root,ACCOUNT,"raw")));
+            // G21.130 now detects observable metadata drift even if
+            // bytes are identical. This legacy negative test restores
+            // the timestamp to demonstrate a genuine remaining gap.
+            Path account=r.resolve(ACCOUNT);
+            java.nio.file.attribute.FileTime originalModified=
+                Files.getLastModifiedTime(account);
+            negative(compare(r,pins,()->{
+                child(root,ACCOUNT,"raw");
+                Files.setLastModifiedTime(account,originalModified);
+            }));
             rawIdenticalUnfenced=true;
 
-            Path account=r.resolve(ACCOUNT);
             byte[] original=Files.readAllBytes(account);
             try{
                 rawChangedDetected=denied(
