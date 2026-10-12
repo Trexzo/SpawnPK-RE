@@ -223,12 +223,21 @@ final class MailboxCommitResultBindingV3 {
             String expectedV2=MailboxWriterKindEvidenceV2.PROTOCOL+
                 "\nACCOUNT="+account+"\nATTEMPT="+uuid+
                 "\nKIND=DISK_COMMIT\nSTAGE="+stage+"\n";
-            if(!expectedV1.equals(new String(
-                    safeBytes(v1,MAX_PAYLOAD),
-                    StandardCharsets.US_ASCII))||
-               !expectedV2.equals(new String(
-                    safeBytes(v2,MAX_PAYLOAD),
-                    StandardCharsets.US_ASCII)))
+            // A stray v3 leaf WITHOUT either original v1/v2 file
+            // is an unsafe orphan, not an ordinary missing-file error.
+            // Wrap the NOFOLLOW read in a G21.120 negative category;
+            // never create, repair, or unlink absent source evidence.
+            final String readV1,readV2;
+            try{
+                readV1=new String(safeBytes(v1,MAX_PAYLOAD),
+                    StandardCharsets.US_ASCII);
+                readV2=new String(safeBytes(v2,MAX_PAYLOAD),
+                    StandardCharsets.US_ASCII);
+            }catch(IOException missingOrUnsafe){
+                throw veto("ORPHAN_RESULT_MISSING_ORIGINAL_V1_V2");
+            }
+            if(!expectedV1.equals(readV1)||
+               !expectedV2.equals(readV2))
                 throw veto("RESULT_NOT_BOUND_TO_MATCHING_V1_V2");
         }
     }
