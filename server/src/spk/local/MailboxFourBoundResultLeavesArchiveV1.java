@@ -147,7 +147,7 @@ final class MailboxFourBoundResultLeavesArchiveV1 {
         return read;
     }
 
-    private static Snapshot captureInside(Path file,String account)
+    // G21.129: may also be used ONLY inside an already-held G21.100\n    // OS advisory lease; no nested FileLock acquisition.\n    static Snapshot captureInside(Path file,String account)
         throws IOException{
         String basename=file.getFileName().toString();
         boolean[] observed=new boolean[4];
