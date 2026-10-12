@@ -324,7 +324,7 @@ public final class G21137MailboxRestoredMtimeFileKeySwapIntegrationTest {
                 physical(r,original).sevenPhysicalPinsMatched;
             int[] visited={0};
             withObserver(r,original,()->{},
-                (selected,who,sample)->visited[0]++);
+                (observedPath,who,sample)->visited[0]++);
             check(visited[0]==2,"two opt-in observer visits changed");
             noGrant=player.bank().inventorySlots()==0&&
                 player.mailbox().get(id).claimState==
