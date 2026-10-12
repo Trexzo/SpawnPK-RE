@@ -1,0 +1,19 @@
+# G21.153 — canonical retained v1/v2/v3 evidence UUIDs (NO AUTHORITY)
+
+**Certified parent:** [G21.152 Draft PR #2484](https://github.com/Trexzo/SpawnPK-RE/pull/2484), exact `29c6929b25115ef379bc4de20e79ee6d37bf517d`, [Actions #38310014994](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38310014994) SUCCESS (Java 11 bytecode major 55, focused 452/452, full Gradle). Issue #2485.
+
+## Exact reader-derived gap
+
+Real G21.129 scans the same evidence files whose independent v1, v2 and v3 readers require **canonical lowercase hexadecimal UUIDs with 8-4-4-4-12 digits**. For v1 see `MailboxWriterEvidencePortableArchiveV1.RECORD_PATTERN`; v2 see `MailboxWriterKindEvidenceV2.UUID`, and v3 see `MailboxFourBoundResultLeavesArchiveV1.UUID`. The existing G21.152 retained-report comparator checked namespace, filename stage, common basename and distinct capacities 32/32/4, but its family suffix used a relaxed `[a-z0-9-]+`. If a caller consistently altered historical BEFORE/AFTER and current BEFORE/AFTER to use a non-UUID token, the in-memory report could return **MATCHED_OBSERVED_METADATA_NO_AUTHORITY** without satisfying the original source filename shape.
+
+G21.153 retains the existing family/stage/version recognition and **adds a checked negative-only veto `NONCANONICAL_EVIDENCE_UUID`** immediately after family recognition and before per-family count accounting. The UUID extracted between exact `-v1-`, `-v2-` or `-v3-` marker and the last extension dot must match `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`. A minimally broader preliminary family matcher permits uppercase test inputs to be classified with the new checked UUID diagnostic; wrong namespace, stage or version **still** returns inherited `UNKNOWN_EVIDENCE_FAMILY`.
+
+## Regression and compatibility
+
+New `G21153MailboxEvidenceCanonicalUuidIntegrationTest`: four synthetically consistent retained reports backed by six *real NOFOLLOW* filesystem metadata observations, with SHA-consistent test-only portable v1/v2/v3 snapshots. Three source families × eight malformed UUID variants × four individual capture positions = **96** cases, plus **24** cases corrupting all four captures consistently. Variants: placeholder, missing UUID dashes, incorrect first-group length, illegal lowercase `g`, uppercase hex, doubled separator, overly long first group, incomplete groups. Every case must raise `IOException` with `NONCANONICAL_EVIDENCE_UUID`, then restore each modified observation field in `finally` and verify healthy MATCH with no authority; three distinct additional canonical lowercase alternative UUID checks guard positive format acceptance. Zero JVM leases/watches, no live grant.
+
+G21.149–152 introduced synthetic in-memory fixture leaf names ending in `-test.begin` or `-test.result`, which were intentionally not true writer UUIDs. G21.153 updates **only those three synthetic leaf identifiers in each of four regressions** to `ffffffff-ffff-ffff-ffff-ffffffffffff` while keeping all real six-source NOFOLLOW and source SHA/hash tests and regression assertions. This also preserves G21.151's balanced 68-entry synthetic negative control and G21.152's 32/32/4 counts. No real evidence file or production writer rewritten.
+
+**Acceptance:** Java 11 bytecode 55, dedicated `g21153MailboxCanonicalUuidRegression`, full hosted Gradle and focused manifest **453/453** on final exact head. Uncertified unless GitHub Actions confirms both test and build.
+
+**No authority:** Valid UUID *shape* neither authenticates data nor proves ownership of original disk evidence; four coherently forged valid-UUID snapshots can still match. No new source scanner, archive, publication lifecycle, timestamp or inode authentication, full RAW/default/historical/future writer census, atomic multi-file crash/power-loss epoch, archive rollover/pruning/cleanup/unlink, grant/replay/session/release or ACK. R25 #1847 and G21.87/88 remain frozen. Draft/unmerged.

@@ -22,9 +22,9 @@ import java.util.stream.Stream;
  */
 public final class G21152MailboxEvidenceFamilyIntegrationTest {
     private static final String[] LEAVES={
-        "g21150.properties.g21103-writer-attempt-v1-test.begin",
-        "g21150.properties.g21114-writer-kind-v2-test.begin",
-        "g21150.properties.g21120-commit-result-v3-test.result"
+        "g21150.properties.g21103-writer-attempt-v1-ffffffff-ffff-ffff-ffff-ffffffffffff.begin",
+        "g21150.properties.g21114-writer-kind-v2-ffffffff-ffff-ffff-ffff-ffffffffffff.begin",
+        "g21150.properties.g21120-commit-result-v3-ffffffff-ffff-ffff-ffff-ffffffffffff.result"
     };
     private static final String[] LABELS={
         "ACCOUNT","PREPARED_JOURNAL","COMMIT",

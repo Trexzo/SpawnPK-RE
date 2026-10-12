@@ -23,9 +23,9 @@ import java.util.stream.Stream;
 public final class G21149MailboxHistoricalBeforeMissingKeyIntegrationTest {
     private static final String PREFIX="g21149.properties";
     private static final String[] LEAF_NAMES={
-        PREFIX+".g21103-writer-attempt-v1-test.begin",
-        PREFIX+".g21114-writer-kind-v2-test.begin",
-        PREFIX+".g21120-commit-result-v3-test.result"
+        PREFIX+".g21103-writer-attempt-v1-ffffffff-ffff-ffff-ffff-ffffffffffff.begin",
+        PREFIX+".g21114-writer-kind-v2-ffffffff-ffff-ffff-ffff-ffffffffffff.begin",
+        PREFIX+".g21120-commit-result-v3-ffffffff-ffff-ffff-ffff-ffffffffffff.result"
     };
     private static final String[] LABELS={
         "ACCOUNT","PREPARED_JOURNAL","COMMIT",
