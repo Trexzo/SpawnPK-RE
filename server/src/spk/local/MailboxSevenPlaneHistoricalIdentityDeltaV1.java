@@ -4,13 +4,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–155: purely in-memory comparison of TWO existing G21.129
+ * G21.144–156: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -247,8 +248,8 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
     }
 
     /**
-     * G21.155: bind only the leaf NAMES of the retained v3 portable
-     * inventory to the separately retained four-kind physical map.
+     * G21.155–156: bind the filenames AND bounded decoded leaf
+     * bytes of retained v3 portable to the four-kind physical map.
      * Both snapshots are controlled by the same caller after lease
      * release. Agreement is NOT content provenance or an epoch.
      */
@@ -285,8 +286,42 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
                !name.matches("[A-Za-z0-9_.-]{1,200}")||
                !portableNames.add(name))
                 throw unsafe("BAD_V3_PORTABLE_INVENTORY_"+label);
-            if(!o.evidenceLeafIdentities.containsKey(name))
+            MailboxSevenPlaneContinuousPhysicalWitnessV1
+                .PhysicalIdentity physical=o.evidenceLeafIdentities.get(name);
+            if(physical==null)
                 throw unsafe("V3_PORTABLE_LEAF_MISMATCH_"+label);
+            // G21.156: G21.125 serialized the ORIGINAL 1..512 raw
+            // bytes as Base64; G21.129 separately hashed and sized
+            // that same source. A coherent forgery of four retained
+            // snapshots must not bypass this negative-only check.
+            String encoded=lines[pos+2].substring("BYTES_BASE64=".length());
+            if(encoded.isEmpty()||encoded.length()>684)
+                throw unsafe("BAD_V3_PORTABLE_BASE64_"+label);
+            final byte[] payload;
+            try{
+                payload=Base64.getDecoder().decode(encoded);
+            }catch(IllegalArgumentException malformed){
+                throw unsafe("BAD_V3_PORTABLE_BASE64_"+label);
+            }
+            if(payload.length<1||payload.length>512||
+               !Base64.getEncoder().encodeToString(payload).equals(encoded))
+                throw unsafe("BAD_V3_PORTABLE_BASE64_"+label);
+            if(payload.length!=physical.size)
+                throw unsafe("V3_PORTABLE_PHYSICAL_SIZE_MISMATCH_"+label);
+            try{
+                byte[] hash=MessageDigest.getInstance("SHA-256")
+                    .digest(payload);
+                final char[] digits="0123456789abcdef".toCharArray();
+                StringBuilder hex=new StringBuilder(64);
+                for(byte b:hash){
+                    hex.append(digits[(b>>>4)&15]);
+                    hex.append(digits[b&15]);
+                }
+                if(!hex.toString().equals(physical.sha256))
+                    throw unsafe("V3_PORTABLE_PHYSICAL_SHA_MISMATCH_"+label);
+            }catch(NoSuchAlgorithmException unavailable){
+                throw unsafe("SHA256_UNAVAILABLE_"+label);
+            }
         }
         int physicalV3=0;
         for(String name:o.evidenceLeafIdentities.keySet())
