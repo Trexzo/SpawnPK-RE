@@ -7,7 +7,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–145: purely in-memory comparison of TWO existing G21.129
+ * G21.144–146: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -62,6 +62,66 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         return new IOException(
             "G21.144 HISTORICAL_IDENTITY_DELTA_UNSAFE_NO_AUTHORITY "+
             reason+" epoch=false cleanup=false grant=false");
+    }
+
+    /**
+     * Read-only defensive preflight. The original G21.129 scanner
+     * creates complete observations, but a caller may retain or
+     * corrupt an in-memory report after its lease has ended.
+     * No identity authentication is inferred from this shape check.
+     * A null fileKey is VALID shape and handled as UNCERTAIN by
+     * G21.145, not as a malformed report.
+     */
+    private static void requireIdentity(
+        String label,
+        MailboxSevenPlaneContinuousPhysicalWitnessV1.PhysicalIdentity p
+    )throws IOException{
+        if(p==null||p.sha256==null||p.created==null||
+           p.modified==null||p.size<0L)
+            throw unsafe("MALFORMED_IDENTITY_"+label);
+    }
+
+    private static void requireObservation(
+        String label,
+        MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation o
+    )throws IOException{
+        if(o==null)
+            throw unsafe("MISSING_OBSERVATION_"+label);
+        if(o.v1==null||o.v2==null||o.v3==null||
+           o.v1.portable==null||o.v1.sha256==null||
+           o.v2.portable==null||o.v2.sha256==null||
+           o.v3.portable==null||o.v3.sha256==null)
+            throw unsafe("MALFORMED_PORTABLE_ARCHIVE_"+label);
+        requireIdentity(label+"_ACCOUNT",o.accountIdentity);
+        requireIdentity(label+"_PREPARED_JOURNAL",o.journalIdentity);
+        requireIdentity(label+"_COMMIT",o.commitIdentity);
+        if(!o.accountIdentity.sha256.equals(o.accountSha)||
+           !o.journalIdentity.sha256.equals(o.journalSha)||
+           !o.commitIdentity.sha256.equals(o.commitSha))
+            throw unsafe("INCONSISTENT_SIDECAR_SHA_"+label);
+        if(o.evidenceLeafIdentities==null)
+            throw unsafe("NULL_EVIDENCE_MAP_"+label);
+        for(Map.Entry<String,MailboxSevenPlaneContinuousPhysicalWitnessV1.PhysicalIdentity>
+                e:o.evidenceLeafIdentities.entrySet()){
+            if(e.getKey()==null)
+                throw unsafe("NULL_EVIDENCE_NAME_"+label);
+            requireIdentity(label+"_EVIDENCE_LEAF",e.getValue());
+        }
+    }
+
+    private static void requireReport(
+        String label,
+        MailboxSevenPlaneContinuousPhysicalWitnessV1.Report r
+    )throws IOException{
+        if(r==null)
+            throw unsafe("NULL_REPORT_"+label);
+        if(!r.sevenPhysicalPinsMatched||
+           !r.threePhysicalIdentitiesStableAcrossCaptures||
+           !r.evidenceLeafMetadataStableAcrossCaptures||
+           !r.cooperatingCrossJvmWritesExcludedDuringLease)
+            throw unsafe("UNVERIFIED_REPORT_FLAGS_"+label);
+        requireObservation(label+"_BEFORE",r.before);
+        requireObservation(label+"_AFTER",r.after);
     }
 
     private static void comparePhysical(
@@ -139,10 +199,8 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         MailboxSevenPlaneContinuousPhysicalWitnessV1.Report historical,
         MailboxSevenPlaneContinuousPhysicalWitnessV1.Report current
     )throws IOException{
-        if(historical==null||current==null||
-           historical.after==null||current.before==null||
-           current.after==null)
-            throw unsafe("NULL_OR_INCOMPLETE_REPORT");
+        requireReport("HISTORICAL",historical);
+        requireReport("CURRENT",current);
         SortedSet<String> changed=new TreeSet<>();
         SortedSet<String> uncertain=new TreeSet<>();
         compareOne(historical.after,current.before,changed,uncertain);
