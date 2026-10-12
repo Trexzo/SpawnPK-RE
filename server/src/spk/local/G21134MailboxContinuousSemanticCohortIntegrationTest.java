@@ -211,14 +211,14 @@ public final class G21134MailboxContinuousSemanticCohortIntegrationTest {
                 ".g21123-world-terminal-result-v3-"
             };
             Path[] targets=new Path[namespace.length];
-            byte[][] saved=new byte[namespace.length][];
+            byte[][] leafBackups=new byte[namespace.length][];
             String zero="00000000000000000000000000000000"+
                 "00000000000000000000000000000000";
             try{
                 for(int i=0;i<namespace.length;i++){
                     targets[i]=leaf(canonical,namespace[i]);
-                    saved[i]=Files.readAllBytes(targets[i]);
-                    String body=new String(saved[i],
+                    leafBackups[i]=Files.readAllBytes(targets[i]);
+                    String body=new String(leafBackups[i],
                         StandardCharsets.US_ASCII);
                     String trueTerminal=field(body,"TERMINAL_SHA256");
                     check(!zero.equals(trueTerminal),
@@ -251,8 +251,8 @@ public final class G21134MailboxContinuousSemanticCohortIntegrationTest {
                 }
             }finally{
                 for(int i=0;i<targets.length;i++)
-                    if(targets[i]!=null&&saved[i]!=null)
-                        Files.write(targets[i],saved[i]);
+                    if(targets[i]!=null&&leafBackups[i]!=null)
+                        Files.write(targets[i],leafBackups[i]);
             }
             continuous(r,new Pins(r));
             restoredPass=true;
