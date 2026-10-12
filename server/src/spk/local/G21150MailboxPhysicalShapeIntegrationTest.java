@@ -102,11 +102,22 @@ public final class G21150MailboxPhysicalShapeIntegrationTest {
                 .PhysicalIdentity[] physical,
             MailboxWriterEvidencePortableArchiveV1.Snapshot v1,
             MailboxWriterKindEvidenceV2.Snapshot v2,
-            MailboxFourBoundResultLeavesArchiveV1.Snapshot v3
+            MailboxFourBoundResultLeavesArchiveV1.Snapshot v3,
+            BasicFileAttributes[] attrs,String[] shas
         )throws Exception{
         Map<String,MailboxSevenPlaneContinuousPhysicalWitnessV1
             .PhysicalIdentity> leaves=new TreeMap<>();
         for(int i=3;i<6;i++)leaves.put(LEAVES[i-3],physical[i]);
+        // Keep all four v3 kinds in synthetic retained reports.
+        String basename=LEAVES[2].substring(0,
+            LEAVES[2].indexOf(".g21120-"));
+        String[] names={
+            basename+".g21121-prepared-result-v3-ffffffff-ffff-ffff-ffff-ffffffffffff.result",
+            basename+".g21122-strict-prepared-result-v3-ffffffff-ffff-ffff-ffff-ffffffffffff.result",
+            basename+".g21123-world-terminal-result-v3-ffffffff-ffff-ffff-ffff-ffffffffffff.result"
+        };
+        for(String name:names)
+            leaves.put(name,physical(shas[5],attrs[5]));
         return instantiate(
             MailboxSevenPlaneContinuousPhysicalWitnessV1
                 .Observation.class,
@@ -266,7 +277,7 @@ public final class G21150MailboxPhysicalShapeIntegrationTest {
                     identities[position][plane]=
                         physical(shas[plane],attrs[plane]);
                 all[position]=observation(identities[position],
-                    v1,v2,v3);
+                    v1,v2,v3,attrs,shas);
             }
             MailboxSevenPlaneContinuousPhysicalWitnessV1.Report old=
                 report(all[0],all[1]);
