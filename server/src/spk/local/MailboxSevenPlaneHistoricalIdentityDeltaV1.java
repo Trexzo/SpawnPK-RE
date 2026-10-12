@@ -10,7 +10,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–148: purely in-memory comparison of TWO existing G21.129
+ * G21.144–150: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -82,6 +82,17 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         if(p==null||p.sha256==null||p.created==null||
            p.modified==null||p.size<0L)
             throw unsafe("MALFORMED_IDENTITY_"+label);
+        // G21.150: a successful G21.129 physical read never emits a
+        // zero-length, over-capacity or non-canonical SHA-256 source.
+        // Identical in-memory corruption of BEFORE and AFTER must not
+        // turn this impossible shape into a positive identity MATCH.
+        // Do not re-read disk or trust these fields as signed evidence.
+        final long maxBytes=label.endsWith("_ACCOUNT")?1048576L:
+            label.endsWith("_EVIDENCE_LEAF")?512L:1024L;
+        if(p.size<1L||p.size>maxBytes)
+            throw unsafe("UNSAFE_PHYSICAL_SIZE_"+label);
+        if(!p.sha256.matches("[0-9a-f]{64}"))
+            throw unsafe("BAD_PHYSICAL_SHA_"+label);
     }
 
     /**
