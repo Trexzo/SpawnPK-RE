@@ -79,7 +79,7 @@ public final class G21149MailboxHistoricalBeforeMissingKeyIntegrationTest {
      * G21.125 KIND/LEAF/BYTES_BASE64 formatting so G21.155 can
      * compare leaf names without changing inherited test purpose.
      */
-    private static String fixtureV3Portable(String basename){
+    private static String fixtureV3Portable(String basename,String sourceBody){
         String uuid="ffffffff-ffff-ffff-ffff-ffffffffffff";
         String[] leaves={
             basename+".g21120-commit-result-v3-"+uuid+".result",
@@ -92,20 +92,22 @@ public final class G21149MailboxHistoricalBeforeMissingKeyIntegrationTest {
         StringBuilder result=new StringBuilder(
             "SPK-G21125-FOUR-V3-LEAVES-V1\n"+
             "ACCOUNT="+account+"\nCOUNT=4\n");
+        String encoded=java.util.Base64.getEncoder().encodeToString(
+            sourceBody.getBytes(StandardCharsets.US_ASCII));
         for(int kind=0;kind<4;kind++)
             result.append("KIND=").append(kind).append('\n')
                 .append("LEAF=").append(leaves[kind]).append('\n')
-                .append("BYTES_BASE64=WA==\n");
+                .append("BYTES_BASE64=").append(encoded).append('\n');
         return result.toString();
     }
 
     private static MailboxFourBoundResultLeavesArchiveV1.Snapshot
-        v3()throws Exception{
+        v3(String sourceBody)throws Exception{
         Constructor<MailboxFourBoundResultLeavesArchiveV1.Snapshot>
             c=MailboxFourBoundResultLeavesArchiveV1.Snapshot.class
                 .getDeclaredConstructor(String.class,String.class);
         c.setAccessible(true);
-        String body=fixtureV3Portable("g21149.properties");
+        String body=fixtureV3Portable("g21149.properties",sourceBody);
         return c.newInstance(body,digest(body));
     }
 
@@ -243,8 +245,10 @@ public final class G21149MailboxHistoricalBeforeMissingKeyIntegrationTest {
                 files[i]=root.resolve(LEAF_NAMES[i-3]);
             BasicFileAttributes[] attrs=new BasicFileAttributes[6];
             String[] shas=new String[6];
+            String[] sourceBodies=new String[6];
             for(int i=0;i<6;i++){
                 String body="G21149_ORIGINAL_SOURCE_"+i+"\\n";
+                sourceBodies[i]=body;
                 Files.write(files[i],
                     body.getBytes(StandardCharsets.US_ASCII));
                 attrs[i]=Files.readAttributes(files[i],
@@ -256,7 +260,7 @@ public final class G21149MailboxHistoricalBeforeMissingKeyIntegrationTest {
             }
             MailboxWriterEvidencePortableArchiveV1.Snapshot a=v1();
             MailboxWriterKindEvidenceV2.Snapshot b=v2();
-            MailboxFourBoundResultLeavesArchiveV1.Snapshot c=v3();
+            MailboxFourBoundResultLeavesArchiveV1.Snapshot c=v3(sourceBodies[5]);
             MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation[]
                 observations=new MailboxSevenPlaneContinuousPhysicalWitnessV1
                     .Observation[4];
