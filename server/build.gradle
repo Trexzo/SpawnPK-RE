@@ -2238,6 +2238,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21117MailboxCrossJvmWriterLeaseProbeIntegrationTest',
     'spk.local.G21118MailboxDurableCrossJvmDiagnosticIntegrationTest',
     'spk.local.G21119MailboxDiagnosticRealWriterSemanticBoundaryIntegrationTest',
+    'spk.local.G21120MailboxCommitResultBindingIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2266,10 +2267,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 419 ||
-    currentTrainFocusedTests.toSet().size() != 419) {
+if (currentTrainFocusedTests.size() != 420 ||
+    currentTrainFocusedTests.toSet().size() != 420) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 419 unique tests, found " +
+        "Current-train focused manifest drift: expected 420 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3729,6 +3730,14 @@ tasks.register('g21119MailboxDiagnosticRealWriterSemanticBoundaryRegression', Ja
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21119MailboxDiagnosticRealWriterSemanticBoundaryIntegrationTest')
+}
+
+tasks.register('g21120MailboxCommitResultBindingRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.86 real disk COMMIT v3 UUID/result binding, old-v1 compatibility, fault and tamper denial.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21120MailboxCommitResultBindingIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
