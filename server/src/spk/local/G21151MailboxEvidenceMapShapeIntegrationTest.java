@@ -248,10 +248,34 @@ public final class G21151MailboxEvidenceMapShapeIntegrationTest {
                 MailboxSevenPlaneContinuousPhysicalWitnessV1
                     .PhysicalIdentity sample=
                     replacement.values().iterator().next();
-                int n=0;
-                while(replacement.size()<68)
-                    replacement.put("g21151-bounded-"+String.format(
-                        java.util.Locale.ROOT,"%03d",n++),sample);
+                // Retain the 68-entry shape-only negative control
+                // while respecting G21.152's inherited scanner limits
+                // (32 v1, 32 v2, 4 v3). These are still synthetic
+                // names/attributes, not authenticated source records.
+                String base=LEAVES[0].substring(0,
+                    LEAVES[0].indexOf(".g211"));
+                for(int n=1;n<32;n++){
+                    String uuid=String.format(java.util.Locale.ROOT,
+                        "%08x-0000-0000-0000-000000000000",n);
+                    replacement.put(base+
+                        ".g21103-writer-attempt-v1-"+uuid+
+                        ".begin",sample);
+                    replacement.put(base+
+                        ".g21114-writer-kind-v2-"+uuid+
+                        ".begin",sample);
+                }
+                String uuid="00000000-0000-0000-0000-000000000000";
+                replacement.put(base+
+                    ".g21121-prepared-result-v3-"+uuid+
+                    ".result",sample);
+                replacement.put(base+
+                    ".g21122-strict-prepared-result-v3-"+uuid+
+                    ".result",sample);
+                replacement.put(base+
+                    ".g21123-world-terminal-result-v3-"+uuid+
+                    ".result",sample);
+                check(replacement.size()==68,
+                    "synthetic balanced 32/32/4 boundary incorrect");
                 maps.set(all[i],
                     java.util.Collections.unmodifiableMap(replacement));
                 done++;

@@ -10,7 +10,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–151: purely in-memory comparison of TWO existing G21.129
+ * G21.144–152: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -155,6 +155,9 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         // be accepted as a bounded original observation.
         if(o.evidenceLeafIdentities.size()>68)
             throw unsafe("EXCESS_EVIDENCE_LEAVES_"+label);
+        final int[] counts=new int[3];
+        final int[] maxima={32,32,4};
+        String originalBasename=null;
         for(Map.Entry<String,MailboxSevenPlaneContinuousPhysicalWitnessV1.PhysicalIdentity>
                 e:o.evidenceLeafIdentities.entrySet()){
             String name=e.getKey();
@@ -170,6 +173,40 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
                 if(ch=='/'||ch=='\\'||ch<32||ch==127)
                     throw unsafe("BAD_EVIDENCE_NAME_"+label);
             }
+            // G21.152: the real G21.129 physical scanner has three
+            // separate capacity-limited namespaces. A total of <=68
+            // alone cannot authenticate these retained map entries.
+            // Accept only source-family shapes here (UUID syntax,
+            // exact names, portable byte provenance remain unproved).
+            int at=name.lastIndexOf(".g211");
+            if(at<1)
+                throw unsafe("UNKNOWN_EVIDENCE_FAMILY_"+label);
+            String basename=name.substring(0,at);
+            if(originalBasename==null)
+                originalBasename=basename;
+            else if(!originalBasename.equals(basename))
+                throw unsafe("MIXED_EVIDENCE_BASENAME_"+label);
+            String suffix=name.substring(at);
+            int family=-1;
+            if(suffix.matches(
+                    "\\.g21103-writer-attempt-v1-[a-z0-9-]+\\.(begin|complete)"))
+                family=0;
+            else if(suffix.matches(
+                    "\\.g21114-writer-kind-v2-[a-z0-9-]+\\.(begin|complete)"))
+                family=1;
+            else if(suffix.matches(
+                    "\\.g21120-commit-result-v3-[a-z0-9-]+\\.result")||
+                suffix.matches(
+                    "\\.g21121-prepared-result-v3-[a-z0-9-]+\\.result")||
+                suffix.matches(
+                    "\\.g21122-strict-prepared-result-v3-[a-z0-9-]+\\.result")||
+                suffix.matches(
+                    "\\.g21123-world-terminal-result-v3-[a-z0-9-]+\\.result"))
+                family=2;
+            if(family<0)
+                throw unsafe("UNKNOWN_EVIDENCE_FAMILY_"+label);
+            if(++counts[family]>maxima[family])
+                throw unsafe("EXCESS_EVIDENCE_FAMILY_"+label+"_V"+(family+1));
             requireIdentity(label+"_EVIDENCE_LEAF",e.getValue());
         }
     }
