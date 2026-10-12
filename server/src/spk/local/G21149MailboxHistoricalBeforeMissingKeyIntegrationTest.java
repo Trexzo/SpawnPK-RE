@@ -106,6 +106,15 @@ public final class G21149MailboxHistoricalBeforeMissingKeyIntegrationTest {
             .PhysicalIdentity> leaves=new TreeMap<>();
         for(int i=3;i<6;i++)
             leaves.put(LEAF_NAMES[i-3],identity(shas[i],attrs[i]));
+        // G21.154: real v3 capture ALWAYS includes all four
+        // distinct result kinds. Synthetic sources stay read-only.
+        String[] extra={
+            PREFIX+".g21121-prepared-result-v3-ffffffff-ffff-ffff-ffff-ffffffffffff.result",
+            PREFIX+".g21122-strict-prepared-result-v3-ffffffff-ffff-ffff-ffff-ffffffffffff.result",
+            PREFIX+".g21123-world-terminal-result-v3-ffffffff-ffff-ffff-ffff-ffffffffffff.result"
+        };
+        for(String name:extra)
+            leaves.put(name,identity(shas[5],attrs[5]));
         Constructor<MailboxSevenPlaneContinuousPhysicalWitnessV1
             .Observation> ctor=
             MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation.class
