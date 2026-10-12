@@ -10,7 +10,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–154: purely in-memory comparison of TWO existing G21.129
+ * G21.144–155: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -246,6 +246,55 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
                 throw unsafe("MISSING_V3_RESULT_KIND_"+label);
     }
 
+    /**
+     * G21.155: bind only the leaf NAMES of the retained v3 portable
+     * inventory to the separately retained four-kind physical map.
+     * Both snapshots are controlled by the same caller after lease
+     * release. Agreement is NOT content provenance or an epoch.
+     */
+    private static void requireV3PortableLeafBinding(
+        String label,
+        MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation o
+    )throws IOException{
+        final String portable=o.v3.portable;
+        // The producing G21.125 reader emits exactly 3 header lines,
+        // 4 x (KIND, LEAF, BYTES_BASE64), and a final newline.
+        final String[] lines=portable.split("\n",-1);
+        if(lines.length!=16||
+           !"SPK-G21125-FOUR-V3-LEAVES-V1".equals(lines[0])||
+           !lines[1].matches("ACCOUNT=[a-z0-9_-]{1,64}")||
+           !"COUNT=4".equals(lines[2])||
+           !lines[15].isEmpty())
+            throw unsafe("BAD_V3_PORTABLE_INVENTORY_"+label);
+        final SortedSet<String> portableNames=new TreeSet<>();
+        final String[] kindMarkers={
+            ".g21120-commit-result-v3-",
+            ".g21121-prepared-result-v3-",
+            ".g21122-strict-prepared-result-v3-",
+            ".g21123-world-terminal-result-v3-"
+        };
+        for(int kind=0;kind<4;kind++){
+            int pos=3+3*kind;
+            if(!("KIND="+kind).equals(lines[pos])||
+               !lines[pos+1].startsWith("LEAF=")||
+               !lines[pos+2].startsWith("BYTES_BASE64=")||
+               lines[pos+2].length()<17)
+                throw unsafe("BAD_V3_PORTABLE_INVENTORY_"+label);
+            String name=lines[pos+1].substring(5);
+            if(!name.contains(kindMarkers[kind])||
+               !name.matches("[A-Za-z0-9_.-]{1,200}")||
+               !portableNames.add(name))
+                throw unsafe("BAD_V3_PORTABLE_INVENTORY_"+label);
+            if(!o.evidenceLeafIdentities.containsKey(name))
+                throw unsafe("V3_PORTABLE_LEAF_MISMATCH_"+label);
+        }
+        int physicalV3=0;
+        for(String name:o.evidenceLeafIdentities.keySet())
+            if(name.contains(".g2112"))physicalV3++;
+        if(physicalV3!=4||portableNames.size()!=4)
+            throw unsafe("V3_PORTABLE_LEAF_MISMATCH_"+label);
+    }
+
     private static void requireReport(
         String label,
         MailboxSevenPlaneContinuousPhysicalWitnessV1.Report r
@@ -295,6 +344,8 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         requirePortableSelfHash(
             label+"_AFTER_V3",r.after.v3.portable,
             r.after.v3.sha256,4000);
+        requireV3PortableLeafBinding(label+"_BEFORE",r.before);
+        requireV3PortableLeafBinding(label+"_AFTER",r.after);
         // Null fileKey is not a concrete observed difference.
         // Cross-report compare() still yields UNCERTAIN via G21.145.
     }
