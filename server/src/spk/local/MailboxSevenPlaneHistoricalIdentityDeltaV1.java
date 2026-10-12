@@ -7,7 +7,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–146: purely in-memory comparison of TWO existing G21.129
+ * G21.144–147: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -122,6 +122,21 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
             throw unsafe("UNVERIFIED_REPORT_FLAGS_"+label);
         requireObservation(label+"_BEFORE",r.before);
         requireObservation(label+"_AFTER",r.after);
+
+        // G21.147: successful G21.129 reports originally assert
+        // stable original BEFORE/AFTER physical evidence. Shape
+        // validation alone cannot detect two separately well-formed
+        // but contradictory in-memory snapshots when a caller has
+        // changed one of them after the held lease returned.
+        // Reuse EXACTLY the same bounded source/portable comparator;
+        // do not trust a mutable success flag as the only evidence.
+        SortedSet<String> internalDrift=new TreeSet<>();
+        SortedSet<String> missingKeys=new TreeSet<>();
+        compareOne(r.before,r.after,internalDrift,missingKeys);
+        if(!internalDrift.isEmpty())
+            throw unsafe("INTERNAL_BEFORE_AFTER_DRIFT_"+label);
+        // Null fileKey is not a concrete observed difference.
+        // Cross-report compare() still yields UNCERTAIN via G21.145.
     }
 
     private static void comparePhysical(
