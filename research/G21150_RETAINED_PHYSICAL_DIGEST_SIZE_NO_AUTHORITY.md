@@ -1,0 +1,17 @@
+# G21.150 — malformed retained physical SHA/size checked veto (NO AUTHORITY)
+
+**Exact certified parent:** [G21.149 Draft PR #2478](https://github.com/Trexzo/SpawnPK-RE/pull/2478), `256d3c8bf07f61f7016a201bf86d2d707f7d9317`; [Actions #38300205981](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38300205981) SUCCESS, Java11, focused 449/449, full Gradle build. Issue #2479.
+
+## Defect and narrow correction
+
+G21.146 checked null physical digests, null timestamps and negative sizes, G21.147 compared BEFORE/AFTER, G21.148 validated the *portable v1/v2/v3 archives*, and G21.149 fixed a missing historical BEFORE fileKey. None validated the SHA-256 **syntax** of a retained `PhysicalIdentity.sha256` or the minimum/maximum file size the real G21.129 reader accepts. A caller holding in-memory old/current successful-looking reports could corrupt all four captured physical digest or size attributes identically; the historical comparator might still return MATCH, because internal and cross-report equality is intact.
+
+G21.150 adds checked **negative-only** shape vetos in `MailboxSevenPlaneHistoricalIdentityDeltaV1.requireIdentity`. Each source must have a canonical 64-character lowercase hex digest and size 1..1048576 for ACCOUNT, 1..1024 for PREPARED journal/COMMIT, 1..512 for evidence leaves. These are already G21.129 reader caps, not new on-disk behavior. Checked diagnostics are `BAD_PHYSICAL_SHA` and `UNSAFE_PHYSICAL_SIZE`. The original G21.146 null/negative diagnostics, G21.147 internal-change ordering, G21.148 archive self-hash, G21.149 missing-key uncertainty remain intact.
+
+## Regression and acceptance
+
+`G21150MailboxPhysicalShapeIntegrationTest` builds four synthetic structurally valid held-lease-style reports from **six real NOFOLLOW regular-file attributes**, with canonical in-memory portable v1/v2/v3 SHA snapshots; these are test fixtures, **not** a new proof of real World publisher execution or authenticated source identity. Test-only reflection corrupts each source's size (zero or above original physical bound) and digest (short or uppercase hexadecimal). For account/journal/COMMIT, the associated per-observation sidecar digest field is mutated too, so the inherited sidecar-consistency check does not mask the new validation. Check **6 sources × 4 invalid values × 4 single-capture positions = 96** checked vetos, plus **6 × 4 = 24** coordinated four-capture corruptions that previously could appear mutually consistent. Restore every original private field in `finally`, then immediately require zero-difference MATCH and no authority. Assert zero JVM leases and local watches; do not write durable account evidence or grant rewards. Inherited G21.148–149 tests remain in the current-train manifest.
+
+**Acceptance gate:** Java11 bytecode major 55, dedicated `g21150MailboxPhysicalShapeRegression`, focused **450/450**, full hosted Gradle build on the exact final SHA. Code committed does not mean certified until hosted CI succeeds.
+
+**Safety:** Validation acts only on previously retained in-memory report objects after their observation lease. SHA syntax is not a self-hash of original source bytes and says nothing about trusted provenance; even a valid claimed physical SHA remains unverified beyond the original observation. There is no signed historical reference, complete RAW/default/historical/future writer census, atomic multi-file crash or power-loss epoch, archive rollover, pruning, cleanup, unlink, grant, replay, session, release or client ACK. Frozen R25 #1847 and G21.87/88 unchanged. Draft, unmerged.

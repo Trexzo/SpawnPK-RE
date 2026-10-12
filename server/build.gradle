@@ -2268,6 +2268,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21147MailboxInternalReportContradictionIntegrationTest',
     'spk.local.G21148MailboxPortableSelfHashIntegrationTest',
     'spk.local.G21149MailboxHistoricalBeforeMissingKeyIntegrationTest',
+    'spk.local.G21150MailboxPhysicalShapeIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2296,10 +2297,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 449 ||
-    currentTrainFocusedTests.toSet().size() != 449) {
+if (currentTrainFocusedTests.size() != 450 ||
+    currentTrainFocusedTests.toSet().size() != 450) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 449 unique tests, found " +
+        "Current-train focused manifest drift: expected 450 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3999,6 +4000,14 @@ tasks.register('g21149MailboxHistoricalBeforeMissingKeyRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21149MailboxHistoricalBeforeMissingKeyIntegrationTest')
+}
+
+tasks.register('g21150MailboxPhysicalShapeRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.150: retained source SHA/size shape cannot forge historical MATCH or authority.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21150MailboxPhysicalShapeIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
