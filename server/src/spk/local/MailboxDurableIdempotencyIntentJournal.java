@@ -165,12 +165,29 @@ final class MailboxDurableIdempotencyIntentJournal {
     void publishPreparedIntentWithWriterEvidence(
         MailboxSettlementPostimagePlanner.Proposal proposal
     )throws IOException{
-        publishPreparedIntentInternal(proposal,true);
+        publishPreparedIntentInternal(proposal,true,false);
+    }
+
+    /** G21.121: per-call opt-in real G21.83 PREPARED journal result
+     * binding to the same forced v1/v2 attempt UUID. Existing APIs
+     * remain unbound; no automatic World/default enrollment.
+     */
+    void publishPreparedIntentWithResultBinding(
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    )throws IOException{
+        publishPreparedIntentInternal(proposal,true,true);
     }
 
     private void publishPreparedIntentInternal(
         MailboxSettlementPostimagePlanner.Proposal proposal,
         boolean recordWriterEvidence
+    )throws IOException{
+        publishPreparedIntentInternal(proposal,recordWriterEvidence,false);
+    }
+
+    private void publishPreparedIntentInternal(
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        boolean recordWriterEvidence,boolean bindResult
     )throws IOException{
         final Record wanted=checked(proposal);
         // Pin the exact path from ONE resolver selection BEFORE any lock.
@@ -188,7 +205,14 @@ final class MailboxDurableIdempotencyIntentJournal {
                         account,wanted.account,
                         MailboxWriterKindEvidenceV2.Kind.PREPARED_JOURNAL,
                         ()->publishPreparedIntentInsideLifecycle(
-                            wanted,account,journal));
+                            wanted,account,journal),
+                        bindResult
+                            ?(uuid,confirmed)->
+                                MailboxPreparedJournalResultBindingV3
+                                    .recordInside(
+                                        account,wanted.account,uuid,journal,
+                                        wanted.prepared,wanted.terminal)
+                            :null);
             }
             return publishPreparedIntentInsideLifecycle(
                 wanted,account,journal);
