@@ -2259,6 +2259,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21138MailboxLateEvidenceNamespaceIntegrationTest',
     'spk.local.G21139MailboxOriginalLeafDisappearanceIntegrationTest',
     'spk.local.G21140MailboxSymlinkSubstitutionIntegrationTest',
+    'spk.local.G21141MailboxTransientRawMutationBlindSpotIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2287,10 +2288,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 440 ||
-    currentTrainFocusedTests.toSet().size() != 440) {
+if (currentTrainFocusedTests.size() != 441 ||
+    currentTrainFocusedTests.toSet().size() != 441) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 440 unique tests, found " +
+        "Current-train focused manifest drift: expected 441 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3918,6 +3919,14 @@ tasks.register('g21140MailboxSymlinkSubstitutionRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21140MailboxSymlinkSubstitutionIntegrationTest')
+}
+
+tasks.register('g21141MailboxTransientRawBlindSpotRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.141: negative-control transient RAW mutations that are fully restored under the same advisory OS lease.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21141MailboxTransientRawMutationBlindSpotIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
