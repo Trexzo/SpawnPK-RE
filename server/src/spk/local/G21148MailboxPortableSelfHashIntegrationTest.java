@@ -651,7 +651,7 @@ public final class G21148MailboxPortableSelfHashIntegrationTest {
                     check(archiveSelfHashVeto(
                         historic,current,target,null,field,null,
                         "INTERNAL_BEFORE_AFTER_DRIFT_"),
-                        "single corrupt portable or hash accepted v="+v+,
+                        "single corrupt portable or hash accepted v="+v+
                         " pos="+pos+" field="+field);
                     passed++;
                 }
