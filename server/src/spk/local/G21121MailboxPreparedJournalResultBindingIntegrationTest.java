@@ -235,25 +235,14 @@ public final class G21121MailboxPreparedJournalResultBindingIntegrationTest {
                 MailboxPreparedJournalResultBindingV3.Status
                     .NO_RESULT_BINDING_LEGACY_OR_UNKNOWN&&
                 legacy.boundAttempts==0&&leaves(root,OLD).length==0;
-            terminal(world,old,writer);
-            // Strict five-plane gate requires COMMIT; add real G21.111.
             StrictDurablePlayerSnapshotWriter.Receipt oldReceipt=
-                // Already terminal and reserved; strict witness must be
-                // the original terminal operation receipt.
-                null;
-            // No need to manufacture an old receipt; without actual
-            // bound journal, the direct result observer stays UNBOUND.
+                terminal(world,old,writer);
+            commit.recordConfirmedDiskTerminalWithResultBinding(
+                old.proposal,oldReceipt);
+            Pins oldPins=new Pins(r,OLD);
             oldG21110StrictlyDenied=denied(
-                ()->{
-                    MailboxPreparedJournalResultBindingV3.Report x=
-                        report(r,OLD);
-                    if(x.status!=
-                        MailboxPreparedJournalResultBindingV3.Status
-                            .BOUND_PREPARED_JOURNAL_MATCH_NO_AUTHORITY)
-                        throw new IOException(
-                            "G21.121 PREPARED_RESULT_BINDING_UNSAFE_NO_AUTHORITY"+
-                            " OLD_JOURNAL_UNBOUND");
-                },"G21.121 PREPARED_RESULT_BINDING_UNSAFE_NO_AUTHORITY");
+                ()->strict(r,OLD,oldPins),
+                "G21.121 PREPARED_RESULT_BINDING_UNSAFE_NO_AUTHORITY");
 
             // Genuine G21.83 after-directory-force fault is not
             // confirmed. Journal may exist, but v1/v2 BEGIN only.
