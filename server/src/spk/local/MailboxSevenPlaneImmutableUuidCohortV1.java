@@ -227,6 +227,19 @@ final class MailboxSevenPlaneImmutableUuidCohortV1 {
             throw veto("V3_RESULT_UUID_KIND_MISMATCH");
     }
     /**
+     * G21.134 shares the SAME pure, in-memory UUID validation with
+     * callers that obtained a pinned physical witness using an
+     * additional inside-lease semantic reader. No new lock.
+     */
+    static void requireCapturedUuidCohort(
+        String account,
+        MailboxSevenPlaneContinuousPhysicalWitnessV1.Report physical
+    )throws IOException{
+        requireOneObservation(account,physical.before);
+        requireOneObservation(account,physical.after);
+    }
+
+    /**
      * All physical bytes were captured under ONE G21.100 lease by
      * G21.129/130/131. This only analyzes those in-memory snapshots
      * AFTER the existing method returns and releases the lock.
@@ -246,8 +259,7 @@ final class MailboxSevenPlaneImmutableUuidCohortV1 {
                     resolver,account,pinnedV3,v1Portable,pinnedV1,
                     pinnedAccount,pinnedJournal,pinnedCommit,
                     pinnedV2,acquisitionMillis,callback);
-        requireOneObservation(account,physical.before);
-        requireOneObservation(account,physical.after);
+        requireCapturedUuidCohort(account,physical);
         return new Report(physical);
     }
     private MailboxSevenPlaneImmutableUuidCohortV1(){}
