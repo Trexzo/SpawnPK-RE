@@ -198,6 +198,23 @@ final class MailboxSevenPlaneV3PayloadCohortV1 {
         checkOne(account,physical.after);
     }
 
+    /**
+     * Pure projection of two already validated immutable record
+     * content fields. Call ONLY after requireCapturedFourPayloads.
+     * Historical strict PREPARED bytes are not current account bytes.
+     */
+    static String[] capturedCanonicalHashes(
+        String account,
+        MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation sample
+    )throws IOException{
+        Map<Integer,Map<String,String>> data=
+            parse(account,sample.v3.portable);
+        return new String[]{
+            data.get(2).get("PREPARED_SHA256"),
+            data.get(3).get("TERMINAL_SHA256")
+        };
+    }
+
     static Report comparePinnedFourPayloads(
         FilePlayerRepository.PathResolver resolver,String account,
         String pinnedV3,String v1Portable,String pinnedV1,
