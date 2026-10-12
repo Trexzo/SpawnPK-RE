@@ -138,6 +138,23 @@ final class StrictDurablePlayerSnapshotWriter {
             snapshot,null,null,null,false,false,null,true);
     }
 
+    /** G21.122: explicitly opt-in only for a genuine PREPARED
+     * non-World strict atomic file replacement. Original default,
+     * G21.109 and all World APIs retain their existing semantics.
+     */
+    synchronized Receipt saveStrictWithResultBinding(
+        PlayerSnapshot snapshot
+    )throws IOException{
+        if(snapshot==null||
+           MailboxPreparedRestartAdmission.inspect(snapshot).state!=
+               MailboxPreparedRestartAdmission.State
+                   .VALID_PREPARED_UNCLAIMED)
+            throw new IOException(
+                "G21.122 STRICT_PREPARED_RESULT_INVALID_NO_AUTHORITY");
+        return saveInternal(snapshot,null,null,null,false,false,
+            null,true,true);
+    }
+
     /**
      * G21.42: production strict PREPARED task through the exact
      * FilePlayerRepository account path. The historical direct
@@ -284,6 +301,19 @@ final class StrictDurablePlayerSnapshotWriter {
         boolean writeAheadIntent,boolean terminalMode,
         String terminalPreparedSha256,boolean recordWriterEvidence
     )throws IOException{
+        return saveInternal(snapshot,worldFile,publicationCheck,
+            postPublicationCheck,writeAheadIntent,terminalMode,
+            terminalPreparedSha256,recordWriterEvidence,false);
+    }
+
+    private Receipt saveInternal(
+        PlayerSnapshot snapshot,Path worldFile,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck,
+        boolean writeAheadIntent,boolean terminalMode,
+        String terminalPreparedSha256,boolean recordWriterEvidence,
+        boolean bindPreparedResult
+    )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(snapshot,"snapshot");
         Path selected=Objects.requireNonNull(
             resolver.resolve(checked.username()),"account file")
@@ -303,7 +333,13 @@ final class StrictDurablePlayerSnapshotWriter {
                                 snapshot,worldFile,publicationCheck,
                                 postPublicationCheck,writeAheadIntent,
                                 terminalMode,terminalPreparedSha256,
-                                selected));
+                                selected),
+                            bindPreparedResult
+                                ?(uuid,receipt)->
+                                    MailboxStrictPreparedResultBindingV3
+                                        .recordInside(
+                                            selected,checked,uuid,receipt)
+                                :null);
                 }
                 return saveInternalTracked(
                     snapshot,worldFile,publicationCheck,
