@@ -322,5 +322,32 @@ final class MailboxCommitResultBindingV3 {
                 MailboxPublicationWriterLifecycle.domain(file),
                 LOCK_MS,()->inspectInside(file,account));
     }
+    /** G21.120: optional NEGATIVE-only extension of G21.119.
+     * Actual G21.86 COMMIT source SHA MUST agree with separately
+     * pinned COMMIT plane AND the durable v3 attempt-bound result.
+     * The two read-only observations are not an atomic epoch.
+     */
+    static Report requirePinnedRealBoundCommit(
+        FilePlayerRepository.PathResolver resolver,
+        String account,String v1Portable,String v1Sha,
+        String accountSha,String preparedPin,String commitPin,
+        String v2Sha
+    )throws IOException{
+        MailboxRealWriterSemanticBoundaryV1.Report prior=
+            MailboxRealWriterSemanticBoundaryV1
+                .requirePinnedRealWriterCandidate(
+                    resolver,account,v1Portable,v1Sha,
+                    accountSha,preparedPin,commitPin,v2Sha);
+        Report bound=inspect(resolver,account);
+        if(bound.status!=Status.BOUND_COMMIT_DISK_MATCH_NO_AUTHORITY||
+           bound.boundAttempts!=1||
+           !commitPin.equals(bound.commitBytesSha256)||
+           prior.diskCommit==null||
+           !bound.terminalSha256.equals(
+               prior.diskCommit.terminalSha256))
+            throw veto("COMMIT_NOT_BOUND_TO_SAME_PINNED_RESULT");
+        return bound;
+    }
+
     private MailboxCommitResultBindingV3(){}
 }
