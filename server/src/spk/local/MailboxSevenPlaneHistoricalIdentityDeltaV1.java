@@ -7,7 +7,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144: purely in-memory comparison of TWO existing G21.129
+ * G21.144–145: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -17,12 +17,14 @@ import java.util.TreeSet;
 final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
     enum Status {
         MATCHED_OBSERVED_METADATA_NO_AUTHORITY,
-        CHANGED_OBSERVED_METADATA_NO_AUTHORITY
+        CHANGED_OBSERVED_METADATA_NO_AUTHORITY,
+        UNCERTAIN_MISSING_FILE_KEY_NO_AUTHORITY
     }
 
     static final class Report {
         final Status status;
         final SortedSet<String> changedSources;
+        final SortedSet<String> uncertainSources;
         final boolean historicalReportAuthenticated=false;
         final boolean independentPinAuthenticationProved=false;
         final boolean rawOrDefaultWriterExclusionProved=false;
@@ -39,12 +41,20 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         final boolean releaseAuthorized=false;
         final boolean clientAckAuthorized=false;
 
-        private Report(SortedSet<String> changed){
+        private Report(
+            SortedSet<String> changed,SortedSet<String> uncertain
+        ){
             changedSources=Collections.unmodifiableSortedSet(
                 new TreeSet<>(changed));
-            status=changedSources.isEmpty()
-                ?Status.MATCHED_OBSERVED_METADATA_NO_AUTHORITY
-                :Status.CHANGED_OBSERVED_METADATA_NO_AUTHORITY;
+            uncertainSources=Collections.unmodifiableSortedSet(
+                new TreeSet<>(uncertain));
+            // An observable content/identity drift is still CHANGED.
+            // Missing fileKey is uncertainty, never proof of match.
+            status=!changedSources.isEmpty()
+                ?Status.CHANGED_OBSERVED_METADATA_NO_AUTHORITY
+                :!uncertainSources.isEmpty()
+                    ?Status.UNCERTAIN_MISSING_FILE_KEY_NO_AUTHORITY
+                    :Status.MATCHED_OBSERVED_METADATA_NO_AUTHORITY;
         }
     }
 
@@ -58,28 +68,52 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         String label,
         MailboxSevenPlaneContinuousPhysicalWitnessV1.PhysicalIdentity a,
         MailboxSevenPlaneContinuousPhysicalWitnessV1.PhysicalIdentity b,
-        SortedSet<String> changed
+        SortedSet<String> changed,SortedSet<String> uncertain
     ){
-        if(a==null||b==null||
-            !a.sameMetadata(b)||!a.sha256.equals(b.sha256))
+        if(a==null||b==null){
+            // Missing SOURCE is concrete drift, not merely absent
+            // filesystem fileKey identity information.
             changed.add(label);
+            return;
+        }
+        // Compare only objectively available attributes. When ONE
+        // fileKey is missing, the old Objects.equals(null,nonNull)
+        // result was incorrectly labelled concrete CHANGED drift.
+        // That is unknown identity, not an observed identity change.
+        boolean contentOrNonKeyMetadataChanged=
+            a.size!=b.size||
+            !a.created.equals(b.created)||
+            !a.modified.equals(b.modified)||
+            !a.sha256.equals(b.sha256);
+        boolean bothIdentityKeysPresent=
+            a.fileKey!=null&&b.fileKey!=null;
+        if(contentOrNonKeyMetadataChanged||
+           (bothIdentityKeysPresent&&
+                !a.fileKey.equals(b.fileKey)))
+            changed.add(label);
+        // Neither null/null nor null/non-null is proof of an
+        // unchanged original file identity. If other metadata
+        // changed too, CHANGED takes status precedence.
+        if(!bothIdentityKeysPresent)
+            uncertain.add(label);
     }
 
     private static void compareOne(
         MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation old,
         MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation now,
-        SortedSet<String> changed
+        SortedSet<String> changed,SortedSet<String> uncertain
     ){
         comparePhysical("ACCOUNT",old.accountIdentity,
-            now.accountIdentity,changed);
+            now.accountIdentity,changed,uncertain);
         comparePhysical("PREPARED_JOURNAL",old.journalIdentity,
-            now.journalIdentity,changed);
+            now.journalIdentity,changed,uncertain);
         comparePhysical("COMMIT",old.commitIdentity,
-            now.commitIdentity,changed);
+            now.commitIdentity,changed,uncertain);
         for(Map.Entry<String,MailboxSevenPlaneContinuousPhysicalWitnessV1.PhysicalIdentity>
                 e:old.evidenceLeafIdentities.entrySet()){
             comparePhysical("LEAF:"+e.getKey(),e.getValue(),
-                now.evidenceLeafIdentities.get(e.getKey()),changed);
+                now.evidenceLeafIdentities.get(e.getKey()),
+                changed,uncertain);
         }
         for(String filename:now.evidenceLeafIdentities.keySet()){
             if(!old.evidenceLeafIdentities.containsKey(filename))
@@ -110,9 +144,10 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
            current.after==null)
             throw unsafe("NULL_OR_INCOMPLETE_REPORT");
         SortedSet<String> changed=new TreeSet<>();
-        compareOne(historical.after,current.before,changed);
-        compareOne(historical.after,current.after,changed);
-        return new Report(changed);
+        SortedSet<String> uncertain=new TreeSet<>();
+        compareOne(historical.after,current.before,changed,uncertain);
+        compareOne(historical.after,current.after,changed,uncertain);
+        return new Report(changed,uncertain);
     }
 
     private MailboxSevenPlaneHistoricalIdentityDeltaV1(){}
