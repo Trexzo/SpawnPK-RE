@@ -2265,6 +2265,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21144MailboxHistoricalIdentityDeltaIntegrationTest',
     'spk.local.G21145MailboxMissingFileKeyUncertaintyIntegrationTest',
     'spk.local.G21146MailboxMalformedPhysicalReportIntegrationTest',
+    'spk.local.G21147MailboxInternalReportContradictionIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2293,10 +2294,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 446 ||
-    currentTrainFocusedTests.toSet().size() != 446) {
+if (currentTrainFocusedTests.size() != 447 ||
+    currentTrainFocusedTests.toSet().size() != 447) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 446 unique tests, found " +
+        "Current-train focused manifest drift: expected 447 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3972,6 +3973,14 @@ tasks.register('g21146MailboxMalformedReportCheckedVetoRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21146MailboxMalformedPhysicalReportIntegrationTest')
+}
+
+tasks.register('g21147MailboxInternalReportContradictionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.147: contradictory before/after physical and portable metadata fail with checked NO_AUTHORITY veto.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21147MailboxInternalReportContradictionIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
