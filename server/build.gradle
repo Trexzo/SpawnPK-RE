@@ -2247,6 +2247,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21126MailboxSevenPlaneLocalWriterWatchIntegrationTest',
     'spk.local.G21127MailboxCrossJvmSevenPlaneDiagnosticIntegrationTest',
     'spk.local.G21128MailboxGuardedCrossJvmSevenPlaneGapIntegrationTest',
+    'spk.local.G21129MailboxContinuousSevenPlanePhysicalWitnessIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2275,10 +2276,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 428 ||
-    currentTrainFocusedTests.toSet().size() != 428) {
+if (currentTrainFocusedTests.size() != 429 ||
+    currentTrainFocusedTests.toSet().size() != 429) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 428 unique tests, found " +
+        "Current-train focused manifest drift: expected 429 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3810,6 +3811,14 @@ tasks.register('g21128MailboxGuardedCrossJvmSevenPlaneGapRegression', JavaExec) 
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21128MailboxGuardedCrossJvmSevenPlaneGapIntegrationTest')
+}
+
+tasks.register('g21129MailboxContinuousSevenPlanePhysicalWitnessRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.129 one continuous OS G21.100 lease across two read-only physical seven-plane captures.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21129MailboxContinuousSevenPlanePhysicalWitnessIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
