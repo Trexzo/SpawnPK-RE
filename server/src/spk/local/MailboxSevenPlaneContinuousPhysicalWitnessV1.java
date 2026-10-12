@@ -9,6 +9,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
@@ -28,24 +29,58 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
     private static final int MAX_ACCOUNT=1048576;
     private static final int MAX_SIDECAR=1024;
 
+    /**
+     * Negative-only physical identity observation. A raw writer may
+     * spoof or restore timestamps or edit bytes in place; a matching
+     * metadata pair does NOT establish raw-writer exclusion.
+     */
+    static final class PhysicalIdentity {
+        final String sha256;
+        final Object fileKey;
+        final long size;
+        final FileTime created, modified;
+        private PhysicalIdentity(String digest,BasicFileAttributes attrs){
+            sha256=digest;
+            fileKey=attrs.fileKey();
+            size=attrs.size();
+            created=attrs.creationTime();
+            modified=attrs.lastModifiedTime();
+        }
+        boolean sameMetadata(PhysicalIdentity other){
+            return other!=null&&
+                size==other.size&&
+                Objects.equals(fileKey,other.fileKey)&&
+                created.equals(other.created)&&
+                modified.equals(other.modified);
+        }
+    }
+
     static final class Observation {
         final MailboxWriterEvidencePortableArchiveV1.Snapshot v1;
         final MailboxWriterKindEvidenceV2.Snapshot v2;
         final MailboxFourBoundResultLeavesArchiveV1.Snapshot v3;
         final String accountSha,journalSha,commitSha;
+        final PhysicalIdentity accountIdentity,journalIdentity,commitIdentity;
         private Observation(
             MailboxWriterEvidencePortableArchiveV1.Snapshot a,
             MailboxWriterKindEvidenceV2.Snapshot b,
             MailboxFourBoundResultLeavesArchiveV1.Snapshot c,
-            String account,String journal,String commit
+            PhysicalIdentity account,PhysicalIdentity journal,
+            PhysicalIdentity commit
         ){
             v1=a;v2=b;v3=c;
-            accountSha=account;journalSha=journal;commitSha=commit;
+            accountIdentity=account;
+            journalIdentity=journal;
+            commitIdentity=commit;
+            accountSha=account.sha256;
+            journalSha=journal.sha256;
+            commitSha=commit.sha256;
         }
     }
     static final class Report {
         final Observation before,after;
         final boolean sevenPhysicalPinsMatched;
+        final boolean threePhysicalIdentitiesStableAcrossCaptures;
         final boolean cooperatingCrossJvmWritesExcludedDuringLease;
         final boolean richFourWriterSemanticCohortProved=false;
         final boolean independentPinAuthenticationProved=false;
@@ -65,6 +100,7 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
         private Report(Observation a,Observation b){
             before=a;after=b;
             sevenPhysicalPinsMatched=true;
+            threePhysicalIdentitiesStableAcrossCaptures=true;
             cooperatingCrossJvmWritesExcludedDuringLease=true;
         }
     }
@@ -95,7 +131,7 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
             throw new IllegalStateException(impossible);
         }
     }
-    private static String physicalDigest(Path file,int maximum)
+    private static PhysicalIdentity physicalDigest(Path file,int maximum)
         throws IOException{
         BasicFileAttributes before;
         try{
@@ -129,11 +165,12 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
         if(before.size()!=content.position()||
            before.size()!=after.size()||
            !Objects.equals(before.fileKey(),after.fileKey())||
-           !before.lastModifiedTime().equals(after.lastModifiedTime()))
+           !before.lastModifiedTime().equals(after.lastModifiedTime())||
+           !before.creationTime().equals(after.creationTime()))
             throw veto("PHYSICAL_READ_IDENTITY_DRIFT");
         byte[] raw=new byte[content.position()];
         System.arraycopy(content.array(),0,raw,0,raw.length);
-        return digest(raw);
+        return new PhysicalIdentity(digest(raw),before);
     }
 
     /** Caller ALREADY holds G21.100 stable OS lease. No nested
@@ -167,16 +204,17 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
                     "G21.129 account resolver changed");
             return selected;
         };
-        String currentAccount=physicalDigest(selected,MAX_ACCOUNT);
-        String journal=physicalDigest(
+        PhysicalIdentity currentAccount=physicalDigest(
+            selected,MAX_ACCOUNT);
+        PhysicalIdentity journal=physicalDigest(
             new MailboxDurableIdempotencyIntentJournal(exact)
                 .journalPath(account),MAX_SIDECAR);
-        String commit=physicalDigest(
+        PhysicalIdentity commit=physicalDigest(
             new MailboxGuardedDiskCommitRecord(exact)
                 .recordPath(account),MAX_SIDECAR);
-        if(!accountExpected.equals(currentAccount)||
-           !preparedExpected.equals(journal)||
-           !commitExpected.equals(commit))
+        if(!accountExpected.equals(currentAccount.sha256)||
+           !preparedExpected.equals(journal.sha256)||
+           !commitExpected.equals(commit.sha256))
             throw veto("ACCOUNT_OR_SIDECAR_PIN_DIVERGED");
         return new Observation(v1,v2,v3,currentAccount,journal,commit);
     }
@@ -212,6 +250,17 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
                     Observation after=scanInside(
                         selected,name,pinnedResultV3,v1Portable,pinnedV1,
                         pinnedAccount,pinnedJournal,pinnedCommit,pinnedV2);
+                    // G21.130: the old digest-only check missed
+                    // same-content RAW rewrites with observable mtime
+                    // or file-key drift. This remains a negative test,
+                    // NOT protection from timestamp restoration/spoofing.
+                    if(!before.accountIdentity.sameMetadata(
+                           after.accountIdentity)||
+                       !before.journalIdentity.sameMetadata(
+                           after.journalIdentity)||
+                       !before.commitIdentity.sameMetadata(
+                           after.commitIdentity))
+                        throw veto("BETWEEN_CAPTURE_FILE_METADATA_CHANGED");
                     if(!before.v1.portable.equals(after.v1.portable)||
                        !before.v2.portable.equals(after.v2.portable)||
                        !before.v3.portable.equals(after.v3.portable)||
