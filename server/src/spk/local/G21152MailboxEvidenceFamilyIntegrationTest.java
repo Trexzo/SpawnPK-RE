@@ -232,7 +232,13 @@ public final class G21152MailboxEvidenceFamilyIntegrationTest {
         int last=position<0?4:position+1;
         int done=0;
         boolean vetoed=false;
-        String reason=variant<=2?"EXCESS_EVIDENCE_FAMILY_":
+        // G21.154: the original v3 source reader rejects a
+        // repeated result kind before it could count five leaves.
+        // With all four real kinds in the fixture, the old v3
+        // over-capacity mutation reaches DUPLICATE first; it must
+        // still fail closed with this more specific checked veto.
+        String reason=variant<=1?"EXCESS_EVIDENCE_FAMILY_":
+            variant==2?"DUPLICATE_V3_RESULT_KIND_":
             variant==5?"MIXED_EVIDENCE_BASENAME_":
                 "UNKNOWN_EVIDENCE_FAMILY_";
         try{
