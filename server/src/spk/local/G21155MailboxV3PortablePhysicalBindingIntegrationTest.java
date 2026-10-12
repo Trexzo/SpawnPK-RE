@@ -93,7 +93,7 @@ public final class G21155MailboxV3PortablePhysicalBindingIntegrationTest {
      * G21.125 KIND/LEAF/BYTES_BASE64 formatting so G21.155 can
      * compare leaf names without changing inherited test purpose.
      */
-    private static String fixtureV3Portable(String basename){
+    private static String fixtureV3Portable(String basename,String sourceBody){
         String uuid="ffffffff-ffff-ffff-ffff-ffffffffffff";
         String[] leaves={
             basename+".g21120-commit-result-v3-"+uuid+".result",
@@ -106,16 +106,18 @@ public final class G21155MailboxV3PortablePhysicalBindingIntegrationTest {
         StringBuilder result=new StringBuilder(
             "SPK-G21125-FOUR-V3-LEAVES-V1\n"+
             "ACCOUNT="+account+"\nCOUNT=4\n");
+        String encoded=java.util.Base64.getEncoder().encodeToString(
+            sourceBody.getBytes(StandardCharsets.US_ASCII));
         for(int kind=0;kind<4;kind++)
             result.append("KIND=").append(kind).append('\n')
                 .append("LEAF=").append(leaves[kind]).append('\n')
-                .append("BYTES_BASE64=WA==\n");
+                .append("BYTES_BASE64=").append(encoded).append('\n');
         return result.toString();
     }
 
     private static MailboxFourBoundResultLeavesArchiveV1.Snapshot
-        archiveV3()throws Exception{
-        String text=fixtureV3Portable("g21155.properties");
+        archiveV3(String sourceBody)throws Exception{
+        String text=fixtureV3Portable("g21155.properties",sourceBody);
         return instantiate(
             MailboxFourBoundResultLeavesArchiveV1.Snapshot.class,
             new Class<?>[]{String.class,String.class},
@@ -349,9 +351,11 @@ public final class G21155MailboxV3PortablePhysicalBindingIntegrationTest {
         try{
             BasicFileAttributes[] attrs=new BasicFileAttributes[6];
             String[] shas=new String[6];
+            String[] sourceBodies=new String[6];
             for(int i=0;i<6;i++){
                 Path file=root.resolve("physical-"+i);
                 String body="G21155_NOFOLLOW_SOURCE_"+i+"\n";
+                sourceBodies[i]=body;
                 Files.write(file,body.getBytes(StandardCharsets.US_ASCII));
                 attrs[i]=Files.readAttributes(file,
                     BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
@@ -367,7 +371,7 @@ public final class G21155MailboxV3PortablePhysicalBindingIntegrationTest {
                     .Observation[4];
             for(int i=0;i<4;i++){
                 MailboxFourBoundResultLeavesArchiveV1.Snapshot v3=
-                    archiveV3();
+                    archiveV3(sourceBodies[5]);
                 MailboxSevenPlaneContinuousPhysicalWitnessV1
                     .PhysicalIdentity[] ids=new
                     MailboxSevenPlaneContinuousPhysicalWitnessV1

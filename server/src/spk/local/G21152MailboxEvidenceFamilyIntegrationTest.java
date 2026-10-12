@@ -94,7 +94,7 @@ public final class G21152MailboxEvidenceFamilyIntegrationTest {
      * G21.125 KIND/LEAF/BYTES_BASE64 formatting so G21.155 can
      * compare leaf names without changing inherited test purpose.
      */
-    private static String fixtureV3Portable(String basename){
+    private static String fixtureV3Portable(String basename,String sourceBody){
         String uuid="ffffffff-ffff-ffff-ffff-ffffffffffff";
         String[] leaves={
             basename+".g21120-commit-result-v3-"+uuid+".result",
@@ -107,16 +107,18 @@ public final class G21152MailboxEvidenceFamilyIntegrationTest {
         StringBuilder result=new StringBuilder(
             "SPK-G21125-FOUR-V3-LEAVES-V1\n"+
             "ACCOUNT="+account+"\nCOUNT=4\n");
+        String encoded=java.util.Base64.getEncoder().encodeToString(
+            sourceBody.getBytes(StandardCharsets.US_ASCII));
         for(int kind=0;kind<4;kind++)
             result.append("KIND=").append(kind).append('\n')
                 .append("LEAF=").append(leaves[kind]).append('\n')
-                .append("BYTES_BASE64=WA==\n");
+                .append("BYTES_BASE64=").append(encoded).append('\n');
         return result.toString();
     }
 
     private static MailboxFourBoundResultLeavesArchiveV1.Snapshot
-        archiveV3()throws Exception{
-        String text=fixtureV3Portable("g21150.properties");
+        archiveV3(String sourceBody)throws Exception{
+        String text=fixtureV3Portable("g21150.properties",sourceBody);
         return instantiate(
             MailboxFourBoundResultLeavesArchiveV1.Snapshot.class,
             new Class<?>[]{String.class,String.class},
@@ -298,9 +300,11 @@ public final class G21152MailboxEvidenceFamilyIntegrationTest {
         try{
             BasicFileAttributes[] attrs=new BasicFileAttributes[6];
             String[] shas=new String[6];
+            String[] sourceBodies=new String[6];
             for(int i=0;i<6;i++){
                 Path target=root.resolve("source-"+i);
                 String contents="G21152_REAL_NOFOLLOW_"+i+"\n";
+                sourceBodies[i]=contents;
                 Files.write(target,contents.getBytes(StandardCharsets.US_ASCII));
                 attrs[i]=Files.readAttributes(target,
                     BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
@@ -310,7 +314,7 @@ public final class G21152MailboxEvidenceFamilyIntegrationTest {
             }
             MailboxWriterEvidencePortableArchiveV1.Snapshot v1=archiveV1();
             MailboxWriterKindEvidenceV2.Snapshot v2=archiveV2();
-            MailboxFourBoundResultLeavesArchiveV1.Snapshot v3=archiveV3();
+            MailboxFourBoundResultLeavesArchiveV1.Snapshot v3=archiveV3(sourceBodies[5]);
             MailboxSevenPlaneContinuousPhysicalWitnessV1
                 .Observation[] all=
                 new MailboxSevenPlaneContinuousPhysicalWitnessV1
