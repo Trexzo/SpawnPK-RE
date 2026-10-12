@@ -278,6 +278,16 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         requireReport("CURRENT",current);
         SortedSet<String> changed=new TreeSet<>();
         SortedSet<String> uncertain=new TreeSet<>();
+        // G21.149: G21.145's uncertainty must cover EVERY retained
+        // source observation, including historical BEFORE. G21.147
+        // already vetoed any concrete internal BEFORE/AFTER drift.
+        // The discarded "missingKeys" in requireReport must not
+        // silently turn a historical BEFORE-only null fileKey into
+        // a positive MATCH after the lease has been released.
+        // Inherit only uncertainty here; this cannot authenticate
+        // either snapshot or promote any recovery permission.
+        compareOne(historical.before,historical.after,
+            new TreeSet<>(),uncertain);
         compareOne(historical.after,current.before,changed,uncertain);
         compareOne(historical.after,current.after,changed,uncertain);
         return new Report(changed,uncertain);
