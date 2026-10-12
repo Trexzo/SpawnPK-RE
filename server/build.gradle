@@ -2261,6 +2261,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21140MailboxSymlinkSubstitutionIntegrationTest',
     'spk.local.G21141MailboxTransientRawMutationBlindSpotIntegrationTest',
     'spk.local.G21142MailboxPostLeaseStaleReportIntegrationTest',
+    'spk.local.G21143MailboxPostLeaseSameBytesNewInodeIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2289,10 +2290,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 442 ||
-    currentTrainFocusedTests.toSet().size() != 442) {
+if (currentTrainFocusedTests.size() != 443 ||
+    currentTrainFocusedTests.toSet().size() != 443) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 442 unique tests, found " +
+        "Current-train focused manifest drift: expected 443 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3936,6 +3937,14 @@ tasks.register('g21142MailboxPostLeaseStaleReportRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21142MailboxPostLeaseStaleReportIntegrationTest')
+}
+
+tasks.register('g21143MailboxPostLeaseNewInodeBlindSpotRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.143: negative control for post-lease same-byte new inode acceptance with no authority.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21143MailboxPostLeaseSameBytesNewInodeIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
