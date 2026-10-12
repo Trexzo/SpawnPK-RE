@@ -2600,6 +2600,7 @@ final class WorldPlayerPersistence
         final PlayerSnapshot terminal;
         final StrictDurablePlayerSnapshotWriter writer;
         final boolean recordWriterEvidence;
+        final boolean bindWorldTerminalResult;
         final CompletableFuture<TerminalPublicationEvidence> completion=
             new CompletableFuture<>();
         private boolean unpinned;
@@ -2609,13 +2610,14 @@ final class WorldPlayerPersistence
             MailboxSettlementPostimagePlanner.Proposal proposal,
             PlayerSnapshot terminal,
             StrictDurablePlayerSnapshotWriter writer,
-            boolean recordWriterEvidence
+            boolean recordWriterEvidence,boolean bindWorldTerminalResult
         ){
             this.token=token;
             this.proposal=proposal;
             this.terminal=terminal;
             this.writer=writer;
             this.recordWriterEvidence=recordWriterEvidence;
+            this.bindWorldTerminalResult=bindWorldTerminalResult;
         }
 
         private void unpin(){
@@ -2656,11 +2658,14 @@ final class WorldPlayerPersistence
                     after=()->requireTerminalDisk(
                         token,proposal,accountFile,terminal);
                 StrictDurablePlayerSnapshotWriter.Receipt receipt=
-                    recordWriterEvidence
-                        ?writer.saveStrictTerminalForWorldWithWriterEvidence(
+                    bindWorldTerminalResult
+                        ?writer.saveStrictTerminalForWorldWithResultBinding(
                             terminal,accountFile,preparedSha,before,after)
-                        :writer.saveStrictTerminalForWorld(
-                            terminal,accountFile,preparedSha,before,after);
+                        :recordWriterEvidence
+                            ?writer.saveStrictTerminalForWorldWithWriterEvidence(
+                                terminal,accountFile,preparedSha,before,after)
+                            :writer.saveStrictTerminalForWorld(
+                                terminal,accountFile,preparedSha,before,after);
                 if(!receipt.matchesSnapshot(terminal))
                     throw new IllegalStateException(
                         "G21.66 strict file receipt snapshot mismatch"
@@ -2717,6 +2722,20 @@ final class WorldPlayerPersistence
             token,proposal,terminal,writer,true);
     }
 
+    /** G21.123: explicit opt-in ONLY; real reserved G21.66 World
+     * FIFO terminal publication with durable same-UUID result evidence.
+     */
+    CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictlyWithResultBinding(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+        return publishReservedTerminalStrictlyInternal(
+            token,proposal,terminal,writer,true,true);
+    }
+
     private CompletableFuture<TerminalPublicationEvidence>
         publishReservedTerminalStrictlyInternal(
             PreparedAccountReservation token,
@@ -2724,6 +2743,18 @@ final class WorldPlayerPersistence
             PlayerSnapshot terminal,
             StrictDurablePlayerSnapshotWriter writer,
             boolean recordWriterEvidence
+        ){
+        return publishReservedTerminalStrictlyInternal(
+            token,proposal,terminal,writer,recordWriterEvidence,false);
+    }
+
+    private CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictlyInternal(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer,
+            boolean recordWriterEvidence,boolean bindWorldTerminalResult
         ){
         Objects.requireNonNull(token,"token");
         Objects.requireNonNull(proposal,"proposal");
@@ -2767,7 +2798,8 @@ final class WorldPlayerPersistence
                     );
                 ReservedTerminalPublicationTask task=
                     new ReservedTerminalPublicationTask(
-                        token,proposal,terminal,writer,recordWriterEvidence
+                        token,proposal,terminal,writer,
+                        recordWriterEvidence,bindWorldTerminalResult
                     );
                 io.execute(task);
                 token.pendingDrains++;

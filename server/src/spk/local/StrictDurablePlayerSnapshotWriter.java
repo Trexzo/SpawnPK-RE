@@ -253,12 +253,39 @@ final class StrictDurablePlayerSnapshotWriter {
             publicationCheck,postPublicationCheck,true);
     }
 
+    /** G21.123: opt-in reserved World FIFO strict terminal RESULT
+     * binding. Keep exact G21.66 owner callbacks and G21.48 fences.
+     * Default World and G21.113 typed-only paths remain unchanged.
+     */
+    synchronized Receipt saveStrictTerminalForWorldWithResultBinding(
+        PlayerSnapshot terminal,Path expectedRepositoryFile,
+        String preparedSha256,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck
+    )throws IOException{
+        return saveStrictTerminalForWorldInternal(
+            terminal,expectedRepositoryFile,preparedSha256,
+            publicationCheck,postPublicationCheck,true,true);
+    }
+
     private Receipt saveStrictTerminalForWorldInternal(
         PlayerSnapshot terminal,Path expectedRepositoryFile,
         String preparedSha256,
         BeforeWorldPublication publicationCheck,
         AfterWorldPublication postPublicationCheck,
         boolean recordWriterEvidence
+    )throws IOException{
+        return saveStrictTerminalForWorldInternal(
+            terminal,expectedRepositoryFile,preparedSha256,
+            publicationCheck,postPublicationCheck,recordWriterEvidence,false);
+    }
+
+    private Receipt saveStrictTerminalForWorldInternal(
+        PlayerSnapshot terminal,Path expectedRepositoryFile,
+        String preparedSha256,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck,
+        boolean recordWriterEvidence,boolean bindWorldTerminalResult
     )throws IOException{
         Objects.requireNonNull(publicationCheck,"publicationCheck");
         Objects.requireNonNull(postPublicationCheck,"postPublicationCheck");
@@ -276,7 +303,8 @@ final class StrictDurablePlayerSnapshotWriter {
             terminal,Objects.requireNonNull(expectedRepositoryFile,
                 "terminal repository file").toAbsolutePath().normalize(),
             publicationCheck,postPublicationCheck,true,true,
-            preparedSha256,recordWriterEvidence
+            preparedSha256,recordWriterEvidence,false,
+            bindWorldTerminalResult
         );
     }
 
@@ -314,6 +342,23 @@ final class StrictDurablePlayerSnapshotWriter {
         String terminalPreparedSha256,boolean recordWriterEvidence,
         boolean bindPreparedResult
     )throws IOException{
+        return saveInternal(snapshot,worldFile,publicationCheck,
+            postPublicationCheck,writeAheadIntent,terminalMode,
+            terminalPreparedSha256,recordWriterEvidence,
+            bindPreparedResult,false);
+    }
+
+    private Receipt saveInternal(
+        PlayerSnapshot snapshot,Path worldFile,
+        BeforeWorldPublication publicationCheck,
+        AfterWorldPublication postPublicationCheck,
+        boolean writeAheadIntent,boolean terminalMode,
+        String terminalPreparedSha256,boolean recordWriterEvidence,
+        boolean bindPreparedResult,boolean bindWorldTerminalResult
+    )throws IOException{
+        if(bindPreparedResult&&bindWorldTerminalResult)
+            throw new IllegalArgumentException(
+                "G21.123 conflicting result kind flags");
         PlayerSnapshot checked=Objects.requireNonNull(snapshot,"snapshot");
         Path selected=Objects.requireNonNull(
             resolver.resolve(checked.username()),"account file")
@@ -339,7 +384,13 @@ final class StrictDurablePlayerSnapshotWriter {
                                     MailboxStrictPreparedResultBindingV3
                                         .recordInside(
                                             selected,checked,uuid,receipt)
-                                :null);
+                                :bindWorldTerminalResult
+                                    ?(uuid,receipt)->
+                                        MailboxWorldTerminalResultBindingV3
+                                            .recordInside(
+                                                selected,checked,uuid,
+                                                receipt,terminalPreparedSha256)
+                                    :null);
                 }
                 return saveInternalTracked(
                     snapshot,worldFile,publicationCheck,
