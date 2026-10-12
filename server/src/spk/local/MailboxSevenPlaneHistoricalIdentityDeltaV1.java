@@ -10,7 +10,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–153: purely in-memory comparison of TWO existing G21.129
+ * G21.144–154: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -163,6 +163,10 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
             throw unsafe("EXCESS_EVIDENCE_LEAVES_"+label);
         final int[] counts=new int[3];
         final int[] maxima={32,32,4};
+        // G21.154: unlike v1/v2 (variable bounded cohorts), the
+        // original v3 result reader succeeds only with exactly ONE
+        // leaf for each of four specific result kinds.
+        final boolean[] v3Kinds=new boolean[4];
         String originalBasename=null;
         for(Map.Entry<String,MailboxSevenPlaneContinuousPhysicalWitnessV1.PhysicalIdentity>
                 e:o.evidenceLeafIdentities.entrySet()){
@@ -225,8 +229,21 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
                 throw unsafe("NONCANONICAL_EVIDENCE_UUID_"+label);
             if(++counts[family]>maxima[family])
                 throw unsafe("EXCESS_EVIDENCE_FAMILY_"+label+"_V"+(family+1));
+            if(family==2){
+                final int kind=suffix.startsWith(".g21120-")?0:
+                    suffix.startsWith(".g21121-")?1:
+                    suffix.startsWith(".g21122-")?2:3;
+                if(v3Kinds[kind])
+                    throw unsafe("DUPLICATE_V3_RESULT_KIND_"+label);
+                v3Kinds[kind]=true;
+            }
             requireIdentity(label+"_EVIDENCE_LEAF",e.getValue());
         }
+        if(counts[2]!=4)
+            throw unsafe("MISSING_V3_RESULT_KIND_"+label);
+        for(boolean kindObserved:v3Kinds)
+            if(!kindObserved)
+                throw unsafe("MISSING_V3_RESULT_KIND_"+label);
     }
 
     private static void requireReport(
