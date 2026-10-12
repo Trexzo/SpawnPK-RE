@@ -1,13 +1,16 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * G21.144–147: purely in-memory comparison of TWO existing G21.129
+ * G21.144–148: purely in-memory comparison of TWO existing G21.129
  * physical reports from separate held-lease observations.
  *
  * This detects observable identity drift when a caller RETAINS an
@@ -81,6 +84,40 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
             throw unsafe("MALFORMED_IDENTITY_"+label);
     }
 
+    /**
+     * G21.148: Check only consistency of the bytes in a retained
+     * in-memory portable archive against its accompanying digest.
+     * Both may be controlled by the SAME actor; this does not
+     * authenticate external provenance or reproduce disk evidence.
+     */
+    private static void requirePortableSelfHash(
+        String label,String portable,String claimedSha,int maxLength
+    )throws IOException{
+        if(portable==null||portable.isEmpty()||
+           portable.length()>maxLength||claimedSha==null)
+            throw unsafe("BAD_PORTABLE_LENGTH_OR_ENCODING_"+label);
+        for(int i=0;i<portable.length();i++){
+            if(portable.charAt(i)>127)
+                throw unsafe("BAD_PORTABLE_LENGTH_OR_ENCODING_"+label);
+        }
+        if(!claimedSha.matches("[0-9a-f]{64}"))
+            throw unsafe("PORTABLE_SHA_MISMATCH_"+label);
+        try{
+            byte[] digest=MessageDigest.getInstance("SHA-256")
+                .digest(portable.getBytes(StandardCharsets.US_ASCII));
+            StringBuilder hex=new StringBuilder(64);
+            final char[] digits="0123456789abcdef".toCharArray();
+            for(byte b:digest){
+                hex.append(digits[(b>>>4)&15]);
+                hex.append(digits[b&15]);
+            }
+            if(!claimedSha.equals(hex.toString()))
+                throw unsafe("PORTABLE_SHA_MISMATCH_"+label);
+        }catch(NoSuchAlgorithmException impossible){
+            throw unsafe("SHA256_UNAVAILABLE_"+label);
+        }
+    }
+
     private static void requireObservation(
         String label,
         MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation o
@@ -135,6 +172,29 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         compareOne(r.before,r.after,internalDrift,missingKeys);
         if(!internalDrift.isEmpty())
             throw unsafe("INTERNAL_BEFORE_AFTER_DRIFT_"+label);
+        // Preserve the earlier G21.147 checked diagnostic for a
+        // change confined to one capture. G21.148 independently
+        // recalculates each bounded portable SHA AFTER that check:
+        // identical forged before+after data with an unchanged
+        // digest cannot hide behind the stable pair comparison.
+        requirePortableSelfHash(
+            label+"_BEFORE_V1",r.before.v1.portable,
+            r.before.v1.sha256,32768);
+        requirePortableSelfHash(
+            label+"_AFTER_V1",r.after.v1.portable,
+            r.after.v1.sha256,32768);
+        requirePortableSelfHash(
+            label+"_BEFORE_V2",r.before.v2.portable,
+            r.before.v2.sha256,32768);
+        requirePortableSelfHash(
+            label+"_AFTER_V2",r.after.v2.portable,
+            r.after.v2.sha256,32768);
+        requirePortableSelfHash(
+            label+"_BEFORE_V3",r.before.v3.portable,
+            r.before.v3.sha256,4000);
+        requirePortableSelfHash(
+            label+"_AFTER_V3",r.after.v3.portable,
+            r.after.v3.sha256,4000);
         // Null fileKey is not a concrete observed difference.
         // Cross-report compare() still yields UNCERTAIN via G21.145.
     }
