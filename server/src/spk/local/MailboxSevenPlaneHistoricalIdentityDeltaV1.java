@@ -129,12 +129,6 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
            o.v2.portable==null||o.v2.sha256==null||
            o.v3.portable==null||o.v3.sha256==null)
             throw unsafe("MALFORMED_PORTABLE_ARCHIVE_"+label);
-        requirePortableSelfHash(
-            label+"_V1",o.v1.portable,o.v1.sha256,32768);
-        requirePortableSelfHash(
-            label+"_V2",o.v2.portable,o.v2.sha256,32768);
-        requirePortableSelfHash(
-            label+"_V3",o.v3.portable,o.v3.sha256,4000);
         requireIdentity(label+"_ACCOUNT",o.accountIdentity);
         requireIdentity(label+"_PREPARED_JOURNAL",o.journalIdentity);
         requireIdentity(label+"_COMMIT",o.commitIdentity);
@@ -178,6 +172,29 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
         compareOne(r.before,r.after,internalDrift,missingKeys);
         if(!internalDrift.isEmpty())
             throw unsafe("INTERNAL_BEFORE_AFTER_DRIFT_"+label);
+        // Preserve the earlier G21.147 checked diagnostic for a
+        // change confined to one capture. G21.148 independently
+        // recalculates each bounded portable SHA AFTER that check:
+        // identical forged before+after data with an unchanged
+        // digest cannot hide behind the stable pair comparison.
+        requirePortableSelfHash(
+            label+"_BEFORE_V1",r.before.v1.portable,
+            r.before.v1.sha256,32768);
+        requirePortableSelfHash(
+            label+"_AFTER_V1",r.after.v1.portable,
+            r.after.v1.sha256,32768);
+        requirePortableSelfHash(
+            label+"_BEFORE_V2",r.before.v2.portable,
+            r.before.v2.sha256,32768);
+        requirePortableSelfHash(
+            label+"_AFTER_V2",r.after.v2.portable,
+            r.after.v2.sha256,32768);
+        requirePortableSelfHash(
+            label+"_BEFORE_V3",r.before.v3.portable,
+            r.before.v3.sha256,4000);
+        requirePortableSelfHash(
+            label+"_AFTER_V3",r.after.v3.portable,
+            r.after.v3.sha256,4000);
         // Null fileKey is not a concrete observed difference.
         // Cross-report compare() still yields UNCERTAIN via G21.145.
     }
