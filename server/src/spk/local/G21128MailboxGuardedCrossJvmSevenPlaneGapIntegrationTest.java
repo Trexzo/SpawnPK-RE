@@ -327,12 +327,12 @@ public final class G21128MailboxGuardedCrossJvmSevenPlaneGapIntegrationTest {
             // Advisory leases cannot stop raw/uncooperative file I/O.
             // Same bytes keep independent content pins unchanged.
             String prior=sha(r.resolve(ACCOUNT));
-            MailboxSevenPlaneCrossJvmGapGuardV1.withGuardedCallback(
-                r.resolve(ACCOUNT),WAIT_MS,()->{
-                    fork(root,ACCOUNT,"raw");
-                    foreignRawBypasses=true;
-                    return Boolean.TRUE;
-                });
+            foreignRawBypasses=
+                MailboxSevenPlaneCrossJvmGapGuardV1.withGuardedCallback(
+                    r.resolve(ACCOUNT),WAIT_MS,()->{
+                        fork(root,ACCOUNT,"raw");
+                        return Boolean.TRUE;
+                    });
             rawBytesSame=prior.equals(sha(r.resolve(ACCOUNT)));
             noAuthority(guarded(r,pins,()->{}));
 
