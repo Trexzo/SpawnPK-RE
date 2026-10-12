@@ -180,6 +180,26 @@ final class MailboxWriterAttemptEvidenceV1 {
         MailboxWriterKindEvidenceV2.Kind kind,
         MailboxAccountPublicationCoordinator.Operation<T> operation
     )throws IOException{
+        return runRecordedInsideWriter(
+            selectedFile,account,kind,operation,null);
+    }
+
+    /** G21.120: after-confirmed hook owns the SAME v1/v2 attempt UUID.
+     * It may force immutable result evidence only AFTER the genuine
+     * operation succeeds, BEFORE any v1/v2 COMPLETE is published.
+     * No hook = original behavior, unchanged.
+     */
+    @FunctionalInterface
+    interface ConfirmedResult<T> {
+        void record(String attemptUuid,T result)throws IOException;
+    }
+
+    static <T> T runRecordedInsideWriter(
+        Path selectedFile,String account,
+        MailboxWriterKindEvidenceV2.Kind kind,
+        MailboxAccountPublicationCoordinator.Operation<T> operation,
+        ConfirmedResult<T> confirmedResult
+    )throws IOException{
         Objects.requireNonNull(operation,"operation");
         checkedAccount(account);
         Path file=Objects.requireNonNull(selectedFile,"selectedFile")
@@ -208,6 +228,8 @@ final class MailboxWriterAttemptEvidenceV1 {
                 MailboxWriterKindEvidenceV2.recordInside(
                     file,account,uuid,kind,true);
             T result=operation.execute();
+            if(confirmedResult!=null)
+                confirmedResult.record(uuid,result);
             createImmutable(file,account,uuid,Stage.COMPLETE);
             if(kind!=null)
                 MailboxWriterKindEvidenceV2.recordInside(
