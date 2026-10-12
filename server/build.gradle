@@ -2249,6 +2249,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21128MailboxGuardedCrossJvmSevenPlaneGapIntegrationTest',
     'spk.local.G21129MailboxContinuousSevenPlanePhysicalWitnessIntegrationTest',
     'spk.local.G21130MailboxContinuousPhysicalIdentityIntegrationTest',
+    'spk.local.G21131MailboxEvidenceLeafMetadataIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2277,10 +2278,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 430 ||
-    currentTrainFocusedTests.toSet().size() != 430) {
+if (currentTrainFocusedTests.size() != 431 ||
+    currentTrainFocusedTests.toSet().size() != 431) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 430 unique tests, found " +
+        "Current-train focused manifest drift: expected 431 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -3828,6 +3829,14 @@ tasks.register('g21130MailboxContinuousPhysicalIdentityRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21130MailboxContinuousPhysicalIdentityIntegrationTest')
+}
+
+tasks.register('g21131MailboxEvidenceLeafMetadataRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.131 detect immutable v1/v2/v3 evidence-leaf metadata drift inside continuous lease.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21131MailboxEvidenceLeafMetadataIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

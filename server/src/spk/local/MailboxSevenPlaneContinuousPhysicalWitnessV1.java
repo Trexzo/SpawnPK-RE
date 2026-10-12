@@ -2,6 +2,10 @@ package spk.local;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.DirectoryStream;
+import java.util.Collections;
+import java.util.Map;
+import java.util.TreeMap;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -61,17 +65,21 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
         final MailboxFourBoundResultLeavesArchiveV1.Snapshot v3;
         final String accountSha,journalSha,commitSha;
         final PhysicalIdentity accountIdentity,journalIdentity,commitIdentity;
+        final Map<String,PhysicalIdentity> evidenceLeafIdentities;
         private Observation(
             MailboxWriterEvidencePortableArchiveV1.Snapshot a,
             MailboxWriterKindEvidenceV2.Snapshot b,
             MailboxFourBoundResultLeavesArchiveV1.Snapshot c,
             PhysicalIdentity account,PhysicalIdentity journal,
-            PhysicalIdentity commit
+            PhysicalIdentity commit,
+            Map<String,PhysicalIdentity> evidenceLeaves
         ){
             v1=a;v2=b;v3=c;
             accountIdentity=account;
             journalIdentity=journal;
             commitIdentity=commit;
+            evidenceLeafIdentities=Collections.unmodifiableMap(
+                new TreeMap<>(evidenceLeaves));
             accountSha=account.sha256;
             journalSha=journal.sha256;
             commitSha=commit.sha256;
@@ -81,6 +89,7 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
         final Observation before,after;
         final boolean sevenPhysicalPinsMatched;
         final boolean threePhysicalIdentitiesStableAcrossCaptures;
+        final boolean evidenceLeafMetadataStableAcrossCaptures;
         final boolean cooperatingCrossJvmWritesExcludedDuringLease;
         final boolean richFourWriterSemanticCohortProved=false;
         final boolean independentPinAuthenticationProved=false;
@@ -101,6 +110,7 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
             before=a;after=b;
             sevenPhysicalPinsMatched=true;
             threePhysicalIdentitiesStableAcrossCaptures=true;
+            evidenceLeafMetadataStableAcrossCaptures=true;
             cooperatingCrossJvmWritesExcludedDuringLease=true;
         }
     }
@@ -173,6 +183,61 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
         return new PhysicalIdentity(digest(raw),before);
     }
 
+
+    /**
+     * G21.131: bounded PHYSICAL scan of already-captured immutable
+     * evidence leaves under the caller-owned G21.100 lifecycle lease.
+     * No extra lease, no mutation, no change to v1/v2/v3 format.
+     */
+    private static Map<String,PhysicalIdentity> evidenceLeafMetadata(
+        Path selected,int v1Count,int v2Count,int v3Count
+    )throws IOException{
+        String basename=selected.getFileName().toString();
+        String[] globs={
+            basename+".g21103-writer-attempt-*",
+            basename+".g21114-writer-kind-*",
+            basename+".g2112*"
+        };
+        int[] expected={v1Count,v2Count,v3Count};
+        int[] maximum={32,32,4};
+        Map<String,PhysicalIdentity> leaves=new TreeMap<>();
+        Path parent=selected.getParent();
+        if(parent==null)throw veto("EVIDENCE_PARENT_UNAVAILABLE");
+        for(int group=0;group<globs.length;group++){
+            int found=0;
+            try(DirectoryStream<Path> children=
+                    Files.newDirectoryStream(parent,globs[group])){
+                for(Path path:children){
+                    if(++found>maximum[group])
+                        throw veto("EVIDENCE_LEAF_CAPACITY_DRIFT");
+                    String name=path.getFileName().toString();
+                    if(leaves.putIfAbsent(name,
+                            physicalDigest(path,512))!=null)
+                        throw veto("DUPLICATE_EVIDENCE_LEAF");
+                }
+            }catch(IOException error){
+                if(String.valueOf(error.getMessage()).contains(
+                        "CONTINUOUS_PHYSICAL_SEVEN_PLANE_UNSAFE"))
+                    throw error;
+                throw veto("EVIDENCE_LEAF_SCAN_FAILED");
+            }
+            if(found!=expected[group])
+                throw veto("EVIDENCE_LEAF_COUNT_DRIFT");
+        }
+        return leaves;
+    }
+
+    private static boolean sameEvidenceMetadata(
+        Map<String,PhysicalIdentity> before,
+        Map<String,PhysicalIdentity> after
+    ){
+        if(!before.keySet().equals(after.keySet()))return false;
+        for(Map.Entry<String,PhysicalIdentity> leaf:before.entrySet())
+            if(!leaf.getValue().sameMetadata(after.get(leaf.getKey())))
+                return false;
+        return true;
+    }
+
     /** Caller ALREADY holds G21.100 stable OS lease. No nested
      * lifecycle acquisition; all physical captures use prior safe
      * inside variants, plus G21.39-independent physical NOFOLLOW
@@ -216,7 +281,12 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
            !preparedExpected.equals(journal.sha256)||
            !commitExpected.equals(commit.sha256))
             throw veto("ACCOUNT_OR_SIDECAR_PIN_DIVERGED");
-        return new Observation(v1,v2,v3,currentAccount,journal,commit);
+        Map<String,PhysicalIdentity> leaves=evidenceLeafMetadata(
+            selected,v1.verified.records,
+            v2.report.typedBegins+v2.report.typedCompletes,
+            v3.resultLeaves);
+        return new Observation(
+            v1,v2,v3,currentAccount,journal,commit,leaves);
     }
 
     static Report compareWithContinuousLease(
@@ -250,6 +320,15 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
                     Observation after=scanInside(
                         selected,name,pinnedResultV3,v1Portable,pinnedV1,
                         pinnedAccount,pinnedJournal,pinnedCommit,pinnedV2);
+                    // G21.131: physical evidence-leaf metadata may
+                    // drift even when the portable archive hashes
+                    // remain identical. RAW writers can still restore
+                    // identity/timestamps, so this is veto-only.
+                    if(!sameEvidenceMetadata(
+                           before.evidenceLeafIdentities,
+                           after.evidenceLeafIdentities))
+                        throw veto(
+                            "BETWEEN_CAPTURE_EVIDENCE_LEAF_METADATA_CHANGED");
                     // G21.130: the old digest-only check missed
                     // same-content RAW rewrites with observable mtime
                     // or file-key drift. This remains a negative test,
