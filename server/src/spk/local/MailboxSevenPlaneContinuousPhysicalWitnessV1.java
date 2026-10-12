@@ -289,6 +289,18 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
             v1,v2,v3,currentAccount,journal,commit,leaves);
     }
 
+
+    /**
+     * G21.134 opt-in: observer receives each pinned seven-plane
+     * sample while the ORIGINAL G21.100 lease is still held.
+     * Implementations must not attempt to re-acquire G21.100.
+     */
+    @FunctionalInterface
+    interface InsideLeaseObserver {
+        void inspect(Path selected,String account,Observation sample)
+            throws IOException;
+    }
+
     static Report compareWithContinuousLease(
         FilePlayerRepository.PathResolver resolver,String account,
         String pinnedResultV3,String v1Portable,String pinnedV1,
@@ -296,8 +308,23 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
         String pinnedV2,long acquisitionMillis,
         MailboxWriterArchiveLiveReconciliationV1.BetweenPasses callback
     )throws IOException{
+        return compareWithContinuousLease(
+            resolver,account,pinnedResultV3,v1Portable,pinnedV1,
+            pinnedAccount,pinnedJournal,pinnedCommit,pinnedV2,
+            acquisitionMillis,callback,(selected,name,sample)->{});
+    }
+
+    static Report compareWithContinuousLease(
+        FilePlayerRepository.PathResolver resolver,String account,
+        String pinnedResultV3,String v1Portable,String pinnedV1,
+        String pinnedAccount,String pinnedJournal,String pinnedCommit,
+        String pinnedV2,long acquisitionMillis,
+        MailboxWriterArchiveLiveReconciliationV1.BetweenPasses callback,
+        InsideLeaseObserver observer
+    )throws IOException{
         Objects.requireNonNull(resolver,"resolver");
         Objects.requireNonNull(callback,"callback");
+        Objects.requireNonNull(observer,"observer");
         String name=checked(account);
         pin(pinnedResultV3);pin(pinnedV1);pin(pinnedV2);
         pin(pinnedAccount);pin(pinnedJournal);pin(pinnedCommit);
@@ -316,10 +343,12 @@ final class MailboxSevenPlaneContinuousPhysicalWitnessV1 {
                     Observation before=scanInside(
                         selected,name,pinnedResultV3,v1Portable,pinnedV1,
                         pinnedAccount,pinnedJournal,pinnedCommit,pinnedV2);
+                    observer.inspect(selected,name,before);
                     callback.run();
                     Observation after=scanInside(
                         selected,name,pinnedResultV3,v1Portable,pinnedV1,
                         pinnedAccount,pinnedJournal,pinnedCommit,pinnedV2);
+                    observer.inspect(selected,name,after);
                     // G21.131: physical evidence-leaf metadata may
                     // drift even when the portable archive hashes
                     // remain identical. RAW writers can still restore

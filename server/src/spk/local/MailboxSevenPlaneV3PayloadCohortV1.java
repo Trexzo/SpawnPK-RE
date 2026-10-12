@@ -186,6 +186,35 @@ final class MailboxSevenPlaneV3PayloadCohortV1 {
         // G21.122 historical strict PREPARED account digest cannot
         // equal the CURRENT terminal account digest; never assert it.
     }
+    /**
+     * G21.134 pure in-memory validation of an already-captured
+     * physical witness; does NOT acquire or open another lease.
+     */
+    static void requireCapturedFourPayloads(
+        String account,
+        MailboxSevenPlaneContinuousPhysicalWitnessV1.Report physical
+    )throws IOException{
+        checkOne(account,physical.before);
+        checkOne(account,physical.after);
+    }
+
+    /**
+     * Pure projection of two already validated immutable record
+     * content fields. Call ONLY after requireCapturedFourPayloads.
+     * Historical strict PREPARED bytes are not current account bytes.
+     */
+    static String[] capturedCanonicalHashes(
+        String account,
+        MailboxSevenPlaneContinuousPhysicalWitnessV1.Observation sample
+    )throws IOException{
+        Map<Integer,Map<String,String>> data=
+            parse(account,sample.v3.portable);
+        return new String[]{
+            data.get(2).get("PREPARED_SHA256"),
+            data.get(3).get("TERMINAL_SHA256")
+        };
+    }
+
     static Report comparePinnedFourPayloads(
         FilePlayerRepository.PathResolver resolver,String account,
         String pinnedV3,String v1Portable,String pinnedV1,
@@ -200,8 +229,7 @@ final class MailboxSevenPlaneV3PayloadCohortV1 {
                     resolver,account,pinnedV3,v1Portable,pinnedV1,
                     pinnedAccount,pinnedJournal,pinnedCommit,
                     pinnedV2,acquisitionMillis,between);
-        checkOne(account,prior.physical.before);
-        checkOne(account,prior.physical.after);
+        requireCapturedFourPayloads(account,prior.physical);
         return new Report(prior);
     }
     private MailboxSevenPlaneV3PayloadCohortV1(){}
