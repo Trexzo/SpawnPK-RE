@@ -90,10 +90,10 @@ final class MailboxSevenPlaneImmutableUuidCohortV1 {
         int entries=0;
         for(String line:portable.split("\\n")){
             if(!line.startsWith("RECORD|"))continue;
-            String[] columns=line.split("\\\\|",3);
+            String[] columns=line.split("\\|",3);
             if(columns.length!=3)throw veto("MALFORMED_V1_RECORD");
             String name=columns[1];
-            String uuid=exactName(name,prefix,"\\\\.(?:begin|complete)");
+            String uuid=exactName(name,prefix,"\\.(?:begin|complete)");
             String stage=name.substring(name.lastIndexOf('.')+1);
             int prior=flags.getOrDefault(uuid,0);
             if((prior&flag(stage))!=0)throw veto("DUPLICATE_V1_STAGE");
@@ -116,10 +116,10 @@ final class MailboxSevenPlaneImmutableUuidCohortV1 {
         int leaves=0;
         for(String line:portable.split("\\n")){
             if(!line.startsWith("LEAF|"))continue;
-            String[] parts=line.split("\\\\|",3);
+            String[] parts=line.split("\\|",3);
             if(parts.length!=3)throw veto("MALFORMED_V2_LEAF");
             String name=parts[1];
-            String uuid=exactName(name,prefix,"\\\\.(?:begin|complete)");
+            String uuid=exactName(name,prefix,"\\.(?:begin|complete)");
             if(!v1.containsKey(uuid))throw veto("V2_UUID_NOT_IN_V1");
             String stage=name.substring(name.lastIndexOf('.')+1);
             String payload;
@@ -138,10 +138,10 @@ final class MailboxSevenPlaneImmutableUuidCohortV1 {
             }catch(IllegalArgumentException|NullPointerException malformed){
                 throw veto("UNKNOWN_V2_KIND");
             }
-            if(!payload.contains("\\nACCOUNT="+account+"\\n")||
-               !payload.contains("\\nATTEMPT="+uuid+"\\n")||
-               !payload.contains("\\nSTAGE="+
-                   stage.toUpperCase(java.util.Locale.ROOT)+"\\n"))
+            if(!payload.contains("\nACCOUNT="+account+"\n")||
+               !payload.contains("\nATTEMPT="+uuid+"\n")||
+               !payload.contains("\nSTAGE="+
+                   stage.toUpperCase(java.util.Locale.ROOT)+"\n"))
                 throw veto("V2_PAYLOAD_FILENAME_DIVERGENCE");
             if(kind==MailboxWriterKindEvidenceV2.Kind.COOPERATING_DIAGNOSTIC)
                 throw veto("DIAGNOSTIC_IS_NOT_BUSINESS_KIND");
@@ -196,7 +196,7 @@ final class MailboxSevenPlaneImmutableUuidCohortV1 {
             if(index<0||index>=4||!indexes.add(index))
                 throw veto("REPEATED_OR_UNKNOWN_V3_KIND");
             String uuid=exactName(lines[i+1].substring(5),
-                basename+RESULT_PREFIXES[index],"\\\\.result");
+                basename+RESULT_PREFIXES[index],"\\.result");
             String payload=lines[i+2].substring("BYTES_BASE64=".length());
             if(payload.isEmpty())throw veto("MISSING_V3_RESULT_BYTES");
             try{
