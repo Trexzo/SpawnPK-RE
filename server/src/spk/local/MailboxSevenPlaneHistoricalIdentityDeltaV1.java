@@ -76,12 +76,25 @@ final class MailboxSevenPlaneHistoricalIdentityDeltaV1 {
             changed.add(label);
             return;
         }
-        if(!a.sameMetadata(b)||!a.sha256.equals(b.sha256))
+        // Compare only objectively available attributes. When ONE
+        // fileKey is missing, the old Objects.equals(null,nonNull)
+        // result was incorrectly labelled concrete CHANGED drift.
+        // That is unknown identity, not an observed identity change.
+        boolean contentOrNonKeyMetadataChanged=
+            a.size!=b.size||
+            !a.created.equals(b.created)||
+            !a.modified.equals(b.modified)||
+            !a.sha256.equals(b.sha256);
+        boolean bothIdentityKeysPresent=
+            a.fileKey!=null&&b.fileKey!=null;
+        if(contentOrNonKeyMetadataChanged||
+           (bothIdentityKeysPresent&&
+                !a.fileKey.equals(b.fileKey)))
             changed.add(label);
-        // G21.145: Objects.equals(null,null) in sameMetadata is
-        // NOT historical identity evidence. Both sides need real
-        // NOFOLLOW provider file keys for a positive identity match.
-        if(a.fileKey==null||b.fileKey==null)
+        // Neither null/null nor null/non-null is proof of an
+        // unchanged original file identity. If other metadata
+        // changed too, CHANGED takes status precedence.
+        if(!bothIdentityKeysPresent)
             uncertain.add(label);
     }
 
