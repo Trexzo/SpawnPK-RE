@@ -335,8 +335,12 @@ final class FilePlayerRepository
         };
         Objects.requireNonNull(afterLockedInspectForTest,
             "afterLockedInspectForTest");
-        MailboxAccountPublicationCoordinator.withExclusivePublication(
-            pinned,()->{
+        // G21.164: keep the SAME cooperating lock through inspection and
+        // denial, but cap acquisition wait; a busy or unsafe lock must
+        // veto instead of wedging the optional cutover facade indefinitely.
+        // The G21.73 deadline bounds acquisition, not disk I/O latency.
+        MailboxAccountPublicationCoordinator.withExclusivePublicationBounded(
+            pinned,3000L,()->{
                 RestartRecoveryEvidence observed=
                     inspectRestartRecoveryLocked(account,pinned,sameFile);
                 afterLockedInspectForTest.run(account);
