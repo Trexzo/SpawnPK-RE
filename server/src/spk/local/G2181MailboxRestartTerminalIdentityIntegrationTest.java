@@ -290,7 +290,12 @@ public final class G2181MailboxRestartTerminalIdentityIntegrationTest {
     private static boolean noAuthority(
         MailboxRestartTerminalIdentity.Result r
     ){
-        return r.missingPositiveProofs.size()==4&&
+        // G21.161: this recovery audit inherits all seven
+        // outstanding G21.79 cutover proofs; never an admission.
+        return r.missingPositiveProofs.size()==7&&
+            r.missingPositiveProofs.containsAll(
+                java.util.EnumSet.allOf(
+                    MailboxSettlementCutoverReadiness.MissingProof.class))&&
             !r.durabilityConfirmed&&!r.transactionCommitted&&
             !r.liveApplied&&!r.grantAuthorized&&!r.replayAuthorized&&
             !r.rollbackAuthorized&&!r.restartAdmissionAuthorized&&

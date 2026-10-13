@@ -345,7 +345,12 @@ public final class G2182MailboxRestartIdempotencyIntegrationTest {
     private static boolean noAuthority(
         MailboxRestartIdempotencyReconciliation.Decision result
     ){
-        return result.missingPositiveProofs.size()==4&&
+        // G21.161: this recovery audit inherits all seven
+        // outstanding G21.79 cutover proofs; never an admission.
+        return result.missingPositiveProofs.size()==7&&
+            result.missingPositiveProofs.containsAll(
+                java.util.EnumSet.allOf(
+                    MailboxSettlementCutoverReadiness.MissingProof.class))&&
             !result.durabilityConfirmed&&
             !result.transactionCommitted&&!result.liveApplied&&
             !result.grantAuthorized&&!result.replayAuthorized&&

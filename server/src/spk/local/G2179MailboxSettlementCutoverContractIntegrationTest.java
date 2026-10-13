@@ -242,9 +242,16 @@ public final class G2179MailboxSettlementCutoverContractIntegrationTest {
             MailboxSettlementCutoverReadiness.assess(account,evidence);
         return result.account.equals(account)&&
             result.observed==state&&result.disposition==expected&&
-            result.missingProofs.size()==4&&
+            // G21.161: real file-backed cutover cannot hide the
+            // three additional signer, writer and crash-epoch gaps.
+            result.missingProofs.size()==7&&
             result.missingProofs.containsAll(EnumSet.allOf(
                 MailboxSettlementCutoverReadiness.MissingProof.class))&&
+            !result.independentlyEnrolledSignerRootObserved&&
+            !result.historicalEvidenceCustodyAuthenticated&&
+            !result.rawDefaultAndHistoricalWritersExcluded&&
+            !result.futureWriterFenceProved&&
+            !result.atomicRecoveryEpochProved&&
             !result.snapshotAdmitted&&!result.durabilityConfirmed&&
             !result.transactionCommitted&&!result.liveApplied&&
             !result.grantAuthorized&&!result.replayAuthorized&&
