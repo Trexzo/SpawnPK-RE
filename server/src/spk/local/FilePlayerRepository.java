@@ -329,17 +329,71 @@ final class FilePlayerRepository
         return attrs;
     }
 
+    /**
+     * G21.167: capture POSIX ctime alongside G21.166's stable lock
+     * pathname metadata. A preserved mtime/size cannot erase a usual
+     * in-place content rewrite from POSIX ctime. Some providers expose
+     * no unix:ctime, in which case this is explicitly UNPROVED.
+     */
+    private static final class CutoverLockLeafCensus {
+        final BasicFileAttributes object;
+        final java.nio.file.attribute.FileTime changeTime;
+        CutoverLockLeafCensus(
+            BasicFileAttributes object,
+            java.nio.file.attribute.FileTime changeTime
+        ){
+            this.object=object;
+            this.changeTime=changeTime;
+        }
+    }
+
+    private static CutoverLockLeafCensus captureCutoverLockLeaf(
+        Path accountFile
+    )throws IOException{
+        BasicFileAttributes first=cutoverLockLeafEvidence(accountFile);
+        java.nio.file.attribute.FileTime changed=
+            optionalRestartChangeTime(
+                MailboxAccountPublicationCoordinator.lockPath(accountFile));
+        BasicFileAttributes second=cutoverLockLeafEvidence(accountFile);
+        if(!Objects.equals(first.fileKey(),second.fileKey())||
+           !Objects.equals(first.creationTime(),second.creationTime())||
+           first.size()!=second.size()||
+           !Objects.equals(
+               first.lastModifiedTime(),second.lastModifiedTime()))
+            throw new IOException(
+                "G21.167 CUTOVER_LOCK_CTIME_SAMPLE_UNSAFE_NO_AUTHORITY");
+        return new CutoverLockLeafCensus(first,changed);
+    }
+
     private static void requireStableCutoverLockLeaf(
-        Path accountFile,BasicFileAttributes original
+        Path accountFile,CutoverLockLeafCensus original
     )throws IOException{
         BasicFileAttributes now=cutoverLockLeafEvidence(accountFile);
-        if(!Objects.equals(original.fileKey(),now.fileKey())||
-           !Objects.equals(original.creationTime(),now.creationTime())||
-           original.size()!=now.size()||
+        BasicFileAttributes first=original.object;
+        if(!Objects.equals(first.fileKey(),now.fileKey())||
+           !Objects.equals(first.creationTime(),now.creationTime())||
+           first.size()!=now.size()||
            !Objects.equals(
-               original.lastModifiedTime(),now.lastModifiedTime()))
+               first.lastModifiedTime(),now.lastModifiedTime()))
             throw new IOException(
                 "G21.166 CUTOVER_LOCK_LEAF_CHANGED_UNSAFE_NO_AUTHORITY");
+        java.nio.file.attribute.FileTime changed=
+            optionalRestartChangeTime(
+                MailboxAccountPublicationCoordinator.lockPath(accountFile));
+        // G21.75 optional ctime is an observation, not a writer fence.
+        // Null/null explicitly means this provider offers no ctime proof.
+        if(!Objects.equals(original.changeTime,changed))
+            throw new IOException(
+                "G21.167 CUTOVER_LOCK_CTIME_CHANGED_UNSAFE_NO_AUTHORITY");
+        // Bind the sampled change time back to the same pathname.
+        BasicFileAttributes second=cutoverLockLeafEvidence(accountFile);
+        if(!Objects.equals(now.fileKey(),second.fileKey())||
+           !Objects.equals(now.creationTime(),second.creationTime())||
+           now.size()!=second.size()||
+           !Objects.equals(
+               now.lastModifiedTime(),second.lastModifiedTime()))
+            throw new IOException(
+                "G21.167 CUTOVER_LOCK_CTIME_SAMPLE_UNSAFE_NO_AUTHORITY");
     }
 
     /**
@@ -384,8 +438,8 @@ final class FilePlayerRepository
                 // G21.166: snapshot the actual lock PATH once the
                 // G21.73 cooperating lease is held. Recheck even when
                 // G21.162 correctly denies, using finally below.
-                BasicFileAttributes lockLeafBefore=
-                    cutoverLockLeafEvidence(pinned);
+                CutoverLockLeafCensus lockLeafBefore=
+                    captureCutoverLockLeaf(pinned);
                 try{
                 // G21.165: physical seven-leaf evidence, not merely
                 // a retained cutover enum. No nested lock: both complete
