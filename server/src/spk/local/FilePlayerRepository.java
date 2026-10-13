@@ -1447,16 +1447,24 @@ final class FilePlayerRepository
                 file.getFileName().toString()+".tmp"
             );
 
+        // G21.172: the newly allocated World temp has an owner
+        // identity distinct from the persistent legacy direct .tmp.
+        // Record it before opening for serialization, then revalidate
+        // its bytes under the final G21.39 World publication lock.
+        final BasicFileAttributes originalWorldTemp=enforceWorldAdmission
+            ?worldTempEvidence(tmp):null;
         boolean completed=false;
 
         try{
-            try(OutputStream output=
-                    Files.newOutputStream(
-                        tmp,
-                        StandardOpenOption.CREATE,
+            try(OutputStream output=enforceWorldAdmission
+                    ?Files.newOutputStream(
+                        tmp,StandardOpenOption.WRITE,
                         StandardOpenOption.TRUNCATE_EXISTING,
-                        StandardOpenOption.WRITE
-                    )){
+                        LinkOption.NOFOLLOW_LINKS)
+                    :Files.newOutputStream(
+                        tmp,StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.WRITE)){
                 properties.store(
                     output,
                     "SpawnPK LocalLab localhost account state"
@@ -1464,6 +1472,10 @@ final class FilePlayerRepository
             }
 
             if(enforceWorldAdmission){
+                requireOwnedWorldTemp(tmp,originalWorldTemp);
+                final String sealedWorldTemp=restartFingerprintPart(
+                    tmp,RESTART_WITNESS_MAX_ACCOUNT_BYTES);
+                requireOwnedWorldTemp(tmp,originalWorldTemp);
                 beforeWorldReplace.run(snapshot.username());
                 // G21.38: the last review-fence check and account-file
                 // replacement are one exclusive publication critical
@@ -1481,6 +1493,17 @@ final class FilePlayerRepository
                             worldAccount,file
                         );
                         insideWorldPublication.run(snapshot.username());
+                        // G21.172: an uncooperative writer can replace
+                        // World-owned temp AFTER serialization and even
+                        // inside the OS lock. Never publish a foreign
+                        // symlink, foreign inode, or changed raw bytes.
+                        requireOwnedWorldTemp(tmp,originalWorldTemp);
+                        final String latest=restartFingerprintPart(
+                            tmp,RESTART_WITNESS_MAX_ACCOUNT_BYTES);
+                        requireOwnedWorldTemp(tmp,originalWorldTemp);
+                        if(!sealedWorldTemp.equals(latest))
+                            throw new IOException(
+                                "G21.172 WORLD_TEMP_BYTES_CHANGED_UNSAFE_NO_AUTHORITY");
                         replaceSnapshotTemp(tmp,file);
                         return null;
                     });
@@ -1490,8 +1513,67 @@ final class FilePlayerRepository
 
             completed=true;
         }finally{
-            if(!completed)
+            if(!completed&&
+                (!enforceWorldAdmission||
+                 stillOwnsWorldTemp(tmp,originalWorldTemp)))
                 Files.deleteIfExists(tmp);
+        }
+    }
+
+    /**
+     * G21.172: pin the World-owned temp as one NOFOLLOW regular
+     * filesystem object before any account publication. The JVM's
+     * cooperating lock does not protect this temp from raw writers.
+     * This is an observation, NOT an atomic raw-writer fence.
+     */
+    private static BasicFileAttributes worldTempEvidence(
+        Path temp
+    )throws IOException{
+        final BasicFileAttributes attrs;
+        try{
+            attrs=Files.readAttributes(
+                temp,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        }catch(IOException inaccessible){
+            throw new IOException(
+                "G21.172 WORLD_TEMP_IDENTITY_UNSAFE_NO_AUTHORITY",
+                inaccessible);
+        }
+        if(!attrs.isRegularFile()||attrs.isSymbolicLink()||
+            attrs.fileKey()==null)
+            throw new IOException(
+                "G21.172 WORLD_TEMP_IDENTITY_UNSAFE_NO_AUTHORITY");
+        return attrs;
+    }
+
+    private static boolean sameWorldTempObject(
+        BasicFileAttributes original,BasicFileAttributes candidate
+    ){
+        return original!=null&&candidate!=null&&
+            candidate.isRegularFile()&&!candidate.isSymbolicLink()&&
+            Objects.equals(original.fileKey(),candidate.fileKey())&&
+            Objects.equals(
+                original.creationTime(),candidate.creationTime());
+    }
+
+    private static void requireOwnedWorldTemp(
+        Path temp,BasicFileAttributes original
+    )throws IOException{
+        if(!sameWorldTempObject(original,worldTempEvidence(temp)))
+            throw new IOException(
+                "G21.172 WORLD_TEMP_IDENTITY_UNSAFE_NO_AUTHORITY");
+    }
+
+    /** On failed World save, never unlink another actor's temp leaf. */
+    private static boolean stillOwnsWorldTemp(
+        Path temp,BasicFileAttributes original
+    ){
+        try{
+            return sameWorldTempObject(
+                original,Files.readAttributes(
+                    temp,BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS));
+        }catch(IOException inaccessible){
+            return false;
         }
     }
 
