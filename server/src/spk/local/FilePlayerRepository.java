@@ -338,12 +338,35 @@ final class FilePlayerRepository
     private static final class CutoverLockLeafCensus {
         final BasicFileAttributes object;
         final java.nio.file.attribute.FileTime changeTime;
+        final String contentWitness;
         CutoverLockLeafCensus(
             BasicFileAttributes object,
-            java.nio.file.attribute.FileTime changeTime
+            java.nio.file.attribute.FileTime changeTime,
+            String contentWitness
         ){
             this.object=object;
             this.changeTime=changeTime;
+            this.contentWitness=contentWitness;
+        }
+    }
+
+    /**
+     * G21.168: bounded NOFOLLOW physical SHA-256 of the G21.39 lock
+     * path. Also package-visible to exercise this SAME primitive under
+     * a real cooperating lock in deterministic integration tests.
+     * It is neither a lock-descriptor identity proof nor a fencing token.
+     */
+    static String cutoverLockLeafContentWitness(
+        Path accountFile
+    )throws IOException{
+        Path lock=MailboxAccountPublicationCoordinator.lockPath(
+            accountFile);
+        try{
+            return restartFingerprintPart(lock,4096L);
+        }catch(IOException unreadable){
+            throw new IOException(
+                "G21.168 CUTOVER_LOCK_CONTENT_UNSAFE_NO_AUTHORITY",
+                unreadable);
         }
     }
 
@@ -351,6 +374,7 @@ final class FilePlayerRepository
         Path accountFile
     )throws IOException{
         BasicFileAttributes first=cutoverLockLeafEvidence(accountFile);
+        String digest=cutoverLockLeafContentWitness(accountFile);
         java.nio.file.attribute.FileTime changed=
             optionalRestartChangeTime(
                 MailboxAccountPublicationCoordinator.lockPath(accountFile));
@@ -362,7 +386,7 @@ final class FilePlayerRepository
                first.lastModifiedTime(),second.lastModifiedTime()))
             throw new IOException(
                 "G21.167 CUTOVER_LOCK_CTIME_SAMPLE_UNSAFE_NO_AUTHORITY");
-        return new CutoverLockLeafCensus(first,changed);
+        return new CutoverLockLeafCensus(first,changed,digest);
     }
 
     private static void requireStableCutoverLockLeaf(
@@ -385,7 +409,15 @@ final class FilePlayerRepository
         if(!Objects.equals(original.changeTime,changed))
             throw new IOException(
                 "G21.167 CUTOVER_LOCK_CTIME_CHANGED_UNSAFE_NO_AUTHORITY");
-        // Bind the sampled change time back to the same pathname.
+        // G21.168: independent byte comparison after G21.167's
+        // change-time check. Unlike unix:ctime, persistent byte
+        // differences are observable where the ctime view is absent.
+        // This does NOT catch returned-to-identical-bytes ABA.
+        String latest=cutoverLockLeafContentWitness(accountFile);
+        if(!original.contentWitness.equals(latest))
+            throw new IOException(
+                "G21.168 CUTOVER_LOCK_BYTES_CHANGED_UNSAFE_NO_AUTHORITY");
+        // Bind both ctime and digest reads back to the same pathname.
         BasicFileAttributes second=cutoverLockLeafEvidence(accountFile);
         if(!Objects.equals(now.fileKey(),second.fileKey())||
            !Objects.equals(now.creationTime(),second.creationTime())||
