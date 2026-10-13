@@ -2275,6 +2275,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21154MailboxFourResultKindsIntegrationTest',
     'spk.local.G21155MailboxV3PortablePhysicalBindingIntegrationTest',
     'spk.local.G21156MailboxV3PortableBytesShaSizeIntegrationTest',
+    'spk.local.G21157MailboxDetachedCandidateSignatureIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2303,10 +2304,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 456 ||
-    currentTrainFocusedTests.toSet().size() != 456) {
+if (currentTrainFocusedTests.size() != 457 ||
+    currentTrainFocusedTests.toSet().size() != 457) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 456 unique tests, found " +
+        "Current-train focused manifest drift: expected 457 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4062,6 +4063,14 @@ tasks.register('g21156MailboxV3PortableBytesShaSizeRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21156MailboxV3PortableBytesShaSizeIntegrationTest')
+}
+
+tasks.register('g21157MailboxDetachedCandidateSignatureRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.157: verify candidate ECDSA over retained reports, never independently trusted.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21157MailboxDetachedCandidateSignatureIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
