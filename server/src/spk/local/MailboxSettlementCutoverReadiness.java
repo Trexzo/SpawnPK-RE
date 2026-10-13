@@ -1,5 +1,6 @@
 package spk.local;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -30,7 +31,10 @@ final class MailboxSettlementCutoverReadiness {
         DURABLE_POSITIVE_COMMIT_AND_ORDERING,
         IDEMPOTENT_CROSS_RESTART_RECONCILIATION,
         ATOMIC_WORLD_OWNED_LIVE_APPLY,
-        POSTCOMMIT_RESERVATION_RELEASE_AND_ACK
+        POSTCOMMIT_RESERVATION_RELEASE_AND_ACK,
+        INDEPENDENT_SIGNER_ROOT_AND_HISTORICAL_CUSTODY,
+        COMPLETE_RAW_DEFAULT_HISTORICAL_FUTURE_WRITER_FENCE,
+        ATOMIC_MULTI_FILE_CRASH_RECOVERY_EPOCH
     }
 
     static final class Decision {
@@ -38,6 +42,14 @@ final class MailboxSettlementCutoverReadiness {
         final FilePlayerRepository.RestartRecoveryEvidence.State observed;
         final Disposition disposition;
         final Set<MissingProof> missingProofs;
+        // G21.161: the real read-only restart cutover contract must
+        // surface outstanding signer/provenance, writer and epoch
+        // proof gaps. None is supplied by retained G21.129/160 data.
+        final boolean independentlyEnrolledSignerRootObserved=false;
+        final boolean historicalEvidenceCustodyAuthenticated=false;
+        final boolean rawDefaultAndHistoricalWritersExcluded=false;
+        final boolean futureWriterFenceProved=false;
+        final boolean atomicRecoveryEpochProved=false;
         final boolean snapshotAdmitted=false;
         final boolean durabilityConfirmed=false;
         final boolean transactionCommitted=false;
@@ -72,6 +84,12 @@ final class MailboxSettlementCutoverReadiness {
         FilePlayerRepository.RestartRecoveryEvidence observed
     ){
         Objects.requireNonNull(observed,"recovery evidence");
+        // Fail closed if later edits accidentally provision a signer
+        // root without updating the real cutover trust/custody model.
+        if(MailboxProductionSignerTrustAdmissionV1
+                .independentlyEnrolledProductionRoots()!=0)
+            throw new IllegalStateException(
+                "G21.161 CUTOVER_UNREVIEWED_ROOT_PROVISION_NO_AUTHORITY");
         if(expectedAccount==null||
            !expectedAccount.matches("[a-z0-9_-]{1,64}")||
            !expectedAccount.equals(observed.account))
@@ -117,6 +135,37 @@ final class MailboxSettlementCutoverReadiness {
                     "G21.79 unmapped recovery state");
         }
         return new Decision(expectedAccount,observed.state,disposition);
+    }
+
+
+    /**
+     * G21.161: opt-in deny-only signer admission on the EXISTING
+     * file-backed cutover decision. This never grants anything and
+     * does not mutate the original restart recovery workflow.
+     */
+    static void requireProductionSignerBeforeCutover(
+        Decision assessed,byte[] candidatePublicKeyDer
+    )throws IOException{
+        Objects.requireNonNull(assessed,"cutover decision");
+        if(assessed.snapshotAdmitted||assessed.durabilityConfirmed||
+           assessed.transactionCommitted||assessed.liveApplied||
+           assessed.grantAuthorized||assessed.replayAuthorized||
+           assessed.rollbackAuthorized||assessed.releaseAuthorized||
+           assessed.clientAckAuthorized||
+           assessed.independentlyEnrolledSignerRootObserved||
+           assessed.historicalEvidenceCustodyAuthenticated||
+           assessed.rawDefaultAndHistoricalWritersExcluded||
+           assessed.futureWriterFenceProved||
+           assessed.atomicRecoveryEpochProved)
+            throw new IOException(
+                "G21.161 CUTOVER_POSITIVE_AUTHORITY_UNSAFE_NO_AUTHORITY");
+        MailboxProductionSignerTrustAdmissionV1.requireProductionSignerRoot(
+            assessed.account,candidatePublicKeyDer);
+        // Unconditionally deny even if future code unexpectedly
+        // implements signer enrollment. Other physical proof gaps
+        // remain, and no recovery/settlement credential exists.
+        throw new IOException(
+            "G21.161 CUTOVER_RECOVERY_ADMISSION_NOT_IMPLEMENTED_NO_AUTHORITY");
     }
 
     private MailboxSettlementCutoverReadiness(){}
