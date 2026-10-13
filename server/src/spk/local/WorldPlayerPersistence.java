@@ -292,6 +292,12 @@ final class WorldPlayerPersistence
         new AtomicLong();
     private final AtomicLong failed=
         new AtomicLong();
+    // G21.178: strictly World-LIFETIME negative admission. This is
+    // not a crash-durable marker and never grants account recovery.
+    // The same persistence worker orders failed final-save handling
+    // before subsequent admitted session loads for this World.
+    private final Set<String> failedFinalSaveAccounts=
+        ConcurrentHashMap.newKeySet();
     private final AtomicLong checkpointCaptured=
         new AtomicLong();
     private final AtomicLong checkpointCoalesced=
@@ -1392,6 +1398,19 @@ final class WorldPlayerPersistence
         return failed.get();
     }
 
+    int failedFinalSaveAdmissionVetoCount(){
+        return failedFinalSaveAccounts.size();
+    }
+
+    private void rememberFailedFinalSave(String account){
+        if(failedFinalSaveAccounts.add(account))
+            System.err.println(
+                "G21.178 FINAL_SAVE_WORLD_LIFETIME_NEGATIVE"+
+                " account="+account+
+                " durable=false recoveryAuthorized=false"
+            );
+    }
+
     int queuedWrites(){
         return io.getQueue().size();
     }
@@ -1531,6 +1550,19 @@ final class WorldPlayerPersistence
             try{
                 if(future.isDone())
                     return;
+
+                // G21.178: only session-admitted loads are refused.
+                // The worker's FIFO orders a failed final SaveTask
+                // before later account loads. Read-only forensic
+                // observations intentionally retain their prior path.
+                // This memory-only veto vanishes on World recreation;
+                // durable failed-final-save intent is still missing.
+                if(enforceAdmission&&
+                   failedFinalSaveAccounts.contains(username))
+                    throw new IOException(
+                        "G21.178 FINAL_SAVE_WORLD_LIFETIME_VETO_NO_RECOVERY"+
+                        " account="+username
+                    );
 
                 // G21.32: detect a durable negative review marker BEFORE
                 // any session snapshot hydration, including absent accounts.
@@ -4155,6 +4187,10 @@ final class WorldPlayerPersistence
                     false
                 );
             }finally{
+                // Mark BEFORE a queued next admission can run.
+                // Fail closed for the remainder of this World.
+                if(finalDisconnect&&future.isCompletedExceptionally())
+                    rememberFailedFinalSave(snapshot.username());
                 inFlightSave.compareAndSet(
                     this,
                     null
@@ -4186,7 +4222,9 @@ final class WorldPlayerPersistence
                 }
             }
 
-            if(rejected)
+            if(rejected){
+                if(finalDisconnect)
+                    rememberFailedFinalSave(snapshot.username());
                 logRejected(
                     snapshot,
                     saveSequence,
@@ -4195,6 +4233,7 @@ final class WorldPlayerPersistence
                     stage,
                     error
                 );
+            }
 
             if(finalDisconnect)
                 clearFinalReservation(
@@ -4270,6 +4309,11 @@ final class WorldPlayerPersistence
     ){
         try{
             synchronized(io){
+                if(failedFinalSaveAccounts.contains(snapshot.username()))
+                    throw new IOException(
+                        "G21.178 FINAL_SAVE_WORLD_LIFETIME_WRITE_VETO"+
+                        " account="+snapshot.username()
+                    );
                 if(preparedAccountBlockedLocked(snapshot.username()))
                     throw preparedWriteRejection(snapshot.username());
                 Long cutoff=strictPreparedAccountCutoffs.get(
