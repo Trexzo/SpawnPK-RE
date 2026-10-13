@@ -7,6 +7,8 @@ public final class MonsterSpawnerPvmRuntimeTest {
 
     public static void main(String[] args)throws Exception{
         successfulLifecycle();
+        disconnectedOwnerRetiresAfterLastNpc();
+        reconnectedOwnerKeepsCurrentSession();
         aliveAndForeignFailClosed();
         settlementPendingRetry();
         settlementRetryFencedByWorldClose();
@@ -21,6 +23,8 @@ public final class MonsterSpawnerPvmRuntimeTest {
             "exactWorldLifecycle=true "+
             "deathFinalization=true "+
             "settlement=true "+
+            "disconnectedLastNpcRetiresSession=true "+
+            "reconnectedLastNpcPreservesSession=true "+
             "settlementPendingRetry=true "+
             "settlementWorldPulseRetry=true "+
             "settlementRetryExactlyOnce=true "+
@@ -105,6 +109,104 @@ public final class MonsterSpawnerPvmRuntimeTest {
                 "duplicate runtime finalization"
             );
         }finally{
+            f.close();
+        }
+    }
+
+    /** #1394: a disconnected owner must not leave an orphan session after final settlement. */
+    private static void disconnectedOwnerRetiresAfterLastNpc()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        WorldPlayer player=new WorldPlayer();
+        long generation=f.world.registerPlayer(player,OWNER);
+
+        try{
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(OWNER,"killer",3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+
+            require(f.spawner.getSession(OWNER)!=null,
+                "tracked Monster Spawner session missing before disconnect");
+            require(f.world.unregisterPlayer(player,generation),
+                "disconnected Monster Spawner owner unregister");
+            require(f.spawner.getSession(OWNER)!=null,
+                "tracked NPC must retain disconnected session before terminal death");
+
+            require(f.lifecycle.applyDamage(npc.id,99,50L).newlyDied,
+                "disconnected owner terminal lethal event");
+            MonsterSpawnerPvmRuntime.FinalizeResult finalized=
+                f.runtime.finalizeIfOwned(npc);
+
+            require(finalized.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                finalized.settlement!=null&&
+                f.spawner.getSession(OWNER)==null&&
+                f.runtime.get(npc.id)==null&&
+                f.runtime.size()==0&&
+                f.world.groundItems().size()==1&&
+                f.dropCalls==1,
+                "last tracked NPC should retire exact disconnected session after settlement");
+
+            MonsterSpawnerPvmRuntime.FinalizeResult duplicate=
+                f.runtime.finalizeIfOwned(npc);
+            require(duplicate.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                f.spawner.getSession(OWNER)==null&&
+                f.dropCalls==1,
+                "retired session must not resettle duplicate terminal NPC");
+        }finally{
+            if(f.world.players().owns(player,generation))
+                f.world.unregisterPlayer(player,generation);
+            f.close();
+        }
+    }
+
+    /** #1394: reconnecting before settlement must preserve a live owner's current session. */
+    private static void reconnectedOwnerKeepsCurrentSession()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        WorldPlayer original=new WorldPlayer();
+        long oldGeneration=f.world.registerPlayer(original,OWNER);
+        WorldPlayer replacement=null;
+        long newGeneration=-1L;
+
+        try{
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(OWNER,"killer",3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+
+            require(f.world.unregisterPlayer(original,oldGeneration),
+                "original owner disconnect before replacement");
+            require(f.spawner.getSession(OWNER)!=null,
+                "tracked session must survive disconnect");
+
+            replacement=new WorldPlayer();
+            newGeneration=f.world.registerPlayer(replacement,OWNER);
+
+            require(f.lifecycle.applyDamage(npc.id,99,50L).newlyDied,
+                "reconnected owner terminal lethal event");
+            MonsterSpawnerPvmRuntime.FinalizeResult finalized=
+                f.runtime.finalizeIfOwned(npc);
+
+            MonsterSpawnerService.SessionSnapshot after=
+                f.spawner.getSession(OWNER);
+            require(finalized.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                finalized.settlement!=null&&
+                after!=null&&
+                after.spawnedNpcIds.isEmpty()&&
+                f.world.players().owns(replacement,newGeneration)&&
+                f.world.players().byName(OWNER)==replacement&&
+                f.runtime.size()==0&&
+                f.world.groundItems().size()==1&&
+                f.dropCalls==1,
+                "last NPC finalization may not retire a reconnected owner's current session");
+        }finally{
+            if(f.world.players().owns(original,oldGeneration))
+                f.world.unregisterPlayer(original,oldGeneration);
+            if(replacement!=null&&
+                    f.world.players().owns(replacement,newGeneration))
+                f.world.unregisterPlayer(replacement,newGeneration);
             f.close();
         }
     }
