@@ -2983,6 +2983,15 @@ final class LocalSession implements Runnable {
             worldPlayerGeneration=playerInit.worldPlayerGeneration;
             worldRegistered=true;
 
+            uiActions.installDailyMoneyMakingUiHandler(
+                new LocalDailyMoneyMakingUiHandler(
+                    world,
+                    worldPlayer,
+                    worldPlayerGeneration,
+                    username
+                )
+            );
+
             /*
              * Session-owned World commands are valid before the regular tick
              * target is attached, so they have an independent callback
