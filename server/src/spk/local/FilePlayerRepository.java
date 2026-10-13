@@ -341,12 +341,40 @@ final class FilePlayerRepository
         // The G21.73 deadline bounds acquisition, not disk I/O latency.
         MailboxAccountPublicationCoordinator.withExclusivePublicationBounded(
             pinned,3000L,()->{
+                // G21.165: physical seven-leaf evidence, not merely
+                // a retained cutover enum. No nested lock: both complete
+                // G21.87 witnesses run INSIDE this already-held G21.39
+                // lock. A raw writer ignoring the lock can still act.
+                RestartDirectoryAncestry ancestry=
+                    restartAncestryCensus(pinned);
+                Path[] seven=restartRecoveryCensusPaths(pinned);
+                RestartObjectCensus before=restartRecoveryCensus(seven);
+                requireBoundedRestartFiles(before);
+                String first=restartWitnessInsidePublication(
+                    account,pinned,sameFile);
                 RestartRecoveryEvidence observed=
                     inspectRestartRecoveryLocked(account,pinned,sameFile);
                 afterLockedInspectForTest.run(account);
                 if(!pinned.equals(normalizedPath(account)))
                     throw new IOException(
                         "G21.163 CUTOVER_PATH_DRIFT_UNSAFE_NO_AUTHORITY");
+                try{
+                    String last=restartWitnessInsidePublication(
+                        account,pinned,sameFile);
+                    requireUnchangedRecoveryCensus(seven,before);
+                    requireUnchangedRestartAncestry(ancestry);
+                    if(!MessageDigest.isEqual(
+                            first.getBytes(
+                                java.nio.charset.StandardCharsets.US_ASCII),
+                            last.getBytes(
+                                java.nio.charset.StandardCharsets.US_ASCII)))
+                        throw new IOException(
+                            "G21.165 CUTOVER_SEVEN_LEAF_WITNESS_CHANGED");
+                }catch(IOException drift){
+                    throw new IOException(
+                        "G21.165 CUTOVER_WINDOW_UNSTABLE_UNSAFE_NO_AUTHORITY",
+                        drift);
+                }
                 MailboxFreshFileCutoverAdmissionV1
                     .requireObservedCutoverInsidePublicationLock(
                         account,observed,candidatePublicKeyDer);
