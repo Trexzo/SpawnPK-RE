@@ -113,12 +113,11 @@ final class MailboxFreshFileCutoverAdmissionV1 {
     }
 
     /**
-     * This method accepts ONLY a repository and account, never an old
-     * retained cutover Decision. Reinspect current on-disk state every
-     * time, then deny missing/prepared/legacy/negative-marker/invalid
-     * dispositions. A coherent terminal is still UNCOMMITTED and
-     * must pass G21.159's unprovisioned root gate (which always
-     * refuses); a final unconditional veto remains defense in depth.
+     * No retained Decision is accepted. G21.163 keeps the original
+     * G21.71 file inspection and deny-only disposition/root checks
+     * under ONE G21.39 cooperating publication lock. A coherent
+     * terminal is still UNCOMMITTED, raw writers remain unfenced and
+     * no production recovery/settlement caller is newly connected.
      */
     static void requireFreshProductionCutover(
         FilePlayerRepository repository,String requestedAccount,
@@ -126,8 +125,24 @@ final class MailboxFreshFileCutoverAdmissionV1 {
     )throws IOException{
         Objects.requireNonNull(repository,"file repository");
         String scoped=account(requestedAccount);
-        FilePlayerRepository.RestartRecoveryEvidence original=
-            repository.inspectRestartRecoveryReadOnly(scoped);
+        // G21.163: the actual locked G21.71 source inspection and
+        // this deny-only cutover evaluation now share ONE cooperating
+        // publication critical section. Do not reuse any prior Review.
+        repository.requireFreshCutoverUnderPublicationLock(
+            scoped,candidatePublicKeyDer);
+        throw veto("LOCKED_CUTOVER_MUST_DENY");
+    }
+
+    /**
+     * Called solely from FilePlayerRepository's G21.163 method WHILE
+     * the exact account's original cooperating lock is still held.
+     * Never exposes an approval result or unlock-to-continue token.
+     */
+    static void requireObservedCutoverInsidePublicationLock(
+        String scoped,
+        FilePlayerRepository.RestartRecoveryEvidence original,
+        byte[] candidatePublicKeyDer
+    )throws IOException{
         MailboxSettlementCutoverReadiness.Decision observed=
             requireNoAuthority(scoped,original);
         if(observed.disposition!=
