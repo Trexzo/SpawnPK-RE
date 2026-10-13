@@ -17,7 +17,7 @@ Thus **seven** missing proofs now accompany every existing G21.79 cutover dispos
 
 ## Regressions and exact-head acceptance
 
-G21.80's `MailboxStrictTerminalOrderingAudit.Result` also constructs its missing-positive-proof set from the G21.79 enum; its inherited integration regression now asserts the complete seven-proof set instead of the obsolete count four, while retaining every original strict ordering and no-grant assertion. The first hosted run failed at this stale inherited assertion after G21.79 passed; it is not the certified head.
+G21.80's `MailboxStrictTerminalOrderingAudit.Result` also constructs its missing-positive-proof set from the G21.79 enum; its inherited integration regression now asserts the complete seven-proof set instead of the obsolete count four, while retaining every original strict ordering and no-grant assertion. The G21.81 terminal-identity and G21.82 restart-idempotency audits likewise forward the same enum-derived missing-proof set; their inherited tests now require all seven, without changing original dispositions or no-admission gates. The first hosted run failed at this stale inherited assertion after G21.79 passed; it is not the certified head.
 
 The inherited **real-file-backed G21.79 test** `G2179MailboxSettlementCutoverContractIntegrationTest` remains in the focused train and now asserts **7/7** missing proofs and all new false flags for every genuine restart-recovery state, retaining its existing disposition matrix and protected no-grant World assertions.
 
