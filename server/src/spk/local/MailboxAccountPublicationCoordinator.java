@@ -112,15 +112,27 @@ final class MailboxAccountPublicationCoordinator {
             lease.monitor.lock();
             try{
                 Files.createDirectories(lock.getParent());
+                // G21.169: genuine cooperating World publishers must
+                // not follow a redirected lock leaf or directory root.
+                // Historical direct save() remains uncooperative.
+                verifyForensicLockAncestry(lock);
+                verifyForensicLockLeaf(lock);
                 try(FileChannel channel=FileChannel.open(
                         lock,StandardOpenOption.CREATE,
-                        StandardOpenOption.WRITE
+                        StandardOpenOption.WRITE,
+                        LinkOption.NOFOLLOW_LINKS
                     );
                     FileLock ownership=channel.lock()){
                     if(!ownership.isValid())
                         throw new IOException(
                             "G21.38 account publication lock unavailable"
                         );
+                    // The OS FileLock exists now: veto path redirects
+                    // before any caller-side World/marker publication.
+                    // NOT an atomic descriptor-to-path or RAW writer
+                    // fencing proof against later path replacement.
+                    verifyForensicLockAncestry(lock);
+                    verifyForensicLockLeaf(lock);
                     return operation.execute();
                 }catch(OverlappingFileLockException overlap){
                     throw new IOException(
