@@ -146,7 +146,7 @@ public final class G21165MailboxSevenFileCutoverWindowIntegrationTest {
                 " realMarkerSameStateByteRewriteVetoes=1"+
                 " realPreparedInsertionVetoes=1"+
                 " realCommitInsertionVetoes=1"+
-                " healthyLegacyDenials=4"+
+                " healthyLegacyDenials=5"+
                 " rawWritesIgnoredCooperatingLock=true"+
                 " originalAccountUnchanged=true"+
                 " zeroJvmLeases="+noLeaks);
