@@ -1419,10 +1419,19 @@ final class FilePlayerRepository
             Instant.now().toString()
         );
 
-        Path tmp=
-            file.resolveSibling(
-                file.getFileName().toString()+
-                ".tmp"
+        // G21.170: a guarded World save MUST NOT serialize into the
+        // same fixed .tmp leaf used by the intentionally unguarded
+        // historical direct save(). Its publication lock only covers
+        // final replacement, so a direct legacy save can otherwise
+        // move/truncate the World temp before that lock is acquired.
+        // Use an exclusively allocated sibling for guarded World only;
+        // preserve original direct save() file layout and semantics.
+        Path tmp=enforceWorldAdmission
+            ?Files.createTempFile(
+                parent,file.getFileName().toString()+".g21170-world-",
+                ".tmp")
+            :file.resolveSibling(
+                file.getFileName().toString()+".tmp"
             );
 
         boolean completed=false;

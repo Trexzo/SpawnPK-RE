@@ -2288,6 +2288,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21167MailboxCutoverLockLeafCtimeIntegrationTest',
     'spk.local.G21168MailboxCutoverLockLeafDigestIntegrationTest',
     'spk.local.G21169MailboxWorldPublicationNoFollowLockIntegrationTest',
+    'spk.local.G21170MailboxWorldTempLegacyCollisionIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2316,10 +2317,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 469 ||
-    currentTrainFocusedTests.toSet().size() != 469) {
+if (currentTrainFocusedTests.size() != 470 ||
+    currentTrainFocusedTests.toSet().size() != 470) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 469 unique tests, found " +
+        "Current-train focused manifest drift: expected 470 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4179,6 +4180,14 @@ tasks.register('g21169MailboxWorldPublicationNoFollowLockRegression', JavaExec) 
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21169MailboxWorldPublicationNoFollowLockIntegrationTest')
+}
+
+tasks.register('g21170MailboxWorldTempLegacyCollisionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.170: guarded World save uses unique temp isolated from raw direct save.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21170MailboxWorldTempLegacyCollisionIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
