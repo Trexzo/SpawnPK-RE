@@ -2278,6 +2278,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21157MailboxDetachedCandidateSignatureIntegrationTest',
     'spk.local.G21158MailboxPrecommittedSignerPinIntegrationTest',
     'spk.local.G21159MailboxProductionSignerTrustAdmissionIntegrationTest',
+    'spk.local.G21160MailboxHistoricalRecoveryAdmissionIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2306,10 +2307,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 459 ||
-    currentTrainFocusedTests.toSet().size() != 459) {
+if (currentTrainFocusedTests.size() != 460 ||
+    currentTrainFocusedTests.toSet().size() != 460) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 459 unique tests, found " +
+        "Current-train focused manifest drift: expected 460 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4089,6 +4090,14 @@ tasks.register('g21159MailboxProductionSignerTrustAdmissionRegression', JavaExec
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21159MailboxProductionSignerTrustAdmissionIntegrationTest')
+}
+
+tasks.register('g21160MailboxHistoricalRecoveryAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.160: historical/current delta and root denial; no recovery authority.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21160MailboxHistoricalRecoveryAdmissionIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
