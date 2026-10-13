@@ -101,15 +101,21 @@ public final class G184DailyMoneyMakingLiveTrackIntegrationTest {
             replacement=new WorldPlayer();
             replacementGeneration=world.registerPlayer(replacement,PLAYER);
             int beforeStale=wire.size();
-            // Select EASY on the old adapter; Track must still reject it.
-            dispatch(handler,DailyMoneyMakingPresentation.EASY_WIDGET,writer);
+            // Both difficulty selection and Track must reject a stale UI.
+            // Older G18.4 intentionally allowed the stale SELECT wire here;
+            // G18.4.2 removes that stale publication and persistence write.
+            LocalDailyMoneyMakingUiHandler.Result staleSelection=
+                dispatch(handler,DailyMoneyMakingPresentation.EASY_WIDGET,writer);
             int afterStaleSelection=wire.size();
             LocalDailyMoneyMakingUiHandler.Result stale=
                 dispatch(handler,DailyMoneyMakingPresentation.TRACK_WIDGET,writer);
             boolean staleSessionFailClosed=stale!=null&&
                 "NO_CURRENT_PLAYER".equals(stale.status)&&
-                afterStaleSelection>beforeStale&&
-                wire.size()==afterStaleSelection;
+                staleSelection!=null&&
+                "NO_CURRENT_PLAYER".equals(staleSelection.status)&&
+                !staleSelection.stateChanged&&
+                afterStaleSelection==beforeStale&&
+                wire.size()==beforeStale;
 
             // G18.3 persistence integration: a post-login handler must see
             // canonical stored difficulty, not the pre-login shell state.
