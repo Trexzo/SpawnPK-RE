@@ -482,9 +482,11 @@ final class LocalSessionUiActionHandler {
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
-    private final LocalDailyMoneyMakingUiHandler
+    private volatile LocalDailyMoneyMakingUiHandler
         dailyMoneyMakingUi=
             new LocalDailyMoneyMakingUiHandler();
+    private volatile boolean dailyMoneyMakingUiBound;
+
     private final SessionBridge bridge;
 
     LocalSessionUiActionHandler(
@@ -578,6 +580,18 @@ final class LocalSessionUiActionHandler {
         this.movementEnabled=movementEnabled;
         this.equipment=Objects.requireNonNull(equipment,"equipment");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
+    }
+
+    synchronized void installDailyMoneyMakingUiHandler(
+        LocalDailyMoneyMakingUiHandler handler
+    ){
+        Objects.requireNonNull(handler,"handler");
+        // Registration occurs once per LocalSession, after World admission.
+        if(dailyMoneyMakingUi instanceof LocalDailyMoneyMakingUiHandler&&
+           dailyMoneyMakingUiBound)
+            throw new IllegalStateException("Daily Money Making UI already bound");
+        dailyMoneyMakingUi=handler;
+        dailyMoneyMakingUiBound=true;
     }
 
     synchronized void installMonsterSpawnerUiHandler(
