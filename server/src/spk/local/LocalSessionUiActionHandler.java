@@ -587,8 +587,7 @@ final class LocalSessionUiActionHandler {
     ){
         Objects.requireNonNull(handler,"handler");
         // Registration occurs once per LocalSession, after World admission.
-        if(dailyMoneyMakingUi instanceof LocalDailyMoneyMakingUiHandler&&
-           dailyMoneyMakingUiBound)
+        if(dailyMoneyMakingUiBound)
             throw new IllegalStateException("Daily Money Making UI already bound");
         dailyMoneyMakingUi=handler;
         dailyMoneyMakingUiBound=true;
