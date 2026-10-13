@@ -72,7 +72,7 @@ public final class G21173CoreSocketReconnectAfterWorldRestartIntegrationTest {
         out.write(10);
     }
 
-    private static byte[] loginFrame(int[] seeds,String account)
+    static byte[] loginFrame(int[] seeds,String account)
         throws IOException{
         ByteArrayOutputStream inner=new ByteArrayOutputStream();
         inner.write(10);
