@@ -1408,8 +1408,23 @@ final class FilePlayerRepository
         }
 
         Path parent=file.getParent();
+        if(enforceWorldAdmission){
+            // G21.171: G21.169's NOFOLLOW publication-lock check
+            // runs AFTER World serialized its G21.170 unique temp.
+            // Reject unsafe preexisting ancestry before creating any
+            // directory or spilling World snapshot bytes to disk.
+            // Raw direct save() keeps its original legacy behavior.
+            MailboxAccountPublicationCoordinator
+                .requireSafeWorldTempAncestry(file,true);
+        }
         if(parent!=null)
             Files.createDirectories(parent);
+        if(enforceWorldAdmission){
+            // Allow a valid new directory tree, but no symlinked
+            // ancestry when the World-owned temp is allocated.
+            MailboxAccountPublicationCoordinator
+                .requireSafeWorldTempAncestry(file,false);
+        }
 
         Properties properties=
             snapshot.toLegacyProperties();

@@ -170,6 +170,44 @@ final class MailboxAccountPublicationCoordinator {
         }
     }
 
+    /**
+     * G21.171: World-only pre-serialization ancestry boundary. The
+     * G21.169 lock-path check otherwise happens too late to protect
+     * data already serialized into a symlink-redirected World temp.
+     *
+     * Missing directory components are allowed ONLY in the first
+     * pre-create scan, never in the strict post-create verification.
+     * Both checks are observations: a raw actor can race them.
+     * The old direct save() and strict non-World writers are unchanged.
+     */
+    static void requireSafeWorldTempAncestry(
+        Path accountFile,boolean allowMissingBeforeCreate
+    )throws IOException{
+        Path lock=lockPath(accountFile);
+        if(!allowMissingBeforeCreate){
+            verifyForensicLockAncestry(lock);
+            return;
+        }
+        for(Path directory=lock.getParent();directory!=null;
+                directory=directory.getParent()){
+            final BasicFileAttributes attrs;
+            try{
+                attrs=Files.readAttributes(directory,
+                    BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+            }catch(NoSuchFileException notYetCreated){
+                // The subsequent strict post-create scan must verify
+                // any directories created by Files.createDirectories.
+                continue;
+            }
+            if(!attrs.isDirectory()||attrs.isSymbolicLink()||
+               attrs.fileKey()==null)
+                throw new IOException(
+                    "G21.171 WORLD_TEMP_ANCESTRY_UNSAFE_NO_AUTHORITY "+
+                    directory
+                );
+        }
+    }
+
     /** Existing lock leaf must never be a symlink, directory, or device. */
     private static void verifyForensicLockLeaf(Path lock)
         throws IOException{
