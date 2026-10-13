@@ -17,6 +17,8 @@ Thus **seven** missing proofs now accompany every existing G21.79 cutover dispos
 
 ## Regressions and exact-head acceptance
 
+G21.80's `MailboxStrictTerminalOrderingAudit.Result` also constructs its missing-positive-proof set from the G21.79 enum; its inherited integration regression now asserts the complete seven-proof set instead of the obsolete count four, while retaining every original strict ordering and no-grant assertion. The first hosted run failed at this stale inherited assertion after G21.79 passed; it is not the certified head.
+
 The inherited **real-file-backed G21.79 test** `G2179MailboxSettlementCutoverContractIntegrationTest` remains in the focused train and now asserts **7/7** missing proofs and all new false flags for every genuine restart-recovery state, retaining its existing disposition matrix and protected no-grant World assertions.
 
 The new `G21161MailboxCutoverTrustProofIntegrationTest` creates a temporary real `FilePlayerRepository` and strict writer, inspects a missing account, a saved legacy account, and the same account with a durable manual review marker. Assert correct original file-backed dispositions, all seven missing proofs on each observation, **four** production-signer root vetoes across original and replacement ephemeral P-256 public keys, **three** malformed candidate-key vetoes, rejected foreign-account assessment, file bytes unchanged, zero independently enrolled roots, and zero active JVM leases/watches. No ephemeral signer private key is persisted or installed; no permission is granted.
