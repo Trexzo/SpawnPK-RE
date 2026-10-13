@@ -1394,6 +1394,13 @@ final class FilePlayerRepository
         };
 
         if(enforceWorldAdmission){
+            // G21.171: do not even inspect sidecar paths through an
+            // unsafe ancestor. Some providers raise NotDirectoryException
+            // on marker reads before the old pre-temp check. Fail with
+            // the explicit NOFOLLOW veto before any filesystem access
+            // to child account/marker paths or World temp allocation.
+            MailboxAccountPublicationCoordinator
+                .requireSafeWorldTempAncestry(file,true);
             MailboxPreparedRestartAdmission.Decision admission=
                 MailboxPreparedRestartAdmission.inspect(snapshot);
             if(!admission.admissionAllowed)
@@ -1410,6 +1417,12 @@ final class FilePlayerRepository
         Path parent=file.getParent();
         if(parent!=null)
             Files.createDirectories(parent);
+        if(enforceWorldAdmission){
+            // Allow a valid new directory tree, but no symlinked
+            // ancestry when the World-owned temp is allocated.
+            MailboxAccountPublicationCoordinator
+                .requireSafeWorldTempAncestry(file,false);
+        }
 
         Properties properties=
             snapshot.toLegacyProperties();
