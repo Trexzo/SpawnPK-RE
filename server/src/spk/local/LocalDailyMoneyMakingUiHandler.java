@@ -237,6 +237,54 @@ final class LocalDailyMoneyMakingUiHandler {
         DailyMoneyMakingPresentation.Input input,
         ServerPacketWriter packets
     )throws IOException{
+        if(activityWorld==null)
+            return commitDifficultySelection(difficulty,input,packets);
+
+        final Result[] admitted={null};
+        try{
+            boolean current=
+                activityWorld.withOpenPlayerMutationOwnershipIfCurrent(
+                    activityOwner,
+                    activityGeneration,
+                    ()->{
+                        // Check username and exact owner while generation
+                        // ownership is held; a stale adapter must not persist
+                        // or publish a selection into a replacement session.
+                        if(activityWorld.players().byName(activityPlayer)!=
+                                activityOwner)
+                            return;
+                        admitted[0]=commitDifficultySelection(
+                            difficulty,input,packets
+                        );
+                    }
+                );
+
+            if(!current||admitted[0]==null)
+                return new Result(
+                    input.kind,
+                    "NO_CURRENT_PLAYER",
+                    false,
+                    state.snapshot()
+                );
+
+            return admitted[0];
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Daily Money Making difficulty selection ownership failed",
+                failure
+            );
+        }
+    }
+
+    private Result commitDifficultySelection(
+        DailyMoneyMakingStateService.Difficulty difficulty,
+        DailyMoneyMakingPresentation.Input input,
+        ServerPacketWriter packets
+    )throws IOException{
         boolean changed=
             state.selectDifficulty(
                 difficulty
