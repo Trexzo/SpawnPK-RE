@@ -1,0 +1,146 @@
+Issue	Title	Updated UTC	Triage (not closure authority)	URL
+1	[Refactor] Reorganize Source Tree & Package Hierarchy (Separate Core & Tests)	2026-10-04T16:04:36Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1
+3	[Core Architecture] Implement Server Event Bus & Action Dispatcher	2026-10-06T11:45:33Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/3
+9	[Pipeline & Custom Content] Replace Voidglass R3 Compositor Trial with Custom Cache/Model Pipeline	2026-10-05T04:40:57Z	HUMAN_ASSET_ACCEPTANCE	https://github.com/Trexzo/SpawnPK-RE/issues/9
+392	[Chat 1] Integration + Release Queue	2026-10-13T19:16:41Z	COORDINATION_QUEUE	https://github.com/Trexzo/SpawnPK-RE/issues/392
+427	[Chat 2][Exact v308] Recover uncovered SpawnPK application/UI contracts	2026-10-04T16:05:31Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/427
+1005	[Chat 1 Release] Bind current release acceptance to a clean exact Git head before build	2026-10-04T15:56:40Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1005
+1006	[Chat 1 Release] Bind final loopback smoke to the exact spawned server PID	2026-10-04T15:56:44Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1006
+1010	[Chat 1 Release] Bind final smoke to the cumulative-certified server JAR bytes	2026-10-04T15:56:47Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1010
+1015	[Chat 1 Release] Require final smoke cleanup before emitting release PASS	2026-10-04T15:56:49Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1015
+1048	[Chat 2 Runtime] Bind exact-v308 local-client build to one guarded input identity	2026-10-04T15:56:52Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1048
+1050	[Chat 2 Assets] Bind R13 profile build to one guarded exact-v308 client identity	2026-10-04T15:56:55Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1050
+1059	[Chat 2 Release] Bind cumulative server SHA across wrapper→release in memory	2026-10-04T15:57:45Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1059
+1063	[Chat 2 Release] Bind Gradle PASS marker to invocation-owned output, not mutable log path	2026-10-04T15:57:48Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1063
+1079	[Chat 2 Release] Treat dialog-number-key sidecar as generated runtime state	2026-10-04T15:57:59Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1079
+1096	[Chat 2] R13 acceptance must build LocalLab server before launch	2026-10-04T15:58:02Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1096
+1098	[Chat 2 Release] Prevent Issue #9 Python regressions from dirtying source tree	2026-10-04T15:58:05Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1098
+1106	[Chat 2 Acceptance] HOME Walk-here must route around blocked scenery	2026-10-05T04:40:55Z	HUMAN_WALK_HERE_ACCEPTANCE	https://github.com/Trexzo/SpawnPK-RE/issues/1106
+1394	Retire disconnected Monster Spawner session after final tracked NPC finalizes	2026-10-04T15:30:37Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1394
+1396	Linearize Monster Spawner widget commit and callback with session lifecycle	2026-10-04T15:30:39Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1396
+1397	Give Monster Spawner settlement-pending state a World-owned retry path	2026-10-04T15:55:26Z	IMPLEMENTATION_PRESENT_LATEST_CUMULATIVE_VERIFY_CI	https://github.com/Trexzo/SpawnPK-RE/issues/1397
+1401	Compose Monster Spawner widget lifecycle atomicity with WorldPulse settlement retry	2026-10-04T15:30:42Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1401
+1404	Require open Monster Spawner UI before accepting its widget actions	2026-10-04T15:30:45Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1404
+1406	Linearize Monster Spawner UI-close revocation with widget transaction	2026-10-04T15:30:49Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1406
+1410	Revoke Monster Spawner UI ownership when another root interface replaces 41000	2026-10-04T15:32:13Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1410
+1412	Revoke Monster Spawner ownership when Item Library root 47500 opens	2026-10-04T15:32:16Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1412
+1413	Compose Dev Panel equipment/death root publication with Monster Spawner ownership	2026-10-04T15:32:18Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1413
+1415	Revoke Monster Spawner ownership when Comp Cape Customize root 63036 opens	2026-10-04T15:32:22Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1415
+1417	Revoke Monster Spawner ownership when Make-over Mage designer root 3559 opens	2026-10-04T15:32:24Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1417
+1418	Revoke Monster Spawner when Dev Panel root opens from command route	2026-10-04T15:32:27Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1418
+1419	Revoke Monster Spawner ownership when bank overlay root 5292 opens	2026-10-04T15:32:30Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1419
+1421	Compose Item Library root ownership with Dev Panel command root ownership	2026-10-04T15:32:32Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1421
+1423	Close Item Library widget ownership when root 47500 is replaced	2026-10-04T15:32:53Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1423
+1424	Revoke Monster Spawner on Completionist cape Customize root	2026-10-04T15:33:14Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1424
+1426	Revoke Monster Spawner on immediate and deferred Bank root open	2026-10-04T15:33:17Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1426
+1428	Revoke Monster Spawner on Make-over Mage designer root	2026-10-04T15:33:20Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1428
+1431	Retire hidden Dev Panel ownership when a competing root replaces it	2026-10-04T15:33:23Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1431
+1435	Retire hidden BankState ownership when a non-bank root replaces 5292	2026-10-04T15:33:26Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1435
+1437	Retire hidden Completionist cape ownership on competing root replacement	2026-10-04T15:33:29Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1437
+1439	Retire hidden Make-over designer ownership on competing root replacement	2026-10-04T15:33:32Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1439
+1441	Give Trade UI two-session root ownership and safe competing-root retirement	2026-10-04T15:34:56Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1441
+1443	Make Trade start replacement failure-atomic against existing live trades	2026-10-04T15:34:59Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1443
+1444	Make session root replacement atomic for Monster Spawner and Item Library ownership	2026-10-04T15:35:01Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1444
+1445	Make two-session Trade root opening failure-atomic	2026-10-04T15:35:04Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1445
+1447	Fail closed if Trade confirmation root publication fails	2026-10-04T15:35:08Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1447
+1450	Compose Trade root failure handling with deadlock-safe competing-root ownership	2026-10-04T15:35:22Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1450
+1452	Make Item Library root publication state commit failure-atomic	2026-10-04T15:35:25Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1452
+1454	Make Bank root target-state commit failure-atomic	2026-10-04T15:35:28Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1454
+1455	Make command-driven Dev Panel target publication failure-atomic	2026-10-04T15:35:31Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1455
+1463	[Chat 1] Compose green Trade, Item Library, and Bank target atomicity	2026-10-04T15:35:34Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1463
+1542	Make batched packet-81 transform commit/abort aware	2026-10-04T15:36:36Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1542
+1550	Close packet-81 transport/semantic commit ownership race	2026-10-04T15:36:40Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1550
+1554	Fail closed when batched packet-81 semantic preparation is rejected as stale	2026-10-04T15:36:43Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1554
+1560	Make unbatched packet81 transport and semantic publication atomic	2026-10-04T15:36:48Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1560
+1561	Linearize packet-81 staging with writer batch lifetime	2026-10-04T15:36:50Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1561
+1570	Freeze packet81 NO_CONTEXT classification across concurrent registration	2026-10-04T15:37:05Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1570
+1572	Fail closed if prepared packet81 transform throws	2026-10-04T15:37:08Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1572
+1573	Do not surface post-commit packet81 relay failure as packet publication failure	2026-10-04T15:37:11Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1573
+1574	Linearize packet81 prepared commit with writer-context retirement	2026-10-04T15:37:14Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1574
+1580	Linearize SharedNpc relay flush with viewer-context retirement	2026-10-04T15:38:36Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1580
+1583	Linearize SharedNpc remote-pet/canonical sync with viewer-context retirement	2026-10-04T15:38:39Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1583
+1586	Make remote pet mirror add-plus-mask publication failure-atomic	2026-10-04T15:55:28Z	IMPLEMENTATION_PRESENT_LATEST_CUMULATIVE_VERIFY_CI	https://github.com/Trexzo/SpawnPK-RE/issues/1586
+1590	Preserve FIFO ordering after a remote mirror mask is deferred	2026-10-04T15:38:42Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1590
+1593	Make deferred remote mirror mask retry transport-retractable	2026-10-04T15:38:45Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1593
+1598	Make remote mirror add publication transport-retractable	2026-10-04T15:38:48Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1598
+1601	Make remote mirror movement and removal publication transport-retractable	2026-10-04T15:38:51Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1601
+1603	Make SharedNpc presentation-event mask delivery transport-retractable	2026-10-04T15:38:54Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1603
+1604	[Chat 2] Compose mirror add/move/remove retractability onto selected #1599	2026-10-04T15:38:57Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1604
+1612	Preserve SharedNpc rebind authority across retractable cleanup failure	2026-10-04T15:44:25Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1612
+1616	Preserve retained SharedNpc context through runtime-binding rollback	2026-10-04T15:44:27Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1616
+1617	Make Player81 + SharedNpc runtime rebind one failure-atomic binding transaction	2026-10-04T15:44:30Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1617
+1619	Make late LocalSession runtime registration rollback preserve prior Trade/runtime authority	2026-10-04T13:56:51Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1619
+1623	[Chat 1] Restore retryable SharedNpc retention regression on #1621 cumulative	2026-10-04T15:44:34Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1623
+1625	Make terminal runtime-binding failure retire broken-writer authority without further writes	2026-10-04T15:44:36Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1625
+1627	Retire peer runtime if terminal Trade cleanup close also fails	2026-10-04T15:44:39Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1627
+1629	Fence terminal Trade peer-close against peer generation change	2026-10-04T13:56:54Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1629
+1630	Scope terminal SharedNpc presentation-event cleanup to exact source generation	2026-10-04T15:45:47Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1630
+1631	Fail-close terminal Trade peer on competing-root retirement	2026-10-04T15:45:50Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1631
+1632	Preserve terminal SharedNpc writer sentinel during later unregister	2026-10-04T15:45:52Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1632
+1635	Fail-close terminal writer when ordinary Trade cancellation close fails	2026-10-04T15:45:55Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1635
+1637	Do not retouch terminal Trade writer after confirmation-root publication failure	2026-10-04T15:45:58Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1637
+1638	Fence ordinary Trade cancellation closes to exact current participant contexts	2026-10-04T15:46:01Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1638
+1640	Fail-close direct Trade accept-status writer on one-sided publication failure	2026-10-04T15:46:48Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1640
+1641	Prevent partial direct-writer Trade final commit publication	2026-10-04T15:46:51Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1641
+1642	Prevent partial direct-writer Trade offer postimage publication	2026-10-04T15:46:54Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1642
+1643	Do not retouch failed Trade writer during start-root rollback	2026-10-04T15:46:56Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1643
+1644	Fail-close terminal old peer during successful Trade replacement	2026-10-04T15:46:59Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1644
+1647	Fail-close terminal Trade writer when Offer-X or Remove-X prompt publication fails	2026-10-04T15:47:01Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1647
+1648	Align runtime binding failure regression with terminal player-options wrapper	2026-10-04T15:47:04Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1648
+1651	Fail-close writer if Trade start-root rollback restore or close fails	2026-10-04T15:48:28Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1651
+1653	Latch terminal ServerPacketWriter and stop LocalSession gameplay after remote retirement	2026-10-04T15:48:30Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1653
+1659	Retire full runtime when SharedNpc presentation-event publication fails terminally	2026-10-04T15:48:33Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1659
+1674	Release packet81 in-flight gate before post-commit SharedNpc relay	2026-10-04T15:48:35Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1674
+1675	[Chat 1] Align Trade generation-fence regression with queue-backed atomic offer policy	2026-10-04T15:48:38Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1675
+1678	Align runtime-binding X-prompt terminal regression with queue-backed offer policy	2026-10-04T15:48:41Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1678
+1684	Align SharedNpc rebind retractability fixture with Player81 option prepublication	2026-10-04T15:48:43Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1684
+1687	Fence successful competing-root Trade peer close to exact generation	2026-10-04T13:56:58Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1687
+1689	Fence successful Trade replacement old-peer close to exact generation	2026-10-04T13:57:01Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1689
+1691	Remove Trade cleanup generation-fence mutation-lock inversion	2026-10-04T13:57:03Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1691
+1695	Remove final Trade commit mutation-lock inversion	2026-10-04T15:49:49Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1695
+1696	[Chat 1] Compose current main docs/CI into the cumulative source frontier	2026-10-04T15:06:27Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1696
+1698	Align Trade generation-fence races with registry linearization	2026-10-04T15:49:51Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1698
+1701	Refresh Trade lock-order comments after registry fencing	2026-10-04T15:49:54Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1701
+1703	Run Trade commit persistence callbacks outside TradeService locks	2026-10-04T15:49:56Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1703
+1705	Retire SharedNpc terminal runtime outside relay monitor	2026-10-04T15:49:59Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1705
+1707	Retire full runtime on terminal SharedNpc mirror sync failure	2026-10-04T15:50:03Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1707
+1709	Latch terminal SharedNpc event writer before relay unlock	2026-10-04T15:50:05Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1709
+1711	Make SharedNpc fail-close latch the exact writer terminal immediately	2026-10-04T15:50:08Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1711
+1714	Preserve SharedNpc terminal sentinel when ordinary unregister cleanup fails	2026-10-04T15:50:11Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1714
+1715	Make Player81 trade-request notification transport-safe	2026-10-04T15:50:14Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1715
+1717	Purge detached SharedNpc terminal sentinels on World close	2026-10-04T15:50:16Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1717
+1720	Make Player81 skill-update publication transport-safe	2026-10-04T15:52:55Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1720
+1723	Fix terminal SharedNpc relay no-retouch regression lock assumption	2026-10-04T15:52:58Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1723
+1726	Latch terminal Trade cleanup writers before PlayerRegistry unlock	2026-10-04T15:53:00Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1726
+1728	Latch ordinary ServerPacketWriter terminal on non-batched flush failure	2026-10-04T15:53:03Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1728
+1730	Abort failed LocalSession world-tick batch commit	2026-10-04T15:53:06Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1730
+1732	Latch session writer terminal on outbound socket drain failure	2026-10-04T15:53:09Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1732
+1734	Quiesce LocalSession world-tick callbacks before runtime teardown	2026-10-04T15:53:12Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1734
+1736	Gate LocalSession realtime pet callbacks during teardown	2026-10-04T15:53:25Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1736
+1738	Reject pet realtime callback entry after session writer terminal latch	2026-10-04T15:53:28Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1738
+1740	[Chat 1] Replay exact-v308 Walk-here radius-2 onto current cumulative frontier	2026-10-04T15:55:32Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1740
+1742	Update external-runtime docs for Walk-here replay hashes	2026-10-04T15:06:22Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1742
+1743	[Chat 1] Bind current cumulative authority to latest main ancestry	2026-10-05T04:39:29Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1743
+1747	Run hosted contract checks for external-runtime doc changes	2026-10-04T15:06:24Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1747
+1830	Fence legacy combat tick accounting behind region-stream commit	2026-10-04T15:27:34Z	IMPLEMENTATION_PRESENT_LATEST_CUMULATIVE_VERIFY_CI	https://github.com/Trexzo/SpawnPK-RE/issues/1830
+1833	Bind private cumulative focused-count claims to the live manifest	2026-10-04T15:06:16Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1833
+1836	Stop describing the moving focused manifest as frozen #431	2026-10-04T15:06:19Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1836
+1839	Normalize source-contract line endings for Player81 NO_CONTEXT regression	2026-10-04T15:06:14Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1839
+1862	[Playability R5] Recover exact loadout-editor target selection authority	2026-10-05T05:49:08Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/1862
+2162	Gameplay G18.4: bind exact Track widget to LocalLab Easy PvM activity	2026-10-13T17:17:50Z	CHAT2_PR_2528_PENDING_CI	https://github.com/Trexzo/SpawnPK-RE/issues/2162
+2268	Gameplay G21.48: write-ahead strict checkpoint intent fences crash gap before account replacement	2026-10-09T08:53:05Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2268
+2274	Gameplay G21.49: reconcile divergent G21.47–48 Mailbox durability branches before promotion	2026-10-09T10:27:07Z	DIVERGENT_G21_BRANCH_RECONCILIATION	https://github.com/Trexzo/SpawnPK-RE/issues/2274
+2276	Gameplay G21.50: detect conflicting concurrent Mailbox negative markers in read-only forensics	2026-10-09T10:42:02Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2276
+2278	Gameplay G21.51: bound all negative Mailbox marker diagnostic reads before allocation	2026-10-09T11:00:06Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2278
+2280	Gameplay G21.52: detect single-marker admission-sidecar membership races in Mailbox read-only forensics	2026-10-09T11:10:50Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2280
+2282	Gameplay G21.53: verify single negative-marker content across the entire forensic read	2026-10-09T11:22:42Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2282
+2284	Gameplay G21.54: detect account path resolver drift during read-only Mailbox forensics	2026-10-09T12:10:41Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2284
+2286	Gameplay G21.55: anchor inner Mailbox forensic marker lookup to outer account path	2026-10-09T12:26:46Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2286
+2288	Gameplay G21.56: anchor live strict PREPARED write-ahead and uncertainty markers to the exact account file	2026-10-09T12:36:23Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2288
+2290	Gameplay G21.57: pin guarded normal World-save review fences to the replacement account path	2026-10-09T12:48:37Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2290
+2292	Gameplay G21.58: pin file-backed World session admission and account load to one negative-fenced path	2026-10-09T13:06:30Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2292
+2294	Gameplay G21.59: serialize admitted World account reads with cooperating marker and account publication	2026-10-09T13:30:34Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2294
+2296	Gameplay G21.60: reject swapped, deleted or symlinked account files during admitted World session reads	2026-10-09T13:44:13Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2296
+2336	[Plugin runtime] In-flight callback failure diagnostic can race terminal cleanup in hosted CI	2026-10-10T08:48:24Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2336
+2526	CHAT 2 HANDOFF · gameplay ownership and core-server boundary (live GitHub coordination)	2026-10-13T19:12:16Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2526
+2527	Core G21.173: real loopback reconnect across World restart with persisted account (NO AUTHORITY)	2026-10-13T19:15:05Z	NEEDS_EXACT_CUMULATIVE_CODE_REVIEW	https://github.com/Trexzo/SpawnPK-RE/issues/2527

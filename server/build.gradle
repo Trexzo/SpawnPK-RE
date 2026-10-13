@@ -1985,6 +1985,7 @@ def currentTrainFocusedTests = [
     'spk.local.QuickPrayerSelectionServiceTest',
     'spk.local.PrayerMagicStyleRuntimeIntegrationTest',
     'spk.local.LoadoutEditorServiceTest',
+    'spk.local.R5LoadoutEditorButtonPairNoTargetRegressionTest',
     'spk.local.PlayerLifecycleRespawnPolicyTest',
     'spk.local.PlayerDeathItemResolutionServiceTest',
     'spk.local.PlayerDeathGroundSettlementServiceTest',
@@ -2115,6 +2116,7 @@ def currentTrainFocusedTests = [
     'spk.local.G182DailyMoneyMakingWidgetsIntegrationTest',
     'spk.local.G183DailyMoneyMakingPersistenceIntegrationTest',
     'spk.local.G183DailyMoneyMakingPvmRuntimeIntegrationTest',
+    'spk.local.G184DailyMoneyMakingLiveTrackIntegrationTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2322,10 +2324,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 475 ||
-    currentTrainFocusedTests.toSet().size() != 475) {
+if (currentTrainFocusedTests.size() != 477 ||
+    currentTrainFocusedTests.toSet().size() != 477) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 475 unique tests, found " +
+        "Current-train focused manifest drift: expected 477 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4235,6 +4237,14 @@ tasks.register('g21175CoreSocketUnsupportedVersionRegression', JavaExec) {
     mainClass.set('spk.local.G21175CoreSocketUnsupportedAccountVersionIntegrationTest')
 }
 
+tasks.register('g184DailyMoneyMakingLiveTrackRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates exact widget 55002 -> World-owned Easy PvM, persisted category restore, S2C126 target 26 and fail-closed routing.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G184DailyMoneyMakingLiveTrackIntegrationTest')
+}
+
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     group = 'verification'
     description = 'Verifies login accepts build config 307/308 while keeping outer protocol revision 317 strict.'
@@ -4400,6 +4410,14 @@ tasks.register('loadoutEditorTransportRegression', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.ClientLoadoutEditorSavePairingTest')
+}
+
+tasks.register('r5LoadoutEditorButtonPairNoTargetRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves opcode185 Save/default and cld1/cld2 coexist but no unproven semantic loadout target or mutation is invented.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.R5LoadoutEditorButtonPairNoTargetRegressionTest')
 }
 
 tasks.register('loadoutEditorV308Parity') {
