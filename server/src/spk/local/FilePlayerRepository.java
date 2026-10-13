@@ -303,6 +303,46 @@ final class FilePlayerRepository
     }
 
     /**
+     * G21.166: forensic check of the account-local advisory lock PATH,
+     * not a proof that the open OS FileLock is attached to this inode.
+     * A raw actor can unlink/recreate a lock path behind a held channel.
+     * Never accept this evidence as permission for writer fencing/grants.
+     */
+    private static BasicFileAttributes cutoverLockLeafEvidence(
+        Path accountFile
+    )throws IOException{
+        Path lock=MailboxAccountPublicationCoordinator.lockPath(
+            accountFile);
+        final BasicFileAttributes attrs;
+        try{
+            attrs=Files.readAttributes(
+                lock,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        }catch(IOException failure){
+            throw new IOException(
+                "G21.166 CUTOVER_LOCK_LEAF_UNAVAILABLE_UNSAFE_NO_AUTHORITY",
+                failure);
+        }
+        if(!attrs.isRegularFile()||attrs.isSymbolicLink()||
+           attrs.fileKey()==null)
+            throw new IOException(
+                "G21.166 CUTOVER_LOCK_LEAF_IDENTITY_UNSAFE_NO_AUTHORITY");
+        return attrs;
+    }
+
+    private static void requireStableCutoverLockLeaf(
+        Path accountFile,BasicFileAttributes original
+    )throws IOException{
+        BasicFileAttributes now=cutoverLockLeafEvidence(accountFile);
+        if(!Objects.equals(original.fileKey(),now.fileKey())||
+           !Objects.equals(original.creationTime(),now.creationTime())||
+           original.size()!=now.size()||
+           !Objects.equals(
+               original.lastModifiedTime(),now.lastModifiedTime()))
+            throw new IOException(
+                "G21.166 CUTOVER_LOCK_LEAF_CHANGED_UNSAFE_NO_AUTHORITY");
+    }
+
+    /**
      * G21.163: narrowly compose G21.71's ORIGINAL physical-account
      * inspection and G21.162's denial under ONE existing cooperating
      * publication lock. There is NO approval or snapshot return path.
@@ -341,6 +381,12 @@ final class FilePlayerRepository
         // The G21.73 deadline bounds acquisition, not disk I/O latency.
         MailboxAccountPublicationCoordinator.withExclusivePublicationBounded(
             pinned,3000L,()->{
+                // G21.166: snapshot the actual lock PATH once the
+                // G21.73 cooperating lease is held. Recheck even when
+                // G21.162 correctly denies, using finally below.
+                BasicFileAttributes lockLeafBefore=
+                    cutoverLockLeafEvidence(pinned);
+                try{
                 // G21.165: physical seven-leaf evidence, not merely
                 // a retained cutover enum. No nested lock: both complete
                 // G21.87 witnesses run INSIDE this already-held G21.39
@@ -382,6 +428,12 @@ final class FilePlayerRepository
                 // future return from policy cannot be an admission.
                 throw new IOException(
                     "G21.163 CUTOVER_MUST_DENY_UNSAFE_NO_AUTHORITY");
+                }finally{
+                    // A raw file replacement can split the advisory
+                    // lock domain even with a still-valid open handle.
+                    // This is detection, NEVER a writer-exclusion proof.
+                    requireStableCutoverLockLeaf(pinned,lockLeafBefore);
+                }
             });
     }
 
