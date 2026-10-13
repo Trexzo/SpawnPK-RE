@@ -259,7 +259,12 @@ public final class G2180MailboxStrictTerminalOrderingAuditIntegrationTest {
     private static boolean noAuthority(
         MailboxStrictTerminalOrderingAudit.Result a
     ){
-        return a.missingPositiveProofs.size()==4&&
+        // G21.161: strict ordering audit inherits G21.79's complete
+        // seven-proof cutover gap set; still no authority.
+        return a.missingPositiveProofs.size()==7&&
+            a.missingPositiveProofs.containsAll(
+                java.util.EnumSet.allOf(
+                    MailboxSettlementCutoverReadiness.MissingProof.class))&&
             !a.transactionCommitted&&!a.durabilityConfirmed&&
             !a.liveApplied&&!a.grantAuthorized&&!a.replayAuthorized&&
             !a.rollbackAuthorized&&!a.restartAdmissionAuthorized&&
