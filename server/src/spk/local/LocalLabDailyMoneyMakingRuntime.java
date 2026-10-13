@@ -128,15 +128,42 @@ final class LocalLabDailyMoneyMakingRuntime {
         WorldPlayer owner=requireCurrentPlayer(
             player
         );
-        long generation=owner.generation();
+        ActivationResult result=activateEasyIfCurrent(
+            player,owner,owner.generation()
+        );
+        if(result==null)
+            throw new IllegalStateException(
+                "stale Daily Money Making player "+player
+            );
+        return result;
+    }
+
+    /**
+     * Exact-session activation seam: a stale UI must not retarget another
+     * WorldPlayer simply because its old username was admitted again.
+     * Null means this exact player/generation/name is not current.
+     */
+    ActivationResult activateEasyIfCurrent(
+        String playerRef,
+        WorldPlayer owner,
+        long expectedGeneration
+    ){
+        String player=normalizePlayer(playerRef);
+        Objects.requireNonNull(owner,"owner");
+        if(expectedGeneration<0L)
+            throw new IllegalArgumentException("generation="+expectedGeneration);
+
         final ActivationResult[] result={null};
 
         try{
             boolean current=
                 world.withOpenPlayerMutationOwnershipIfCurrent(
                     owner,
-                    generation,
+                    expectedGeneration,
                     ()->{
+                        if(world.players().byName(player)!=owner)
+                            return;
+
                         PlayerState existing=state(
                             player
                         );
@@ -190,10 +217,7 @@ final class LocalLabDailyMoneyMakingRuntime {
                 );
 
             if(!current)
-                throw new IllegalStateException(
-                    "stale Daily Money Making player "+
-                    player
-                );
+                return null;
         }catch(RuntimeException failure){
             throw failure;
         }catch(Exception failure){
@@ -204,10 +228,7 @@ final class LocalLabDailyMoneyMakingRuntime {
             );
         }
 
-        return Objects.requireNonNull(
-            result[0],
-            "Daily Money Making activation result"
-        );
+        return result[0];
     }
 
     Snapshot snapshot(
