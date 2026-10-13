@@ -141,7 +141,7 @@ public final class G21173CoreSocketReconnectAfterWorldRestartIntegrationTest {
         }
     }
 
-    private static final class OneSession implements AutoCloseable{
+    static final class OneSession implements AutoCloseable{
         final ServerSocket listener;
         final ExecutorService executor;
         final Future<?> task;
