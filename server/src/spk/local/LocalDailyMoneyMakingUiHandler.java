@@ -193,17 +193,18 @@ final class LocalDailyMoneyMakingUiHandler {
         if(activityWorld==null)
             return new Result(input.kind,"NO_ACTIVITY_AUTHORITY",false,selection);
 
+        // Stale session ownership takes precedence over an old difficulty
+        // selection. Otherwise a replaced UI can leak NO_CONFIGURED_ACTIVITY
+        // instead of consistently rejecting exact-generation ownership.
+        if(!activityWorld.players().owns(activityOwner,activityGeneration)||
+           activityWorld.players().byName(activityPlayer)!=activityOwner)
+            return new Result(input.kind,"NO_CURRENT_PLAYER",false,selection);
+
         if(selection.selectedDifficulty==null)
             return new Result(input.kind,"NO_SELECTED_DIFFICULTY",false,selection);
 
         if(selection.selectedDifficulty!=DailyMoneyMakingStateService.Difficulty.EASY)
             return new Result(input.kind,"NO_CONFIGURED_ACTIVITY",false,selection);
-
-        // Do not transfer an old session's UI selection to a replacement
-        // generation, including when the username is reused.
-        if(!activityWorld.players().owns(activityOwner,activityGeneration)||
-           activityWorld.players().byName(activityPlayer)!=activityOwner)
-            return new Result(input.kind,"NO_CURRENT_PLAYER",false,selection);
 
         // The runtime re-checks exact owner, generation AND current name
         // under the same World/player mutation fence as activity creation.
