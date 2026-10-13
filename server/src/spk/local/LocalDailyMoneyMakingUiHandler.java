@@ -6,8 +6,9 @@ import java.util.Objects;
 /**
  * Session-local LocalLab adapter for exact Daily Money Making controls.
  *
- * G18.2 owns only difficulty selection. Track and Teleport are recognized
- * exact-current intents but fail closed until concrete server authority exists.
+ * G18.2 owns difficulty selection. G18.4 binds the exact Track widget to
+ * one explicitly CUSTOM_LOCALLAB World-owned EASY PvM objective. Teleport and
+ * unconfigured categories remain fail-closed; no production policy is inferred.
  */
 final class LocalDailyMoneyMakingUiHandler {
     static final String AUTHORITY=
@@ -44,9 +45,8 @@ final class LocalDailyMoneyMakingUiHandler {
         }
 
         boolean succeeded(){
-            return "DIFFICULTY_SELECTED".equals(
-                status
-            );
+            return "DIFFICULTY_SELECTED".equals(status)||
+                "TRACKING_UPDATED".equals(status);
         }
     }
 
@@ -54,6 +54,34 @@ final class LocalDailyMoneyMakingUiHandler {
         new DailyMoneyMakingStateService(
             new ObjectiveProgressService()
         );
+
+    private final World world;
+    private final WorldPlayer owner;
+    private final long ownerGeneration;
+    private final String playerName;
+
+    /** Historical G18.2 fixture constructor: no World activity authority. */
+    LocalDailyMoneyMakingUiHandler(){
+        world=null;
+        owner=null;
+        ownerGeneration=-1L;
+        playerName=null;
+    }
+
+    /** Installed only after LocalSession registers its exact login player. */
+    LocalDailyMoneyMakingUiHandler(
+        World world,
+        WorldPlayer owner,
+        long generation,
+        String playerName
+    ){
+        this.world=Objects.requireNonNull(world,"world");
+        this.owner=Objects.requireNonNull(owner,"owner");
+        if(generation<0L)
+            throw new IllegalArgumentException("generation="+generation);
+        this.ownerGeneration=generation;
+        this.playerName=Objects.requireNonNull(playerName,"playerName");
+    }
 
     Result handle(
         DailyMoneyMakingPresentation.Input input,
@@ -88,12 +116,7 @@ final class LocalDailyMoneyMakingUiHandler {
                     packets
                 );
             case TRACK:
-                return new Result(
-                    checked.kind,
-                    "NO_ACTIVITY_AUTHORITY",
-                    false,
-                    state.snapshot()
-                );
+                return track(checked,packets);
             case TELEPORT:
                 return new Result(
                     checked.kind,
@@ -107,6 +130,43 @@ final class LocalDailyMoneyMakingUiHandler {
                     checked.kind
                 );
         }
+    }
+
+    private Result track(
+        DailyMoneyMakingPresentation.Input input,
+        ServerPacketWriter packets
+    )throws IOException{
+        DailyMoneyMakingStateService.Snapshot selection=state.snapshot();
+        // Keep the G18.2 unbound fixture fail-closed.
+        if(world==null)
+            return new Result(input.kind,"NO_ACTIVITY_AUTHORITY",false,selection);
+
+        if(selection.selectedDifficulty==null)
+            return new Result(input.kind,"NO_SELECTED_DIFFICULTY",false,selection);
+
+        if(selection.selectedDifficulty!=DailyMoneyMakingStateService.Difficulty.EASY)
+            return new Result(input.kind,"NO_CONFIGURED_ACTIVITY",false,selection);
+
+        // A recycled username must never let an old session activate another
+        // player's World objective. No wire or domain mutation on failure.
+        if(!world.players().owns(owner,ownerGeneration)||
+           world.players().byName(playerName)!=owner)
+            return new Result(input.kind,"NO_CURRENT_PLAYER",false,selection);
+
+        LocalLabDailyMoneyMakingRuntime.ActivationResult activation=
+            world.localLabDailyMoneyMaking().activateEasy(playerName);
+        LocalLabDailyMoneyMakingRuntime.Snapshot runtime=activation.snapshot;
+        if(!LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY.equals(
+                runtime.state.trackedObjectiveKey))
+            throw new IllegalStateException("Daily Money Making objective drift");
+
+        ApplicationControl126Service.dailyMoneyMakingTrackingText(
+            Objects.requireNonNull(packets,"packets"),
+            "LocalLab Easy PvM: "+runtime.objective.progress+"/"+
+                LocalLabDailyMoneyMakingRuntime.GOAL
+        );
+        return new Result(input.kind,"TRACKING_UPDATED",activation.activatedNow,
+            runtime.state);
     }
 
     DailyMoneyMakingStateService.Snapshot snapshot(){
