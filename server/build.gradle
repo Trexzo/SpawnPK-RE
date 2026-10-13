@@ -2285,6 +2285,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21164MailboxBoundedCutoverLockIntegrationTest',
     'spk.local.G21165MailboxSevenFileCutoverWindowIntegrationTest',
     'spk.local.G21166MailboxCutoverLockLeafIdentityIntegrationTest',
+    'spk.local.G21167MailboxCutoverLockLeafCtimeIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2313,10 +2314,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 466 ||
-    currentTrainFocusedTests.toSet().size() != 466) {
+if (currentTrainFocusedTests.size() != 467 ||
+    currentTrainFocusedTests.toSet().size() != 467) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 466 unique tests, found " +
+        "Current-train focused manifest drift: expected 467 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4152,6 +4153,14 @@ tasks.register('g21166MailboxCutoverLockLeafIdentityRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21166MailboxCutoverLockLeafIdentityIntegrationTest')
+}
+
+tasks.register('g21167MailboxCutoverLockLeafCtimeRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.167: detect same-inode advisory lock rewrite with restored mtime on POSIX.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21167MailboxCutoverLockLeafCtimeIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
