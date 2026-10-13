@@ -6,8 +6,9 @@ import java.util.Objects;
 /**
  * Session-local LocalLab adapter for exact Daily Money Making controls.
  *
- * G18.2 owns only difficulty selection. Track and Teleport are recognized
- * exact-current intents but fail closed until concrete server authority exists.
+ * G18.3 preserves session-owned difficulty persistence. G18.4 resolves the
+ * exact Track widget to one explicitly CUSTOM_LOCALLAB World-owned EASY PvM
+ * objective. Medium/Hard activity and Teleport remain fail-closed.
  */
 final class LocalDailyMoneyMakingUiHandler {
     static final String AUTHORITY=
@@ -44,9 +45,8 @@ final class LocalDailyMoneyMakingUiHandler {
         }
 
         boolean succeeded(){
-            return "DIFFICULTY_SELECTED".equals(
-                status
-            );
+            return "DIFFICULTY_SELECTED".equals(status)||
+                "TRACKING_UPDATED".equals(status);
         }
     }
 
@@ -56,16 +56,42 @@ final class LocalDailyMoneyMakingUiHandler {
         );
     private final WorldPlayer persistenceOwner;
     private final String invalidPersistence;
+    private final World activityWorld;
+    private final WorldPlayer activityOwner;
+    private final long activityGeneration;
+    private final String activityPlayer;
 
     LocalDailyMoneyMakingUiHandler(){
-        this(null);
+        this(null,null,-1L,null);
     }
 
     LocalDailyMoneyMakingUiHandler(
         WorldPlayer persistenceOwner
     ){
-        this.persistenceOwner=
-            persistenceOwner;
+        this(null,persistenceOwner,-1L,null);
+    }
+
+    /**
+     * Construct AFTER canonical login restore: difficulty is rehydrated from
+     * exact WorldPlayer snapshot extensions, not the pre-login UI shell.
+     */
+    LocalDailyMoneyMakingUiHandler(
+        World world,
+        WorldPlayer persistenceOwner,
+        long generation,
+        String playerName
+    ){
+        this.persistenceOwner=persistenceOwner;
+        this.activityWorld=world;
+        this.activityOwner=world==null
+            ?null
+            :Objects.requireNonNull(persistenceOwner,"activity owner");
+        if(world!=null&&generation<0L)
+            throw new IllegalArgumentException("generation="+generation);
+        this.activityGeneration=generation;
+        this.activityPlayer=world==null
+            ?null
+            :Objects.requireNonNull(playerName,"activity player");
 
         String invalid=null;
 
@@ -141,12 +167,7 @@ final class LocalDailyMoneyMakingUiHandler {
                     packets
                 );
             case TRACK:
-                return new Result(
-                    checked.kind,
-                    "NO_ACTIVITY_AUTHORITY",
-                    false,
-                    state.snapshot()
-                );
+                return track(checked,packets);
             case TELEPORT:
                 return new Result(
                     checked.kind,
@@ -160,6 +181,51 @@ final class LocalDailyMoneyMakingUiHandler {
                     checked.kind
                 );
         }
+    }
+
+    private Result track(
+        DailyMoneyMakingPresentation.Input input,
+        ServerPacketWriter packets
+    )throws IOException{
+        DailyMoneyMakingStateService.Snapshot selection=state.snapshot();
+
+        // Keep unbound historical tests and non-live tools fail-closed.
+        if(activityWorld==null)
+            return new Result(input.kind,"NO_ACTIVITY_AUTHORITY",false,selection);
+
+        if(selection.selectedDifficulty==null)
+            return new Result(input.kind,"NO_SELECTED_DIFFICULTY",false,selection);
+
+        if(selection.selectedDifficulty!=DailyMoneyMakingStateService.Difficulty.EASY)
+            return new Result(input.kind,"NO_CONFIGURED_ACTIVITY",false,selection);
+
+        // Do not transfer an old session's UI selection to a replacement
+        // generation, including when the username is reused.
+        if(!activityWorld.players().owns(activityOwner,activityGeneration)||
+           activityWorld.players().byName(activityPlayer)!=activityOwner)
+            return new Result(input.kind,"NO_CURRENT_PLAYER",false,selection);
+
+        // The runtime re-checks exact owner, generation AND current name
+        // under the same World/player mutation fence as activity creation.
+        LocalLabDailyMoneyMakingRuntime.ActivationResult activation=
+            activityWorld.localLabDailyMoneyMaking().activateEasyIfCurrent(
+                activityPlayer,activityOwner,activityGeneration
+            );
+        if(activation==null)
+            return new Result(input.kind,"NO_CURRENT_PLAYER",false,selection);
+        LocalLabDailyMoneyMakingRuntime.Snapshot current=activation.snapshot;
+
+        if(!LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY.equals(
+                current.state.trackedObjectiveKey))
+            throw new IllegalStateException("Daily Money Making runtime objective drift");
+
+        ApplicationControl126Service.dailyMoneyMakingTrackingText(
+            Objects.requireNonNull(packets,"packets"),
+            "LocalLab Easy PvM: "+current.objective.progress+"/"+
+                LocalLabDailyMoneyMakingRuntime.GOAL
+        );
+        return new Result(input.kind,"TRACKING_UPDATED",activation.activatedNow,
+            current.state);
     }
 
     DailyMoneyMakingStateService.Snapshot snapshot(){
