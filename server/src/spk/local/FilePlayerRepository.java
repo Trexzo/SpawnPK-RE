@@ -302,6 +302,57 @@ final class FilePlayerRepository
             );
     }
 
+    /**
+     * G21.163: narrowly compose G21.71's ORIGINAL physical-account
+     * inspection and G21.162's denial under ONE existing cooperating
+     * publication lock. There is NO approval or snapshot return path.
+     * This does not lock uncooperative/RAW writers or ensure a durable
+     * crash-recovery epoch.
+     */
+    void requireFreshCutoverUnderPublicationLock(
+        String username,byte[] candidatePublicKeyDer
+    )throws IOException{
+        requireFreshCutoverUnderPublicationLock(
+            username,candidatePublicKeyDer,account->{});
+    }
+
+    /**
+     * Package-only DETERMINISTIC TEST SEAM, invoked after locked
+     * inspection but before denial to prove cooperative writer
+     * exclusion. Never called from a production entry point.
+     */
+    void requireFreshCutoverUnderPublicationLock(
+        String username,byte[] candidatePublicKeyDer,
+        BeforeWorldReplace afterLockedInspectForTest
+    )throws IOException{
+        final String account=clean(username);
+        final Path pinned=normalizedPath(account);
+        final PathResolver sameFile=requested->{
+            if(!account.equals(clean(requested)))
+                throw new IOException(
+                    "G21.163 CUTOVER_ACCOUNT_CHANGED_UNSAFE_NO_AUTHORITY");
+            return pinned;
+        };
+        Objects.requireNonNull(afterLockedInspectForTest,
+            "afterLockedInspectForTest");
+        MailboxAccountPublicationCoordinator.withExclusivePublication(
+            pinned,()->{
+                RestartRecoveryEvidence observed=
+                    inspectRestartRecoveryLocked(account,pinned,sameFile);
+                afterLockedInspectForTest.run(account);
+                if(!pinned.equals(normalizedPath(account)))
+                    throw new IOException(
+                        "G21.163 CUTOVER_PATH_DRIFT_UNSAFE_NO_AUTHORITY");
+                MailboxFreshFileCutoverAdmissionV1
+                    .requireObservedCutoverInsidePublicationLock(
+                        account,observed,candidatePublicKeyDer);
+                // Contract is always negative. Even an accidental
+                // future return from policy cannot be an admission.
+                throw new IOException(
+                    "G21.163 CUTOVER_MUST_DENY_UNSAFE_NO_AUTHORITY");
+            });
+    }
+
     /** Called with G21.39's cooperating account publication lock HELD. */
     private RestartRecoveryEvidence inspectRestartRecoveryLocked(
         String account,Path pinned,PathResolver sameFile
