@@ -1394,6 +1394,13 @@ final class FilePlayerRepository
         };
 
         if(enforceWorldAdmission){
+            // G21.171: do not even inspect sidecar paths through an
+            // unsafe ancestor. Some providers raise NotDirectoryException
+            // on marker reads before the old pre-temp check. Fail with
+            // the explicit NOFOLLOW veto before any filesystem access
+            // to child account/marker paths or World temp allocation.
+            MailboxAccountPublicationCoordinator
+                .requireSafeWorldTempAncestry(file,true);
             MailboxPreparedRestartAdmission.Decision admission=
                 MailboxPreparedRestartAdmission.inspect(snapshot);
             if(!admission.admissionAllowed)
@@ -1408,15 +1415,6 @@ final class FilePlayerRepository
         }
 
         Path parent=file.getParent();
-        if(enforceWorldAdmission){
-            // G21.171: G21.169's NOFOLLOW publication-lock check
-            // runs AFTER World serialized its G21.170 unique temp.
-            // Reject unsafe preexisting ancestry before creating any
-            // directory or spilling World snapshot bytes to disk.
-            // Raw direct save() keeps its original legacy behavior.
-            MailboxAccountPublicationCoordinator
-                .requireSafeWorldTempAncestry(file,true);
-        }
         if(parent!=null)
             Files.createDirectories(parent);
         if(enforceWorldAdmission){
