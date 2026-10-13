@@ -482,8 +482,9 @@ final class LocalSessionUiActionHandler {
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
-    private final LocalDailyMoneyMakingUiHandler
+    private volatile LocalDailyMoneyMakingUiHandler
         dailyMoneyMakingUi;
+    private boolean dailyMoneyMakingUiBound;
     private final SessionBridge bridge;
 
     LocalSessionUiActionHandler(
@@ -581,6 +582,22 @@ final class LocalSessionUiActionHandler {
         this.movementEnabled=movementEnabled;
         this.equipment=Objects.requireNonNull(equipment,"equipment");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
+    }
+
+    /**
+     * Attach a post-login adapter only after World registration and account
+     * restoration. This replaces the pre-login UI shell without losing the
+     * existing G18.3 difficulty-persistence contract.
+     */
+    synchronized void installDailyMoneyMakingUiHandler(
+        LocalDailyMoneyMakingUiHandler handler
+    ){
+        Objects.requireNonNull(handler,"handler");
+        if(dailyMoneyMakingUiBound)
+            throw new IllegalStateException(
+                "Daily Money Making UI already installed");
+        dailyMoneyMakingUi=handler;
+        dailyMoneyMakingUiBound=true;
     }
 
     synchronized void installMonsterSpawnerUiHandler(
