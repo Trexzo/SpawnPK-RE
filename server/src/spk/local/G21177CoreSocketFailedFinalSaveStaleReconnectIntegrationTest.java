@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
@@ -66,6 +67,23 @@ public final class G21177CoreSocketFailedFinalSaveStaleReconnectIntegrationTest 
         return stored.get().values().get(PROPERTY);
     }
 
+    /**
+     * Bootstrap writes are queued independently of the post-login
+     * socket success response. Wait until that actual repository write
+     * completes before arming a FINAL-ONLY failure.
+     * This reads the existing diagnostic metric; no production API change.
+     */
+    private static long completedWrites(World world){
+        String metrics=world.persistence().metrics();
+        String key=",completed=";
+        int at=metrics.indexOf(key);
+        check(at>=0,"persistence metrics lack completed counter");
+        int start=at+key.length();
+        int end=metrics.indexOf(',',start);
+        check(end>start,"persistence metrics completed invalid");
+        return Long.parseLong(metrics.substring(start,end));
+    }
+
     private static void run()throws Exception{
         Path root=Files.createTempDirectory("g21177-final-save-failure-");
         String previous=System.getProperty("spk.local.accountFile");
@@ -114,6 +132,7 @@ public final class G21177CoreSocketFailedFinalSaveStaleReconnectIntegrationTest 
             // before an account replacement could happen.
             AtomicBoolean armFailure=new AtomicBoolean(false);
             AtomicInteger refusals=new AtomicInteger();
+            AtomicReference<byte[]> preFinalBytes=new AtomicReference<>();
             FilePlayerRepository faultRepository=new FilePlayerRepository(
                 LocalAccountProfiles::accountFile,account->{
                     if(armFailure.get()&&USER.equals(account)){
@@ -134,9 +153,20 @@ public final class G21177CoreSocketFailedFinalSaveStaleReconnectIntegrationTest 
                     WorldPlayer player=failing.players().byName(USER);
                     check(OLD.equals(phase(player)),
                         "second World did not actually hydrate old bytes");
+                    // The bootstrap publisher also queues an account
+                    // save. If fault injection starts immediately after
+                    // socket success, BOTH BOOTSTRAP and SESSION_END may
+                    // fail, incorrectly invalidating a final-only test.
+                    await(()->completedWrites(failing)>=1L,
+                        "bootstrap account write completed");
+                    check(OLD.equals(diskValue(normalRepository)),
+                        "bootstrap changed semantic durable preimage");
+                    preFinalBytes.set(Files.readAllBytes(file));
+                    check(preFinalBytes.get().length>0,
+                        "no durable post-bootstrap preimage");
                     setPhase(failing,player,NEW);
-                    // Arm immediately before disconnect. The session
-                    // final-save runs through saveForWorld and MUST fail.
+                    // Arm only AFTER the genuine bootstrap write has
+                    // fully completed and BEFORE socket disconnect.
                     armFailure.set(true);
                 }
                 await(()->failing.players().size()==0,
@@ -147,8 +177,9 @@ public final class G21177CoreSocketFailedFinalSaveStaleReconnectIntegrationTest 
                 "expected exactly one genuine final-save IO refusal");
             check(failing.persistence().failedCount()>=1L,
                 "persistence worker failed counter not incremented");
-            check(Arrays.equals(oldBytes,Files.readAllBytes(file)),
-                "failed final-save rewrote previously durable account");
+            check(preFinalBytes.get()!=null&&
+                Arrays.equals(preFinalBytes.get(),Files.readAllBytes(file)),
+                "failed final-save rewrote post-bootstrap durable account");
             check(OLD.equals(diskValue(normalRepository)),
                 "uncommitted NEW was reported durable after failure");
             check(!Files.exists(secondary,LinkOption.NOFOLLOW_LINKS),
@@ -197,6 +228,7 @@ public final class G21177CoreSocketFailedFinalSaveStaleReconnectIntegrationTest 
                 " realTcpSuccessfulLogins=3"+
                 " worldsCreatedAndClosed=3"+
                 " firstDurableSnapshot=true"+
+                " bootstrapCompletedBeforeFault=true"+
                 " prePublicationIoFailures="+refusals.get()+
                 " persistenceFailedCounterObserved=true"+
                 " previousAccountBytesUnchanged=true"+
