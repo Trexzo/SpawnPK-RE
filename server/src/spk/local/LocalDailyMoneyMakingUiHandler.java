@@ -205,8 +205,14 @@ final class LocalDailyMoneyMakingUiHandler {
            activityWorld.players().byName(activityPlayer)!=activityOwner)
             return new Result(input.kind,"NO_CURRENT_PLAYER",false,selection);
 
+        // The runtime re-checks exact owner, generation AND current name
+        // under the same World/player mutation fence as activity creation.
         LocalLabDailyMoneyMakingRuntime.ActivationResult activation=
-            activityWorld.localLabDailyMoneyMaking().activateEasy(activityPlayer);
+            activityWorld.localLabDailyMoneyMaking().activateEasyIfCurrent(
+                activityPlayer,activityOwner,activityGeneration
+            );
+        if(activation==null)
+            return new Result(input.kind,"NO_CURRENT_PLAYER",false,selection);
         LocalLabDailyMoneyMakingRuntime.Snapshot current=activation.snapshot;
 
         if(!LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY.equals(
