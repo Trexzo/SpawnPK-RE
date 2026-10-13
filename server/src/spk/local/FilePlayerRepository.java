@@ -329,7 +329,7 @@ final class FilePlayerRepository
         final Path pinned=normalizedPath(account);
         final PathResolver sameFile=requested->{
             if(!account.equals(clean(requested)))
-                throw new IOException(
+                throw new IllegalArgumentException(
                     "G21.163 CUTOVER_ACCOUNT_CHANGED_UNSAFE_NO_AUTHORITY");
             return pinned;
         };
