@@ -175,9 +175,13 @@ public final class G21178CoreSocketSameWorldFailedFinalSaveVetoIntegrationTest {
                         "expected exactly one failed final save");
                     check(second.persistence().failedCount()>=1L,
                         "failed final save not counted");
-                    check(second.persistence()
+                    // The failing future wakes the session thread
+                    // before the SaveTask's finally records the
+                    // negative set. The worker still marks it before
+                    // running any later LoadTask in the SAME FIFO.
+                    await(()->second.persistence()
                             .failedFinalSaveAdmissionVetoCount()==1,
-                        "World-lifetime negative set not armed");
+                        "World-lifetime final-save negative recorded");
                     check(Arrays.equals(before,Files.readAllBytes(file)),
                         "failed final save changed old account bytes");
                 }
