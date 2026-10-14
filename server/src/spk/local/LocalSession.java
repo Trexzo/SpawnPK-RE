@@ -3113,6 +3113,17 @@ final class LocalSession implements Runnable {
             worldPlayerGeneration=playerInit.worldPlayerGeneration;
             worldRegistered=true;
 
+            // Rehydrate persisted G18.3 difficulty after canonical account load,
+            // then bind G18.4 Track to this exact player generation.
+            uiActions.installDailyMoneyMakingUiHandler(
+                new LocalDailyMoneyMakingUiHandler(
+                    world,
+                    worldPlayer,
+                    worldPlayerGeneration,
+                    username
+                )
+            );
+
             /*
              * Session-owned World commands are valid before the regular tick
              * target is attached, so they have an independent callback
