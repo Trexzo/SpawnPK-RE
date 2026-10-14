@@ -29,6 +29,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean rejectedG1PartialTerminal=g1InvalidPvmStateAllowsOtherTerminalConsumers();
         boolean g18FailureNonRetryable=actualG18ConsumerFailureAfterG1();
         boolean earlyG4Failure=actualG4FailureStopsLaterG18();
+        boolean stickyG4Invalid=invalidG4PersistenceWhileRealOtherConsumersAdvance();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -202,6 +203,168 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " externalClientCorruptionProven=false"+
             " originalServerPolicyClaim=false"
         );
+        require(stickyG4Invalid,
+            "G1860 invalid G4 persistence did not remain fail-closed across actual terminal events");
+        System.out.println(
+            "G1860_G4_INVALID_PERSISTENCE_STICKY_PARTIAL_DELIVERY_PASS"+
+            " installedObserver=true"+
+            " twoDistinctCanonicalDeaths="+stickyG4Invalid+
+            " g4InvalidNonthrowing=true"+
+            " repairedNamespaceStillQuarantined="+stickyG4Invalid+
+            " g1KillsTwoAndReceiptsTwo="+stickyG4Invalid+
+            " g18DmmProgressTwo="+stickyG4Invalid+
+            " twoGroundSettlements="+stickyG4Invalid+
+            " g1DueTickRespawnObserved=true"+
+            " manualReplayOrGrant=false"+
+            " originalServerPolicyClaim=false"+
+            " productionCodeChanged=false"
+        );
+    }
+
+    /**
+     * G18.6.0 / #2587: a G4 invalid persisted extension is swallowed by
+     * LocalLabSlayerRuntime.ensureRestoredOwned into invalidPersistence for
+     * this exact WorldPlayer. G4 returns a soft non-progress result, NOT a
+     * thrown observer error. Later installed G18 consumer still receives
+     * canonical terminal events. Deleting bad snapshot bytes alone does
+     * NOT clear this in-memory fail-closed G4 state.
+     *
+     * All invalid input is test-owned internal state (not client data).
+     */
+    private static boolean invalidG4PersistenceWhileRealOtherConsumersAdvance()
+        throws Exception{
+        final String account=USER+"-g4-invalid-soft-refusal";
+        final long firstTick=401L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            generation=world.registerPlayer(player,account);
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult activated=
+                dmm.activateEasyIfCurrent(account,player,generation);
+            require(activated!=null&&activated.activatedNow&&
+                    activated.snapshot.objective.progress==0L,
+                "G1860 initial G18 objective activated");
+
+            // Internal fixture only: malformed Blood Slayer persistence
+            // before its first hydration attempt on this WorldPlayer.
+            synchronized(player.mutationLock()){
+                player.snapshotExtensions().replaceNamespace(
+                    LocalLabSlayerPersistence.NAMESPACE,
+                    java.util.Collections.singletonMap(
+                        "version","invalid-test-only")
+                );
+            }
+            LocalLabSlayerRuntime slayer=world.localLabSlayer();
+            LocalLabSlayerRuntime.StatusSnapshot blocked=
+                slayer.status(account);
+            require(blocked!=null&&
+                    blocked.persistenceError!=null&&
+                    blocked.task==null,
+                "G1860 G4 invalid extension must fail closed without throwing");
+
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult firstSpawn=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc first=firstSpawn.spawn.combat.spawn.npc;
+            require(world.npcLifecycle().applyDamage(
+                    first.id,99,firstTick
+                ).newlyDied,
+                "G1860 first actual canonical NPC death");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminalOne=
+                provisioned.runtime().finalizeIfOwned(first);
+            PvmRecordService records=world.pvmRecords();
+            require(terminalOne!=null&&
+                    terminalOne.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminalOne.settlement!=null&&
+                    terminalOne.settlement.groundItems.size()==1&&
+                    terminalOne.settlement.groundItems.get(0)
+                        .settledAmount==1&&
+                    records.snapshot(player).kills==1L&&
+                    records.receiptCount()==1&&
+                    dmm.snapshot(account).objective.progress==1L&&
+                    slayer.status(account).persistenceError!=null&&
+                    world.groundItems().size()==1,
+                "G1860 installed observer first G1/G18 accepted with invalid G4 refusal");
+
+            // Removing malformed persisted bytes cannot silently clear
+            // G4's cached invalidPersistence on this player instance.
+            synchronized(player.mutationLock()){
+                player.snapshotExtensions().replaceNamespace(
+                    LocalLabSlayerPersistence.NAMESPACE,
+                    java.util.Collections.emptyMap()
+                );
+            }
+            LocalLabSlayerRuntime.StatusSnapshot stillBlocked=
+                slayer.status(account);
+            require(stillBlocked.persistenceError!=null&&
+                    stillBlocked.task==null&&
+                    dmm.snapshot(account).objective.progress==1L,
+                "G1860 repaired persisted bytes must not reauthorize G4 mid-session");
+
+            // Trigger the ACTUAL G1 due-time respawn, then an independent
+            // second lifecycle death; no test-only consumer replay.
+            world.events().runDue(
+                firstTick+G1MonsterSpawnerPvmLoopService
+                    .RESPAWN_DELAY_TICKS
+            );
+            MonsterSpawnerService.SessionSnapshot session=
+                spawner.getSession(account);
+            require(session!=null&&session.spawnedNpcIds.size()==1&&
+                    !first.id.equals(session.spawnedNpcIds.get(0)),
+                "G1860 expected real due-time replacement NPC");
+            WorldNpc second=world.npcs().byId(
+                session.spawnedNpcIds.get(0)
+            );
+            require(second!=null&&
+                    world.npcLifecycle().applyDamage(
+                        second.id,99,
+                        firstTick+G1MonsterSpawnerPvmLoopService
+                            .RESPAWN_DELAY_TICKS+1L
+                    ).newlyDied,
+                "G1860 second distinct canonical NPC death");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminalTwo=
+                provisioned.runtime().finalizeIfOwned(second);
+            LocalLabSlayerRuntime.StatusSnapshot after=
+                slayer.status(account);
+            return terminalTwo!=null&&
+                terminalTwo.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                terminalTwo.settlement!=null&&
+                terminalTwo.settlement.groundItems.size()==1&&
+                terminalTwo.settlement.groundItems.get(0)
+                    .settledAmount==1&&
+                after.persistenceError!=null&&
+                after.task==null&&
+                records.snapshot(player).kills==2L&&
+                records.receiptCount()==2&&
+                dmm.snapshot(account).objective.progress==2L&&
+                world.groundItems().snapshot().stream()
+                    .filter(item->
+                        item.itemId==995&&
+                        account.equals(item.owner)
+                    )
+                    .mapToInt(item->item.amount)
+                    .sum()==2&&
+                provisioned.runtime().get(first.id)==null&&
+                provisioned.runtime().get(second.id)==null;
+        }finally{
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
     }
 
     /**
