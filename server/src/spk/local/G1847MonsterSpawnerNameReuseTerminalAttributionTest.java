@@ -289,6 +289,9 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                     terminalOne.status==
                         MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
                     terminalOne.settlement!=null&&
+                    terminalOne.settlement.groundItems.size()==1&&
+                    terminalOne.settlement.groundItems.get(0)
+                        .settledAmount==1&&
                     records.snapshot(player).kills==1L&&
                     records.receiptCount()==1&&
                     dmm.snapshot(account).objective.progress==1L&&
@@ -340,12 +343,21 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 terminalTwo.status==
                     MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
                 terminalTwo.settlement!=null&&
+                terminalTwo.settlement.groundItems.size()==1&&
+                terminalTwo.settlement.groundItems.get(0)
+                    .settledAmount==1&&
                 after.persistenceError!=null&&
                 after.task==null&&
                 records.snapshot(player).kills==2L&&
                 records.receiptCount()==2&&
                 dmm.snapshot(account).objective.progress==2L&&
-                world.groundItems().size()==2&&
+                world.groundItems().snapshot().stream()
+                    .filter(item->
+                        item.itemId==995&&
+                        account.equals(item.owner)
+                    )
+                    .mapToInt(item->item.amount)
+                    .sum()==2&&
                 provisioned.runtime().get(first.id)==null&&
                 provisioned.runtime().get(second.id)==null;
         }finally{
