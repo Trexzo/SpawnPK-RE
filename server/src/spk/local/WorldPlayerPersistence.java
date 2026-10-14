@@ -349,6 +349,19 @@ final class WorldPlayerPersistence
             );
     }
 
+    /**
+     * G21.181 opt-in lease key uses the EXACT concrete file resolver.
+     * Non-file adapters do not enter this experimental lease protocol.
+     * This is not a path stability or cross-process lock guarantee.
+     */
+    java.nio.file.Path fileBackedAccountPathForJvmSessionLease(
+        String username
+    ){
+        return repository instanceof FilePlayerRepository
+            ?((FilePlayerRepository)repository).accountFilePath(username)
+            :null;
+    }
+
     Optional<PlayerSnapshot> load(
         String username
     )throws IOException{
