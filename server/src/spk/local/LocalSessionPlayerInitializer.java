@@ -14,17 +14,20 @@ final class LocalSessionPlayerInitializer {
         final boolean persistentAccount;
         final boolean newAccount;
         final long worldPlayerGeneration;
+        final LocalJvmAccountSessionLease.Token sessionLease;
 
         Result(
             String username,
             boolean persistentAccount,
             boolean newAccount,
-            long worldPlayerGeneration
+            long worldPlayerGeneration,
+            LocalJvmAccountSessionLease.Token sessionLease
         ){
             this.username=username;
             this.persistentAccount=persistentAccount;
             this.newAccount=newAccount;
             this.worldPlayerGeneration=worldPlayerGeneration;
+            this.sessionLease=sessionLease;
         }
     }
 
@@ -101,6 +104,14 @@ final class LocalSessionPlayerInitializer {
         String username=account.username;
         boolean persistentAccount=account.persistent;
 
+        // G21.181 opt-in: acquire before loading or creating any account
+        // state. A competing World with the same concrete account path
+        // cannot concurrently become an admitted owner in this JVM.
+        LocalJvmAccountSessionLease.Token sessionLease=
+            persistentAccount
+                ?LocalJvmAccountSessionLease.acquire(persistence,username)
+                :null;
+        try{
         LocalAccountLifecycle.LoadResult accountLoad=
             LocalAccountLifecycle.load(
                 account,
@@ -243,8 +254,15 @@ final class LocalSessionPlayerInitializer {
             username,
             persistentAccount,
             accountLoad.missing,
-            generation
+            generation,
+            sessionLease
         );
+        }catch(RuntimeException|Error failure){
+            // No Result was published; the caller cannot own this token.
+            if(sessionLease!=null)
+                sessionLease.releaseAfterInitializationFailure();
+            throw failure;
+        }
         }
     }
 
