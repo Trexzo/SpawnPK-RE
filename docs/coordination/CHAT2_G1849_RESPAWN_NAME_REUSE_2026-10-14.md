@@ -18,6 +18,10 @@ Extend the already checked `G1847MonsterSpawnerNameReuseTerminalAttributionTest`
 - Control has **no owner at terminal**: the G1 loop should not have scheduled a respawn, and executing due events should create no new NPC. An inspection user is reattached only after terminal delivery.
 - Emit a secondary marker `G1849_MONSTER_SPAWNER_RESPAWN_NAME_REUSE_PASS` if this source-observed behavior is reproducible. Existing G18.4.7/G18.4.8 markers must remain true.
 
+**Additional stricter scenario:** A remains registered while the first NPC dies at tick 54 and the G1 terminal callback schedules the delayed respawn ticket. Assert post-terminal session has no NPC and is inactive, then **only after the ticket exists** unregister A and register B under the identical account. Drive `WorldEventQueue.runDue(54 + RESPAWN_DELAY_TICKS)` and inspect the newly spawned canonical NPC for an exact B/generation witness. This distinguishes an existing **old-session scheduled ticket crossing a reconnect** from the weaker case where B was already present at terminal delivery.
+
+**Hosted first-run fixture correction:** [Actions #38553540273](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38553540273) FAILED because the no-recipient control asserted `runDue(...)==0`, but `WorldEventQueue.runDue` counts **all World scheduled tasks**, not just this G1 respawn. It now asserts the relevant state instead: no tracked respawned NPC and the original finalized NPC absent. This is a test-only assertion correction, not a production behavior change.
+
 **No new class or manifest entry**; focused remains **492**. No production files, business rules, player/session code, network, or persistence modified.
 
 ## Nonclaims and future authority
