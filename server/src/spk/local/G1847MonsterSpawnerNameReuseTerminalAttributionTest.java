@@ -13,6 +13,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
     public static void main(String[] args)throws Exception{
         CaseResult replacement=runCase(true);
         CaseResult absent=runCase(false);
+        boolean lateTicketReuse=lateReplacementAfterTicketScheduled();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -20,12 +21,14 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             replacement.replacementGotLegacyCredit&&
             replacement.oldGenerationOptInRefused&&
             replacement.progressWasExactlyOne&&
-            replacement.g1RecordCreditedReplacement;
+            replacement.g1RecordCreditedReplacement&&
+            replacement.oldGenerationRespawnedForReplacement;
         boolean noCurrentRecipientNoCredit=
             absent.finalized&&
             absent.originalOriginPreserved&&
             absent.progressWasExactlyZero&&
-            absent.g1RecordNotCreditedWhenAbsent;
+            absent.g1RecordNotCreditedWhenAbsent&&
+            absent.noOwnerNoRespawn;
 
         require(replacementCredited,
             "same username replacement did not reproduce observed credit");
@@ -52,6 +55,109 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " originalServerKillOwnershipClaim=false"+
             " productionRecordPolicyChanged=false"
         );
+        require(lateTicketReuse,
+            "old-generation pending respawn ticket did not cross reconnect");
+        System.out.println(
+            "G1849_MONSTER_SPAWNER_RESPAWN_NAME_REUSE_PASS"+
+            " oldNpcRespawnedForCurrentName="+
+                replacement.oldGenerationRespawnedForReplacement+
+            " scheduledUnderOldGenerationThenReused="+
+                lateTicketReuse+
+            " missingAtTerminalNoRespawn="+
+                absent.noOwnerNoRespawn+
+            " originalServerRespawnPolicyClaim=false"+
+            " productionRespawnPolicyChanged=false"
+        );
+    }
+
+    /**
+     * Stronger G18.4.9 separation: schedule the real G1 ticket while
+     * original A is CURRENT, then replace A with B only BEFORE due-time
+     * execution. This is distinct from old-NPC finalization after a
+     * replacement has already joined.
+     */
+    private static boolean lateReplacementAfterTicketScheduled()
+        throws Exception{
+        final String account=USER+"-late-ticket";
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer original=new WorldPlayer();
+        WorldPlayer replacement=null;
+        long originalGeneration=-1L;
+        long replacementGeneration=-1L;
+        try{
+            originalGeneration=world.registerPlayer(original,account);
+            LocalMonsterSpawnerActivationRuntime provisioning=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioning.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioning.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            MonsterSpawnerPvmRuntime.RecipientOrigin oldOrigin=
+                spawned.runtime.recipientOrigin;
+            require(oldOrigin!=null&&oldOrigin.player==original&&
+                    oldOrigin.generation==originalGeneration&&
+                    oldOrigin.stillCurrentIn(world),
+                "original player must own pre-finalization NPC");
+
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,54L
+                ).newlyDied,
+                "scheduled-before-logout lethal event");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioning.runtime().finalizeIfOwned(npc);
+            require(terminal!=null&&terminal.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.recipientOrigin==oldOrigin&&
+                    oldOrigin.stillCurrentIn(world),
+                "ticket must originate while old generation remains live");
+
+            MonsterSpawnerService.SessionSnapshot pending=
+                spawner.getSession(account);
+            require(pending!=null&&pending.spawnedNpcIds.isEmpty()&&
+                    !pending.active,
+                "old generation must have a post-terminal pending session");
+
+            require(world.unregisterPlayer(original,originalGeneration),
+                "old owner disconnect after G1 ticket scheduled");
+            replacement=new WorldPlayer();
+            replacementGeneration=world.registerPlayer(
+                replacement,account
+            );
+            require(!oldOrigin.stillCurrentIn(world)&&
+                    world.players().byName(account)==replacement,
+                "replacement must join after ticket publication");
+
+            world.events().runDue(
+                54L+G1MonsterSpawnerPvmLoopService.RESPAWN_DELAY_TICKS
+            );
+            MonsterSpawnerService.SessionSnapshot fresh=
+                spawner.getSession(account);
+            if(fresh==null||fresh.spawnedNpcIds.size()!=1)return false;
+            EntityId freshNpcId=fresh.spawnedNpcIds.get(0);
+            MonsterSpawnerPvmRuntime.Snapshot newNpc=
+                provisioning.runtime().get(freshNpcId);
+            return !npc.id.equals(freshNpcId)&&
+                newNpc!=null&&newNpc.recipientOrigin!=null&&
+                newNpc.recipientOrigin.player==replacement&&
+                newNpc.recipientOrigin.generation==replacementGeneration&&
+                !oldOrigin.stillCurrentIn(world);
+        }finally{
+            if(replacement!=null&&
+                    world.players().owns(replacement,replacementGeneration))
+                world.unregisterPlayer(replacement,replacementGeneration);
+            if(originalGeneration>=0L&&
+                    world.players().owns(original,originalGeneration))
+                world.unregisterPlayer(original,originalGeneration);
+            world.close();
+        }
     }
 
     private static CaseResult runCase(boolean reconnect)
@@ -136,6 +242,50 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 terminal.recipientOrigin.player==original&&
                 terminal.recipientOrigin.generation==originalGeneration&&
                 !origin.stillCurrentIn(world);
+
+            // G18.4.9: the real installed G1 terminal loop schedules an
+            // automatic respawn if ANY current owner of the stored username
+            // exists. Its delayed ticket carries only strings and expected
+            // MonsterSpawner session; neither is a player-generation fence.
+            // Resolve the real due tick, without mutating production policy.
+            final long dueTick=41L+
+                G1MonsterSpawnerPvmLoopService.RESPAWN_DELAY_TICKS;
+            int dueCallbacks=world.events().runDue(dueTick);
+            MonsterSpawnerService.SessionSnapshot afterRespawn=
+                spawner.getSession(USER);
+
+            if(reconnect){
+                boolean registeredReplacement=
+                    world.players().owns(
+                        replacement,replacementGeneration
+                    );
+                if(afterRespawn!=null&&
+                        afterRespawn.spawnedNpcIds.size()==1){
+                    EntityId newNpcId=
+                        afterRespawn.spawnedNpcIds.get(0);
+                    MonsterSpawnerPvmRuntime.Snapshot newborn=
+                        provisioning.runtime().get(newNpcId);
+                    result.oldGenerationRespawnedForReplacement=
+                        dueCallbacks>=1&&registeredReplacement&&
+                        !npc.id.equals(newNpcId)&&
+                        newborn!=null&&
+                        newborn.recipientOrigin!=null&&
+                        newborn.recipientOrigin.player==replacement&&
+                        newborn.recipientOrigin.generation==
+                            replacementGeneration&&
+                        !origin.stillCurrentIn(world);
+                }
+            }else{
+                // WorldEventQueue.runDue returns ALL due callbacks,
+                // not just this G1 loop's ticket. The correct negative
+                // evidence is the absence of a newly tracked/spawned NPC.
+                // The terminal teardown may retire the now-empty
+                // Monster Spawner session altogether. Null session and
+                // a retained zero-NPC session both mean NO respawn.
+                result.noOwnerNoRespawn=
+                    afterRespawn==null||
+                    afterRespawn.spawnedNpcIds.isEmpty();
+            }
 
             // snapshot(USER) deliberately requires a current player.
             // In the no-replacement control, reattach ONLY AFTER the
@@ -225,6 +375,8 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean progressWasExactlyZero;
         boolean g1RecordCreditedReplacement;
         boolean g1RecordNotCreditedWhenAbsent;
+        boolean oldGenerationRespawnedForReplacement;
+        boolean noOwnerNoRespawn;
     }
 
     private static void require(boolean ok,String message){
