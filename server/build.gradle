@@ -2320,6 +2320,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21192CoreSocketForcedWorldPostimageTest',
     'spk.local.G21193CoreForcedHealthySaveStillQuarantinedTest',
     'spk.local.G21194CoreFailedForcedFinalSaveStillQuarantinedTest',
+    'spk.local.G21195CoreKilledFailedFinalSaveReviewVetoTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2348,10 +2349,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 501 ||
-    currentTrainFocusedTests.toSet().size() != 501) {
+if (currentTrainFocusedTests.size() != 502 ||
+    currentTrainFocusedTests.toSet().size() != 502) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 501 unique tests, found " +
+        "Current-train focused manifest drift: expected 502 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4459,6 +4460,14 @@ tasks.register('g21194CoreFailedForcedFinalSaveStillQuarantinedRegression', Java
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21194CoreFailedForcedFinalSaveStillQuarantinedTest')
+}
+
+tasks.register('g21195CoreKilledFailedFinalSaveReviewVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.195: forced BOOTSTRAP, failed final save, kill owning JVM, and reject stale account from fresh TCP JVM via existing ACTIVE review.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21195CoreKilledFailedFinalSaveReviewVetoTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
