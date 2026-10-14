@@ -1,23 +1,30 @@
-# Chat 2 G18.5.2 — controlled post-G1 failure yields partial progression delivery
+# Chat 2 G18.5.2 — consumer replay asymmetry with the ACTUAL installed terminal observer
 
-Date: 2026-10-14. Parent: [Chat 2 + Chat 1 G21.188 / G18.5.1 cumulative #2588](https://github.com/Trexzo/SpawnPK-RE/pull/2588) exact `cbbebcc8e8135f9de0dae9d6edb74d87ba86e8bd`, [Actions #38561270563](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38561270563) **SUCCESS**: `G1851_TERMINAL_OBSERVER_FAILURE_NONRETRYABLE_PASS`, G1850, G21188, 495/495 focused, Java11 major55, full Gradle.
+Date: 2026-10-14. Parent [G21.188 + G18.5.1 #2588](https://github.com/Trexzo/SpawnPK-RE/pull/2588) exact `cbbebcc8e8135f9de0dae9d6edb74d87ba86e8bd`, hosted [Actions #38561270563](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38561270563) SUCCESS, 495 focused + Java11 55/full Gradle.
 
-## Distinct experiment and exact limits
+## Source-backed question for issue #2587
 
-Installed `LocalLabMonsterSpawnerProvisioning` chains (1) real `G1MonsterSpawnerPvmLoopService.onFinalized` and (2) `creditTerminalProgression`, which sequentially calls G4 Blood Slayer, G14 Daily Challenges, G15 Task Scrolls, G16 Adventures, and G18 Daily Money Making. Source `MonsterSpawnerPvmRuntime.settlePending` commits canonical ground drops and **removes the NPC entry** before invoking the terminal observer, then catches observer `Throwable` without rollback or delivery-retry record.
+The installed `LocalLabMonsterSpawnerProvisioning.create(world)` terminal observer executes G1 `PvmRecordService.recordIfCurrent` and then `creditTerminalProgression` (G4/G14/G15/G16/G18) after canonical ground settlement. The G1 record service has an `(npcId,deathTick)` receipt map and rejects duplicates as `Receipt.replayed`; the aggregate progression path delivers name-based events to multiple consumers without a shared per-consumer terminal-delivery ledger. A future outbox/retry must not simply send the same event to all consumers again.
 
-G18.5.1 #2585 already confirmed a generic synthetic failing observer is non-replayable. This test adds an explicitly **controlled partial-delivery cutpoint**: instantiate the **actual G1 consumer class** using the same `World`, `MonsterSpawnerService`, spawn executor, and `PvmRecordService` as the actual `LocalLabMonsterSpawnerProvisioning.create(world)` graph. In test only, **replace** the installed combined terminal observer with a wrapper that first calls this real G1 `onFinalized` and then deliberately throws `G1852_INJECTED_POST_G1_PRE_G18_FAILURE`, before the later progression consumers run.
+## Actual test sequence (NO observer replacement)
 
-The checked existing `G1847MonsterSpawnerNameReuseTerminalAttributionTest` asserts:
-- Real LocalLab canonical spawned NPC and death finalization return `FINALIZED`; one ground drop settlement is committed.
-- G1 `PvmRecordService` increments exactly one kill and records exactly one receipt; G18's already-active Easy objective remains **zero** because the test intentionally did not execute it.
-- `retrySettlement(npcId)` and duplicate `finalizeIfOwned(npc)` both return `NOT_OWNED`, do not re-run G1, do not deliver the skipped G18 consumer and do not re-settle drops.
-- New `G1852_PARTIAL_TERMINAL_CONSUMER_DELIVERY_PASS` marker; all prior G1847/1848/1849/G1850 markers remain.
+Add to the already checked `G1847MonsterSpawnerNameReuseTerminalAttributionTest`:
 
-**Important claim boundary:** This is NOT an actual failure of the currently installed combined terminal observer and does NOT prove a G4/G14/G15/G16/G18 real consumer ever throws. A test-only observer is deliberately substituted to simulate a process-stage failure AFTER a successfully executed real G1 consumer. It demonstrates **the existing runtime cannot repair partial delivery at this cutpoint**, not the frequency/cause of such a failure in ordinary gameplay.
+1. Register an exact WorldPlayer/generation, start G18 Easy objective at 0.
+2. Instantiate **real unmodified** `LocalLabMonsterSpawnerProvisioning.create(world)` with its installed G1-plus-G4/G14/G15/G16/G18 combined observer **left in place**.
+3. Open/select/activate Monster Spawner, spawn canonical definition1 NPC, kill it once, run its **actual finalization/settlement/callback**. Expect `FINALIZED`, one ground drop, one G1 kill+receipt, G18 progress exactly **1**.
+4. AFTER that completed terminal event, deliberately simulate **consumer-only duplicate delivery in the test** by calling (a) the **same real** `PvmRecordService.recordIfCurrent(player,generation,npcId,deathTick)` API with identical kill identity and (b) the real `LocalLabMonsterSpawnerProvisioning.creditTerminalProgression(...same finalization fields...)` aggregate API exactly once again.
+5. Characterize the difference: G1 receipt says `replayed=true, applied=false`, kill count remains 1 and receipts remain 1, but G18 objective advances from **1→2**. Ground loot stays at one committed item; retrying already-finalized NPC still yields `NOT_OWNED`, so the runtime is NOT performing replay itself.
+6. Emit `G1852_TERMINAL_CONSUMER_REPLAY_ASYMMETRY_PASS`, while keeping all earlier G1847–G1850 markers.
 
-## Scope / coordination
+**This is a test-only MANUAL consumer replay, not current installed observer automatically replaying or failing.** It is exact evidence that a naive future outbox re-delivery across different consumer APIs has asymmetric idempotency and can double-credit G18 in the current `CUSTOM_LOCALLAB` code. It is NOT an original SpawnPK transaction policy, not evidence of exploitation, and not a live fix. It also does not establish complete replay behavior for every other progression consumer; G18 and G1 are asserted.
 
-Only one already covered test class plus this note; **no production code, tests manifest, Gradle, default flags or account session behavior changed**. Parent focused manifest remains **495 unique**. Separate engineering [issue #2587](https://github.com/Trexzo/SpawnPK-RE/issues/2587) tracks the prospective **CUSTOM_LOCALLAB** outbox/idempotent terminal event with per-consumer receipts. Replaying ground loot would be incorrect. Any original SpawnPK server reward/credit transaction policy stays `UNKNOWN_SERVER_AUTHORITY`; actor attribution unresolved [#2558](https://github.com/Trexzo/SpawnPK-RE/issues/2558), daily activity lifetime unresolved [#2547](https://github.com/Trexzo/SpawnPK-RE/issues/2547).
+## Correction from first unverified test draft
 
-**Fresh hosted CI required:** exact commit `G1852_PARTIAL_TERMINAL_CONSUMER_DELIVERY_PASS`, G1851/G1850/G1849/G1848/G1847, G21188 review-intent primitive (NOT login-wired), 495 focused, Java11 major55 and full Gradle. Prior #2588 green is not this child certification. Chat 1 owns any promotion, do not double merge prior Chat 2 gameplay PRs; frozen R25/release pointers unchanged.
+The initial G18.5.2 draft tried replacing the terminal observer after `LocalLabMonsterSpawnerProvisioning.create`. **That was invalid:** `MonsterSpawnerPvmRuntime.installTerminalObserver` is single-install and correctly rejects a different observer. The first draft's hosted test must NOT be treated as certification. This corrected test preserves that ownership invariant and uses the real combined observer. PR body and exact-head CI are being updated accordingly.
+
+## Coordination and gate
+
+Only existing covered test class plus this docs note; **no production source, account/session code or Gradle changes**, 495 unique focused unchanged. Track future **CUSTOM_LOCALLAB** idempotent per-consumer outbox in [#2587](https://github.com/Trexzo/SpawnPK-RE/issues/2587); original reward authority [#2558](https://github.com/Trexzo/SpawnPK-RE/issues/2558) remains unknown. Chat 1 G21.189 admission veto separately remains DEFAULT OFF and does not yet create intent markers or safely recover killed-JVM mutations.
+
+Fresh hosted exact-head `G1852_TERMINAL_CONSUMER_REPLAY_ASYMMETRY_PASS`, G1851/G1850/G1849/G1848/G1847, Java11 major55, 495 focused, full Gradle required. Chat 1 owns any promotion. Draft/unmerged.
