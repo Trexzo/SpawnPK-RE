@@ -242,6 +242,8 @@ final class LocalSession implements Runnable {
     private String username = AccountStore.CANONICAL_USERNAME;
     private String loginAlias = "localtest";
     private boolean persistentAccount;
+    /** G21.181 experimental same-JVM owner; released only after final write ACK. */
+    private LocalJvmAccountSessionLease.Token accountSessionLease;
     /** Persisted semantic global pet accessory. 0 means none. */
     private final PetAccessoryState petAccessoryState;
     private volatile boolean logoutRequested;
@@ -3110,6 +3112,7 @@ final class LocalSession implements Runnable {
                 playerInitializer.initialize(loginAlias,tag);
             username=playerInit.username;
             persistentAccount=playerInit.persistentAccount;
+            accountSessionLease=playerInit.sessionLease;
             worldPlayerGeneration=playerInit.worldPlayerGeneration;
             worldRegistered=true;
 
@@ -4381,6 +4384,15 @@ final class LocalSession implements Runnable {
                 5,
                 java.util.concurrent.TimeUnit.SECONDS
             );
+
+            // Never open a competing World admission before a confirmed
+            // account final-save outcome. Any timeout/error/uncertainty
+            // intentionally strands this opt-in lease for manual review
+            // during this JVM lifetime (NOT across process restart).
+            if(accountSessionLease!=null){
+                accountSessionLease.releaseAfterConfirmedFinalSave();
+                accountSessionLease=null;
+            }
         }catch(Throwable e){
             if(reservation!=null)
                 reservation.abort(
