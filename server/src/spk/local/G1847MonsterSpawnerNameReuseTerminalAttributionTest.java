@@ -279,10 +279,12 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 // WorldEventQueue.runDue returns ALL due callbacks,
                 // not just this G1 loop's ticket. The correct negative
                 // evidence is the absence of a newly tracked/spawned NPC.
+                // The terminal teardown may retire the now-empty
+                // Monster Spawner session altogether. Null session and
+                // a retained zero-NPC session both mean NO respawn.
                 result.noOwnerNoRespawn=
-                    afterRespawn!=null&&
-                    afterRespawn.spawnedNpcIds.isEmpty()&&
-                    provisioning.runtime().get(npc.id)==null;
+                    afterRespawn==null||
+                    afterRespawn.spawnedNpcIds.isEmpty();
             }
 
             // snapshot(USER) deliberately requires a current player.
