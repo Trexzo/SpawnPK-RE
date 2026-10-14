@@ -20,12 +20,14 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             replacement.replacementGotLegacyCredit&&
             replacement.oldGenerationOptInRefused&&
             replacement.progressWasExactlyOne&&
-            replacement.g1RecordCreditedReplacement;
+            replacement.g1RecordCreditedReplacement&&
+            replacement.oldGenerationRespawnedForReplacement;
         boolean noCurrentRecipientNoCredit=
             absent.finalized&&
             absent.originalOriginPreserved&&
             absent.progressWasExactlyZero&&
-            absent.g1RecordNotCreditedWhenAbsent;
+            absent.g1RecordNotCreditedWhenAbsent&&
+            absent.noOwnerNoRespawn;
 
         require(replacementCredited,
             "same username replacement did not reproduce observed credit");
@@ -51,6 +53,15 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 absent.g1RecordNotCreditedWhenAbsent+
             " originalServerKillOwnershipClaim=false"+
             " productionRecordPolicyChanged=false"
+        );
+        System.out.println(
+            "G1849_MONSTER_SPAWNER_RESPAWN_NAME_REUSE_PASS"+
+            " oldOwnerTicketTransferredToNewGeneration="+
+                replacement.oldGenerationRespawnedForReplacement+
+            " missingAtTerminalNoRespawn="+
+                absent.noOwnerNoRespawn+
+            " originalServerRespawnPolicyClaim=false"+
+            " productionRespawnPolicyChanged=false"
         );
     }
 
@@ -136,6 +147,45 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 terminal.recipientOrigin.player==original&&
                 terminal.recipientOrigin.generation==originalGeneration&&
                 !origin.stillCurrentIn(world);
+
+            // G18.4.9: the real installed G1 terminal loop schedules an
+            // automatic respawn if ANY current owner of the stored username
+            // exists. Its delayed ticket carries only strings and expected
+            // MonsterSpawner session; neither is a player-generation fence.
+            // Resolve the real due tick, without mutating production policy.
+            final long dueTick=41L+
+                G1MonsterSpawnerPvmLoopService.RESPAWN_DELAY_TICKS;
+            int dueCallbacks=world.events().runDue(dueTick);
+            MonsterSpawnerService.SessionSnapshot afterRespawn=
+                spawner.getSession(USER);
+
+            if(reconnect){
+                boolean registeredReplacement=
+                    world.players().owns(
+                        replacement,replacementGeneration
+                    );
+                if(afterRespawn!=null&&
+                        afterRespawn.spawnedNpcIds.size()==1){
+                    EntityId newNpcId=
+                        afterRespawn.spawnedNpcIds.get(0);
+                    MonsterSpawnerPvmRuntime.Snapshot newborn=
+                        provisioning.runtime().get(newNpcId);
+                    result.oldGenerationRespawnedForReplacement=
+                        dueCallbacks>=1&&registeredReplacement&&
+                        !npc.id.equals(newNpcId)&&
+                        newborn!=null&&
+                        newborn.recipientOrigin!=null&&
+                        newborn.recipientOrigin.player==replacement&&
+                        newborn.recipientOrigin.generation==
+                            replacementGeneration&&
+                        !origin.stillCurrentIn(world);
+                }
+            }else{
+                result.noOwnerNoRespawn=
+                    dueCallbacks==0&&
+                    afterRespawn!=null&&
+                    afterRespawn.spawnedNpcIds.isEmpty();
+            }
 
             // snapshot(USER) deliberately requires a current player.
             // In the no-replacement control, reattach ONLY AFTER the
@@ -225,6 +275,8 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean progressWasExactlyZero;
         boolean g1RecordCreditedReplacement;
         boolean g1RecordNotCreditedWhenAbsent;
+        boolean oldGenerationRespawnedForReplacement;
+        boolean noOwnerNoRespawn;
     }
 
     private static void require(boolean ok,String message){
