@@ -21,6 +21,9 @@ final class LocalJvmAccountSessionLease {
         "spk.local.experimentalJvmAccountSessionLease";
 
     private static final Map<Path,Token> active=new HashMap<>();
+    // G21.201 diagnostic: count actual worker-side pre-publication checks.
+    private static final java.util.concurrent.atomic.AtomicInteger
+        workerOwnerChecks=new java.util.concurrent.atomic.AtomicInteger();
 
     private LocalJvmAccountSessionLease(){}
 
@@ -87,6 +90,28 @@ final class LocalJvmAccountSessionLease {
                    !owner.accepts(generation))
                     throw new IllegalStateException(
                         "G21.200 WORLD_OWNER_GENERATION_NOT_CURRENT");
+            }
+        }
+
+        /**
+         * G21.201: immutable queued-save provenance against the admitted
+         * in-JVM owner. A final save is allowed after World unregisters:
+         * require object/generation equality, NOT owner.accepts().
+         *
+         * This does not prove that raw account bytes belong to the owner,
+         * and does not create a durable receipt or retirement authority.
+         */
+        synchronized void requireCapturedSaveOwner(
+            WorldPlayer owner,long capturedGeneration,String snapshotAccount
+        ){
+            synchronized(active){
+                if(released||active.get(path)!=this||
+                   admittedWorldOwner!=owner||
+                   admittedWorldGeneration!=capturedGeneration||
+                   !account.equals(snapshotAccount)||
+                   owner==null||!account.equals(owner.username()))
+                    throw new IllegalStateException(
+                        "G21.201 CAPTURED_SAVE_OWNER_NOT_BOUND_TO_LEASE");
             }
         }
 
@@ -206,6 +231,33 @@ final class LocalJvmAccountSessionLease {
             throw new IllegalStateException(
                 "G21.200 NO_CURRENT_ACCOUNT_LEASE");
         token.requireAdmittedWorldOwner(owner,generation);
+    }
+
+    /**
+     * Only a currently held opt-in JVM lease is guarded. A null lease
+     * preserves preexisting unleased/manual World adapter behavior.
+     * Called by the existing async World SaveTask immediately before
+     * FilePlayerRepository.saveForWorld; no new disk I/O or admission.
+     */
+    static boolean requireCapturedSaveOwnerIfLeased(
+        Path exactAccountPath,String snapshotAccount,
+        WorldPlayer owner,long capturedGeneration
+    ){
+        Objects.requireNonNull(exactAccountPath,"exactAccountPath");
+        final Token token;
+        synchronized(active){
+            token=active.get(
+                exactAccountPath.toAbsolutePath().normalize());
+        }
+        if(token==null)return false;
+        token.requireCapturedSaveOwner(
+            owner,capturedGeneration,snapshotAccount);
+        workerOwnerChecks.incrementAndGet();
+        return true;
+    }
+
+    static int workerOwnerChecksForTest(){
+        return workerOwnerChecks.get();
     }
 
     static int activeCountForTest(){
