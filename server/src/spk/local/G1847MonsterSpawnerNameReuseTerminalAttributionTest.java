@@ -14,6 +14,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         CaseResult replacement=runCase(true);
         CaseResult absent=runCase(false);
         boolean lateTicketReuse=lateReplacementAfterTicketScheduled();
+        boolean lateSettlementCredit=pendingSettlementBeforeReconnect();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -67,6 +68,19 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 absent.noOwnerNoRespawn+
             " originalServerRespawnPolicyClaim=false"+
             " productionRespawnPolicyChanged=false"
+        );
+        require(lateSettlementCredit,
+            "pending settlement retry did not expose current-name credit");
+        System.out.println(
+            "G1850_PENDING_SETTLEMENT_GENERATION_REUSE_PASS"+
+            " pendingBeforeReconnect=true"+
+            " creditOnlyAfterSettlement=true"+
+            " originalSpawnGenerationRetained=true"+
+            " replacementDmmCredited="+lateSettlementCredit+
+            " replacementG1RecordCredited="+lateSettlementCredit+
+            " dropResolutionReplayed=false"+
+            " originalServerRewardPolicyClaim=false"+
+            " productionCreditPolicyChanged=false"
         );
     }
 
@@ -156,6 +170,122 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             if(originalGeneration>=0L&&
                     world.players().owns(original,originalGeneration))
                 world.unregisterPlayer(original,originalGeneration);
+            world.close();
+        }
+    }
+
+    /**
+     * G18.5.0: terminal delivery must remain pending while A is the
+     * live recipient, then only after A disconnects/B replaces A does
+     * the REAL installed G1+five-progression observer execute on retry.
+     */
+    private static boolean pendingSettlementBeforeReconnect()
+        throws Exception{
+        final String account=USER+"-settlement-retry";
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer original=new WorldPlayer();
+        WorldPlayer replacement=null;
+        long oldGeneration=-1L;
+        long newGeneration=-1L;
+        try{
+            oldGeneration=world.registerPlayer(original,account);
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult started=
+                dmm.activateEasyIfCurrent(account,original,oldGeneration);
+            require(started!=null&&started.activatedNow&&
+                    started.snapshot.objective.progress==0L,
+                "setup original objective before pending settlement");
+
+            LocalMonsterSpawnerActivationRuntime provisioning=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioning.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioning.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            MonsterSpawnerPvmRuntime.RecipientOrigin origin=
+                spawned.runtime.recipientOrigin;
+            require(origin!=null&&origin.player==original&&
+                    origin.generation==oldGeneration&&
+                    origin.stillCurrentIn(world),
+                "old generation should own NPC before settlement");
+
+            // The exact existing settlement overflow fixture: a stacked
+            // item at Integer.MAX_VALUE prevents the next same-item
+            // drop from being committed until the blocker is removed.
+            GroundItem blocker=world.groundItems().add(
+                995,Integer.MAX_VALUE,npc.tile(),account,1L,false
+            );
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,75L
+                ).newlyDied,
+                "pending settlement lethal transition");
+            MonsterSpawnerPvmRuntime.FinalizeResult pending=
+                provisioning.runtime().finalizeIfOwned(npc);
+            require(pending!=null&&
+                    pending.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.SETTLEMENT_PENDING&&
+                    pending.settlement==null&&
+                    pending.recipientOrigin==origin&&
+                    origin.stillCurrentIn(world)&&
+                    dmm.snapshot(account).objective.progress==0L&&
+                    world.pvmRecords().snapshot(original).kills==0L&&
+                    world.pvmRecords().receiptCount()==0,
+                "pending finalization must not publish G1 or G18 credit");
+
+            require(world.unregisterPlayer(original,oldGeneration),
+                "disconnect old generation while settlement pending");
+            replacement=new WorldPlayer();
+            newGeneration=world.registerPlayer(replacement,account);
+            require(!origin.stillCurrentIn(world)&&
+                    world.players().owns(replacement,newGeneration),
+                "pending NPC origin must not retarget at replacement login");
+
+            require(world.groundItems().remove(blocker.id),
+                "clear overflow blocker before terminal retry");
+            MonsterSpawnerPvmRuntime.FinalizeResult finished=
+                provisioning.runtime().retrySettlement(npc.id);
+            require(finished!=null&&
+                    finished.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    finished.settlement!=null&&
+                    finished.recipientOrigin==origin&&
+                    finished.recipientOrigin.player==original&&
+                    !finished.recipientOrigin.stillCurrentIn(world),
+                "settlement retry must retain original A/generation witness");
+
+            boolean credited=
+                dmm.snapshot(account).objective.progress==1L&&
+                world.pvmRecords().snapshot(original).kills==0L&&
+                world.pvmRecords().snapshot(replacement).kills==1L&&
+                world.pvmRecords().receiptCount()==1&&
+                world.players().owns(replacement,newGeneration);
+
+            // The terminalized NPC has been removed from the runtime;
+            // neither a second finalized record nor another reward
+            // event is allowed when retrying an already-settled ID.
+            MonsterSpawnerPvmRuntime.FinalizeResult replay=
+                provisioning.runtime().retrySettlement(npc.id);
+            return credited&&
+                (replay==null||
+                 replay.status!=
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED)&&
+                dmm.snapshot(account).objective.progress==1L&&
+                world.pvmRecords().receiptCount()==1;
+        }finally{
+            if(replacement!=null&&
+                    world.players().owns(replacement,newGeneration))
+                world.unregisterPlayer(replacement,newGeneration);
+            if(oldGeneration>=0L&&
+                    world.players().owns(original,oldGeneration))
+                world.unregisterPlayer(original,oldGeneration);
             world.close();
         }
     }
