@@ -195,13 +195,17 @@ final class LocalJvmAccountSessionLease {
     ){
         Objects.requireNonNull(accountFile,"accountFile");
         Path path=accountFile.toAbsolutePath().normalize();
+        // Read the current token under the map lock, then release
+        // that lock BEFORE entering synchronized Token. All Token
+        // operations use Token -> active, never active -> Token.
+        final Token token;
         synchronized(active){
-            Token token=active.get(path);
-            if(token==null)
-                throw new IllegalStateException(
-                    "G21.200 NO_CURRENT_ACCOUNT_LEASE");
-            token.requireAdmittedWorldOwner(owner,generation);
+            token=active.get(path);
         }
+        if(token==null)
+            throw new IllegalStateException(
+                "G21.200 NO_CURRENT_ACCOUNT_LEASE");
+        token.requireAdmittedWorldOwner(owner,generation);
     }
 
     static int activeCountForTest(){
