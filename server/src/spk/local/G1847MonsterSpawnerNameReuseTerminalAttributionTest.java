@@ -15,6 +15,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         CaseResult absent=runCase(false);
         boolean lateTicketReuse=lateReplacementAfterTicketScheduled();
         boolean lateSettlementCredit=pendingSettlementBeforeReconnect();
+        boolean consumerReplayGap=controlledConsumerReplayIdempotencyGap();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -81,6 +82,17 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " dropResolutionReplayed=false"+
             " originalServerRewardPolicyClaim=false"+
             " productionCreditPolicyChanged=false"
+        );
+        require(consumerReplayGap,
+            "manual replay must show G1 dedup but G18 duplicate progress");
+        System.out.println(
+            "G1852_TERMINAL_CONSUMER_REPLAY_ASYMMETRY_PASS"+
+            " installedObserverExecutedOnce=true"+
+            " manualG1ReplayDeduplicated="+consumerReplayGap+
+            " manualProgressionReplayAdvancedDmmTwice="+consumerReplayGap+
+            " productionAutomaticReplay=false"+
+            " additionalDropSettlement=false"+
+            " originalServerReplayPolicyClaim=false"
         );
     }
 
@@ -286,6 +298,110 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             if(oldGeneration>=0L&&
                     world.players().owns(original,oldGeneration))
                 world.unregisterPlayer(original,oldGeneration);
+            world.close();
+        }
+    }
+
+    /**
+     * G18.5.2 / #2587: a real terminal event is delivered ONCE using the
+     * unchanged installed combined observer. Afterwards the test manually
+     * re-delivers only the same event to two real consumer APIs:
+     * G1 PvM receipt deduplication and G4/G14/G15/G16/G18 aggregate credit.
+     * It demonstrates asymmetric idempotency if a future outbox naively
+     * replays consumers; the current runtime never performs this replay.
+     */
+    private static boolean controlledConsumerReplayIdempotencyGap()
+        throws Exception{
+        final String account=USER+"-consumer-replay";
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            generation=world.registerPlayer(player,account);
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult started=
+                dmm.activateEasyIfCurrent(account,player,generation);
+            require(started!=null&&started.activatedNow&&
+                    started.snapshot.objective.progress==0L,
+                "G1852 original DMM objective setup");
+
+            // Leave the production LocalLab terminal observer installed.
+            // The real G1 and progression consumers both execute once.
+            LocalMonsterSpawnerActivationRuntime provisioning=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioning.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioning.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,93L
+                ).newlyDied,
+                "G1852 canonical lethal transition");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioning.runtime().finalizeIfOwned(npc);
+            require(terminal!=null&&
+                    terminal.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.settlement!=null&&
+                    terminal.finalization!=null&&
+                    terminal.finalization.definitionId==
+                        LocalLabMonsterSpawnerProvisioning.NPC_DEFINITION_ID&&
+                    world.pvmRecords().snapshot(player).kills==1L&&
+                    world.pvmRecords().receiptCount()==1&&
+                    dmm.snapshot(account).objective.progress==1L&&
+                    world.groundItems().size()==1,
+                "real installed observer first terminal delivery");
+
+            // Synthetic consumer-only REPLAY; this is not runtime behavior.
+            MonsterSpawnerNpcDeathFinalizationService.Result death=
+                terminal.finalization;
+            PvmRecordService.Receipt repeatedG1=
+                world.pvmRecords().recordIfCurrent(
+                    player,generation,death.npcId,death.deathTick
+                );
+            boolean repeatedAggregate=
+                LocalLabMonsterSpawnerProvisioning.creditTerminalProgression(
+                    world,
+                    death.recipientRef,
+                    death.definitionId,
+                    death.deathTile,
+                    death.deathTick
+                );
+
+            boolean asymmetry=
+                repeatedG1!=null&&repeatedG1.replayed&&
+                !repeatedG1.applied&&
+                repeatedAggregate&&
+                world.pvmRecords().snapshot(player).kills==1L&&
+                world.pvmRecords().receiptCount()==1&&
+                dmm.snapshot(account).objective.progress==2L&&
+                world.groundItems().size()==1;
+
+            MonsterSpawnerPvmRuntime.FinalizeResult retry=
+                provisioning.runtime().retrySettlement(npc.id);
+            MonsterSpawnerPvmRuntime.FinalizeResult duplicate=
+                provisioning.runtime().finalizeIfOwned(npc);
+            return asymmetry&&
+                retry.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                duplicate.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                world.pvmRecords().snapshot(player).kills==1L&&
+                world.pvmRecords().receiptCount()==1&&
+                dmm.snapshot(account).objective.progress==2L&&
+                world.groundItems().size()==1;
+        }finally{
+            if(generation>=0L&&
+                    world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
             world.close();
         }
     }
