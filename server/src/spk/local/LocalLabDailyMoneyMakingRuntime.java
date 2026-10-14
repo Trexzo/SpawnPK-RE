@@ -128,15 +128,42 @@ final class LocalLabDailyMoneyMakingRuntime {
         WorldPlayer owner=requireCurrentPlayer(
             player
         );
-        long generation=owner.generation();
+        ActivationResult result=activateEasyIfCurrent(
+            player,owner,owner.generation()
+        );
+        if(result==null)
+            throw new IllegalStateException(
+                "stale Daily Money Making player "+player
+            );
+        return result;
+    }
+
+    /**
+     * Exact-session activation seam: a stale UI must not retarget another
+     * WorldPlayer simply because its old username was admitted again.
+     * Null means this exact player/generation/name is not current.
+     */
+    ActivationResult activateEasyIfCurrent(
+        String playerRef,
+        WorldPlayer owner,
+        long expectedGeneration
+    ){
+        String player=normalizePlayer(playerRef);
+        Objects.requireNonNull(owner,"owner");
+        if(expectedGeneration<0L)
+            throw new IllegalArgumentException("generation="+expectedGeneration);
+
         final ActivationResult[] result={null};
 
         try{
             boolean current=
                 world.withOpenPlayerMutationOwnershipIfCurrent(
                     owner,
-                    generation,
+                    expectedGeneration,
                     ()->{
+                        if(world.players().byName(player)!=owner)
+                            return;
+
                         PlayerState existing=state(
                             player
                         );
@@ -190,10 +217,7 @@ final class LocalLabDailyMoneyMakingRuntime {
                 );
 
             if(!current)
-                throw new IllegalStateException(
-                    "stale Daily Money Making player "+
-                    player
-                );
+                return null;
         }catch(RuntimeException failure){
             throw failure;
         }catch(Exception failure){
@@ -204,10 +228,7 @@ final class LocalLabDailyMoneyMakingRuntime {
             );
         }
 
-        return Objects.requireNonNull(
-            result[0],
-            "Daily Money Making activation result"
-        );
+        return result[0];
     }
 
     Snapshot snapshot(
@@ -354,6 +375,78 @@ final class LocalLabDailyMoneyMakingRuntime {
             result[0],
             "Daily Money Making PvM result"
         );
+    }
+
+    /**
+     * Opt-in exact-origin credit seam for callers that have independently
+     * captured the ORIGINAL WorldPlayer and generation of a terminal event.
+     *
+     * This is NOT wired to the existing name-only Monster Spawner observer:
+     * its finalization currently supplies recipientRef, not a verified
+     * recipient player/generation from spawn time. Callers must never obtain
+     * expectedOwner with a fresh byName lookup at terminal time and claim it
+     * proves attribution to an older event.
+     *
+     * False/null snapshot is a nonmutating stale-owner refusal. The legacy
+     * recipientRef-only path remains unchanged until event origin authority
+     * is actually recovered.
+     */
+    ProgressResult recordMonsterSpawnerFinalizationIfCurrent(
+        String playerRef,
+        WorldPlayer expectedOwner,
+        long expectedGeneration,
+        int definitionId,
+        long deathTick
+    ){
+        if(deathTick<0L)
+            throw new IllegalArgumentException(
+                "deathTick="+deathTick
+            );
+        if(expectedGeneration<0L)
+            throw new IllegalArgumentException(
+                "expectedGeneration="+expectedGeneration
+            );
+
+        String player=normalizePlayer(playerRef);
+        Objects.requireNonNull(expectedOwner,"expectedOwner");
+
+        final ProgressResult[] attributed={null};
+        try{
+            boolean current=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    expectedOwner,
+                    expectedGeneration,
+                    ()->{
+                        if(world.players().byName(player)!=expectedOwner)
+                            return;
+
+                        // The World lifecycle and exact-owner mutation locks
+                        // are reentrant, so the existing semantic credit path
+                        // executes without reopening an admission race.
+                        attributed[0]=recordMonsterSpawnerFinalization(
+                            player,definitionId,deathTick
+                        );
+                    }
+                );
+            if(!current||attributed[0]==null)
+                return new ProgressResult(
+                    false,
+                    definitionId==
+                        LocalLabMonsterSpawnerProvisioning
+                            .NPC_DEFINITION_ID,
+                    false,false,null
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Daily Money Making exact-origin credit ownership failed player="+
+                player,
+                failure
+            );
+        }
+
+        return attributed[0];
     }
 
     synchronized int activePlayerCount(){
