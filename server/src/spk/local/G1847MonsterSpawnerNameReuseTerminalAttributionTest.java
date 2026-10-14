@@ -125,6 +125,17 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 terminal.recipientOrigin.generation==originalGeneration&&
                 !origin.stillCurrentIn(world);
 
+            // snapshot(USER) deliberately requires a current player.
+            // In the no-replacement control, reattach ONLY AFTER the
+            // terminal observer has already run; doing so cannot change
+            // whether the earlier terminal event found a recipient.
+            if(!reconnect){
+                replacement=new WorldPlayer();
+                replacementGeneration=world.registerPlayer(
+                    replacement,USER
+                );
+            }
+
             LocalLabDailyMoneyMakingRuntime.Snapshot after=
                 dmm.snapshot(USER);
             require(after!=null,"World-owned DMM state vanished");
