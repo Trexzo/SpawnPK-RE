@@ -265,6 +265,13 @@ final class LocalSessionPlayerInitializer {
                 username
             );
 
+        // G21.200: record the exact in-memory World owner identity and
+        // generation in the already-held optional account lease. This
+        // is not an on-disk epoch, a save fence, or ACTIVE retirement.
+        if(sessionLease!=null)
+            sessionLease.bindAdmittedWorldOwner(
+                worldPlayer,generation);
+
         System.out.println(
             tag+"V512_WORLD_REGISTER playerId="+
             worldPlayer.id()+
