@@ -16,6 +16,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean lateTicketReuse=lateReplacementAfterTicketScheduled();
         boolean lateSettlementCredit=pendingSettlementBeforeReconnect();
         boolean consumerReplayGap=controlledConsumerReplayIdempotencyGap();
+        boolean serviceReceiptReset=pvmRecordInstanceReceiptReset();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -93,6 +94,18 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " productionAutomaticReplay=false"+
             " additionalDropSettlement=false"+
             " originalServerReplayPolicyClaim=false"
+        );
+        require(serviceReceiptReset,
+            "PvmRecordService receipt lifetime unexpectedly survived reconstruction");
+        System.out.println(
+            "G1853_PVM_RECORD_SERVICE_RECEIPT_LIFETIME_PASS"+
+            " installedObserverFirstDelivery=true"+
+            " originalServiceDeduplicates=true"+
+            " freshServiceAppliesSameKillAgain="+serviceReceiptReset+
+            " playerNamespaceKillCounterIncrementsTwice="+serviceReceiptReset+
+            " JVMRestartOrFilePersistenceTested=false"+
+            " productionReceiptPersistenceChanged=false"+
+            " originalServerReceiptPolicyClaim=false"
         );
     }
 
@@ -398,6 +411,98 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 world.pvmRecords().receiptCount()==1&&
                 dmm.snapshot(account).objective.progress==2L&&
                 world.groundItems().size()==1;
+        }finally{
+            if(generation>=0L&&
+                    world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
+    }
+
+    /**
+     * G18.5.3 / #2587: even G1's per-(npcId,deathTick) deduplication is
+     * scoped to a particular PvmRecordService object. Reconstructing
+     * a fresh service over the SAME WorldPlayer leaves its receipt map
+     * empty while the actual persistent player namespace still says kills=1.
+     * This is an explicitly test-only service-replacement cutpoint,
+     * NOT a JVM crash/restart or disk persistence experiment.
+     */
+    private static boolean pvmRecordInstanceReceiptReset()
+        throws Exception{
+        final String account=USER+"-receipt-lifetime";
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            generation=world.registerPlayer(player,account);
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            final long deathTick=101L;
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,deathTick
+                ).newlyDied,
+                "G1853 original lethal transition");
+            MonsterSpawnerPvmRuntime.FinalizeResult first=
+                provisioned.runtime().finalizeIfOwned(npc);
+
+            PvmRecordService installed=world.pvmRecords();
+            require(first!=null&&first.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    first.settlement!=null&&
+                    installed.snapshot(player).kills==1L&&
+                    installed.receiptCount()==1&&
+                    world.groundItems().size()==1,
+                "G1853 installed production G1 consumer first event");
+
+            PvmRecordService.Receipt sameServiceReplay=
+                installed.recordIfCurrent(
+                    player,generation,npc.id,deathTick
+                );
+            require(sameServiceReplay.replayed&&
+                    !sameServiceReplay.applied&&
+                    installed.snapshot(player).kills==1L&&
+                    installed.receiptCount()==1,
+                "G1853 original instance correctly deduplicates");
+
+            // A second service object starts with NO historical receipts
+            // but mutates the SAME current WorldPlayer extension namespace.
+            // No second NPC terminal event or ground settlement happens.
+            PvmRecordService recreated=new PvmRecordService(world);
+            require(recreated.receiptCount()==0&&
+                    recreated.snapshot(player).kills==1L,
+                "fresh G1 service should see kills but lack receipt map");
+
+            PvmRecordService.Receipt repeated=
+                recreated.recordIfCurrent(
+                    player,generation,npc.id,deathTick
+                );
+            PvmRecordService.Receipt secondDuplicate=
+                recreated.recordIfCurrent(
+                    player,generation,npc.id,deathTick
+                );
+
+            return repeated.applied&&
+                !repeated.replayed&&
+                secondDuplicate.replayed&&
+                !secondDuplicate.applied&&
+                recreated.receiptCount()==1&&
+                installed.receiptCount()==1&&
+                installed.snapshot(player).kills==2L&&
+                recreated.snapshot(player).kills==2L&&
+                world.groundItems().size()==1&&
+                provisioned.runtime().get(npc.id)==null;
         }finally{
             if(generation>=0L&&
                     world.players().owns(player,generation))
