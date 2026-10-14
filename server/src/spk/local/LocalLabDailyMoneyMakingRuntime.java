@@ -377,6 +377,78 @@ final class LocalLabDailyMoneyMakingRuntime {
         );
     }
 
+    /**
+     * Opt-in exact-origin credit seam for callers that have independently
+     * captured the ORIGINAL WorldPlayer and generation of a terminal event.
+     *
+     * This is NOT wired to the existing name-only Monster Spawner observer:
+     * its finalization currently supplies recipientRef, not a verified
+     * recipient player/generation from spawn time. Callers must never obtain
+     * expectedOwner with a fresh byName lookup at terminal time and claim it
+     * proves attribution to an older event.
+     *
+     * False/null snapshot is a nonmutating stale-owner refusal. The legacy
+     * recipientRef-only path remains unchanged until event origin authority
+     * is actually recovered.
+     */
+    ProgressResult recordMonsterSpawnerFinalizationIfCurrent(
+        String playerRef,
+        WorldPlayer expectedOwner,
+        long expectedGeneration,
+        int definitionId,
+        long deathTick
+    ){
+        if(deathTick<0L)
+            throw new IllegalArgumentException(
+                "deathTick="+deathTick
+            );
+        if(expectedGeneration<0L)
+            throw new IllegalArgumentException(
+                "expectedGeneration="+expectedGeneration
+            );
+
+        String player=normalizePlayer(playerRef);
+        Objects.requireNonNull(expectedOwner,"expectedOwner");
+
+        final ProgressResult[] attributed={null};
+        try{
+            boolean current=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    expectedOwner,
+                    expectedGeneration,
+                    ()->{
+                        if(world.players().byName(player)!=expectedOwner)
+                            return;
+
+                        // The World lifecycle and exact-owner mutation locks
+                        // are reentrant, so the existing semantic credit path
+                        // executes without reopening an admission race.
+                        attributed[0]=recordMonsterSpawnerFinalization(
+                            player,definitionId,deathTick
+                        );
+                    }
+                );
+            if(!current||attributed[0]==null)
+                return new ProgressResult(
+                    false,
+                    definitionId==
+                        LocalLabMonsterSpawnerProvisioning
+                            .NPC_DEFINITION_ID,
+                    false,false,null
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Daily Money Making exact-origin credit ownership failed player="+
+                player,
+                failure
+            );
+        }
+
+        return attributed[0];
+    }
+
     synchronized int activePlayerCount(){
         return byPlayer.size();
     }
