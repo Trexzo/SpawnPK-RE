@@ -29,6 +29,11 @@ final class LocalJvmAccountSessionLease {
         private final String account;
         private final LocalCrossJvmAccountSessionLock.Handle processLock;
         private boolean released;
+        // G21.200: JVM-only identity binding, not a durable epoch.
+        // Never serialized, exported as a disk receipt, or used to
+        // authorize G21.188 ACTIVE retirement.
+        private WorldPlayer admittedWorldOwner;
+        private long admittedWorldGeneration;
 
         private Token(
             Path path,String account,
@@ -42,6 +47,47 @@ final class LocalJvmAccountSessionLease {
         /** Exact resolved file identity guarded by this token. */
         Path accountFileForReviewAdmission(){
             return path;
+        }
+
+        /**
+         * G21.200: bind the actual returned World admission generation
+         * to the already-acquired exact-path opt-in session token.
+         * This is a JVM identity check only, NEVER a durable owner epoch.
+         */
+        synchronized void bindAdmittedWorldOwner(
+            WorldPlayer owner,long generation
+        ){
+            Objects.requireNonNull(owner,"owner");
+            if(generation<=0||!account.equals(owner.username())||
+               !owner.accepts(generation))
+                throw new IllegalStateException(
+                    "G21.200 INVALID_REGISTERED_WORLD_OWNER");
+            synchronized(active){
+                if(released||active.get(path)!=this)
+                    throw new IllegalStateException(
+                        "G21.200 LEASE_NOT_CURRENT_OWNER");
+                if(admittedWorldOwner!=null&&
+                   (admittedWorldOwner!=owner||
+                    admittedWorldGeneration!=generation))
+                    throw new IllegalStateException(
+                        "G21.200 WORLD_OWNER_REBIND_DENIED");
+                admittedWorldOwner=owner;
+                admittedWorldGeneration=generation;
+            }
+        }
+
+        synchronized void requireAdmittedWorldOwner(
+            WorldPlayer owner,long generation
+        ){
+            synchronized(active){
+                if(released||active.get(path)!=this||
+                   owner==null||admittedWorldOwner!=owner||
+                   admittedWorldGeneration!=generation||
+                   !account.equals(owner.username())||
+                   !owner.accepts(generation))
+                    throw new IllegalStateException(
+                        "G21.200 WORLD_OWNER_GENERATION_NOT_CURRENT");
+            }
         }
 
         /** Only the exact admitted owner can release on proven completion. */
@@ -74,6 +120,8 @@ final class LocalJvmAccountSessionLease {
                 }
                 active.remove(path);
                 released=true;
+                admittedWorldOwner=null;
+                admittedWorldGeneration=0L;
             }
         }
     }
@@ -135,6 +183,24 @@ final class LocalJvmAccountSessionLease {
             Token token=new Token(key,username,processLock);
             active.put(key,token);
             return token;
+        }
+    }
+
+    /**
+     * Test-only current-token witness for a live World owner.
+     * No token/secret is returned and this is NOT a save or release API.
+     */
+    static void requireCurrentWorldOwnerForTest(
+        Path accountFile,WorldPlayer owner,long generation
+    ){
+        Objects.requireNonNull(accountFile,"accountFile");
+        Path path=accountFile.toAbsolutePath().normalize();
+        synchronized(active){
+            Token token=active.get(path);
+            if(token==null)
+                throw new IllegalStateException(
+                    "G21.200 NO_CURRENT_ACCOUNT_LEASE");
+            token.requireAdmittedWorldOwner(owner,generation);
         }
     }
 
