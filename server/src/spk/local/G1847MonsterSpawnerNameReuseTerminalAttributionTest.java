@@ -19,11 +19,13 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             replacement.originalOriginPreserved&&
             replacement.replacementGotLegacyCredit&&
             replacement.oldGenerationOptInRefused&&
-            replacement.progressWasExactlyOne;
+            replacement.progressWasExactlyOne&&
+            replacement.g1RecordCreditedReplacement;
         boolean noCurrentRecipientNoCredit=
             absent.finalized&&
             absent.originalOriginPreserved&&
-            absent.progressWasExactlyZero;
+            absent.progressWasExactlyZero&&
+            absent.g1RecordNotCreditedWhenAbsent;
 
         require(replacementCredited,
             "same username replacement did not reproduce observed credit");
@@ -39,6 +41,16 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " liveObserverStillNameOnly=true"+
             " originalServerRewardPolicyClaim=false"+
             " securityRemediationClaim=false"
+        );
+        System.out.println(
+            "G1848_PVM_RECORD_USERNAME_REUSE_CHARACTERIZATION_PASS"+
+            " originalSpawnGenerationNotCredited=true"+
+            " replacementCurrentGenerationCredited="+
+                replacement.g1RecordCreditedReplacement+
+            " noCurrentRecipientNoRecord="+
+                absent.g1RecordNotCreditedWhenAbsent+
+            " originalServerKillOwnershipClaim=false"+
+            " productionRecordPolicyChanged=false"
         );
     }
 
@@ -144,6 +156,25 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 after.objective.progress==1L;
             result.progressWasExactlyZero=
                 after.objective.progress==0L;
+
+            // G18.4.8: the *actual G1 terminal observer* also resolves
+            // finalization.recipientRef by CURRENT username and records on
+            // that generation. The original spawn WorldPlayer remains an
+            // independent object with no accepted PvM record.
+            PvmRecordService records=world.pvmRecords();
+            long originalKills=records.snapshot(original).kills;
+            long currentKills=records.snapshot(replacement).kills;
+            int receiptCount=records.receiptCount();
+            result.g1RecordCreditedReplacement=
+                reconnect&&originalKills==0L&&
+                currentKills==1L&&receiptCount==1&&
+                world.players().owns(
+                    replacement,replacementGeneration
+                );
+            result.g1RecordNotCreditedWhenAbsent=
+                !reconnect&&originalKills==0L&&
+                currentKills==0L&&receiptCount==0;
+
             result.replacementGotLegacyCredit=
                 reconnect&&replacement!=null&&
                 world.players().owns(
@@ -192,6 +223,8 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean oldGenerationOptInRefused;
         boolean progressWasExactlyOne;
         boolean progressWasExactlyZero;
+        boolean g1RecordCreditedReplacement;
+        boolean g1RecordNotCreditedWhenAbsent;
     }
 
     private static void require(boolean ok,String message){
