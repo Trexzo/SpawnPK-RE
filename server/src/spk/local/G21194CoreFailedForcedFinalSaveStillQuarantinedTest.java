@@ -193,6 +193,11 @@ public final class G21194CoreFailedForcedFinalSaveStillQuarantinedTest {
                 LocalAccountProfiles::accountFile);
             check(diskPhase(subsequent)==null,
                 "fresh repository should still see old BOOTSTRAP");
+            // Failed final saves intentionally retain the original
+            // JVM lease (G21.181/G21.182 fail-closed contract).
+            // The fresh World must NOT acquire an additional owner.
+            check(LocalJvmAccountSessionLease.activeCountForTest()==1,
+                "failed final save did not retain its negative lease");
             World next=World.isolatedForTest(50L,subsequent);
             try{
                 try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
@@ -206,8 +211,8 @@ public final class G21194CoreFailedForcedFinalSaveStillQuarantinedTest {
                 }
                 check(next.players().size()==0,
                     "refused login registered World owner");
-                check(LocalJvmAccountSessionLease.activeCountForTest()==0,
-                    "refused login retained account lease");
+                check(LocalJvmAccountSessionLease.activeCountForTest()==1,
+                    "refused login changed the retained negative lease");
             }finally{
                 next.close();
             }
