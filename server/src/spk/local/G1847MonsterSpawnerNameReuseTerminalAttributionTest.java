@@ -30,6 +30,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean g18FailureNonRetryable=actualG18ConsumerFailureAfterG1();
         boolean earlyG4Failure=actualG4FailureStopsLaterG18();
         boolean stickyG4Invalid=invalidG4PersistenceWhileRealOtherConsumersAdvance();
+        boolean generationBoundary=g4InvalidCacheScopedToReplacedWorldPlayer();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -219,6 +220,208 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " originalServerPolicyClaim=false"+
             " productionCodeChanged=false"
         );
+        require(generationBoundary,
+            "G1861 G4 cache leaked to replacement or World-owned DMM lost progress");
+        System.out.println(
+            "G1861_G4_GENERATION_REPLACEMENT_DMM_RESUME_PASS"+
+            " twoRealCanonicalDeaths=true"+
+            " oldG4InvalidPersistenceCached=true"+
+            " oldGenerationDetached=true"+
+            " replacementG4StartsClean="+generationBoundary+
+            " replacementG4RealKillCompletesTask="+generationBoundary+
+            " replacementDmmResumesOneThenTwo="+generationBoundary+
+            " g1KillOnePerWorldPlayer="+generationBoundary+
+            " independentG1ReceiptsTwo=true"+
+            " respawnBoundToReplacementGeneration=true"+
+            " twoOneCoinGroundSettlements=true"+
+            " customLocalLabOnly=true"+
+            " productionCodeChanged=false"+
+            " originalServerPolicyClaim=false"
+        );
+    }
+
+    /**
+     * G18.6.1: demonstrate DIFFERENT lifecycle scopes of three
+     * LocalLab consumer states under a new WorldPlayer with the SAME name.
+     *
+     * G4's invalidPersistence cache uses WorldPlayer identity; G18's DMM
+     * map uses the normalized account name and survives World detach;
+     * G1's recorded kill counter is in each WorldPlayer's extension.
+     * All terminal events use the real installed composition.
+     *
+     * No account-file save, socket login, original server ownership rule,
+     * automated repair, or synthetic duplicate event.
+     */
+    private static boolean g4InvalidCacheScopedToReplacedWorldPlayer()
+        throws Exception{
+        final String account=USER+"-g4-generation-boundary";
+        final long initialTick=461L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer original=new WorldPlayer();
+        WorldPlayer replacement=null;
+        long originalGeneration=-1L;
+        long replacementGeneration=-1L;
+        try{
+            originalGeneration=world.registerPlayer(original,account);
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult activated=
+                dmm.activateEasyIfCurrent(
+                    account,original,originalGeneration
+                );
+            require(activated!=null&&activated.activatedNow&&
+                    activated.snapshot.objective.progress==0L,
+                "G1861 DMM begins before G4 corruption");
+
+            // Deliberately malformed test-only G4 extension on the OLD
+            // WorldPlayer; its failed hydration is identity-cached.
+            synchronized(original.mutationLock()){
+                original.snapshotExtensions().replaceNamespace(
+                    LocalLabSlayerPersistence.NAMESPACE,
+                    java.util.Collections.singletonMap(
+                        "version","invalid-test-only")
+                );
+            }
+            LocalLabSlayerRuntime slayer=world.localLabSlayer();
+            require(slayer.status(account).persistenceError!=null,
+                "G1861 old player G4 failure cached");
+
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc first=spawned.spawn.combat.spawn.npc;
+            require(spawned.runtime.recipientOrigin!=null&&
+                    spawned.runtime.recipientOrigin.player==original&&
+                    spawned.runtime.recipientOrigin.generation==
+                        originalGeneration,
+                "G1861 first spawn captures original WorldPlayer");
+
+            require(world.npcLifecycle().applyDamage(
+                    first.id,99,initialTick
+                ).newlyDied,
+                "G1861 first canonical death");
+            MonsterSpawnerPvmRuntime.FinalizeResult firstResult=
+                provisioned.runtime().finalizeIfOwned(first);
+            PvmRecordService records=world.pvmRecords();
+            require(firstResult!=null&&firstResult.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    firstResult.settlement!=null&&
+                    firstResult.settlement.groundItems.size()==1&&
+                    firstResult.settlement.groundItems.get(0)
+                        .settledAmount==1&&
+                    records.snapshot(original).kills==1L&&
+                    records.receiptCount()==1&&
+                    dmm.snapshot(account).objective.progress==1L&&
+                    slayer.status(account).persistenceError!=null,
+                "G1861 first real observer credited G1+G18 but G4 refused");
+
+            require(world.unregisterPlayer(original,originalGeneration),
+                "G1861 original generation detached");
+            require(dmm.activePlayerCount()==1&&
+                    !world.players().owns(original,originalGeneration),
+                "G1861 DMM remains World-scoped after detach");
+
+            // New WorldPlayer, identical account ref, EMPTY extensions.
+            // Old identity-cached invalid G4 must not poison new owner.
+            replacement=new WorldPlayer();
+            replacementGeneration=world.registerPlayer(
+                replacement,account
+            );
+            LocalLabSlayerRuntime.StatusSnapshot newG4=
+                slayer.status(account);
+            require(newG4!=null&&newG4.persistenceError==null&&
+                    newG4.task==null,
+                "G1861 exact new WorldPlayer must not inherit G4 invalid cache");
+            require(dmm.snapshot(account).objective.progress==1L&&
+                    !dmm.activateEasyIfCurrent(
+                        account,replacement,replacementGeneration
+                    ).activatedNow,
+                "G1861 same-name replacement resumes World-owned DMM");
+
+            LocalLabSlayerRuntime.StartResult newTask=
+                slayer.startMonsterHunter(account,world.clock().tick());
+            require(newTask!=null&&newTask.created&&
+                    newTask.status.task!=null&&
+                    newTask.status.task.objective.progress==0L,
+                "G1861 new generation starts legitimate G4 task");
+
+            // Real G1 delayed respawn uses the current username,
+            // and its new recipient origin must be the replacement.
+            world.events().runDue(
+                initialTick+G1MonsterSpawnerPvmLoopService
+                    .RESPAWN_DELAY_TICKS
+            );
+            MonsterSpawnerService.SessionSnapshot afterRespawn=
+                spawner.getSession(account);
+            require(afterRespawn!=null&&
+                    afterRespawn.spawnedNpcIds.size()==1,
+                "G1861 expected G1 actual delayed respawn");
+            EntityId secondId=afterRespawn.spawnedNpcIds.get(0);
+            WorldNpc second=world.npcs().byId(secondId);
+            MonsterSpawnerPvmRuntime.Snapshot secondOwned=
+                provisioned.runtime().get(secondId);
+            require(second!=null&&!secondId.equals(first.id)&&
+                    secondOwned!=null&&
+                    secondOwned.recipientOrigin!=null&&
+                    secondOwned.recipientOrigin.player==replacement&&
+                    secondOwned.recipientOrigin.generation==
+                        replacementGeneration,
+                "G1861 real respawn captured the new WorldPlayer generation");
+
+            require(world.npcLifecycle().applyDamage(
+                    second.id,99,initialTick+
+                        G1MonsterSpawnerPvmLoopService
+                            .RESPAWN_DELAY_TICKS+1L
+                ).newlyDied,
+                "G1861 second canonical death from replacement spawn");
+            MonsterSpawnerPvmRuntime.FinalizeResult secondResult=
+                provisioned.runtime().finalizeIfOwned(second);
+            LocalLabSlayerRuntime.StatusSnapshot secondG4=
+                slayer.status(account);
+
+            return secondResult!=null&&
+                secondResult.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                secondResult.settlement!=null&&
+                secondResult.settlement.groundItems.size()==1&&
+                secondResult.settlement.groundItems.get(0)
+                    .settledAmount==1&&
+                secondG4!=null&&secondG4.persistenceError==null&&
+                secondG4.task!=null&&
+                secondG4.task.objective.progress==1L&&
+                secondG4.task.objective.complete&&
+                records.snapshot(original).kills==1L&&
+                records.snapshot(replacement).kills==1L&&
+                records.receiptCount()==2&&
+                dmm.snapshot(account).objective.progress==2L&&
+                world.groundItems().snapshot().stream()
+                    .filter(item->
+                        item.itemId==995&&
+                        account.equals(item.owner)
+                    )
+                    .mapToInt(item->item.amount).sum()==2&&
+                provisioned.runtime().get(first.id)==null&&
+                provisioned.runtime().get(second.id)==null;
+        }finally{
+            if(replacement!=null&&replacementGeneration>=0L&&
+                    world.players().owns(replacement,replacementGeneration))
+                world.unregisterPlayer(
+                    replacement,replacementGeneration
+                );
+            if(originalGeneration>=0L&&
+                    world.players().owns(original,originalGeneration))
+                world.unregisterPlayer(original,originalGeneration);
+            world.close();
+        }
     }
 
     /**
