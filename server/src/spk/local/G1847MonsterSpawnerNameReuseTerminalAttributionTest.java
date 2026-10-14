@@ -24,6 +24,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean consumerReplayGap=controlledConsumerReplayIdempotencyGap();
         boolean serviceReceiptReset=pvmRecordInstanceReceiptReset();
         boolean fileRoundTripReceiptLoss=pvmRecordFileRoundTripReceiptLoss();
+        boolean replayPrecedesOwnership=pvmReceiptReplayPrecedesOriginCheck();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -127,6 +128,129 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " actualSessionSaveOrJVMRestartTested=false"+
             " originalServerReceiptPolicyClaim=false"
         );
+        require(replayPrecedesOwnership,
+            "G1855 receipt replay ordering did not match generation fence");
+        System.out.println(
+            "G1855_PVM_RECEIPT_REPLAY_PRECEDES_OWNERSHIP_PASS"+
+            " staleOriginalGotReplayReceipt="+replayPrecedesOwnership+
+            " replacementGotReplayButZeroKills="+replayPrecedesOwnership+
+            " unseenDeathTickRejectedForStaleGeneration=true"+
+            " noMutationOnReplay=true"+
+            " consumerReceiptNotAuthorizationProof=true"+
+            " originalServerCreditPolicyClaim=false"+
+            " productionPolicyChanged=false"
+        );
+    }
+
+    /**
+     * G18.5.5 / #2587: PvmRecordService looks up its World-scoped kill
+     * receipt BEFORE checking the caller's WorldPlayer generation. Therefore
+     * REPLAY is a fact about prior event identity, NOT proof that this caller
+     * still owns the credited account/generation.
+     *
+     * All second deliveries are explicit test-only manual API calls; no
+     * historical SpawnPK server authority is inferred.
+     */
+    private static boolean pvmReceiptReplayPrecedesOriginCheck()
+        throws Exception{
+        final String account=USER+"-receipt-ownership-order";
+        final long deathTick=151L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer original=new WorldPlayer();
+        WorldPlayer replacement=null;
+        long originalGeneration=-1L;
+        long replacementGeneration=-1L;
+        try{
+            originalGeneration=world.registerPlayer(original,account);
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,deathTick
+                ).newlyDied,
+                "G1855 real canonical NPC lethal transition");
+            MonsterSpawnerPvmRuntime.FinalizeResult finalized=
+                provisioned.runtime().finalizeIfOwned(npc);
+            PvmRecordService records=world.pvmRecords();
+            require(finalized!=null&&
+                    finalized.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    finalized.settlement!=null&&
+                    records.snapshot(original).kills==1L&&
+                    records.receiptCount()==1,
+                "G1855 actual G1 observer first kill receipt");
+
+            require(world.unregisterPlayer(
+                    original,originalGeneration
+                ),
+                "G1855 original generation logout");
+            replacement=new WorldPlayer();
+            replacementGeneration=world.registerPlayer(
+                replacement,account
+            );
+            require(!world.players().owns(
+                    original,originalGeneration
+                )&&
+                    world.players().owns(
+                        replacement,replacementGeneration
+                    )&&records.snapshot(replacement).kills==0L,
+                "G1855 replacement must have no G1 kill credit");
+
+            // Receipt hits are handled before withOpenPlayerMutationOwnership.
+            PvmRecordService.Receipt staleOriginal=
+                records.recordIfCurrent(
+                    original,originalGeneration,npc.id,deathTick
+                );
+            PvmRecordService.Receipt unrelatedReplacement=
+                records.recordIfCurrent(
+                    replacement,replacementGeneration,npc.id,deathTick
+                );
+            // A never-seen event ID DOES reach the ownership check.
+            PvmRecordService.Receipt unknownEvent=
+                records.recordIfCurrent(
+                    original,originalGeneration,npc.id,deathTick+1L
+                );
+
+            return staleOriginal.replayed&&
+                !staleOriginal.applied&&
+                "REPLAY".equals(staleOriginal.reason)&&
+                unrelatedReplacement.replayed&&
+                !unrelatedReplacement.applied&&
+                "REPLAY".equals(unrelatedReplacement.reason)&&
+                !unknownEvent.applied&&
+                !unknownEvent.replayed&&
+                "STALE_PLAYER_GENERATION".equals(unknownEvent.reason)&&
+                records.snapshot(original).kills==1L&&
+                records.snapshot(replacement).kills==0L&&
+                records.receiptCount()==1&&
+                world.groundItems().size()==1;
+        }finally{
+            if(replacement!=null&&
+                    world.players().owns(
+                        replacement,replacementGeneration
+                    ))
+                world.unregisterPlayer(
+                    replacement,replacementGeneration
+                );
+            if(originalGeneration>=0L&&
+                    world.players().owns(
+                        original,originalGeneration
+                    ))
+                world.unregisterPlayer(
+                    original,originalGeneration
+                );
+            world.close();
+        }
     }
 
     /**
