@@ -2120,6 +2120,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1841DailyMoneyMakingExactSessionFenceTest',
     'spk.local.G1842DailyMoneyMakingDifficultyGenerationFenceTest',
     'spk.local.G1843DailyMoneyMakingWorldLifetimeCharacterizationTest',
+    'spk.local.G1844DailyMoneyMakingExactOriginCreditTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2330,10 +2331,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 483 ||
-    currentTrainFocusedTests.toSet().size() != 483) {
+if (currentTrainFocusedTests.size() != 484 ||
+    currentTrainFocusedTests.toSet().size() != 484) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 483 unique tests, found " +
+        "Current-train focused manifest drift: expected 484 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4297,6 +4298,14 @@ tasks.register('g1843DailyMoneyMakingWorldLifetimeCharacterizationRegression', J
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1843DailyMoneyMakingWorldLifetimeCharacterizationTest')
+}
+
+tasks.register('g1844DailyMoneyMakingExactOriginCreditRegression', JavaExec) {
+    group = 'verification'
+    description = 'Rejects stale/wrong exact player-generation at opt-in DMM terminal-credit seam.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1844DailyMoneyMakingExactOriginCreditTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
