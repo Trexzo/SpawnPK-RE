@@ -49,8 +49,9 @@ public final class G21198CoreEpochPrototypeUntrustedRecordNegativeTest {
         try{
             LocalDurableOwnerEpochPrototype.inspect(account);
         }catch(IOException e){
-            rejected=e.getMessage()!=null&&
-                e.getMessage().contains(expected);
+            rejected="MISSING_RESERVATION".equals(expected)
+                ?e instanceof java.nio.file.NoSuchFileException
+                :e.getMessage()!=null&&e.getMessage().contains(expected);
         }
         check(rejected,"unsafe prototype record not rejected: "+expected);
     }
@@ -198,7 +199,7 @@ public final class G21198CoreEpochPrototypeUntrustedRecordNegativeTest {
         // Removal of a *test fixture* reservation leaves the second leaf
         // stranded: a binding by itself cannot be treated as owner proof.
         Files.delete(reservationPath);
-        expectInspectFailure(account,"NoSuchFileException");
+        expectInspectFailure(account,"MISSING_RESERVATION");
         check(Files.isRegularFile(bindingPath,
             LinkOption.NOFOLLOW_LINKS),
             "stranded binding unexpectedly cleaned up");
