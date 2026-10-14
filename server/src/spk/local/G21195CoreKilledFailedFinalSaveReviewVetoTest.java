@@ -182,6 +182,29 @@ public final class G21195CoreKilledFailedFinalSaveReviewVetoTest {
             "relogin child did not see stale BOOTSTRAP");
         LocalDurableAccountReviewIntentPrimitive
             .requireReviewMarker(account());
+        if("denied-after-kill".equals(stage)){
+            // Unlike live-holder denial, this independently proves
+            // the OS-owned lock became reacquirable after JVM death.
+            try(LocalCrossJvmAccountSessionLock.Handle handle=
+                    LocalCrossJvmAccountSessionLock.acquire(account())){
+                check(Files.isRegularFile(handle.fileForTest(),
+                    LinkOption.NOFOLLOW_LINKS),
+                    "post-kill OS lock file not regular");
+            }
+            boolean markerVeto=false;
+            try{
+                LocalDurableAccountReviewIntentPrimitive
+                    .requireNoReviewMarker(account());
+            }catch(IOException expected){
+                check(expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "ACCOUNT_REVIEW_INTENT_PRESENT_NO_AUTO_RECOVERY"),
+                    "post-kill marker failed with wrong reason");
+                markerVeto=true;
+            }
+            check(markerVeto,
+                "fresh JVM treated surviving ACTIVE intent as clean");
+        }
         FilePlayerRepository repository=new FilePlayerRepository(
             LocalAccountProfiles::accountFile);
         World world=World.isolatedForTest(50L,repository);
