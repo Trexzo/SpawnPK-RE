@@ -2301,6 +2301,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21180CoreSocketCrossWorldConcurrentAccountIntegrationTest',
     'spk.local.G21181CoreSocketOptInJvmAccountSessionLeaseIntegrationTest',
     'spk.local.G21182CoreSocketFailedFinalLeaseRetentionTest',
+    'spk.local.G21183CoreSocketActiveLeaseFlagOffVetoTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2329,10 +2330,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 482 ||
-    currentTrainFocusedTests.toSet().size() != 482) {
+if (currentTrainFocusedTests.size() != 483 ||
+    currentTrainFocusedTests.toSet().size() != 483) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 482 unique tests, found " +
+        "Current-train focused manifest drift: expected 483 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4296,6 +4297,14 @@ tasks.register('g21182CoreFailedFinalLeaseRetentionRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21182CoreSocketFailedFinalLeaseRetentionTest')
+}
+
+tasks.register('g21183CoreActiveLeaseFlagOffRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.183: disabling experimental opt-in cannot bypass an already held JVM account token.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21183CoreSocketActiveLeaseFlagOffVetoTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
