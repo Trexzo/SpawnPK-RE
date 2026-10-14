@@ -125,6 +125,7 @@ public final class G21201CoreWorkerSaveOwnerBindingTest {
             FilePlayerRepository repository=new FilePlayerRepository(
                 LocalAccountProfiles::accountFile);
             World first=World.isolatedForTest(50L,repository);
+            final int[] manualCheckBoundary={-1};
             long observedGeneration;
             try{
                 try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
@@ -246,6 +247,8 @@ public final class G21201CoreWorkerSaveOwnerBindingTest {
                         }
                         check(wrongAccountNameDenied,
                             "wrong snapshot account passed");
+                        manualCheckBoundary[0]=LocalJvmAccountSessionLease
+                            .workerOwnerChecksForTest();
 
                         // G21.196 correlation remains an UNUSED, manually
                         // bound prototype, not the G21.201 JVM-only lease.
@@ -278,9 +281,11 @@ public final class G21201CoreWorkerSaveOwnerBindingTest {
                 }
                 check(repository.forcedWorldPostimageCountForTest()>0,
                     "real forced World postimage path not exercised");
-                check(LocalJvmAccountSessionLease
-                        .workerOwnerChecksForTest()>0,
-                    "real save worker never checked bound owner");
+                check(manualCheckBoundary[0]>=0&&
+                      LocalJvmAccountSessionLease
+                          .workerOwnerChecksForTest()>
+                          manualCheckBoundary[0],
+                    "real final save worker skipped bound owner check");
                 check(first.persistence().failedCount()==0,
                     "healthy World account save unexpectedly failed");
                 check(VALUE.equals(onDisk(repository)),
