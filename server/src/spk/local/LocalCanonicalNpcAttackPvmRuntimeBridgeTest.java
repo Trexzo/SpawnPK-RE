@@ -12,6 +12,7 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
 
         unconfiguredLeavesDeadCanonical(definition);
         configuredRuntimeFinalizes(definition);
+        differentCanonicalAttackerKeepsConfiguredSpawnRecipient(definition);
         preTeardownFailureRetries(definition);
         unexpectedErrorPropagates(definition);
 
@@ -24,6 +25,7 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
             "dropsSettled=true "+
             "liveLootPending=true "+
             "foreignNpcUntouched=true "+
+            "distinctAttackerVsConfiguredRecipientCharacterized=true "+
             "policyNeutral=true"
         );
 
@@ -517,6 +519,139 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
                 );
 
             other.close();
+            world.close();
+        }
+    }
+
+    /**
+     * G18.4.6 / #2558: the admitted lethal WorldPlayer can differ from
+     * the configured spawn recipient. This is evidence of the current
+     * CUSTOM_LOCALLAB policy boundary, NOT recovered SpawnPK rewards.
+     */
+    private static void differentCanonicalAttackerKeepsConfiguredSpawnRecipient(
+        int definition
+    )throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer spawnRecipient=new WorldPlayer();
+        WorldPlayer lethalAttacker=new WorldPlayer();
+        long recipientGeneration=
+            world.registerPlayer(spawnRecipient,"spawn-recipient");
+        long attackerGeneration=
+            world.registerPlayer(lethalAttacker,"lethal-attacker");
+
+        lethalAttacker.movement().restoreAccountState(
+            false,100,3087,3495,0
+        );
+
+        RuntimeGraph graph=
+            new RuntimeGraph(world,definition,"distinct-spawn-owner");
+        world.installMonsterSpawnerPvmRuntime(graph.runtime);
+
+        NpcRegistry attackerNpcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench(),
+                world.petNpcs(),
+                lethalAttacker.id()
+            );
+        ByteArrayOutputStream relayBytes=new ByteArrayOutputStream();
+        ServerPacketWriter relay=writer(relayBytes);
+
+        try{
+            SharedNpcWorldRelay.register(
+                relay,world,lethalAttacker,attackerNpcs,
+                lethalAttacker.movement()
+            );
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                graph.runtime.spawnAndBind(
+                    "distinct-spawn-owner",
+                    "spawn-recipient",
+                    3088,3495,0
+                );
+
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            MonsterSpawnerPvmRuntime.RecipientOrigin original=
+                spawned.runtime.recipientOrigin;
+
+            require(original!=null&&
+                    original.player==spawnRecipient&&
+                    original.generation==recipientGeneration&&
+                    original.stillCurrentIn(world)&&
+                    lethalAttacker!=original.player,
+                "configured spawn-time recipient distinct from attacker");
+
+            SharedNpcWorldRelay.syncRemotePets(relay);
+            NpcEntity projected=requireView(attackerNpcs,npc);
+
+            final MonsterSpawnerPvmRuntime.FinalizeResult[]
+                terminal={null};
+            ByteArrayOutputStream hitBytes=new ByteArrayOutputStream();
+            LocalCanonicalNpcAttackHandler handler=
+                new LocalCanonicalNpcAttackHandler(
+                    world,
+                    lethalAttacker,
+                    ()->attackerGeneration,
+                    lethalAttacker.equipment(),
+                    lethalAttacker.combatStyles(),
+                    attackerNpcs,
+                    (target,generation)->{},
+                    target->terminal[0]=
+                        world.finalizeMonsterSpawnerPvmIfOwned(target)
+                );
+
+            LocalCanonicalNpcAttackHandler.Result hit=
+                handler.handle(
+                    new NpcAction(72,projected.sceneIndex),
+                    projected,
+                    writer(hitBytes)
+                );
+
+            require(hit!=null&&
+                    hit.status==
+                        LocalCanonicalNpcAttackHandler.Status.HIT&&
+                    hit.newlyDied&&
+                    hitBytes.size()>0&&
+                    terminal[0]!=null&&
+                    terminal[0].status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal[0].recipientOrigin==original&&
+                    terminal[0].recipientOrigin.player!=lethalAttacker&&
+                    "spawn-recipient".equals(
+                        terminal[0].finalization.recipientRef)&&
+                    world.players().owns(
+                        lethalAttacker,attackerGeneration)&&
+                    graph.dropCalls==1,
+                "lethal attack actor must not silently replace spawn recipient");
+
+            require(
+                world.groundItems().findOwned(
+                    995,3088,3495,0,"spawn-recipient"
+                )!=null&&
+                world.groundItems().findOwned(
+                    995,3088,3495,0,"lethal-attacker"
+                )==null,
+                "existing LocalLab drop settlement uses configured recipient, not lethal attacker"
+            );
+
+            System.out.println(
+                "G1846_CANONICAL_ATTACKER_VS_SPAWN_RECIPIENT_PASS"+
+                " lethalAttackerDistinct=true"+
+                " configuredRecipientPreserved=true"+
+                " spawnOriginNotRetargeted=true"+
+                " localLabLootRecipientIsConfigured=true"+
+                " originalServerRewardPolicyClaim=false"+
+                " endToEndCreditPolicyFix=false"
+            );
+        }finally{
+            SharedNpcWorldRelay.unregister(relay);
+            if(world.players().owns(lethalAttacker,attackerGeneration))
+                world.unregisterPlayer(
+                    lethalAttacker,attackerGeneration
+                );
+            if(world.players().owns(spawnRecipient,recipientGeneration))
+                world.unregisterPlayer(
+                    spawnRecipient,recipientGeneration
+                );
             world.close();
         }
     }

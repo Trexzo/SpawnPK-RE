@@ -7,6 +7,10 @@ public final class MonsterSpawnerPvmRuntimeTest {
 
     public static void main(String[] args)throws Exception{
         successfulLifecycle();
+        disconnectedOwnerRetiresAfterLastNpc();
+        reconnectedOwnerKeepsCurrentSession();
+        recipientOriginRetainedAcrossReconnectAndSettlementRetry();
+        unregisteredRecipientHasNoInventedOrigin();
         aliveAndForeignFailClosed();
         settlementPendingRetry();
         settlementRetryFencedByWorldClose();
@@ -21,6 +25,8 @@ public final class MonsterSpawnerPvmRuntimeTest {
             "exactWorldLifecycle=true "+
             "deathFinalization=true "+
             "settlement=true "+
+            "disconnectedLastNpcRetiresSession=true "+
+            "reconnectedLastNpcPreservesSession=true "+
             "settlementPendingRetry=true "+
             "settlementWorldPulseRetry=true "+
             "settlementRetryExactlyOnce=true "+
@@ -28,6 +34,8 @@ public final class MonsterSpawnerPvmRuntimeTest {
             "terminalRetryNoMutation=true "+
             "dropResolutionOnce=true "+
             "duplicateDeathBlocked=true "+
+            "spawnRecipientOriginWitness=true "+
+            "noUnprovenOriginInference=true "+
             "protocolIndependent=true"
         );
     }
@@ -104,6 +112,215 @@ public final class MonsterSpawnerPvmRuntimeTest {
                 f.dropCalls==1,
                 "duplicate runtime finalization"
             );
+        }finally{
+            f.close();
+        }
+    }
+
+    /** #1394: a disconnected owner must not leave an orphan session after final settlement. */
+    private static void disconnectedOwnerRetiresAfterLastNpc()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        WorldPlayer player=new WorldPlayer();
+        long generation=f.world.registerPlayer(player,OWNER);
+
+        try{
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(OWNER,"killer",3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+
+            require(f.spawner.getSession(OWNER)!=null,
+                "tracked Monster Spawner session missing before disconnect");
+            require(f.world.unregisterPlayer(player,generation),
+                "disconnected Monster Spawner owner unregister");
+            require(f.spawner.getSession(OWNER)!=null,
+                "tracked NPC must retain disconnected session before terminal death");
+
+            require(f.lifecycle.applyDamage(npc.id,99,50L).newlyDied,
+                "disconnected owner terminal lethal event");
+            MonsterSpawnerPvmRuntime.FinalizeResult finalized=
+                f.runtime.finalizeIfOwned(npc);
+
+            require(finalized.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                finalized.settlement!=null&&
+                f.spawner.getSession(OWNER)==null&&
+                f.runtime.get(npc.id)==null&&
+                f.runtime.size()==0&&
+                f.world.groundItems().size()==1&&
+                f.dropCalls==1,
+                "last tracked NPC should retire exact disconnected session after settlement");
+
+            MonsterSpawnerPvmRuntime.FinalizeResult duplicate=
+                f.runtime.finalizeIfOwned(npc);
+            require(duplicate.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                f.spawner.getSession(OWNER)==null&&
+                f.dropCalls==1,
+                "retired session must not resettle duplicate terminal NPC");
+        }finally{
+            if(f.world.players().owns(player,generation))
+                f.world.unregisterPlayer(player,generation);
+            f.close();
+        }
+    }
+
+    /** #1394: reconnecting before settlement must preserve a live owner's current session. */
+    private static void reconnectedOwnerKeepsCurrentSession()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        WorldPlayer original=new WorldPlayer();
+        long oldGeneration=f.world.registerPlayer(original,OWNER);
+        WorldPlayer replacement=null;
+        long newGeneration=-1L;
+
+        try{
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(OWNER,"killer",3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+
+            require(f.world.unregisterPlayer(original,oldGeneration),
+                "original owner disconnect before replacement");
+            require(f.spawner.getSession(OWNER)!=null,
+                "tracked session must survive disconnect");
+
+            replacement=new WorldPlayer();
+            newGeneration=f.world.registerPlayer(replacement,OWNER);
+
+            require(f.lifecycle.applyDamage(npc.id,99,50L).newlyDied,
+                "reconnected owner terminal lethal event");
+            MonsterSpawnerPvmRuntime.FinalizeResult finalized=
+                f.runtime.finalizeIfOwned(npc);
+
+            MonsterSpawnerService.SessionSnapshot after=
+                f.spawner.getSession(OWNER);
+            require(finalized.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                finalized.settlement!=null&&
+                after!=null&&
+                after.spawnedNpcIds.isEmpty()&&
+                f.world.players().owns(replacement,newGeneration)&&
+                f.world.players().byName(OWNER)==replacement&&
+                f.runtime.size()==0&&
+                f.world.groundItems().size()==1&&
+                f.dropCalls==1,
+                "last NPC finalization may not retire a reconnected owner's current session");
+        }finally{
+            if(f.world.players().owns(original,oldGeneration))
+                f.world.unregisterPlayer(original,oldGeneration);
+            if(replacement!=null&&
+                    f.world.players().owns(replacement,newGeneration))
+                f.world.unregisterPlayer(replacement,newGeneration);
+            f.close();
+        }
+    }
+
+    /** G18.4.5: the recipient is observed inside the spawn, never re-resolved at death. */
+    private static void recipientOriginRetainedAcrossReconnectAndSettlementRetry()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        WorldPlayer initial=new WorldPlayer();
+        long firstGeneration=f.world.registerPlayer(initial,"killer");
+        WorldPlayer replacement=null;
+        long secondGeneration=-1L;
+        final MonsterSpawnerPvmRuntime.FinalizeResult[] observed={null};
+
+        try{
+            f.runtime.installTerminalObserver(result->observed[0]=result);
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(OWNER,"killer",3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            Tile tile=npc.tile();
+            MonsterSpawnerPvmRuntime.RecipientOrigin stamp=
+                spawned.runtime.recipientOrigin;
+
+            require(stamp!=null&&stamp.player==initial&&
+                    stamp.generation==firstGeneration&&
+                    "killer".equals(stamp.recipientRef)&&
+                    stamp.stillCurrentIn(f.world)&&
+                    f.runtime.get(npc.id).recipientOrigin==stamp,
+                "spawn-time recipient must be exact live WorldPlayer");
+
+            require(f.world.unregisterPlayer(initial,firstGeneration),
+                "original recipient unregister");
+            replacement=new WorldPlayer();
+            secondGeneration=f.world.registerPlayer(replacement,"killer");
+
+            require(!stamp.stillCurrentIn(f.world)&&
+                    f.world.players().byName("killer")==replacement&&
+                    f.runtime.get(npc.id).recipientOrigin==stamp,
+                "same username must not retarget earlier NPC origin");
+
+            // Deliberately force the canonical terminal settlement to
+            // remain pending so the original stamp must survive a retry.
+            GroundItem blocker=f.world.groundItems().add(
+                995,Integer.MAX_VALUE,tile,"killer",1L,false
+            );
+            require(f.lifecycle.applyDamage(npc.id,99,75L).newlyDied,
+                "recipient-origin pending lethal event");
+            MonsterSpawnerPvmRuntime.FinalizeResult pending=
+                f.runtime.finalizeIfOwned(npc);
+            MonsterSpawnerPvmRuntime.Snapshot retained=
+                f.runtime.get(npc.id);
+
+            require(pending.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.SETTLEMENT_PENDING&&
+                    pending.recipientOrigin==stamp&&
+                    pending.runtime!=null&&
+                    pending.runtime.recipientOrigin==stamp&&
+                    retained!=null&&retained.recipientOrigin==stamp&&
+                    observed[0]==null&&f.dropCalls==1,
+                "pending settlement must preserve origin without observer delivery");
+
+            require(f.world.groundItems().remove(blocker.id),
+                "remove pending origin test blocker");
+            MonsterSpawnerPvmRuntime.FinalizeResult finished=
+                f.runtime.retrySettlement(npc.id);
+
+            require(finished.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    finished.recipientOrigin==stamp&&
+                    finished.runtime==null&&
+                    finished.settlement!=null&&
+                    observed[0]==finished&&
+                    observed[0].recipientOrigin==stamp&&
+                    !stamp.stillCurrentIn(f.world)&&
+                    f.world.players().owns(replacement,secondGeneration)&&
+                    f.runtime.get(npc.id)==null&&
+                    f.dropCalls==1,
+                "successful retry/observer must carry old immutable origin");
+
+            System.out.println(
+                "G1845_MONSTER_SPAWNER_RECIPIENT_ORIGIN_WITNESS_PASS"+
+                " capturedAtSpawn=true"+
+                " sameNameReplacementRefused=true"+
+                " pendingRetryPreserved=true"+
+                " terminalObserverPreserved=true"+
+                " originalServerCreditPolicyClaim=false"+
+                " liveDmmObserverWired=false"
+            );
+        }finally{
+            if(f.world.players().owns(initial,firstGeneration))
+                f.world.unregisterPlayer(initial,firstGeneration);
+            if(replacement!=null&&
+                    f.world.players().owns(replacement,secondGeneration))
+                f.world.unregisterPlayer(replacement,secondGeneration);
+            f.close();
+        }
+    }
+
+    /** The test fixture's usual "killer" is not a registered WorldPlayer. */
+    private static void unregisteredRecipientHasNoInventedOrigin()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        try{
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(OWNER,"absent-recipient",3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(spawned.runtime.recipientOrigin==null&&
+                    f.runtime.get(npc.id).recipientOrigin==null,
+                "unregistered recipient cannot manufacture origin");
         }finally{
             f.close();
         }
