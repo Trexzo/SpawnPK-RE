@@ -23,6 +23,16 @@ final class FilePlayerRepository
     }
 
     private final PathResolver paths;
+    // G21.192 opt-in: test-observable forced, verified real World save
+    // count. This is NOT a durable account epoch, receipt or grant.
+    static final String EXPERIMENTAL_FORCE_WORLD_POSTIMAGE_PROPERTY=
+        "spk.local.experimentalForceWorldAccountPostimage";
+    private final java.util.concurrent.atomic.AtomicInteger
+        forcedWorldPostimageCount=new java.util.concurrent.atomic.AtomicInteger();
+
+    int forcedWorldPostimageCountForTest(){
+        return forcedWorldPostimageCount.get();
+    }
     /**
      * G21.36 package-scoped deterministic test seam; it never relaxes the
      * normal before-replacement account review-fence check.
@@ -1367,6 +1377,11 @@ final class FilePlayerRepository
             snapshot,
             "snapshot"
         );
+        // Snapshot per-save; callers must configure the opt-in before
+        // sessions start, not change it in flight.
+        final boolean forceRealWorldPostimage=enforceWorldAdmission&&
+            Boolean.getBoolean(
+                EXPERIMENTAL_FORCE_WORLD_POSTIMAGE_PROPERTY);
 
         if(snapshot.version()!=
                 PlayerSnapshot.CURRENT_VERSION)
@@ -1472,6 +1487,10 @@ final class FilePlayerRepository
             }
 
             if(enforceWorldAdmission){
+                // G21.192: no postimage can earn a forced receipt until
+                // the exact World-owned serialized temp is forced.
+                if(forceRealWorldPostimage)
+                    forceOwnedWorldTemp(tmp,originalWorldTemp);
                 requireOwnedWorldTemp(tmp,originalWorldTemp);
                 final String sealedWorldTemp=restartFingerprintPart(
                     tmp,RESTART_WITNESS_MAX_ACCOUNT_BYTES);
@@ -1504,7 +1523,16 @@ final class FilePlayerRepository
                         if(!sealedWorldTemp.equals(latest))
                             throw new IOException(
                                 "G21.172 WORLD_TEMP_BYTES_CHANGED_UNSAFE_NO_AUTHORITY");
-                        replaceSnapshotTemp(tmp,file);
+                        replaceSnapshotTemp(tmp,file,
+                            forceRealWorldPostimage);
+                        if(forceRealWorldPostimage){
+                            // A successful atomic rename is not a
+                            // durable receipt. Force parent directory
+                            // and independently verify exact postimage.
+                            forceAndVerifyWorldPostimage(
+                                file,sealedWorldTemp);
+                            forcedWorldPostimageCount.incrementAndGet();
+                        }
                         return null;
                     });
             }else{
@@ -1577,8 +1605,58 @@ final class FilePlayerRepository
         }
     }
 
+    /**
+     * G21.192: forced account World temp bytes, preserving original
+     * NOFOLLOW inode evidence. This does not fence RAW path replacement.
+     */
+    private static void forceOwnedWorldTemp(
+        Path temp,BasicFileAttributes original
+    )throws IOException{
+        requireOwnedWorldTemp(temp,original);
+        try(java.nio.channels.FileChannel channel=
+                java.nio.channels.FileChannel.open(
+                    temp,StandardOpenOption.WRITE,
+                    LinkOption.NOFOLLOW_LINKS)){
+            channel.force(true);
+        }
+        requireOwnedWorldTemp(temp,original);
+    }
+
+    /**
+     * Must be called INSIDE G21.39 exclusive publication section and
+     * only after G21.192's strict atomic account replacement. No
+     * REVIEW-intent retirement, no account owner/generation epoch.
+     */
+    private static void forceAndVerifyWorldPostimage(
+        Path file,String expectedSha
+    )throws IOException{
+        MailboxAccountPublicationCoordinator
+            .requireSafeWorldTempAncestry(file,false);
+        BasicFileAttributes afterMove=worldTempEvidence(file);
+        try(java.nio.channels.FileChannel directory=
+                java.nio.channels.FileChannel.open(
+                    file.getParent(),StandardOpenOption.READ,
+                    LinkOption.NOFOLLOW_LINKS)){
+            directory.force(true);
+        }
+        if(!sameWorldTempObject(afterMove,worldTempEvidence(file)))
+            throw new IOException(
+                "G21.192 FORCED_WORLD_POSTIMAGE_IDENTITY_CHANGED");
+        final String postimage=restartFingerprintPart(
+            file,RESTART_WITNESS_MAX_ACCOUNT_BYTES);
+        if(!expectedSha.equals(postimage))
+            throw new IOException(
+                "G21.192 FORCED_WORLD_POSTIMAGE_BYTES_CHANGED");
+    }
+
     private static void replaceSnapshotTemp(
         Path temp,Path file
+    )throws IOException{
+        replaceSnapshotTemp(temp,file,false);
+    }
+
+    private static void replaceSnapshotTemp(
+        Path temp,Path file,boolean requireAtomic
     )throws IOException{
         try{
             Files.move(
@@ -1587,8 +1665,12 @@ final class FilePlayerRepository
                 StandardCopyOption.ATOMIC_MOVE
             );
         }catch(AtomicMoveNotSupportedException unsupported){
-            // Retain original account-file writer compatibility. This
-            // fallback is NOT used for the no-clobber review marker.
+            if(requireAtomic)
+                throw new IOException(
+                    "G21.192 FORCED_WORLD_ATOMIC_REPLACE_REQUIRED",
+                    unsupported);
+            // Preserve original default and raw writer compatibility;
+            // no non-atomic fallback in G21.192 opt-in mode.
             Files.move(
                 temp,file,StandardCopyOption.REPLACE_EXISTING
             );

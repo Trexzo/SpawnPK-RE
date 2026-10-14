@@ -1,0 +1,19 @@
+# Chat 1+2 G21.192 / G18.5.3 — opt-in real World forced postimage and PvM receipt lifetime (499)
+
+## Certified parent and imported exact core source
+- Canonical Chat 2 [Draft #2599](https://github.com/Trexzo/SpawnPK-RE/pull/2599), exact parent SHA `3e446f5d5c7a12f55493e143b85c58966caa4e6f`, [Actions #38572330731](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38572330731) SUCCESS Java11 major55 **498/498** focused and full Gradle. Includes G21.191 unused forced helper, G21.190 one-shot marker crash denial, Chat 2 G18.5.3 controlled instance-local PvM G1 receipt lifetime negative, and earlier G18.4.x/G18.5.x gameplay tests.
+- **Chat 1 G21.192** [Draft #2600](https://github.com/Trexzo/SpawnPK-RE/pull/2600) based on independently certified core G21.191 `142649b179f0e8ab949ae74d87fef7cdf52a559c`. Core source exact blob `FilePlayerRepository.java`, test `G21192CoreSocketForcedWorldPostimageTest.java`, research. At joint composition creation its separate [Actions #38573936608](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38573936608) is **PENDING**. Do not infer successful G21.192 actual World-path publication until its exact-head CI is green.
+
+## Additive composition
+- Verified Chat 2 inherited `FilePlayerRepository.java` baseline blob `4657d1d5cf5c2fc007acd2d64e9c24638ad32fc6` matches core G21.191. Update only it to G21.192 core exact blob `8afab8e76246a06c365bb12380247efe041c84c9` (production opt-in save path).
+- Add exact core G21.192 real-TCP test blob `cf4cb81f7cdf1b1b67e9f3cb3bf41d0d0b2c3e60`, research note and this joint handoff. In inherited Chat 2 `server/build.gradle`, retain every G18.5.x test and task; insert ONE G21.192 class and task **498→499 unique**.
+- Preserve Chat 2 G18.5.3 existing G1847 test Git blob `ec18dd5d9b9441a402471ebad29cd50030156eba` and `LocalSession.java` exactly, plus the World, account locks, session initializer, game rewards/settlement, and G21.190 review marker.
+- No main merge. Draft/unmerged.
+
+## Actual scope of G21.192
+New DEFAULT-OFF flag `spk.local.experimentalForceWorldAccountPostimage=true` affects only the genuine World persistence save path. After existing G21.172 owner temp identity checks, force serialized temp bytes; under the same G21.39 publication lock require atomic replacement, force parent directory and compare exact SHA-256 postimage. Fail closed on missing atomic rename/force/readback even after a possibly visible replacement. Legacy direct/forensic account save path remains unchanged.
+
+G21192 real loopback TCP test: A fresh named account creates forced A_FORCED postimage; another World and repository hydrates it and forced final-saves B_FORCED. No intent created or retired. This is NOT a complete durable account protocol. G21.190 ACTIVE one-shot marker remains indefinitely even following a confirmed G21.192 forced final write: no safe return-to-login or automatic recovery is claimed. Adversarial path replacement, raw writers, cross-machine filesystems and power loss are not solved by a passing JVM test. Chat 2's G18.5.3 is also test-only evidence of instance-local G1 receipt replay, NOT a natural restart or original historical reward rule.
+
+## Fresh exact-head certification required
+Require hosted Java11 major55, `G21192_REAL_WORLD_FORCE_PASS`, `G21191_FORCED_PUBLICATION_PASS`, `G21190_ONE_SHOT_PASS`, `G1853_PVM_RECORD_SERVICE_RECEIPT_LIFETIME_PASS`, full **499/499** unique focused and complete Gradle SUCCESS on the combined head. Independent green ancestors do not certify this new tree. No marker retirement/grant/replay/reward/settlement/cleanup/rollover/pruning/unlink/durable session ACK, frozen R25 #1847/G21.87/G21.88; core design [#2540](https://github.com/Trexzo/SpawnPK-RE/issues/2540), [#2559](https://github.com/Trexzo/SpawnPK-RE/issues/2559), gameplay [#2587](https://github.com/Trexzo/SpawnPK-RE/issues/2587) open. Chat 3 client untouched.
