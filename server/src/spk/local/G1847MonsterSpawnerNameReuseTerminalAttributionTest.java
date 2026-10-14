@@ -181,10 +181,13 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                         !origin.stillCurrentIn(world);
                 }
             }else{
+                // WorldEventQueue.runDue returns ALL due callbacks,
+                // not just this G1 loop's ticket. The correct negative
+                // evidence is the absence of a newly tracked/spawned NPC.
                 result.noOwnerNoRespawn=
-                    dueCallbacks==0&&
                     afterRespawn!=null&&
-                    afterRespawn.spawnedNpcIds.isEmpty();
+                    afterRespawn.spawnedNpcIds.isEmpty()&&
+                    provisioning.runtime().get(npc.id)==null;
             }
 
             // snapshot(USER) deliberately requires a current player.
