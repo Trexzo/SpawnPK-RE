@@ -28,6 +28,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean secondTickDistinct=pvmSameNpcSecondDeathTickCountsAsNewReceipt();
         boolean rejectedG1PartialTerminal=g1InvalidPvmStateAllowsOtherTerminalConsumers();
         boolean g18FailureNonRetryable=actualG18ConsumerFailureAfterG1();
+        boolean earlyG4Failure=actualG4FailureStopsLaterG18();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -185,6 +186,155 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " productionObserverUnchanged=true"+
             " originalServerPolicyClaim=false"
         );
+        require(earlyG4Failure,
+            "G1859 early G4 exception did not block downstream G18");
+        System.out.println(
+            "G1859_INSTALLED_G4_EARLY_FAILURE_BLOCKS_G18_PASS"+
+            " realG1KillAndDrop=true"+
+            " activeG4TaskModeMismatch=true"+
+            " upstreamG1ReceiptCommitted="+earlyG4Failure+
+            " repairedG4TaskStillZero="+earlyG4Failure+
+            " downstreamG18NeverCredited="+earlyG4Failure+
+            " retrySettlementCannotRedeliver=true"+
+            " realDueTickRespawnScheduled=true"+
+            " oneCanonicalNpcDeath=true"+
+            " installedObserverUnchanged=true"+
+            " externalClientCorruptionProven=false"+
+            " originalServerPolicyClaim=false"
+        );
+    }
+
+    /**
+     * G18.5.9: A G4 failure happens EARLIER in the unchanged installed
+     * G1->G4->G14->G15->G16->G18 consumer sequence than G18.5.8's
+     * late G18 failure. Mutate only private test-side Blood Slayer
+     * selected-mode bookkeeping after legitimate active task creation.
+     *
+     * No production error injection, client-side manipulation, rewards,
+     * outbox, replay, or original server claim.
+     */
+    private static boolean actualG4FailureStopsLaterG18()
+        throws Exception{
+        final String account=USER+"-g4-early-throw";
+        final long deathTick=341L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            generation=world.registerPlayer(player,account);
+            LocalLabSlayerRuntime slayer=world.localLabSlayer();
+            LocalLabSlayerRuntime.StartResult started=
+                slayer.startMonsterHunter(account,world.clock().tick());
+            require(started!=null&&started.created&&
+                    started.status.task!=null&&
+                    started.status.task.objective!=null&&
+                    started.status.task.objective.progress==0L,
+                "G1859 valid G4 monster-hunter task before corruption");
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult activeDmm=
+                dmm.activateEasyIfCurrent(account,player,generation);
+            require(activeDmm!=null&&activeDmm.activatedNow&&
+                    activeDmm.snapshot.objective.progress==0L,
+                "G1859 DMM activated before upstream G4 fault");
+
+            // Deliberate in-memory test-only mismatch. Live G4 protects
+            // active task selectors; do not invoke them to bypass policy.
+            java.lang.reflect.Field bridge=
+                LocalLabSlayerRuntime.class.getDeclaredField("bloodSlayer");
+            bridge.setAccessible(true);
+            BloodSlayerModeService modes=(BloodSlayerModeService)
+                bridge.get(slayer);
+            java.lang.reflect.Field selected=
+                BloodSlayerModeService.class.getDeclaredField(
+                    "selectedByPlayer"
+                );
+            selected.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Map<String,BloodSlayerModeService.Mode> mapping=
+                (java.util.Map<String,BloodSlayerModeService.Mode>)
+                    selected.get(modes);
+            BloodSlayerModeService.Mode prior=mapping.put(
+                account,BloodSlayerModeService.Mode.BOSS_HUNTER_PVM
+            );
+            require(prior==
+                    BloodSlayerModeService.Mode.MONSTER_HUNTER_PVM,
+                "G1859 only active G4 task mode mismatched");
+            require(slayer.status(account).task!=null&&
+                    slayer.status(account).task.objective.progress==0L,
+                "G1859 active G4 task still intact");
+
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,deathTick
+                ).newlyDied,
+                "G1859 one real canonical NPC death");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioned.runtime().finalizeIfOwned(npc);
+            PvmRecordService records=world.pvmRecords();
+            require(terminal!=null&&
+                    terminal.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.settlement!=null&&
+                    provisioned.runtime().get(npc.id)==null&&
+                    world.groundItems().size()==1&&
+                    records.snapshot(player).kills==1L&&
+                    records.receiptCount()==1&&
+                    dmm.snapshot(account).objective.progress==0L,
+                "G1859 upstream G1 committed before G4 blocked downstream G18");
+
+            // Repair the exact private mode value before testing the
+            // normal retry path; healthy G4 and G18 still cannot recover
+            // their missing terminal event.
+            require(mapping.put(account,prior)==
+                    BloodSlayerModeService.Mode.BOSS_HUNTER_PVM,
+                "G1859 restore original live G4 mode");
+            require(slayer.status(account).task.objective.progress==0L&&
+                    dmm.snapshot(account).objective.progress==0L,
+                "G1859 repaired G4 and downstream G18 remain uncredited");
+            MonsterSpawnerPvmRuntime.FinalizeResult retry=
+                provisioned.runtime().retrySettlement(npc.id);
+            MonsterSpawnerPvmRuntime.FinalizeResult rerun=
+                provisioned.runtime().finalizeIfOwned(npc);
+            require(retry!=null&&retry.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                    rerun!=null&&rerun.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                    slayer.status(account).task.objective.progress==0L&&
+                    dmm.snapshot(account).objective.progress==0L,
+                "G1859 no post-repair original terminal replay");
+
+            world.events().runDue(
+                deathTick+G1MonsterSpawnerPvmLoopService
+                    .RESPAWN_DELAY_TICKS
+            );
+            MonsterSpawnerService.SessionSnapshot after=
+                spawner.getSession(account);
+            return after!=null&&
+                after.spawnedNpcIds.size()==1&&
+                !npc.id.equals(after.spawnedNpcIds.get(0))&&
+                records.receiptCount()==1&&
+                records.snapshot(player).kills==1L&&
+                slayer.status(account).task.objective.progress==0L&&
+                dmm.snapshot(account).objective.progress==0L&&
+                world.groundItems().size()==1;
+        }finally{
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
     }
 
     /**
