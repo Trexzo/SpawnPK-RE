@@ -39,6 +39,11 @@ final class LocalJvmAccountSessionLease {
             this.processLock=processLock;
         }
 
+        /** Exact resolved file identity guarded by this token. */
+        Path accountFileForReviewAdmission(){
+            return path;
+        }
+
         /** Only the exact admitted owner can release on proven completion. */
         synchronized void releaseAfterConfirmedFinalSave(){
             release();
