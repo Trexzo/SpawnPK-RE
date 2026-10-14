@@ -31,6 +31,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean earlyG4Failure=actualG4FailureStopsLaterG18();
         boolean stickyG4Invalid=invalidG4PersistenceWhileRealOtherConsumersAdvance();
         boolean generationBoundary=g4InvalidCacheScopedToReplacedWorldPlayer();
+        boolean liveG4Transferred=activeG4TaskFinishesForNewSameNamePlayer();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -238,6 +239,213 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " productionCodeChanged=false"+
             " originalServerPolicyClaim=false"
         );
+        require(liveG4Transferred,
+            "G1862 original G4 task did not transfer to new same-name WorldPlayer as characterized");
+        System.out.println(
+            "G1862_G4_ACTIVE_TASK_NAME_REUSE_PERSISTENCE_SPLIT_PASS"+
+            " actualInstalledObserver=true"+
+            " oneCanonicalNpcDeath=true"+
+            " immutableSpawnOriginOldPlayer=true"+
+            " originalG4ActivePersistenceRemains="+liveG4Transferred+
+            " replacementG4CompletedPersistence="+liveG4Transferred+
+            " liveG4TaskTransferredByName="+liveG4Transferred+
+            " g1KillCreditedOnlyReplacement="+liveG4Transferred+
+            " g18DmmCreditedSameName=true"+
+            " actualGroundSettlementOnce=true"+
+            " externalTcpReconnectTested=false"+
+            " originalServerCreditAuthority=false"+
+            " productionCodeChanged=false"
+        );
+    }
+
+    /**
+     * G18.6.2 / #2558 / #2587: A legitimate *active* G4 Monster
+     * Hunter task survives WorldPlayer A's unregister because the
+     * World-owned SlayerTaskService is keyed by username. Before a
+     * single actual NPC terminal event, same-name WorldPlayer B
+     * appears with no account snapshot hydration or task assignment.
+     *
+     * The installed name-only observer then finishes the existing
+     * G4 task and writes the completed persistence to B, although
+     * A's detached snapshot still contains ACTIVE for that task.
+     * NPC RecipientOrigin still records A. This is a negative
+     * Custom LocalLab ownership/persistence split, NOT recovered
+     * SpawnPK kill policy or user-authorized task transfer.
+     */
+    private static boolean activeG4TaskFinishesForNewSameNamePlayer()
+        throws Exception{
+        final String account=USER+"-g4-active-transfer";
+        final long deathTick=521L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer original=new WorldPlayer();
+        WorldPlayer replacement=null;
+        long originalGeneration=-1L;
+        long replacementGeneration=-1L;
+        try{
+            originalGeneration=world.registerPlayer(
+                original,account
+            );
+            LocalLabSlayerRuntime slayer=world.localLabSlayer();
+            LocalLabSlayerRuntime.StartResult started=
+                slayer.startMonsterHunter(
+                    account,world.clock().tick()
+                );
+            require(started!=null&&started.created&&
+                    started.status.task!=null&&
+                    started.status.task.objective!=null&&
+                    started.status.task.objective.progress==0L,
+                "G1862 original player legitimately starts G4 task");
+            java.util.SortedMap<String,String> aBefore=
+                original.snapshotExtensions().namespace(
+                    LocalLabSlayerPersistence.NAMESPACE
+                );
+            LocalLabSlayerPersistence.Snapshot oldActive=
+                LocalLabSlayerPersistence.decode(aBefore);
+            require(oldActive!=null&&
+                    oldActive.state==
+                        LocalLabSlayerPersistence.State.ACTIVE&&
+                    oldActive.progress==0L&&
+                    oldActive.completions==0L,
+                "G1862 A has valid persisted ACTIVE G4 task");
+
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult activeDmm=
+                dmm.activateEasyIfCurrent(
+                    account,original,originalGeneration
+                );
+            require(activeDmm!=null&&activeDmm.activatedNow&&
+                    activeDmm.snapshot.objective.progress==0L,
+                "G1862 legitimate original DMM activation");
+
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            MonsterSpawnerPvmRuntime.RecipientOrigin origin=
+                spawned.runtime.recipientOrigin;
+            require(origin!=null&&origin.player==original&&
+                    origin.generation==originalGeneration,
+                "G1862 actual spawn captured original recipient");
+
+            require(world.unregisterPlayer(
+                    original,originalGeneration
+                ),
+                "G1862 remove original after G4 task/spawn");
+            replacement=new WorldPlayer();
+            replacementGeneration=world.registerPlayer(
+                replacement,account
+            );
+            require(world.players().owns(
+                        replacement,replacementGeneration
+                    )&&
+                    !origin.stillCurrentIn(world)&&
+                    replacement.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    ).isEmpty(),
+                "G1862 fresh B has no inherited G4 persistence");
+
+            // World-owned name map still exposes A's active task to B,
+            // even before B requests/accepts any G4 task.
+            LocalLabSlayerRuntime.StatusSnapshot adopted=
+                slayer.status(account);
+            require(adopted!=null&&
+                    adopted.persistenceError==null&&
+                    adopted.task!=null&&
+                    adopted.task.taskId.equals(
+                        started.status.task.taskId
+                    )&&
+                    adopted.task.objective.progress==0L,
+                "G1862 G4 active task is already visible to replacement");
+            require(dmm.snapshot(account).objective.progress==0L,
+                "G1862 DMM still World-owned before terminal");
+
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,deathTick
+                ).newlyDied,
+                "G1862 one real canonical death of A-spawned NPC");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioned.runtime().finalizeIfOwned(npc);
+            PvmRecordService records=world.pvmRecords();
+            LocalLabSlayerRuntime.StatusSnapshot after=
+                slayer.status(account);
+            LocalLabSlayerPersistence.Snapshot aPersisted=
+                LocalLabSlayerPersistence.decode(
+                    original.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                );
+            LocalLabSlayerPersistence.Snapshot bPersisted=
+                LocalLabSlayerPersistence.decode(
+                    replacement.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                );
+
+            return terminal!=null&&
+                terminal.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                terminal.settlement!=null&&
+                terminal.settlement.groundItems.size()==1&&
+                terminal.settlement.groundItems.get(0)
+                    .settledAmount==1&&
+                terminal.recipientOrigin==origin&&
+                terminal.recipientOrigin.player==original&&
+                !origin.stillCurrentIn(world)&&
+                after!=null&&after.task!=null&&
+                after.task.taskId.equals(
+                    started.status.task.taskId
+                )&&
+                after.task.objective.progress==1L&&
+                after.task.objective.complete&&
+                aPersisted!=null&&
+                aPersisted.state==
+                    LocalLabSlayerPersistence.State.ACTIVE&&
+                aPersisted.progress==0L&&
+                aPersisted.completions==0L&&
+                bPersisted!=null&&
+                bPersisted.state==
+                    LocalLabSlayerPersistence.State.COMPLETED&&
+                bPersisted.progress==1L&&
+                bPersisted.completions==1L&&
+                aBefore.equals(
+                    original.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                )&&
+                records.snapshot(original).kills==0L&&
+                records.snapshot(replacement).kills==1L&&
+                records.receiptCount()==1&&
+                dmm.snapshot(account).objective.progress==1L&&
+                world.groundItems().size()==1&&
+                provisioned.runtime().get(npc.id)==null;
+        }finally{
+            if(replacement!=null&&
+                    replacementGeneration>=0L&&
+                    world.players().owns(
+                        replacement,replacementGeneration
+                    ))
+                world.unregisterPlayer(
+                    replacement,replacementGeneration
+                );
+            if(originalGeneration>=0L&&
+                    world.players().owns(
+                        original,originalGeneration
+                    ))
+                world.unregisterPlayer(
+                    original,originalGeneration
+                );
+            world.close();
+        }
     }
 
     /**
