@@ -121,6 +121,10 @@ final class LocalSessionPlayerInitializer {
             persistentAccount
                 ?LocalJvmAccountSessionLease.acquire(persistence,username)
                 :null;
+        // If registration succeeds but a subsequent post-register step
+        // throws, do NOT release an opt-in ownership token while a World
+        // member may still exist. Preserve fail-closed manual review.
+        boolean worldMembershipCommitted=false;
         try{
         // Reject a preexisting ACTIVE/review leaf before any account
         // snapshot hydration, defaults or World registration.
@@ -264,6 +268,7 @@ final class LocalSessionPlayerInitializer {
                 worldPlayer,
                 username
             );
+        worldMembershipCommitted=true;
 
         // G21.200: record the exact in-memory World owner identity and
         // generation in the already-held optional account lease. This
@@ -289,8 +294,11 @@ final class LocalSessionPlayerInitializer {
             sessionLease
         );
         }catch(RuntimeException|Error failure){
-            // No Result was published; the caller cannot own this token.
-            if(sessionLease!=null)
+            // Before World registration, no session state was admitted:
+            // release the unused lease. AFTER registration, even if this
+            // initializer did not return a Result, retention is safer
+            // than enabling overlapping same-account admission.
+            if(sessionLease!=null&&!worldMembershipCommitted)
                 sessionLease.releaseAfterInitializationFailure();
             throw failure;
         }
