@@ -122,11 +122,11 @@ public final class G21189CoreSocketExistingReviewMarkerLoginVetoTest {
     private static void runFreshJvm(
         Path settings,Path log,String username
     )throws Exception{
-        String java=System.getProperty("java.home")+
+        String javaExecutable=System.getProperty("java.home")+
             java.io.File.separator+"bin"+java.io.File.separator+
             (System.getProperty("os.name","").toLowerCase()
                 .contains("win")?"java.exe":"java");
-        ProcessBuilder pb=new ProcessBuilder(java,
+        ProcessBuilder pb=new ProcessBuilder(javaExecutable,
             "-Dspk.local.accountFile="+settings,
             "-D"+LocalJvmAccountSessionLease.PROPERTY+"=true",
             "-D"+LocalCrossJvmAccountSessionLock.PROPERTY+"=true",
