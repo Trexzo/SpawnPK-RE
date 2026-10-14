@@ -1,17 +1,26 @@
-# Chat 2 G21.189 + G18.5.2 — exact minimal cumulative overlay
+# Chat 2 G21.189 + G18.5.2 — minimal consumer replay evidence on real TCP review veto
 
-Date: 2026-10-14.
-**Core parent** [Chat 1 joint G21.189 + G18.5.1 #2590](https://github.com/Trexzo/SpawnPK-RE/pull/2590) head `e2df6ee1e58dfb4049f45a1dbf0a36492bd4d7dd`, on previously certified [Chat 2 G21.188 + G18.5.1 #2588](https://github.com/Trexzo/SpawnPK-RE/pull/2588) SHA `cbbebcc8e8135f9de0dae9d6edb74d87ba86e8bd`. G21.189 adds a DEFAULT-OFF read-only existing forced-review-intent marker TCP login veto. It is not automatic creation or recovery, nor a durable crash-reentry fix.
+Date: 2026-10-14. Draft/unmerged.
+**Core parent:** Chat 1 [G21.189 + G18.5.1 #2590](https://github.com/Trexzo/SpawnPK-RE/pull/2590), exact `e2df6ee1e58dfb4049f45a1dbf0a36492bd4d7dd`, on hosted-green [G21.188 + G18.5.1 #2588](https://github.com/Trexzo/SpawnPK-RE/pull/2588) SHA `cbbebcc8e8135f9de0dae9d6edb74d87ba86e8bd`.
 
-**Gameplay source** [Chat 2 G18.5.2 draft #2591](https://github.com/Trexzo/SpawnPK-RE/pull/2591) head `204e499398e773ecc875e9ee7bd0238a7065a5fa`, stacked on exact #2588. The new controlled test uses an **actual G1 consumer instance with the actual World / MonsterSpawnerService / executor / PvmRecordService**. A **test-only substituted** combined terminal observer invokes real G1 then throws deliberately before running later G4/G14/G15/G16/G18 progression. It verifies one G1 receipt/kill recorded and one ground drop settled, G18 objective still zero, terminal callback not replayed on retry, and no duplicate drops. This does **not** demonstrate the installed combined callback naturally throws or a production G18 bug.
+**Gameplay source:** Chat 2 [G18.5.2 #2591](https://github.com/Trexzo/SpawnPK-RE/pull/2591) corrected branch. Its **first unverified** draft attempted to replace the installed observer, which is illegal under `MonsterSpawnerPvmRuntime.installTerminalObserver`'s single-install invariant. The corrected test is now **fully independent of observer replacement**. It executes real installed LocalLab terminal finalization ONCE and then performs an explicit **test-only manual replay** of actual G1 and progression consumer APIs.
 
 ## Exact composition
-1. Start with Chat 1 #2590 exact tree, retain `LocalReviewIntentAdmissionVeto.java`, `LocalSessionPlayerInitializer.java`, `LocalJvmAccountSessionLease.java`, real socket G21189 test and **entire** `server/build.gradle` exact SHA. **496 unique** checked focused tests unchanged.
-2. Replace only `server/src/spk/local/G1847MonsterSpawnerNameReuseTerminalAttributionTest.java` with exact Git blob `9c10b60ef489b9f9834e4bea3a2d48d50229f347` from G18.5.2. Existing G1847 checked test class already in manifest, so no new build configuration.
-3. Add original G18.5.2 source note `docs/coordination/CHAT2_G1852_PARTIAL_TERMINAL_DELIVERY_2026-10-14.md` and this new joint handoff. **Exactly three files**.
-4. No production gameplay, account/session, persistence, grant, reward, settlement or client source changed. Do not merge predecessor Chat 2 G18.5.1 / G18.5.0 / G18.4.9 branches separately if this cumulative is accepted.
 
-## Independent verification
-Standalone [#2591](https://github.com/Trexzo/SpawnPK-RE/pull/2591) and core [#2590](https://github.com/Trexzo/SpawnPK-RE/pull/2590) each have hosted CI to verify their OWN exact SHAs. **Fresh combined exact-head** Java11 major55, `G1852_PARTIAL_TERMINAL_CONSUMER_DELIVERY_PASS`, G1851/G1850/G1849/1848/1847, G21189/G21188/G21187, **496/496** focused, full Gradle success required for combined certification. Do not inherit predecessor success.
+- Begin from exact Chat 1 #2590 tree, preserving **all production** Java, `LocalSessionPlayerInitializer.java`, `LocalReviewIntentAdmissionVeto.java`, real socket G21189 test and **entire `server/build.gradle` byte-for-byte**. Focused manifest remains **496 unique**.
+- Overlay **only** the corrected `server/src/spk/local/G1847MonsterSpawnerNameReuseTerminalAttributionTest.java` from #2591 plus `docs/coordination/CHAT2_G1852_PARTIAL_TERMINAL_DELIVERY_2026-10-14.md` and this handoff (3 paths).
+- The tested existing G1847 class already belongs to the current-train focused suite. No new test class/task or business policy.
 
-**Claims:** `CUSTOM_LOCALLAB` synthetic partial-terminal failure only, no original SpawnPK server rewards or recovery semantics. Original kill authority [#2558](https://github.com/Trexzo/SpawnPK-RE/issues/2558) unresolved; per-consumer event outbox issue [#2587](https://github.com/Trexzo/SpawnPK-RE/issues/2587) open; crashed-account durable admission [#2540](https://github.com/Trexzo/SpawnPK-RE/issues/2540) / [#2559](https://github.com/Trexzo/SpawnPK-RE/issues/2559) open. No main merge or frozen R25 release changes.
+## New negative replay property
+
+Actual unmodified `LocalLabMonsterSpawnerProvisioning.create(world)` observer processes a canonical NPC kill with exactly **one G1 PvM record receipt** and a tracked **G18 Easy objective from progress 0 to 1**, plus one committed ground item. After terminal delivery, **TEST-ONLY** manually duplicate the same finalization to:
+1. `world.pvmRecords().recordIfCurrent(player,generation,npcId,deathTick)`. The G1 receipt detects replay, does not increment kills and leaves one receipt.
+2. `LocalLabMonsterSpawnerProvisioning.creditTerminalProgression(world,recipientRef,definitionId,deathTile,deathTick)`. This aggregate G4/G14/G15/G16/G18 path lacks shared event-delivery dedup and G18 objective progresses **1→2** on the same NPC event.
+
+A runtime retry still returns `NOT_OWNED`; **production does not automatically replay** these consumers. The test demonstrates *asymmetric idempotency of distinct real consumer API surfaces*, relevant if engineering a future scoped `CUSTOM_LOCALLAB` terminal outbox under [#2587](https://github.com/Trexzo/SpawnPK-RE/issues/2587). It does not establish that any installed consumer naturally throws, nor original SpawnPK transaction/credit semantics.
+
+## Core and verification boundaries
+
+Chat 1 G21.189 adds a DEFAULT-OFF veto for a **pre-existing** forced ACTIVE review sidecar on exact real TCP login path; it does **not publish intents** when sessions are admitted, retire them on durable final save, or repair G21.187 killed-JVM stale BOOTSTRAP admission. Existing standalone G21188 sidecar primitive is not a complete recovery solution. Original kill attribution [#2558](https://github.com/Trexzo/SpawnPK-RE/issues/2558), durable account safety [#2540](https://github.com/Trexzo/SpawnPK-RE/issues/2540)/[#2559](https://github.com/Trexzo/SpawnPK-RE/issues/2559) remain open.
+
+Require **fresh corrected exact-head** hosted `G1852_TERMINAL_CONSUMER_REPLAY_ASYMMETRY_PASS`, G1851/G1850/G1849/G1848/G1847, G21189/188/187, Java11 major55, **496/496** focused and complete Gradle before certification. The first invalid G1852 build does not certify the revised source. Chat 1 owns promotion, and predecessor Chat 2 source slices must not be imported twice. No main or frozen R25 change.
