@@ -4197,7 +4197,8 @@ final class WorldPlayerPersistence
                     tag,
                     reason,
                     future,
-                    false
+                    false,
+                    this
                 );
             }finally{
                 // Mark BEFORE a queued next admission can run.
@@ -4320,6 +4321,20 @@ final class WorldPlayerPersistence
         CompletableFuture<Void> future,
         boolean checkpoint
     ){
+        write(saveSequence,snapshot,petAccessoryItem,tag,reason,
+            future,checkpoint,null);
+    }
+
+    private void write(
+        long saveSequence,
+        PlayerSnapshot snapshot,
+        int petAccessoryItem,
+        String tag,
+        String reason,
+        CompletableFuture<Void> future,
+        boolean checkpoint,
+        SaveTask capturedSave
+    ){
         try{
             synchronized(io){
                 if(failedFinalSaveAccounts.contains(snapshot.username()))
@@ -4342,9 +4357,26 @@ final class WorldPlayerPersistence
             // G21.36: ordinary, checkpoint and final session writes use
             // the same file-backed review-fence admission boundary. This
             // does NOT change non-file PlayerRepository adapter contracts.
-            if(repository instanceof FilePlayerRepository)
-                ((FilePlayerRepository)repository).saveForWorld(snapshot);
-            else
+            if(repository instanceof FilePlayerRepository){
+                FilePlayerRepository files=
+                    (FilePlayerRepository)repository;
+                // G21.201: ONLY queued normal/final SaveTask writes
+                // with an already-held, opt-in JVM lease are checked
+                // against the immutable captured owner/generation
+                // immediately before existing file publication.
+                // Final saves occur AFTER owner unregisters: identity
+                // equality is required, not live registered state.
+                // Existing checkpoint path is NOT yet covered by this
+                // narrow experiment. No durable owner receipt/retirement.
+                if(capturedSave!=null&&capturedSave.owner!=null)
+                    LocalJvmAccountSessionLease
+                        .requireCapturedSaveOwnerIfLeased(
+                            files.accountFilePath(snapshot.username()),
+                            snapshot.username(),
+                            capturedSave.owner,
+                            capturedSave.expectedGeneration);
+                files.saveForWorld(snapshot);
+            }else
                 repository.save(snapshot);
 
             synchronized(future){
