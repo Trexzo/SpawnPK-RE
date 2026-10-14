@@ -25,6 +25,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean serviceReceiptReset=pvmRecordInstanceReceiptReset();
         boolean fileRoundTripReceiptLoss=pvmRecordFileRoundTripReceiptLoss();
         boolean replayPrecedesOwnership=pvmReceiptReplayPrecedesOriginCheck();
+        boolean secondTickDistinct=pvmSameNpcSecondDeathTickCountsAsNewReceipt();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -140,6 +141,102 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " originalServerCreditPolicyClaim=false"+
             " productionPolicyChanged=false"
         );
+        require(secondTickDistinct,
+            "G1856 same canonical NPC with second manual tick was not new receipt");
+        System.out.println(
+            "G1856_PVM_SAME_NPC_DIFFERENT_TICK_RECORD_IDENTITY_PASS"+
+            " realInstalledObserverInitialKill=true"+
+            " sameNpcSameTickReplay=true"+
+            " sameNpcNewTickManualRecordAccepted="+secondTickDistinct+
+            " killsIncrementedWithoutNewNpcDeath="+secondTickDistinct+
+            " extraGroundSettlement=false"+
+            " productionAutomaticDelivery=false"+
+            " originalServerReceiptPolicyClaim=false"+
+            " productionPolicyChanged=false"
+        );
+    }
+
+    /**
+     * G18.5.6: G1's receipt identity is (npcId,deathTick), NOT
+     * (npcId,recipientGeneration) or a canonical lifecycle authorization.
+     * Package-internal, deliberately MANUAL recordIfCurrent invocation.
+     *
+     * This characterizes the custom LocalLab service contract. It is NOT
+     * a second canonical NPC death, an external client call, a live exploit,
+     * or an assumption about original SpawnPK kill-credit authority.
+     */
+    private static boolean pvmSameNpcSecondDeathTickCountsAsNewReceipt()
+        throws Exception{
+        final String account=USER+"-same-npc-different-tick";
+        final long deathTick=181L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            generation=world.registerPlayer(player,account);
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,deathTick
+                ).newlyDied,
+                "G1856 single actual canonical NPC death");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioned.runtime().finalizeIfOwned(npc);
+            PvmRecordService records=world.pvmRecords();
+            require(terminal!=null&&
+                    terminal.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.settlement!=null&&
+                    records.snapshot(player).kills==1L&&
+                    records.receiptCount()==1&&
+                    world.groundItems().size()==1,
+                "G1856 one installed observer receipt and ground settlement");
+
+            // Same event identity is correctly deduplicated.
+            PvmRecordService.Receipt same=
+                records.recordIfCurrent(player,generation,npc.id,deathTick);
+            require(!same.applied&&same.replayed&&
+                    "REPLAY".equals(same.reason)&&
+                    records.snapshot(player).kills==1L,
+                "G1856 exact same event must replay without another credit");
+
+            // No new lifecycle death, finalization, NPC spawn, or settlement:
+            // a direct PACKAGE-INTERNAL manual API call supplies another tick.
+            PvmRecordService.Receipt differentTick=
+                records.recordIfCurrent(
+                    player,generation,npc.id,deathTick+1L
+                );
+            PvmRecordService.Receipt differentTickAgain=
+                records.recordIfCurrent(
+                    player,generation,npc.id,deathTick+1L
+                );
+
+            return differentTick.applied&&
+                !differentTick.replayed&&
+                "APPLIED".equals(differentTick.reason)&&
+                differentTick.kills==2L&&
+                !differentTickAgain.applied&&
+                differentTickAgain.replayed&&
+                "REPLAY".equals(differentTickAgain.reason)&&
+                records.snapshot(player).kills==2L&&
+                records.receiptCount()==2&&
+                world.groundItems().size()==1;
+        }finally{
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
     }
 
     /**
