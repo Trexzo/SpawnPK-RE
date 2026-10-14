@@ -29,11 +29,41 @@ final class MonsterSpawnerPvmRuntime {
         SETTLEMENT_PENDING
     }
 
+    /**
+     * Immutable WorldPlayer observation at canonical NPC spawn commit.
+     * It records a live recipient at spawn, not original SpawnPK policy.
+     * No terminal-time username lookup may replace this witness.
+     */
+    static final class RecipientOrigin {
+        final WorldPlayer player;
+        final long generation;
+        final String recipientRef;
+
+        private RecipientOrigin(
+            WorldPlayer player,
+            long generation,
+            String recipientRef
+        ){
+            this.player=Objects.requireNonNull(player,"player");
+            this.generation=generation;
+            this.recipientRef=Objects.requireNonNull(
+                recipientRef,"recipientRef"
+            );
+        }
+
+        boolean stillCurrentIn(World world){
+            World checked=Objects.requireNonNull(world,"world");
+            return checked.players().byName(recipientRef)==player&&
+                checked.players().owns(player,generation);
+        }
+    }
+
     static final class Snapshot {
         final EntityId npcId;
         final int definitionId;
         final String ownerRef;
         final String recipientRef;
+        final RecipientOrigin recipientOrigin;
         final State state;
         final Long deathTick;
 
@@ -42,6 +72,7 @@ final class MonsterSpawnerPvmRuntime {
             this.definitionId=entry.npc.definitionId;
             this.ownerRef=entry.ownerRef;
             this.recipientRef=entry.recipientRef;
+            this.recipientOrigin=entry.recipientOrigin;
             this.state=entry.state;
             this.deathTick=
                 entry.finalization==null
@@ -76,12 +107,26 @@ final class MonsterSpawnerPvmRuntime {
         final Snapshot runtime;
         final MonsterSpawnerNpcDeathFinalizationService.Result finalization;
         final NpcDropGroundSettlementService.Receipt settlement;
+        final RecipientOrigin recipientOrigin;
 
         private FinalizeResult(
             FinalizeStatus status,
             Snapshot runtime,
             MonsterSpawnerNpcDeathFinalizationService.Result finalization,
             NpcDropGroundSettlementService.Receipt settlement
+        ){
+            this(
+                status,runtime,finalization,settlement,
+                runtime==null?null:runtime.recipientOrigin
+            );
+        }
+
+        private FinalizeResult(
+            FinalizeStatus status,
+            Snapshot runtime,
+            MonsterSpawnerNpcDeathFinalizationService.Result finalization,
+            NpcDropGroundSettlementService.Receipt settlement,
+            RecipientOrigin recipientOrigin
         ){
             this.status=Objects.requireNonNull(
                 status,
@@ -90,6 +135,7 @@ final class MonsterSpawnerPvmRuntime {
             this.runtime=runtime;
             this.finalization=finalization;
             this.settlement=settlement;
+            this.recipientOrigin=recipientOrigin;
         }
     }
 
@@ -97,6 +143,7 @@ final class MonsterSpawnerPvmRuntime {
         final WorldNpc npc;
         final String ownerRef;
         final String recipientRef;
+        final RecipientOrigin recipientOrigin;
 
         State state=State.ACTIVE;
         boolean terminalInProgress;
@@ -106,7 +153,8 @@ final class MonsterSpawnerPvmRuntime {
         Entry(
             WorldNpc npc,
             String ownerRef,
-            String recipientRef
+            String recipientRef,
+            RecipientOrigin recipientOrigin
         ){
             this.npc=Objects.requireNonNull(
                 npc,
@@ -120,6 +168,7 @@ final class MonsterSpawnerPvmRuntime {
                 recipientRef,
                 "recipientRef"
             );
+            this.recipientOrigin=recipientOrigin;
         }
 
         Snapshot snapshot(){
@@ -286,11 +335,26 @@ final class MonsterSpawnerPvmRuntime {
         MonsterSpawnerNpcLifecycleBindingService
             .RegistrationCommitAction publishRuntime=
                 (npc,lifecycle,planKey)->{
+                    // This callback is executed inside the canonical
+                    // World lifecycle-owned spawn transaction.
+                    WorldPlayer live=world.players().byName(recipient);
+                    long originGeneration=
+                        live==null?-1L:live.generation();
+                    RecipientOrigin origin=
+                        live!=null&&world.players().owns(
+                            live,originGeneration
+                        )
+                            ?new RecipientOrigin(
+                                live,originGeneration,recipient
+                            )
+                            :null;
+
                     Entry entry=
                         new Entry(
                             npc,
                             owner,
-                            recipient
+                            recipient,
+                            origin
                         );
 
                     synchronized(this){
@@ -694,7 +758,8 @@ final class MonsterSpawnerPvmRuntime {
                 FinalizeStatus.FINALIZED,
                 null,
                 finalized,
-                settled
+                settled,
+                entry.recipientOrigin
             );
 
         TerminalObserver observer;

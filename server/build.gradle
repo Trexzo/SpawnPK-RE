@@ -1985,6 +1985,7 @@ def currentTrainFocusedTests = [
     'spk.local.QuickPrayerSelectionServiceTest',
     'spk.local.PrayerMagicStyleRuntimeIntegrationTest',
     'spk.local.LoadoutEditorServiceTest',
+    'spk.local.R5LoadoutEditorButtonPairNoTargetRegressionTest',
     'spk.local.PlayerLifecycleRespawnPolicyTest',
     'spk.local.PlayerDeathItemResolutionServiceTest',
     'spk.local.PlayerDeathGroundSettlementServiceTest',
@@ -2115,6 +2116,11 @@ def currentTrainFocusedTests = [
     'spk.local.G182DailyMoneyMakingWidgetsIntegrationTest',
     'spk.local.G183DailyMoneyMakingPersistenceIntegrationTest',
     'spk.local.G183DailyMoneyMakingPvmRuntimeIntegrationTest',
+    'spk.local.G184DailyMoneyMakingLiveTrackIntegrationTest',
+    'spk.local.G1841DailyMoneyMakingExactSessionFenceTest',
+    'spk.local.G1842DailyMoneyMakingDifficultyGenerationFenceTest',
+    'spk.local.G1843DailyMoneyMakingWorldLifetimeCharacterizationTest',
+    'spk.local.G1844DailyMoneyMakingExactOriginCreditTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2329,10 +2335,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 482 ||
-    currentTrainFocusedTests.toSet().size() != 482) {
+if (currentTrainFocusedTests.size() != 488 ||
+    currentTrainFocusedTests.toSet().size() != 488) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 482 unique tests, found " +
+        "Current-train focused manifest drift: expected 488 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4274,6 +4280,46 @@ tasks.register('g21179CoreSocketFirstSessionFinalFailureRegression', JavaExec) {
     mainClass.set('spk.local.G21179CoreSocketFirstSessionFailedFinalSaveIntegrationTest')
 }
 
+tasks.register('g184DailyMoneyMakingLiveTrackRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exact EASY Track 55002, progress 26, persistence restore and fail-closed categories.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G184DailyMoneyMakingLiveTrackIntegrationTest')
+}
+
+tasks.register('g1841DailyMoneyMakingExactSessionFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prevents stale username generation from activating a replacement Easy PvM objective.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1841DailyMoneyMakingExactSessionFenceTest')
+}
+
+tasks.register('g1842DailyMoneyMakingDifficultyGenerationFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fences stale UI selected difficulty persistence and outgoing widget projection.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1842DailyMoneyMakingDifficultyGenerationFenceTest')
+}
+
+tasks.register('g1843DailyMoneyMakingWorldLifetimeCharacterizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Characterizes existing DMM per-World username lifetime across disconnect, reconnect and fresh World.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1843DailyMoneyMakingWorldLifetimeCharacterizationTest')
+}
+
+tasks.register('g1844DailyMoneyMakingExactOriginCreditRegression', JavaExec) {
+    group = 'verification'
+    description = 'Rejects stale/wrong exact player-generation at opt-in DMM terminal-credit seam.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1844DailyMoneyMakingExactOriginCreditTest')
+}
+
 tasks.register('g21180CoreSocketConcurrentWorldWriterRegression', JavaExec) {
     group = 'verification'
     description = 'G21.180: characterize two simultaneously admitted Worlds racing on one named account.'
@@ -4463,6 +4509,14 @@ tasks.register('loadoutEditorTransportRegression', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.ClientLoadoutEditorSavePairingTest')
+}
+
+tasks.register('r5LoadoutEditorButtonPairNoTargetRegression', JavaExec) {
+    group = 'verification'
+    description = 'Ensures exact opcode185 UI plus cld1/cld2 never guesses semantic loadout target.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.R5LoadoutEditorButtonPairNoTargetRegressionTest')
 }
 
 tasks.register('loadoutEditorV308Parity') {
