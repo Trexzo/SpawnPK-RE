@@ -2311,6 +2311,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21183CoreSocketActiveLeaseFlagOffVetoTest',
     'spk.local.G21184CoreSocketLateEnableUnleasedOwnerTest',
     'spk.local.G21185CoreCrossJvmSessionFileLockTest',
+    'spk.local.G21186CoreCrossJvmRealSocketAccountSessionTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2339,10 +2340,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 492 ||
-    currentTrainFocusedTests.toSet().size() != 492) {
+if (currentTrainFocusedTests.size() != 493 ||
+    currentTrainFocusedTests.toSet().size() != 493) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 492 unique tests, found " +
+        "Current-train focused manifest drift: expected 493 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4378,6 +4379,14 @@ tasks.register('g21185CoreCrossJvmSessionFileLockRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21185CoreCrossJvmSessionFileLockTest')
+}
+
+tasks.register('g21186CoreCrossJvmRealSocketRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.186: actual cross-process TCP sessions deny same account while owned and accept after final save.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21186CoreCrossJvmRealSocketAccountSessionTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
