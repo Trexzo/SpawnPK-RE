@@ -2322,6 +2322,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21194CoreFailedForcedFinalSaveStillQuarantinedTest',
     'spk.local.G21195CoreKilledFailedFinalSaveReviewVetoTest',
     'spk.local.G21196CoreOwnerEpochReservationBindingProcessKillTest',
+    'spk.local.G21197CoreSocketObservedGenerationPrototypeBindingTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2350,10 +2351,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 503 ||
-    currentTrainFocusedTests.toSet().size() != 503) {
+if (currentTrainFocusedTests.size() != 504 ||
+    currentTrainFocusedTests.toSet().size() != 504) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 503 unique tests, found " +
+        "Current-train focused manifest drift: expected 504 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4477,6 +4478,14 @@ tasks.register('g21196CoreOwnerEpochReservationBindingRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21196CoreOwnerEpochReservationBindingProcessKillTest')
+}
+
+tasks.register('g21197CoreSocketObservedGenerationPrototypeRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.197: test-only manual binding of true TCP World generation to UNUSED epoch prototype, forced real final save, ACTIVE marker still vetoes next login.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21197CoreSocketObservedGenerationPrototypeBindingTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
