@@ -7,6 +7,7 @@ public final class MonsterSpawnerPvmRuntimeTest {
 
     public static void main(String[] args)throws Exception{
         successfulLifecycle();
+        terminalObserverFailureAfterSettlementHasNoRetry();
         disconnectedOwnerRetiresAfterLastNpc();
         reconnectedOwnerKeepsCurrentSession();
         recipientOriginRetainedAcrossReconnectAndSettlementRetry();
@@ -36,8 +37,84 @@ public final class MonsterSpawnerPvmRuntimeTest {
             "duplicateDeathBlocked=true "+
             "spawnRecipientOriginWitness=true "+
             "noUnprovenOriginInference=true "+
+            "terminalObserverExceptionDoesNotRollbackSettlement=true "+
             "protocolIndependent=true"
         );
+    }
+
+    /**
+     * G18.5.1: the existing runtime catches a terminal observer failure
+     * *after* ground settlement and removal of the canonical NPC entry.
+     * There is no replayable pending observer operation for that NPC ID.
+     * This characterizes LocalLab's current behavior, NOT a fix.
+     */
+    private static void terminalObserverFailureAfterSettlementHasNoRetry()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        final int[] callbacks={0};
+        try{
+            f.runtime.installTerminalObserver(result->{
+                callbacks[0]++;
+                require(result.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                        result.settlement!=null,
+                    "observer should only see fully settled NPC");
+                throw new IllegalStateException(
+                    "G1851_SYNTHETIC_TERMINAL_OBSERVER_FAILURE"
+                );
+            });
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(
+                    OWNER,"killer",3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+
+            require(f.lifecycle.applyDamage(
+                    npc.id,99,91L
+                ).newlyDied,
+                "G1851 canonical lethal event");
+
+            // The runtime explicitly swallows observer Throwable: this
+            // must still report FINALIZED and commit the ground drop.
+            MonsterSpawnerPvmRuntime.FinalizeResult finished=
+                f.runtime.finalizeIfOwned(npc);
+            require(finished!=null&&finished.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    finished.settlement!=null&&
+                    callbacks[0]==1&&
+                    f.world.groundItems().size()==1&&
+                    f.dropCalls==1&&
+                    f.runtime.get(npc.id)==null&&
+                    f.runtime.size()==0,
+                "observer failure did not preserve already-terminal settlement");
+
+            MonsterSpawnerPvmRuntime.FinalizeResult retried=
+                f.runtime.retrySettlement(npc.id);
+            MonsterSpawnerPvmRuntime.FinalizeResult duplicate=
+                f.runtime.finalizeIfOwned(npc);
+            require(retried.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                    duplicate.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                    callbacks[0]==1&&
+                    f.world.groundItems().size()==1&&
+                    f.dropCalls==1,
+                "observer failure must not replay a removed terminal entry");
+
+            System.out.println(
+                "G1851_TERMINAL_OBSERVER_FAILURE_NONRETRYABLE_PASS"+
+                " syntheticObserverFailureSwallowed=true"+
+                " dropSettlementAlreadyCommitted=true"+
+                " npcEntryRemovedBeforeObserver=true"+
+                " existingObserverDeliveryRetry=false"+
+                " duplicateDropPrevented=true"+
+                " originalServerRecoveryPolicyClaim=false"+
+                " productionObserverChanged=false"
+            );
+        }finally{
+            f.close();
+        }
     }
 
     private static void successfulLifecycle()
