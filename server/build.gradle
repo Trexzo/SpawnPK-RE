@@ -2298,6 +2298,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21177CoreSocketFailedFinalSaveStaleReconnectIntegrationTest',
     'spk.local.G21178CoreSocketSameWorldFailedFinalSaveVetoIntegrationTest',
     'spk.local.G21179CoreSocketFirstSessionFailedFinalSaveIntegrationTest',
+    'spk.local.G21180CoreSocketCrossWorldConcurrentAccountIntegrationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2326,10 +2327,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 479 ||
-    currentTrainFocusedTests.toSet().size() != 479) {
+if (currentTrainFocusedTests.size() != 480 ||
+    currentTrainFocusedTests.toSet().size() != 480) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 479 unique tests, found " +
+        "Current-train focused manifest drift: expected 480 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4269,6 +4270,14 @@ tasks.register('g21179CoreSocketFirstSessionFinalFailureRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21179CoreSocketFirstSessionFailedFinalSaveIntegrationTest')
+}
+
+tasks.register('g21180CoreSocketConcurrentWorldWriterRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.180: characterize two simultaneously admitted Worlds racing on one named account.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21180CoreSocketCrossWorldConcurrentAccountIntegrationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
