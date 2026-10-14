@@ -27,6 +27,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean replayPrecedesOwnership=pvmReceiptReplayPrecedesOriginCheck();
         boolean secondTickDistinct=pvmSameNpcSecondDeathTickCountsAsNewReceipt();
         boolean rejectedG1PartialTerminal=g1InvalidPvmStateAllowsOtherTerminalConsumers();
+        boolean g18FailureNonRetryable=actualG18ConsumerFailureAfterG1();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -169,6 +170,159 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " originalServerPolicyClaim=false"+
             " productionCodeChanged=false"
         );
+        require(g18FailureNonRetryable,
+            "G1858 downstream G18 failure did not leave committed nonretryable finalization");
+        System.out.println(
+            "G1858_INSTALLED_G18_CONSUMER_FAILURE_NO_RETRY_PASS"+
+            " oneRealNpcDeathAndDrop=true"+
+            " g1ReceiptAndKillCommitted="+g18FailureNonRetryable+
+            " g18ObjectiveFixtureCorrupted=true"+
+            " realInstalledObserverFailureCaught=true"+
+            " terminalResultStillFinalized=true"+
+            " settlementRetryNotOwned=true"+
+            " realG1RespawnStillScheduled=true"+
+            " repairedConsumerStillZeroProgress="+g18FailureNonRetryable+
+            " productionObserverUnchanged=true"+
+            " originalServerPolicyClaim=false"
+        );
+    }
+
+    /**
+     * G18.5.8 / #2587: deliberately corrupt ONLY the in-memory G18
+     * objective bookkeeping AFTER legitimate objective activation.
+     * This triggers the REAL installed downstream G18 consumer's
+     * Objects.requireNonNull("objective") in state.snapshot(), after
+     * G1 has already committed its kill receipt.
+     *
+     * Reflection is confined to this regression test. There is no
+     * network/client corruption, production injection or reward repair.
+     */
+    private static boolean actualG18ConsumerFailureAfterG1()
+        throws Exception{
+        final String account=USER+"-installed-g18-throw";
+        final long deathTick=301L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            generation=world.registerPlayer(player,account);
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult activated=
+                dmm.activateEasyIfCurrent(account,player,generation);
+            require(activated!=null&&activated.activatedNow&&
+                    activated.snapshot.objective.progress==0L,
+                "G1858 valid DMM activation before controlled corruption");
+
+            // Private test-only state corruption: remove exactly one
+            // objective entry, not the DMM player or the World owner.
+            java.lang.reflect.Field byPlayerField=
+                LocalLabDailyMoneyMakingRuntime.class
+                    .getDeclaredField("byPlayer");
+            byPlayerField.setAccessible(true);
+            Object dmmPlayer=((java.util.Map<?,?>)
+                byPlayerField.get(dmm)).get(account);
+            require(dmmPlayer!=null,
+                "G1858 expected registered DMM player state");
+            java.lang.reflect.Field objectivesField=
+                dmmPlayer.getClass().getDeclaredField("objectives");
+            objectivesField.setAccessible(true);
+            Object objectives=objectivesField.get(dmmPlayer);
+            require(objectives instanceof ObjectiveProgressService,
+                "G1858 expected semantic objective service");
+            java.lang.reflect.Field entriesField=
+                ObjectiveProgressService.class.getDeclaredField("entries");
+            entriesField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Map<String,Object> entries=
+                (java.util.Map<String,Object>)entriesField.get(objectives);
+            Object removedObjective=entries.remove(
+                LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY
+            );
+            require(removedObjective!=null,
+                "G1858 controlled missing objective entry");
+            boolean invalidDmm=false;
+            try{
+                dmm.snapshot(account);
+            }catch(NullPointerException expected){
+                invalidDmm="objective".equals(expected.getMessage());
+            }
+            require(invalidDmm,
+                "G1858 failed to arm real G18 snapshot exception");
+
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,deathTick
+                ).newlyDied,
+                "G1858 exactly one canonical NPC death");
+
+            // The production-installed combined observer will run:
+            // G1 credits first, later G18 throws; runtime catches Throwable
+            // after settlement has removed the canonical pending entry.
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioned.runtime().finalizeIfOwned(npc);
+            PvmRecordService records=world.pvmRecords();
+            require(terminal!=null&&
+                    terminal.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.settlement!=null&&
+                    provisioned.runtime().get(npc.id)==null&&
+                    world.groundItems().size()==1&&
+                    records.snapshot(player).kills==1L&&
+                    records.receiptCount()==1,
+                "G1858 actual G1 credit and ground settlement survive G18 exception");
+
+            // Repair ONLY our synthetic corruption. The G18 consumer is
+            // healthy again but must not silently receive an old event.
+            require(entries.put(
+                    LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY,
+                    removedObjective
+                )==null,
+                "G1858 restore exact removed objective entry");
+            require(dmm.snapshot(account).objective.progress==0L,
+                "G1858 repaired G18 objective was never credited");
+            MonsterSpawnerPvmRuntime.FinalizeResult retry=
+                provisioned.runtime().retrySettlement(npc.id);
+            require(retry!=null&&
+                    retry.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                    dmm.snapshot(account).objective.progress==0L,
+                "G1858 repaired consumer still has no settlement replay");
+
+            // G1 scheduled its next NPC before downstream G18 failed.
+            world.events().runDue(
+                deathTick+G1MonsterSpawnerPvmLoopService
+                    .RESPAWN_DELAY_TICKS
+            );
+            MonsterSpawnerService.SessionSnapshot current=
+                spawner.getSession(account);
+            return current!=null&&
+                current.spawnedNpcIds.size()==1&&
+                !current.spawnedNpcIds.get(0).equals(npc.id)&&
+                world.groundItems().size()==1&&
+                records.snapshot(player).kills==1L&&
+                records.receiptCount()==1&&
+                entries.get(
+                    LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY)==
+                    removedObjective&&
+                dmm.snapshot(account).objective.progress==0L;
+        }finally{
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
     }
 
     /**
