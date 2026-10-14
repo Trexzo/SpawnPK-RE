@@ -112,7 +112,7 @@ public final class G21187CoreKilledJvmStaleBootstrapReentryTest {
     private static void holder(Path ready)throws Exception{
         FilePlayerRepository repo=new FilePlayerRepository(
             LocalAccountProfiles::accountFile);
-        World world=World.isolatedForTest(60_000L,repo);
+        World world=World.isolatedForTest(1_000L,repo);
         try{
             try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
                     .OneSession listener=
