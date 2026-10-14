@@ -135,10 +135,13 @@ public final class G21191CoreForcedPostimagePublicationCutpointTest {
             "child receipt/probe missing "+marker+" output="+text);
     }
 
-    private static long tempCount(Path root)throws IOException{
+    private static long tempCount(Path root,Path account)
+        throws IOException{
+        String prefix=account.getFileName().toString()+
+            ".g21191-forced-";
         try(Stream<Path> files=Files.list(root)){
             return files.filter(p->p.getFileName().toString()
-                .contains(".g21191-forced-")&&
+                .startsWith(prefix)&&
                 p.getFileName().toString().endsWith(".tmp"))
                 .count();
         }
@@ -179,9 +182,9 @@ public final class G21191CoreForcedPostimagePublicationCutpointTest {
                     Files.readAllBytes(account)),
                     "post-kill account bytes unexpectedly changed");
                 if("before".equals(mode))
-                    check(tempCount(root)==1,
+                    check(tempCount(root,account)==1,
                         "forced temp before rename not retained");
-                else check(tempCount(root)==0,
+                else check(tempCount(root,account)==0,
                     "renamed temp unexpectedly left on disk");
             }else{
                 requireEnded(child,writerLog,
