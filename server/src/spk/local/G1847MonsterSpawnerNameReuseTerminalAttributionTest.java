@@ -26,6 +26,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean fileRoundTripReceiptLoss=pvmRecordFileRoundTripReceiptLoss();
         boolean replayPrecedesOwnership=pvmReceiptReplayPrecedesOriginCheck();
         boolean secondTickDistinct=pvmSameNpcSecondDeathTickCountsAsNewReceipt();
+        boolean rejectedG1PartialTerminal=g1InvalidPvmStateAllowsOtherTerminalConsumers();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -154,6 +155,123 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " originalServerReceiptPolicyClaim=false"+
             " productionPolicyChanged=false"
         );
+        require(rejectedG1PartialTerminal,
+            "G1857 rejected G1 record must leave observed partial terminal");
+        System.out.println(
+            "G1857_G1_INVALID_PVM_STATE_PARTIAL_TERMINAL_PASS"+
+            " installedObserverExecuted=true"+
+            " oneCanonicalNpcDeath=true"+
+            " invalidPvmNamespaceRejected=true"+
+            " g1RecordReceiptAbsent=true"+
+            " otherDmmProgressAdvanced="+rejectedG1PartialTerminal+
+            " actualGroundSettlementOne=true"+
+            " respawnDespiteRejectedRecord="+rejectedG1PartialTerminal+
+            " originalServerPolicyClaim=false"+
+            " productionCodeChanged=false"
+        );
+    }
+
+    /**
+     * G18.5.7 / #2587 — actual installed terminal observer, WITHOUT
+     * replacing G1 with a synthetic callback. An intentionally invalid
+     * pre-existing PvM extension leads G1 recordIfCurrent to return
+     * INVALID_STATE, but the observer ignores that receipt status and
+     * proceeds to progression consumers and the delayed respawn.
+     *
+     * This is a controlled bad LocalLab test fixture, not proof that
+     * the real client can inject invalid account bytes. No recovery,
+     * original SpawnPK reward rules, or production fix is asserted.
+     */
+    private static boolean g1InvalidPvmStateAllowsOtherTerminalConsumers()
+        throws Exception{
+        final String account=USER+"-invalid-g1-extension";
+        final long deathTick=241L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            generation=world.registerPlayer(player,account);
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult started=
+                dmm.activateEasyIfCurrent(account,player,generation);
+            require(started!=null&&started.activatedNow&&
+                    started.snapshot.objective.progress==0L,
+                "G1857 start eligible DMM objective");
+
+            // Controlled invalid local snapshot-extension fixture;
+            // G1 must reject without recording a receipt.
+            synchronized(player.mutationLock()){
+                player.snapshotExtensions().replaceNamespace(
+                    PvmRecordService.NAMESPACE,
+                    java.util.Collections.singletonMap(
+                        "version","invalid-fixture")
+                );
+            }
+            PvmRecordService records=world.pvmRecords();
+            require(records.receiptCount()==0&&
+                    records.snapshot(player).kills==0L,
+                "G1857 invalid initial record and empty receipts");
+
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,deathTick
+                ).newlyDied,
+                "G1857 one real canonical lifecycle death");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioned.runtime().finalizeIfOwned(npc);
+            require(terminal!=null&&
+                    terminal.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.settlement!=null&&
+                    records.receiptCount()==0&&
+                    records.snapshot(player).kills==0L&&
+                    dmm.snapshot(account).objective.progress==1L&&
+                    world.groundItems().size()==1,
+                "G1857 installed observer settled drop and progressed DMM despite rejected G1");
+
+            // Diagnostic package-internal call only: characterize explicit
+            // INVALID_STATE on the same pair without mutating gameplay.
+            PvmRecordService.Receipt rejected=
+                records.recordIfCurrent(
+                    player,generation,npc.id,deathTick
+                );
+            require(!rejected.applied&&!rejected.replayed&&
+                    "INVALID_STATE".equals(rejected.reason)&&
+                    records.receiptCount()==0,
+                "G1857 invalid PvM state rejection reason");
+
+            // Observe real delayed G1 ticket instead of assuming it existed.
+            world.events().runDue(
+                deathTick+G1MonsterSpawnerPvmLoopService
+                    .RESPAWN_DELAY_TICKS
+            );
+            MonsterSpawnerService.SessionSnapshot after=
+                spawner.getSession(account);
+            return after!=null&&
+                after.spawnedNpcIds.size()==1&&
+                !after.spawnedNpcIds.get(0).equals(npc.id)&&
+                dmm.snapshot(account).objective.progress==1L&&
+                records.snapshot(player).kills==0L&&
+                records.receiptCount()==0&&
+                world.groundItems().size()==1;
+        }finally{
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
     }
 
     /**
