@@ -4,7 +4,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -58,12 +57,12 @@ public final class G21185CoreCrossJvmSessionFileLockTest {
 
     private static String externalJvm(Path accountRoot,Path transcript,
         String expected)throws Exception{
-        String java=System.getProperty("java.home")+
+        String javaExecutable=System.getProperty("java.home")+
             java.io.File.separator+"bin"+java.io.File.separator+
             (System.getProperty("os.name","").toLowerCase()
                 .contains("win")?"java.exe":"java");
         ProcessBuilder process=new ProcessBuilder(
-            java,
+            javaExecutable,
             "-Dspk.local.accountFile="+accountRoot,
             "-D"+LocalJvmAccountSessionLease.PROPERTY+"=true",
             "-D"+LocalCrossJvmAccountSessionLock.PROPERTY+"=true",
