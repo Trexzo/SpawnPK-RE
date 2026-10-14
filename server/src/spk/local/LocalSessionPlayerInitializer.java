@@ -103,6 +103,12 @@ final class LocalSessionPlayerInitializer {
 
         String username=account.username;
         boolean persistentAccount=account.persistent;
+        // G21.189: capture opt-in once before a session is admitted.
+        // Dynamic flag changes after login are explicitly unsupported.
+        final boolean reviewVeto=Boolean.getBoolean(
+            LocalReviewIntentAdmissionVeto.PROPERTY);
+        LocalReviewIntentAdmissionVeto.requireConfiguration(
+            reviewVeto,persistentAccount);
 
         // G21.181 opt-in: acquire before loading or creating any account
         // state. A competing World with the same concrete account path
@@ -112,6 +118,11 @@ final class LocalSessionPlayerInitializer {
                 ?LocalJvmAccountSessionLease.acquire(persistence,username)
                 :null;
         try{
+        // Reject a preexisting ACTIVE/review leaf before any account
+        // snapshot hydration, defaults or World registration.
+        LocalReviewIntentAdmissionVeto.requireAdmissible(
+            reviewVeto,persistentAccount,sessionLease);
+
         LocalAccountLifecycle.LoadResult accountLoad=
             LocalAccountLifecycle.load(
                 account,
@@ -234,6 +245,10 @@ final class LocalSessionPlayerInitializer {
         MailboxLateSessionAdmission.requireStillAdmissible(
             account,accountLoad,persistence
         );
+        // Fail closed if the review sidecar appeared while setup ran.
+        // This remains an observation, NOT an atomic RAW-writer fence.
+        LocalReviewIntentAdmissionVeto.requireAdmissible(
+            reviewVeto,persistentAccount,sessionLease);
 
         long generation=
             world.registerPlayerAndStart(
