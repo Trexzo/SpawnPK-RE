@@ -2315,6 +2315,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21187CoreKilledJvmStaleBootstrapReentryTest',
     'spk.local.G21188CoreDurableReviewIntentProcessKillTest',
     'spk.local.G21189CoreSocketExistingReviewMarkerLoginVetoTest',
+    'spk.local.G21190CoreOneShotForcedIntentKilledJvmTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2343,10 +2344,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 496 ||
-    currentTrainFocusedTests.toSet().size() != 496) {
+if (currentTrainFocusedTests.size() != 497 ||
+    currentTrainFocusedTests.toSet().size() != 497) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 496 unique tests, found " +
+        "Current-train focused manifest drift: expected 497 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4414,6 +4415,14 @@ tasks.register('g21189CoreSocketReviewMarkerLoginVetoRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21189CoreSocketExistingReviewMarkerLoginVetoTest')
+}
+
+tasks.register('g21190CoreOneShotForcedIntentKilledJvmRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.190: one-shot forced ACTIVE marker before World membership refuses new JVM stale login after killed holder.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21190CoreOneShotForcedIntentKilledJvmTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

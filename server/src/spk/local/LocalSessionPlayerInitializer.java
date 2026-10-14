@@ -107,8 +107,12 @@ final class LocalSessionPlayerInitializer {
         // Dynamic flag changes after login are explicitly unsupported.
         final boolean reviewVeto=Boolean.getBoolean(
             LocalReviewIntentAdmissionVeto.PROPERTY);
+        final boolean oneShotReview=Boolean.getBoolean(
+            LocalOneShotActiveReviewOnAdmission.PROPERTY);
         LocalReviewIntentAdmissionVeto.requireConfiguration(
             reviewVeto,persistentAccount);
+        LocalOneShotActiveReviewOnAdmission.requireConfiguration(
+            oneShotReview,persistentAccount,reviewVeto);
 
         // G21.181 opt-in: acquire before loading or creating any account
         // state. A competing World with the same concrete account path
@@ -249,6 +253,11 @@ final class LocalSessionPlayerInitializer {
         // This remains an observation, NOT an atomic RAW-writer fence.
         LocalReviewIntentAdmissionVeto.requireAdmissible(
             reviewVeto,persistentAccount,sessionLease);
+        // G21.190 ONE-SHOT crash-negative: force ACTIVE intent before
+        // membership, but NEVER retire it on healthy final save.
+        // A later login must be manually reviewed and denied by G21.189.
+        LocalOneShotActiveReviewOnAdmission.forceBeforeWorldRegistration(
+            oneShotReview,persistentAccount,sessionLease);
 
         long generation=
             world.registerPlayerAndStart(
