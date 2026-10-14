@@ -15,6 +15,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         CaseResult absent=runCase(false);
         boolean lateTicketReuse=lateReplacementAfterTicketScheduled();
         boolean lateSettlementCredit=pendingSettlementBeforeReconnect();
+        boolean g1PartialDelivery=controlledFailureAfterActualG1Consumer();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -81,6 +82,18 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " dropResolutionReplayed=false"+
             " originalServerRewardPolicyClaim=false"+
             " productionCreditPolicyChanged=false"
+        );
+        require(g1PartialDelivery,
+            "controlled failure after actual G1 consumer must leave G18 undelivered");
+        System.out.println(
+            "G1852_PARTIAL_TERMINAL_CONSUMER_DELIVERY_PASS"+
+            " actualG1ConsumerExecuted=true"+
+            " G1RecordPersistedBeforeInjectedFailure="+g1PartialDelivery+
+            " laterG18ConsumerNotCalled=true"+
+            " observerRetryAvailable=false"+
+            " dropResettlementPrevented=true"+
+            " installedProductionObserverFailureProven=false"+
+            " originalServerTransactionPolicyClaim=false"
         );
     }
 
@@ -286,6 +299,101 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             if(oldGeneration>=0L&&
                     world.players().owns(original,oldGeneration))
                 world.unregisterPlayer(original,oldGeneration);
+            world.close();
+        }
+    }
+
+    /**
+     * G18.5.2 / #2587: precise synthetic fault at the boundary immediately
+     * AFTER executing the actual G1 consumer's onFinalized. This deliberately
+     * replaces the combined observer in the TEST ONLY, so the absence of G18
+     * progress is due to injected failure and is not an assertion that the
+     * installed LocalLab combined observer can naturally fail here.
+     */
+    private static boolean controlledFailureAfterActualG1Consumer()
+        throws Exception{
+        final String account=USER+"-g1-partial-cut";
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        final int[] observerAttempts={0};
+        try{
+            generation=world.registerPlayer(player,account);
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            LocalLabDailyMoneyMakingRuntime.ActivationResult started=
+                dmm.activateEasyIfCurrent(account,player,generation);
+            require(started!=null&&started.activatedNow&&
+                    started.snapshot.objective.progress==0L,
+                "G1852 original DMM objective setup");
+
+            LocalMonsterSpawnerActivationRuntime provisioning=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioning.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+
+            // Use the real G1 consumer class and the same live World,
+            // MonsterSpawnerService, executor and PvmRecordService graph.
+            // The injected exception models a stop *between* G1 and G18.
+            G1MonsterSpawnerPvmLoopService g1=
+                new G1MonsterSpawnerPvmLoopService(
+                    world,spawner,provisioning.executor(),
+                    world.pvmRecords()
+                );
+            provisioning.runtime().installTerminalObserver(result->{
+                g1.onFinalized(result);
+                observerAttempts[0]++;
+                throw new IllegalStateException(
+                    "G1852_INJECTED_POST_G1_PRE_G18_FAILURE"
+                );
+            });
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioning.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(world.npcLifecycle().applyDamage(
+                    npc.id,99,93L
+                ).newlyDied,
+                "G1852 canonical lethal transition");
+            MonsterSpawnerPvmRuntime.FinalizeResult result=
+                provisioning.runtime().finalizeIfOwned(npc);
+
+            boolean afterFailure=
+                result!=null&&
+                result.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                result.settlement!=null&&
+                observerAttempts[0]==1&&
+                world.pvmRecords().snapshot(player).kills==1L&&
+                world.pvmRecords().receiptCount()==1&&
+                dmm.snapshot(account).objective.progress==0L&&
+                world.groundItems().size()==1&&
+                provisioning.runtime().get(npc.id)==null;
+
+            MonsterSpawnerPvmRuntime.FinalizeResult retry=
+                provisioning.runtime().retrySettlement(npc.id);
+            MonsterSpawnerPvmRuntime.FinalizeResult duplicate=
+                provisioning.runtime().finalizeIfOwned(npc);
+            return afterFailure&&
+                retry.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                duplicate.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                observerAttempts[0]==1&&
+                world.pvmRecords().snapshot(player).kills==1L&&
+                world.pvmRecords().receiptCount()==1&&
+                dmm.snapshot(account).objective.progress==0L&&
+                world.groundItems().size()==1;
+        }finally{
+            if(generation>=0L&&
+                    world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
             world.close();
         }
     }
