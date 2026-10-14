@@ -1,5 +1,11 @@
 package spk.local;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.stream.Stream;
+
 /**
  * G18.4.7 / #2547 / #2558:
  * Characterizes the EXISTING name-only production terminal observer when
@@ -17,6 +23,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean lateSettlementCredit=pendingSettlementBeforeReconnect();
         boolean consumerReplayGap=controlledConsumerReplayIdempotencyGap();
         boolean serviceReceiptReset=pvmRecordInstanceReceiptReset();
+        boolean fileRoundTripReceiptLoss=pvmRecordFileRoundTripReceiptLoss();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -105,6 +112,19 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " playerNamespaceKillCounterIncrementsTwice="+serviceReceiptReset+
             " JVMRestartOrFilePersistenceTested=false"+
             " productionReceiptPersistenceChanged=false"+
+            " originalServerReceiptPolicyClaim=false"
+        );
+        require(fileRoundTripReceiptLoss,
+            "direct file snapshot round trip unexpectedly retained event receipt");
+        System.out.println(
+            "G1854_PVM_RECORD_FILE_ROUNDTRIP_RECEIPT_GAP_PASS"+
+            " actualInstalledG1InitialCredit=true"+
+            " realFileRepositorySavedSnapshot=true"+
+            " restoredPlayerNamespaceKillsOne=true"+
+            " freshWorldReceiptMapEmpty=true"+
+            " manuallyRepeatedKillAppliedAfterReload="+fileRoundTripReceiptLoss+
+            " persistedCounterAdvancedToTwo="+fileRoundTripReceiptLoss+
+            " actualSessionSaveOrJVMRestartTested=false"+
             " originalServerReceiptPolicyClaim=false"
         );
     }
@@ -508,6 +528,174 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                     world.players().owns(player,generation))
                 world.unregisterPlayer(player,generation);
             world.close();
+        }
+    }
+
+    /**
+     * G18.5.4 / #2587: extend G18.5.3 beyond an in-memory service rebuild.
+     * Capture and save an account using the REAL FilePlayerRepository direct
+     * forensic save API. Close the original World and use an independent
+     * fresh World + validated account snapshot restoration. The PvM kills
+     * namespace survives the file round trip, but the service's event
+     * receipt map is not part of the PlayerSnapshot or repository file.
+     *
+     * This is NOT an admitted World session final save / real TCP login,
+     * NOT a killed JVM or a claim of historical server replay semantics.
+     */
+    private static boolean pvmRecordFileRoundTripReceiptLoss()
+        throws Exception{
+        final String account=USER+"-file-roundtrip";
+        final long deathTick=113L;
+        Path directory=Files.createTempDirectory(
+            "g1854-pvm-file-roundtrip-"
+        );
+        Path accountFile=directory.resolve(account+".properties");
+        FilePlayerRepository repository=
+            new FilePlayerRepository(username->
+                directory.resolve(username+".properties")
+            );
+        World sourceWorld=null;
+        World restoredWorld=null;
+        WorldPlayer original=new WorldPlayer();
+        WorldPlayer rehydrated=new WorldPlayer();
+        long sourceGeneration=-1L;
+        long restoredGeneration=-1L;
+        try{
+            sourceWorld=World.isolatedForTest(60_000L,repository);
+            sourceGeneration=sourceWorld.registerPlayer(original,account);
+            LocalMonsterSpawnerActivationRuntime provisioning=
+                LocalLabMonsterSpawnerProvisioning.create(sourceWorld);
+            MonsterSpawnerService spawner=provisioning.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioning.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(sourceWorld.npcLifecycle().applyDamage(
+                    npc.id,99,deathTick
+                ).newlyDied,
+                "G1854 original canonical death");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioning.runtime().finalizeIfOwned(npc);
+            require(terminal!=null&&
+                    terminal.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.settlement!=null&&
+                    sourceWorld.pvmRecords().snapshot(original).kills==1L&&
+                    sourceWorld.pvmRecords().receiptCount()==1&&
+                    sourceWorld.groundItems().size()==1,
+                "G1854 real G1 installed observer initial record");
+
+            // Explicit direct RAW file save - NOT guarded admitted World save.
+            PlayerSnapshot captured=PlayerSnapshotCodec.capture(
+                account,original
+            );
+            repository.save(captured);
+            require(Files.isRegularFile(accountFile),
+                "G1854 explicit repository save did not create account");
+            PlayerSnapshot stored=repository.load(account)
+                .orElseThrow(()->new AssertionError(
+                    "G1854 saved file not readable"
+                ));
+            require("1".equals(stored.value(
+                    "extension.pvm-record.kills"
+                )),
+                "G1854 account file did not contain G1 kill namespace");
+
+            require(sourceWorld.unregisterPlayer(
+                    original,sourceGeneration
+                ),"G1854 original owner unregister");
+            sourceWorld.close();
+            sourceWorld=null;
+
+            // Independent World with a fresh PvmRecordService and file read.
+            // Applying validated state is an explicit test hydration seam,
+            // NOT a real authenticated LocalSession admission operation.
+            restoredWorld=World.isolatedForTest(
+                60_000L,
+                new FilePlayerRepository(username->
+                    directory.resolve(username+".properties")
+                )
+            );
+            PlayerSnapshotCodec.applyValidated(stored,rehydrated);
+            restoredGeneration=
+                restoredWorld.registerPlayer(rehydrated,account);
+            PvmRecordService records=restoredWorld.pvmRecords();
+            require(records.snapshot(rehydrated).kills==1L&&
+                    records.receiptCount()==0&&
+                    restoredWorld.groundItems().size()==0,
+                "G1854 new World has persisted G1 counter but no event receipt");
+
+            PvmRecordService.Receipt manualReplay=
+                records.recordIfCurrent(
+                    rehydrated,restoredGeneration,npc.id,deathTick
+                );
+            PvmRecordService.Receipt repeatedAgain=
+                records.recordIfCurrent(
+                    rehydrated,restoredGeneration,npc.id,deathTick
+                );
+            require(manualReplay.applied&&
+                    !manualReplay.replayed&&
+                    repeatedAgain.replayed&&
+                    !repeatedAgain.applied&&
+                    records.snapshot(rehydrated).kills==2L&&
+                    records.receiptCount()==1&&
+                    restoredWorld.groundItems().size()==0,
+                "G1854 file round trip did not reproduce receipt lifetime");
+
+            // Verify newly accepted duplicate survives another direct file
+            // save. This does not authorize an admitted World persistence
+            // receipt or recovery of the original event identity.
+            repository.save(PlayerSnapshotCodec.capture(
+                account,rehydrated
+            ));
+            PlayerSnapshot second=repository.load(account)
+                .orElseThrow(()->new AssertionError(
+                    "G1854 recaptured account file missing"
+                ));
+            return "2".equals(second.value(
+                    "extension.pvm-record.kills"
+                ))&&records.receiptCount()==1;
+        }finally{
+            if(restoredWorld!=null){
+                if(restoredGeneration>=0L&&
+                        restoredWorld.players().owns(
+                            rehydrated,restoredGeneration
+                        ))
+                    restoredWorld.unregisterPlayer(
+                        rehydrated,restoredGeneration
+                    );
+                restoredWorld.close();
+            }
+            if(sourceWorld!=null){
+                if(sourceGeneration>=0L&&
+                        sourceWorld.players().owns(
+                            original,sourceGeneration
+                        ))
+                    sourceWorld.unregisterPlayer(
+                        original,sourceGeneration
+                    );
+                sourceWorld.close();
+            }
+            // Only delete this test's privately created temporary tree.
+            try(Stream<Path> paths=Files.walk(directory)){
+                paths.sorted(Comparator.reverseOrder())
+                    .forEach(item->{
+                        try{
+                            Files.deleteIfExists(item);
+                        }catch(IOException failure){
+                            throw new IllegalStateException(
+                                "G1854 temporary test cleanup "+item,
+                                failure
+                            );
+                        }
+                    });
+            }
         }
     }
 
