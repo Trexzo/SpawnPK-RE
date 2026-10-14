@@ -58,7 +58,22 @@ final class LocalJvmAccountSessionLease {
     }
 
     static Token acquire(WorldPlayerPersistence persistence,String username){
-        if(!Boolean.getBoolean(PROPERTY))return null;
+        final boolean optIn=Boolean.getBoolean(PROPERTY);
+        /*
+         * G21.183: turning the system property OFF while an already
+         * admitted opt-in owner is active must not erase that owner's
+         * protection. Fast path remains unchanged for the ordinary
+         * default-off state when no JVM account token exists.
+         *
+         * This is NOT a promise that an unleased session admitted while
+         * disabled becomes protected if the flag later changes.
+         */
+        if(!optIn){
+            synchronized(active){
+                if(active.isEmpty())
+                    return null;
+            }
+        }
         Objects.requireNonNull(persistence,"persistence");
         Objects.requireNonNull(username,"username");
 
@@ -72,6 +87,10 @@ final class LocalJvmAccountSessionLease {
                     "G21.181 JVM_ACCOUNT_SESSION_OWNED_NO_RECOVERY"+
                     " account="+username+
                     " path="+key);
+            // A distinct account may still use the default-off path;
+            // existing SAME-path leases are refused regardless of flag.
+            if(!optIn)
+                return null;
             Token token=new Token(key,username);
             active.put(key,token);
             return token;
