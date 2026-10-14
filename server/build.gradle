@@ -2316,6 +2316,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21188CoreDurableReviewIntentProcessKillTest',
     'spk.local.G21189CoreSocketExistingReviewMarkerLoginVetoTest',
     'spk.local.G21190CoreOneShotForcedIntentKilledJvmTest',
+    'spk.local.G21191CoreForcedPostimagePublicationCutpointTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2344,10 +2345,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 497 ||
-    currentTrainFocusedTests.toSet().size() != 497) {
+if (currentTrainFocusedTests.size() != 498 ||
+    currentTrainFocusedTests.toSet().size() != 498) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 497 unique tests, found " +
+        "Current-train focused manifest drift: expected 498 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4423,6 +4424,14 @@ tasks.register('g21190CoreOneShotForcedIntentKilledJvmRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21190CoreOneShotForcedIntentKilledJvmTest')
+}
+
+tasks.register('g21191CoreForcedAccountPostimageCutpointRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.191: unused forced account postimage; separate-JVM crash cutpoints and readback.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21191CoreForcedPostimagePublicationCutpointTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
