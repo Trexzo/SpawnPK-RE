@@ -2303,6 +2303,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21182CoreSocketFailedFinalLeaseRetentionTest',
     'spk.local.G21183CoreSocketActiveLeaseFlagOffVetoTest',
     'spk.local.G21184CoreSocketLateEnableUnleasedOwnerTest',
+    'spk.local.G21185CoreCrossJvmSessionFileLockTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2331,10 +2332,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 484 ||
-    currentTrainFocusedTests.toSet().size() != 484) {
+if (currentTrainFocusedTests.size() != 485 ||
+    currentTrainFocusedTests.toSet().size() != 485) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 484 unique tests, found " +
+        "Current-train focused manifest drift: expected 485 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4314,6 +4315,14 @@ tasks.register('g21184CoreLateEnableUnleasedOwnerRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21184CoreSocketLateEnableUnleasedOwnerTest')
+}
+
+tasks.register('g21185CoreCrossJvmSessionFileLockRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.185: opt-in cooperating process lock denial and post-release admission from external JVMs.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21185CoreCrossJvmSessionFileLockTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
