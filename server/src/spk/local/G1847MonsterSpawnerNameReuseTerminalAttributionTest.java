@@ -181,7 +181,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " terminalResultStillFinalized=true"+
             " settlementRetryNotOwned=true"+
             " realG1RespawnStillScheduled=true"+
-            " noConsumerRecovery=true"+
+            " repairedConsumerStillZeroProgress="+g18FailureNonRetryable+
             " productionObserverUnchanged=true"+
             " originalServerPolicyClaim=false"
         );
@@ -233,10 +233,13 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             java.lang.reflect.Field entriesField=
                 ObjectiveProgressService.class.getDeclaredField("entries");
             entriesField.setAccessible(true);
-            java.util.Map<?,?> entries=(java.util.Map<?,?>)
-                entriesField.get(objectives);
-            require(entries.remove(
-                    LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY)!=null,
+            @SuppressWarnings("unchecked")
+            java.util.Map<String,Object> entries=
+                (java.util.Map<String,Object>)entriesField.get(objectives);
+            Object removedObjective=entries.remove(
+                LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY
+            );
+            require(removedObjective!=null,
                 "G1858 controlled missing objective entry");
             boolean invalidDmm=false;
             try{
@@ -281,12 +284,22 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                     records.receiptCount()==1,
                 "G1858 actual G1 credit and ground settlement survive G18 exception");
 
+            // Repair ONLY our synthetic corruption. The G18 consumer is
+            // healthy again but must not silently receive an old event.
+            require(entries.put(
+                    LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY,
+                    removedObjective
+                )==null,
+                "G1858 restore exact removed objective entry");
+            require(dmm.snapshot(account).objective.progress==0L,
+                "G1858 repaired G18 objective was never credited");
             MonsterSpawnerPvmRuntime.FinalizeResult retry=
                 provisioned.runtime().retrySettlement(npc.id);
             require(retry!=null&&
                     retry.status==
-                        MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED,
-                "G1858 no canonical settlement replay after observer exception");
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                    dmm.snapshot(account).objective.progress==0L,
+                "G1858 repaired consumer still has no settlement replay");
 
             // G1 scheduled its next NPC before downstream G18 failed.
             world.events().runDue(
@@ -302,7 +315,9 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
                 records.snapshot(player).kills==1L&&
                 records.receiptCount()==1&&
                 entries.get(
-                    LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY)==null;
+                    LocalLabDailyMoneyMakingRuntime.OBJECTIVE_KEY)==
+                    removedObjective&&
+                dmm.snapshot(account).objective.progress==0L;
         }finally{
             if(generation>=0L&&world.players().owns(player,generation))
                 world.unregisterPlayer(player,generation);
