@@ -27,11 +27,16 @@ final class LocalJvmAccountSessionLease {
     static final class Token {
         private final Path path;
         private final String account;
+        private final LocalCrossJvmAccountSessionLock.Handle processLock;
         private boolean released;
 
-        private Token(Path path,String account){
+        private Token(
+            Path path,String account,
+            LocalCrossJvmAccountSessionLock.Handle processLock
+        ){
             this.path=path;
             this.account=account;
+            this.processLock=processLock;
         }
 
         /** Only the exact admitted owner can release on proven completion. */
@@ -51,6 +56,17 @@ final class LocalJvmAccountSessionLease {
                     throw new IllegalStateException(
                         "G21.181 JVM_ACCOUNT_LEASE_OWNER_CHANGED account="+
                         account);
+                if(processLock!=null){
+                    try{
+                        processLock.close();
+                    }catch(java.io.IOException failure){
+                        throw new IllegalStateException(
+                            "G21.185 ACCOUNT_SESSION_LOCK_RELEASE_UNCERTAIN"+
+                            " account="+account,
+                            failure
+                        );
+                    }
+                }
                 active.remove(path);
                 released=true;
             }
@@ -59,6 +75,13 @@ final class LocalJvmAccountSessionLease {
 
     static Token acquire(WorldPlayerPersistence persistence,String username){
         final boolean optIn=Boolean.getBoolean(PROPERTY);
+        final boolean crossJvm=Boolean.getBoolean(
+            LocalCrossJvmAccountSessionLock.PROPERTY);
+        // Do not silently pretend a cross-process lock is in effect
+        // when the prerequisite session-owner admission is disabled.
+        if(crossJvm&&!optIn)
+            throw new IllegalStateException(
+                "G21.185 CROSS_JVM_LOCK_REQUIRES_JVM_LEASE");
         /*
          * G21.183: turning the system property OFF while an already
          * admitted opt-in owner is active must not erase that owner's
@@ -91,7 +114,20 @@ final class LocalJvmAccountSessionLease {
             // existing SAME-path leases are refused regardless of flag.
             if(!optIn)
                 return null;
-            Token token=new Token(key,username);
+            LocalCrossJvmAccountSessionLock.Handle processLock=null;
+            if(crossJvm){
+                try{
+                    processLock=LocalCrossJvmAccountSessionLock.acquire(
+                        key);
+                }catch(java.io.IOException failure){
+                    throw new IllegalStateException(
+                        "G21.185 CROSS_JVM_ACCOUNT_SESSION_DENIED"+
+                        " account="+username,
+                        failure
+                    );
+                }
+            }
+            Token token=new Token(key,username,processLock);
             active.put(key,token);
             return token;
         }
