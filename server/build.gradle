@@ -2318,6 +2318,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21190CoreOneShotForcedIntentKilledJvmTest',
     'spk.local.G21191CoreForcedPostimagePublicationCutpointTest',
     'spk.local.G21192CoreSocketForcedWorldPostimageTest',
+    'spk.local.G21193CoreForcedHealthySaveStillQuarantinedTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2346,10 +2347,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 499 ||
-    currentTrainFocusedTests.toSet().size() != 499) {
+if (currentTrainFocusedTests.size() != 500 ||
+    currentTrainFocusedTests.toSet().size() != 500) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 499 unique tests, found " +
+        "Current-train focused manifest drift: expected 500 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4441,6 +4442,14 @@ tasks.register('g21192CoreSocketForcedWorldPostimageRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21192CoreSocketForcedWorldPostimageTest')
+}
+
+tasks.register('g21193CoreForcedHealthySaveStillQuarantinedRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.193: healthy forced real World save leaves one-shot ACTIVE marker; next TCP login remains quarantined (NO retirement).'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21193CoreForcedHealthySaveStillQuarantinedTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
