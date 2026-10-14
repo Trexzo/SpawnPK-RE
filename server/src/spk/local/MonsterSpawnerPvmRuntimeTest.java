@@ -9,6 +9,8 @@ public final class MonsterSpawnerPvmRuntimeTest {
         successfulLifecycle();
         disconnectedOwnerRetiresAfterLastNpc();
         reconnectedOwnerKeepsCurrentSession();
+        recipientOriginRetainedAcrossReconnectAndSettlementRetry();
+        unregisteredRecipientHasNoInventedOrigin();
         aliveAndForeignFailClosed();
         settlementPendingRetry();
         settlementRetryFencedByWorldClose();
@@ -32,6 +34,8 @@ public final class MonsterSpawnerPvmRuntimeTest {
             "terminalRetryNoMutation=true "+
             "dropResolutionOnce=true "+
             "duplicateDeathBlocked=true "+
+            "spawnRecipientOriginWitness=true "+
+            "noUnprovenOriginInference=true "+
             "protocolIndependent=true"
         );
     }
@@ -207,6 +211,117 @@ public final class MonsterSpawnerPvmRuntimeTest {
             if(replacement!=null&&
                     f.world.players().owns(replacement,newGeneration))
                 f.world.unregisterPlayer(replacement,newGeneration);
+            f.close();
+        }
+    }
+
+    /** G18.4.5: the recipient is observed inside the spawn, never re-resolved at death. */
+    private static void recipientOriginRetainedAcrossReconnectAndSettlementRetry()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        WorldPlayer initial=new WorldPlayer();
+        long firstGeneration=f.world.registerPlayer(initial,"killer");
+        WorldPlayer replacement=null;
+        long secondGeneration=-1L;
+        final MonsterSpawnerPvmRuntime.FinalizeResult[] observed={null};
+
+        try{
+            f.runtime.installTerminalObserver(result->observed[0]=result);
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(OWNER,"killer",3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            Tile tile=npc.tile();
+            MonsterSpawnerPvmRuntime.RecipientOrigin stamp=
+                spawned.runtime.recipientOrigin;
+
+            require(stamp!=null&&stamp.player==initial&&
+                    stamp.generation==firstGeneration&&
+                    "killer".equals(stamp.recipientRef)&&
+                    stamp.stillCurrentIn(f.world)&&
+                    f.runtime.get(npc.id).recipientOrigin==stamp,
+                "spawn-time recipient must be exact live WorldPlayer");
+
+            require(f.world.unregisterPlayer(initial,firstGeneration),
+                "original recipient unregister");
+            replacement=new WorldPlayer();
+            secondGeneration=f.world.registerPlayer(replacement,"killer");
+
+            require(!stamp.stillCurrentIn(f.world)&&
+                    f.world.players().byName("killer")==replacement&&
+                    f.runtime.get(npc.id).recipientOrigin==stamp,
+                "same username must not retarget earlier NPC origin");
+
+            // Deliberately force the canonical terminal settlement to
+            // remain pending so the original stamp must survive a retry.
+            GroundItem blocker=f.world.groundItems().add(
+                995,Integer.MAX_VALUE,tile,"killer",1L,false
+            );
+            require(f.lifecycle.applyDamage(npc.id,99,75L).newlyDied,
+                "recipient-origin pending lethal event");
+            MonsterSpawnerPvmRuntime.FinalizeResult pending=
+                f.runtime.finalizeIfOwned(npc);
+            MonsterSpawnerPvmRuntime.Snapshot retained=
+                f.runtime.get(npc.id);
+
+            require(pending.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.SETTLEMENT_PENDING&&
+                    pending.recipientOrigin==stamp&&
+                    pending.runtime!=null&&
+                    pending.runtime.recipientOrigin==stamp&&
+                    retained!=null&&retained.recipientOrigin==stamp&&
+                    observed[0]==null&&f.dropCalls==1,
+                "pending settlement must preserve origin without observer delivery");
+
+            require(f.world.groundItems().remove(blocker.id),
+                "remove pending origin test blocker");
+            MonsterSpawnerPvmRuntime.FinalizeResult finished=
+                f.runtime.retrySettlement(npc.id);
+
+            require(finished.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    finished.recipientOrigin==stamp&&
+                    finished.runtime==null&&
+                    finished.settlement!=null&&
+                    observed[0]==finished&&
+                    observed[0].recipientOrigin==stamp&&
+                    !stamp.stillCurrentIn(f.world)&&
+                    f.world.players().owns(replacement,secondGeneration)&&
+                    f.runtime.get(npc.id)==null&&
+                    f.dropCalls==1,
+                "successful retry/observer must carry old immutable origin");
+
+            System.out.println(
+                "G1845_MONSTER_SPAWNER_RECIPIENT_ORIGIN_WITNESS_PASS"+
+                " capturedAtSpawn=true"+
+                " sameNameReplacementRefused=true"+
+                " pendingRetryPreserved=true"+
+                " terminalObserverPreserved=true"+
+                " originalServerCreditPolicyClaim=false"+
+                " liveDmmObserverWired=false"
+            );
+        }finally{
+            if(f.world.players().owns(initial,firstGeneration))
+                f.world.unregisterPlayer(initial,firstGeneration);
+            if(replacement!=null&&
+                    f.world.players().owns(replacement,secondGeneration))
+                f.world.unregisterPlayer(replacement,secondGeneration);
+            f.close();
+        }
+    }
+
+    /** The test fixture's usual "killer" is not a registered WorldPlayer. */
+    private static void unregisteredRecipientHasNoInventedOrigin()
+        throws Exception{
+        Fixture f=new Fixture(false);
+        try{
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(OWNER,"absent-recipient",3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(spawned.runtime.recipientOrigin==null&&
+                    f.runtime.get(npc.id).recipientOrigin==null,
+                "unregistered recipient cannot manufacture origin");
+        }finally{
             f.close();
         }
     }
