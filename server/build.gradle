@@ -2153,6 +2153,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1894OptinEvictedTerminalEventReplayVetoTest',
     'spk.local.G1895DailyMoneyMakingSameWorldReplacementLifetimeCharacterizationTest',
     'spk.local.G1896DailyMoneyMakingNewWorldLifetimeCharacterizationTest',
+    'spk.local.G1897DailyMoneyMakingCompletedSameWorldReplacementCharacterizationTest',
+    'spk.local.G1898DailyMoneyMakingParallelWorldSameNameIsolationTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2425,10 +2427,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 578 ||
-    currentTrainFocusedTests.toSet().size() != 578) {
+if (currentTrainFocusedTests.size() != 580 ||
+    currentTrainFocusedTests.toSet().size() != 580) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 578 unique tests, found " +
+        "Current-train focused manifest drift: expected 580 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9531,4 +9533,20 @@ tasks.register('g1896DmmNewWorldLifetimeCharacterization', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1896DailyMoneyMakingNewWorldLifetimeCharacterizationTest')
+}
+tasks.register('g1897DmmCompletedSameWorldReplacementCharacterization', JavaExec) {
+    group = 'verification'
+    description = 'Four real NPC deaths characterize retained completed DMM EASY across exact same-World owner replacement.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1897DailyMoneyMakingCompletedSameWorldReplacementCharacterizationTest')
+}
+tasks.register('g1898DmmParallelWorldSameNameIsolation', JavaExec) {
+    group = 'verification'
+    description = 'Two simultaneous independent Worlds with identical username keep distinct real NPC/DMM progress and ground records.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1898DailyMoneyMakingParallelWorldSameNameIsolationTest')
 }
