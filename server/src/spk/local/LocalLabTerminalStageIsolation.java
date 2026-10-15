@@ -189,6 +189,13 @@ final class LocalLabTerminalStageIsolation {
         requireBoundWorld(checked);
         MonsterSpawnerPvmRuntime.FinalizeResult event=
             Objects.requireNonNull(terminal,"terminal");
+        // Binding the DISPATCHER is not enough: a correctly bound
+        // dispatcher must also reject finalized evidence produced by
+        // another World, even if the usernames and EntityIds coincide.
+        // Preserve the old same-World terminal-time recipient policy.
+        if(event.sourceWorld!=checked)
+            throw new IllegalStateException(
+                "TERMINAL_EVENT_SOURCE_WORLD_MISMATCH");
         if(event.status!=MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED||
            event.finalization==null||event.settlement==null)
             throw new IllegalArgumentException(
