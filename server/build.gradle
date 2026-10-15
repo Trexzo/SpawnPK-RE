@@ -2406,6 +2406,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21243ForeignJvmUnrelatedAccountRawWriterIsolationTest',
     'spk.local.G21244RawAndStrictLockObjectContinuityVetoTest',
     'spk.local.G21245LegacyPrimaryAndNamedRawLockContinuityTest',
+    'spk.local.G21246UniqueRawTempNofollowFixedSymlinkTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2434,10 +2435,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 587 ||
-    currentTrainFocusedTests.toSet().size() != 587) {
+if (currentTrainFocusedTests.size() != 588 ||
+    currentTrainFocusedTests.toSet().size() != 588) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 587 unique tests, found " +
+        "Current-train focused manifest drift: expected 588 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -5023,6 +5024,14 @@ tasks.register('g21245LegacyProfilePreMoveLockContinuityRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21245LegacyPrimaryAndNamedRawLockContinuityTest')
+}
+
+tasks.register('g21246UniqueRawTempNofollowSymlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.246: cooperating RAW writers use unique NOFOLLOW temp instead of pre-existing hostile fixed .tmp symlinks.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21246UniqueRawTempNofollowFixedSymlinkTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

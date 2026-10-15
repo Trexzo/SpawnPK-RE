@@ -1480,13 +1480,17 @@ final class FilePlayerRepository
         // move/truncate the World temp before that lock is acquired.
         // Use an exclusively allocated sibling for guarded World only;
         // preserve original direct save() file layout and semantics.
+        final boolean safeRawTemp=
+            !enforceWorldAdmission&&LocalOptInRawTemp.enabled();
         Path tmp=enforceWorldAdmission
             ?Files.createTempFile(
                 parent,file.getFileName().toString()+".g21170-world-",
                 ".tmp")
-            :file.resolveSibling(
-                file.getFileName().toString()+".tmp"
-            );
+            :safeRawTemp
+                ?LocalOptInRawTemp.create(file)
+                :file.resolveSibling(
+                    file.getFileName().toString()+".tmp"
+                );
 
         // G21.172: the newly allocated World temp has an owner
         // identity distinct from the persistent legacy direct .tmp.
@@ -1494,6 +1498,8 @@ final class FilePlayerRepository
         // its bytes under the final G21.39 World publication lock.
         final BasicFileAttributes originalWorldTemp=enforceWorldAdmission
             ?worldTempEvidence(tmp):null;
+        final BasicFileAttributes originalRawTemp=safeRawTemp
+            ?LocalOptInRawTemp.observe(tmp):null;
         boolean completed=false;
 
         try{
@@ -1502,10 +1508,15 @@ final class FilePlayerRepository
                         tmp,StandardOpenOption.WRITE,
                         StandardOpenOption.TRUNCATE_EXISTING,
                         LinkOption.NOFOLLOW_LINKS)
-                    :Files.newOutputStream(
-                        tmp,StandardOpenOption.CREATE,
-                        StandardOpenOption.TRUNCATE_EXISTING,
-                        StandardOpenOption.WRITE)){
+                    :safeRawTemp
+                        ?Files.newOutputStream(
+                            tmp,StandardOpenOption.WRITE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            LinkOption.NOFOLLOW_LINKS)
+                        :Files.newOutputStream(
+                            tmp,StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE)){
                 properties.store(
                     output,
                     "SpawnPK LocalLab localhost account state"
@@ -1574,7 +1585,11 @@ final class FilePlayerRepository
                         return null;
                     });
             }else{
+                if(safeRawTemp)
+                    LocalOptInRawTemp.requireSame(tmp,originalRawTemp);
                 beforeRawReplace.run(snapshot.username());
+                if(safeRawTemp)
+                    LocalOptInRawTemp.requireSame(tmp,originalRawTemp);
                 // G21.235: the raw reservation's admission-time inode
                 // check can become stale while its fixed .tmp is
                 // serialized. Revalidate the exact selected file
@@ -1589,8 +1604,10 @@ final class FilePlayerRepository
             completed=true;
         }finally{
             if(!completed&&
-                (!enforceWorldAdmission||
-                 stillOwnsWorldTemp(tmp,originalWorldTemp)))
+                (enforceWorldAdmission
+                    ?stillOwnsWorldTemp(tmp,originalWorldTemp)
+                    :!safeRawTemp||
+                        LocalOptInRawTemp.stillOwns(tmp,originalRawTemp)))
                 Files.deleteIfExists(tmp);
         }
     }

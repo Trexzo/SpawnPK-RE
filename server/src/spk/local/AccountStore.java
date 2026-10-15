@@ -136,13 +136,28 @@ final class AccountStore {
             Instant.now().toString()
         );
 
-        Path tmp = file.resolveSibling(file.getFileName().toString()+".tmp");
+        final boolean safeTemp=LocalOptInRawTemp.enabled();
+        Path tmp = safeTemp
+            ?LocalOptInRawTemp.create(file)
+            :file.resolveSibling(file.getFileName().toString()+".tmp");
+        final java.nio.file.attribute.BasicFileAttributes tempIdentity=
+            safeTemp?LocalOptInRawTemp.observe(tmp):null;
         boolean completed = false;
         try {
-            try (OutputStream out = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+            try (OutputStream out = safeTemp
+                    ?Files.newOutputStream(
+                        tmp,StandardOpenOption.WRITE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                        LinkOption.NOFOLLOW_LINKS)
+                    :Files.newOutputStream(
+                        tmp,StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.WRITE)) {
                 properties.store(out, "SpawnPK LocalLab localhost account state");
             }
+            if(safeTemp)LocalOptInRawTemp.requireSame(tmp,tempIdentity);
             beforeMove.run(CANONICAL_USERNAME);
+            if(safeTemp)LocalOptInRawTemp.requireSame(tmp,tempIdentity);
             try {
                 if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -152,7 +167,9 @@ final class AccountStore {
             }
             completed = true;
         } finally {
-            if (!completed) Files.deleteIfExists(tmp);
+            if (!completed &&
+                (!safeTemp||LocalOptInRawTemp.stillOwns(tmp,tempIdentity)))
+                Files.deleteIfExists(tmp);
         }
 
         return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()
