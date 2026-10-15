@@ -29,6 +29,24 @@ final class LocalOptInRawTemp {
     // authenticated final-save ACK or durable owner generation.
     static final String FORCE_PROPERTY=
         "spk.local.experimentalRawForceVerifiedPostimage";
+    // G21.255: an indefinitely held G21.39 marker-publication lock
+    // must not block cooperating forced RAW saves forever. The
+    // deadline applies to ACQUISITION only, not the I/O while owned.
+    static final String PUBLICATION_WAIT_PROPERTY=
+        "spk.local.experimentalRawPublicationLockWaitMillis";
+    static final long DEFAULT_PUBLICATION_WAIT_MILLIS=5000L;
+    static long publicationWaitMillis()throws IOException{
+        String configured=System.getProperty(PUBLICATION_WAIT_PROPERTY);
+        if(configured==null)return DEFAULT_PUBLICATION_WAIT_MILLIS;
+        try{
+            long value=Long.parseLong(configured);
+            if(value>=1L&&value<=60000L)return value;
+        }catch(NumberFormatException invalid){
+            // Fail closed: never fall back to an infinite lock wait.
+        }
+        throw new IOException(
+            "G21.255 INVALID_FORCED_RAW_PUBLICATION_LOCK_WAIT");
+    }
     // G21.248 deterministic test-only seam: publication may already
     // have replaced bytes when a later directory force fails.
     interface AfterMoveProbe {
@@ -186,7 +204,8 @@ final class LocalOptInRawTemp {
         // same account-local G21.39 lock as cooperating marker writers.
         // Held session OS lock precedes G21.39, as in World saves.
         MailboxAccountPublicationCoordinator
-            .withExclusivePublication(account,()->{
+            .withExclusivePublicationBounded(
+                account,publicationWaitMillis(),()->{
             MailboxAccountPublicationCoordinator
                 .requireSafeWorldTempAncestry(account,false);
             LocalJvmAccountSessionLease.requireNonHardlinkedAccount(account);
