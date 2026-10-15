@@ -238,7 +238,7 @@ public final class LocalCanonicalNpcAttackOwnershipRaceTest {
         final NpcEntity view;
         final NpcRegistry npcs;
 
-        Fixture(){
+        Fixture()throws java.io.IOException{
             generation=
                 world.registerPlayer(
                     player,
@@ -279,17 +279,17 @@ public final class LocalCanonicalNpcAttackOwnershipRaceTest {
                     player.id()
                 );
 
-            view=
-                new NpcEntity(
-                    100,
-                    definition,
-                    3088,
-                    3495
-                );
-
-            view.bindCanonicalId(
-                target.id
+            // G19.1.2 regression compatibility: this ownership-race
+            // fixture must use a REAL registered viewer projection,
+            // not a detached NpcEntity that the new STALE_SCENE
+            // validation (correctly) rejects before race injection.
+            view=npcs.spawnMirroredNpc(
+                definition,3088,3495,null,player.movement(),
+                writer(new ByteArrayOutputStream())
             );
+            require(npcs.scene(view.sceneIndex)==view,
+                "ownership race fixture scene must be registered");
+            view.bindCanonicalId(target.id);
         }
 
         LocalCanonicalNpcAttackHandler handler(
