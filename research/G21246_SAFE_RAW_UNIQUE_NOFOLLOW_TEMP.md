@@ -1,0 +1,9 @@
+# G21.246 — opt-in unique NOFOLLOW RAW temp, including legacy fixed-temp symlink avoidance
+
+Exact parent [G21.245 #2743](https://github.com/Trexzo/SpawnPK-RE/pull/2743), `5fbace388177a6316da9906499dc303860b50e87`, pending independent hosted CI at composition. G21.244/245 narrowed lock leaf substitution exposure for four cooperating RAW writers; the three legacy RAW paths still created/truncated **predictable fixed `.tmp` filenames**, which can themselves be symlinked to an unrelated victim file.
+
+G21.246 adds **default-OFF** `spk.local.experimentalRawUniqueTempNoFollow`, explicitly requiring prior JVM RAW gate + cross-JVM lock + lock continuity opt-ins. When enabled, AccountStore.save, LocalAccountProfiles.save and FilePlayerRepository.save allocate a unique sibling temp via `Files.createTempFile` and open it with NOFOLLOW; they observe its NOFOLLOW fileKey+creationTime and revalidate it after serialization and just before publication, avoiding cleanup of a displaced unknown inode on denial. Opt-out keeps exact legacy fixed-temp filenames and semantics; World-owned temp code and standalone strict unique-temp contract remain unchanged.
+
+Focused test G21.246 pre-installs genuine symlinks at all THREE legacy `.tmp` locations pointing to independent victim content; opt-in saves must succeed while leaving symlinks and victim bytes unmodified. Checks no residual unique temp files, receipt/reload and RAW reservation cleanup; partial incompatible safety opt-in must fail closed without reverting to fixed-temp behavior. Manifest **587→588**.
+
+**Limits:** fileKey/creationTime observation not an atomic defense against hostile rename after final check, and not verification of same-inode byte tampering. Not a durable owner epoch, cross-process safe crash recovery, authenticated final ACK or original SpawnPK rule. All experimental; keep draft/unmerged and review markers. Exact-head hosted Java11/full Gradle 588/588 required.
