@@ -2379,6 +2379,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21226CoreCrossJvmLockAncestorNofollowTest',
     'spk.local.G21227CoreHardlinkAliasTwoWorldOwnerGapTest',
     'spk.local.G21228CoreHardlinkAliasPendingAndLiveSessionGateTest',
+    'spk.local.G21229CoreTwoJvmHardlinkAliasOwnerGapTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2407,10 +2408,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 560 ||
-    currentTrainFocusedTests.toSet().size() != 560) {
+if (currentTrainFocusedTests.size() != 561 ||
+    currentTrainFocusedTests.toSet().size() != 561) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 560 unique tests, found " +
+        "Current-train focused manifest drift: expected 561 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4806,6 +4807,14 @@ tasks.register('g21228HardlinkAliasPendingLiveOwnerGateRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21228CoreHardlinkAliasPendingAndLiveSessionGateTest')
+}
+
+tasks.register('g21229TwoJvmHardlinkAliasOwnerGapRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.229 TEST ONLY: two real JVM session owners of one hardlink inode via distinct path locks.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21229CoreTwoJvmHardlinkAliasOwnerGapTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
