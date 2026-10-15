@@ -1373,27 +1373,30 @@ final class FilePlayerRepository
     private void saveInternal(
         PlayerSnapshot snapshot,boolean enforceWorldAdmission
     )throws IOException{
-        Objects.requireNonNull(
-            snapshot,
-            "snapshot"
-        );
+        Objects.requireNonNull(snapshot,"snapshot");
+        if(snapshot.version()!=PlayerSnapshot.CURRENT_VERSION)
+            throw new IOException(
+                "unsupported snapshot version="+snapshot.version());
+        // Pin the SAME resolved path for the raw cooperative admission
+        // reservation and the eventual file replacement.
+        Path file=normalizedPath(snapshot.username());
+        try(LocalJvmAccountSessionLease.RawWriteReservation raw=
+                enforceWorldAdmission?null:
+                LocalJvmAccountSessionLease.reserveRawWrite(
+                    file,snapshot.username())){
+            saveInternalSelected(snapshot,enforceWorldAdmission,file);
+        }
+    }
+
+    private void saveInternalSelected(
+        PlayerSnapshot snapshot,boolean enforceWorldAdmission,
+        Path file
+    )throws IOException{
         // Snapshot per-save; callers must configure the opt-in before
         // sessions start, not change it in flight.
         final boolean forceRealWorldPostimage=enforceWorldAdmission&&
             Boolean.getBoolean(
                 EXPERIMENTAL_FORCE_WORLD_POSTIMAGE_PROPERTY);
-
-        if(snapshot.version()!=
-                PlayerSnapshot.CURRENT_VERSION)
-            throw new IOException(
-                "unsupported snapshot version="+
-                snapshot.version()
-            );
-
-        Path file=
-            normalizedPath(
-                snapshot.username()
-            );
 
         // G21.57: the guarded World save uses ONE account-file
         // location for both the actual replacement and negative markers.
