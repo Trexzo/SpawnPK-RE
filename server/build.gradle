@@ -2159,6 +2159,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1900AnonymousDamageAcrossPlayerReplacementCharacterizationTest',
     'spk.local.G1901AcceptedHitWitnessExactPlayerReplacementTest',
     'spk.local.G1902AcceptedHitWitnessTwoWorldAndRejectedClickTest',
+    'spk.local.G1903DecodedOpcode72AcceptedHitWitnessTest',
+    'spk.local.G1904DecodedNpcAttackOldSessionCannotRetargetTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2436,10 +2438,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 589 ||
-    currentTrainFocusedTests.toSet().size() != 589) {
+if (currentTrainFocusedTests.size() != 591 ||
+    currentTrainFocusedTests.toSet().size() != 591) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 589 unique tests, found " +
+        "Current-train focused manifest drift: expected 591 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9636,4 +9638,20 @@ tasks.register('g1902AcceptedHitCrossWorldEvidenceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1902AcceptedHitWitnessTwoWorldAndRejectedClickTest')
+}
+tasks.register('g1903DecodedOpcode72AcceptedHitWitnessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual ISAAC-coded current-client option2 NPC Attack packet flows through typed decode into exact canonical attacker witness.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1903DecodedOpcode72AcceptedHitWitnessTest')
+}
+tasks.register('g1904DecodedNpcAttackOldSessionFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exact decoded opcode72 attack request cannot let stale A session retarget B; B gets independent accepted attacker witness.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1904DecodedNpcAttackOldSessionCannotRetargetTest')
 }
