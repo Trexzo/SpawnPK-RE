@@ -2169,6 +2169,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1910CurrentDeadNpcRetryPreservedTest',
     'spk.local.G1911CanonicalNpcSceneObjectIdentityFenceTest',
     'spk.local.G1912RetiredReusedSceneIndexAttackerFenceTest',
+    'spk.local.G1913ProjectionRetiredBeforeDamageAdmissionTest',
+    'spk.local.G1914UnrelatedProjectionRetiredAttackControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2458,10 +2460,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 611 ||
-    currentTrainFocusedTests.toSet().size() != 611) {
+if (currentTrainFocusedTests.size() != 613 ||
+    currentTrainFocusedTests.toSet().size() != 613) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 611 unique tests, found " +
+        "Current-train focused manifest drift: expected 613 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9846,4 +9848,22 @@ tasks.register('g1912RetiredReusedSceneIndexAttackerRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1912RetiredReusedSceneIndexAttackerFenceTest')
+}
+
+tasks.register('g1913ProjectionRetiredBeforeDamageAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'NPC scene retired inside admission seam before canonical HP mutation must fail closed without packet/cadence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1913ProjectionRetiredBeforeDamageAdmissionTest')
+}
+
+tasks.register('g1914UnrelatedProjectionRetiredAttackControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Removing a different viewer projection does not block a still-current canonical NPC hit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1914UnrelatedProjectionRetiredAttackControlTest')
 }
