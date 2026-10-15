@@ -66,6 +66,11 @@ final class LocalLabMonsterSpawnerProvisioning {
                 world,
                 "world"
             );
+        // Fail before installing an observer, NPC lifecycle binding or
+        // runtime in the wrong World when the package-local diagnostic
+        // injection overload is reused accidentally.
+        if(optionalStageIsolation!=null)
+            optionalStageIsolation.bindTo(checkedWorld);
 
         MonsterSpawnerService service=
             new MonsterSpawnerService(
