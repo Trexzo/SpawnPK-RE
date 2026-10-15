@@ -145,6 +145,14 @@ final class LocalJvmAccountSessionLease {
     static int pendingSessionAdmissionsForTest(){
         synchronized(active){return pendingSessionAdmissions.size();}
     }
+    // Deterministic TEST-ONLY admission seam. Never configured by
+    // production callers. Enables a paused per-file OS-admission
+    // attempt without holding the global JVM account monitor.
+    private static volatile Runnable beforeSessionOsAcquireForTest;
+    static void setBeforeSessionOsAcquireForTest(Runnable callback){
+        beforeSessionOsAcquireForTest=callback;
+    }
+
 
     // G21.201 CI correction: an old session admitted while the opt-in
     // lease was OFF is not retroactively made an owner of a later token.
@@ -339,6 +347,8 @@ final class LocalJvmAccountSessionLease {
         // and RAW writers until the real OS result is established.
         LocalCrossJvmAccountSessionLock.Handle processLock=null;
         try{
+            Runnable testHook=beforeSessionOsAcquireForTest;
+            if(testHook!=null)testHook.run();
             if(crossJvm){
                 try{
                     processLock=LocalCrossJvmAccountSessionLock.acquire(
