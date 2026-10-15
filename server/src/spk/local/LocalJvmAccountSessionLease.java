@@ -64,8 +64,11 @@ final class LocalJvmAccountSessionLease {
                 throw new java.io.IOException(
                     "G21.208 RAW_WRITE_DENIED_ACTIVE_JVM_LEASE"+
                     " account="+account);
-            Integer prior=rawWriters.get(file);
-            rawWriters.put(file,prior==null?1:prior+1);
+            if(rawWriters.containsKey(file))
+                throw new java.io.IOException(
+                    "G21.208 RAW_WRITE_DENIED_ANOTHER_RAW_WRITER"+
+                    " account="+account);
+            rawWriters.put(file,1);
             return new RawWriteReservation(file);
         }
     }
