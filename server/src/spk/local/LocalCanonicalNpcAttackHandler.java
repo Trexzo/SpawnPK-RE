@@ -17,6 +17,7 @@ final class LocalCanonicalNpcAttackHandler {
     enum Status {
         LEGACY_DUMMY,
         NONCANONICAL_SCENE,
+        STALE_SCENE,
         STALE_CANONICAL,
         DEFINITION_MISMATCH,
         LIFECYCLE_MISSING,
@@ -348,6 +349,26 @@ final class LocalCanonicalNpcAttackHandler {
                 ))
             return result(
                 Status.LEGACY_DUMMY,
+                clicked,
+                clicked.canonicalId(),
+                -1,
+                -1,
+                0,
+                -1,
+                -1,
+                false
+            );
+
+        // The scene index in a client packet is a viewer-local slot,
+        // not authority to supply a detached or forged NpcEntity.
+        // Resolve the current scene object by identity BEFORE reading
+        // canonical NPC ownership or initiating any dead retry/damage.
+        // This does not disambiguate a replayed wire index after reuse:
+        // packets carry no independent scene-generation token.
+        if(action.sceneIndex!=clicked.sceneIndex||
+           npcs.scene(action.sceneIndex)!=clicked)
+            return result(
+                Status.STALE_SCENE,
                 clicked,
                 clicked.canonicalId(),
                 -1,
