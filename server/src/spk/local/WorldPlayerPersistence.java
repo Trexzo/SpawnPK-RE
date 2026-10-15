@@ -192,17 +192,27 @@ final class WorldPlayerPersistence
         final long captureSequence;
         final PlayerSnapshot snapshot;
         final int petAccessoryItem;
+        final WorldPlayer owner;
+        final long expectedGeneration;
+        final LocalJvmAccountSessionLease.SaveCaptureWitness
+            ownerWitness;
 
         PendingCheckpoint(
             long tick,
             long captureSequence,
             PlayerSnapshot snapshot,
-            int petAccessoryItem
+            int petAccessoryItem,
+            WorldPlayer owner,
+            long expectedGeneration,
+            LocalJvmAccountSessionLease.SaveCaptureWitness ownerWitness
         ){
             this.tick=tick;
             this.captureSequence=captureSequence;
             this.snapshot=snapshot;
             this.petAccessoryItem=petAccessoryItem;
+            this.owner=owner;
+            this.expectedGeneration=expectedGeneration;
+            this.ownerWitness=ownerWitness;
         }
     }
 
@@ -1292,7 +1302,11 @@ final class WorldPlayerPersistence
                         tick,
                         sequence.incrementAndGet(),
                         snapshot,
-                        accessoryItem
+                        accessoryItem,
+                        player,
+                        generation,
+                        captureOwnerLeaseWitness(
+                            username,player,generation)
                     );
 
                 synchronized(checkpointLock){
@@ -1540,7 +1554,9 @@ final class WorldPlayerPersistence
                 "AUTOSAVE_TICK_"+
                     pending.tick,
                 completion,
-                true
+                true,
+                null,
+                pending
             );
 
             synchronized(checkpointLock){
@@ -4347,7 +4363,7 @@ final class WorldPlayerPersistence
         boolean checkpoint
     ){
         write(saveSequence,snapshot,petAccessoryItem,tag,reason,
-            future,checkpoint,null);
+            future,checkpoint,null,null);
     }
 
     private void write(
@@ -4359,6 +4375,21 @@ final class WorldPlayerPersistence
         CompletableFuture<Void> future,
         boolean checkpoint,
         SaveTask capturedSave
+    ){
+        write(saveSequence,snapshot,petAccessoryItem,tag,reason,
+            future,checkpoint,capturedSave,null);
+    }
+
+    private void write(
+        long saveSequence,
+        PlayerSnapshot snapshot,
+        int petAccessoryItem,
+        String tag,
+        String reason,
+        CompletableFuture<Void> future,
+        boolean checkpoint,
+        SaveTask capturedSave,
+        PendingCheckpoint capturedCheckpoint
     ){
         try{
             synchronized(io){
@@ -4401,6 +4432,20 @@ final class WorldPlayerPersistence
                             snapshot.username(),
                             capturedSave.owner,
                             capturedSave.expectedGeneration);
+                // G21.203: coalesced checkpoint origin is captured
+                // with the immutable snapshot, not rediscovered from
+                // whichever session holds the path at worker execution.
+                // A final save after unregister is unchanged. The
+                // default-OFF and G21.184 prior unleased paths remain
+                // outside the opt-in lease contract.
+                if(capturedCheckpoint!=null)
+                    LocalJvmAccountSessionLease
+                        .requireCapturedWitnessBeforeWrite(
+                            capturedCheckpoint.ownerWitness,
+                            files.accountFilePath(snapshot.username()),
+                            snapshot.username(),
+                            capturedCheckpoint.owner,
+                            capturedCheckpoint.expectedGeneration);
                 files.saveForWorld(snapshot);
             }else
                 repository.save(snapshot);
