@@ -1585,11 +1585,12 @@ final class FilePlayerRepository
                         return null;
                     });
             }else{
-                if(safeRawTemp)
-                    LocalOptInRawTemp.requireSame(tmp,originalRawTemp);
+                final byte[] sealedRawTemp=safeRawTemp
+                    ?LocalOptInRawTemp.seal(tmp,originalRawTemp):null;
                 beforeRawReplace.run(snapshot.username());
                 if(safeRawTemp)
-                    LocalOptInRawTemp.requireSame(tmp,originalRawTemp);
+                    LocalOptInRawTemp.requireSealed(
+                        tmp,originalRawTemp,sealedRawTemp);
                 // G21.235: the raw reservation's admission-time inode
                 // check can become stale while its fixed .tmp is
                 // serialized. Revalidate the exact selected file

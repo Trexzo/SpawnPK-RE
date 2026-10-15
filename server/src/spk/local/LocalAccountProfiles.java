@@ -218,9 +218,12 @@ final class LocalAccountProfiles {
                         StandardOpenOption.WRITE)){
                 properties.store(out,"SpawnPK LocalLab localhost account state");
             }
-            if(safeTemp)LocalOptInRawTemp.requireSame(tmp,tempIdentity);
+            final byte[] sealedTemp=safeTemp
+                ?LocalOptInRawTemp.seal(tmp,tempIdentity):null;
             beforeMove.run(u);
-            if(safeTemp)LocalOptInRawTemp.requireSame(tmp,tempIdentity);
+            if(safeTemp)
+                LocalOptInRawTemp.requireSealed(
+                    tmp,tempIdentity,sealedTemp);
             try{
                 if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);
