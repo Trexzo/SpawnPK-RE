@@ -126,7 +126,7 @@ public final class G21221CoreSessionLockObjectDriftWorldSaveVetoTest {
 
             final AtomicReference<WorldPlayerPersistence.SaveTicket>
                 rejected=new AtomicReference<>();
-            int failedBefore=world.persistence().failedCount();
+            long failedBefore=world.persistence().failedCount();
             world.submitAndWait(livePlayer,admittedGeneration,()->{
                 livePlayer.snapshotExtensions().replaceNamespace(
                     NS,Collections.singletonMap(
