@@ -76,6 +76,22 @@ final class AccountStore {
 
     static String save(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
         Path file = accountFile();
+        // G21.212: PRIMARY uses exactly the same optional cooperating
+        // in-JVM RAW write reservation as named profiles/repository.
+        // Capture a SINGLE resolved account path and claim the lease
+        // BEFORE legacy fixed .tmp or parent-directory mutation.
+        try(LocalJvmAccountSessionLease.RawWriteReservation reservation=
+                LocalJvmAccountSessionLease.reserveRawWrite(
+                    file,CANONICAL_USERNAME)){
+            return saveSelectedFile(
+                file,bank,equipment,movement,pet,player);
+        }
+    }
+
+    private static String saveSelectedFile(
+        Path file,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player
+    )throws IOException{
         Files.createDirectories(file.getParent());
 
         PlayerSnapshot snapshot =
