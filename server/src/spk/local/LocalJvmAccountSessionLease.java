@@ -282,6 +282,98 @@ final class LocalJvmAccountSessionLease {
     }
 
     /**
+     * G21.202: IMMUTABLE, in-JVM capture-time identity witness.
+     * This is never written to disk and cannot authorize review release.
+     * There are intentionally 3 origins: the exact captured Token,
+     * a previously admitted unleased World owner, and no token/witness.
+     */
+    static final class SaveCaptureWitness {
+        final Path path;
+        final String account;
+        final WorldPlayer owner;
+        final long generation;
+        private final Token originalLease;
+        private final boolean priorUnleased;
+
+        private SaveCaptureWitness(
+            Path path,String account,WorldPlayer owner,long generation,
+            Token originalLease,boolean priorUnleased
+        ){
+            this.path=path;
+            this.account=account;
+            this.owner=owner;
+            this.generation=generation;
+            this.originalLease=originalLease;
+            this.priorUnleased=priorUnleased;
+        }
+    }
+
+    /**
+     * Invoked only after a genuine World-owned capture was constructed.
+     * Captures original Token IDENTITY rather than looking up only the
+     * account path at eventual asynchronous worker execution.
+     */
+    static SaveCaptureWitness captureSaveWitness(
+        Path exactAccountPath,String account,
+        WorldPlayer owner,long generation
+    ){
+        Objects.requireNonNull(exactAccountPath,"exactAccountPath");
+        Objects.requireNonNull(owner,"owner");
+        Path path=exactAccountPath.toAbsolutePath().normalize();
+        synchronized(active){
+            UnleasedAdmission previous=unleasedAdmissions.get(owner);
+            boolean priorUnleased=previous!=null&&
+                previous.accountPath.equals(path)&&
+                previous.account.equals(account)&&
+                previous.generation==generation;
+            // Do not let an unrelated newly admitted lease retroactively
+            // own a genuinely prior-unleased World (G21.184).
+            Token token=priorUnleased?null:active.get(path);
+            return new SaveCaptureWitness(
+                path,account,owner,generation,token,priorUnleased);
+        }
+    }
+
+    /**
+     * Compare the captured Token object with the CURRENT holder.
+     * A released/replaced lease can never silently validate an old
+     * capture. Historically unleased real sessions remain unguarded;
+     * unknown/manual World saves preserve the G21.201 fallback check.
+     */
+    static boolean requireCapturedWitnessBeforeWrite(
+        SaveCaptureWitness witness,Path exactAccountPath,
+        String snapshotAccount,WorldPlayer owner,long generation
+    ){
+        Objects.requireNonNull(exactAccountPath,"exactAccountPath");
+        if(witness==null)
+            return requireCapturedSaveOwnerIfLeased(
+                exactAccountPath,snapshotAccount,owner,generation);
+        Path path=exactAccountPath.toAbsolutePath().normalize();
+        if(!witness.path.equals(path)||
+           !witness.account.equals(snapshotAccount)||
+           witness.owner!=owner||
+           witness.generation!=generation)
+            throw new IllegalStateException(
+                "G21.202 SAVE_CAPTURE_WITNESS_MISMATCH");
+        if(witness.priorUnleased)
+            return false; // Only exact previous real unleased admission.
+        if(witness.originalLease==null)
+            return requireCapturedSaveOwnerIfLeased(
+                path,snapshotAccount,owner,generation);
+        final Token current;
+        synchronized(active){
+            current=active.get(path);
+        }
+        if(current!=witness.originalLease)
+            throw new IllegalStateException(
+                "G21.202 SAVE_CAPTURE_ORIGINAL_LEASE_LOST_OR_REPLACED");
+        current.requireCapturedSaveOwner(
+            owner,generation,snapshotAccount);
+        workerOwnerChecks.incrementAndGet();
+        return true;
+    }
+
+    /**
      * Only a currently held opt-in JVM lease is guarded. A null lease
      * preserves preexisting unleased/manual World adapter behavior.
      * Called by the existing async World SaveTask immediately before
