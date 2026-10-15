@@ -139,6 +139,21 @@ final class LocalAccountProfiles {
         if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.save(bank,equipment,movement,pet,player);
 
         Path file=accountFile(u);
+        // G21.210: participate in the SAME optional in-JVM RAW write
+        // reservation as FilePlayerRepository.save for named profiles.
+        // Acquire before creating the historical fixed .tmp leaf.
+        // PRIMARY still delegates to AccountStore.save unchanged.
+        try(LocalJvmAccountSessionLease.RawWriteReservation reservation=
+                LocalJvmAccountSessionLease.reserveRawWrite(file,u)){
+            return saveNamedProfileFile(
+                file,u,bank,equipment,movement,pet,player);
+        }
+    }
+
+    private static String saveNamedProfileFile(
+        Path file,String u,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player
+    )throws IOException{
         Files.createDirectories(file.getParent());
 
         PlayerSnapshot snapshot=
