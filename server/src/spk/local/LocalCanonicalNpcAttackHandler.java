@@ -613,6 +613,24 @@ final class LocalCanonicalNpcAttackHandler {
                 generation
             );
 
+            // The viewer projection can be retired after the initial
+            // action/scene check but before immediate damage admission.
+            // Do not apply HP when its identity changed in this window,
+            // leaving packet-65 without the exact recipient scene.
+            // This is a second admission check, not an atomic lease.
+            if(npcs.scene(action.sceneIndex)!=clicked)
+                return result(
+                    Status.STALE_SCENE,
+                    clicked,
+                    canonicalId,
+                    distance,
+                    legalRange,
+                    0,
+                    before.hitpoints,
+                    before.maxHitpoints,
+                    false
+                );
+
             hit=
                 resolution.resolveImmediateOwnedAdmitted(
                     world,
