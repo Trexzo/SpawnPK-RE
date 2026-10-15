@@ -1538,6 +1538,12 @@ final class FilePlayerRepository
                             worldAccount,file
                         );
                         insideWorldPublication.run(snapshot.username());
+                        // G21.239: a lock leaf could be replaced AFTER
+                        // the capture-bound worker witness. Reobserve
+                        // G21.221 opt-in original lock object here, near
+                        // the actual World account atomic replace.
+                        LocalJvmAccountSessionLease
+                            .requireCurrentLeaseLockAtWorldPublication(file);
                         // G21.172: an uncooperative writer can replace
                         // World-owned temp AFTER serialization and even
                         // inside the OS lock. Never publish a foreign

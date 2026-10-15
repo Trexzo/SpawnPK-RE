@@ -100,17 +100,31 @@ public final class G21238CoreWorldPublisherLateOsLockSwapGapTest {
             check("BEFORE_LOCK_SWAP".equals(state(repo)),
                 "World baseline postimage not persisted");
 
+            // Original G21.238 parent #2726 remains the gate-ON
+            // exact post-capture lock substitution proof. Following
+            // G21.239 this descendant preserves only a TEST-ONLY
+            // explicit continuity-opt-out negative.
             armed.set(true);
-            ticket.set(null);
-            world.submitAndWait(owner,admitted,()->{
-                owner.snapshotExtensions().replaceNamespace(NS,
-                    Collections.singletonMap("phase","AFTER_LOCK_SWAP"));
-                ticket.set(live.persistence().captureAndSave(
-                    USER,owner,admitted,0,
-                    "[G21.238] ","SECOND_PUBLISH_LOCK_SWAP"));
-            },5_000L);
-            check(ticket.get()!=null,"second captured World ticket absent");
-            ticket.get().completion.get(10L,TimeUnit.SECONDS);
+            System.setProperty(
+                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+                "false");
+            try{
+                ticket.set(null);
+                world.submitAndWait(owner,admitted,()->{
+                    owner.snapshotExtensions().replaceNamespace(NS,
+                        Collections.singletonMap("phase","AFTER_LOCK_SWAP"));
+                    ticket.set(live.persistence().captureAndSave(
+                        USER,owner,admitted,0,
+                        "[G21.238] ","SECOND_PUBLISH_LOCK_SWAP"));
+                },5_000L);
+                check(ticket.get()!=null,
+                    "second captured World ticket absent");
+                ticket.get().completion.get(10L,TimeUnit.SECONDS);
+            }finally{
+                System.setProperty(
+                    LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+                    "true");
+            }
             check(changed.get(),
                 "test never substituted OS lock inside World publisher");
             check("AFTER_LOCK_SWAP".equals(state(repo)),
@@ -136,7 +150,7 @@ public final class G21238CoreWorldPublisherLateOsLockSwapGapTest {
                 " stableSessionLockLeafSwappedInsidePublisher=true"+
                 " newWorldPostimageCommittedAfterLockSwap=true"+
                 " subsequentContinuityDetectionWorks=true"+
-                " finalWorldPublicationContinuityRecheck=false"+
+                " optOutContinuityStillUnsafe=true"+
                 " fullyAtomicExternalLockFencing=false"+
                 " durableOwnerEpoch=false");
         }finally{
