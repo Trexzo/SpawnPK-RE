@@ -1,0 +1,19 @@
+# G21.205 — delayed checkpoint refuses replacement original JVM lease (synthetic negative)
+
+## Certified source ancestry
+
+Exact baseline [G21.204 + Chat 2 G18.6.5 #2643](https://github.com/Trexzo/SpawnPK-RE/pull/2643), SHA `304a4da52a56a45364743d5693ebdd4025204c54`, [Actions #38724115499](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38724115499) **SUCCESS** (511 unique focused, Java11 major55, full Gradle). Its core G21.204 #2642 Actions #38723875039 and Chat2 G18.6.5 #2641 Actions #38723741128 also SUCCESS. G21.204 established genuine World checkpoint coalescing publishes newest snapshot with capture-time token witness. It did NOT test invalidating the original token while the asynchronous checkpoint is delayed.
+
+## G21.205 negative — test-only, intentionally illegal session lifecycle
+
+`G21205CoreDelayedCheckpointReplacedLeaseNegativeTest` creates a disposable file-backed account root and an isolated World with real registered WorldPlayer, acquires the existing default-OFF opt-in JVM account lease explicitly within test scope, binds exact player object and returned generation, and starts World. World-owned code holds the existing private `checkpointLock` while capturing an actual `checkpointDue(100)` immutable snapshot with namespace `UNPUBLISHED_OLD_OWNER`. The FIFO checkpoint worker may be scheduled, but cannot dequeue this pending snapshot while that lock is held.
+
+**Deliberately synthetic forbidden transition:** while the registered player is still alive, TEST CODE calls `releaseAfterInitializationFailure()` on the original opt-in Token without a confirmed final save, then acquires and binds a *different* Token for the exact same path, WorldPlayer object, and generation. No production login/lifecycle routine performs this transition; the method is misused deliberately in a private negative test to provoke a stale capture. The old G21.201 *current-path-only* check would now accept the replacement Token as current. The G21.202 `SaveCaptureWitness` from the old Token must return `SAVE_CAPTURE_ORIGINAL_LEASE_LOST_OR_REPLACED`. This is NOT evidence that late toggling, deliberate release, or same-session rebinding is permitted/safe.
+
+After releasing checkpointLock, the **real queued checkpoint worker** must encounter this old pending immutable witness, increment the existing failed-save count, **not** increment checkpointWritten, **not** increment the successful capture-bound token worker counter, and **not** create any account file. The replacement token remains present for inspection, then fixture cleanup unregisters the WorldPlayer and releases the synthetic token(s). This checks the distinction between an old previously captured Token and a newer same-path owner even if the WorldPlayer/generation match.
+
+## Acceptance
+
+Exactly 3 files relative to certified #2643: one Java TEST class, `server/build.gradle` dedicated regression and manifest **511→512 unique**, and this research note. **ZERO production source modifications, no feature flags default-ON, no G18.6.5 code changed**. Fresh exact-head hosted GitHub Actions REQUIRED for `G21205_DELAYED_CHECKPOINT_REPLACED_LEASE_NEGATIVE_PASS`, G21204, G1865, G21184, **512/512 focused**, Java11 bytecode major55 and full Gradle before certification. Keep DRAFT/unmerged, not `main`/client.
+
+**Limits:** this is an intentionally violating-invariant unit integration fixture, not a legit session-account handoff, actual socket reconnect or JVM crash, an authenticated durable epoch, raw writer exclusion, owner-completion receipt, post-power-loss write proof, replay/grant, positive account recovery or permission to remove G21.188 ACTIVE. The real production flow must retain the lease until confirmed final save or quarantine. Issues #2540/#2559 remain unresolved and Chat2 outbox #2587 independent.
