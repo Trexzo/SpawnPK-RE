@@ -90,6 +90,12 @@ final class LocalJvmAccountSessionLease {
             this.processLock=processLock;
         }
 
+        // G21.244: best-effort opt-in last-chance RAW lock object check.
+        void requireLockObjectContinuity()throws java.io.IOException{
+            if(processLock!=null)
+                processLock.requireOriginalLockNameStillPresent();
+        }
+
         @Override public synchronized void close()
             throws java.io.IOException{
             if(closed)return;

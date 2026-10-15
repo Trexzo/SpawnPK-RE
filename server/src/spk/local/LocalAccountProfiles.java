@@ -146,13 +146,14 @@ final class LocalAccountProfiles {
         try(LocalJvmAccountSessionLease.RawWriteReservation reservation=
                 LocalJvmAccountSessionLease.reserveRawWrite(file,u)){
             return saveNamedProfileFile(
-                file,u,bank,equipment,movement,pet,player);
+                file,u,bank,equipment,movement,pet,player,reservation);
         }
     }
 
     private static String saveNamedProfileFile(
         Path file,String u,BankState bank,EquipmentState equipment,
-        MovementState movement,PetState pet,PlayerState player
+        MovementState movement,PetState pet,PlayerState player,
+        LocalJvmAccountSessionLease.RawWriteReservation reservation
     )throws IOException{
         Files.createDirectories(file.getParent());
 
@@ -184,8 +185,13 @@ final class LocalAccountProfiles {
             try(OutputStream out=Files.newOutputStream(tmp,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE)){
                 properties.store(out,"SpawnPK LocalLab localhost account state");
             }
-            try{Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
-            catch(AtomicMoveNotSupportedException e){Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING);}
+            try{
+                if(reservation!=null)reservation.requireLockObjectContinuity();
+                Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);
+            }catch(AtomicMoveNotSupportedException e){
+                if(reservation!=null)reservation.requireLockObjectContinuity();
+                Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING);
+            }
             completed=true;
         }finally{
             if(!completed)Files.deleteIfExists(tmp);
