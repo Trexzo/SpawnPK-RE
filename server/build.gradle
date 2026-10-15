@@ -2161,6 +2161,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1902AcceptedHitWitnessTwoWorldAndRejectedClickTest',
     'spk.local.G1903DecodedOpcode72AcceptedHitWitnessTest',
     'spk.local.G1904DecodedNpcAttackOldSessionCannotRetargetTest',
+    'spk.local.G1905TerminalDispatcherClosedWorldProvisioningVetoTest',
+    'spk.local.G1906ClosedWorldTerminalDeliveryVetoTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2443,10 +2445,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 596 ||
-    currentTrainFocusedTests.toSet().size() != 596) {
+if (currentTrainFocusedTests.size() != 598 ||
+    currentTrainFocusedTests.toSet().size() != 598) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 596 unique tests, found " +
+        "Current-train focused manifest drift: expected 598 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9704,4 +9706,20 @@ tasks.register('g21248RawForcedVerifiedPostimageRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21248RawForcedVerifiedPostimageTest')
+}
+tasks.register('g1905ClosedWorldTerminalProvisioningVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real World close rejects new or old diagnostic dispatcher binding before observer graph installation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1905TerminalDispatcherClosedWorldProvisioningVetoTest')
+}
+tasks.register('g1906ClosedWorldTerminalDeliveryVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'A genuine previously settled unclaimed event is refused after its World closes, before callbacks or reports.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1906ClosedWorldTerminalDeliveryVetoTest')
 }
