@@ -2353,6 +2353,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21215CoreSecondJvmRawWriterBypassesSessionLockTest',
     'spk.local.G21216CoreCrossJvmCooperativeRawWriterOsLockTest',
     'spk.local.G21217CoreDeadJvmLockReleaseWithoutFinalReceiptTest',
+    'spk.local.G21218CorePendingSessionOsAdmissionIsolationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2381,10 +2382,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 534 ||
-    currentTrainFocusedTests.toSet().size() != 534) {
+if (currentTrainFocusedTests.size() != 535 ||
+    currentTrainFocusedTests.toSet().size() != 535) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 534 unique tests, found " +
+        "Current-train focused manifest drift: expected 535 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4676,6 +4677,14 @@ tasks.register('g21217DeadJvmLockReleaseNoFinalReceiptRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21217CoreDeadJvmLockReleaseWithoutFinalReceiptTest')
+}
+
+tasks.register('g21218PendingSessionOsAdmissionIsolationRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.218: pending OS account session cannot block unrelated JVM accounts.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21218CorePendingSessionOsAdmissionIsolationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
