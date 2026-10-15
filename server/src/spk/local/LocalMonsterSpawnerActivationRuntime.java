@@ -23,6 +23,9 @@ final class LocalMonsterSpawnerActivationRuntime
         activationBudget;
     private final LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver
         selectedLabel;
+    // Optional, internal to THIS World-local LocalLab graph. This pointer
+    // is never returned; callers only obtain a detached, immutable view.
+    private final LocalLabTerminalStageIsolation terminalStageDiagnostics;
 
     LocalMonsterSpawnerActivationRuntime(
         World world,
@@ -33,6 +36,23 @@ final class LocalMonsterSpawnerActivationRuntime
         LocalMonsterSpawnerUiHandler.ActivationBudgetResolver activationBudget,
         LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver selectedLabel
     ){
+        this(
+            world,service,runtime,executor,sessionAuthority,
+            activationBudget,selectedLabel,null
+        );
+    }
+
+    LocalMonsterSpawnerActivationRuntime(
+        World world,
+        MonsterSpawnerService service,
+        MonsterSpawnerPvmRuntime runtime,
+        MonsterSpawnerPvmSpawnExecutor executor,
+        String sessionAuthority,
+        LocalMonsterSpawnerUiHandler.ActivationBudgetResolver activationBudget,
+        LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver selectedLabel,
+        LocalLabTerminalStageIsolation terminalStageDiagnostics
+    ){
+        this.terminalStageDiagnostics=terminalStageDiagnostics;
         this.world=Objects.requireNonNull(
             world,
             "world"
@@ -278,6 +298,18 @@ final class LocalMonsterSpawnerActivationRuntime
 
     MonsterSpawnerPvmSpawnExecutor executor(){
         return executor;
+    }
+
+    /**
+     * Server-package read ONLY. Null means terminal isolation was OFF at
+     * World composition. No live dispatcher/handle, no replay operations,
+     * no network exposure and no externally writable reward state.
+     */
+    LocalLabTerminalStageIsolation.DiagnosticSnapshot
+        terminalDiagnosticSnapshot(){
+        return terminalStageDiagnostics==null
+            ?null
+            :terminalStageDiagnostics.diagnosticSnapshot();
     }
 
     private static void rethrowCreateFailure(
