@@ -47,6 +47,10 @@ final class FilePlayerRepository
     private final BeforeWorldReplace afterWorldSessionRead;
     /** G21.74 deterministic test-only replacement between witness passes. */
     private final BeforeWorldReplace betweenRestartWitnessPasses;
+    // G21.234 TEST-ONLY RAW hook: after serialization/reservation but
+    // immediately before unguarded legacy fixed-temp replacement.
+    // Ordinary repositories install an inert callback.
+    private final BeforeWorldReplace beforeRawReplace;
 
     FilePlayerRepository(){
         this(
@@ -91,6 +95,19 @@ final class FilePlayerRepository
         BeforeWorldReplace afterWorldSessionRead,
         BeforeWorldReplace betweenRestartWitnessPasses
     ){
+        this(paths,beforeWorldReplace,insideWorldPublication,
+            afterWorldSessionRead,betweenRestartWitnessPasses,
+            account->{});
+    }
+
+    /** G21.234 RAW writer post-reservation TEST-ONLY race injection. */
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication,
+        BeforeWorldReplace afterWorldSessionRead,
+        BeforeWorldReplace betweenRestartWitnessPasses,
+        BeforeWorldReplace beforeRawReplace
+    ){
         this.paths=Objects.requireNonNull(paths,"paths");
         this.beforeWorldReplace=Objects.requireNonNull(
             beforeWorldReplace,"beforeWorldReplace"
@@ -104,6 +121,8 @@ final class FilePlayerRepository
         this.betweenRestartWitnessPasses=Objects.requireNonNull(
             betweenRestartWitnessPasses,"betweenRestartWitnessPasses"
         );
+        this.beforeRawReplace=Objects.requireNonNull(
+            beforeRawReplace,"beforeRawReplace");
     }
 
     @Override public Optional<PlayerSnapshot> load(
@@ -1549,6 +1568,7 @@ final class FilePlayerRepository
                         return null;
                     });
             }else{
+                beforeRawReplace.run(snapshot.username());
                 replaceSnapshotTemp(tmp,file);
             }
 
