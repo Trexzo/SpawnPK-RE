@@ -2155,6 +2155,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1896DailyMoneyMakingNewWorldLifetimeCharacterizationTest',
     'spk.local.G1897DailyMoneyMakingCompletedSameWorldReplacementCharacterizationTest',
     'spk.local.G1898DailyMoneyMakingParallelWorldSameNameIsolationTest',
+    'spk.local.G1899AnonymousNpcDamageRecipientContrastCharacterizationTest',
+    'spk.local.G1900AnonymousDamageAcrossPlayerReplacementCharacterizationTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2432,10 +2434,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 585 ||
-    currentTrainFocusedTests.toSet().size() != 585) {
+if (currentTrainFocusedTests.size() != 587 ||
+    currentTrainFocusedTests.toSet().size() != 587) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 585 unique tests, found " +
+        "Current-train focused manifest drift: expected 587 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9600,4 +9602,20 @@ tasks.register('g1898DmmParallelWorldSameNameIsolation', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1898DailyMoneyMakingParallelWorldSameNameIsolationTest')
+}
+tasks.register('g1899AnonymousNpcDamageRecipientContrast', JavaExec) {
+    group = 'verification'
+    description = 'Two players with live DMM/G15 tasks expose anonymous canonical NPC damage versus configured recipient credit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1899AnonymousNpcDamageRecipientContrastCharacterizationTest')
+}
+tasks.register('g1900AnonymousDamageAcrossReplacementWindow', JavaExec) {
+    group = 'verification'
+    description = 'Two real anonymous NPC damage calls across A->B same-name replacement prove no original attacker/last-hit authority.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1900AnonymousDamageAcrossPlayerReplacementCharacterizationTest')
 }
