@@ -161,7 +161,10 @@ final class AccountStore {
             if(safeTemp)
                 LocalOptInRawTemp.requireSealed(
                     tmp,tempIdentity,sealedTemp);
-            try {
+            if(LocalOptInRawTemp.forcePostimageEnabled()){
+                LocalOptInRawTemp.forcePublish(
+                    tmp,file,tempIdentity,sealedTemp,reservation);
+            }else try {
                 if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {

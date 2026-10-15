@@ -2,6 +2,9 @@ package spk.local;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.FileChannel;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.file.Files;
@@ -21,10 +24,30 @@ import java.util.Objects;
 final class LocalOptInRawTemp {
     static final String PROPERTY=
         "spk.local.experimentalRawUniqueTempNoFollow";
+    // G21.248: stricter filesystem API completion; opt-in ONLY.
+    // Even a forced and verified account postimage is NOT an
+    // authenticated final-save ACK or durable owner generation.
+    static final String FORCE_PROPERTY=
+        "spk.local.experimentalRawForceVerifiedPostimage";
+    // G21.248 deterministic test-only seam: publication may already
+    // have replaced bytes when a later directory force fails.
+    interface AfterMoveProbe {
+        void afterMove(Path file)throws IOException;
+    }
+    private static volatile AfterMoveProbe afterMoveProbeForTest;
+    static void setAfterMoveProbeForTest(AfterMoveProbe probe){
+        afterMoveProbeForTest=probe;
+    }
+
     private LocalOptInRawTemp(){}
 
     static boolean enabled()throws IOException{
-        if(!Boolean.getBoolean(PROPERTY))return false;
+        if(!Boolean.getBoolean(PROPERTY)){
+            if(Boolean.getBoolean(FORCE_PROPERTY))
+                throw new IOException(
+                    "G21.248 FORCE_RAW_POSTIMAGE_REQUIRES_SAFE_TEMP");
+            return false;
+        }
         if(!Boolean.getBoolean(
                 LocalJvmAccountSessionLease.PROPERTY)||
            !Boolean.getBoolean(
@@ -36,6 +59,14 @@ final class LocalOptInRawTemp {
             throw new IOException(
                 "G21.246 SAFE_RAW_TEMP_REQUIRES_LOCKED_CONTINUITY_OPT_IN");
         return true;
+    }
+
+    static boolean forcePostimageEnabled()throws IOException{
+        boolean requested=Boolean.getBoolean(FORCE_PROPERTY);
+        if(requested&&!enabled())
+            throw new IOException(
+                "G21.248 FORCE_RAW_POSTIMAGE_REQUIRES_SAFE_TEMP");
+        return requested;
     }
 
     static Path create(Path account)throws IOException{
@@ -118,6 +149,61 @@ final class LocalOptInRawTemp {
            !MessageDigest.isEqual(expected,fingerprint(temp,original)))
             throw new IOException(
                 "G21.247 SAFE_RAW_TEMP_BYTES_CHANGED");
+    }
+
+    /**
+     * Strict opt-in RAW publication: exact uniquely-owned temp bytes
+     * forced before ATOMIC_MOVE, directory metadata forced afterward,
+     * and matching NOFOLLOW account postimage re-read before success.
+     * This is not an account-owner epoch nor atomic external fencing.
+     * A failure AFTER Files.move has UNKNOWN outcome; never retry as
+     * if rollback were proven or interpret as a final-session receipt.
+     */
+    static void forcePublish(
+        Path temp,Path account,BasicFileAttributes identity,
+        byte[] sealed,LocalJvmAccountSessionLease.RawWriteReservation raw
+    )throws IOException{
+        if(!forcePostimageEnabled()||raw==null)
+            throw new IOException(
+                "G21.248 FORCED_RAW_MISSING_OPTIN_RESERVATION");
+        requireSealed(temp,identity,sealed);
+        try(FileChannel channel=FileChannel.open(
+                temp,StandardOpenOption.WRITE,LinkOption.NOFOLLOW_LINKS)){
+            channel.force(true);
+        }
+        requireSealed(temp,identity,sealed);
+        MailboxAccountPublicationCoordinator
+            .requireSafeWorldTempAncestry(account,false);
+        LocalJvmAccountSessionLease.requireNonHardlinkedAccount(account);
+        raw.requireLockObjectContinuity();
+        try{
+            Files.move(
+                temp,account,StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE);
+        }catch(AtomicMoveNotSupportedException unsupported){
+            throw new IOException(
+                "G21.248 RAW_ATOMIC_MOVE_REQUIRED_NO_FALLBACK",
+                unsupported);
+        }catch(IOException uncertain){
+            throw new IOException(
+                "G21.248 RAW_ATOMIC_MOVE_UNCONFIRMED_NO_ACK",
+                uncertain);
+        }
+        try{
+            AfterMoveProbe probe=afterMoveProbeForTest;
+            if(probe!=null)probe.afterMove(account);
+            try(FileChannel directory=FileChannel.open(
+                    account.getParent(),StandardOpenOption.READ,
+                    LinkOption.NOFOLLOW_LINKS)){
+                directory.force(true);
+            }
+            requireSealed(account,identity,sealed);
+            raw.requireLockObjectContinuity();
+        }catch(IOException afterMove){
+            throw new IOException(
+                "G21.248 RAW_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
+                afterMove);
+        }
     }
 
     static boolean stillOwns(Path temp,BasicFileAttributes original){

@@ -1599,7 +1599,12 @@ final class FilePlayerRepository
                 // hardlink operation after the last check.
                 LocalJvmAccountSessionLease
                     .requireNonHardlinkedAccount(file);
-                replaceSnapshotTemp(tmp,file,raw);
+                if(LocalOptInRawTemp.forcePostimageEnabled()){
+                    LocalOptInRawTemp.forcePublish(
+                        tmp,file,originalRawTemp,sealedRawTemp,raw);
+                }else{
+                    replaceSnapshotTemp(tmp,file,raw);
+                }
             }
 
             completed=true;
