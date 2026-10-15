@@ -2165,6 +2165,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1906ClosedWorldTerminalDeliveryVetoTest',
     'spk.local.G1907DecodedLethalHitVsSpawnerRecipientCharacterizationTest',
     'spk.local.G1908DecodedLethalHitSameSpawnerRecipientControlTest',
+    'spk.local.G1909StaleDeadNpcRetrySessionFenceTest',
+    'spk.local.G1910CurrentDeadNpcRetryPreservedTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2452,10 +2454,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 605 ||
-    currentTrainFocusedTests.toSet().size() != 605) {
+if (currentTrainFocusedTests.size() != 607 ||
+    currentTrainFocusedTests.toSet().size() != 607) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 605 unique tests, found " +
+        "Current-train focused manifest drift: expected 607 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9785,4 +9787,21 @@ tasks.register('g1908DecodedLethalHitMatchingRecipientControlRegression', JavaEx
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1908DecodedLethalHitSameSpawnerRecipientControlTest')
+}
+
+tasks.register('g1909StaleDeadNpcRetrySessionFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'A stale old session cannot invoke dead-NPC finalization retry on an existing canonical target.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1909StaleDeadNpcRetrySessionFenceTest')
+}
+tasks.register('g1910CurrentDeadNpcRetryPreservedRegression', JavaExec) {
+    group = 'verification'
+    description = 'A genuinely current replacement session retains dead-NPC retry without new hit or reward.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1910CurrentDeadNpcRetryPreservedTest')
 }
