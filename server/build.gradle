@@ -2153,6 +2153,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1894OptinEvictedTerminalEventReplayVetoTest',
     'spk.local.G1895DailyMoneyMakingSameWorldReplacementLifetimeCharacterizationTest',
     'spk.local.G1896DailyMoneyMakingNewWorldLifetimeCharacterizationTest',
+    'spk.local.G1897TerminalDispatcherClosedWorldProvisioningVetoTest',
+    'spk.local.G1898ClosedWorldTerminalDeliveryVetoTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2426,10 +2428,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 579 ||
-    currentTrainFocusedTests.toSet().size() != 579) {
+if (currentTrainFocusedTests.size() != 581 ||
+    currentTrainFocusedTests.toSet().size() != 581) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 579 unique tests, found " +
+        "Current-train focused manifest drift: expected 581 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9544,4 +9546,20 @@ tasks.register('g1896DmmNewWorldLifetimeCharacterization', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1896DailyMoneyMakingNewWorldLifetimeCharacterizationTest')
+}
+tasks.register('g1897ClosedWorldTerminalProvisioningVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual World close prevents new and existing diagnostic dispatcher binding, without creating a new observer graph.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1897TerminalDispatcherClosedWorldProvisioningVetoTest')
+}
+tasks.register('g1898ClosedWorldTerminalDeliveryVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'A settled unclaimed event produced before a World closes cannot be delivered by any correctly bound diagnostic dispatcher after close.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1898ClosedWorldTerminalDeliveryVetoTest')
 }
