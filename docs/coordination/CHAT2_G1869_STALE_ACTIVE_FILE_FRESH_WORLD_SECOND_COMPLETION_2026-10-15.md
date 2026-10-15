@@ -1,0 +1,24 @@
+# Chat 2 G18.6.9 — real stale ACTIVE file restores in fresh World after earlier World completed task
+
+Date: 2026-10-15.
+
+**Exact independent CI-green parent**: [G18.6.7 PR #2648](https://github.com/Trexzo/SpawnPK-RE/pull/2648), SHA `228701cc130ebad0e193e130b40e3f7f37c75f2b`, [Actions #38728601770](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38728601770) SUCCESS (514 unique focused, Java11 major55/full Gradle). Parallel distinct [G18.6.8 #2649](https://github.com/Trexzo/SpawnPK-RE/pull/2649), SHA `7fecc44058862064f8e82eaca627922f8e059b6f`, [Actions #38730804486](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38730804486) SUCCESS, is now independently green at 515 focused. G18.6.9 deliberately uses green #2648 as base and has no automatic imports from #2649 until a later separate cumulative composition.
+
+## Separate and complementary G18.6.8 boundary
+
+G18.6.8 loads an actual old ACTIVE account file **into the same World that still retains a completed latestTask(name)**, obtaining PERSISTED_STATE_COLLIDES_WITH_LIVE_RUNTIME (negative). G18.6.9 instead closes the entire original World before reloading **the same deliberately stale codec-valid physical ACTIVE account file** into an independent fresh World, where no World-local completed task remains. This tests the positive complementary path, without arguing which version ought to be authoritative in original SpawnPK.
+
+1. In source isolated World A, genuinely start Monster Hunter G4 at tick77; explicitly persist ACTIVE0 account snapshot with FilePlayerRepository.save to temporary physical disk, retain byte-for-byte file. Activate DMM EASY. Spawn one actual NPC with immutable A origin; unregister A, register same-name B. First real canonical NPC death at tick91 causes B to complete inherited World/name G4 task (COMPLETED1 in B's in-memory extension), G1 B1/receipt1, DMM1/3 and one coin settlement. Deliberately NEVER write B's completion to disk. The disk stays exactly A's ACTIVE0 bytes. Close entire old World.
+2. Load the unchanged physical account file via FilePlayerRepository.load and PlayerSnapshotCodec.applyValidated into C, then register C in an independently isolated fresh World using that same repository. G4 hydration now **succeeds ACTIVE0** with runtime assignment at new World clock (not source77), because the fresh World has no completed latestTask. Old World's G1 receipt and DMM objective do not automatically carry over: new World's G1 receipt0 and optional fresh DMM activation starts at0/3.
+3. Spawn a completely DIFFERENT genuine canonical NPC in the new World capturing C's exact generation, kill and finalize through unchanged installed observer. G4 newly completes 1/1 in this fresh World; G1 C1/receipt1, new DMM1/3 and one coin settlement. Those are **two distinct actual NPC deaths in two Worlds, not replay/double-settlement of the same event**. Original account file still holds stale ACTIVE0 because no explicit second save yet.
+4. Only a new explicit FilePlayerRepository.save after fresh World completion updates disk to COMPLETED1 with reconstructed assignment tick. This confirms the file publication boundary independently of in-memory task progression.
+
+Expected marker: `G1869_STALE_ACTIVE_FILE_FRESH_WORLD_SECOND_COMPLETION_PASS`.
+
+## Authority limitations
+
+This is a deterministic CUSTOM_LOCALLAB fixture that **intentionally** does not publish B's completed World state. The two apparent task completions do NOT prove a duplicate external reward grant, replay of the same kill, authenticated relog safety, original SpawnPK Slayer policy, replay vulnerability, or normal logout durability behavior. Actual file reads/writes ARE real but test-owned explicit repository calls, not LocalSession final save, JVM-token ownership, crash or prepared journal. Do not implement account reconciliation/reward replay on its basis.
+
+**Change scope:** dedicated new `G1869SlayerStaleActiveFreshWorldFileRecoveryTest.java`, one `server/build.gradle` focused test entry and BOTH hardcoded count assertion updates **514→515 unique**, and this handoff. Exactly three additive files versus #2648; zero production Java, G21.205 account code, existing G18.6.8 files, other gameplay, main/client/default changes.
+
+**Fresh exact-head hosted CI required:** G1869/G1867/G1866/G21205, 515/515 focused, Java11 major55/full Gradle. DRAFT/unmerged. When integrating BOTH certified G18.6.8 and G18.6.9, preserve ONE dedicated class for each, both docs, and increment expected unique focused **515→516**, ensuring no duplicated older G18.6.7 commits. [Outbox #2587](https://github.com/Trexzo/SpawnPK-RE/issues/2587), [original kill authority #2558](https://github.com/Trexzo/SpawnPK-RE/issues/2558), account #2540/#2559 remain open.
