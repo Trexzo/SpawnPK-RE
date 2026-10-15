@@ -576,6 +576,38 @@ final class LocalJvmAccountSessionLease {
      * Test-only current-token witness for a live World owner.
      * No token/secret is returned and this is NOT a save or release API.
      */
+    /**
+     * G21.239: last-chance opt-in OS lock OBJECT observation under the
+     * guarded World file-publication critical section. A captured
+     * owner/generation witness has already been checked by the
+     * WorldPlayerPersistence worker; this additional check does NOT
+     * manufacture ownership or a durable epoch from the current map.
+     * Read filesystem attributes with NO global active-map monitor.
+     */
+    static void requireCurrentLeaseLockAtWorldPublication(
+        Path accountFile
+    )throws java.io.IOException{
+        if(!Boolean.getBoolean(
+                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
+            return;
+        Path key=Objects.requireNonNull(
+            accountFile,"accountFile").toAbsolutePath().normalize();
+        final Token token;
+        synchronized(active){
+            token=active.get(key);
+        }
+        if(token==null)return; // preserve unleased/default-off path
+        try{
+            synchronized(token){
+                token.requireObservedLockContinuity();
+            }
+        }catch(IllegalStateException invalid){
+            throw new java.io.IOException(
+                "G21.239 WORLD_COMMIT_SESSION_LOCK_OBJECT_CHANGED"+
+                " action=REJECT_WORLD_PUBLICATION",invalid);
+        }
+    }
+
     static void requireCurrentWorldOwnerForTest(
         Path accountFile,WorldPlayer owner,long generation
     ){
