@@ -2355,10 +2355,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 507 ||
-    currentTrainFocusedTests.toSet().size() != 507) {
+if (currentTrainFocusedTests.size() != 508 ||
+    currentTrainFocusedTests.toSet().size() != 508) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 507 unique tests, found " +
+        "Current-train focused manifest drift: expected 508 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
