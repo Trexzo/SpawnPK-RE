@@ -86,6 +86,10 @@ final class LocalJvmAccountSessionLease {
             throw new java.io.IOException(
                 "G21.216 CROSS_JVM_RAW_REQUIRES_JVM_LEASE_OPT_IN");
         synchronized(active){
+            if(pendingSessionAdmissions.contains(file))
+                throw new java.io.IOException(
+                    "G21.218 RAW_WRITE_DENIED_PENDING_SESSION_ADMISSION"+
+                    " account="+account);
             if(active.containsKey(file))
                 throw new java.io.IOException(
                     "G21.208 RAW_WRITE_DENIED_ACTIVE_JVM_LEASE"+
@@ -131,6 +135,17 @@ final class LocalJvmAccountSessionLease {
 
 
     private static final Map<Path,Token> active=new HashMap<>();
+    // G21.218: a pending process-lock session admission reserves only
+    // this account path. OS filesystem/channel work is done OUTSIDE the
+    // global JVM monitor; RAW writers and another same-path admission
+    // must still see this pending negative reservation.
+    private static final java.util.Set<Path> pendingSessionAdmissions=
+        new java.util.HashSet<>();
+
+    static int pendingSessionAdmissionsForTest(){
+        synchronized(active){return pendingSessionAdmissions.size();}
+    }
+
     // G21.201 CI correction: an old session admitted while the opt-in
     // lease was OFF is not retroactively made an owner of a later token.
     // Identity-keyed weak witnesses distinguish that earlier unleased
@@ -303,18 +318,6 @@ final class LocalJvmAccountSessionLease {
          */
         if(!optIn){
             synchronized(active){
-                if(active.isEmpty())
-                    return null;
-            }
-        }
-        Objects.requireNonNull(persistence,"persistence");
-        Objects.requireNonNull(username,"username");
-
-        Path file=persistence.fileBackedAccountPathForJvmSessionLease(
-            username);
-        if(file==null)return null;
-        Path key=file.toAbsolutePath().normalize();
-        synchronized(active){
             if(optIn&&rawWriters.containsKey(key))
                 throw new IllegalStateException(
                     "G21.208 JVM_LEASE_DENIED_RAW_WRITE_IN_FLIGHT"+
@@ -322,13 +325,20 @@ final class LocalJvmAccountSessionLease {
             if(active.containsKey(key))
                 throw new IllegalStateException(
                     "G21.181 JVM_ACCOUNT_SESSION_OWNED_NO_RECOVERY"+
-                    " account="+username+
-                    " path="+key);
-            // A distinct account may still use the default-off path;
-            // existing SAME-path leases are refused regardless of flag.
-            if(!optIn)
-                return null;
-            LocalCrossJvmAccountSessionLock.Handle processLock=null;
+                    " account="+username+" path="+key);
+            if(pendingSessionAdmissions.contains(key))
+                throw new IllegalStateException(
+                    "G21.218 JVM_ACCOUNT_SESSION_ADMISSION_PENDING"+
+                    " account="+username);
+            if(!optIn)return null;
+            pendingSessionAdmissions.add(key);
+        }
+        // G21.218: do NOT hold the shared JVM monitor during a
+        // potentially slow FileChannel.open/createDirectories/tryLock.
+        // The pending same-file marker denies other local admissions
+        // and RAW writers until the real OS result is established.
+        LocalCrossJvmAccountSessionLock.Handle processLock=null;
+        try{
             if(crossJvm){
                 try{
                     processLock=LocalCrossJvmAccountSessionLock.acquire(
@@ -336,14 +346,38 @@ final class LocalJvmAccountSessionLease {
                 }catch(java.io.IOException failure){
                     throw new IllegalStateException(
                         "G21.185 CROSS_JVM_ACCOUNT_SESSION_DENIED"+
-                        " account="+username,
-                        failure
-                    );
+                        " account="+username,failure);
                 }
             }
-            Token token=new Token(key,username,processLock);
-            active.put(key,token);
-            return token;
+            synchronized(active){
+                if(!pendingSessionAdmissions.remove(key))
+                    throw new IllegalStateException(
+                        "G21.218 SESSION_ADMISSION_RESERVATION_LOST");
+                if(active.containsKey(key)||rawWriters.containsKey(key))
+                    throw new IllegalStateException(
+                        "G21.218 SESSION_ADMISSION_CONFLICT_AFTER_OS_LOCK");
+                Token token=new Token(key,username,processLock);
+                active.put(key,token);
+                processLock=null; // transferred to live session
+                return token;
+            }
+        }finally{
+            // If an external OS lock was acquired but session commit
+            // failed, release it before clearing local pending state.
+            // On OS unlock failure, retain a negative local pending
+            // reservation; never call that account safely reusable.
+            if(processLock!=null){
+                try{
+                    processLock.close();
+                }catch(java.io.IOException uncertain){
+                    throw new IllegalStateException(
+                        "G21.218 SESSION_ADMISSION_UNLOCK_UNCERTAIN"+
+                        " account="+username,uncertain);
+                }
+            }
+            synchronized(active){
+                pendingSessionAdmissions.remove(key);
+            }
         }
     }
 
