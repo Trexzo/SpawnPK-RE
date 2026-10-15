@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.CharacterCodingException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -24,6 +26,7 @@ import java.util.UUID;
  */
 final class LocalDurableAccountReviewIntentPrimitive {
     private static final String MAGIC="G21188_ACTIVE_REVIEW_V1";
+    private static final int MAX_REVIEW_MARKER_BYTES=4096;
 
     private LocalDurableAccountReviewIntentPrimitive(){}
 
@@ -116,17 +119,59 @@ final class LocalDurableAccountReviewIntentPrimitive {
     static void requireReviewMarker(Path accountFile)
         throws IOException{
         Path marker=markerPath(accountFile);
-        BasicFileAttributes attributes=Files.readAttributes(
+        BasicFileAttributes initial=Files.readAttributes(
             marker,BasicFileAttributes.class,
             LinkOption.NOFOLLOW_LINKS);
-        if(!attributes.isRegularFile()||
-           attributes.isSymbolicLink())
+        if(!initial.isRegularFile()||initial.isSymbolicLink()||
+           initial.fileKey()==null)
             throw new IOException(
                 "G21.188 REVIEW_MARKER_NOT_REGULAR_NO_AUTHORITY");
-        // The complete first line is format evidence only.
-        // Unexpected/malformed content is NOT treated as clean.
-        String text=new String(
-            Files.readAllBytes(marker),StandardCharsets.UTF_8);
+        if(initial.size()>MAX_REVIEW_MARKER_BYTES)
+            throw new IOException(
+                "G21.222 REVIEW_MARKER_OVERSIZE_NEGATIVE_NO_CLEAR");
+
+        // G21.222: bound memory even when the file grows between
+        // stat and read; open with NOFOLLOW so a swapped symlink leaf
+        // cannot redirect this inspection to another filesystem file.
+        final java.nio.ByteBuffer bounded=java.nio.ByteBuffer.allocate(
+            MAX_REVIEW_MARKER_BYTES+1);
+        try(FileChannel input=FileChannel.open(
+                marker,StandardOpenOption.READ,
+                LinkOption.NOFOLLOW_LINKS)){
+            while(bounded.hasRemaining()){
+                int count=input.read(bounded);
+                if(count<0)break;
+                if(count==0)
+                    throw new IOException(
+                        "G21.222 REVIEW_MARKER_READ_NO_PROGRESS");
+            }
+        }
+        if(bounded.position()>MAX_REVIEW_MARKER_BYTES)
+            throw new IOException(
+                "G21.222 REVIEW_MARKER_OVERSIZE_NEGATIVE_NO_CLEAR");
+        BasicFileAttributes after=Files.readAttributes(
+            marker,BasicFileAttributes.class,
+            LinkOption.NOFOLLOW_LINKS);
+        if(!after.isRegularFile()||after.isSymbolicLink()||
+           after.fileKey()==null||
+           !initial.fileKey().equals(after.fileKey()))
+            throw new IOException(
+                "G21.222 REVIEW_MARKER_FILE_IDENTITY_DIVERGED");
+
+        bounded.flip();
+        final String text;
+        try{
+            text=StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(bounded).toString();
+        }catch(CharacterCodingException invalid){
+            throw new IOException(
+                "G21.222 REVIEW_MARKER_MALFORMED_UTF8_NEGATIVE",
+                invalid);
+        }
+        // Format evidence is NEGATIVE ONLY: recognizing this header
+        // never means cleanup, restart, recovery or a grant is safe.
         if(!text.startsWith(MAGIC+"\n")||
            !text.contains("state=ACTIVE_NEEDS_MANUAL_REVIEW\n"))
             throw new IOException(
