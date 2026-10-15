@@ -147,15 +147,25 @@ public final class G21236CoreReplacedSessionLockLeafTwoJvmGapTest {
             builder.redirectErrorStream(true);
             process=builder.start();
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(15L);
-            while(!Files.isRegularFile(ready,LinkOption.NOFOLLOW_LINKS)){
-                check(process.isAlive(),"replacement child died");
-                check(System.nanoTime()<deadline,
-                    "replacement child never held new OS lock object");
+            // Existence alone is NOT a complete ready signal:
+            // writeString first creates the file and only then writes
+            // its payload. Poll for the COMPLETE exact readiness text.
+            boolean readyVerified=false;
+            while(System.nanoTime()<deadline){
+                if(Files.isRegularFile(ready,LinkOption.NOFOLLOW_LINKS)){
+                    String text=Files.readString(
+                        ready,StandardCharsets.UTF_8);
+                    if(READY.equals(text)){
+                        readyVerified=true;
+                        break;
+                    }
+                }
+                check(process.isAlive(),
+                    "replacement child died before complete readiness");
                 Thread.sleep(25L);
             }
-            check(READY.equals(Files.readString(
-                ready,StandardCharsets.UTF_8)),
-                "child did not signal held owner");
+            check(readyVerified,
+                "replacement child never finished readiness marker");
             check(LocalJvmAccountSessionLease.activeCountForTest()==1,
                 "parent current token unexpectedly changed");
             LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
