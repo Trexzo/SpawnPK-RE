@@ -21,6 +21,48 @@ final class LocalJvmAccountSessionLease {
         "spk.local.experimentalJvmAccountSessionLease";
     static final String RAW_WRITE_GATE_PROPERTY=
         "spk.local.experimentalRawWriteJvmLeaseGate";
+    static final String HARDLINK_COUNT_GATE_PROPERTY=
+        "spk.local.experimentalAccountHardlinkCountGate";
+
+    /**
+     * G21.230: cooperative opt-in admission policy. A named account
+     * leaf with >1 hard links is never an exclusive account inode.
+     * This is an admission-time NOFOLLOW observation, not a durable
+     * file-object epoch or protection against post-check substitution.
+     */
+    private static void requireNonHardlinkedAccount(
+        Path account
+    )throws java.io.IOException{
+        if(!Boolean.getBoolean(HARDLINK_COUNT_GATE_PROPERTY))return;
+        Path file=account.toAbsolutePath().normalize();
+        if(!java.nio.file.Files.exists(
+                file,java.nio.file.LinkOption.NOFOLLOW_LINKS))return;
+        java.nio.file.attribute.BasicFileAttributes attributes=
+            java.nio.file.Files.readAttributes(
+                file,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        if(!attributes.isRegularFile())
+            throw new java.io.IOException(
+                "G21.230 ACCOUNT_LEAF_NOT_REGULAR");
+        final Object count;
+        try{
+            count=java.nio.file.Files.getAttribute(
+                file,"unix:nlink",
+                java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        }catch(UnsupportedOperationException unavailable){
+            throw new java.io.IOException(
+                "G21.230 HARDLINK_COUNT_UNSUPPORTED_FAIL_CLOSED",
+                unavailable);
+        }
+        if(!(count instanceof Number))
+            throw new java.io.IOException(
+                "G21.230 HARDLINK_COUNT_INVALID");
+        if(((Number)count).longValue()!=1L)
+            throw new java.io.IOException(
+                "G21.230 MULTIPLE_ACCOUNT_HARDLINKS_DENIED"+
+                " count="+count);
+    }
+
     // G21.228: DEFAULT OFF, best-effort same-JVM file-object alias
     // collision detection for existing account inodes. NOT a durable
     // epoch, and not an across-process/hardlink-creation fence.
@@ -86,6 +128,7 @@ final class LocalJvmAccountSessionLease {
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         if(!Boolean.getBoolean(RAW_WRITE_GATE_PROPERTY))return null;
         Path file=exactAccountPath.toAbsolutePath().normalize();
+        requireNonHardlinkedAccount(file);
         final boolean crossJvm=Boolean.getBoolean(
             LocalCrossJvmAccountSessionLock.PROPERTY);
         if(crossJvm&&!Boolean.getBoolean(PROPERTY))
@@ -407,6 +450,15 @@ final class LocalJvmAccountSessionLease {
             username);
         if(file==null)return null;
         Path key=file.toAbsolutePath().normalize();
+        if(optIn){
+            try{
+                requireNonHardlinkedAccount(key);
+            }catch(java.io.IOException invalid){
+                throw new IllegalStateException(
+                    "G21.230 HARDLINK_ACCOUNT_ADMISSION_DENIED",
+                    invalid);
+            }
+        }
         final boolean aliasGuard=optIn&&
             Boolean.getBoolean(INODE_ALIAS_GATE_PROPERTY);
         final Object initialAccountFileKey;
