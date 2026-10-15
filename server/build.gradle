@@ -2337,6 +2337,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21203CoreAutosaveCheckpointOriginalLeaseTest',
     'spk.local.G21204CoreCoalescedCheckpointOwnerWitnessTest',
     'spk.local.G21205CoreDelayedCheckpointReplacedLeaseNegativeTest',
+    'spk.local.G21206CoreDelayedOrdinarySaveReplacedLeaseNegativeTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2365,10 +2366,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 518 ||
-    currentTrainFocusedTests.toSet().size() != 518) {
+if (currentTrainFocusedTests.size() != 519 ||
+    currentTrainFocusedTests.toSet().size() != 519) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 518 unique tests, found " +
+        "Current-train focused manifest drift: expected 519 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4564,6 +4565,14 @@ tasks.register('g21205CoreDelayedCheckpointReplacedLeaseRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21205CoreDelayedCheckpointReplacedLeaseNegativeTest')
+}
+
+tasks.register('g21206CoreDelayedOrdinarySaveReplacedLeaseRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.206 TEST ONLY: queued ordinary SaveTask rejects its original lease after synthetic replacement.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21206CoreDelayedOrdinarySaveReplacedLeaseNegativeTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
