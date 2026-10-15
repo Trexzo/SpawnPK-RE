@@ -42,6 +42,10 @@ final class LocalJvmAccountSessionLease {
     // G21.201 diagnostic: count actual worker-side pre-publication checks.
     private static final java.util.concurrent.atomic.AtomicInteger
         workerOwnerChecks=new java.util.concurrent.atomic.AtomicInteger();
+    // G21.202: separate counter for original-capture token identity
+    // checks, distinct from the older current-path-only fallback.
+    private static final java.util.concurrent.atomic.AtomicInteger
+        captureBoundWorkerChecks=new java.util.concurrent.atomic.AtomicInteger();
 
     private LocalJvmAccountSessionLease(){}
 
@@ -370,6 +374,7 @@ final class LocalJvmAccountSessionLease {
         current.requireCapturedSaveOwner(
             owner,generation,snapshotAccount);
         workerOwnerChecks.incrementAndGet();
+        captureBoundWorkerChecks.incrementAndGet();
         return true;
     }
 
@@ -409,6 +414,10 @@ final class LocalJvmAccountSessionLease {
 
     static int workerOwnerChecksForTest(){
         return workerOwnerChecks.get();
+    }
+
+    static int captureBoundWorkerChecksForTest(){
+        return captureBoundWorkerChecks.get();
     }
 
     static int activeCountForTest(){
