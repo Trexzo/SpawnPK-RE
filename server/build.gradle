@@ -2149,6 +2149,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1890TerminalDispatcherWrongWorldDeliveryVetoTest',
     'spk.local.G1891TerminalEventProducingWorldIdentityTest',
     'spk.local.G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest',
+    'spk.local.G1893OptinTerminalExactEventReplayVetoTest',
+    'spk.local.G1894OptinEvictedTerminalEventReplayVetoTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2412,10 +2414,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 565 ||
-    currentTrainFocusedTests.toSet().size() != 565) {
+if (currentTrainFocusedTests.size() != 567 ||
+    currentTrainFocusedTests.toSet().size() != 567) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 565 unique tests, found " +
+        "Current-train focused manifest drift: expected 567 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9430,4 +9432,20 @@ tasks.register('g1892SameWorldRecipientPolicyPreservedRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest')
+}
+tasks.register('g1893TerminalExactEventReplayVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'The same genuine finalized Java event cannot dispatch a second time; distinct subsequent NPC still credits.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1893OptinTerminalExactEventReplayVetoTest')
+}
+tasks.register('g1894EvictedTerminalEventReplayVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'A genuine 130-NPC lifecycle cannot replay its first FinalizeResult even after diagnostic history eviction.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1894OptinEvictedTerminalEventReplayVetoTest')
 }
