@@ -2359,6 +2359,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21220CoreHardKilledActiveReviewRestartVetoTest',
     'spk.local.G21220CoreHealthyFinalOneShotReviewNoRetirementTest',
     'spk.local.G21221CoreSessionLockObjectDriftWorldSaveVetoTest',
+    'spk.local.G21222CoreBoundedReviewMarkerReadNegativeTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2387,10 +2388,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 540 ||
-    currentTrainFocusedTests.toSet().size() != 540) {
+if (currentTrainFocusedTests.size() != 541 ||
+    currentTrainFocusedTests.toSet().size() != 541) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 540 unique tests, found " +
+        "Current-train focused manifest drift: expected 541 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4730,6 +4731,14 @@ tasks.register('g21221OptInSessionLockObjectDriftSaveVetoRegression', JavaExec) 
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21221CoreSessionLockObjectDriftWorldSaveVetoTest')
+}
+
+tasks.register('g21222BoundedNoFollowActiveReviewMarkerRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.222: 4KiB NOFOLLOW malformed/oversized G21.188 marker remains durable negative with no auto cleanup.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21222CoreBoundedReviewMarkerReadNegativeTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
