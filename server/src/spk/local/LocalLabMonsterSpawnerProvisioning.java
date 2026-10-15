@@ -36,8 +36,30 @@ final class LocalLabMonsterSpawnerProvisioning {
     static final int NPC_HITPOINTS=10;
     static final int ACTIVATION_BUDGET=1;
 
+    /**
+     * Disabled by default. Read the experimental switch only once when
+     * constructing the World-local spawner composition, never per NPC.
+     * This alters LOCAL LAB failure isolation only, not any recovered
+     * SpawnPK progression authority or durable retry contract.
+     */
+    static final String ISOLATE_TERMINAL_STAGES_PROPERTY=
+        "spk.locallab.monsterSpawner.isolateTerminalStages";
+
     static LocalMonsterSpawnerActivationRuntime create(
         World world
+    ){
+        return create(
+            world,
+            Boolean.getBoolean(ISOLATE_TERMINAL_STAGES_PROPERTY)
+                ?new LocalLabTerminalStageIsolation()
+                :null
+        );
+    }
+
+    // Explicit injection is package-local for deterministic regressions.
+    static LocalMonsterSpawnerActivationRuntime create(
+        World world,
+        LocalLabTerminalStageIsolation optionalStageIsolation
     ){
         World checkedWorld=
             Objects.requireNonNull(
@@ -206,13 +228,19 @@ final class LocalLabMonsterSpawnerProvisioning {
                 MonsterSpawnerNpcDeathFinalizationService.Result
                     finalization=result.finalization;
 
-                creditTerminalProgression(
-                    checkedWorld,
-                    finalization.recipientRef,
-                    finalization.definitionId,
-                    finalization.deathTile,
-                    finalization.deathTick
-                );
+                if(optionalStageIsolation==null){
+                    creditTerminalProgression(
+                        checkedWorld,
+                        finalization.recipientRef,
+                        finalization.definitionId,
+                        finalization.deathTile,
+                        finalization.deathTick
+                    );
+                }else{
+                    optionalStageIsolation.deliver(
+                        checkedWorld,result
+                    );
+                }
             }
         );
 
