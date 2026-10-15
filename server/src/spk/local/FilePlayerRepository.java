@@ -1583,8 +1583,7 @@ final class FilePlayerRepository
                 // hardlink operation after the last check.
                 LocalJvmAccountSessionLease
                     .requireNonHardlinkedAccount(file);
-                if(raw!=null)raw.requireLockObjectContinuity();
-                replaceSnapshotTemp(tmp,file);
+                replaceSnapshotTemp(tmp,file,raw);
             }
 
             completed=true;
@@ -1706,6 +1705,21 @@ final class FilePlayerRepository
     private static void replaceSnapshotTemp(
         Path temp,Path file,boolean requireAtomic
     )throws IOException{
+        replaceSnapshotTemp(temp,file,requireAtomic,null);
+    }
+
+    private static void replaceSnapshotTemp(
+        Path temp,Path file,
+        LocalJvmAccountSessionLease.RawWriteReservation raw
+    )throws IOException{
+        replaceSnapshotTemp(temp,file,false,raw);
+    }
+
+    private static void replaceSnapshotTemp(
+        Path temp,Path file,boolean requireAtomic,
+        LocalJvmAccountSessionLease.RawWriteReservation raw
+    )throws IOException{
+        if(raw!=null)raw.requireLockObjectContinuity();
         try{
             Files.move(
                 temp,file,
@@ -1719,6 +1733,8 @@ final class FilePlayerRepository
                     unsupported);
             // Preserve original default and raw writer compatibility;
             // no non-atomic fallback in G21.192 opt-in mode.
+            // G21.245: recheck identity if atomic move was unsupported.
+            if(raw!=null)raw.requireLockObjectContinuity();
             Files.move(
                 temp,file,StandardCopyOption.REPLACE_EXISTING
             );

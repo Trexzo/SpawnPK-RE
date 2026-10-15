@@ -135,8 +135,28 @@ final class LocalAccountProfiles {
     }
 
     static String save(String username,BankState bank,EquipmentState equipment,MovementState movement,PetState pet,PlayerState player)throws IOException{
+        return saveGuarded(username,bank,equipment,movement,pet,player,account->{});
+    }
+
+    /** G21.245: package-only named-profile PRE-move test seam. */
+    static String saveWithPreMoveHookForTest(
+        String username,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
+    )throws IOException{
+        return saveGuarded(username,bank,equipment,movement,pet,player,beforeMove);
+    }
+
+    private static String saveGuarded(
+        String username,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
+    )throws IOException{
+        Objects.requireNonNull(beforeMove,"beforeMove");
         String u=clean(username);
-        if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.save(bank,equipment,movement,pet,player);
+        if(PRIMARY.equalsIgnoreCase(u))
+            return AccountStore.saveWithPreMoveHookForTest(
+                bank,equipment,movement,pet,player,beforeMove);
 
         Path file=accountFile(u);
         // G21.210: participate in the SAME optional in-JVM RAW write
@@ -146,14 +166,15 @@ final class LocalAccountProfiles {
         try(LocalJvmAccountSessionLease.RawWriteReservation reservation=
                 LocalJvmAccountSessionLease.reserveRawWrite(file,u)){
             return saveNamedProfileFile(
-                file,u,bank,equipment,movement,pet,player,reservation);
+                file,u,bank,equipment,movement,pet,player,reservation,beforeMove);
         }
     }
 
     private static String saveNamedProfileFile(
         Path file,String u,BankState bank,EquipmentState equipment,
         MovementState movement,PetState pet,PlayerState player,
-        LocalJvmAccountSessionLease.RawWriteReservation reservation
+        LocalJvmAccountSessionLease.RawWriteReservation reservation,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
     )throws IOException{
         Files.createDirectories(file.getParent());
 
@@ -185,6 +206,7 @@ final class LocalAccountProfiles {
             try(OutputStream out=Files.newOutputStream(tmp,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE)){
                 properties.store(out,"SpawnPK LocalLab localhost account state");
             }
+            beforeMove.run(u);
             try{
                 if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);

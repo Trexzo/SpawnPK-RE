@@ -75,6 +75,24 @@ final class AccountStore {
     }
 
     static String save(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
+        return saveGuarded(bank,equipment,movement,pet,player,account->{});
+    }
+
+    /** G21.245 package-only deterministic PRE-move legacy writer test seam. */
+    static String saveWithPreMoveHookForTest(
+        BankState bank,EquipmentState equipment,MovementState movement,
+        PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
+    )throws IOException{
+        return saveGuarded(bank,equipment,movement,pet,player,beforeMove);
+    }
+
+    private static String saveGuarded(
+        BankState bank,EquipmentState equipment,MovementState movement,
+        PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
+    )throws IOException{
+        java.util.Objects.requireNonNull(beforeMove,"beforeMove");
         Path file = accountFile();
         // G21.212: PRIMARY uses exactly the same optional cooperating
         // in-JVM RAW write reservation as named profiles/repository.
@@ -84,14 +102,15 @@ final class AccountStore {
                 LocalJvmAccountSessionLease.reserveRawWrite(
                     file,CANONICAL_USERNAME)){
             return saveSelectedFile(
-                file,bank,equipment,movement,pet,player,reservation);
+                file,bank,equipment,movement,pet,player,reservation,beforeMove);
         }
     }
 
     private static String saveSelectedFile(
         Path file,BankState bank,EquipmentState equipment,
         MovementState movement,PetState pet,PlayerState player,
-        LocalJvmAccountSessionLease.RawWriteReservation reservation
+        LocalJvmAccountSessionLease.RawWriteReservation reservation,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
     )throws IOException{
         Files.createDirectories(file.getParent());
 
@@ -123,6 +142,7 @@ final class AccountStore {
             try (OutputStream out = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
                 properties.store(out, "SpawnPK LocalLab localhost account state");
             }
+            beforeMove.run(CANONICAL_USERNAME);
             try {
                 if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
