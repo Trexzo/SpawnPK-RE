@@ -2391,6 +2391,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21236CoreReplacedSessionLockLeafTwoJvmGapTest',
     'spk.local.G21237CoreReplacedSessionLockContinuityVetoTest',
     'spk.local.G21238CoreWorldPublisherLateOsLockSwapGapTest',
+    'spk.local.G21239CoreWorldCommitLockContinuityVetoTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2419,10 +2420,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 572 ||
-    currentTrainFocusedTests.toSet().size() != 572) {
+if (currentTrainFocusedTests.size() != 573 ||
+    currentTrainFocusedTests.toSet().size() != 573) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 572 unique tests, found " +
+        "Current-train focused manifest drift: expected 573 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4898,6 +4899,14 @@ tasks.register('g21238InsideWorldPublisherLockSwapGapRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21238CoreWorldPublisherLateOsLockSwapGapTest')
+}
+
+tasks.register('g21239WorldCommitLockContinuityRecheckRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.239: opted-in G21.221 session lock fileKey continuity checked just before World account publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21239CoreWorldCommitLockContinuityVetoTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
