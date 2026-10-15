@@ -365,6 +365,17 @@ final class StrictDurablePlayerSnapshotWriter {
             .toAbsolutePath().normalize();
         // G21.100 is acquired exactly ONCE and before BEGIN or any
         // strict temporary-file I/O. No nested G21.100 lock cycle.
+        // G21.214: standalone NON-World strict writers also publish
+        // real account bytes. Opt-in same-JVM RAW/session exclusion must
+        // be established BEFORE G21.100 lifecycle/temp/sidecar writes.
+        // Guard only worldFile == null: real World strict PREPARED and
+        // terminal paths already have separate owner/publication checks.
+        // All non-World saveStrict* entry points share this boundary.
+        try(LocalJvmAccountSessionLease.RawWriteReservation raw=
+                worldFile==null
+                    ?LocalJvmAccountSessionLease.reserveRawWrite(
+                        selected,checked.username())
+                    :null){
         return MailboxPublicationWriterLifecycle.withWriter(
             selected,()->{
                 if(recordWriterEvidence){
@@ -397,6 +408,7 @@ final class StrictDurablePlayerSnapshotWriter {
                     postPublicationCheck,writeAheadIntent,terminalMode,
                     terminalPreparedSha256,selected);
             });
+        }
     }
 
     private Receipt saveInternalTracked(
