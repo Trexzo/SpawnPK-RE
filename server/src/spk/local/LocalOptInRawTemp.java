@@ -161,7 +161,8 @@ final class LocalOptInRawTemp {
      */
     static void forcePublish(
         Path temp,Path account,BasicFileAttributes identity,
-        byte[] sealed,LocalJvmAccountSessionLease.RawWriteReservation raw
+        byte[] sealed,LocalJvmAccountSessionLease.RawWriteReservation raw,
+        String accountUsername
     )throws IOException{
         if(!forcePostimageEnabled()||raw==null)
             throw new IOException(
@@ -181,6 +182,25 @@ final class LocalOptInRawTemp {
         // ACTIVE for manual review. Legacy/default RAW stays unchanged.
         LocalDurableAccountReviewIntentPrimitive
             .requireNoReviewMarker(account);
+        // G21.251: existing Mailbox durable/uncertain/write-ahead
+        // sidecars are NEGATIVE, not overwritten by opt-in forced RAW.
+        // Exact target account is pinned by this resolver. The G21.39
+        // marker publishers do not all share this session OS lock;
+        // an external race after observation remains unresolved.
+        FilePlayerRepository.PathResolver pinned=requested->{
+            if(!accountUsername.equals(requested))
+                throw new IllegalArgumentException(
+                    "G21.251 FORCED_RAW_ACCOUNT_IDENTITY_DRIFT");
+            return account;
+        };
+        if(new MailboxDurableReviewFence(pinned)
+                .present(accountUsername)||
+           new MailboxStrictUncertainFence(pinned)
+                .present(accountUsername)||
+           new MailboxStrictWriteIntentFence(pinned)
+                .present(accountUsername))
+            throw new IOException(
+                "G21.251 FORCED_RAW_MAILBOX_REVIEW_FENCE_PRESENT");
         raw.requireLockObjectContinuity();
         try{
             Files.move(

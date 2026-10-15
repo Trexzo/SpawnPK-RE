@@ -163,7 +163,8 @@ final class AccountStore {
                     tmp,tempIdentity,sealedTemp);
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
-                    tmp,file,tempIdentity,sealedTemp,reservation);
+                    tmp,file,tempIdentity,sealedTemp,reservation,
+                    CANONICAL_USERNAME);
             }else try {
                 if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
