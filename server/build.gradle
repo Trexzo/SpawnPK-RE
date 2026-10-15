@@ -2355,6 +2355,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21217CoreDeadJvmLockReleaseWithoutFinalReceiptTest',
     'spk.local.G21218CorePendingSessionAdmissionNoGlobalMonitorTest',
     'spk.local.G21218CorePendingSessionFailureRollbackTest',
+    'spk.local.G21219CoreCrossJvmSessionLockPathReplacementTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2383,10 +2384,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 536 ||
-    currentTrainFocusedTests.toSet().size() != 536) {
+if (currentTrainFocusedTests.size() != 537 ||
+    currentTrainFocusedTests.toSet().size() != 537) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 536 unique tests, found " +
+        "Current-train focused manifest drift: expected 537 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4694,6 +4695,14 @@ tasks.register('g21218PendingSessionOsFailureRollbackRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21218CorePendingSessionFailureRollbackTest')
+}
+
+tasks.register('g21219TwoJvmLockPathReplacementRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.219 TEST ONLY: real two-JVM OS FileLock pathname replacement bypass, no owner epoch.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21219CoreCrossJvmSessionLockPathReplacementTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

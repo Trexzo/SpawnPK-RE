@@ -1,0 +1,15 @@
+# G21.219 — OS account lock filename can be replaced while the old file object remains locked
+
+**Context:** G21.218 [Draft #2687](https://github.com/Trexzo/SpawnPK-RE/pull/2687) reorganizes same-JVM pending session admission/OS I/O; its 536 tests require own exact-head certification. The latest independently green ancestor G21.217 [#2681](https://github.com/Trexzo/SpawnPK-RE/pull/2681) has 534/534 Java11/full Gradle. G21.185's stable account sibling `.session.lck` uses `FileChannel.open(CREATE,READ,WRITE,NOFOLLOW_LINKS)` and `tryLock` to coordinate cooperating JVM sessions and G21.216 RAW writers. That lock is held on an **opened filesystem object**, not intrinsically on a pathname forever.
+
+## Real two-JVM Linux negative
+
+Parent registers a genuine named-account `WorldPlayer` generation under an opt-in JVM Token and G21.185 OS FileLock. Verify the stable lock file is regular. On Linux, while the parent still owns that FileLock on the opened inode, move the lock path to a sibling `.original-still-locked` leaf, then create a distinct regular file under the **original identical lock pathname**. BasicFileAttributes.fileKey confirms the old and new objects are distinct. A truly separate forked Java child (same root/account) attempts a new `LocalJvmAccountSessionLease.acquire`, registers/binds a second WorldPlayer and succeeds, because `tryLock` now targets the *new file object*. Parent confirms its original Token/generation and orphaned locked original object remain active throughout. The test does not read or mutate account snapshots, grant credits or attempt any recovery.
+
+On Windows, renaming an already open lock file may be denied by OS share modes. The test explicitly prints an **UNSUPPORTED** marker and does NOT claim it reproduced the Linux path-substitution gap; hosted Ubuntu must exercise the actual proof.
+
+Expected hosted marker `G21219_TWO_JVM_LOCK_PATH_REPLACEMENT_BYPASS_PASS`. **A PASS proves a limitation**, not a fix. It is intentionally test-only adversarial file manipulation in an isolated temp directory; never perform such renames/unlinks on a live server. Add one class, one Gradle task, focused 536→537 and research note; no runtime, default, client, main or frozen R25 edits.
+
+## Required security design
+
+Cooperating Java FileLocks do not defend against another program able to rename/unlink/replace their stable inode, a manual uncooperative RAW writer, pre-opt-in sessions, filesystem/path alias symlinks or mount remapping, NFS differences, or crash/restart and stale writer epochs. Re-checking `fileKey` after `tryLock` is only a local consistency diagnostic: an adversary can swap it **after** the check. Safe enterprise-grade ownership requires trusted lock directory permissions/object identity and/or a durable authenticated epoch/fenced publication under a policy that explicitly accounts for external writers; this test grants no auto-relink, cleanup, safe relog, ACTIVE marker retirement, recovery, grant or replay authority. Keep #2540/#2559 open.
