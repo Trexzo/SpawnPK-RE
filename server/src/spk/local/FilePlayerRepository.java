@@ -1601,7 +1601,8 @@ final class FilePlayerRepository
                     .requireNonHardlinkedAccount(file);
                 if(LocalOptInRawTemp.forcePostimageEnabled()){
                     LocalOptInRawTemp.forcePublish(
-                        tmp,file,originalRawTemp,sealedRawTemp,raw);
+                        tmp,file,originalRawTemp,sealedRawTemp,raw,
+                        snapshot.username());
                 }else{
                     replaceSnapshotTemp(tmp,file,raw);
                 }
