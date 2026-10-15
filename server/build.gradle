@@ -2420,6 +2420,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21251ForcedRawMailboxReviewFenceVetoTest',
     'spk.local.G21252ForcedRawMailboxPublicationLockSerializationTest',
     'spk.local.G21253ForcedRawForeignJvmMailboxMarkerSerializationTest',
+    'spk.local.G21254ForcedRawHardKillPostMoveNoReceiptTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2448,10 +2449,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 601 ||
-    currentTrainFocusedTests.toSet().size() != 601) {
+if (currentTrainFocusedTests.size() != 602 ||
+    currentTrainFocusedTests.toSet().size() != 602) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 601 unique tests, found " +
+        "Current-train focused manifest drift: expected 602 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9749,4 +9750,12 @@ tasks.register('g21253ForcedRawForeignJvmMarkerSerialization', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21253ForcedRawForeignJvmMailboxMarkerSerializationTest')
+}
+
+tasks.register('g21254ForcedRawHardKillPostMoveNoReceipt', JavaExec) {
+    group = 'verification'
+    description = 'G21.254: real JVM kill after RAW account atomic move but before directory-force result proves no authenticated final-save ACK.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21254ForcedRawHardKillPostMoveNoReceiptTest')
 }
