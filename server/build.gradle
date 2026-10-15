@@ -2147,6 +2147,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1888TerminalStageReturnedSkippedRollupTest',
     'spk.local.G1889TerminalDispatcherCrossWorldInjectionVetoTest',
     'spk.local.G1890TerminalDispatcherWrongWorldDeliveryVetoTest',
+    'spk.local.G1891TerminalEventProducingWorldIdentityTest',
+    'spk.local.G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2410,10 +2412,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 563 ||
-    currentTrainFocusedTests.toSet().size() != 563) {
+if (currentTrainFocusedTests.size() != 565 ||
+    currentTrainFocusedTests.toSet().size() != 565) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 563 unique tests, found " +
+        "Current-train focused manifest drift: expected 565 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9412,4 +9414,20 @@ tasks.register('g1890TerminalDispatcherWrongWorldDeliveryVetoRegression', JavaEx
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1890TerminalDispatcherWrongWorldDeliveryVetoTest')
+}
+tasks.register('g1891TerminalProducingWorldIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Authentic settled World A event must not credit World B even through B-bound dispatcher; proper B event still works.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1891TerminalEventProducingWorldIdentityTest')
+}
+tasks.register('g1892SameWorldRecipientPolicyPreservedRegression', JavaExec) {
+    group = 'verification'
+    description = 'World event provenance must not silently change LocalLab same-World A-spawn/B-terminal name-based reward policy.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest')
 }
