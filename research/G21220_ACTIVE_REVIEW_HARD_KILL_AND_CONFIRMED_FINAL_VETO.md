@@ -1,0 +1,24 @@
+# G21.220 — two real JVMs prove G21.188 ACTIVE intent survives crash and remains negative after healthy final
+
+**Parent:** [G21.219 Draft #2688](https://github.com/Trexzo/SpawnPK-RE/pull/2688) head `96ec8b8f8be51b3b85cc190d1502e39f06b525de` with 537 focused registered, CI pending at composition; last independently green [G21.217 #2681](https://github.com/Trexzo/SpawnPK-RE/pull/2681) has 534 Java11 focused/full Gradle. G21.219 demonstrates that a renamed/replaced `.session.lck` inode can let two different opt-in JVMs each hold a distinct OS lock while believing they own the same account file. G21.220 does not fix that issue. It verifies an existing *separate durable negative admission layer* under real abrupt process death.
+
+## Exact source authority
+
+- `LocalOneShotActiveReviewOnAdmission.forceBeforeWorldRegistration` is a disabled-by-default experimental ONE-SHOT hook requiring G21.189 read-only veto plus both in-JVM and G21.185 OS session owner locks. It invokes `LocalDurableAccountReviewIntentPrimitive.writeActiveReview` on the exact already-locked account path BEFORE World membership. G21.188 allocates a new `.g21188-active-review` leaf with CREATE_NEW + NOFOLLOW, forces file bytes and parent directory metadata, validates regular-file identity, and never exposes a normal retirement or automatic cleanup operation.
+- `LocalReviewIntentAdmissionVeto.requireAdmissible` uses the exact acquired session Token path and G21.188 `requireNoReviewMarker`; **existence**, not trusted content, is a negative. It refuses before hydration and before membership. This is an admission VETO, not a proof of successful final write or positive grant.
+- G21.190 is intentionally *not* suitable for regular healthy login sequences: once the marker is forced, it remains forever until a separately specified and manually authorized protocol exists. No such retirement authority is introduced here.
+
+## Two NEW tests, 537→539
+
+1. `G21220CoreHardKilledActiveReviewRestartVetoTest` starts a genuine child JVM with all experimental locks/veto and G21.190 one-shot opt-in. It acquires the actual named account OS session lock, checks clean admission, writes/forces the exact ACTIVE sidecar BEFORE registering the real WorldPlayer generation, then signals a TEST-ONLY readiness leaf. Parent confirms the marker and that live child OS FileLock blocks a second session. Parent calls `destroyForcibly` (no final save, unregister or token cleanup) and confirms that, although a fresh JVM Token can reacquire the OS session lock after death, G21.189 veto STILL rejects account hydration/registration because the persistent marker survived. Marker remains; no auto repair, restore, replay or retire.
+2. `G21220CoreHealthyFinalOneShotReviewNoRetirementTest` checks the other critical edge: a legitimately registered opt-in World owner with one-shot G21.188 ACTIVE writes a genuine queued captured-owner *healthy completed* file-backed World SaveTicket; unregisters and releases original JVM/OS session Token only after completion. Even then the permanent negative ACTIVE sidecar remains. A subsequent same-JVM new account lock may be reacquired but G21.189 admission MUST refuse it. Never conflate a valid current postimage or released OS lock with automated cleanup/grant rights.
+
+Markers:
+- `G21220_KILLED_JVM_DURABLE_ACTIVE_REVIEW_RESTART_VETO_PASS`
+- `G21220_HEALTHY_FINAL_ONE_SHOT_REVIEW_NOT_RETIRED_PASS`
+
+Exactly two new Java regression classes, two dedicated Gradle tasks, both fixed count guards and manifest **537→539**, research note; **NO PRODUCTION CODE CHANGES**, no flag default changes, no new AUTO-RETIRE, no main/client/frozen R25 changes. Fresh exact-head GitHub Actions Java11 major55/full Gradle **539/539** required before certifying. Keep Draft/unmerged.
+
+## Explicit limits and next engineering gates
+
+This is still only a **permanent negative** one-shot marker. The test does not verify real TCP LocalSession against G21.189 under packet framing, does not produce owner-bound final postimage ACK, does not guarantee all existing writers participate in the exact OS lock, and cannot authenticate which older owner produced the marker against path substitution/hostile filesystem access. It provides NO general reusable account lifecycle or durable epoch and no safe positive relog after either a healthy or failed/crashed session. Any marker cleanup is NOT authorized. An actual production recovery protocol would need end-to-end epoch and original owner generation, transactional intent/confirmed commit ordering, file+directory force, NOFOLLOW bounded reads, crash cutpoints, external/manual writers, and a human-reviewed conflict disposition. Do not modify G21.188 marker semantics, authorize ACTIVE retirement, restore a lost snapshot or grant gameplay settlement/replay merely because this test is green. Keep issues #2540/#2559/#2587 open.
