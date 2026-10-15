@@ -206,6 +206,8 @@ final class LocalOptInRawTemp {
         MailboxAccountPublicationCoordinator
             .withExclusivePublicationBounded(
                 account,publicationWaitMillis(),()->{
+            BasicFileAttributes publicationLockIdentity=
+                observePublicationLock(account);
             MailboxAccountPublicationCoordinator
                 .requireSafeWorldTempAncestry(account,false);
             LocalJvmAccountSessionLease.requireNonHardlinkedAccount(account);
@@ -237,6 +239,8 @@ final class LocalOptInRawTemp {
             raw.requireLockObjectContinuity();
             BeforeAccountMoveProbe moveProbe=beforeMoveProbeForTest;
             if(moveProbe!=null)moveProbe.beforeMove(account);
+            requirePublicationLockName(account,publicationLockIdentity);
+            raw.requireLockObjectContinuity();
             try{
                 Files.move(
                     temp,account,StandardCopyOption.REPLACE_EXISTING,
@@ -259,6 +263,7 @@ final class LocalOptInRawTemp {
                     directory.force(true);
                 }
                 requireSealed(account,identity,sealed);
+                requirePublicationLockName(account,publicationLockIdentity);
                 raw.requireLockObjectContinuity();
             }catch(IOException afterMove){
                 throw new IOException(
@@ -267,6 +272,37 @@ final class LocalOptInRawTemp {
             }
                 return null;
             });
+    }
+
+    /**
+     * G21.257: opt-in RAW observes the G21.39 publication lock's
+     * original leaf identity while holding its cooperating OS lock.
+     * A rename/recreate after that observation must veto account
+     * replacement. This does NOT cryptographically bind FileChannel's
+     * descriptor to the named leaf against a hostile race before the
+     * first observation or after the final check.
+     */
+    static BasicFileAttributes observePublicationLock(Path account)
+        throws IOException{
+        Path lock=MailboxAccountPublicationCoordinator.lockPath(account);
+        BasicFileAttributes identity=Files.readAttributes(
+            lock,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        if(!identity.isRegularFile()||identity.isSymbolicLink()||
+           identity.fileKey()==null)
+            throw new IOException(
+                "G21.257 RAW_PUBLICATION_LOCK_LEAF_UNSAFE");
+        return identity;
+    }
+
+    static void requirePublicationLockName(
+        Path account,BasicFileAttributes original
+    )throws IOException{
+        BasicFileAttributes now=observePublicationLock(account);
+        if(original==null||
+           !Objects.equals(original.fileKey(),now.fileKey())||
+           !Objects.equals(original.creationTime(),now.creationTime()))
+            throw new IOException(
+                "G21.257 RAW_PUBLICATION_LOCK_NAME_CHANGED_NO_MOVE");
     }
 
     static boolean stillOwns(Path temp,BasicFileAttributes original){

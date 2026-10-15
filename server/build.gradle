@@ -2427,6 +2427,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21254ForcedRawHardKillPostMoveNoReceiptTest',
     'spk.local.G21255ForcedRawPublicationLockWaitDeadlineTest',
     'spk.local.G21256ForcedRawForeignJvmPublicationDeadlineTest',
+    'spk.local.G21257ForcedRawPublicationLockNameContinuityTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2455,10 +2456,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 608 ||
-    currentTrainFocusedTests.toSet().size() != 608) {
+if (currentTrainFocusedTests.size() != 609 ||
+    currentTrainFocusedTests.toSet().size() != 609) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 608 unique tests, found " +
+        "Current-train focused manifest drift: expected 609 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9816,4 +9817,12 @@ tasks.register('g21256ForcedRawForeignJvmPublicationDeadline', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21256ForcedRawForeignJvmPublicationDeadlineTest')
+}
+
+tasks.register('g21257ForcedRawPublicationLockNameContinuity', JavaExec) {
+    group = 'verification'
+    description = 'G21.257: opt-in forced RAW refuses publication if G21.39 lock leaf is renamed/recreated during final check.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21257ForcedRawPublicationLockNameContinuityTest')
 }
