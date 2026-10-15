@@ -103,6 +103,8 @@ final class MonsterSpawnerPvmRuntime {
     }
 
     static final class FinalizeResult {
+        // Exact producing World object. Not a durable ID or server epoch.
+        final World sourceWorld;
         final FinalizeStatus status;
         final Snapshot runtime;
         final MonsterSpawnerNpcDeathFinalizationService.Result finalization;
@@ -110,24 +112,30 @@ final class MonsterSpawnerPvmRuntime {
         final RecipientOrigin recipientOrigin;
 
         private FinalizeResult(
+            World sourceWorld,
             FinalizeStatus status,
             Snapshot runtime,
             MonsterSpawnerNpcDeathFinalizationService.Result finalization,
             NpcDropGroundSettlementService.Receipt settlement
         ){
             this(
-                status,runtime,finalization,settlement,
+                sourceWorld,status,runtime,finalization,settlement,
                 runtime==null?null:runtime.recipientOrigin
             );
         }
 
         private FinalizeResult(
+            World sourceWorld,
             FinalizeStatus status,
             Snapshot runtime,
             MonsterSpawnerNpcDeathFinalizationService.Result finalization,
             NpcDropGroundSettlementService.Receipt settlement,
             RecipientOrigin recipientOrigin
         ){
+            this.sourceWorld=Objects.requireNonNull(
+                sourceWorld,
+                "sourceWorld"
+            );
             this.status=Objects.requireNonNull(
                 status,
                 "status"
@@ -428,6 +436,7 @@ final class MonsterSpawnerPvmRuntime {
             if(entry==null||
                entry.npc!=checked)
                 return new FinalizeResult(
+                    world,
                     FinalizeStatus.NOT_OWNED,
                     null,
                     null,
@@ -498,6 +507,7 @@ final class MonsterSpawnerPvmRuntime {
             }
 
             return new FinalizeResult(
+                    world,
                 FinalizeStatus.FINALIZATION_PENDING,
                 entry.snapshot(),
                 null,
@@ -593,6 +603,7 @@ final class MonsterSpawnerPvmRuntime {
 
             if(entry==null)
                 return new FinalizeResult(
+                    world,
                     FinalizeStatus.NOT_OWNED,
                     null,
                     null,
@@ -634,6 +645,7 @@ final class MonsterSpawnerPvmRuntime {
                     return null;
 
                 return new FinalizeResult(
+                    world,
                     FinalizeStatus.NOT_OWNED,
                     null,
                     null,
@@ -687,6 +699,7 @@ final class MonsterSpawnerPvmRuntime {
             }
 
             return new FinalizeResult(
+                    world,
                 FinalizeStatus.SETTLEMENT_PENDING,
                 entry.snapshot(),
                 finalized,
@@ -708,6 +721,7 @@ final class MonsterSpawnerPvmRuntime {
             }
 
             return new FinalizeResult(
+                    world,
                 FinalizeStatus.SETTLEMENT_PENDING,
                 entry.snapshot(),
                 finalized,
@@ -755,6 +769,7 @@ final class MonsterSpawnerPvmRuntime {
 
         FinalizeResult terminal=
             new FinalizeResult(
+                    world,
                 FinalizeStatus.FINALIZED,
                 null,
                 finalized,

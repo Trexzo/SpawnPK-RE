@@ -122,6 +122,13 @@ final class LocalLabTerminalStageIsolation {
         }
     }
 
+    /*
+     * An injected dispatcher must never become a bridge between distinct
+     * Worlds. The production factory creates one per World; the package-
+     * local injection seam used by tests needs the same identity rule.
+     * Identity is not a persistent World ID, replay key or owner epoch.
+     */
+    private World boundWorld;
     private final ArrayDeque<Report> reports=new ArrayDeque<>();
     private final EnumMap<Stage,long[]> stageOutcomes=
         new EnumMap<Stage,long[]>(Stage.class);
@@ -131,6 +138,23 @@ final class LocalLabTerminalStageIsolation {
     LocalLabTerminalStageIsolation(){
         for(Stage stage:Stage.values())
             stageOutcomes.put(stage,new long[3]);
+    }
+
+    synchronized void bindTo(World world){
+        World checked=Objects.requireNonNull(world,"world");
+        if(boundWorld==null){
+            boundWorld=checked;
+            return;
+        }
+        if(boundWorld!=checked)
+            throw new IllegalStateException(
+                "TERMINAL_DIAGNOSTICS_WORLD_MISMATCH");
+    }
+
+    private synchronized void requireBoundWorld(World checked){
+        if(boundWorld!=checked)
+            throw new IllegalStateException(
+                "TERMINAL_DIAGNOSTICS_WORLD_MISMATCH");
     }
 
     synchronized DiagnosticSnapshot diagnosticSnapshot(){
@@ -160,8 +184,18 @@ final class LocalLabTerminalStageIsolation {
         MonsterSpawnerPvmRuntime.FinalizeResult terminal
     ){
         World checked=Objects.requireNonNull(world,"world");
+        // Fail before any callback or diagnostics mutation if a package-
+        // local caller supplies a terminal from the wrong World.
+        requireBoundWorld(checked);
         MonsterSpawnerPvmRuntime.FinalizeResult event=
             Objects.requireNonNull(terminal,"terminal");
+        // Binding the DISPATCHER is not enough: a correctly bound
+        // dispatcher must also reject finalized evidence produced by
+        // another World, even if the usernames and EntityIds coincide.
+        // Preserve the old same-World terminal-time recipient policy.
+        if(event.sourceWorld!=checked)
+            throw new IllegalStateException(
+                "TERMINAL_EVENT_SOURCE_WORLD_MISMATCH");
         if(event.status!=MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED||
            event.finalization==null||event.settlement==null)
             throw new IllegalArgumentException(

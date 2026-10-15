@@ -2145,6 +2145,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1886RealFactoryBoundedOperatorSnapshotTest',
     'spk.local.G1887TerminalStageAllTimeRollupRetentionTest',
     'spk.local.G1888TerminalStageReturnedSkippedRollupTest',
+    'spk.local.G1889TerminalDispatcherCrossWorldInjectionVetoTest',
+    'spk.local.G1890TerminalDispatcherWrongWorldDeliveryVetoTest',
+    'spk.local.G1891TerminalEventProducingWorldIdentityTest',
+    'spk.local.G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2414,10 +2418,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 567 ||
-    currentTrainFocusedTests.toSet().size() != 567) {
+if (currentTrainFocusedTests.size() != 571 ||
+    currentTrainFocusedTests.toSet().size() != 571) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 567 unique tests, found " +
+        "Current-train focused manifest drift: expected 571 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9447,4 +9451,37 @@ tasks.register('g1888TerminalReturnedSkippedRollupRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1888TerminalStageReturnedSkippedRollupTest')
+}
+
+tasks.register('g1889TerminalDispatcherCrossWorldInjectionVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Two actual isolated Worlds prove a shared injected diagnostic dispatcher is rejected before constructing the second runtime.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1889TerminalDispatcherCrossWorldInjectionVetoTest')
+}
+tasks.register('g1890TerminalDispatcherWrongWorldDeliveryVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'A finalized World A NPC cannot be delivered to the World B progression task callback despite the same recipient name.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1890TerminalDispatcherWrongWorldDeliveryVetoTest')
+}
+tasks.register('g1891TerminalProducingWorldIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Authentic settled World A event must not credit World B even through B-bound dispatcher; proper B event still works.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1891TerminalEventProducingWorldIdentityTest')
+}
+tasks.register('g1892SameWorldRecipientPolicyPreservedRegression', JavaExec) {
+    group = 'verification'
+    description = 'World event provenance must not silently change LocalLab same-World A-spawn/B-terminal name-based reward policy.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest')
 }
