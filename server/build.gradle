@@ -2138,6 +2138,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1879OptinG16FaultIsolationPreservesG18Test',
     'spk.local.G1880OptinG15FaultIsolationContinuesG16G18Test',
     'spk.local.G1881OptinTerminalNoLiveRecipientSkipsStagesTest',
+    'spk.local.G1882OptinTerminalReportBoundedHistoryTest',
+    'spk.local.G1883TerminalReportReturnedNotCreditedTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2387,10 +2389,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 540 ||
-    currentTrainFocusedTests.toSet().size() != 540) {
+if (currentTrainFocusedTests.size() != 542 ||
+    currentTrainFocusedTests.toSet().size() != 542) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 540 unique tests, found " +
+        "Current-train focused manifest drift: expected 542 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9201,4 +9203,20 @@ tasks.register('g1881TerminalAbsentRecipientRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1881OptinTerminalNoLiveRecipientSkipsStagesTest')
+}
+tasks.register('g1882BoundedTerminalStageReportRegression', JavaExec) {
+    group = 'verification'
+    description = 'Runs 130 real canonical NPC deaths and proves only 128 latest diagnostic reports retained.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1882OptinTerminalReportBoundedHistoryTest')
+}
+tasks.register('g1883ReturnedNotCreditedTerminalReportRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves returned G15/G16/G18 terminal callback is not an objective credit/ACK.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1883TerminalReportReturnedNotCreditedTest')
 }
