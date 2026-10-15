@@ -2132,6 +2132,12 @@ def currentTrainFocusedTests = [
     'spk.local.G1873G15InvalidPersistenceTerminalConsumerIsolationTest',
     'spk.local.G1874G16InvalidPersistenceTerminalConsumerIsolationTest',
     'spk.local.G1875G16OwnerReplacementNoTerminalBackfillTest',
+    'spk.local.G1876AllConsumerSuccessAndDuplicateTerminalSuppressionTest',
+    'spk.local.G1877G14FailureNoDuplicateRetryAfterOwnerReplacementTest',
+    'spk.local.G1878OptinG14FaultIsolationContinuesLaterConsumersTest',
+    'spk.local.G1879OptinG16FaultIsolationPreservesG18Test',
+    'spk.local.G1880OptinG15FaultIsolationContinuesG16G18Test',
+    'spk.local.G1881OptinTerminalNoLiveRecipientSkipsStagesTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2388,10 +2394,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 541 ||
-    currentTrainFocusedTests.toSet().size() != 541) {
+if (currentTrainFocusedTests.size() != 547 ||
+    currentTrainFocusedTests.toSet().size() != 547) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 541 unique tests, found " +
+        "Current-train focused manifest drift: expected 547 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4739,6 +4745,42 @@ tasks.register('g21222BoundedNoFollowActiveReviewMarkerRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21222CoreBoundedReviewMarkerReadNegativeTest')
+}
+
+tasks.register('g1878TerminalG14StageIsolationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Opt-in G18.7.8-G18.8.1 real installed Monster Spawner stage isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1878OptinG14FaultIsolationContinuesLaterConsumersTest')
+}
+
+tasks.register('g1879TerminalG16StageIsolationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Opt-in G18.7.8-G18.8.1 real installed Monster Spawner stage isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1879OptinG16FaultIsolationPreservesG18Test')
+}
+
+tasks.register('g1880TerminalG15StageIsolationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Opt-in G18.7.8-G18.8.1 real installed Monster Spawner stage isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1880OptinG15FaultIsolationContinuesG16G18Test')
+}
+
+tasks.register('g1881TerminalAbsentRecipientRegression', JavaExec) {
+    group = 'verification'
+    description = 'Opt-in G18.7.8-G18.8.1 real installed Monster Spawner stage isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1881OptinTerminalNoLiveRecipientSkipsStagesTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
