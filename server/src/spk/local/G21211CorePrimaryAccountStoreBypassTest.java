@@ -13,10 +13,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * G21.211 TEST ONLY: AccountStore.save primary opensrc compatibility
- * writer bypasses the G21.210 opt-in named-profile JVM RAW gate while
- * an exact same-file session is still registered and owns its lease.
- * Both opt-in properties remain ON. A PASS proves a remaining gap.
+ * G21.211 TEST ONLY: following G21.212 the DEFAULT-OFF primary
+ * AccountStore.save compatibility path still bypasses a held lease.
+ * The exact parent #2671 preserves the original gate-ON bypass proof.
+ * This test-only flag flip is not permission to toggle in production.
  */
 public final class G21211CorePrimaryAccountStoreBypassTest {
     private static final String USER=AccountStore.CANONICAL_USERNAME;
@@ -128,13 +128,19 @@ public final class G21211CorePrimaryAccountStoreBypassTest {
                     .rawWriteReservationsForTest()==0,
                 "participating RAW denial leaked reservation");
 
-            // Source-exact PRIMARY AccountStore compatibility writer.
-            // Both opt-in JVM properties remain ON throughout this
-            // operation. It is distinct from the named profile writer
-            // corrected by G21.210, so it bypasses the RAW gate.
-            String legacy=AccountStore.save(
-                owner.bank(),owner.equipment(),owner.movement(),
-                owner.petState(),owner.playerState());
+            // Historical G21.211 parent #2671 is the certified
+            // gate-ON PRIMARY bypass evidence. Following G21.212,
+            // default-OFF compatibility must remain demonstrably unsafe.
+            // This explicit flag flip is TEST ONLY, never live practice.
+            System.setProperty(keys[2],"false");
+            String legacy;
+            try{
+                legacy=AccountStore.save(
+                    owner.bank(),owner.equipment(),owner.movement(),
+                    owner.petState(),owner.playerState());
+            }finally{
+                System.setProperty(keys[2],"true");
+            }
             check(legacy!=null&&legacy.contains("ACCOUNT_SAVED"),
                 "primary AccountStore did not write");
             check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
@@ -154,7 +160,7 @@ public final class G21211CorePrimaryAccountStoreBypassTest {
                 " actualWorldSaveFirst=true"+
                 " originalWorldCaptureLeaseChecked=true"+
                 " participatingRepositoryRawDenied=true"+
-                " primaryAccountStoreWriteSucceededWithGateOn=true"+
+                " primaryAccountStoreWriteSucceededWithGateOff=true"+
                 " newerWorldExtensionLostFromDisk=true"+
                 " originalWorldSessionLeaseStillHeld=true"+
                 " defaultOffFlagsUntouched=true"+
