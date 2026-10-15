@@ -2123,6 +2123,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1844DailyMoneyMakingExactOriginCreditTest',
     'spk.local.G1847MonsterSpawnerNameReuseTerminalAttributionTest',
     'spk.local.G1866SlayerCompletedRestoreTemporalProvenanceTest',
+    'spk.local.G1867SlayerCompletedFileRoundtripTemporalTest',
+    'spk.local.G1868SlayerStaleFileCollisionTerminalIsolationTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2360,10 +2362,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 513 ||
-    currentTrainFocusedTests.toSet().size() != 513) {
+if (currentTrainFocusedTests.size() != 515 ||
+    currentTrainFocusedTests.toSet().size() != 515) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 513 unique tests, found " +
+        "Current-train focused manifest drift: expected 515 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
