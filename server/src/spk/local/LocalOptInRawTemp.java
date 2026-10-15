@@ -176,6 +176,12 @@ final class LocalOptInRawTemp {
             .requireSafeWorldTempAncestry(account,false);
         LocalJvmAccountSessionLease.requireNonHardlinkedAccount(account);
         raw.requireLockObjectContinuity();
+        // G21.250: the stricter forced RAW mode must never claim a
+        // confirmed normal postimage over an account already marked
+        // ACTIVE for manual review. Legacy/default RAW stays unchanged.
+        LocalDurableAccountReviewIntentPrimitive
+            .requireNoReviewMarker(account);
+        raw.requireLockObjectContinuity();
         try{
             Files.move(
                 temp,account,StandardCopyOption.REPLACE_EXISTING,
