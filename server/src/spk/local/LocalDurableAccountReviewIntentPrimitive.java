@@ -27,6 +27,13 @@ import java.util.UUID;
 final class LocalDurableAccountReviewIntentPrimitive {
     private static final String MAGIC="G21188_ACTIVE_REVIEW_V1";
     private static final int MAX_REVIEW_MARKER_BYTES=4096;
+    // Test-only deterministic race injection; never configured by
+    // production code and never used to grant owner authority.
+    private static volatile Runnable afterMarkerReadForTest;
+    static void setAfterMarkerReadForTest(Runnable callback){
+        afterMarkerReadForTest=callback;
+    }
+
 
     private LocalDurableAccountReviewIntentPrimitive(){}
 
@@ -149,6 +156,12 @@ final class LocalDurableAccountReviewIntentPrimitive {
         if(bounded.position()>MAX_REVIEW_MARKER_BYTES)
             throw new IOException(
                 "G21.222 REVIEW_MARKER_OVERSIZE_NEGATIVE_NO_CLEAR");
+        // G21.224: an in-place mutation can retain the SAME inode
+        // even as its contents/length change while being inspected.
+        // This read-only diagnostic must not report that snapshot as
+        // a stable well-formed marker. This is NOT an integrity MAC.
+        Runnable raceHook=afterMarkerReadForTest;
+        if(raceHook!=null)raceHook.run();
         BasicFileAttributes after=Files.readAttributes(
             marker,BasicFileAttributes.class,
             LinkOption.NOFOLLOW_LINKS);
@@ -157,6 +170,11 @@ final class LocalDurableAccountReviewIntentPrimitive {
            !initial.fileKey().equals(after.fileKey()))
             throw new IOException(
                 "G21.222 REVIEW_MARKER_FILE_IDENTITY_DIVERGED");
+        if(after.size()!=initial.size()||
+           after.size()!=bounded.position()||
+           !initial.lastModifiedTime().equals(after.lastModifiedTime()))
+            throw new IOException(
+                "G21.224 REVIEW_MARKER_MUTATED_DURING_READ_NEGATIVE");
 
         bounded.flip();
         final String text;
