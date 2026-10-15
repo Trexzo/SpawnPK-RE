@@ -424,24 +424,10 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
-        if(before.dead()){
-            retryDeadFinalization(
-                target
-            );
-
-            return result(
-                Status.TARGET_DEAD,
-                clicked,
-                canonicalId,
-                -1,
-                -1,
-                0,
-                before.hitpoints,
-                before.maxHitpoints,
-                false
-            );
-        }
-
+        // Exact session admission must precede the dead-NPC retry too.
+        // A stale handler has no authority to trigger settlement retries
+        // or observer callbacks via a previously finalized target.
+        // This is an entry-time guard, not an atomic logout fence.
         long generation=
             generationSupplier.getAsLong();
 
@@ -460,6 +446,24 @@ final class LocalCanonicalNpcAttackHandler {
                 before.maxHitpoints,
                 false
             );
+
+        if(before.dead()){
+            retryDeadFinalization(
+                target
+            );
+
+            return result(
+                Status.TARGET_DEAD,
+                clicked,
+                canonicalId,
+                -1,
+                -1,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }
 
         int playerX;
         int playerY;
