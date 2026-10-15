@@ -170,12 +170,39 @@ final class LocalDurableAccountReviewIntentPrimitive {
                 "G21.222 REVIEW_MARKER_MALFORMED_UTF8_NEGATIVE",
                 invalid);
         }
-        // Format evidence is NEGATIVE ONLY: recognizing this header
-        // never means cleanup, restart, recovery or a grant is safe.
+        // G21.223: format evidence remains NEGATIVE ONLY, but exact
+        // parsing also prevents misleading cross-account/duplicated
+        // marker fields from being misrepresented as an authenticated
+        // marker belonging to the requested account. A valid marker
+        // NEVER authorizes retirement or positive admission.
         if(!text.startsWith(MAGIC+"\n")||
            !text.contains("state=ACTIVE_NEEDS_MANUAL_REVIEW\n"))
             throw new IOException(
                 "G21.188 REVIEW_MARKER_INVALID_NO_AUTO_CLEAR");
+        final String[] fields=text.split("\\n",-1);
+        final String expectedFingerprint=
+            pathFingerprint(accountFile.toAbsolutePath().normalize());
+        boolean valid=fields.length==5&&
+            fields[4].isEmpty()&&
+            MAGIC.equals(fields[0])&&
+            ("accountSha256="+expectedFingerprint).equals(fields[1])&&
+            "state=ACTIVE_NEEDS_MANUAL_REVIEW".equals(fields[3]);
+        if(!valid)
+            throw new IOException(
+                "G21.223 REVIEW_MARKER_CANONICAL_FIELDS_REQUIRED");
+        String id=fields[2];
+        if(!id.startsWith("untrustedSessionNonce="))
+            throw new IOException(
+                "G21.223 REVIEW_MARKER_NONCE_FIELD_MISSING");
+        String nonce=id.substring("untrustedSessionNonce=".length());
+        try{
+            UUID parsed=UUID.fromString(nonce);
+            if(!nonce.equals(parsed.toString()))
+                throw new IllegalArgumentException("noncanonical UUID");
+        }catch(IllegalArgumentException invalid){
+            throw new IOException(
+                "G21.223 REVIEW_MARKER_NONCANONICAL_NONCE",invalid);
+        }
     }
 
     private static String pathFingerprint(Path path)throws IOException{
