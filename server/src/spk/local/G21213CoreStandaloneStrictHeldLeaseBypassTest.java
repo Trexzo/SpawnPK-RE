@@ -13,10 +13,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * G21.213 TEST ONLY: a standalone non-World strict file writer
- * saveStrict() can replace a newer World postimage while a real
- * opt-in same-path JVM session lease remains bound and held.
- * Both opt-in JVM flags remain ON: a PASS documents a gap.
+ * G21.213 after G21.214: default-OFF compatibility negative.
+ * Parent #2674 retains the historical gate-ON standalone strict
+ * bypass evidence. This explicitly test-only flag flip is not safe
+ * for a live session.
  */
 public final class G21213CoreStandaloneStrictHeldLeaseBypassTest {
     private static final String USER=AccountStore.CANONICAL_USERNAME;
@@ -138,11 +138,19 @@ public final class G21213CoreStandaloneStrictHeldLeaseBypassTest {
             StrictDurablePlayerSnapshotWriter strict=
                 new StrictDurablePlayerSnapshotWriter(
                     LocalAccountProfiles::accountFile);
-            StrictDurablePlayerSnapshotWriter.Receipt receipt=
-                strict.saveStrict(rawAttempt.get());
+            // G21.213 on parent #2674 retains the exact gate-ON
+            // strict bypass evidence; with G21.214 this descendant
+            // preserves only test-only default-OFF compatibility.
+            System.setProperty(keys[2],"false");
+            StrictDurablePlayerSnapshotWriter.Receipt receipt;
+            try{
+                receipt=strict.saveStrict(rawAttempt.get());
+            }finally{
+                System.setProperty(keys[2],"true");
+            }
             check(receipt!=null&&
                     receipt.matchesSnapshot(rawAttempt.get()),
-                "standalone STRICT did not return matching receipt");
+                "standalone STRICT default-OFF receipt missing");
             check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
                 "strict file writer did not replace account postimage");
             check("OLDER_STRICT_CAPTURE".equals(onDisk(repository)),
@@ -160,11 +168,11 @@ public final class G21213CoreStandaloneStrictHeldLeaseBypassTest {
                 " actualWorldSaveFirst=true"+
                 " originalWorldCaptureLeaseChecked=true"+
                 " participatingRepositoryRawDenied=true"+
-                " standaloneStrictWriteSucceededWithGateOn=true"+
+                " standaloneStrictWriteSucceededWithGateOff=true"+
                 " newerWorldExtensionLostFromDisk=true"+
                 " originalWorldSessionLeaseStillHeld=true"+
                 " defaultOffFlagsUntouched=true"+
-                " standaloneStrictNotGated=true"+
+                " standaloneStrictOptOutStillUnsafe=true"+
                 " globalWriterExclusion=false"+
                 " authenticatedDurableEpoch=false"+
                 " crossJvmOrCrashRecovery=false"+
