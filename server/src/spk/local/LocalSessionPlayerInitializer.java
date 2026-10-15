@@ -276,6 +276,19 @@ final class LocalSessionPlayerInitializer {
         if(sessionLease!=null)
             sessionLease.bindAdmittedWorldOwner(
                 worldPlayer,generation);
+        else if(persistentAccount){
+            // G21.201 late-enable compatibility: record that THIS
+            // actual World membership predates any optional account
+            // lease. A later opt-in owner is not its retroactive token.
+            // This deliberately retains the G21.184 unsafe legacy
+            // overlapping-save behavior rather than disguising it.
+            java.nio.file.Path file=
+                persistence.fileBackedAccountPathForJvmSessionLease(
+                    username);
+            if(file!=null)
+                LocalJvmAccountSessionLease.noteUnleasedWorldAdmission(
+                    file,username,worldPlayer,generation);
+        }
 
         System.out.println(
             tag+"V512_WORLD_REGISTER playerId="+
