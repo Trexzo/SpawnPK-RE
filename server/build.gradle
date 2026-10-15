@@ -2143,6 +2143,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1884TerminalStageIsolationPropertySnapshotTest',
     'spk.local.G1885RealRuntimeReadOnlyTerminalDiagnosticsTest',
     'spk.local.G1886RealFactoryBoundedOperatorSnapshotTest',
+    'spk.local.G1887TerminalStageAllTimeRollupRetentionTest',
+    'spk.local.G1888TerminalStageReturnedSkippedRollupTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2405,10 +2407,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 558 ||
-    currentTrainFocusedTests.toSet().size() != 558) {
+if (currentTrainFocusedTests.size() != 560 ||
+    currentTrainFocusedTests.toSet().size() != 560) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 558 unique tests, found " +
+        "Current-train focused manifest drift: expected 560 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9365,4 +9367,21 @@ tasks.register('g1886BoundedReadOnlyInstalledTerminalDiagnosticsRegression', Jav
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1886RealFactoryBoundedOperatorSnapshotTest')
+}
+
+tasks.register('g1887TerminalAllTimeStageRollupRegression', JavaExec) {
+    group = 'verification'
+    description = '130 genuine NPC death records prove all-time stage outcome rollups survive eviction of oldest report details.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1887TerminalStageAllTimeRollupRetentionTest')
+}
+tasks.register('g1888TerminalReturnedSkippedRollupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Two genuine NPC deaths distinguish returned current-owner stages from skipped departed-owner stages.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1888TerminalStageReturnedSkippedRollupTest')
 }
