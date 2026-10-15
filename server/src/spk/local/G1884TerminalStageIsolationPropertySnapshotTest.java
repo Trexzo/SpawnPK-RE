@@ -77,7 +77,7 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
             LocalLabDailyMoneyMakingRuntime.ActivationResult dmm=
                 g18.activateEasyIfCurrent(USER,player,generation);
             check(dmm!=null&&dmm.activatedNow&&
-                    dmm.snapshot(USER).objective.progress==0L,
+                    g18.snapshot(USER).objective.progress==0L,
                 "genuine G18 active objective before terminal");
 
             // Keep G14 unhydrated before injecting invalid TEST-ONLY
