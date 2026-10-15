@@ -162,6 +162,33 @@ final class LocalDurableAccountReviewIntentPrimitive {
         // a stable well-formed marker. This is NOT an integrity MAC.
         Runnable raceHook=afterMarkerReadForTest;
         if(raceHook!=null)raceHook.run();
+        // G21.225: metadata alone is not content integrity. A writer
+        // can rewrite the SAME inode and restore its recorded mtime.
+        // Read the bounded content AGAIN through NOFOLLOW and require
+        // byte-for-byte equality with the first read. This narrows a
+        // diagnostic race; it is not an authenticated durable receipt.
+        java.nio.ByteBuffer verification=java.nio.ByteBuffer.allocate(
+            MAX_REVIEW_MARKER_BYTES+1);
+        try(FileChannel input=FileChannel.open(
+                marker,StandardOpenOption.READ,
+                LinkOption.NOFOLLOW_LINKS)){
+            while(verification.hasRemaining()){
+                int count=input.read(verification);
+                if(count<0)break;
+                if(count==0)
+                    throw new IOException(
+                        "G21.225 REVIEW_MARKER_SECOND_READ_NO_PROGRESS");
+            }
+        }
+        if(verification.position()!=bounded.position())
+            throw new IOException(
+                "G21.225 REVIEW_MARKER_CONTENT_DRIFT_NEGATIVE");
+        for(int i=0;i<bounded.position();i++){
+            if(verification.get(i)!=bounded.get(i))
+                throw new IOException(
+                    "G21.225 REVIEW_MARKER_CONTENT_DRIFT_NEGATIVE");
+        }
+
         BasicFileAttributes after=Files.readAttributes(
             marker,BasicFileAttributes.class,
             LinkOption.NOFOLLOW_LINKS);
