@@ -1412,6 +1412,10 @@ final class FilePlayerRepository
         };
 
         if(enforceWorldAdmission){
+            // G21.232: once an existing admitted World owner has
+            // acquired new hardlink aliases, deny additional World
+            // postimages BEFORE allocating another temp.
+            LocalJvmAccountSessionLease.requireNonHardlinkedAccount(file);
             // G21.171: do not even inspect sidecar paths through an
             // unsafe ancestor. Some providers raise NotDirectoryException
             // on marker reads before the old pre-temp check. Fail with
@@ -1526,6 +1530,12 @@ final class FilePlayerRepository
                         if(!sealedWorldTemp.equals(latest))
                             throw new IOException(
                                 "G21.172 WORLD_TEMP_BYTES_CHANGED_UNSAFE_NO_AUTHORITY");
+                        // Opt-in second NOFOLLOW link-count check at
+                        // the closest existing World publication point.
+                        // This is NOT a durable atomic inode fencing
+                        // contract against nonparticipating writers.
+                        LocalJvmAccountSessionLease
+                            .requireNonHardlinkedAccount(file);
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);
                         if(forceRealWorldPostimage){
