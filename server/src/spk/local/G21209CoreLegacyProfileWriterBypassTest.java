@@ -13,11 +13,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * G21.209 TEST ONLY: legacy LocalAccountProfiles.save bypasses the
- * G21.208 cooperating FilePlayerRepository RAW gate on the exact same
- * named account path while a valid opt-in World session lease is held.
- *
- * A PASS is a writer-completeness gap, not a protective security fix.
+ * G21.209 TEST ONLY: after G21.210, the default-OFF/explicit opt-out
+ * LocalAccountProfiles.save path still bypasses a held JVM session lease.
+ * G21.209 parent #2666 proves the earlier gate-ON compatibility gap.
+ * A PASS characterizes unsafe legacy opt-out, not a recovery fix.
  */
 public final class G21209CoreLegacyProfileWriterBypassTest {
     private static final String USER="g21209-profile-bypass";
@@ -130,12 +129,21 @@ public final class G21209CoreLegacyProfileWriterBypassTest {
                 "participating RAW denial leaked reservation");
 
             // Source-exact legacy compatibility adapter, intentionally
-            // invoked off World here as test-only forensic writer.
-            // It persists only SchemaV1 core state through fixed .tmp,
-            // bypassing G21.208 and dropping the World extension.
-            String legacy=LocalAccountProfiles.save(
-                USER,owner.bank(),owner.equipment(),
-                owner.movement(),owner.petState(),owner.playerState());
+            // invoked off World as a test-only forensic writer.
+            // With the new gate explicitly OFF, it still writes
+            // SchemaV1 core state and drops the World extension.
+            // After G21.210, the historical opt-out is deliberately
+            // preserved as default-OFF compatibility. G21.209's prior
+            // certified parent demonstrates the pre-fix ON bypass.
+            System.setProperty(keys[2],"false");
+            String legacy;
+            try{
+                legacy=LocalAccountProfiles.save(
+                    USER,owner.bank(),owner.equipment(),
+                    owner.movement(),owner.petState(),owner.playerState());
+            }finally{
+                System.setProperty(keys[2],"true");
+            }
             check(legacy!=null&&legacy.contains("ACCOUNT_SAVED"),
                 "legacy profile adapter did not write");
             check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
@@ -155,11 +163,11 @@ public final class G21209CoreLegacyProfileWriterBypassTest {
                 " actualWorldSaveFirst=true"+
                 " originalWorldCaptureLeaseChecked=true"+
                 " participatingRepositoryRawDenied=true"+
-                " legacyProfileWriteSucceeded=true"+
+                " legacyProfileWriteSucceededWithGateOff=true"+
                 " newerWorldExtensionLostFromDisk=true"+
                 " originalWorldSessionLeaseStillHeld=true"+
                 " defaultOffFlagsUntouched=true"+
-                " profileAdapterCoveredByG21208=false"+
+                " legacyOptOutCompatibilityStillUnsafe=true"+
                 " globalWriterExclusion=false"+
                 " authenticatedDurableEpoch=false"+
                 " crossJvmOrCrashRecovery=false"+
