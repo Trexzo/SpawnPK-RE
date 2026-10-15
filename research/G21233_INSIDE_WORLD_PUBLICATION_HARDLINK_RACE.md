@@ -1,0 +1,7 @@
+# G21.233 — in-publication hardlink race verifies second World veto
+
+On G21.232 [Draft #2713](https://github.com/Trexzo/SpawnPK-RE/pull/2713), `FilePlayerRepository.saveForWorld` checks G21.230 NOFOLLOW hardlink count both before creating a World-owned temp and just before atomic replace in its G21.39 publication callback. This deterministic test uses the existing **test-only** `insideWorldPublication` hook to insert a genuine hardlink *after* pre-temp verification but *before* that second check. Both opt-in hardlink-count and JVM/OS session guards remain ON.
+
+A registered WorldPlayer first persists an actual baseline; the next World-owned save captures a different snapshot, enters the publication callback, and the test hook hardlinks the prior account inode to another pathname. The final NOFOLLOW nlink check must reject that queued SaveTicket exceptionally, preserve both hardlinked account paths as the baseline (one inode), and retain original World token. A PASS proves the value of the second observation under this deterministic race; it does NOT make the subsequent check and Files.move globally atomic with arbitrary uncooperative writers. No producer reward, recovery/grant, ACTIVE marker retirement or original SpawnPK protocol claim.
+
+One test-only Java class, one manifest entry/dedicated task 564→565 and this note, **zero production Java**. Hosted exact-head Java11 major55, 565/565 focus/full Gradle required, Draft/unmerged.
