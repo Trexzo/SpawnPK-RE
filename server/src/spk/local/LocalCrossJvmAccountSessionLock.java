@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Objects;
 
 /**
  * G21.185 EXPERIMENTAL cooperating-process session exclusion.
@@ -21,6 +23,12 @@ import java.nio.file.StandardOpenOption;
 final class LocalCrossJvmAccountSessionLock {
     static final String PROPERTY=
         "spk.local.experimentalCrossJvmAccountSessionLock";
+    // G21.221 default-OFF advisory ONLY: check that the stable lock
+    // NAME still resolves to the originally observed filesystem object
+    // at a later owner check. This cannot close the external swap race.
+    static final String CONTINUITY_PROPERTY=
+        "spk.local.experimentalSessionLockObjectContinuity";
+
 
     private LocalCrossJvmAccountSessionLock(){}
 
@@ -28,12 +36,39 @@ final class LocalCrossJvmAccountSessionLock {
         private final Path file;
         private final FileChannel channel;
         private final FileLock lock;
+        private final boolean continuityEnabled;
+        private final Object observedFileKey;
         private boolean closed;
 
-        private Handle(Path file,FileChannel channel,FileLock lock){
+        private Handle(
+            Path file,FileChannel channel,FileLock lock,
+            boolean continuityEnabled,Object observedFileKey
+        ){
             this.file=file;
             this.channel=channel;
             this.lock=lock;
+            this.continuityEnabled=continuityEnabled;
+            this.observedFileKey=observedFileKey;
+        }
+
+        void requireOriginalLockNameStillPresent()throws IOException{
+            if(!continuityEnabled)return;
+            final BasicFileAttributes attrs;
+            try{
+                attrs=Files.readAttributes(
+                    file,BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            }catch(IOException missing){
+                throw new IOException(
+                    "G21.221 SESSION_LOCK_FILE_OBJECT_CHANGED"+
+                    " originalNameMissing=true",missing);
+            }
+            if(!attrs.isRegularFile()||attrs.isSymbolicLink()||
+               attrs.fileKey()==null||
+               !observedFileKey.equals(attrs.fileKey()))
+                throw new IOException(
+                    "G21.221 SESSION_LOCK_FILE_OBJECT_CHANGED"+
+                    " observedOriginalKeyMismatch=true");
         }
 
         @Override public synchronized void close()throws IOException{
@@ -51,6 +86,10 @@ final class LocalCrossJvmAccountSessionLock {
     static Handle acquire(Path accountFile)throws IOException{
         if(accountFile==null)
             throw new NullPointerException("accountFile");
+        if(Boolean.getBoolean(CONTINUITY_PROPERTY)&&
+           !Boolean.getBoolean(PROPERTY))
+            throw new IOException(
+                "G21.221 CONTINUITY_REQUIRES_CROSS_JVM_LOCK");
         Path canonical=accountFile.toAbsolutePath().normalize();
         Path parent=canonical.getParent();
         if(parent==null)
@@ -87,7 +126,22 @@ final class LocalCrossJvmAccountSessionLock {
             if(lock==null)
                 throw new IOException(
                     "G21.185 ACCOUNT_SESSION_LOCK_BUSY");
-            Handle handle=new Handle(lockPath,channel,lock);
+            boolean continuity=Boolean.getBoolean(
+                CONTINUITY_PROPERTY);
+            Object key=null;
+            if(continuity){
+                BasicFileAttributes attrs=Files.readAttributes(
+                    lockPath,BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+                if(!attrs.isRegularFile()||attrs.isSymbolicLink()||
+                   attrs.fileKey()==null)
+                    throw new IOException(
+                        "G21.221 INITIAL_LOCK_FILE_IDENTITY_UNSAFE");
+                key=attrs.fileKey();
+            }
+            Handle handle=new Handle(
+                lockPath,channel,lock,continuity,key);
+            handle.requireOriginalLockNameStillPresent();
             transferred=true;
             return handle;
         }finally{
