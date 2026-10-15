@@ -1,0 +1,7 @@
+# G21.231 — hardlink added AFTER account session admission divides later World postimages
+
+Parent G21.230 [Draft #2711](https://github.com/Trexzo/SpawnPK-RE/pull/2711) is an optional **admission-time** NOFOLLOW nlink==1 gate, not continuous file identity fencing. This deterministic test holds a real registered WorldPlayer and original JVM+OS lease with that feature ON. It first publishes an actual earlier World snapshot through the queued save worker. Another hardlink is created to that existing account file *after* admission. The original owner then publishes a different snapshot via real queued World save; this replaces its account pathname with a new inode while the alias still refers to the old inode, splitting account postimages. A PASS demonstrates that the admission-only hardlink check is not a World-commit guard.
+
+This is a TEST-ONLY direct hardlink operation in a sandbox isolated World, **not** evidence arbitrary TCP clients can create filesystem hardlinks. It does not claim failed final save, crash-safety, duplicate grant or real SpawnPK server policy. No production code; focused manifest 562→563, test class and note. Require hosted exact-head Java11 major55/full Gradle, 563/563 focus. G21.232 may then introduce an independent opt-in prepublication veto, explicitly still subject to TOCTOU/uncooperative writers and lacking durable epoch.
+
+Do not merge without complete source review or retire ACTIVE review markers. Keep durability #2540, account #2559 open.
