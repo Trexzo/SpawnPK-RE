@@ -2328,6 +2328,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21200CoreJvmLeaseWorldGenerationBindingTest',
     'spk.local.G21201CoreWorkerSaveOwnerBindingTest',
     'spk.local.G21202CoreSaveCaptureOriginalLeaseWitnessTest',
+    'spk.local.G21203CoreAutosaveCheckpointOriginalLeaseTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2356,10 +2357,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 509 ||
-    currentTrainFocusedTests.toSet().size() != 509) {
+if (currentTrainFocusedTests.size() != 510 ||
+    currentTrainFocusedTests.toSet().size() != 510) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 509 unique tests, found " +
+        "Current-train focused manifest drift: expected 510 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4531,6 +4532,14 @@ tasks.register('g21202CoreSaveCaptureOriginalLeaseWitnessRegression', JavaExec) 
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21202CoreSaveCaptureOriginalLeaseWitnessTest')
+}
+
+tasks.register('g21203CoreAutosaveCheckpointOriginalLeaseRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.203: real TCP World AUTOSAVE checkpoint pins original in-JVM lease at capture; healthy forced final save remains intact.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21203CoreAutosaveCheckpointOriginalLeaseTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
