@@ -2402,6 +2402,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21239CoreWorldCommitLockContinuityVetoTest',
     'spk.local.G21240FourRawWriterCrossJvmParticipationMatrixTest',
     'spk.local.G21241CoreRawOsLockLeafSwapAdmitsForeignSessionTest',
+    'spk.local.G21242CrossJvmRawWriterAfterReleasedSessionMatrixTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2430,10 +2431,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 583 ||
-    currentTrainFocusedTests.toSet().size() != 583) {
+if (currentTrainFocusedTests.size() != 584 ||
+    currentTrainFocusedTests.toSet().size() != 584) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 583 unique tests, found " +
+        "Current-train focused manifest drift: expected 584 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4987,6 +4988,14 @@ tasks.register('g1896DmmNewWorldLifetimeCharacterization', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1896DailyMoneyMakingNewWorldLifetimeCharacterizationTest')
+}
+
+tasks.register('g21242PostSessionAllRawWriterCrossJvmPositiveRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.242: four cooperating RAW writer routes succeed from real child JVM after TEST-ONLY original owner OS session release.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21242CrossJvmRawWriterAfterReleasedSessionMatrixTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
