@@ -49,6 +49,7 @@ final class WorldPlayerPersistence
         final String tag;
         final String reason;
         final boolean finalDisconnect;
+        final LocalJvmAccountSessionLease.SaveCaptureWitness ownerWitness;
         private boolean submitted;
 
         CapturedSave(
@@ -58,7 +59,8 @@ final class WorldPlayerPersistence
             int petAccessoryItem,
             String tag,
             String reason,
-            boolean finalDisconnect
+            boolean finalDisconnect,
+            LocalJvmAccountSessionLease.SaveCaptureWitness ownerWitness
         ){
             this.ticket=ticket;
             this.owner=owner;
@@ -67,6 +69,7 @@ final class WorldPlayerPersistence
             this.tag=tag;
             this.reason=reason;
             this.finalDisconnect=finalDisconnect;
+            this.ownerWitness=ownerWitness;
         }
 
         synchronized void markSubmitted(){
@@ -527,6 +530,23 @@ final class WorldPlayerPersistence
         return captured.ticket;
     }
 
+    /**
+     * G21.202: immutable in-JVM provenance captured with the World-owned
+     * snapshot, BEFORE any asynchronous FIFO worker can observe a later
+     * account-path lease. Non-file repositories never enter this protocol.
+     */
+    private LocalJvmAccountSessionLease.SaveCaptureWitness
+        captureOwnerLeaseWitness(
+            String username,WorldPlayer player,long generation
+        ){
+        if(!(repository instanceof FilePlayerRepository))
+            return null;
+        java.nio.file.Path file=
+            ((FilePlayerRepository)repository).accountFilePath(username);
+        return LocalJvmAccountSessionLease.captureSaveWitness(
+            file,username,player,generation);
+    }
+
     CapturedSave captureDeferredSave(
         String username,
         WorldPlayer player,
@@ -603,7 +623,8 @@ final class WorldPlayerPersistence
             petAccessoryItem,
             cleanTag(tag),
             cleanReason(reason),
-            false
+            false,
+            captureOwnerLeaseWitness(username,player,expectedGeneration)
         );
     }
 
@@ -717,7 +738,8 @@ final class WorldPlayerPersistence
             petAccessoryItem,
             cleanTag(tag),
             cleanReason(reason),
-            true
+            true,
+            captureOwnerLeaseWitness(username,player,expectedGeneration)
         );
     }
 
@@ -4154,6 +4176,8 @@ final class WorldPlayerPersistence
         private final WorldPlayer owner;
         private final long expectedGeneration;
         private final boolean finalDisconnect;
+        private final LocalJvmAccountSessionLease.SaveCaptureWitness
+            ownerWitness;
         private final long saveSequence;
         private final PlayerSnapshot snapshot;
         private final int petAccessoryItem;
@@ -4175,6 +4199,7 @@ final class WorldPlayerPersistence
                 checked.expectedGeneration;
             this.finalDisconnect=
                 checked.finalDisconnect;
+            this.ownerWitness=checked.ownerWitness;
             this.saveSequence=
                 checked.ticket.sequence;
             this.snapshot=
@@ -4370,7 +4395,8 @@ final class WorldPlayerPersistence
                 // narrow experiment. No durable owner receipt/retirement.
                 if(capturedSave!=null&&capturedSave.owner!=null)
                     LocalJvmAccountSessionLease
-                        .requireCapturedSaveOwnerIfLeased(
+                        .requireCapturedWitnessBeforeWrite(
+                            capturedSave.ownerWitness,
                             files.accountFilePath(snapshot.username()),
                             snapshot.username(),
                             capturedSave.owner,
