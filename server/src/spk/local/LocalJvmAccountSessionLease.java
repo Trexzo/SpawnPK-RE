@@ -19,6 +19,65 @@ import java.util.Objects;
 final class LocalJvmAccountSessionLease {
     static final String PROPERTY=
         "spk.local.experimentalJvmAccountSessionLease";
+    static final String RAW_WRITE_GATE_PROPERTY=
+        "spk.local.experimentalRawWriteJvmLeaseGate";
+
+    // G21.208: cooperating, in-JVM RAW repository.save() reservations.
+    // Only the opt-in FilePlayerRepository direct writer participates.
+    // A reservation blocks a new opt-in lease until the RAW write
+    // finishes, and an existing lease denies a new RAW reservation.
+    // No durable/cross-JVM protection or bypass-writer claims.
+    private static final Map<Path,Integer> rawWriters=new HashMap<>();
+
+    static final class RawWriteReservation implements AutoCloseable {
+        private final Path path;
+        private boolean closed;
+        private RawWriteReservation(Path path){ this.path=path; }
+        @Override public void close(){
+            synchronized(active){
+                if(closed)return;
+                Integer count=rawWriters.get(path);
+                if(count==null||count<=0)
+                    throw new IllegalStateException(
+                        "G21.208 RAW_RESERVATION_ACCOUNTING_INVALID");
+                if(count==1)rawWriters.remove(path);
+                else rawWriters.put(path,count-1);
+                closed=true;
+            }
+        }
+    }
+
+    /**
+     * Claim before any RAW temp creation; release only after its entire
+     * saveInternal operation has returned or failed. Existing active
+     * exact-path opt-in leases fail closed. Flag OFF preserves legacy RAW.
+     * This is not a lock on arbitrary file writers or independent JVMs.
+     */
+    static RawWriteReservation reserveRawWrite(
+        Path exactAccountPath,String account
+    )throws java.io.IOException{
+        Objects.requireNonNull(exactAccountPath,"exactAccountPath");
+        if(!Boolean.getBoolean(RAW_WRITE_GATE_PROPERTY))return null;
+        Path file=exactAccountPath.toAbsolutePath().normalize();
+        synchronized(active){
+            if(active.containsKey(file))
+                throw new java.io.IOException(
+                    "G21.208 RAW_WRITE_DENIED_ACTIVE_JVM_LEASE"+
+                    " account="+account);
+            Integer prior=rawWriters.get(file);
+            rawWriters.put(file,prior==null?1:prior+1);
+            return new RawWriteReservation(file);
+        }
+    }
+
+    static int rawWriteReservationsForTest(){
+        synchronized(active){
+            int sum=0;
+            for(Integer count:rawWriters.values())sum+=count;
+            return sum;
+        }
+    }
+
 
     private static final Map<Path,Token> active=new HashMap<>();
     // G21.201 CI correction: an old session admitted while the opt-in
@@ -205,6 +264,10 @@ final class LocalJvmAccountSessionLease {
         if(file==null)return null;
         Path key=file.toAbsolutePath().normalize();
         synchronized(active){
+            if(optIn&&rawWriters.containsKey(key))
+                throw new IllegalStateException(
+                    "G21.208 JVM_LEASE_DENIED_RAW_WRITE_IN_FLIGHT"+
+                    " account="+username);
             if(active.containsKey(key))
                 throw new IllegalStateException(
                     "G21.181 JVM_ACCOUNT_SESSION_OWNED_NO_RECOVERY"+
