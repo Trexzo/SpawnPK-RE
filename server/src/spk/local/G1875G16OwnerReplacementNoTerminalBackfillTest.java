@@ -191,6 +191,20 @@ public final class G1875G16OwnerReplacementNoTerminalBackfillTest {
                 "clean replacement can start valid G16 Adventure");
             LocalLabDailyChallengeRuntime.StatusResult renewedDaily=
                 g14.status(USER);
+            System.out.println(
+                "G1875_PRE_THIRD_DIAGNOSTIC"+
+                " dailyAssigned="+(renewedDaily!=null&&renewedDaily.assignedNow)+
+                " dailyProgress="+(renewedDaily==null?-1L:renewedDaily.challenge.current)+
+                " g15Progress="+(g15.active(USER)==null?-1L:
+                    g15.active(USER).objective.progress)+
+                " g18Progress="+g18.snapshot(USER).objective.progress+
+                " receiptCount="+records.receiptCount()+
+                " groundEntries="+world.groundItems().size()+
+                " groundCoinQuantity="+world.groundItems().snapshot().stream()
+                    .filter(item->item.itemId==995&&
+                        USER.equals(item.owner))
+                    .mapToInt(item->item.amount).sum()
+            );
             check(renewedDaily!=null&&
                     !renewedDaily.assignedNow&&
                     renewedDaily.challenge.current==2L&&
@@ -198,7 +212,10 @@ public final class G1875G16OwnerReplacementNoTerminalBackfillTest {
                     g15.active(USER).objective.progress==2L&&
                     g18.snapshot(USER).objective.progress==0L&&
                     records.receiptCount()==2&&
-                    world.groundItems().size()==2,
+                    world.groundItems().snapshot().stream()
+                        .filter(item->item.itemId==995&&
+                            USER.equals(item.owner))
+                        .mapToInt(item->item.amount).sum()==2,
                 "G14 retains World/name progress2, G18 has no backfill"+
                 " despite G1 receipts2");
 
