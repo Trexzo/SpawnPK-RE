@@ -86,7 +86,8 @@ final class LocalJvmAccountSessionLease {
             throw new java.io.IOException(
                 "G21.216 CROSS_JVM_RAW_REQUIRES_JVM_LEASE_OPT_IN");
         synchronized(active){
-            if(active.containsKey(file))
+            if(active.containsKey(file)||
+               pendingSessionAdmissions.contains(file))
                 throw new java.io.IOException(
                     "G21.208 RAW_WRITE_DENIED_ACTIVE_JVM_LEASE"+
                     " account="+account);
@@ -131,6 +132,25 @@ final class LocalJvmAccountSessionLease {
 
 
     private static final Map<Path,Token> active=new HashMap<>();
+    // G21.218: SAME-file JVM admissions remain reserved while G21.185
+    // FileChannel.open/tryLock runs OUTSIDE the global account monitor.
+    // Every other path can progress independently during OS I/O.
+    private static final java.util.Set<Path> pendingSessionAdmissions=
+        new java.util.HashSet<>();
+
+    // Deterministic synchronous TEST-ONLY seam. A production process
+    // leaves it null; it provides no admission or rollback authority.
+    interface PendingSessionAdmissionProbe {
+        void afterPending(Path exactFile,String username);
+    }
+    private static volatile PendingSessionAdmissionProbe pendingProbe;
+    static void pendingSessionAdmissionProbeForTest(
+        PendingSessionAdmissionProbe hook
+    ){ pendingProbe=hook; }
+    static int pendingSessionAdmissionsForTest(){
+        synchronized(active){return pendingSessionAdmissions.size();}
+    }
+
     // G21.201 CI correction: an old session admitted while the opt-in
     // lease was OFF is not retroactively made an owner of a later token.
     // Identity-keyed weak witnesses distinguish that earlier unleased
@@ -264,17 +284,25 @@ final class LocalJvmAccountSessionLease {
                     throw new IllegalStateException(
                         "G21.181 JVM_ACCOUNT_LEASE_OWNER_CHANGED account="+
                         account);
-                if(processLock!=null){
-                    try{
-                        processLock.close();
-                    }catch(java.io.IOException failure){
-                        throw new IllegalStateException(
-                            "G21.185 ACCOUNT_SESSION_LOCK_RELEASE_UNCERTAIN"+
-                            " account="+account,
-                            failure
-                        );
-                    }
+            }
+            // G21.218: Token's own synchronized monitor serializes
+            // this release, while the SAME-file map entry remains
+            // present across the OS close. Do not hold the global
+            // account monitor over FileLock.release/channel.close.
+            if(processLock!=null){
+                try{
+                    processLock.close();
+                }catch(java.io.IOException failure){
+                    // Fail closed: still present in active map.
+                    throw new IllegalStateException(
+                        "G21.185 ACCOUNT_SESSION_LOCK_RELEASE_UNCERTAIN"+
+                        " account="+account,failure);
                 }
+            }
+            synchronized(active){
+                if(active.get(path)!=this)
+                    throw new IllegalStateException(
+                        "G21.218 SESSION_CHANGED_DURING_LOCK_RELEASE");
                 active.remove(path);
                 released=true;
                 admittedWorldOwner=null;
@@ -283,33 +311,26 @@ final class LocalJvmAccountSessionLease {
         }
     }
 
-    static Token acquire(WorldPlayerPersistence persistence,String username){
+    static Token acquire(
+        WorldPlayerPersistence persistence,String username
+    ){
         final boolean optIn=Boolean.getBoolean(PROPERTY);
         final boolean crossJvm=Boolean.getBoolean(
             LocalCrossJvmAccountSessionLock.PROPERTY);
-        // Do not silently pretend a cross-process lock is in effect
-        // when the prerequisite session-owner admission is disabled.
         if(crossJvm&&!optIn)
             throw new IllegalStateException(
                 "G21.185 CROSS_JVM_LOCK_REQUIRES_JVM_LEASE");
-        /*
-         * G21.183: turning the system property OFF while an already
-         * admitted opt-in owner is active must not erase that owner's
-         * protection. Fast path remains unchanged for the ordinary
-         * default-off state when no JVM account token exists.
-         *
-         * This is NOT a promise that an unleased session admitted while
-         * disabled becomes protected if the flag later changes.
-         */
+
+        // Preserve default-off fast path ONLY if no opt-in admission
+        // is committed OR pending. Live flag toggles are unsupported.
         if(!optIn){
             synchronized(active){
-                if(active.isEmpty())
+                if(active.isEmpty()&&pendingSessionAdmissions.isEmpty())
                     return null;
             }
         }
         Objects.requireNonNull(persistence,"persistence");
         Objects.requireNonNull(username,"username");
-
         Path file=persistence.fileBackedAccountPathForJvmSessionLease(
             username);
         if(file==null)return null;
@@ -319,16 +340,21 @@ final class LocalJvmAccountSessionLease {
                 throw new IllegalStateException(
                     "G21.208 JVM_LEASE_DENIED_RAW_WRITE_IN_FLIGHT"+
                     " account="+username);
-            if(active.containsKey(key))
+            if(active.containsKey(key)||
+               pendingSessionAdmissions.contains(key))
                 throw new IllegalStateException(
                     "G21.181 JVM_ACCOUNT_SESSION_OWNED_NO_RECOVERY"+
-                    " account="+username+
-                    " path="+key);
-            // A distinct account may still use the default-off path;
-            // existing SAME-path leases are refused regardless of flag.
-            if(!optIn)
-                return null;
-            LocalCrossJvmAccountSessionLock.Handle processLock=null;
+                    " account="+username+" path="+key);
+            if(!optIn)return null;
+            // G21.218: local claim is published before any OS lock I/O.
+            pendingSessionAdmissions.add(key);
+        }
+
+        LocalCrossJvmAccountSessionLock.Handle processLock=null;
+        boolean installed=false;
+        try{
+            PendingSessionAdmissionProbe probe=pendingProbe;
+            if(probe!=null)probe.afterPending(key,username);
             if(crossJvm){
                 try{
                     processLock=LocalCrossJvmAccountSessionLock.acquire(
@@ -336,14 +362,47 @@ final class LocalJvmAccountSessionLease {
                 }catch(java.io.IOException failure){
                     throw new IllegalStateException(
                         "G21.185 CROSS_JVM_ACCOUNT_SESSION_DENIED"+
-                        " account="+username,
-                        failure
-                    );
+                        " account="+username,failure);
                 }
             }
-            Token token=new Token(key,username,processLock);
-            active.put(key,token);
-            return token;
+            synchronized(active){
+                if(!pendingSessionAdmissions.contains(key)||
+                   active.containsKey(key)||rawWriters.containsKey(key))
+                    throw new IllegalStateException(
+                        "G21.218 PENDING_SESSION_ADMISSION_REPLACED");
+                Token token=new Token(key,username,processLock);
+                active.put(key,token);
+                pendingSessionAdmissions.remove(key);
+                installed=true;
+                return token;
+            }
+        }finally{
+            if(!installed){
+                // No new admission can win while a potentially acquired
+                // OS lock is still held. Failed close must retain the
+                // negative pending reservation, never falsely grant.
+                boolean releasedOs=true;
+                if(processLock!=null){
+                    try{
+                        processLock.close();
+                    }catch(java.io.IOException failure){
+                        releasedOs=false;
+                        throw new IllegalStateException(
+                            "G21.218 PENDING_OS_SESSION_RELEASE_UNCERTAIN"+
+                            " account="+username,failure);
+                    }finally{
+                        if(releasedOs){
+                            synchronized(active){
+                                pendingSessionAdmissions.remove(key);
+                            }
+                        }
+                    }
+                }else{
+                    synchronized(active){
+                        pendingSessionAdmissions.remove(key);
+                    }
+                }
+            }
         }
     }
 
