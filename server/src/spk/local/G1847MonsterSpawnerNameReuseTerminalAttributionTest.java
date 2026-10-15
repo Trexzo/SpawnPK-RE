@@ -32,6 +32,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean stickyG4Invalid=invalidG4PersistenceWhileRealOtherConsumersAdvance();
         boolean generationBoundary=g4InvalidCacheScopedToReplacedWorldPlayer();
         boolean liveG4Transferred=activeG4TaskFinishesForNewSameNamePlayer();
+        boolean staleG4Collision=staleG4ActiveSnapshotRejectedAfterReplacementCompletion();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -256,6 +257,250 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " originalServerCreditAuthority=false"+
             " productionCodeChanged=false"
         );
+        require(staleG4Collision,
+            "G1863 stale ACTIVE G4 snapshot collision did not stay quarantined on third owner");
+        System.out.println(
+            "G1863_REHYDRATED_ACTIVE_G4_COLLIDES_WITH_COMPLETED_WORLD_TASK_PASS"+
+            " exactValidOldActiveSnapshot=true"+
+            " actualTwoNpcDeaths=true"+
+            " aActiveBCompletedCActiveSnapshot=true"+
+            " thirdOwnerHydrationCollision="+staleG4Collision+
+            " g4SoftRefusalAfterCollision="+staleG4Collision+
+            " g1BAndCKillsDistinct=true"+
+            " g18WorldProgressTwo=true"+
+            " originalG4TaskNotReplayed=true"+
+            " realDelayedRespawnToC=true"+
+            " twoCoinSettlements=true"+
+            " fileSaveOrTcpRelogTested=false"+
+            " originalServerPolicyClaim=false"+
+            " productionChanged=false"
+        );
+    }
+
+    /**
+     * G18.6.3: an old, VALID ACTIVE G4 namespace still clashes with a
+     * completed World-owned task after same-username A->B->C.
+     * The third WorldPlayer C uses a test-only COPY of A's extension,
+     * not a physical file or an actual network login. G4 detects
+     * latestTask(name)!=null, latches an invalidPersistence error and
+     * refuses the next REAL terminal nonthrowingly; G1 and G18 continue.
+     */
+    private static boolean staleG4ActiveSnapshotRejectedAfterReplacementCompletion()
+        throws Exception{
+        final String account=USER+"-g4-valid-stale-active";
+        final long firstDeathTick=601L;
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer ownerA=new WorldPlayer();
+        WorldPlayer ownerB=null;
+        WorldPlayer ownerC=null;
+        long generationA=-1L;
+        long generationB=-1L;
+        long generationC=-1L;
+        try{
+            generationA=world.registerPlayer(ownerA,account);
+            LocalLabSlayerRuntime slayer=world.localLabSlayer();
+            LocalLabSlayerRuntime.StartResult began=
+                slayer.startMonsterHunter(
+                    account,world.clock().tick()
+                );
+            require(began!=null&&began.created&&
+                    began.status.task!=null&&
+                    began.status.task.objective.progress==0L,
+                "G1863 A starts real G4 Monster Hunter task");
+
+            java.util.SortedMap<String,String> activeA=
+                ownerA.snapshotExtensions().namespace(
+                    LocalLabSlayerPersistence.NAMESPACE
+                );
+            LocalLabSlayerPersistence.Snapshot decodedA=
+                LocalLabSlayerPersistence.decode(activeA);
+            require(decodedA!=null&&
+                    decodedA.state==
+                        LocalLabSlayerPersistence.State.ACTIVE&&
+                    decodedA.progress==0L&&
+                    decodedA.completions==0L,
+                "G1863 A's ACTIVE extension must be a VALID codec snapshot");
+
+            LocalLabDailyMoneyMakingRuntime dmm=
+                world.localLabDailyMoneyMaking();
+            require(dmm.activateEasyIfCurrent(
+                    account,ownerA,generationA
+                ).activatedNow,
+                "G1863 DMM activation before name replacement");
+
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(world);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult firstSpawn=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npcA=firstSpawn.spawn.combat.spawn.npc;
+            require(firstSpawn.runtime.recipientOrigin!=null&&
+                    firstSpawn.runtime.recipientOrigin.player==ownerA&&
+                    firstSpawn.runtime.recipientOrigin.generation==
+                        generationA,
+                "G1863 A owns immutable original spawn origin");
+
+            require(world.unregisterPlayer(ownerA,generationA),
+                "G1863 unregister original A before first death");
+            ownerB=new WorldPlayer();
+            generationB=world.registerPlayer(ownerB,account);
+            require(ownerB.snapshotExtensions().namespace(
+                    LocalLabSlayerPersistence.NAMESPACE
+                ).isEmpty()&&
+                    slayer.status(account).task!=null,
+                "G1863 B sees A's live World task but has no stored G4");
+            require(world.npcLifecycle().applyDamage(
+                    npcA.id,99,firstDeathTick
+                ).newlyDied,
+                "G1863 first canonical NPC death under B");
+            MonsterSpawnerPvmRuntime.FinalizeResult firstTerminal=
+                provisioned.runtime().finalizeIfOwned(npcA);
+            PvmRecordService records=world.pvmRecords();
+            LocalLabSlayerPersistence.Snapshot completedB=
+                LocalLabSlayerPersistence.decode(
+                    ownerB.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                );
+            require(firstTerminal!=null&&
+                    firstTerminal.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    firstTerminal.settlement!=null&&
+                    firstTerminal.settlement.groundItems.size()==1&&
+                    firstTerminal.settlement.groundItems.get(0)
+                        .settledAmount==1&&
+                    completedB!=null&&
+                    completedB.state==
+                        LocalLabSlayerPersistence.State.COMPLETED&&
+                    completedB.progress==1L&&
+                    completedB.completions==1L&&
+                    records.snapshot(ownerA).kills==0L&&
+                    records.snapshot(ownerB).kills==1L&&
+                    dmm.snapshot(account).objective.progress==1L,
+                "G1863 B completed A's active World G4 task");
+
+            require(world.unregisterPlayer(ownerB,generationB),
+                "G1863 B leaves after completing A's original task");
+            ownerC=new WorldPlayer();
+            generationC=world.registerPlayer(ownerC,account);
+            // Simulate only a validated stale account namespace after
+            // current registration; do NOT call a repository or socket.
+            synchronized(ownerC.mutationLock()){
+                ownerC.snapshotExtensions().replaceNamespace(
+                    LocalLabSlayerPersistence.NAMESPACE,
+                    activeA
+                );
+            }
+            require(activeA.equals(
+                    ownerC.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                )&&
+                    LocalLabSlayerPersistence.decode(
+                        ownerC.snapshotExtensions().namespace(
+                            LocalLabSlayerPersistence.NAMESPACE
+                        )
+                    ).state==LocalLabSlayerPersistence.State.ACTIVE,
+                "G1863 valid older persisted ACTIVE namespace copied to C");
+
+            LocalLabSlayerRuntime.StatusSnapshot refused=
+                slayer.status(account);
+            require(refused!=null&&
+                    "PERSISTED_STATE_COLLIDES_WITH_LIVE_RUNTIME".equals(
+                        refused.persistenceError
+                    )&&
+                    refused.task==null&&
+                    dmm.snapshot(account).objective.progress==1L,
+                "G1863 completed World task refuses A's valid stale ACTIVE snapshot");
+
+            world.events().runDue(
+                firstDeathTick+G1MonsterSpawnerPvmLoopService
+                    .RESPAWN_DELAY_TICKS
+            );
+            MonsterSpawnerService.SessionSnapshot afterSpawn=
+                spawner.getSession(account);
+            require(afterSpawn!=null&&
+                    afterSpawn.spawnedNpcIds.size()==1,
+                "G1863 due-time G1 respawn to C");
+            EntityId secondId=afterSpawn.spawnedNpcIds.get(0);
+            WorldNpc npcC=world.npcs().byId(secondId);
+            MonsterSpawnerPvmRuntime.Snapshot runtimeC=
+                provisioned.runtime().get(secondId);
+            require(npcC!=null&&
+                    !npcA.id.equals(secondId)&&
+                    runtimeC!=null&&
+                    runtimeC.recipientOrigin!=null&&
+                    runtimeC.recipientOrigin.player==ownerC&&
+                    runtimeC.recipientOrigin.generation==generationC,
+                "G1863 second genuine spawn captures C origin");
+            require(world.npcLifecycle().applyDamage(
+                    npcC.id,99,firstDeathTick+
+                        G1MonsterSpawnerPvmLoopService
+                            .RESPAWN_DELAY_TICKS+1L
+                ).newlyDied,
+                "G1863 second independently spawned NPC dies");
+            MonsterSpawnerPvmRuntime.FinalizeResult secondTerminal=
+                provisioned.runtime().finalizeIfOwned(npcC);
+            LocalLabSlayerRuntime.StatusSnapshot stillRefused=
+                slayer.status(account);
+            return secondTerminal!=null&&
+                secondTerminal.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                secondTerminal.settlement!=null&&
+                secondTerminal.settlement.groundItems.size()==1&&
+                secondTerminal.settlement.groundItems.get(0)
+                    .settledAmount==1&&
+                stillRefused!=null&&
+                "PERSISTED_STATE_COLLIDES_WITH_LIVE_RUNTIME".equals(
+                    stillRefused.persistenceError
+                )&&
+                stillRefused.task==null&&
+                slayer.status(account).task==null&&
+                activeA.equals(
+                    ownerA.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                )&&
+                activeA.equals(
+                    ownerC.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                )&&
+                LocalLabSlayerPersistence.decode(
+                    ownerB.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                ).state==LocalLabSlayerPersistence.State.COMPLETED&&
+                records.snapshot(ownerA).kills==0L&&
+                records.snapshot(ownerB).kills==1L&&
+                records.snapshot(ownerC).kills==1L&&
+                records.receiptCount()==2&&
+                dmm.snapshot(account).objective.progress==2L&&
+                world.groundItems().snapshot().stream()
+                    .filter(item->item.itemId==995&&
+                        account.equals(item.owner))
+                    .mapToInt(item->item.amount).sum()==2&&
+                provisioned.runtime().get(npcA.id)==null&&
+                provisioned.runtime().get(npcC.id)==null;
+        }finally{
+            if(ownerC!=null&&generationC>=0L&&
+                    world.players().owns(ownerC,generationC))
+                world.unregisterPlayer(ownerC,generationC);
+            if(ownerB!=null&&generationB>=0L&&
+                    world.players().owns(ownerB,generationB))
+                world.unregisterPlayer(ownerB,generationB);
+            if(generationA>=0L&&
+                    world.players().owns(ownerA,generationA))
+                world.unregisterPlayer(ownerA,generationA);
+            world.close();
+        }
     }
 
     /**
