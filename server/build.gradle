@@ -2369,6 +2369,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21220CoreHealthyFinalOneShotReviewNoRetirementTest',
     'spk.local.G21221CoreSessionLockObjectDriftWorldSaveVetoTest',
     'spk.local.G21222CoreBoundedReviewMarkerReadNegativeTest',
+    'spk.local.G21223CoreReviewMarkerCanonicalFieldNegativeTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2397,10 +2398,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 550 ||
-    currentTrainFocusedTests.toSet().size() != 550) {
+if (currentTrainFocusedTests.size() != 551 ||
+    currentTrainFocusedTests.toSet().size() != 551) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 550 unique tests, found " +
+        "Current-train focused manifest drift: expected 551 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4748,6 +4749,14 @@ tasks.register('g21222BoundedNoFollowActiveReviewMarkerRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21222CoreBoundedReviewMarkerReadNegativeTest')
+}
+
+tasks.register('g21223CanonicalReviewMarkerNegativeRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.223: force and inspect exact bounded negative ACTIVE marker fields.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21223CoreReviewMarkerCanonicalFieldNegativeTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
