@@ -277,7 +277,8 @@ final class LocalLabMonsterSpawnerProvisioning {
                 @Override public String authority(){
                     return CATALOG_AUTHORITY;
                 }
-            }
+            },
+            optionalStageIsolation
         );
     }
 
