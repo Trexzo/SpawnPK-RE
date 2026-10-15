@@ -77,8 +77,20 @@ public final class G21234CoreRawLateHardlinkPublicationGapTest {
                     .rawWriteReservationsForTest()==0,
                 "initial RAW reservation leaked");
 
+            // Original parent #2717 retains the exact all-ON
+            // RAW publication gap. This positive-fix descendant
+            // preserves only TEST-ONLY explicit opt-out compatibility.
             armed.set(true);
-            repo.save(snapshot("LATER_RAW"));
+            System.setProperty(
+                LocalJvmAccountSessionLease.HARDLINK_COUNT_GATE_PROPERTY,
+                "false");
+            try{
+                repo.save(snapshot("LATER_RAW"));
+            }finally{
+                System.setProperty(
+                    LocalJvmAccountSessionLease.HARDLINK_COUNT_GATE_PROPERTY,
+                    "true");
+            }
             check(linked.get(),
                 "post-reservation RAW hook did not create real hardlink");
             check("LATER_RAW".equals(phase(repo)),
@@ -93,12 +105,12 @@ public final class G21234CoreRawLateHardlinkPublicationGapTest {
 
             System.out.println(
                 "G21234_RAW_POST_RESERVATION_HARDLINK_SPLIT_PASS"+
-                " optInHardlinkCountGateOn=true"+
+                " hardlinkGateOffDuringSecondRawReplaceOnly=true"+
                 " rawReservationAcquiredBeforeAlias=true"+
                 " actualAliasCreatedImmediatelyBeforeRawReplace=true"+
                 " legacyRawTempReplacedCanonical=true"+
                 " aliasRetainedEarlierSnapshot=true"+
-                " afterReservationRawLinkCheckImplemented=false"+
+                " historicRawOptOutStillUnsafe=true"+
                 " noOriginalServerPolicyClaim=true"+
                 " globalExternalWriterFence=false"+
                 " durableOwnerEpoch=false");
