@@ -506,12 +506,14 @@ final class LocalJvmAccountSessionLease {
                         if(releasedOs){
                             synchronized(active){
                                 pendingSessionAdmissions.remove(key);
+                                pendingAccountFileKeys.remove(key);
                             }
                         }
                     }
                 }else{
                     synchronized(active){
                         pendingSessionAdmissions.remove(key);
+                        pendingAccountFileKeys.remove(key);
                     }
                 }
             }
