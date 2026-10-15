@@ -192,14 +192,15 @@ public final class G1875G16OwnerReplacementNoTerminalBackfillTest {
             LocalLabDailyChallengeRuntime.StatusResult renewedDaily=
                 g14.status(USER);
             check(renewedDaily!=null&&
-                    renewedDaily.assignedNow&&
-                    renewedDaily.challenge.current==0L&&
+                    !renewedDaily.assignedNow&&
+                    renewedDaily.challenge.current==2L&&
                     g15.active(USER)!=null&&
                     g15.active(USER).objective.progress==2L&&
                     g18.snapshot(USER).objective.progress==0L&&
                     records.receiptCount()==2&&
                     world.groundItems().size()==2,
-                "clean owner has zero G18 backfill despite G1 receipts2");
+                "G14 retains World/name progress2, G18 has no backfill"+
+                " despite G1 receipts2");
 
             // Only a genuinely NEW G1 due-time respawn can provide a
             // new consumer event for the clean WorldPlayer. This is
@@ -240,7 +241,7 @@ public final class G1875G16OwnerReplacementNoTerminalBackfillTest {
                     records.snapshot(cleanReplacement).kills==1L&&
                     records.receiptCount()==3&&
                     world.localLabAdventures().objective(USER).progress==1L&&
-                    g14.status(USER).challenge.current==1L&&
+                    g14.status(USER).challenge.current==3L&&
                     g15.active(USER).objective.progress==3L&&
                     g18.snapshot(USER).objective.progress==1L&&
                     world.groundItems().snapshot().stream()
@@ -259,7 +260,7 @@ public final class G1875G16OwnerReplacementNoTerminalBackfillTest {
                 " twoGenuineIndependentNpcDeaths=true"+
                 " g1ReceiptsThree=true"+
                 " g4CompletionOne=true"+
-                " g14OriginalTwoAndNewOwnerOne=true"+
+                " g14NameOwnedProgressTwoThenThree=true"+
                 " g15OriginalTwoAndNewThird=true"+
                 " g16InvalidCacheSticky=true"+
                 " g18ZeroBeforeThirdAndOneAfter=true"+
