@@ -2167,6 +2167,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1908DecodedLethalHitSameSpawnerRecipientControlTest',
     'spk.local.G1909StaleDeadNpcRetrySessionFenceTest',
     'spk.local.G1910CurrentDeadNpcRetryPreservedTest',
+    'spk.local.G1911CanonicalNpcSceneObjectIdentityFenceTest',
+    'spk.local.G1912RetiredReusedSceneIndexAttackerFenceTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2455,10 +2457,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 608 ||
-    currentTrainFocusedTests.toSet().size() != 608) {
+if (currentTrainFocusedTests.size() != 610 ||
+    currentTrainFocusedTests.toSet().size() != 610) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 608 unique tests, found " +
+        "Current-train focused manifest drift: expected 610 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9814,4 +9816,22 @@ tasks.register('g1910CurrentDeadNpcRetryPreservedRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1910CurrentDeadNpcRetryPreservedTest')
+}
+
+tasks.register('g1911CanonicalNpcSceneObjectIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exact decoded NPC Attack rejects detached forged scene object or mismatched client scene index before canonical hit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1911CanonicalNpcSceneObjectIdentityFenceTest')
+}
+
+tasks.register('g1912RetiredReusedSceneIndexAttackerRegression', JavaExec) {
+    group = 'verification'
+    description = 'Old retired projection cannot damage previous canonical NPC when scene slot is reused; fresh projection attack still succeeds.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1912RetiredReusedSceneIndexAttackerFenceTest')
 }
