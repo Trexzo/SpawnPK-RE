@@ -72,15 +72,34 @@ final class LocalLabTerminalStageIsolation {
      * RETURNED stage can have no active objective, and THREW may
      * follow partial mutation. Never replay from this snapshot.
      */
+    /**
+     * Observational control-flow totals only, NOT applied rewards or
+     * completed durable consumer ACKs. These values deliberately
+     * survive eviction from the bounded recent-report ring.
+     */
+    static final class OutcomeTotals {
+        final long returned;
+        final long threw;
+        final long skipped;
+
+        private OutcomeTotals(long[] values){
+            this.returned=values[0];
+            this.threw=values[1];
+            this.skipped=values[2];
+        }
+    }
+
     static final class DiagnosticSnapshot {
         final long observedCount;
         final long evictedCount;
         final List<Report> recentReports;
+        final Map<Stage,OutcomeTotals> allTimeStageOutcomes;
 
         private DiagnosticSnapshot(
             long observedCount,
             long evictedCount,
-            List<Report> recentReports
+            List<Report> recentReports,
+            EnumMap<Stage,OutcomeTotals> stageTotals
         ){
             this.observedCount=observedCount;
             this.evictedCount=evictedCount;
@@ -89,18 +108,39 @@ final class LocalLabTerminalStageIsolation {
                     Objects.requireNonNull(recentReports,"recentReports")
                 )
             );
+            this.allTimeStageOutcomes=Collections.unmodifiableMap(
+                new EnumMap<Stage,OutcomeTotals>(
+                    Objects.requireNonNull(stageTotals,"stageTotals")
+                )
+            );
+        }
+
+        OutcomeTotals stage(Stage checkedStage){
+            return allTimeStageOutcomes.get(
+                Objects.requireNonNull(checkedStage,"stage")
+            );
         }
     }
 
     private final ArrayDeque<Report> reports=new ArrayDeque<>();
+    private final EnumMap<Stage,long[]> stageOutcomes=
+        new EnumMap<Stage,long[]>(Stage.class);
     private long totalObserved;
     private long totalEvicted;
 
+    LocalLabTerminalStageIsolation(){
+        for(Stage stage:Stage.values())
+            stageOutcomes.put(stage,new long[3]);
+    }
+
     synchronized DiagnosticSnapshot diagnosticSnapshot(){
+        EnumMap<Stage,OutcomeTotals> copied=
+            new EnumMap<Stage,OutcomeTotals>(Stage.class);
+        for(Stage stage:Stage.values())
+            copied.put(stage,new OutcomeTotals(stageOutcomes.get(stage)));
         return new DiagnosticSnapshot(
-            totalObserved,
-            totalEvicted,
-            new ArrayList<Report>(reports)
+            totalObserved,totalEvicted,
+            new ArrayList<Report>(reports),copied
         );
     }
 
@@ -212,6 +252,20 @@ final class LocalLabTerminalStageIsolation {
                     totalEvicted++;
             }
             reports.addLast(report);
+            for(Stage stage:Stage.values()){
+                Outcome outcome=Objects.requireNonNull(
+                    report.outcome(stage),"terminal stage outcome");
+                int slot;
+                switch(outcome){
+                    case RETURNED: slot=0; break;
+                    case THREW: slot=1; break;
+                    case SKIPPED_NO_CURRENT_RECIPIENT: slot=2; break;
+                    default: throw new AssertionError("Unknown stage outcome");
+                }
+                long[] counts=stageOutcomes.get(stage);
+                if(counts[slot]<Long.MAX_VALUE)
+                    counts[slot]++;
+            }
         }
         return report;
     }
