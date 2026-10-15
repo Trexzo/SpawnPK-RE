@@ -21,6 +21,24 @@ final class LocalJvmAccountSessionLease {
         "spk.local.experimentalJvmAccountSessionLease";
 
     private static final Map<Path,Token> active=new HashMap<>();
+    // G21.201 CI correction: an old session admitted while the opt-in
+    // lease was OFF is not retroactively made an owner of a later token.
+    // Identity-keyed weak witnesses distinguish that earlier unleased
+    // session from a newly forged foreign SaveTask. The legacy late-
+    // enable concurrent-write hazard deliberately remains unresolved.
+    private static final Map<WorldPlayer,UnleasedAdmission>
+        unleasedAdmissions=new java.util.WeakHashMap<>();
+
+    private static final class UnleasedAdmission {
+        final Path accountPath;
+        final String account;
+        final long generation;
+        UnleasedAdmission(Path path,String account,long generation){
+            this.accountPath=path;
+            this.account=account;
+            this.generation=generation;
+        }
+    }
     // G21.201 diagnostic: count actual worker-side pre-publication checks.
     private static final java.util.concurrent.atomic.AtomicInteger
         workerOwnerChecks=new java.util.concurrent.atomic.AtomicInteger();
@@ -234,6 +252,36 @@ final class LocalJvmAccountSessionLease {
     }
 
     /**
+     * Record admission provenance of a real file-backed World session
+     * opened WITHOUT a JVM token, before any later dynamic flag enable.
+     * This never creates a token, does not admit another player, and
+     * does NOT protect the legacy unleased session from stale writes.
+     */
+    static void noteUnleasedWorldAdmission(
+        Path exactAccountPath,String account,
+        WorldPlayer owner,long generation
+    ){
+        Objects.requireNonNull(exactAccountPath,"exactAccountPath");
+        Objects.requireNonNull(owner,"owner");
+        if(generation<=0||!account.equals(owner.username())||
+           !owner.accepts(generation))
+            throw new IllegalStateException(
+                "G21.201 INVALID_UNLEASED_ADMISSION_PROVENANCE");
+        Path file=exactAccountPath.toAbsolutePath().normalize();
+        synchronized(active){
+            UnleasedAdmission current=unleasedAdmissions.get(owner);
+            if(current!=null&&
+               (!current.accountPath.equals(file)||
+                !current.account.equals(account)||
+                current.generation!=generation))
+                throw new IllegalStateException(
+                    "G21.201 UNLEASED_ADMISSION_OWNER_REBIND_DENIED");
+            unleasedAdmissions.put(
+                owner,new UnleasedAdmission(file,account,generation));
+        }
+    }
+
+    /**
      * Only a currently held opt-in JVM lease is guarded. A null lease
      * preserves preexisting unleased/manual World adapter behavior.
      * Called by the existing async World SaveTask immediately before
@@ -245,9 +293,20 @@ final class LocalJvmAccountSessionLease {
     ){
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         final Token token;
+        Path file=exactAccountPath.toAbsolutePath().normalize();
         synchronized(active){
-            token=active.get(
-                exactAccountPath.toAbsolutePath().normalize());
+            token=active.get(file);
+            // G21.184: a real already-admitted default-OFF session
+            // must still be allowed its historical final save after
+            // another World obtains a NEW opt-in lease. This is an
+            // explicit characterization of the unsafe legacy toggle,
+            // NOT permission for an arbitrary foreign SaveTask.
+            UnleasedAdmission legacy=unleasedAdmissions.get(owner);
+            if(token!=null&&legacy!=null&&
+               legacy.accountPath.equals(file)&&
+               legacy.account.equals(snapshotAccount)&&
+               legacy.generation==capturedGeneration)
+                return false;
         }
         if(token==null)return false;
         token.requireCapturedSaveOwner(
