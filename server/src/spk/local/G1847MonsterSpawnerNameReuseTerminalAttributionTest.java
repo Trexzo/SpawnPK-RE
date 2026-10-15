@@ -34,6 +34,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean liveG4Transferred=activeG4TaskFinishesForNewSameNamePlayer();
         boolean staleG4Collision=staleG4ActiveSnapshotRejectedAfterReplacementCompletion();
         boolean worldScopeContrast=validActiveSnapshotCollidesOnlyWithExistingWorldTask();
+        boolean tickProvenanceDrift=validActiveG4RehydrationChangesAssignedTick();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -291,6 +292,172 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " noOriginalServerPolicyClaim=true"+
             " productionCodeChanged=false"
         );
+        require(tickProvenanceDrift,
+            "G1865 valid ACTIVE G4 task hydration unexpectedly preserved original assignedTick");
+        System.out.println(
+            "G1865_G4_ACTIVE_SOURCE_ASSIGNED_TICK_PROVENANCE_DRIFT_PASS"+
+            " originalCodecValidAssignedTick77=true"+
+            " freshWorldReplayTickDifferent="+tickProvenanceDrift+
+            " hydrationRebuildsRuntimeAssignedTick="+tickProvenanceDrift+
+            " oneRealInstalledNpcDeath=true"+
+            " persistedPostimageRewritesAssignedTick="+tickProvenanceDrift+
+            " originalPersistedSnapshotUnchanged=true"+
+            " noActualFileRepositoryOrTcp=true"+
+            " originalServerPolicyClaim=false"+
+            " productionCodeChanged=false"
+        );
+    }
+
+    /**
+     * G18.6.5: G4 correctly decodes sourceAssignedTick from a valid
+     * ACTIVE extension but uses current World clock tick for replay
+     * task assignment; after a genuine terminal, the persisted
+     * postimage contains the new replay tick rather than original
+     * provenance. Controlled test-only in-memory copy; NOT a file
+     * reload or durable/original SpawnPK time semantics.
+     */
+    private static boolean validActiveG4RehydrationChangesAssignedTick()
+        throws Exception{
+        final String account=USER+"-g4-assigned-tick-drift";
+        final long originalAssignedTick=77L;
+        World sourceWorld=World.isolatedForTest(60_000L);
+        World replayWorld=World.isolatedForTest(60_000L);
+        WorldPlayer original=new WorldPlayer();
+        WorldPlayer restored=new WorldPlayer();
+        long originalGeneration=-1L;
+        long restoredGeneration=-1L;
+        try{
+            originalGeneration=sourceWorld.registerPlayer(
+                original,account
+            );
+            LocalLabSlayerRuntime.StartResult active=
+                sourceWorld.localLabSlayer().startMonsterHunter(
+                    account,originalAssignedTick
+                );
+            require(active!=null&&active.created&&
+                    active.status.task!=null&&
+                    active.status.task.assignedTick==
+                        originalAssignedTick&&
+                    active.status.task.objective.progress==0L,
+                "G1865 original task assignment retains explicit source tick");
+
+            java.util.SortedMap<String,String> sourceExtension=
+                original.snapshotExtensions().namespace(
+                    LocalLabSlayerPersistence.NAMESPACE
+                );
+            LocalLabSlayerPersistence.Snapshot before=
+                LocalLabSlayerPersistence.decode(
+                    sourceExtension
+                );
+            require(before!=null&&
+                    before.state==
+                        LocalLabSlayerPersistence.State.ACTIVE&&
+                    before.sourceAssignedTick==
+                        originalAssignedTick&&
+                    before.progress==0L,
+                "G1865 original persisted ACTIVE snapshot source tick intact");
+
+            final long replayTick=replayWorld.clock().tick();
+            require(replayTick!=originalAssignedTick&&
+                    replayTick>=0L,
+                "G1865 fresh World replay clock deliberately differs");
+            restoredGeneration=replayWorld.registerPlayer(
+                restored,account
+            );
+            // Exactly the same valid extension, copied test-side;
+            // no file repository/real account login is exercised.
+            synchronized(restored.mutationLock()){
+                restored.snapshotExtensions().replaceNamespace(
+                    LocalLabSlayerPersistence.NAMESPACE,
+                    sourceExtension
+                );
+            }
+            LocalLabSlayerRuntime slayer=
+                replayWorld.localLabSlayer();
+            LocalLabSlayerRuntime.StatusSnapshot rebuilt=
+                slayer.status(account);
+            require(rebuilt!=null&&
+                    rebuilt.persistenceError==null&&
+                    rebuilt.task!=null&&
+                    rebuilt.active()&&
+                    rebuilt.task.assignedTick==replayTick&&
+                    rebuilt.task.assignedTick!=originalAssignedTick&&
+                    rebuilt.task.objective.progress==0L&&
+                    sourceExtension.equals(
+                        restored.snapshotExtensions().namespace(
+                            LocalLabSlayerPersistence.NAMESPACE
+                        )
+                    ),
+                "G1865 fresh World restores task but changes runtime assignedTick");
+
+            LocalMonsterSpawnerActivationRuntime provisioned=
+                LocalLabMonsterSpawnerProvisioning.create(replayWorld);
+            MonsterSpawnerService spawner=provisioned.service();
+            spawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(account,0);
+            spawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                provisioned.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            require(spawned.runtime.recipientOrigin!=null&&
+                    spawned.runtime.recipientOrigin.player==restored&&
+                    spawned.runtime.recipientOrigin.generation==
+                        restoredGeneration&&
+                    replayWorld.npcLifecycle().applyDamage(
+                        npc.id,99,211L
+                    ).newlyDied,
+                "G1865 independent World canonical NPC death");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                provisioned.runtime().finalizeIfOwned(npc);
+            LocalLabSlayerRuntime.StatusSnapshot completed=
+                slayer.status(account);
+            LocalLabSlayerPersistence.Snapshot postimage=
+                LocalLabSlayerPersistence.decode(
+                    restored.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                );
+            return terminal!=null&&
+                terminal.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                terminal.settlement!=null&&
+                terminal.settlement.groundItems.size()==1&&
+                terminal.settlement.groundItems.get(0)
+                    .settledAmount==1&&
+                completed!=null&&completed.complete()&&
+                completed.task!=null&&
+                completed.task.assignedTick==replayTick&&
+                completed.task.objective.progress==1L&&
+                postimage!=null&&
+                postimage.state==
+                    LocalLabSlayerPersistence.State.COMPLETED&&
+                postimage.progress==1L&&
+                postimage.sourceAssignedTick==replayTick&&
+                postimage.sourceAssignedTick!=
+                    originalAssignedTick&&
+                LocalLabSlayerPersistence.decode(
+                    original.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                ).sourceAssignedTick==originalAssignedTick&&
+                replayWorld.pvmRecords().snapshot(restored).kills==1L&&
+                replayWorld.pvmRecords().receiptCount()==1&&
+                replayWorld.groundItems().size()==1&&
+                provisioned.runtime().get(npc.id)==null;
+        }finally{
+            if(restoredGeneration>=0L&&
+                    replayWorld.players().owns(restored,restoredGeneration))
+                replayWorld.unregisterPlayer(restored,restoredGeneration);
+            if(originalGeneration>=0L&&
+                    sourceWorld.players().owns(original,originalGeneration))
+                sourceWorld.unregisterPlayer(original,originalGeneration);
+            replayWorld.close();
+            sourceWorld.close();
+        }
     }
 
     /**
