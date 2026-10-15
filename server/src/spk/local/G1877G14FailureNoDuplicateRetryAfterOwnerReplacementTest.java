@@ -120,6 +120,12 @@ public final class G1877G14FailureNoDuplicateRetryAfterOwnerReplacementTest {
                 world.localLabDailyChallenges();
             LocalLabDailyChallengeRuntime.StatusResult challenge=
                 g14.status(USER);
+            LocalLabAdventureRuntime.ActivationResult newAdventure=
+                g16.activate(USER);
+            check(newAdventure!=null&&newAdventure.activatedNow&&
+                    g16.objective(USER)!=null&&
+                    g16.objective(USER).progress==0L,
+                "B must explicitly activate NEW G16 owner-local task");
             check(challenge!=null&&challenge.assignedNow&&
                     challenge.challenge.current==0L&&
                     g15.active(USER).objective.progress==0L&&
