@@ -105,6 +105,9 @@ final class MonsterSpawnerPvmRuntime {
     static final class FinalizeResult {
         // Exact producing World object. Not a durable ID or server epoch.
         final World sourceWorld;
+        // A process-local one-shot claim on THIS Java result object.
+        // Not a durable ACK, persisted event ID, or restart-safe ledger.
+        private boolean stageDeliveryClaimed;
         final FinalizeStatus status;
         final Snapshot runtime;
         final MonsterSpawnerNpcDeathFinalizationService.Result finalization;
@@ -144,6 +147,15 @@ final class MonsterSpawnerPvmRuntime {
             this.finalization=finalization;
             this.settlement=settlement;
             this.recipientOrigin=recipientOrigin;
+        }
+
+        synchronized boolean claimExperimentalStageDeliveryOnce(){
+            if(stageDeliveryClaimed)
+                return false;
+            // Claim BEFORE callbacks: if a callback fails, do not
+            // auto-replay a potentially partially mutated consumer.
+            stageDeliveryClaimed=true;
+            return true;
         }
     }
 
