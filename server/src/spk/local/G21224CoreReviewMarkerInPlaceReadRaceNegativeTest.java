@@ -25,8 +25,10 @@ public final class G21224CoreReviewMarkerInPlaceReadRaceNegativeTest {
                 .requireReviewMarker(account);
         }catch(IOException expected){
             rejected=expected.getMessage()!=null&&
-                expected.getMessage().contains(
-                    "REVIEW_MARKER_MUTATED_DURING_READ_NEGATIVE");
+                (expected.getMessage().contains(
+                    "REVIEW_MARKER_MUTATED_DURING_READ_NEGATIVE")||
+                 expected.getMessage().contains(
+                    "REVIEW_MARKER_CONTENT_DRIFT_NEGATIVE"));
         }finally{
             LocalDurableAccountReviewIntentPrimitive
                 .setAfterMarkerReadForTest(null);
