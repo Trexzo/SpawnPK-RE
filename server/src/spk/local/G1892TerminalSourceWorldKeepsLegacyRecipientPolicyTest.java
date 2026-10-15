@@ -41,8 +41,10 @@ public final class G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest {
             replacement=new WorldPlayer();
             genB=world.registerPlayer(replacement,USER);
             check(world.players().byName(USER)==replacement&&
-                    genA!=genB,
-                "new generation B holds same account name in SAME World");
+                    original!=replacement&&
+                    world.players().owns(replacement,genB)&&
+                    !world.players().owns(original,genA),
+                "distinct current B player identity owns name in SAME World");
 
             LocalLabTaskScrollRuntime task=world.localLabTaskScrolls();
             LocalLabTaskScrollRuntime.AssignmentResult assigned=
