@@ -89,8 +89,11 @@ public final class G21213CoreStandaloneStrictHeldLeaseBypassTest {
             world.submitAndWait(owner,ownerGeneration,()->{
                 owner.snapshotExtensions().replaceNamespace(
                     NAMESPACE,Collections.singletonMap(
-                        "phase","LATEST_WORLD_EXTENSION"));
+                        "phase","OLDER_STRICT_CAPTURE"));
                 rawAttempt.set(PlayerSnapshotCodec.capture(USER,owner));
+                owner.snapshotExtensions().replaceNamespace(
+                    NAMESPACE,Collections.singletonMap(
+                        "phase","LATEST_WORLD_EXTENSION"));
                 healthy.set(liveWorld.persistence().captureAndSave(
                     USER,owner,ownerGeneration,0,
                     "[G21.213] ","REAL_WORLD_ACCOUNT_SAVE"));
@@ -142,8 +145,8 @@ public final class G21213CoreStandaloneStrictHeldLeaseBypassTest {
                 "standalone STRICT did not return matching receipt");
             check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
                 "strict file writer did not replace account postimage");
-            check(onDisk(repository)==null,
-                "standalone STRICT writer retained newer World extension");
+            check("OLDER_STRICT_CAPTURE".equals(onDisk(repository)),
+                "strict standalone postimage did not restore older captured state");
             check(LocalJvmAccountSessionLease
                     .rawWriteReservationsForTest()==0,
                 "strict writer unexpectedly participated in RAW reservations");
