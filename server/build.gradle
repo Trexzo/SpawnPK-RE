@@ -2403,6 +2403,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21240FourRawWriterCrossJvmParticipationMatrixTest',
     'spk.local.G21241CoreRawOsLockLeafSwapAdmitsForeignSessionTest',
     'spk.local.G21242CrossJvmRawWriterAfterReleasedSessionMatrixTest',
+    'spk.local.G21243ForeignJvmUnrelatedAccountRawWriterIsolationTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2431,10 +2432,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 584 ||
-    currentTrainFocusedTests.toSet().size() != 584) {
+if (currentTrainFocusedTests.size() != 585 ||
+    currentTrainFocusedTests.toSet().size() != 585) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 584 unique tests, found " +
+        "Current-train focused manifest drift: expected 585 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4996,6 +4997,14 @@ tasks.register('g21242PostSessionAllRawWriterCrossJvmPositiveRegression', JavaEx
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21242CrossJvmRawWriterAfterReleasedSessionMatrixTest')
+}
+
+tasks.register('g21243ForeignJvmUnrelatedRawAccountIsolationRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.243: unrelated cooperating RAW and strict writers in a second JVM remain possible while original account World/OS lease stays held.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21243ForeignJvmUnrelatedAccountRawWriterIsolationTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
