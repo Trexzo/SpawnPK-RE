@@ -2396,6 +2396,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21237CoreReplacedSessionLockContinuityVetoTest',
     'spk.local.G21238CoreWorldPublisherLateOsLockSwapGapTest',
     'spk.local.G21239CoreWorldCommitLockContinuityVetoTest',
+    'spk.local.G21240FourRawWriterCrossJvmParticipationMatrixTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2424,10 +2425,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 577 ||
-    currentTrainFocusedTests.toSet().size() != 577) {
+if (currentTrainFocusedTests.size() != 578 ||
+    currentTrainFocusedTests.toSet().size() != 578) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 577 unique tests, found " +
+        "Current-train focused manifest drift: expected 578 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4947,6 +4948,14 @@ tasks.register('g1894EvictedTerminalEventReplayVetoRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1894OptinEvictedTerminalEventReplayVetoTest')
+}
+
+tasks.register('g21240FourRawWriterCrossJvmMatrixRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.240: real independent JVM cross-process OS lock exclusion for all four cooperating RAW writer entry paths.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21240FourRawWriterCrossJvmParticipationMatrixTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
