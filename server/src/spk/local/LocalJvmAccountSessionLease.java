@@ -26,32 +26,53 @@ final class LocalJvmAccountSessionLease {
     // Only the opt-in FilePlayerRepository direct writer participates.
     // A reservation blocks a new opt-in lease until the RAW write
     // finishes, and an existing lease denies a new RAW reservation.
-    // No durable/cross-JVM protection or bypass-writer claims.
+    // G21.216: optional SAME OS sibling lock as cooperating sessions
+    // when cross-JVM opt-in enabled; still no durable epoch or raw
+    // writer-completeness/OS-lock-path-substitution guarantee.
     private static final Map<Path,Integer> rawWriters=new HashMap<>();
 
     static final class RawWriteReservation implements AutoCloseable {
         private final Path path;
+        private final LocalCrossJvmAccountSessionLock.Handle processLock;
         private boolean closed;
-        private RawWriteReservation(Path path){ this.path=path; }
-        @Override public void close(){
+        private RawWriteReservation(
+            Path path,LocalCrossJvmAccountSessionLock.Handle processLock
+        ){
+            this.path=path;
+            this.processLock=processLock;
+        }
+
+        @Override public synchronized void close()
+            throws java.io.IOException{
+            if(closed)return;
             synchronized(active){
-                if(closed)return;
                 Integer count=rawWriters.get(path);
-                if(count==null||count<=0)
+                if(count==null||count!=1)
                     throw new IllegalStateException(
                         "G21.208 RAW_RESERVATION_ACCOUNTING_INVALID");
-                if(count==1)rawWriters.remove(path);
-                else rawWriters.put(path,count-1);
+            }
+            // G21.216: perform OS close OUTSIDE the shared JVM
+            // account monitor. Keep the in-JVM reservation in place
+            // until OS release succeeds. Failed release leaves a
+            // negative local reservation, never a silent handoff.
+            if(processLock!=null)processLock.close();
+            synchronized(active){
+                Integer count=rawWriters.get(path);
+                if(count==null||count!=1)
+                    throw new IllegalStateException(
+                        "G21.216 RAW_RESERVATION_CHANGED_DURING_RELEASE");
+                rawWriters.remove(path);
                 closed=true;
             }
         }
     }
 
     /**
-     * Claim before any RAW temp creation; release only after its entire
-     * saveInternal operation has returned or failed. Existing active
-     * exact-path opt-in leases fail closed. Flag OFF preserves legacy RAW.
-     * This is not a lock on arbitrary file writers or independent JVMs.
+     * Reserve the same normalized account file before RAW temp I/O.
+     * With the cross-JVM opt-in, also acquire the G21.185 OS session
+     * lock. Do not hold the JVM-wide account monitor over filesystem
+     * I/O: the in-memory reservation excludes local competitors while
+     * the OS lock attempt is pending.
      */
     static RawWriteReservation reserveRawWrite(
         Path exactAccountPath,String account
@@ -59,6 +80,11 @@ final class LocalJvmAccountSessionLease {
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         if(!Boolean.getBoolean(RAW_WRITE_GATE_PROPERTY))return null;
         Path file=exactAccountPath.toAbsolutePath().normalize();
+        final boolean crossJvm=Boolean.getBoolean(
+            LocalCrossJvmAccountSessionLock.PROPERTY);
+        if(crossJvm&&!Boolean.getBoolean(PROPERTY))
+            throw new java.io.IOException(
+                "G21.216 CROSS_JVM_RAW_REQUIRES_JVM_LEASE_OPT_IN");
         synchronized(active){
             if(active.containsKey(file))
                 throw new java.io.IOException(
@@ -68,8 +94,30 @@ final class LocalJvmAccountSessionLease {
                 throw new java.io.IOException(
                     "G21.208 RAW_WRITE_DENIED_ANOTHER_RAW_WRITER"+
                     " account="+account);
+            // Local competing sessions/raw writers are now excluded
+            // BEFORE any cross-process filesystem lock work begins.
             rawWriters.put(file,1);
-            return new RawWriteReservation(file);
+        }
+        try{
+            LocalCrossJvmAccountSessionLock.Handle processLock=null;
+            if(crossJvm){
+                try{
+                    processLock=LocalCrossJvmAccountSessionLock.acquire(
+                        file);
+                }catch(java.io.IOException conflict){
+                    throw new java.io.IOException(
+                        "G21.216 CROSS_JVM_RAW_ACCOUNT_WRITE_DENIED"+
+                        " account="+account,conflict);
+                }
+            }
+            return new RawWriteReservation(file,processLock);
+        }catch(java.io.IOException|RuntimeException failure){
+            // No published RAW reservation can remain after failure
+            // to acquire the OS lock. No RAW file temp was created.
+            synchronized(active){
+                rawWriters.remove(file);
+            }
+            throw failure;
         }
     }
 
