@@ -175,8 +175,8 @@ final class LocalDurableAccountReviewIntentPrimitive {
         // marker fields from being misrepresented as an authenticated
         // marker belonging to the requested account. A valid marker
         // NEVER authorizes retirement or positive admission.
-        if(!text.startsWith(MAGIC+"\\n")||
-           !text.contains("state=ACTIVE_NEEDS_MANUAL_REVIEW\\n"))
+        if(!text.startsWith(MAGIC+"\n")||
+           !text.contains("state=ACTIVE_NEEDS_MANUAL_REVIEW\n"))
             throw new IOException(
                 "G21.188 REVIEW_MARKER_INVALID_NO_AUTO_CLEAR");
         final String[] fields=text.split("\\n",-1);
