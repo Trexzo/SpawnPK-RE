@@ -2147,6 +2147,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1888TerminalStageReturnedSkippedRollupTest',
     'spk.local.G1889TerminalDispatcherCrossWorldInjectionVetoTest',
     'spk.local.G1890TerminalDispatcherWrongWorldDeliveryVetoTest',
+    'spk.local.G1891TerminalEventProducingWorldIdentityTest',
+    'spk.local.G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest',
+    'spk.local.G1893OptinTerminalExactEventReplayVetoTest',
+    'spk.local.G1894OptinEvictedTerminalEventReplayVetoTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2391,6 +2395,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21236CoreReplacedSessionLockLeafTwoJvmGapTest',
     'spk.local.G21237CoreReplacedSessionLockContinuityVetoTest',
     'spk.local.G21238CoreWorldPublisherLateOsLockSwapGapTest',
+    'spk.local.G21239CoreWorldCommitLockContinuityVetoTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2419,10 +2424,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 572 ||
-    currentTrainFocusedTests.toSet().size() != 572) {
+if (currentTrainFocusedTests.size() != 577 ||
+    currentTrainFocusedTests.toSet().size() != 577) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 572 unique tests, found " +
+        "Current-train focused manifest drift: expected 577 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4898,6 +4903,50 @@ tasks.register('g21238InsideWorldPublisherLockSwapGapRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21238CoreWorldPublisherLateOsLockSwapGapTest')
+}
+
+tasks.register('g21239WorldCommitLockContinuityRecheckRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.239: opted-in G21.221 session lock fileKey continuity checked just before World account publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21239CoreWorldCommitLockContinuityVetoTest')
+}
+
+tasks.register('g1891TerminalProducingWorldIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Authentic settled World A event must not credit World B even through B-bound dispatcher; proper B event still works.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1891TerminalEventProducingWorldIdentityTest')
+}
+
+tasks.register('g1892SameWorldRecipientPolicyPreservedRegression', JavaExec) {
+    group = 'verification'
+    description = 'World event provenance must not silently change LocalLab same-World A-spawn/B-terminal name-based reward policy.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1892TerminalSourceWorldKeepsLegacyRecipientPolicyTest')
+}
+
+tasks.register('g1893TerminalExactEventReplayVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'The same genuine finalized Java event cannot dispatch a second time; distinct subsequent NPC still credits.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1893OptinTerminalExactEventReplayVetoTest')
+}
+
+tasks.register('g1894EvictedTerminalEventReplayVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'A genuine 130-NPC lifecycle cannot replay its first FinalizeResult even after diagnostic history eviction.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1894OptinEvictedTerminalEventReplayVetoTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
