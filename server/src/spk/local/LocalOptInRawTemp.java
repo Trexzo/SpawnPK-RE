@@ -38,6 +38,14 @@ final class LocalOptInRawTemp {
     static void setAfterMoveProbeForTest(AfterMoveProbe probe){
         afterMoveProbeForTest=probe;
     }
+    // G21.252 deterministic marker/publication race test only.
+    interface BeforeAccountMoveProbe{
+        void beforeMove(Path file)throws IOException;
+    }
+    private static volatile BeforeAccountMoveProbe beforeMoveProbeForTest;
+    static void setBeforeMoveProbeForTest(BeforeAccountMoveProbe probe){
+        beforeMoveProbeForTest=probe;
+    }
 
     private LocalOptInRawTemp(){}
 
@@ -173,63 +181,73 @@ final class LocalOptInRawTemp {
             channel.force(true);
         }
         requireSealed(temp,identity,sealed);
+        // G21.252: coordinate forced RAW marker admission, atomic
+        // replacement and directory/postimage verification under the
+        // same account-local G21.39 lock as cooperating marker writers.
+        // Held session OS lock precedes G21.39, as in World saves.
         MailboxAccountPublicationCoordinator
-            .requireSafeWorldTempAncestry(account,false);
-        LocalJvmAccountSessionLease.requireNonHardlinkedAccount(account);
-        raw.requireLockObjectContinuity();
-        // G21.250: the stricter forced RAW mode must never claim a
-        // confirmed normal postimage over an account already marked
-        // ACTIVE for manual review. Legacy/default RAW stays unchanged.
-        LocalDurableAccountReviewIntentPrimitive
-            .requireNoReviewMarker(account);
-        // G21.251: existing Mailbox durable/uncertain/write-ahead
-        // sidecars are NEGATIVE, not overwritten by opt-in forced RAW.
-        // Exact target account is pinned by this resolver. The G21.39
-        // marker publishers do not all share this session OS lock;
-        // an external race after observation remains unresolved.
-        FilePlayerRepository.PathResolver pinned=requested->{
-            if(!accountUsername.equals(requested))
-                throw new IllegalArgumentException(
-                    "G21.251 FORCED_RAW_ACCOUNT_IDENTITY_DRIFT");
-            return account;
-        };
-        if(new MailboxDurableReviewFence(pinned)
-                .present(accountUsername)||
-           new MailboxStrictUncertainFence(pinned)
-                .present(accountUsername)||
-           new MailboxStrictWriteIntentFence(pinned)
-                .present(accountUsername))
-            throw new IOException(
-                "G21.251 FORCED_RAW_MAILBOX_REVIEW_FENCE_PRESENT");
-        raw.requireLockObjectContinuity();
-        try{
-            Files.move(
-                temp,account,StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.ATOMIC_MOVE);
-        }catch(AtomicMoveNotSupportedException unsupported){
-            throw new IOException(
-                "G21.248 RAW_ATOMIC_MOVE_REQUIRED_NO_FALLBACK",
-                unsupported);
-        }catch(IOException uncertain){
-            throw new IOException(
-                "G21.248 RAW_ATOMIC_MOVE_UNCONFIRMED_NO_ACK",
-                uncertain);
-        }
-        try{
-            AfterMoveProbe probe=afterMoveProbeForTest;
-            if(probe!=null)probe.afterMove(account);
-            try(FileChannel directory=FileChannel.open(
-                    account.getParent(),StandardOpenOption.READ,
-                    LinkOption.NOFOLLOW_LINKS)){
-                directory.force(true);
-            }
-            requireSealed(account,identity,sealed);
+            .withExclusivePublication(account,()->{
+            MailboxAccountPublicationCoordinator
+                .requireSafeWorldTempAncestry(account,false);
+            LocalJvmAccountSessionLease.requireNonHardlinkedAccount(account);
             raw.requireLockObjectContinuity();
-        }catch(IOException afterMove){
-            throw new IOException(
-                "G21.248 RAW_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
-                afterMove);
-        }
+            // G21.250: the stricter forced RAW mode must never claim a
+            // confirmed normal postimage over an account already marked
+            // ACTIVE for manual review. Legacy/default RAW stays unchanged.
+            LocalDurableAccountReviewIntentPrimitive
+                .requireNoReviewMarker(account);
+            // G21.251: existing Mailbox durable/uncertain/write-ahead
+            // sidecars are NEGATIVE, not overwritten by opt-in forced RAW.
+            // Exact target account is pinned by this resolver. The G21.39
+            // cooperating marker writers share G21.39 now, while
+            // external hostile filesystem changes remain uncoordinated.
+            FilePlayerRepository.PathResolver pinned=requested->{
+                if(!accountUsername.equals(requested))
+                    throw new IllegalArgumentException(
+                        "G21.251 FORCED_RAW_ACCOUNT_IDENTITY_DRIFT");
+                return account;
+            };
+            if(new MailboxDurableReviewFence(pinned)
+                    .present(accountUsername)||
+               new MailboxStrictUncertainFence(pinned)
+                    .present(accountUsername)||
+               new MailboxStrictWriteIntentFence(pinned)
+                    .present(accountUsername))
+                throw new IOException(
+                    "G21.251 FORCED_RAW_MAILBOX_REVIEW_FENCE_PRESENT");
+            raw.requireLockObjectContinuity();
+            BeforeAccountMoveProbe moveProbe=beforeMoveProbeForTest;
+            if(moveProbe!=null)moveProbe.beforeMove(account);
+            try{
+                Files.move(
+                    temp,account,StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+            }catch(AtomicMoveNotSupportedException unsupported){
+                throw new IOException(
+                    "G21.248 RAW_ATOMIC_MOVE_REQUIRED_NO_FALLBACK",
+                    unsupported);
+            }catch(IOException uncertain){
+                throw new IOException(
+                    "G21.248 RAW_ATOMIC_MOVE_UNCONFIRMED_NO_ACK",
+                    uncertain);
+            }
+            try{
+                AfterMoveProbe probe=afterMoveProbeForTest;
+                if(probe!=null)probe.afterMove(account);
+                try(FileChannel directory=FileChannel.open(
+                        account.getParent(),StandardOpenOption.READ,
+                        LinkOption.NOFOLLOW_LINKS)){
+                    directory.force(true);
+                }
+                requireSealed(account,identity,sealed);
+                raw.requireLockObjectContinuity();
+            }catch(IOException afterMove){
+                throw new IOException(
+                    "G21.248 RAW_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
+                    afterMove);
+            }
+                return null;
+            });
     }
 
     static boolean stillOwns(Path temp,BasicFileAttributes original){
