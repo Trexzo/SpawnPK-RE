@@ -26,22 +26,33 @@ final class LocalJvmAccountSessionLease {
     // Only the opt-in FilePlayerRepository direct writer participates.
     // A reservation blocks a new opt-in lease until the RAW write
     // finishes, and an existing lease denies a new RAW reservation.
-    // No durable/cross-JVM protection or bypass-writer claims.
+    // G21.216: optional SAME OS sibling lock as cooperating sessions
+    // when cross-JVM opt-in enabled; still no durable epoch or raw
+    // writer-completeness/OS-lock-path-substitution guarantee.
     private static final Map<Path,Integer> rawWriters=new HashMap<>();
 
     static final class RawWriteReservation implements AutoCloseable {
         private final Path path;
+        private final LocalCrossJvmAccountSessionLock.Handle processLock;
         private boolean closed;
-        private RawWriteReservation(Path path){ this.path=path; }
-        @Override public void close(){
+        private RawWriteReservation(
+            Path path,LocalCrossJvmAccountSessionLock.Handle processLock
+        ){
+            this.path=path;
+            this.processLock=processLock;
+        }
+        @Override public void close()throws java.io.IOException{
             synchronized(active){
                 if(closed)return;
                 Integer count=rawWriters.get(path);
-                if(count==null||count<=0)
+                if(count==null||count!=1)
                     throw new IllegalStateException(
                         "G21.208 RAW_RESERVATION_ACCOUNTING_INVALID");
-                if(count==1)rawWriters.remove(path);
-                else rawWriters.put(path,count-1);
+                // G21.216: keep the in-JVM reservation in place until
+                // the cooperating cross-JVM OS lock is truly released.
+                // If release is uncertain, retain negative JVM state.
+                if(processLock!=null)processLock.close();
+                rawWriters.remove(path);
                 closed=true;
             }
         }
@@ -68,8 +79,29 @@ final class LocalJvmAccountSessionLease {
                 throw new java.io.IOException(
                     "G21.208 RAW_WRITE_DENIED_ANOTHER_RAW_WRITER"+
                     " account="+account);
+            // G21.216: a cooperative RAW save must claim the SAME
+            // stable sibling OS lock used by opt-in JVM sessions when
+            // cross-JVM exclusion is requested. Do not pretend a RAW
+            // writer holds that lock if it cannot acquire it.
+            final LocalCrossJvmAccountSessionLock.Handle processLock;
+            if(Boolean.getBoolean(
+                    LocalCrossJvmAccountSessionLock.PROPERTY)){
+                if(!Boolean.getBoolean(PROPERTY))
+                    throw new java.io.IOException(
+                        "G21.216 CROSS_JVM_RAW_REQUIRES_JVM_LEASE_OPT_IN");
+                try{
+                    processLock=LocalCrossJvmAccountSessionLock.acquire(
+                        file);
+                }catch(java.io.IOException conflict){
+                    throw new java.io.IOException(
+                        "G21.216 CROSS_JVM_RAW_ACCOUNT_WRITE_DENIED"+
+                        " account="+account,conflict);
+                }
+            }else{
+                processLock=null;
+            }
             rawWriters.put(file,1);
-            return new RawWriteReservation(file);
+            return new RawWriteReservation(file,processLock);
         }
     }
 
