@@ -83,6 +83,21 @@ final class LocalCrossJvmAccountSessionLock {
         Path fileForTest(){return file;}
     }
 
+    private static void requireNoSymlinkAncestors(Path parent)
+        throws IOException{
+        Path walk=parent;
+        while(walk!=null){
+            if(Files.isSymbolicLink(walk))
+                throw new IOException(
+                    "G21.226 ACCOUNT_LOCK_SYMLINK_ANCESTOR_NOFOLLOW");
+            if(Files.exists(walk,LinkOption.NOFOLLOW_LINKS)&&
+               !Files.isDirectory(walk,LinkOption.NOFOLLOW_LINKS))
+                throw new IOException(
+                    "G21.226 ACCOUNT_LOCK_NON_DIRECTORY_ANCESTOR");
+            walk=walk.getParent();
+        }
+    }
+
     static Handle acquire(Path accountFile)throws IOException{
         if(accountFile==null)
             throw new NullPointerException("accountFile");
@@ -95,10 +110,14 @@ final class LocalCrossJvmAccountSessionLock {
         if(parent==null)
             throw new IOException(
                 "G21.185 ACCOUNT_LOCK_NO_PARENT");
+        // G21.226: checking only the immediate parent missed a
+        // symlinked grandparent. Reject existing symbolic-link/non-dir
+        // ancestors BEFORE directory creation and recheck afterward.
+        // This is a best-effort NOFOLLOW preflight, not atomic against
+        // a hostile concurrent pathname swap or durable owner epoch.
+        requireNoSymlinkAncestors(parent);
         Files.createDirectories(parent);
-        if(Files.isSymbolicLink(parent))
-            throw new IOException(
-                "G21.185 ACCOUNT_LOCK_SYMLINK_PARENT");
+        requireNoSymlinkAncestors(parent);
         Path lockPath=canonical.resolveSibling(
             canonical.getFileName().toString()+".session.lck");
 
