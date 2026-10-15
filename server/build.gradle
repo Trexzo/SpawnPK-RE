@@ -2425,6 +2425,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21252ForcedRawMailboxPublicationLockSerializationTest',
     'spk.local.G21253ForcedRawForeignJvmMailboxMarkerSerializationTest',
     'spk.local.G21254ForcedRawHardKillPostMoveNoReceiptTest',
+    'spk.local.G21255ForcedRawPublicationLockWaitDeadlineTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2453,10 +2454,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 606 ||
-    currentTrainFocusedTests.toSet().size() != 606) {
+if (currentTrainFocusedTests.size() != 607 ||
+    currentTrainFocusedTests.toSet().size() != 607) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 606 unique tests, found " +
+        "Current-train focused manifest drift: expected 607 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9798,4 +9799,12 @@ tasks.register('g1908DecodedLethalHitMatchingRecipientControlRegression', JavaEx
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1908DecodedLethalHitSameSpawnerRecipientControlTest')
+}
+
+tasks.register('g21255ForcedRawPublicationLockDeadlineRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.255: opt-in forced RAW times out instead of waiting indefinitely on G21.39 publication lock.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21255ForcedRawPublicationLockWaitDeadlineTest')
 }
