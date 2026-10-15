@@ -14,9 +14,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * G21.215 TEST ONLY: a second JVM's cooperating raw repository save
- * bypasses the first JVM's held G21.185 OS session lock.
- * Negative evidence, NOT a cross-process writer-fencing solution.
+ * G21.215 historical negative preserved in exact parent #2676.
+ * Descendant G21.216: the second JVM explicitly opts OUT of
+ * cross-JVM RAW lock during its write. Unsupported legacy bypass
+ * remains, never a valid live runtime toggle or recovery authority.
  */
 public final class G21215CoreSecondJvmRawWriterBypassesSessionLockTest {
     private static final String USER="g21215-second-jvm-raw";
@@ -65,17 +66,28 @@ public final class G21215CoreSecondJvmRawWriterBypassesSessionLockTest {
         check(newSessionDenied,
             "cross-JVM session lock failed to deny second session");
 
-        // Yet the legacy RAW method never acquires the process lock.
+        // G21.215 parent #2676 retains original ALL-flags-ON
+        // second-JVM RAW bypass evidence. After G21.216, this test
+        // explicitly disables the cross-JVM RAW opt-in in the child
+        // ONLY to characterize the unsupported opt-out hazard.
+        // Never toggle protection while sessions are live.
+        System.setProperty(
+            LocalCrossJvmAccountSessionLock.PROPERTY,"false");
         WorldPlayer stale=new WorldPlayer();
         stale.snapshotExtensions().replaceNamespace(
             NS,Collections.singletonMap("phase","FOREIGN_STALE_RAW"));
-        repository.save(PlayerSnapshotCodec.capture(USER,stale));
+        try{
+            repository.save(PlayerSnapshotCodec.capture(USER,stale));
+        }finally{
+            System.setProperty(
+                LocalCrossJvmAccountSessionLock.PROPERTY,"true");
+        }
         check("FOREIGN_STALE_RAW".equals(onDisk(repository)),
             "second-JVM RAW save did not replace account postimage");
         System.out.println(
-            "G21215_CHILD_CROSS_JVM_SESSION_DENIED_RAW_WRITE_ALLOWED"+
+            "G21215_CHILD_CROSS_JVM_SESSION_DENIED_RAW_OPT_OUT_ALLOWED"+
             " independentJvm=true processSessionDenied=true"+
-            " rawWriterSucceeded=true");
+            " rawOsLockOptOutSucceeded=true");
     }
 
     private static String runChild(Path primary)throws Exception{
@@ -164,11 +176,11 @@ public final class G21215CoreSecondJvmRawWriterBypassesSessionLockTest {
                     .captureBoundWorkerChecksForTest()>before,
                 "World worker did not check original token");
 
-            // Both feature flags are enabled in *both* independent
-            // processes. Parent's actual OS lock blocks the second
-            // session, but cannot block its uncoordinated RAW writer.
+            // Child proves real separate-process session exclusion first,
+            // then deliberately opts OUT of RAW OS coordination.
+            // The exact parent #2676 records the original all-ON gap.
             String output=runChild(primary);
-            check(output.contains("rawWriterSucceeded=true"),
+            check(output.contains("rawOsLockOptOutSucceeded=true"),
                 "second JVM did not confirm RAW overwrite");
             check("FOREIGN_STALE_RAW".equals(onDisk(repository)),
                 "parent did not observe second-JVM stale RAW postimage");
@@ -181,14 +193,14 @@ public final class G21215CoreSecondJvmRawWriterBypassesSessionLockTest {
                 "parent leaked raw reservation");
 
             System.out.println(
-                "G21215_SECOND_JVM_RAW_BYPASSES_SESSION_LOCK_PASS"+
+                "G21215_SECOND_JVM_RAW_OPT_OUT_BYPASS_PASS"+
                 " realTwoJvmProcessBoundary=true"+
                 " crossJvmSessionFileLockHeld=true"+
                 " secondarySessionDenied=true"+
                 " secondJvmRawOverwriteSucceeded=true"+
                 " originalParentWorldLeaseStillHeld=true"+
                 " java11Compatible=true"+
-                " crossJvmRawFenceImplemented=false"+
+                " childRawCrossJvmOptOut=true"+
                 " crashDurableOwnerEpoch=false"+
                 " activeMarkerRetirement=false");
         }finally{
