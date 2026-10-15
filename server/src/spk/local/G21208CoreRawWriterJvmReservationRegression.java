@@ -73,6 +73,23 @@ public final class G21208CoreRawWriterJvmReservationRegression {
                 check(LocalJvmAccountSessionLease
                         .rawWriteReservationsForTest()==1,
                     "RAW reservation not counted");
+                boolean secondRawDenied=false;
+                try(LocalJvmAccountSessionLease.RawWriteReservation other=
+                        LocalJvmAccountSessionLease.reserveRawWrite(
+                            file,USER)){
+                    check(other==null,
+                        "second RAW should not gain same-path permit");
+                }catch(IOException expected){
+                    secondRawDenied=expected.getMessage()!=null&&
+                        expected.getMessage().contains(
+                            "RAW_WRITE_DENIED_ANOTHER_RAW_WRITER");
+                }
+                check(secondRawDenied,
+                    "concurrent same-account RAW writer was admitted");
+                check(LocalJvmAccountSessionLease
+                        .rawWriteReservationsForTest()==1,
+                    "second RAW attempt changed reservation ownership");
+
                 boolean blocked=false;
                 try{
                     LocalJvmAccountSessionLease.acquire(
@@ -175,6 +192,7 @@ public final class G21208CoreRawWriterJvmReservationRegression {
             System.out.println(
                 "G21208_COOPERATIVE_RAW_JVM_RESERVATION_PASS"+
                 " rawFirstBlocksJvmLease=true"+
+                " secondSameAccountRawDenied=true"+
                 " worldLeaseFirstBlocksRaw=true"+
                 " rejectBeforeRawTemp=true"+
                 " existingWorldCaptureWriterHealthy=true"+
