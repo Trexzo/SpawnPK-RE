@@ -33,6 +33,7 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
         boolean generationBoundary=g4InvalidCacheScopedToReplacedWorldPlayer();
         boolean liveG4Transferred=activeG4TaskFinishesForNewSameNamePlayer();
         boolean staleG4Collision=staleG4ActiveSnapshotRejectedAfterReplacementCompletion();
+        boolean worldScopeContrast=validActiveSnapshotCollidesOnlyWithExistingWorldTask();
 
         boolean replacementCredited=
             replacement.finalized&&
@@ -275,6 +276,226 @@ public final class G1847MonsterSpawnerNameReuseTerminalAttributionTest {
             " originalServerPolicyClaim=false"+
             " productionChanged=false"
         );
+        require(worldScopeContrast,
+            "G1864 identical valid G4 ACTIVE bytes must collide in completed World but rehydrate in fresh World");
+        System.out.println(
+            "G1864_G4_VALID_ACTIVE_WORLD_SCOPE_CONTRAST_PASS"+
+            " identicalCodecValidActiveSnapshot=true"+
+            " originalWorldCompletedTask=true"+
+            " originalWorldSameNameHydrationCollision="+worldScopeContrast+
+            " independentFreshWorldHydrationAccepted="+worldScopeContrast+
+            " separateInstalledNpcTerminals=true"+
+            " newWorldG4CompletedNormally="+worldScopeContrast+
+            " eachWorldOneG1Receipt=true"+
+            " noAccountFileOrSocketReload=true"+
+            " noOriginalServerPolicyClaim=true"+
+            " productionCodeChanged=false"
+        );
+    }
+
+    /**
+     * G18.6.4: same EXACT codec-valid G4 ACTIVE extension has
+     * different semantic outcome based on World-local SlayerTaskService.
+     * It is refused against a completed task of the same username
+     * in World A but legitimately restores on a clean independent
+     * World B and completes after its own real canonical NPC death.
+     * Deliberate test-only in-memory extension copies. No actual disk
+     * save/load, power loss, account session, original SpawnPK rules.
+     */
+    private static boolean validActiveSnapshotCollidesOnlyWithExistingWorldTask()
+        throws Exception{
+        final String account=USER+"-g4-world-scope-contrast";
+        World first=World.isolatedForTest(60_000L);
+        World second=World.isolatedForTest(60_000L);
+        WorldPlayer original=new WorldPlayer();
+        WorldPlayer oldWorldCopy=null;
+        WorldPlayer newWorldCopy=null;
+        long genA=-1L;
+        long genOldCopy=-1L;
+        long genNewCopy=-1L;
+        try{
+            genA=first.registerPlayer(original,account);
+            LocalLabSlayerRuntime originalSlayer=first.localLabSlayer();
+            LocalLabSlayerRuntime.StartResult started=
+                originalSlayer.startMonsterHunter(
+                    account,first.clock().tick()
+                );
+            require(started!=null&&started.created&&
+                    started.status.task!=null&&
+                    started.status.task.objective.progress==0L,
+                "G1864 original G4 task valid before kill");
+            java.util.SortedMap<String,String> activeCopy=
+                original.snapshotExtensions().namespace(
+                    LocalLabSlayerPersistence.NAMESPACE
+                );
+            LocalLabSlayerPersistence.Snapshot parsed=
+                LocalLabSlayerPersistence.decode(activeCopy);
+            require(parsed!=null&&parsed.state==
+                    LocalLabSlayerPersistence.State.ACTIVE&&
+                    parsed.progress==0L&&parsed.completions==0L,
+                "G1864 captured original valid ACTIVE namespace");
+
+            LocalMonsterSpawnerActivationRuntime firstProvisioning=
+                LocalLabMonsterSpawnerProvisioning.create(first);
+            MonsterSpawnerService firstSpawner=
+                firstProvisioning.service();
+            firstSpawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            firstSpawner.selectRow(account,0);
+            firstSpawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult firstSpawn=
+                firstProvisioning.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npcA=firstSpawn.spawn.combat.spawn.npc;
+            require(first.npcLifecycle().applyDamage(
+                    npcA.id,99,701L
+                ).newlyDied,
+                "G1864 first canonical World death");
+            MonsterSpawnerPvmRuntime.FinalizeResult settledA=
+                firstProvisioning.runtime().finalizeIfOwned(npcA);
+            LocalLabSlayerPersistence.Snapshot completedA=
+                LocalLabSlayerPersistence.decode(
+                    original.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                );
+            require(settledA!=null&&settledA.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    settledA.settlement!=null&&
+                    settledA.settlement.groundItems.size()==1&&
+                    settledA.settlement.groundItems.get(0)
+                        .settledAmount==1&&
+                    completedA!=null&&completedA.state==
+                        LocalLabSlayerPersistence.State.COMPLETED&&
+                    completedA.progress==1L&&
+                    completedA.completions==1L&&
+                    first.pvmRecords().snapshot(original).kills==1L&&
+                    first.pvmRecords().receiptCount()==1,
+                "G1864 original World committed G4 completion");
+            require(first.unregisterPlayer(original,genA),
+                "G1864 original World first owner detach");
+
+            // SAME WORLD: completed latestTask(account) is present,
+            // so an old valid ACTIVE namespace cannot be replayed.
+            oldWorldCopy=new WorldPlayer();
+            genOldCopy=first.registerPlayer(oldWorldCopy,account);
+            synchronized(oldWorldCopy.mutationLock()){
+                oldWorldCopy.snapshotExtensions().replaceNamespace(
+                    LocalLabSlayerPersistence.NAMESPACE,activeCopy
+                );
+            }
+            LocalLabSlayerRuntime.StatusSnapshot collided=
+                originalSlayer.status(account);
+            require(collided!=null&&
+                    "PERSISTED_STATE_COLLIDES_WITH_LIVE_RUNTIME".equals(
+                        collided.persistenceError
+                    )&&
+                    collided.task==null&&
+                    activeCopy.equals(
+                        oldWorldCopy.snapshotExtensions().namespace(
+                            LocalLabSlayerPersistence.NAMESPACE
+                        )
+                    ),
+                "G1864 same-World older ACTIVE namespace rejected");
+
+            // FRESH WORLD: no previous latestTask/account state;
+            // exactly the same valid persisted bytes can restore.
+            newWorldCopy=new WorldPlayer();
+            genNewCopy=second.registerPlayer(newWorldCopy,account);
+            synchronized(newWorldCopy.mutationLock()){
+                newWorldCopy.snapshotExtensions().replaceNamespace(
+                    LocalLabSlayerPersistence.NAMESPACE,activeCopy
+                );
+            }
+            require(activeCopy.equals(
+                    newWorldCopy.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                ),
+                "G1864 two World copies must have exact same ACTIVE extension");
+            LocalLabSlayerRuntime freshSlayer=second.localLabSlayer();
+            LocalLabSlayerRuntime.StatusSnapshot restored=
+                freshSlayer.status(account);
+            require(restored!=null&&restored.persistenceError==null&&
+                    restored.active()&&restored.task!=null&&
+                    restored.task.objective.progress==0L,
+                "G1864 clean World restores the exact same ACTIVE state");
+
+            LocalMonsterSpawnerActivationRuntime secondProvisioning=
+                LocalLabMonsterSpawnerProvisioning.create(second);
+            MonsterSpawnerService nextSpawner=
+                secondProvisioning.service();
+            nextSpawner.openSession(
+                account,LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            nextSpawner.selectRow(account,0);
+            nextSpawner.activate(account,1);
+            MonsterSpawnerPvmRuntime.SpawnResult nextSpawn=
+                secondProvisioning.runtime().spawnAndBind(
+                    account,account,3088,3495,0
+                );
+            WorldNpc npcB=nextSpawn.spawn.combat.spawn.npc;
+            require(nextSpawn.runtime.recipientOrigin!=null&&
+                    nextSpawn.runtime.recipientOrigin.player==newWorldCopy&&
+                    nextSpawn.runtime.recipientOrigin.generation==
+                        genNewCopy&&
+                    second.npcLifecycle().applyDamage(
+                        npcB.id,99,801L
+                    ).newlyDied,
+                "G1864 independent World actual NPC death");
+            MonsterSpawnerPvmRuntime.FinalizeResult settledB=
+                secondProvisioning.runtime().finalizeIfOwned(npcB);
+            LocalLabSlayerRuntime.StatusSnapshot afterB=
+                freshSlayer.status(account);
+            LocalLabSlayerPersistence.Snapshot completedB=
+                LocalLabSlayerPersistence.decode(
+                    newWorldCopy.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                );
+            return settledB!=null&&settledB.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                settledB.settlement!=null&&
+                settledB.settlement.groundItems.size()==1&&
+                settledB.settlement.groundItems.get(0)
+                    .settledAmount==1&&
+                completedB!=null&&completedB.state==
+                    LocalLabSlayerPersistence.State.COMPLETED&&
+                completedB.progress==1L&&
+                completedB.completions==1L&&
+                afterB.persistenceError==null&&
+                afterB.task!=null&&
+                afterB.task.objective.complete&&
+                first.pvmRecords().receiptCount()==1&&
+                first.pvmRecords().snapshot(oldWorldCopy).kills==0L&&
+                second.pvmRecords().receiptCount()==1&&
+                second.pvmRecords().snapshot(newWorldCopy).kills==1L&&
+                first.groundItems().size()==1&&
+                second.groundItems().size()==1&&
+                "PERSISTED_STATE_COLLIDES_WITH_LIVE_RUNTIME".equals(
+                    originalSlayer.status(account).persistenceError
+                )&&
+                activeCopy.equals(
+                    oldWorldCopy.snapshotExtensions().namespace(
+                        LocalLabSlayerPersistence.NAMESPACE
+                    )
+                )&&
+                firstProvisioning.runtime().get(npcA.id)==null&&
+                secondProvisioning.runtime().get(npcB.id)==null;
+        }finally{
+            if(newWorldCopy!=null&&genNewCopy>=0L&&
+                    second.players().owns(newWorldCopy,genNewCopy))
+                second.unregisterPlayer(newWorldCopy,genNewCopy);
+            if(oldWorldCopy!=null&&genOldCopy>=0L&&
+                    first.players().owns(oldWorldCopy,genOldCopy))
+                first.unregisterPlayer(oldWorldCopy,genOldCopy);
+            if(genA>=0L&&first.players().owns(original,genA))
+                first.unregisterPlayer(original,genA);
+            second.close();
+            first.close();
+        }
     }
 
     /**
