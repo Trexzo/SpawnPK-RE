@@ -21,6 +21,12 @@ final class LocalJvmAccountSessionLease {
         "spk.local.experimentalJvmAccountSessionLease";
     static final String RAW_WRITE_GATE_PROPERTY=
         "spk.local.experimentalRawWriteJvmLeaseGate";
+    // G21.228: DEFAULT OFF, best-effort same-JVM file-object alias
+    // collision detection for existing account inodes. NOT a durable
+    // epoch, and not an across-process/hardlink-creation fence.
+    static final String INODE_ALIAS_GATE_PROPERTY=
+        "spk.local.experimentalRejectSameJvmAccountInodeAlias";
+
 
     // G21.208: cooperating, in-JVM RAW repository.save() reservations.
     // Only the opt-in FilePlayerRepository direct writer participates.
@@ -137,6 +143,48 @@ final class LocalJvmAccountSessionLease {
     // Every other path can progress independently during OS I/O.
     private static final java.util.Set<Path> pendingSessionAdmissions=
         new java.util.HashSet<>();
+    // Captured outside the global lock before pending claim, to deny
+    // competing aliases to an existing physical account file object.
+    private static final Map<Path,Object> pendingAccountFileKeys=
+        new HashMap<>();
+
+    private static Object existingAccountFileKey(Path path)
+        throws java.io.IOException{
+        final java.nio.file.attribute.BasicFileAttributes attrs;
+        try{
+            attrs=java.nio.file.Files.readAttributes(
+                path,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        }catch(java.nio.file.NoSuchFileException absent){
+            return null; // bootstrap file has no inode yet
+        }
+        if(!attrs.isRegularFile()||attrs.isSymbolicLink()||
+           attrs.fileKey()==null)
+            throw new java.io.IOException(
+                "G21.228 ACCOUNT_FILE_OBJECT_UNSAFE");
+        return attrs.fileKey();
+    }
+
+    // Always invoked with the global JVM account monitor held. No I/O.
+    private static void requireNoActiveAccountInodeAlias(
+        Path path,Object fileKey
+    ){
+        if(fileKey==null)return;
+        for(Token other:active.values()){
+            if(!path.equals(other.path)&&
+               fileKey.equals(other.initialAccountFileKey))
+                throw new IllegalStateException(
+                    "G21.228 SAME_FILE_OBJECT_ALIAS_SESSION_DENIED");
+        }
+        for(Map.Entry<Path,Object> pending:
+                pendingAccountFileKeys.entrySet()){
+            if(!path.equals(pending.getKey())&&
+               fileKey.equals(pending.getValue()))
+                throw new IllegalStateException(
+                    "G21.228 SAME_FILE_OBJECT_ALIAS_SESSION_DENIED");
+        }
+    }
+
 
     // Deterministic synchronous TEST-ONLY seam. A production process
     // leaves it null; it provides no admission or rollback authority.
@@ -183,6 +231,7 @@ final class LocalJvmAccountSessionLease {
         private final Path path;
         private final String account;
         private final LocalCrossJvmAccountSessionLock.Handle processLock;
+        private final Object initialAccountFileKey;
         private boolean released;
         // G21.200: JVM-only identity binding, not a durable epoch.
         // Never serialized, exported as a disk receipt, or used to
@@ -192,11 +241,13 @@ final class LocalJvmAccountSessionLease {
 
         private Token(
             Path path,String account,
-            LocalCrossJvmAccountSessionLock.Handle processLock
+            LocalCrossJvmAccountSessionLock.Handle processLock,
+            Object initialAccountFileKey
         ){
             this.path=path;
             this.account=account;
             this.processLock=processLock;
+            this.initialAccountFileKey=initialAccountFileKey;
         }
 
         /**
@@ -356,6 +407,20 @@ final class LocalJvmAccountSessionLease {
             username);
         if(file==null)return null;
         Path key=file.toAbsolutePath().normalize();
+        final boolean aliasGuard=optIn&&
+            Boolean.getBoolean(INODE_ALIAS_GATE_PROPERTY);
+        final Object initialAccountFileKey;
+        if(aliasGuard){
+            try{
+                initialAccountFileKey=existingAccountFileKey(key);
+            }catch(java.io.IOException invalid){
+                throw new IllegalStateException(
+                    "G21.228 ACCOUNT_FILE_OBJECT_PRECHECK_FAILED",
+                    invalid);
+            }
+        }else{
+            initialAccountFileKey=null;
+        }
         synchronized(active){
             if(optIn&&rawWriters.containsKey(key))
                 throw new IllegalStateException(
@@ -367,8 +432,13 @@ final class LocalJvmAccountSessionLease {
                     "G21.181 JVM_ACCOUNT_SESSION_OWNED_NO_RECOVERY"+
                     " account="+username+" path="+key);
             if(!optIn)return null;
-            // G21.218: local claim is published before any OS lock I/O.
+            if(aliasGuard)
+                requireNoActiveAccountInodeAlias(
+                    key,initialAccountFileKey);
+            // Reserve same-file alias identity before OS I/O.
             pendingSessionAdmissions.add(key);
+            if(aliasGuard&&initialAccountFileKey!=null)
+                pendingAccountFileKeys.put(key,initialAccountFileKey);
         }
 
         LocalCrossJvmAccountSessionLock.Handle processLock=null;
@@ -386,14 +456,35 @@ final class LocalJvmAccountSessionLease {
                         " account="+username,failure);
                 }
             }
+            // Metadata may have changed during the OS lock attempt.
+            // Read OUTSIDE the JVM monitor and reject inconclusive
+            // identity, never silently grant the alias permission.
+            if(aliasGuard){
+                try{
+                    Object currentKey=existingAccountFileKey(key);
+                    if(!Objects.equals(
+                            initialAccountFileKey,currentKey))
+                        throw new IllegalStateException(
+                            "G21.228 ACCOUNT_FILE_OBJECT_CHANGED_DURING_ADMISSION");
+                }catch(java.io.IOException changed){
+                    throw new IllegalStateException(
+                        "G21.228 ACCOUNT_FILE_OBJECT_RECHECK_FAILED",
+                        changed);
+                }
+            }
             synchronized(active){
+                if(aliasGuard)
+                    requireNoActiveAccountInodeAlias(
+                        key,initialAccountFileKey);
                 if(!pendingSessionAdmissions.contains(key)||
                    active.containsKey(key)||rawWriters.containsKey(key))
                     throw new IllegalStateException(
                         "G21.218 PENDING_SESSION_ADMISSION_REPLACED");
-                Token token=new Token(key,username,processLock);
+                Token token=new Token(
+                    key,username,processLock,initialAccountFileKey);
                 active.put(key,token);
                 pendingSessionAdmissions.remove(key);
+                pendingAccountFileKeys.remove(key);
                 installed=true;
                 return token;
             }
