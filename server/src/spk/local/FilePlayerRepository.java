@@ -1569,6 +1569,14 @@ final class FilePlayerRepository
                     });
             }else{
                 beforeRawReplace.run(snapshot.username());
+                // G21.235: the raw reservation's admission-time inode
+                // check can become stale while its fixed .tmp is
+                // serialized. Revalidate the exact selected file
+                // immediately before its legacy replace. Still not
+                // atomic fencing against an uncooperative external
+                // hardlink operation after the last check.
+                LocalJvmAccountSessionLease
+                    .requireNonHardlinkedAccount(file);
                 replaceSnapshotTemp(tmp,file);
             }
 
