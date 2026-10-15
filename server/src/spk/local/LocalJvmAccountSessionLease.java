@@ -199,8 +199,27 @@ final class LocalJvmAccountSessionLease {
             this.processLock=processLock;
         }
 
+        /**
+         * G21.221 optional observed lock-name continuity, never a
+         * durable owner epoch. Filesystem I/O must NOT happen inside
+         * synchronized(active), or one swapped account lock can stall
+         * unrelated account admission. One observation is inherently
+         * racy against a subsequent hostile rename/unlink.
+         */
+        private void requireObservedLockContinuity(){
+            if(processLock==null)return;
+            try{
+                processLock.requireOriginalLockNameStillPresent();
+            }catch(java.io.IOException changed){
+                throw new IllegalStateException(
+                    "G21.221 SESSION_LOCK_OBJECT_CHANGED_NO_PUBLICATION",
+                    changed);
+            }
+        }
+
         /** Exact resolved file identity guarded by this token. */
         Path accountFileForReviewAdmission(){
+            requireObservedLockContinuity();
             return path;
         }
 
@@ -243,6 +262,7 @@ final class LocalJvmAccountSessionLease {
                     throw new IllegalStateException(
                         "G21.200 WORLD_OWNER_GENERATION_NOT_CURRENT");
             }
+            requireObservedLockContinuity();
         }
 
         /**
@@ -265,6 +285,7 @@ final class LocalJvmAccountSessionLease {
                     throw new IllegalStateException(
                         "G21.201 CAPTURED_SAVE_OWNER_NOT_BOUND_TO_LEASE");
             }
+            requireObservedLockContinuity();
         }
 
         /** Only the exact admitted owner can release on proven completion. */
