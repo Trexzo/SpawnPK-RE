@@ -86,7 +86,8 @@ final class LocalJvmAccountSessionLease {
             throw new java.io.IOException(
                 "G21.216 CROSS_JVM_RAW_REQUIRES_JVM_LEASE_OPT_IN");
         synchronized(active){
-            if(active.containsKey(file))
+            if(active.containsKey(file)||
+               pendingSessions.containsKey(file))
                 throw new java.io.IOException(
                     "G21.208 RAW_WRITE_DENIED_ACTIVE_JVM_LEASE"+
                     " account="+account);
@@ -131,6 +132,18 @@ final class LocalJvmAccountSessionLease {
 
 
     private static final Map<Path,Token> active=new HashMap<>();
+    // G21.218: exact-path session admission in progress. Reserve
+    // before OS I/O, so an unrelated account never waits on the
+    // global JVM lease monitor. Identity permits safe failure cleanup.
+    private static final Map<Path,Object> pendingSessions=new HashMap<>();
+    static int pendingSessionAdmissionsForTest(){
+        synchronized(active){ return pendingSessions.size(); }
+    }
+    private static volatile Runnable beforeOsSessionLockForTest;
+    static void setBeforeOsSessionLockForTest(Runnable hook){
+        beforeOsSessionLockForTest=hook;
+    }
+
     // G21.201 CI correction: an old session admitted while the opt-in
     // lease was OFF is not retroactively made an owner of a later token.
     // Identity-keyed weak witnesses distinguish that earlier unleased
@@ -314,21 +327,28 @@ final class LocalJvmAccountSessionLease {
             username);
         if(file==null)return null;
         Path key=file.toAbsolutePath().normalize();
+        final Object pending=new Object();
         synchronized(active){
             if(optIn&&rawWriters.containsKey(key))
                 throw new IllegalStateException(
                     "G21.208 JVM_LEASE_DENIED_RAW_WRITE_IN_FLIGHT"+
                     " account="+username);
-            if(active.containsKey(key))
+            if(active.containsKey(key)||pendingSessions.containsKey(key))
                 throw new IllegalStateException(
                     "G21.181 JVM_ACCOUNT_SESSION_OWNED_NO_RECOVERY"+
                     " account="+username+
                     " path="+key);
-            // A distinct account may still use the default-off path;
-            // existing SAME-path leases are refused regardless of flag.
             if(!optIn)
                 return null;
-            LocalCrossJvmAccountSessionLock.Handle processLock=null;
+            pendingSessions.put(key,pending);
+        }
+        LocalCrossJvmAccountSessionLock.Handle processLock=null;
+        boolean admitted=false;
+        try{
+            // G21.218: OS FileChannel.open/tryLock, directory creation
+            // and test coordination run WITHOUT the global monitor.
+            Runnable hook=beforeOsSessionLockForTest;
+            if(hook!=null)hook.run();
             if(crossJvm){
                 try{
                     processLock=LocalCrossJvmAccountSessionLock.acquire(
@@ -342,8 +362,34 @@ final class LocalJvmAccountSessionLease {
                 }
             }
             Token token=new Token(key,username,processLock);
-            active.put(key,token);
+            synchronized(active){
+                if(pendingSessions.get(key)!=pending||
+                   active.containsKey(key)||
+                   rawWriters.containsKey(key))
+                    throw new IllegalStateException(
+                        "G21.218 PENDING_SESSION_RESERVATION_LOST");
+                active.put(key,token);
+                pendingSessions.remove(key);
+                admitted=true;
+            }
             return token;
+        }finally{
+            if(!admitted){
+                // Do not silently admit a writer if OS unlock fails.
+                // Lock-release errors are propagated, not success.
+                try{
+                    if(processLock!=null)processLock.close();
+                }catch(java.io.IOException failure){
+                    throw new IllegalStateException(
+                        "G21.218 FAILED_SESSION_ADMISSION_LOCK_RELEASE",
+                        failure);
+                }finally{
+                    synchronized(active){
+                        if(pendingSessions.get(key)==pending)
+                            pendingSessions.remove(key);
+                    }
+                }
+            }
         }
     }
 
