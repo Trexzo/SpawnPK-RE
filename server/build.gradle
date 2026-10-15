@@ -2405,6 +2405,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21242CrossJvmRawWriterAfterReleasedSessionMatrixTest',
     'spk.local.G21243ForeignJvmUnrelatedAccountRawWriterIsolationTest',
     'spk.local.G21244RawAndStrictLockObjectContinuityVetoTest',
+    'spk.local.G21245LegacyPrimaryAndNamedRawLockContinuityTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2433,10 +2434,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 586 ||
-    currentTrainFocusedTests.toSet().size() != 586) {
+if (currentTrainFocusedTests.size() != 587 ||
+    currentTrainFocusedTests.toSet().size() != 587) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 586 unique tests, found " +
+        "Current-train focused manifest drift: expected 587 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -5014,6 +5015,14 @@ tasks.register('g21244RawAndStrictLockObjectContinuityVetoRegression', JavaExec)
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21244RawAndStrictLockObjectContinuityVetoTest')
+}
+
+tasks.register('g21245LegacyProfilePreMoveLockContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.245: opted-in primary and named legacy account writers reject swapped OS lock identity at pre-move test seam.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21245LegacyPrimaryAndNamedRawLockContinuityTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
