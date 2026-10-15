@@ -280,6 +280,11 @@ final class MailboxAccountPublicationCoordinator {
                                 throw new IOException(
                                     "G21.73 RECOVERY_PUBLICATION_BUSY_NO_GRANT"
                                 );
+                            // G21.255: reject a cooperating same-name
+                            // lock-leaf substitution before publication,
+                            // just like unbounded G21.39 locking.
+                            // This is still not atomic external fencing.
+                            verifyForensicLockLeaf(lock);
                             return operation.execute();
                         }
                     }

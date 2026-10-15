@@ -1,0 +1,9 @@
+# G21.255 — finite deadline for forced RAW G21.39 publication-lock acquisition
+
+Source parent is independently certified [G21.254/G19.0.8 #2762](https://github.com/Trexzo/SpawnPK-RE/pull/2762) exact `c299f281b71b78041543e1119dfe906f482e3e7b`, Java11/full Gradle **606/606** [Actions #38808112696](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38808112696).
+
+G21.252 safely made the default-OFF forced RAW account save share the existing Mailbox G21.39 account-local publication lock during negative marker checks and atomic move. But `withExclusivePublication` uses a BLOCKING JVM monitor and `FileChannel.lock()`. A cooperating process may hold either lock indefinitely and stall the opt-in save. G21.255 keeps the normal World/legacy paths unchanged and instead uses the existing `withExclusivePublicationBounded(account,millis,operation)` **only for opt-in forced RAW**. Default deadline is 5000 ms and can be configured by `spk.local.experimentalRawPublicationLockWaitMillis` in [1,60000]; invalid values fail closed. This deadline is **acquisition only**, not a bound on actual disk force/serialization/postimage checks. The bounded helper now checks the NOFOLLOW G21.39 lock leaf once again after OS lock acquisition and before operation; it still cannot make file-descriptor/path identity atomic against an uncooperative external swap.
+
+G21.255 real writer test holds the genuine per-account G21.39 JVM monitor in another thread, expects bounded failure within 4s under test's 150ms setting, verifies old account bytes and no temp/reservation leakage. After lock release, forced RAW succeeds; bad config must fail closed with bytes unchanged. One new Java test+Gradle dedicated task, manifest **606→607**. No automatic replay, manual-review marker retirement, original game-authority inference or durable World final-save ACK.
+
+Own exact-head hosted Java11 major55, **607/607** focused and full Gradle required. Draft/unmerged, main untouched.
