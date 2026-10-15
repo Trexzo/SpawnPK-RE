@@ -2138,6 +2138,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1879OptinG16FaultIsolationPreservesG18Test',
     'spk.local.G1880OptinG15FaultIsolationContinuesG16G18Test',
     'spk.local.G1881OptinTerminalNoLiveRecipientSkipsStagesTest',
+    'spk.local.G1884TerminalStageIsolationPropertySnapshotTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2387,10 +2388,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 540 ||
-    currentTrainFocusedTests.toSet().size() != 540) {
+if (currentTrainFocusedTests.size() != 541 ||
+    currentTrainFocusedTests.toSet().size() != 541) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 540 unique tests, found " +
+        "Current-train focused manifest drift: expected 541 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9201,4 +9202,12 @@ tasks.register('g1881TerminalAbsentRecipientRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1881OptinTerminalNoLiveRecipientSkipsStagesTest')
+}
+tasks.register('g1884TerminalIsolationPropertySnapshotRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves public installed Monster Spawner observer samples default-OFF or opt-in property once at World composition.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1884TerminalStageIsolationPropertySnapshotTest')
 }
