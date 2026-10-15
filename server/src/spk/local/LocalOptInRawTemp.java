@@ -29,6 +29,16 @@ final class LocalOptInRawTemp {
     // authenticated final-save ACK or durable owner generation.
     static final String FORCE_PROPERTY=
         "spk.local.experimentalRawForceVerifiedPostimage";
+    // G21.248 deterministic test-only seam: publication may already
+    // have replaced bytes when a later directory force fails.
+    interface AfterMoveProbe {
+        void afterMove(Path file)throws IOException;
+    }
+    private static volatile AfterMoveProbe afterMoveProbeForTest;
+    static void setAfterMoveProbeForTest(AfterMoveProbe probe){
+        afterMoveProbeForTest=probe;
+    }
+
     private LocalOptInRawTemp(){}
 
     static boolean enabled()throws IOException{
@@ -180,6 +190,8 @@ final class LocalOptInRawTemp {
                 uncertain);
         }
         try{
+            AfterMoveProbe probe=afterMoveProbeForTest;
+            if(probe!=null)probe.afterMove(account);
             try(FileChannel directory=FileChannel.open(
                     account.getParent(),StandardOpenOption.READ,
                     LinkOption.NOFOLLOW_LINKS)){
