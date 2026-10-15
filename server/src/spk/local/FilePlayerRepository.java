@@ -1403,13 +1403,13 @@ final class FilePlayerRepository
                 enforceWorldAdmission?null:
                 LocalJvmAccountSessionLease.reserveRawWrite(
                     file,snapshot.username())){
-            saveInternalSelected(snapshot,enforceWorldAdmission,file);
+            saveInternalSelected(snapshot,enforceWorldAdmission,file,raw);
         }
     }
 
     private void saveInternalSelected(
         PlayerSnapshot snapshot,boolean enforceWorldAdmission,
-        Path file
+        Path file,LocalJvmAccountSessionLease.RawWriteReservation raw
     )throws IOException{
         // Snapshot per-save; callers must configure the opt-in before
         // sessions start, not change it in flight.
@@ -1583,6 +1583,7 @@ final class FilePlayerRepository
                 // hardlink operation after the last check.
                 LocalJvmAccountSessionLease
                     .requireNonHardlinkedAccount(file);
+                if(raw!=null)raw.requireLockObjectContinuity();
                 replaceSnapshotTemp(tmp,file);
             }
 

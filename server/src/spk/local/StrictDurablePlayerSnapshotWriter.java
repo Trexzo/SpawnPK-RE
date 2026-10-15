@@ -389,7 +389,7 @@ final class StrictDurablePlayerSnapshotWriter {
                                 snapshot,worldFile,publicationCheck,
                                 postPublicationCheck,writeAheadIntent,
                                 terminalMode,terminalPreparedSha256,
-                                selected),
+                                selected,raw),
                             bindPreparedResult
                                 ?(uuid,receipt)->
                                     MailboxStrictPreparedResultBindingV3
@@ -406,7 +406,7 @@ final class StrictDurablePlayerSnapshotWriter {
                 return saveInternalTracked(
                     snapshot,worldFile,publicationCheck,
                     postPublicationCheck,writeAheadIntent,terminalMode,
-                    terminalPreparedSha256,selected);
+                    terminalPreparedSha256,selected,raw);
             });
         }
     }
@@ -416,7 +416,8 @@ final class StrictDurablePlayerSnapshotWriter {
         BeforeWorldPublication publicationCheck,
         AfterWorldPublication postPublicationCheck,
         boolean writeAheadIntent,boolean terminalMode,
-        String terminalPreparedSha256,Path pinnedAccountFile
+        String terminalPreparedSha256,Path pinnedAccountFile,
+        LocalJvmAccountSessionLease.RawWriteReservation raw
     )throws IOException{
         PlayerSnapshot checked=Objects.requireNonNull(
             snapshot,"snapshot"
@@ -508,6 +509,8 @@ final class StrictDurablePlayerSnapshotWriter {
 
             faults.check(Phase.BEFORE_ATOMIC_REPLACE);
             if(worldFile==null){
+                // G21.244: opt-in RAW/strict OS lock object recheck.
+                if(raw!=null)raw.requireLockObjectContinuity();
                 // Preserve the historical unguarded strict primitive.
                 publishStrictReplacement(
                     temp,file,parent,replaced

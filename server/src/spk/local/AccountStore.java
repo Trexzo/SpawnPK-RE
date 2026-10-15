@@ -84,13 +84,14 @@ final class AccountStore {
                 LocalJvmAccountSessionLease.reserveRawWrite(
                     file,CANONICAL_USERNAME)){
             return saveSelectedFile(
-                file,bank,equipment,movement,pet,player);
+                file,bank,equipment,movement,pet,player,reservation);
         }
     }
 
     private static String saveSelectedFile(
         Path file,BankState bank,EquipmentState equipment,
-        MovementState movement,PetState pet,PlayerState player
+        MovementState movement,PetState pet,PlayerState player,
+        LocalJvmAccountSessionLease.RawWriteReservation reservation
     )throws IOException{
         Files.createDirectories(file.getParent());
 
@@ -123,8 +124,10 @@ final class AccountStore {
                 properties.store(out, "SpawnPK LocalLab localhost account state");
             }
             try {
+                if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
+                if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
             completed = true;
