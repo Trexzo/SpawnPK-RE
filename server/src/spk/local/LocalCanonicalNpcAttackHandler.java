@@ -28,6 +28,60 @@ final class LocalCanonicalNpcAttackHandler {
         HIT
     }
 
+    /**
+     * Exact World + WorldPlayer/generation accepted by the canonical
+     * PvM click resolver when this immediate hit actually mutated the
+     * NPC lifecycle. This is a LOCAL evidence witness, not original
+     * SpawnPK last-hit attribution or a reward/loot authorization.
+     *
+     * Unlike NpcLifecycleService.DamageResult.sourceAuthority (NPC
+     * lifecycle registration), this witness identifies the validated
+     * player of the successful canonical click. It is never created
+     * for a failed/stale/out-of-range click, or direct anonymous
+     * NpcLifecycleService.applyDamage calls.
+     */
+    static final class AcceptedHitWitness {
+        final World world;
+        final WorldPlayer attacker;
+        final long generation;
+        final EntityId attackerId;
+        final EntityId targetNpcId;
+        final long worldTick;
+        final int appliedDamage;
+        final boolean newlyDied;
+
+        private AcceptedHitWitness(
+            World world,
+            WorldPlayer attacker,
+            long generation,
+            EntityId attackerId,
+            EntityId targetNpcId,
+            long worldTick,
+            int appliedDamage,
+            boolean newlyDied
+        ){
+            this.world=Objects.requireNonNull(world,"world");
+            this.attacker=Objects.requireNonNull(attacker,"attacker");
+            this.attackerId=Objects.requireNonNull(attackerId,"attackerId");
+            this.targetNpcId=Objects.requireNonNull(targetNpcId,"targetNpcId");
+            if(generation<0L||worldTick<0L||appliedDamage<0)
+                throw new IllegalArgumentException(
+                    "invalid accepted-hit evidence generation/tick/damage");
+            if(!attacker.id().equals(attackerId))
+                throw new IllegalArgumentException(
+                    "accepted click attacker identity mismatch");
+            this.generation=generation;
+            this.worldTick=worldTick;
+            this.appliedDamage=appliedDamage;
+            this.newlyDied=newlyDied;
+        }
+
+        boolean stillCurrentIn(World checkedWorld){
+            return world==checkedWorld&&
+                world.players().owns(attacker,generation);
+        }
+    }
+
     static final class Result {
         final Status status;
         final EntityId canonicalId;
@@ -40,6 +94,7 @@ final class LocalCanonicalNpcAttackHandler {
         final int maxHitpoints;
         final boolean newlyDied;
         final String presentationAuthority;
+        final AcceptedHitWitness acceptedHit;
 
         private Result(
             Status status,
@@ -50,9 +105,23 @@ final class LocalCanonicalNpcAttackHandler {
             int appliedDamage,
             int hitpointsAfter,
             int maxHitpoints,
-            boolean newlyDied
+            boolean newlyDied,
+            AcceptedHitWitness acceptedHit
         ){
             this.status=Objects.requireNonNull(status,"status");
+            if(status==Status.HIT&&acceptedHit==null)
+                throw new IllegalArgumentException(
+                    "HIT must retain verified attacker witness");
+            if(status!=Status.HIT&&acceptedHit!=null)
+                throw new IllegalArgumentException(
+                    "rejected canonical click cannot carry attacker witness");
+            if(acceptedHit!=null&&
+                    (!acceptedHit.targetNpcId.equals(canonicalId)||
+                     acceptedHit.appliedDamage!=appliedDamage||
+                     acceptedHit.newlyDied!=newlyDied))
+                throw new IllegalArgumentException(
+                    "accepted hit witness does not match result");
+            this.acceptedHit=acceptedHit;
             this.canonicalId=canonicalId;
             this.sceneIndex=clicked==null?-1:clicked.sceneIndex;
             this.definitionId=clicked==null?-1:clicked.definitionId;
@@ -679,7 +748,17 @@ final class LocalCanonicalNpcAttackHandler {
             damage.appliedDamage,
             after.hitpoints,
             after.maxHitpoints,
-            damage.newlyDied
+            damage.newlyDied,
+            new AcceptedHitWitness(
+                world,
+                player,
+                generation,
+                hit.attackerId,
+                hit.targetId,
+                attackTick,
+                damage.appliedDamage,
+                damage.newlyDied
+            )
         );
     }
 
@@ -766,16 +845,27 @@ final class LocalCanonicalNpcAttackHandler {
         int maxHitpoints,
         boolean newlyDied
     ){
+        return result(
+            status,clicked,canonicalId,distance,legalRange,
+            appliedDamage,hitpointsAfter,maxHitpoints,newlyDied,null
+        );
+    }
+
+    private static Result result(
+        Status status,
+        NpcEntity clicked,
+        EntityId canonicalId,
+        int distance,
+        int legalRange,
+        int appliedDamage,
+        int hitpointsAfter,
+        int maxHitpoints,
+        boolean newlyDied,
+        AcceptedHitWitness witness
+    ){
         return new Result(
-            status,
-            clicked,
-            canonicalId,
-            distance,
-            legalRange,
-            appliedDamage,
-            hitpointsAfter,
-            maxHitpoints,
-            newlyDied
+            status,clicked,canonicalId,distance,legalRange,
+            appliedDamage,hitpointsAfter,maxHitpoints,newlyDied,witness
         );
     }
 }
