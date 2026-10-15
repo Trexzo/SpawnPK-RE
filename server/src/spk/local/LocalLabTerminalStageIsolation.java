@@ -66,11 +66,46 @@ final class LocalLabTerminalStageIsolation {
         }
     }
 
+    /**
+     * Read-only, detached operator diagnostics for a single World-local
+     * opt-in dispatcher. This is NOT a ledger of applied rewards; a
+     * RETURNED stage can have no active objective, and THREW may
+     * follow partial mutation. Never replay from this snapshot.
+     */
+    static final class DiagnosticSnapshot {
+        final long observedCount;
+        final long evictedCount;
+        final List<Report> recentReports;
+
+        private DiagnosticSnapshot(
+            long observedCount,
+            long evictedCount,
+            List<Report> recentReports
+        ){
+            this.observedCount=observedCount;
+            this.evictedCount=evictedCount;
+            this.recentReports=Collections.unmodifiableList(
+                new ArrayList<Report>(
+                    Objects.requireNonNull(recentReports,"recentReports")
+                )
+            );
+        }
+    }
+
     private final ArrayDeque<Report> reports=new ArrayDeque<>();
+    private long totalObserved;
+    private long totalEvicted;
+
+    synchronized DiagnosticSnapshot diagnosticSnapshot(){
+        return new DiagnosticSnapshot(
+            totalObserved,
+            totalEvicted,
+            new ArrayList<Report>(reports)
+        );
+    }
 
     synchronized List<Report> history(){
-        return Collections.unmodifiableList(
-            new ArrayList<Report>(reports));
+        return diagnosticSnapshot().recentReports;
     }
 
     /**
@@ -167,8 +202,15 @@ final class LocalLabTerminalStageIsolation {
             death.npcId,death.deathTick,recipientRef,
             generation,matched,outcomes);
         synchronized(this){
-            if(reports.size()==MAX_REPORTS)
+            // Saturate observational counters instead of overflowing.
+            // Neither counter is used for reward or replay authority.
+            if(totalObserved<Long.MAX_VALUE)
+                totalObserved++;
+            if(reports.size()==MAX_REPORTS){
                 reports.removeFirst();
+                if(totalEvicted<Long.MAX_VALUE)
+                    totalEvicted++;
+            }
             reports.addLast(report);
         }
         return report;
