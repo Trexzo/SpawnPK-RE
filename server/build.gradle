@@ -2382,6 +2382,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21229CoreTwoJvmHardlinkAliasOwnerGapTest',
     'spk.local.G21230CoreHardlinkCountCrossJvmAdmissionGateTest',
     'spk.local.G21231CorePostAdmissionHardlinkWorldPublicationGapTest',
+    'spk.local.G21232CoreWorldHardlinkCommitGateTest',
     'spk.local.ObjectiveProgressFoundationTest',
     'spk.local.ShopServiceTest',
     'spk.local.G2ShopPurchaseServiceTest',
@@ -2410,10 +2411,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 563 ||
-    currentTrainFocusedTests.toSet().size() != 563) {
+if (currentTrainFocusedTests.size() != 564 ||
+    currentTrainFocusedTests.toSet().size() != 564) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 563 unique tests, found " +
+        "Current-train focused manifest drift: expected 564 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -4833,6 +4834,14 @@ tasks.register('g21231LateHardlinkWorldPublicationGapRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21231CorePostAdmissionHardlinkWorldPublicationGapTest')
+}
+
+tasks.register('g21232GuardedWorldHardlinkPublishVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.232: opted-in World save vetoes a late hardlink before account publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21232CoreWorldHardlinkCommitGateTest')
 }
 
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {

@@ -87,15 +87,28 @@ public final class G21231CorePostAdmissionHardlinkWorldPublicationGapTest {
             check("BEFORE_ALIAS".equals(phase(aliased)),
                 "alias did not see baseline");
 
-            ticket.set(null);
-            world.submitAndWait(live,admitted,()->{
-                live.snapshotExtensions().replaceNamespace(NS,
-                    Collections.singletonMap("phase","AFTER_ALIAS"));
-                ticket.set(ownedWorld.persistence().captureAndSave(
-                    USER,live,admitted,0,"[G21.231] ","SECOND_WORLD_SAVE"));
-            },5_000L);
-            check(ticket.get()!=null,"subsequent World task absent");
-            ticket.get().completion.get(10L,TimeUnit.SECONDS);
+            // Historical parent #2712 proves the original all-ON
+            // late-hardlink publication gap. G21.232's descendant
+            // preserves this negative only with a deliberate
+            // TEST-ONLY gate opt-out around the second World save.
+            System.setProperty(
+                LocalJvmAccountSessionLease.HARDLINK_COUNT_GATE_PROPERTY,
+                "false");
+            try{
+                ticket.set(null);
+                world.submitAndWait(live,admitted,()->{
+                    live.snapshotExtensions().replaceNamespace(NS,
+                        Collections.singletonMap("phase","AFTER_ALIAS"));
+                    ticket.set(ownedWorld.persistence().captureAndSave(
+                        USER,live,admitted,0,"[G21.231] ","SECOND_WORLD_SAVE"));
+                },5_000L);
+                check(ticket.get()!=null,"subsequent World task absent");
+                ticket.get().completion.get(10L,TimeUnit.SECONDS);
+            }finally{
+                System.setProperty(
+                    LocalJvmAccountSessionLease.HARDLINK_COUNT_GATE_PROPERTY,
+                    "true");
+            }
             check("AFTER_ALIAS".equals(phase(repo)),
                 "original World pathname not replaced with newer state");
             check("BEFORE_ALIAS".equals(phase(aliased)),
@@ -113,7 +126,7 @@ public final class G21231CorePostAdmissionHardlinkWorldPublicationGapTest {
                 " actualWorldSaveCompletedTwice=true"+
                 " originalPathNewerAliasPathOlder=true"+
                 " originalWorldLeaseStillHeld=true"+
-                " hardlinkCountAdmissionGateEnabled=true"+
+                " hardlinkGateOffDuringSecondSaveOnly=true"+
                 " worldCommitTimeHardlinkVetoImplemented=false"+
                 " authenticatedEpoch=false"+
                 " durableFinalReceipt=false");
