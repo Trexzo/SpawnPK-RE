@@ -113,7 +113,7 @@ public final class G21215CoreSecondJvmRawWriterBypassesSessionLockTest {
             "independent JVM failed exit="+child.exitValue()+
             " stdout="+stdout);
         check(stdout.contains(
-            "G21215_CHILD_CROSS_JVM_SESSION_DENIED_RAW_WRITE_ALLOWED"),
+            "G21215_CHILD_CROSS_JVM_SESSION_DENIED_RAW_OPT_OUT_ALLOWED"),
             "missing child process proof stdout="+stdout);
         return stdout;
     }
