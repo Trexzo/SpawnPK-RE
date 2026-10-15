@@ -142,6 +142,12 @@ final class LocalLabTerminalStageIsolation {
 
     synchronized void bindTo(World world){
         World checked=Objects.requireNonNull(world,"world");
+        // A package-local injected dispatcher must not be installed
+        // into an already closed World. No lifecycle/reward callbacks
+        // or observer ownership can legitimately begin at this point.
+        if(checked.closed())
+            throw new IllegalStateException(
+                "TERMINAL_DIAGNOSTICS_WORLD_CLOSED");
         if(boundWorld==null){
             boundWorld=checked;
             return;
@@ -187,6 +193,13 @@ final class LocalLabTerminalStageIsolation {
         // Fail before any callback or diagnostics mutation if a package-
         // local caller supplies a terminal from the wrong World.
         requireBoundWorld(checked);
+        // Fail closed BEFORE claiming this event and BEFORE any
+        // downstream callbacks or diagnostic report, rather than
+        // emitting misleading stage results after World teardown.
+        // This is an entry check, not a durable in-flight close fence.
+        if(checked.closed())
+            throw new IllegalStateException(
+                "TERMINAL_DIAGNOSTICS_WORLD_CLOSED");
         MonsterSpawnerPvmRuntime.FinalizeResult event=
             Objects.requireNonNull(terminal,"terminal");
         // Binding the DISPATCHER is not enough: a correctly bound
