@@ -26,11 +26,11 @@ public final class G1901AcceptedHitWitnessExactPlayerReplacementTest {
             NpcRegistry registryA=new NpcRegistry(
                 new DevAuthorityWorkbench(),world.petNpcs(),a.id());
             NpcEntity viewA=view(registryA,a,def,npc);
+            final long capturedGenerationA=generationA;
             LocalCanonicalNpcAttackHandler handlerA=
                 new LocalCanonicalNpcAttackHandler(
-                    world,a,()->generationAHolder[0],
+                    world,a,()->capturedGenerationA,
                     a.equipment(),a.combatStyles(),registryA);
-            generationAHolder[0]=generationA;
 
             ByteArrayOutputStream packetA=new ByteArrayOutputStream();
             LocalCanonicalNpcAttackHandler.Result first=
@@ -127,8 +127,6 @@ public final class G1901AcceptedHitWitnessExactPlayerReplacementTest {
             world.close();
         }
     }
-
-    private static final long[] generationAHolder={-1L};
 
     private static NpcEntity view(
         NpcRegistry registry,WorldPlayer owner,int definition,WorldNpc npc
