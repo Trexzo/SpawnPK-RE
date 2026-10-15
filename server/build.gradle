@@ -2141,6 +2141,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1882OptinTerminalReportBoundedHistoryTest',
     'spk.local.G1883TerminalReportReturnedNotCreditedTest',
     'spk.local.G1884TerminalStageIsolationPropertySnapshotTest',
+    'spk.local.G1885RealRuntimeReadOnlyTerminalDiagnosticsTest',
+    'spk.local.G1886RealFactoryBoundedOperatorSnapshotTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2397,10 +2399,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 550 ||
-    currentTrainFocusedTests.toSet().size() != 550) {
+if (currentTrainFocusedTests.size() != 552 ||
+    currentTrainFocusedTests.toSet().size() != 552) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 550 unique tests, found " +
+        "Current-train focused manifest drift: expected 552 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9292,4 +9294,20 @@ tasks.register('g1884TerminalIsolationPropertySnapshotRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1884TerminalStageIsolationPropertySnapshotTest')
+}
+tasks.register('g1885ReadOnlyInstalledTerminalDiagnosticsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Checks read-only composed opt-in terminal diagnostics on two real NPC deaths and a default-OFF graph.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1885RealRuntimeReadOnlyTerminalDiagnosticsTest')
+}
+tasks.register('g1886BoundedReadOnlyInstalledTerminalDiagnosticsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Checks immutable bounded operator view across 130 real G1 respawn/settlement events and isolated Worlds.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1886RealFactoryBoundedOperatorSnapshotTest')
 }
