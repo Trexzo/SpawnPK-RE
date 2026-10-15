@@ -30,7 +30,7 @@ final class LocalJvmAccountSessionLease {
      * This is an admission-time NOFOLLOW observation, not a durable
      * file-object epoch or protection against post-check substitution.
      */
-    private static void requireNonHardlinkedAccount(
+    static void requireNonHardlinkedAccount(
         Path account
     )throws java.io.IOException{
         if(!Boolean.getBoolean(HARDLINK_COUNT_GATE_PROPERTY))return;
