@@ -20,7 +20,12 @@ The scan is observational and **not an atomic snapshot**. An uncooperative actor
 
 ## CLI
 
-Using the built server/test classpath:
+From the server Gradle project, with an explicit selected account path (the task never searches directories):
+```powershell
+./gradlew -p server accountForensicReadOnly -PforensicAccountFile='C:\\path\\to\\selected-account.properties'
+```
+
+Or using the built server/test classpath directly:
 ```
 java -cp <classpath> spk.local.LocalAccountForensicEvidence /absolute/path/to/selected-account.properties
 ```
