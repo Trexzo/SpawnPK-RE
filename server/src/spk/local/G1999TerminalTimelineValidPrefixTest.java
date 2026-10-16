@@ -13,7 +13,8 @@ public final class G1999TerminalTimelineValidPrefixTest {
             " G4G14ObservedInOrder=true"+
             " G15G16G18NotReached=true"+
             " G1NotObservedInTestCollector=true"+
-            " noDurableGrantAck=true);
+            " noDurableGrantAck=true");
+
     }
     private G1999TerminalTimelineValidPrefixTest(){}
 }

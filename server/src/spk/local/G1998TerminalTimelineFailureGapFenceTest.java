@@ -12,7 +12,8 @@ public final class G1998TerminalTimelineFailureGapFenceTest {
             " realNpcGroundSettlement=true"+
             " syntheticG16ThrowAfterUnattemptedG14Rejected=true"+
             " zeroCollectorCountersChanged=true"+
-            " noGrantReplay=true);
+            " noGrantReplay=true");
+
     }
     private G1998TerminalTimelineFailureGapFenceTest(){}
 }
