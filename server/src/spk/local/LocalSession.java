@@ -4265,9 +4265,11 @@ final class LocalSession implements Runnable {
         );
 
         try{
-            finalWorldAction.get(
-                5,
-                java.util.concurrent.TimeUnit.SECONDS
+            // G21.296: this earlier World-owned command wait is
+            // interrupted independently of the later I/O save-ticket
+            // wait. Preserve caller shutdown status in both phases.
+            LocalFinalSaveCompletionWait.awaitConfirmed(
+                finalWorldAction,5_000L
             );
         }catch(java.util.concurrent.TimeoutException pending){
             /*
