@@ -95,6 +95,7 @@ final class LocalLabSequentialTerminalStageTrace {
         final Map<Stage,Map<Outcome,Long>> outcomeCounts;
         final Map<G1Outcome,Long> g1OutcomeCounts;
         final Map<LocalLabSettledDeathEnvelope.OriginStatus,Long> originCounts;
+        final LocalLabOriginConsumerOutcomeTally.Snapshot originConsumerOutcomes;
 
         long originCount(LocalLabSettledDeathEnvelope.OriginStatus origin){
             return originCounts.get(Objects.requireNonNull(origin,"origin"));
@@ -117,7 +118,8 @@ final class LocalLabSequentialTerminalStageTrace {
             ArrayDeque<Report> reports,
             EnumMap<Stage,EnumMap<Outcome,Long>> totals,
             EnumMap<G1Outcome,Long> g1Totals,
-            EnumMap<LocalLabSettledDeathEnvelope.OriginStatus,Long> originTotals
+            EnumMap<LocalLabSettledDeathEnvelope.OriginStatus,Long> originTotals,
+            LocalLabOriginConsumerOutcomeTally.Snapshot jointEvidence
         ){
             this.observed=observed;
             this.evicted=evicted;
@@ -139,6 +141,8 @@ final class LocalLabSequentialTerminalStageTrace {
                     originTotals
                 )
             );
+            originConsumerOutcomes=Objects.requireNonNull(
+                jointEvidence,"jointEvidence");
         }
     }
 
@@ -242,6 +246,8 @@ final class LocalLabSequentialTerminalStageTrace {
 
     private final World world;
     private final ArrayDeque<Report> reports=new ArrayDeque<>();
+    private final LocalLabOriginConsumerOutcomeTally jointTally=
+        new LocalLabOriginConsumerOutcomeTally();
     private final EnumMap<Stage,EnumMap<Outcome,Long>> totals=
         new EnumMap<Stage,EnumMap<Outcome,Long>>(Stage.class);
     private final EnumMap<G1Outcome,Long> g1Totals=
@@ -304,6 +310,11 @@ final class LocalLabSequentialTerminalStageTrace {
             );
         // Detached report construction precedes counters/claim mutation.
         Report report=new Report(checked);
+        LocalLabTerminalDeliveryAssessment assessment=
+            LocalLabTerminalDeliveryAssessment.from(report);
+        // Exact same-World/collector/one-shot checks above must succeed
+        // before recording the joint origin/consumer evidence.
+        jointTally.accept(report,assessment);
         checked.recorded=true;
         long originPrior=originTotals.get(report.originStatus);
         if(originPrior<Long.MAX_VALUE)
@@ -330,6 +341,9 @@ final class LocalLabSequentialTerminalStageTrace {
     }
 
     synchronized Snapshot snapshot(){
-        return new Snapshot(observed,evicted,reports,totals,g1Totals,originTotals);
+        return new Snapshot(
+            observed,evicted,reports,totals,g1Totals,originTotals,
+            jointTally.snapshot()
+        );
     }
 }
