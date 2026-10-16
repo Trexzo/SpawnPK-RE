@@ -137,25 +137,50 @@ public final class LocalAccountForensicEvidence {
      * does NOT authorize any login or owner epoch. Unsupported
      * filesystems are UNPROVEN, never assumed single-name.
      */
-    private static String accountHardlinks(Path account,Stat stat)
+    private static final class HardlinkWitness {
+        final String state;
+        // Exact count is retained only within the scan, never admission
+        // authority. Negative sentinels distinguish absent/unsupported.
+        final long count;
+        HardlinkWitness(String state,long count){
+            this.state=state;
+            this.count=count;
+        }
+    }
+
+    private static HardlinkWitness accountHardlinks(Path account,Stat stat)
         throws IOException{
-        if(stat.attributes==null)return "ABSENT";
+        if(stat.attributes==null)
+            return new HardlinkWitness("ABSENT",-2L);
         final Object count;
         try{
             count=Files.getAttribute(account,"unix:nlink",
                 LinkOption.NOFOLLOW_LINKS);
         }catch(UnsupportedOperationException|IllegalArgumentException
                 unavailable){
-            return "UNAVAILABLE_UNPROVEN";
+            return new HardlinkWitness("UNAVAILABLE_UNPROVEN",-1L);
         }
         if(!(count instanceof Number))
-            return "UNAVAILABLE_UNPROVEN";
+            return new HardlinkWitness("UNAVAILABLE_UNPROVEN",-1L);
         long n=((Number)count).longValue();
         if(n<1L)
             throw new IOException(
                 "G21.285 ACCOUNT_HARDLINK_COUNT_INVALID_NO_AUTHORITY");
-        return n==1L?"ONE_OBSERVED_NOT_AUTHORITY":
-            "MULTIPLE_ACCOUNT_LINKS_NEGATIVE";
+        return new HardlinkWitness(n==1L?"ONE_OBSERVED_NOT_AUTHORITY":
+            "MULTIPLE_ACCOUNT_LINKS_NEGATIVE",n);
+    }
+
+    private static void requireSameHardlinkWitness(
+        HardlinkWitness before,HardlinkWitness after)throws IOException{
+        if(!before.state.equals(after.state))
+            throw new IOException(
+                "G21.285 ACCOUNT_HARDLINK_COUNT_CHANGED_DURING_READ");
+        // G21.287: comparing just ONE/MULTIPLE loses 2->3 and 3->2
+        // alias churn. Even though MULTIPLE is already negative,
+        // such a report must not imply a stable filesystem witness.
+        if(before.count!=after.count)
+            throw new IOException(
+                "G21.287 ACCOUNT_HARDLINK_EXACT_COUNT_CHANGED_DURING_READ");
     }
 
     private static String hashAccount(Path account,Stat stat)
@@ -235,7 +260,7 @@ public final class LocalAccountForensicEvidence {
             MailboxGuardedDiskCommitRecord.SUFFIX));
 
         Stat accountBefore=observe(account);
-        String linksBefore=accountHardlinks(account,accountBefore);
+        HardlinkWitness linksBefore=accountHardlinks(account,accountBefore);
         Map<String,Stat> sidecarsBefore=new LinkedHashMap<>();
         for(Map.Entry<String,Path> entry:names.entrySet())
             sidecarsBefore.put(entry.getKey(),observe(entry.getValue()));
@@ -251,9 +276,8 @@ public final class LocalAccountForensicEvidence {
         // the exact after-first-digest seam before metadata checks.
         // Otherwise filesystem-specific ctime mapping may classify
         // the same alias race as a generic metadata drift.
-        if(!linksBefore.equals(accountHardlinks(account,accountBefore)))
-            throw new IOException(
-                "G21.285 ACCOUNT_HARDLINK_COUNT_CHANGED_DURING_READ");
+        requireSameHardlinkWitness(linksBefore,
+            accountHardlinks(account,accountBefore));
         Stat accountAfter=observe(account);
         if(!same(accountBefore,accountAfter))
             throw new IOException(
@@ -291,13 +315,11 @@ public final class LocalAccountForensicEvidence {
         // Read-only twice: an alias of the selected inode added or
         // removed during inspection invalidates the observation.
         // This cannot fence foreign nlink mutation after our probe.
-        String linksAfter=accountHardlinks(account,accountBefore);
-        if(!linksBefore.equals(linksAfter))
-            throw new IOException(
-                "G21.285 ACCOUNT_HARDLINK_COUNT_CHANGED_DURING_READ");
+        HardlinkWitness linksAfter=accountHardlinks(account,accountBefore);
+        requireSameHardlinkWitness(linksBefore,linksAfter);
         String state=accountBefore.attributes==null
             ?"ABSENT":"PRESENT_REGULAR";
-        return new Evidence(state,hash,linksAfter,states,found);
+        return new Evidence(state,hash,linksAfter.state,states,found);
     }
 
     /** Operator CLI: java -cp ... spk.local.LocalAccountForensicEvidence
