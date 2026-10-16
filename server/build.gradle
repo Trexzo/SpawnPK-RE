@@ -2207,6 +2207,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1948FailedCanonicalNpcMaskNoRemoteRelayTest',
     'spk.local.G1949CanonicalHitmaskBatchAbortFenceTest',
     'spk.local.G1950CanonicalHitmaskBatchCommitRelayTest',
+    'spk.local.G1951TerminalObserverReturnedDiagnosticTest',
+    'spk.local.G1952TerminalObserverFailureDiagnosticTest',
+    'spk.local.G1953InstalledSequentialObserverFailureTest',
+    'spk.local.G1954InstalledIsolatedObserverReturnWithStageFailureTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
@@ -2520,10 +2524,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 673 ||
-    currentTrainFocusedTests.toSet().size() != 673) {
+if (currentTrainFocusedTests.size() != 677 ||
+    currentTrainFocusedTests.toSet().size() != 677) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 673 unique tests, found " +
+        "Current-train focused manifest drift: expected 677 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10478,4 +10482,40 @@ tasks.register('accountForensicReadOnly', JavaExec) {
             throw new GradleException('G21.279 selected forensic account path is blank')
         args(selected)
     }
+}
+
+tasks.register('g1951TerminalObserverReturnedDiagnosticRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual post-settlement terminal observer success is observable but not a reward ACK.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1951TerminalObserverReturnedDiagnosticTest')
+}
+
+tasks.register('g1952TerminalObserverFailureDiagnosticRegression', JavaExec) {
+    group = 'verification'
+    description = 'A post-settlement observer RuntimeException or Error is recorded without unsafe replay.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1952TerminalObserverFailureDiagnosticTest')
+}
+
+tasks.register('g1953InstalledSequentialObserverFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real default G1/G14 terminal failure produces a THREW observer record without replay.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1953InstalledSequentialObserverFailureTest')
+}
+
+tasks.register('g1954InstalledIsolatedObserverReturnWithStageFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Observer RETURNED is not a per-consumer ACK when isolated G14 threw.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1954InstalledIsolatedObserverReturnWithStageFailureTest')
 }
