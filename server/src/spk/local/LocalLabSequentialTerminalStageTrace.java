@@ -37,8 +37,11 @@ final class LocalLabSequentialTerminalStageTrace {
 
     static final class Report {
         final EntityId npcId;
+        final int definitionId;
+        final Tile deathTile;
         final long deathTick;
         final String recipientRef;
+        final LocalLabSettledDeathEnvelope.OriginStatus originStatus;
         final long spawnRecipientGeneration;
         // Observation ONLY. A false match means the current same-name
         // WorldPlayer is not the immutable NPC spawn-time player/epoch.
@@ -51,15 +54,14 @@ final class LocalLabSequentialTerminalStageTrace {
         final Map<Stage,String> failureTypes;
 
         private Report(Capture capture){
-            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
-                capture.terminal;
-            npcId=terminal.finalization.npcId;
-            deathTick=terminal.finalization.deathTick;
-            recipientRef=terminal.finalization.recipientRef;
-            spawnRecipientGeneration=
-                terminal.recipientOrigin==null
-                    ?-1L
-                    :terminal.recipientOrigin.generation;
+            LocalLabSettledDeathEnvelope death=capture.envelope;
+            npcId=death.npcId;
+            definitionId=death.definitionId;
+            deathTile=death.deathTile;
+            deathTick=death.deathTick;
+            recipientRef=death.recipientRef;
+            spawnRecipientGeneration=death.spawnRecipientGeneration;
+            originStatus=death.originStatus;
             spawnOriginMatchedAtDispatch=
                 capture.spawnOriginMatchedAtDispatch;
             observedCurrentGeneration=capture.observedCurrentGeneration;
@@ -136,6 +138,7 @@ final class LocalLabSequentialTerminalStageTrace {
      */
     static final class Capture {
         final MonsterSpawnerPvmRuntime.FinalizeResult terminal;
+        final LocalLabSettledDeathEnvelope envelope;
         private final LocalLabSequentialTerminalStageTrace owner;
         final boolean spawnOriginMatchedAtDispatch;
         final long observedCurrentGeneration;
@@ -172,18 +175,12 @@ final class LocalLabSequentialTerminalStageTrace {
         ){
             this.owner=owner;
             this.terminal=terminal;
-            MonsterSpawnerPvmRuntime.RecipientOrigin origin=
-                terminal.recipientOrigin;
-            String recipientRef=terminal.finalization.recipientRef;
-            WorldPlayer observed=world.players().byName(recipientRef);
-            observedCurrentGeneration=
-                observed==null?-1L:observed.generation();
+            envelope=LocalLabSettledDeathEnvelope.observe(
+                world,terminal
+            );
+            observedCurrentGeneration=envelope.observedCurrentGeneration;
             spawnOriginMatchedAtDispatch=
-                origin!=null&&observed!=null&&
-                origin.player==observed&&
-                origin.generation==observedCurrentGeneration&&
-                recipientRef.equals(origin.recipientRef)&&
-                origin.stillCurrentIn(world);
+                envelope.spawnRecipientStillCurrent();
             for(Stage stage:Stage.values())
                 outcomes.put(stage,Outcome.NOT_REACHED);
         }
