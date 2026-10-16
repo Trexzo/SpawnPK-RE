@@ -251,6 +251,8 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                         stage.deathTick==deathTick&&
                         USER.equals(stage.recipientRef)&&
                         stage.spawnRecipientGeneration==generation&&
+                        stage.observedCurrentGeneration==generation&&
+                        stage.spawnOriginMatchedAtDispatch&&
                         stage.outcome(
                             LocalLabSequentialTerminalStageTrace.Stage.G4)==
                             LocalLabSequentialTerminalStageTrace

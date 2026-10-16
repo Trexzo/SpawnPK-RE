@@ -1,0 +1,11 @@
+# G19.6.3/64 — positive and absent WorldPlayer origin observations
+
+**Exact parent:** [#2833](https://github.com/Trexzo/SpawnPK-RE/pull/2833) `6ce40acdcf27ebad531c24af184f1442bf38d314`, candidate 689, extending the default `LocalLabSequentialTerminalStageTrace` with `spawnOriginMatchedAtDispatch` and `observedCurrentGeneration` while preserving established G1847 username-based World task continuity. This PR is **test only**: two new focused classes, two additional assertions within existing real production fixtures, Gradle registration and this report. No production behavior/reward/account changes.
+
+**G1963 — matched:** the actual G1884 installed-provisioning World graph runs default sequential progression twice under healthy and intentionally corrupt G14 test states. The original spawn-recipient WorldPlayer remains exact/current; the default trace report must show `spawnOriginMatchedAtDispatch=true`, current and spawn generations equal, and previously asserted stage RETURNED or THREW/NOT_REACHED as appropriate.
+
+**G1964 — absent:** the actual G1959 disconnected-recipient fixture unregisters the sole spawn recipient before real canonical death and drop settlement. There is NO replacement WorldPlayer of that name. The default trace must show `spawnOriginMatchedAtDispatch=false`, `observedCurrentGeneration=-1`, original spawn generation preserved, all five stages SKIPPED, no invented G1 kill credit. In the same G1959 test's foreign-World variant the recipient is still exact/current, so matching remains true.
+
+Together with G1961/62, the three source-backed observations become distinguishable: matching same WorldPlayer, absent former player, and present *different* same-name WorldPlayer. These remain forensic facts only, not an authorization to change LocalLab policy, infer the original SpawnPK server kill recipient or replay failed stage grants.
+
+Manifest **689→691 unique**, two JavaExec gates. Hosted exact-head **691/691** plus G1847, G1959, G1961–64, Java11 major55/full Gradle required before certification. Main untouched; all work in draft PRs. [#2587](https://github.com/Trexzo/SpawnPK-RE/issues/2587) remains open for durable/idempotent per-consumer apply and ACK; [#2558](https://github.com/Trexzo/SpawnPK-RE/issues/2558) remains open for original-server recipient policy.
