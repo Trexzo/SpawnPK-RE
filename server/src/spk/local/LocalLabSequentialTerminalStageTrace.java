@@ -81,17 +81,31 @@ final class LocalLabSequentialTerminalStageTrace {
         final long observed;
         final long evicted;
         final List<Report> recent;
+        final Map<Stage,Map<Outcome,Long>> outcomeCounts;
+
+        long outcomeCount(Stage stage,Outcome outcome){
+            return outcomeCounts.get(Objects.requireNonNull(stage,"stage"))
+                .get(Objects.requireNonNull(outcome,"outcome"));
+        }
 
         private Snapshot(
             long observed,
             long evicted,
-            ArrayDeque<Report> reports
+            ArrayDeque<Report> reports,
+            EnumMap<Stage,EnumMap<Outcome,Long>> totals
         ){
             this.observed=observed;
             this.evicted=evicted;
             this.recent=Collections.unmodifiableList(
                 new ArrayList<Report>(reports)
             );
+            EnumMap<Stage,Map<Outcome,Long>> detached=
+                new EnumMap<Stage,Map<Outcome,Long>>(Stage.class);
+            for(Stage stage:Stage.values())
+                detached.put(stage,Collections.unmodifiableMap(
+                    new EnumMap<Outcome,Long>(totals.get(stage))
+                ));
+            outcomeCounts=Collections.unmodifiableMap(detached);
         }
     }
 
@@ -102,6 +116,7 @@ final class LocalLabSequentialTerminalStageTrace {
      */
     static final class Capture {
         final MonsterSpawnerPvmRuntime.FinalizeResult terminal;
+        private final LocalLabSequentialTerminalStageTrace owner;
         final boolean spawnOriginMatchedAtDispatch;
         final long observedCurrentGeneration;
         final EnumMap<Stage,Outcome> outcomes=
@@ -111,9 +126,11 @@ final class LocalLabSequentialTerminalStageTrace {
         private boolean recorded;
 
         private Capture(
+            LocalLabSequentialTerminalStageTrace owner,
             MonsterSpawnerPvmRuntime.FinalizeResult terminal,
             World world
         ){
+            this.owner=owner;
             this.terminal=terminal;
             MonsterSpawnerPvmRuntime.RecipientOrigin origin=
                 terminal.recipientOrigin;
@@ -177,11 +194,20 @@ final class LocalLabSequentialTerminalStageTrace {
 
     private final World world;
     private final ArrayDeque<Report> reports=new ArrayDeque<>();
+    private final EnumMap<Stage,EnumMap<Outcome,Long>> totals=
+        new EnumMap<Stage,EnumMap<Outcome,Long>>(Stage.class);
     private long observed;
     private long evicted;
 
     LocalLabSequentialTerminalStageTrace(World world){
         this.world=Objects.requireNonNull(world,"world");
+        for(Stage stage:Stage.values()){
+            EnumMap<Outcome,Long> row=
+                new EnumMap<Outcome,Long>(Outcome.class);
+            for(Outcome outcome:Outcome.values())
+                row.put(outcome,0L);
+            totals.put(stage,row);
+        }
     }
 
     Capture begin(
@@ -198,7 +224,7 @@ final class LocalLabSequentialTerminalStageTrace {
             throw new IllegalArgumentException(
                 "sequential stages require a settled FINALIZED event"
             );
-        return new Capture(event,world);
+        return new Capture(this,event,world);
     }
 
     synchronized void record(Capture capture){
@@ -209,11 +235,24 @@ final class LocalLabSequentialTerminalStageTrace {
             throw new IllegalStateException(
                 "SEQUENTIAL_TERMINAL_STAGE_SOURCE_WORLD_MISMATCH"
             );
+        if(checked.owner!=this)
+            throw new IllegalStateException(
+                "SEQUENTIAL_TERMINAL_STAGE_CAPTURE_OWNER_MISMATCH"
+            );
         if(checked.recorded)
             throw new IllegalStateException(
                 "SEQUENTIAL_TERMINAL_STAGE_CAPTURE_ALREADY_RECORDED"
             );
+        // Detached report construction precedes counters/claim mutation.
+        Report report=new Report(checked);
         checked.recorded=true;
+        for(Stage stage:Stage.values()){
+            EnumMap<Outcome,Long> row=totals.get(stage);
+            Outcome result=report.outcome(stage);
+            long prior=row.get(result);
+            if(prior<Long.MAX_VALUE)
+                row.put(result,prior+1L);
+        }
 
         if(observed<Long.MAX_VALUE)
             observed++;
@@ -222,10 +261,10 @@ final class LocalLabSequentialTerminalStageTrace {
             if(evicted<Long.MAX_VALUE)
                 evicted++;
         }
-        reports.addLast(new Report(checked));
+        reports.addLast(report);
     }
 
     synchronized Snapshot snapshot(){
-        return new Snapshot(observed,evicted,reports);
+        return new Snapshot(observed,evicted,reports,totals);
     }
 }
