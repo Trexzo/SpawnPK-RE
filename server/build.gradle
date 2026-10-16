@@ -2175,6 +2175,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1916OpenWorldDeadNpcRetryPositiveControlTest',
     'spk.local.G1917DeadNpcSceneRetiredDuringGenerationTest',
     'spk.local.G1918DeadNpcOtherSceneRetiredControlTest',
+    'spk.local.G1919DeadNpcRemovedDuringGenerationTest',
+    'spk.local.G1920UnrelatedNpcRemovedDeadRetryControlTest',
+    'spk.local.G1921DeadNpcLifecycleRemovedDuringGenerationTest',
+    'spk.local.G1922UnrelatedNpcLifecycleRemovedRetryControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2465,10 +2469,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 618 ||
-    currentTrainFocusedTests.toSet().size() != 618) {
+if (currentTrainFocusedTests.size() != 622 ||
+    currentTrainFocusedTests.toSet().size() != 622) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 618 unique tests, found " +
+        "Current-train focused manifest drift: expected 622 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9916,4 +9920,40 @@ tasks.register('g1918DeadNpcOtherSceneRetiredControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1918DeadNpcOtherSceneRetiredControlTest')
+}
+
+tasks.register('g1919DeadNpcCanonicalLifecycleAfterGenerationRegression', JavaExec) {
+    group = 'verification'
+    description = 'G19.19: dead canonical target or unrelated NPC removal before retry.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1919DeadNpcRemovedDuringGenerationTest')
+}
+
+tasks.register('g1920DeadNpcCanonicalLifecycleAfterGenerationRegression', JavaExec) {
+    group = 'verification'
+    description = 'G19.20: dead canonical target or unrelated NPC removal before retry.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1920UnrelatedNpcRemovedDeadRetryControlTest')
+}
+
+tasks.register('g1921DeadNpcCanonicalLifecycleAfterGenerationRegression', JavaExec) {
+    group = 'verification'
+    description = 'G19.21: dead canonical target or unrelated NPC removal before retry.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1921DeadNpcLifecycleRemovedDuringGenerationTest')
+}
+
+tasks.register('g1922DeadNpcCanonicalLifecycleAfterGenerationRegression', JavaExec) {
+    group = 'verification'
+    description = 'G19.22: dead canonical target or unrelated NPC removal before retry.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1922UnrelatedNpcLifecycleRemovedRetryControlTest')
 }
