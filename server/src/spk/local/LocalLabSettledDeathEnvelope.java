@@ -34,7 +34,6 @@ final class LocalLabSettledDeathEnvelope {
     private LocalLabSettledDeathEnvelope(
         MonsterSpawnerNpcDeathFinalizationService.Result death,
         MonsterSpawnerPvmRuntime.RecipientOrigin original,
-        WorldPlayer current,
         long observedGeneration,
         OriginStatus status
     ){
@@ -105,8 +104,6 @@ final class LocalLabSettledDeathEnvelope {
             status=OriginStatus.CURRENT_SPAWN_RECIPIENT;
 
         return new LocalLabSettledDeathEnvelope(
-            death,origin,observed,currentGeneration,status);
+            death,origin,currentGeneration,status);
     }
-
-    private LocalLabSettledDeathEnvelope(){}
 }
