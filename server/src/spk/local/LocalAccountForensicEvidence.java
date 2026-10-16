@@ -148,7 +148,25 @@ public final class LocalAccountForensicEvidence {
      * contents. A nonregular (including symlink) sidecar is negative,
      * not a reason to follow its target. Races trigger an exception.
      */
+    @FunctionalInterface
+    interface AfterFirstDigestProbe {
+        void run(Path selectedAccount)throws IOException;
+    }
+
     static Evidence inspect(Path selectedAccount)throws IOException{
+        return inspect(selectedAccount,account->{});
+    }
+
+    /**
+     * G21.281 package-only race seam. Production calls only the
+     * callback-free overload; this does not create any writer or
+     * recovery authority. The second full bounded digest reduces
+     * missed in-place edits with restored metadata.
+     */
+    static Evidence inspect(Path selectedAccount,
+                            AfterFirstDigestProbe afterFirstDigest)
+        throws IOException{
+        Objects.requireNonNull(afterFirstDigest,"afterFirstDigest");
         if(selectedAccount==null)
             throw new IOException("G21.279 NULL_ACCOUNT_PATH");
         Path account=selectedAccount.toAbsolutePath().normalize();
@@ -179,6 +197,7 @@ public final class LocalAccountForensicEvidence {
         for(Map.Entry<String,Path> entry:names.entrySet())
             sidecarsBefore.put(entry.getKey(),observe(entry.getValue()));
         final String hash=hashAccount(account,accountBefore);
+        afterFirstDigest.run(account);
         Stat accountAfter=observe(account);
         if(!same(accountBefore,accountAfter))
             throw new IOException(
@@ -196,6 +215,19 @@ public final class LocalAccountForensicEvidence {
         }
         // Last account witness after sidecar observations. This cannot
         // make an atomic filesystem snapshot against foreign actors.
+        if(!same(accountBefore,observe(account)))
+            throw new IOException(
+                "G21.279 ACCOUNT_CHANGED_DURING_FORENSIC_READ");
+        // G21.281: an adversarial or racing actor can edit an existing
+        // inode in place and restore the original size/mtime, leaving
+        // every metadata witness apparently unchanged. Rehash the
+        // exact bounded NOFOLLOW account bytes before returning.
+        // This is still NOT an atomic snapshot or proof against ABA
+        // edit-and-restore between the two independent observations.
+        final String secondHash=hashAccount(account,accountBefore);
+        if(!hash.equals(secondHash))
+            throw new IOException(
+                "G21.281 ACCOUNT_BYTES_CHANGED_DURING_FORENSIC_READ");
         if(!same(accountBefore,observe(account)))
             throw new IOException(
                 "G21.279 ACCOUNT_CHANGED_DURING_FORENSIC_READ");

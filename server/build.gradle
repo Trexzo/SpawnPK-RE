@@ -2215,6 +2215,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1956NoObserverNoOutcomeFabricationTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
+    'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
+    'spk.local.G21282ForensicExactAccountContinuityControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2526,10 +2528,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 679 ||
-    currentTrainFocusedTests.toSet().size() != 679) {
+if (currentTrainFocusedTests.size() != 681 ||
+    currentTrainFocusedTests.toSet().size() != 681) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 679 unique tests, found " +
+        "Current-train focused manifest drift: expected 681 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10538,4 +10540,22 @@ tasks.register('g1956NoObserverNoOutcomeFabricationRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1956NoObserverNoOutcomeFabricationTest')
+}
+
+tasks.register('g21281ForensicSameInodeRestoredMtimeByteDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.281: fail a forensic account report when inode bytes change with identical size/fileKey/mtime between bounded digests.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest')
+}
+
+tasks.register('g21282ForensicExactAccountDoubleDigestControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.282: an unrelated account byte edit does not invalidate stable selected account forensic fingerprint.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21282ForensicExactAccountContinuityControlTest')
 }
