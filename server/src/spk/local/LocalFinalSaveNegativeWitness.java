@@ -110,6 +110,31 @@ final class LocalFinalSaveNegativeWitness {
         return a;
     }
 
+    /**
+     * G21.319/320: refuse a selected inode with multiple current
+     * hardlink names. A file key and stable SHA are insufficient if
+     * an additional alias can later mutate the same storage object.
+     * Unsupported unix:nlink is UNKNOWN/negative, not a single-link
+     * assertion. This is NOT a hostile-writer atomic fence.
+     */
+    private static void requireSingleObservedLink(
+        Path selected,String code
+    )throws IOException{
+        requireSourceIdentity(selected,code);
+        final Object value;
+        try{
+            value=Files.getAttribute(selected,"unix:nlink",
+                LinkOption.NOFOLLOW_LINKS);
+        }catch(UnsupportedOperationException|
+                IllegalArgumentException unsupported){
+            throw new IOException(code+" UNAVAILABLE_UNPROVEN",
+                unsupported);
+        }
+        if(!(value instanceof Number)||
+           ((Number)value).longValue()!=1L)
+            throw new IOException(code);
+    }
+
     static Path publishOnce(
         Path account,String username,long generation,long sequence
     )throws IOException{
@@ -142,6 +167,8 @@ final class LocalFinalSaveNegativeWitness {
                 final BasicFileAttributes markerBeforeIdentity=
                     requireSourceIdentity(active,
                         "G21.314 FINAL_WITNESS_ACTIVE_IDENTITY_UNPROVEN");
+                requireSingleObservedLink(active,
+                    "G21.319 FINAL_WITNESS_ACTIVE_HARDLINK_NEGATIVE");
                 if(!"PRESENT_REGULAR".equals(before.accountState)||
                    !"1".equals(before.accountObservedLinkCount)||
                    !"PRESENT_REGULAR_NEGATIVE".equals(
@@ -182,6 +209,8 @@ final class LocalFinalSaveNegativeWitness {
                         throw new IOException(
                             "G21.305 NEGATIVE_FINAL_WITNESS_INITIAL_IDENTITY_UNPROVEN");
                     createdFileKey=created.fileKey();
+                    requireSingleObservedLink(output,
+                        "G21.320 FINAL_WITNESS_HARDLINK_NEGATIVE");
                     Probe beforeForce=afterWriteBeforeForceForTest;
                     if(beforeForce!=null)beforeForce.run(output);
                     file.force(true);
@@ -202,6 +231,8 @@ final class LocalFinalSaveNegativeWitness {
                 if(!createdFileKey.equals(attrs.fileKey()))
                     throw new IOException(
                         "G21.305 NEGATIVE_FINAL_WITNESS_FILE_OBJECT_CHANGED");
+                requireSingleObservedLink(output,
+                    "G21.320 FINAL_WITNESS_HARDLINK_NEGATIVE");
                 // G21.304: stat length alone cannot catch a
                 // same-inode, same-length rewrite after file and
                 // parent-directory force. Verify the EXACT written
@@ -236,6 +267,8 @@ final class LocalFinalSaveNegativeWitness {
                    finalIdentity.size()!=bytes.length)
                     throw new IOException(
                         "G21.305 NEGATIVE_FINAL_WITNESS_FILE_OBJECT_CHANGED");
+                requireSingleObservedLink(output,
+                    "G21.320 FINAL_WITNESS_HARDLINK_NEGATIVE");
                 LocalAccountForensicEvidence.Evidence after=
                     LocalAccountForensicEvidence.inspect(selected);
                 if(!before.accountSha256.equals(after.accountSha256)||
@@ -265,6 +298,8 @@ final class LocalFinalSaveNegativeWitness {
                         markerAfterIdentity.fileKey()))
                     throw new IOException(
                         "G21.314 FINAL_WITNESS_ACTIVE_OBJECT_DRIFT_NEGATIVE");
+                requireSingleObservedLink(active,
+                    "G21.319 FINAL_WITNESS_ACTIVE_HARDLINK_NEGATIVE");
                 LocalDurableAccountReviewIntentPrimitive
                     .requireReviewMarker(selected);
                 return output;
