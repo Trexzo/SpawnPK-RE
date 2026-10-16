@@ -242,6 +242,13 @@ final class LocalOptInRawTemp {
             if(moveProbe!=null)moveProbe.beforeMove(account);
             requirePublicationLockName(account,publicationLockIdentity);
             requireAccountPreimageUnchanged(account,expectedPreimage);
+            // G21.260: with the existing DEFAULT-OFF G21.230 nlink
+            // gate, recheck after the before-move race seam. A new
+            // hardlink alias can arise after the prior early preflight
+            // without changing old account bytes or fileKey. This is
+            // observed-only, not atomic exclusion of external links.
+            LocalJvmAccountSessionLease
+                .requireNonHardlinkedAccount(account);
             raw.requireLockObjectContinuity();
             try{
                 Files.move(
