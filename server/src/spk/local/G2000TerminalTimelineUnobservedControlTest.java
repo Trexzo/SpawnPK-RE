@@ -13,7 +13,7 @@ public final class G2000TerminalTimelineUnobservedControlTest {
             " G1NotObserved=true"+
             " fiveStagesNotReached=true"+
             " auditConsistent=true"+
-            " noGrantOrReplay=true);
+            " noGrantOrReplay=true");
     }
     private G2000TerminalTimelineUnobservedControlTest(){}
 }
