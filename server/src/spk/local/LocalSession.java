@@ -4391,9 +4391,10 @@ final class LocalSession implements Runnable {
             if(ticket==null)
                 return;
 
-            ticket.completion.get(
-                5,
-                java.util.concurrent.TimeUnit.SECONDS
+            // G21.294: preserve the thread's interrupt signal even
+            // though final-save teardown catches and logs failures.
+            LocalFinalSaveCompletionWait.awaitConfirmed(
+                ticket.completion,5_000L
             );
 
             // Never open a competing World admission before a confirmed
