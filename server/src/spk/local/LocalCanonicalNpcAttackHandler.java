@@ -18,6 +18,7 @@ final class LocalCanonicalNpcAttackHandler {
         LEGACY_DUMMY,
         NONCANONICAL_SCENE,
         STALE_SCENE,
+        WORLD_CLOSED,
         STALE_CANONICAL,
         DEFINITION_MISMATCH,
         LIFECYCLE_MISSING,
@@ -445,6 +446,22 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
+        // Prevent terminal callbacks after a World has been closed.
+        // Later checks also fence a close during generation sampling.
+        // These are entry-time checks, not an atomic close lease.
+        if(world.closed())
+            return result(
+                Status.WORLD_CLOSED,
+                clicked,
+                canonicalId,
+                -1,
+                -1,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+
         // Exact session admission must precede the dead-NPC retry too.
         // A stale handler has no authority to trigger settlement retries
         // or observer callbacks via a previously finalized target.
@@ -469,6 +486,35 @@ final class LocalCanonicalNpcAttackHandler {
             );
 
         if(before.dead()){
+            // The generation supplier is external to scene ownership.
+            // A viewer projection can retire while it is evaluated.
+            // Do not allow a dead-target retry from a retired view.
+            if(npcs.scene(action.sceneIndex)!=clicked)
+                return result(
+                    Status.STALE_SCENE,
+                    clicked,
+                    canonicalId,
+                    -1,
+                    -1,
+                    0,
+                    before.hitpoints,
+                    before.maxHitpoints,
+                    false
+                );
+
+            if(world.closed())
+                return result(
+                    Status.WORLD_CLOSED,
+                    clicked,
+                    canonicalId,
+                    -1,
+                    -1,
+                    0,
+                    before.hitpoints,
+                    before.maxHitpoints,
+                    false
+                );
+
             retryDeadFinalization(
                 target
             );
