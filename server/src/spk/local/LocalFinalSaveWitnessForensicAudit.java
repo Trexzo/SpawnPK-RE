@@ -80,7 +80,17 @@ final class LocalFinalSaveWitnessForensicAudit {
 
     static Evidence inspect(Path account,String username,
                             AfterFirstReadProbe probe)throws IOException{
+        return inspect(account,username,probe,witness->{});
+    }
+
+    /** G21.335-338 deterministic TEST-ONLY seam after validated
+     * sources, before final independent selected-leaf reobservation. */
+    static Evidence inspect(Path account,String username,
+                            AfterFirstReadProbe probe,
+                            AfterFirstReadProbe beforeReturnProbe)
+        throws IOException{
         Objects.requireNonNull(probe,"probe");
+        Objects.requireNonNull(beforeReturnProbe,"beforeReturnProbe");
         if(account==null||username==null||
            !username.matches("[a-z0-9_-]{1,64}"))
             throw new IOException("G21.323 INVALID_EXACT_AUDIT_SELECTION");
@@ -187,10 +197,56 @@ final class LocalFinalSaveWitnessForensicAudit {
             return new Evidence(
                 State.ACTIVE_INVALID_NEGATIVE,digest,gen,seq);
         }
-        // A perfectly matching, canonical V1 record is STILL
-        // untrusted negative operator evidence. No positive return.
+        // G21.335-338: the original witness double-read precedes
+        // the independent account and ACTIVE checks. A foreign writer
+        // can mutate one of those selected leaves after its last read
+        // while the function is about to return MATCHES. Repeat the
+        // bounded selected-leaf observations at the final boundary.
+        // This narrows a race; it does NOT make an atomic snapshot.
+        BasicFileAttributes selectedAtValidation=Files.readAttributes(
+            selected,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        BasicFileAttributes activeAtValidation=Files.readAttributes(
+            active,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        beforeReturnProbe.run(witness);
+        LocalAccountForensicEvidence.Evidence sourceAtReturn=
+            LocalAccountForensicEvidence.inspect(selected);
+        if(!Objects.equals(current.accountSha256,
+                sourceAtReturn.accountSha256)||
+           !Objects.equals(current.accountObservedLinkCount,
+                sourceAtReturn.accountObservedLinkCount)||
+           !Objects.equals(marker,sourceAtReturn
+                .negativeSidecarContentWitnesses.get("activeReview")))
+            throw new IOException(
+                "G21.335 FINAL_WITNESS_SELECTED_SOURCES_DRIFTED_DURING_AUDIT");
+        BasicFileAttributes accountAtReturn=Files.readAttributes(
+            selected,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        BasicFileAttributes activeAtReturn=Files.readAttributes(
+            active,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        if(!sameSelectedObject(selectedAtValidation,accountAtReturn)||
+           !sameSelectedObject(activeAtValidation,activeAtReturn))
+            throw new IOException(
+                "G21.336 FINAL_WITNESS_SELECTED_OBJECT_CHANGED_DURING_AUDIT");
+        byte[] witnessAtReturn=readBounded(witness);
+        BasicFileAttributes witnessAfterSource=Files.readAttributes(
+            witness,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        if(!sameSelectedObject(before,witnessAfterSource)||
+           !Arrays.equals(first,witnessAtReturn)||
+           !singleObservedHardlink(witness))
+            throw new IOException(
+                "G21.337 FINAL_WITNESS_CHANGED_AFTER_SOURCE_AUDIT");
+        // Even an independently rechecked canonical V1 remains
+        // strictly negative and is NOT authority to retire ACTIVE.
         return new Evidence(
             State.MATCHES_UNTRUSTED_NEGATIVE,digest,gen,seq);
+    }
+
+    private static boolean sameSelectedObject(
+        BasicFileAttributes a,BasicFileAttributes b){
+        return a.isRegularFile()&&b.isRegularFile()&&
+            !a.isSymbolicLink()&&!b.isSymbolicLink()&&
+            a.fileKey()!=null&&a.fileKey().equals(b.fileKey())&&
+            a.size()==b.size()&&
+            a.lastModifiedTime().equals(b.lastModifiedTime());
     }
 
     private static boolean positiveLong(String value){
