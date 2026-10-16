@@ -60,8 +60,20 @@ public final class G1972SettledDeathEnvelopeNegativeOriginsTest {
             LocalLabSequentialTerminalStageTrace.Snapshot trace=
                 installed.sequentialTerminalDiagnosticSnapshot();
             check(trace.observed==1L&&trace.recent.size()==1&&
-                    trace.recent.get(0).originStatus==envelope.originStatus,
-                "installed default observer retains missing-origin classification");
+                    trace.recent.get(0).originStatus==envelope.originStatus&&
+                    trace.originCount(
+                        LocalLabSettledDeathEnvelope.OriginStatus.MISSING_SPAWN_ORIGIN)
+                        ==1L&&
+                    trace.originCount(
+                        LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT)
+                        ==0L,
+                "installed observer retains exact missing-spawn origin aggregate");
+            LocalLabTerminalDeliveryAssessment assessment=
+                LocalLabTerminalDeliveryAssessment.from(trace.recent.get(0));
+            check(assessment.originStatus==envelope.originStatus&&
+                    !assessment.hasDurableGrantAcknowledgement()&&
+                    !assessment.safeToAutomaticallyReplay(),
+                "missing spawn origin cannot fabricate applied credit");
             for(LocalLabSequentialTerminalStageTrace.Stage stage:
                     LocalLabSequentialTerminalStageTrace.Stage.values())
                 check(trace.recent.get(0).outcome(stage)==
