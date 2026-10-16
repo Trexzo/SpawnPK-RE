@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /** G21.315/316 actual TCP final-World-save identity drift fixture. */
-final class G21315RealSocketFinalWitnessSourceDriftFixture {
-    private G21315RealSocketFinalWitnessSourceDriftFixture(){}
+final class G21315RealSocketFinalWitnessSourceDriftFixtureTest {
+    private G21315RealSocketFinalWitnessSourceDriftFixtureTest(){}
     private static void check(boolean ok,String why){
         if(!ok)throw new AssertionError("G21.315/316 "+why);
     }
