@@ -2675,7 +2675,25 @@ def currentTrainCriticalCoverage = [
         'spk.local.G1978ConsumerSummaryG1FailureTest',
         'spk.local.G1979ConsumerSummaryG14FailFastTest',
         'spk.local.G1980ConsumerSummaryDisconnectedAndWorldFenceTest',
-    ]
+    ],
+    // G21.317: exact safety-critical additions after G21.308's 49 anchors.
+    'g21317-guarded-world-and-final-review': [
+        'spk.local.G21309RetainedFinalWitnessWorldWriteVetoTest',
+        'spk.local.G21310LateFinalWitnessWorldPublicationVetoTest',
+        'spk.local.G21311ForcedWorldPostmoveFinalWitnessUncertaintyTest',
+        'spk.local.G21312ForcedWorldForeignPostmoveFinalWitnessControlTest',
+        'spk.local.G21313NegativeFinalWitnessAccountIdentityDriftTest',
+        'spk.local.G21314NegativeFinalWitnessActiveIdentityDriftTest',
+        'spk.local.G21315RealSocketFinalAccountInodeDriftTest',
+        'spk.local.G21316RealSocketFinalActiveInodeDriftTest',
+    ],
+    // G21.317: exact safety-critical additions after G21.308's 49 anchors.
+    'g21317-origin-consumer-correlation': [
+        'spk.local.G1981OriginConsumerEvictionCorrelationTest',
+        'spk.local.G1982OriginConsumerRebindDisconnectTest',
+        'spk.local.G1983OriginConsumerG1G14FailureTest',
+        'spk.local.G1984OriginConsumerCollectorFenceTest',
+    ],
 ]
 currentTrainCriticalCoverage.each { family, requiredClasses ->
     def missing = requiredClasses.findAll {
