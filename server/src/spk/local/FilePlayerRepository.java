@@ -1468,6 +1468,11 @@ final class FilePlayerRepository
             // to child account/marker paths or World temp allocation.
             MailboxAccountPublicationCoordinator
                 .requireSafeWorldTempAncestry(file,true);
+            // G21.309: retained final-review evidence is an absolute
+            // negative even for a previously admitted World writer.
+            // Never allocate a new World temp for a quarantined leaf.
+            LocalFinalSaveNegativeWitness
+                .requireNoNegativeWitness(file);
             MailboxPreparedRestartAdmission.Decision admission=
                 MailboxPreparedRestartAdmission.inspect(snapshot);
             if(!admission.admissionAllowed)
@@ -1568,6 +1573,10 @@ final class FilePlayerRepository
                 // This does NOT coordinate direct manual save() calls.
                 MailboxAccountPublicationCoordinator
                     .withExclusivePublication(file,()->{
+                        // G21.309 second exact-path veto under the
+                        // cooperating writer publication lock.
+                        LocalFinalSaveNegativeWitness
+                            .requireNoNegativeWitness(file);
                         requireUnfencedWorldSave(
                 snapshot.username(),guardedMarkerPaths
             );
@@ -1581,6 +1590,11 @@ final class FilePlayerRepository
                             forceRealWorldPostimage
                                 ?observeWorldActiveReview(file):null;
                         insideWorldPublication.run(snapshot.username());
+                        // G21.310: an uncooperative actor may publish
+                        // a negative witness after initial admission
+                        // and while this World temp was serialized.
+                        LocalFinalSaveNegativeWitness
+                            .requireNoNegativeWitness(file);
                         // G21.239: a lock leaf could be replaced AFTER
                         // the capture-bound worker witness. Reobserve
                         // G21.221 opt-in original lock object here, near
@@ -1604,6 +1618,11 @@ final class FilePlayerRepository
                         // contract against nonparticipating writers.
                         LocalJvmAccountSessionLease
                             .requireNonHardlinkedAccount(file);
+                        // Closest observed negative gate to actual
+                        // account replacement; still NOT atomic
+                        // exclusion of nonparticipating processes.
+                        LocalFinalSaveNegativeWitness
+                            .requireNoNegativeWitness(file);
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);
                         if(forceRealWorldPostimage){
@@ -1623,6 +1642,8 @@ final class FilePlayerRepository
                                     file,originalActiveReview);
                                 requireUnfencedWorldSave(
                                     worldAccount,guardedMarkerPaths);
+                                LocalFinalSaveNegativeWitness
+                                    .requireNoNegativeWitness(file);
                                 // G21.273: the OLD account nlink gate
                                 // ran before ATOMIC_MOVE. A foreign
                                 // hardlink can name the newly published
@@ -1639,6 +1660,12 @@ final class FilePlayerRepository
                                     uncertain);
                             }
                             forcedWorldPostimageCount.incrementAndGet();
+                        }else{
+                            // A negative witness added after the
+                            // non-forced move makes completion
+                            // uncertain; never claim normal success.
+                            LocalFinalSaveNegativeWitness
+                                .requireNoNegativeWitness(file);
                         }
                         return null;
                     });

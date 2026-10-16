@@ -2265,6 +2265,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21305NegativeFinalWitnessSameBytesInodeSwapTest',
     'spk.local.G21306CoreSocketRetainedFinalWitnessRestartVetoTest',
     'spk.local.G21307CoreSocketForeignFinalWitnessIsolationTest',
+    'spk.local.G21309RetainedFinalWitnessWorldWriteVetoTest',
+    'spk.local.G21310LateFinalWitnessWorldPublicationVetoTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2576,10 +2578,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 729 ||
-    currentTrainFocusedTests.toSet().size() != 729) {
+if (currentTrainFocusedTests.size() != 731 ||
+    currentTrainFocusedTests.toSet().size() != 731) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 729 unique tests, found " +
+        "Current-train focused manifest drift: expected 731 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11132,4 +11134,21 @@ tasks.register('g1980ConsumerSummaryDisconnectedWorldFenceRegression', JavaExec)
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1980ConsumerSummaryDisconnectedAndWorldFenceTest')
+}
+tasks.register('g21309FinalWitnessWorldWriterPretempVeto', JavaExec) {
+    group = 'verification'
+    description = 'G21.309: existing negative final witness rejects new World save before temp allocation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21309RetainedFinalWitnessWorldWriteVetoTest')
+}
+
+tasks.register('g21310LateFinalWitnessWorldPublisherVeto', JavaExec) {
+    group = 'verification'
+    description = 'G21.310: late negative witness inside World publication rejects pre-move write.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21310LateFinalWitnessWorldPublicationVetoTest')
 }
