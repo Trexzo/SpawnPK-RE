@@ -2231,6 +2231,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21286ForensicUnrelatedAccountHardlinkControlTest',
     'spk.local.G21287ForensicMultipleToMultipleAliasDriftTest',
     'spk.local.G21288ForensicUnrelatedMultipleAliasChurnControlTest',
+    'spk.local.G21289ForensicNegativeSidecarRestoredMtimeDriftTest',
+    'spk.local.G21290ForensicUnrelatedMarkerByteDriftControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2542,10 +2544,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 695 ||
-    currentTrainFocusedTests.toSet().size() != 695) {
+if (currentTrainFocusedTests.size() != 697 ||
+    currentTrainFocusedTests.toSet().size() != 697) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 695 unique tests, found " +
+        "Current-train focused manifest drift: expected 697 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10698,4 +10700,22 @@ tasks.register('g1964MissingSpawnRecipientOriginNegativeControlRegression', Java
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1964MissingSpawnRecipientOriginNegativeControlTest')
+}
+
+tasks.register('g21289ForensicMarkerBytesDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.289: in-place marker bytes edited with restored mtime invalidate read-only evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21289ForensicNegativeSidecarRestoredMtimeDriftTest')
+}
+
+tasks.register('g21290ForensicUnrelatedMarkerDriftControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.290: an unrelated changed sidecar does not poison an exact selected forensic scan.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21290ForensicUnrelatedMarkerByteDriftControlTest')
 }
