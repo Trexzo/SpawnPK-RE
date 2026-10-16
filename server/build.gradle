@@ -2221,6 +2221,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21282ForensicExactAccountContinuityControlTest',
     'spk.local.G21283ForensicAncestorSymlinkSwapTest',
     'spk.local.G21284UnrelatedForensicAncestorSymlinkControlTest',
+    'spk.local.G21285ForensicSelectedAccountHardlinkNegativeTest',
+    'spk.local.G21286ForensicUnrelatedAccountHardlinkControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2532,10 +2534,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 685 ||
-    currentTrainFocusedTests.toSet().size() != 685) {
+if (currentTrainFocusedTests.size() != 687 ||
+    currentTrainFocusedTests.toSet().size() != 687) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 685 unique tests, found " +
+        "Current-train focused manifest drift: expected 687 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10598,4 +10600,22 @@ tasks.register('g1958SequentialHealthyStageTraceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1958SequentialHealthyStageTraceTest')
+}
+
+tasks.register('g21285ForensicSelectedAccountHardlinkNegativeRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.285: read-only forensic account nlink inventory flags aliases and rejects midscan selected nlink drift.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21285ForensicSelectedAccountHardlinkNegativeTest')
+}
+
+tasks.register('g21286ForensicUnrelatedHardlinkControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.286: unrelated account hardlink cannot globally poison stable selected forensic scan.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21286ForensicUnrelatedAccountHardlinkControlTest')
 }
