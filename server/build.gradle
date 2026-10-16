@@ -2271,6 +2271,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21307CoreSocketForeignFinalWitnessIsolationTest',
     'spk.local.G21309RetainedFinalWitnessWorldWriteVetoTest',
     'spk.local.G21310LateFinalWitnessWorldPublicationVetoTest',
+    'spk.local.G21311ForcedWorldPostmoveFinalWitnessUncertaintyTest',
+    'spk.local.G21312ForcedWorldForeignPostmoveFinalWitnessControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2582,10 +2584,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 735 ||
-    currentTrainFocusedTests.toSet().size() != 735) {
+if (currentTrainFocusedTests.size() != 737 ||
+    currentTrainFocusedTests.toSet().size() != 737) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 735 unique tests, found " +
+        "Current-train focused manifest drift: expected 737 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11195,4 +11197,23 @@ tasks.register('g1984OriginConsumerCollectorFenceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1984OriginConsumerCollectorFenceTest')
+}
+
+
+tasks.register('g21311ForcedWorldLateFinalWitnessUncertaintyRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.311: actual forced World postmove negative final witness produces uncertainty.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21311ForcedWorldPostmoveFinalWitnessUncertaintyTest')
+}
+
+tasks.register('g21312ForcedWorldForeignWitnessPostmoveControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.312: real forced World save ignores a foreign exact-account postmove witness.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21312ForcedWorldForeignPostmoveFinalWitnessControlTest')
 }
