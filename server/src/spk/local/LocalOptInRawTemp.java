@@ -291,6 +291,24 @@ final class LocalOptInRawTemp {
                 requireSealed(account,identity,sealed);
                 requirePublicationLockName(account,publicationLockIdentity);
                 raw.requireLockObjectContinuity();
+                // G21.264: an uncooperative marker may be introduced
+                // AFTER account replacement (e.g. through the
+                // deterministic after-move fault seam). Do not report
+                // a normal forced RAW success while exact-account
+                // manual-review/uncertain sidecars are observable.
+                // This is a NEGATIVE after-publication observation:
+                // bytes may already be replaced, so do not rollback,
+                // delete markers, replay, or issue a final-save ACK.
+                LocalDurableAccountReviewIntentPrimitive
+                    .requireNoReviewMarker(account);
+                if(new MailboxDurableReviewFence(pinned)
+                        .present(accountUsername)||
+                   new MailboxStrictUncertainFence(pinned)
+                        .present(accountUsername)||
+                   new MailboxStrictWriteIntentFence(pinned)
+                        .present(accountUsername))
+                    throw new IOException(
+                        "G21.264 RAW_POST_MOVE_NEGATIVE_MARKER_PRESENT");
             }catch(IOException afterMove){
                 throw new IOException(
                     "G21.248 RAW_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
