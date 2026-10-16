@@ -918,9 +918,18 @@ final class LocalCanonicalNpcAttackHandler {
                 canonicalId
             );
 
+        // The input tick was captured BEFORE the pre-resolution hook.
+        // If World ticks advance during that callback, publishing cooldown
+        // from the old tick would make a committed hit immediately eligible
+        // for another current-tick click. Anchor the LocalLab cadence to
+        // the later of admission and actual HP-completion observations.
+        // This changes neither the damage/death tick witness nor the
+        // separate legacy CombatState scheduler.
+        long completionTick=world.clock().tick();
+        long cadenceAnchorTick=Math.max(attackTick,completionTick);
         player.canonicalNpcAttackNextAllowedTick(
             Math.addExact(
-                attackTick,
+                cadenceAnchorTick,
                 hit.nextAttackDelayTicks
             )
         );
