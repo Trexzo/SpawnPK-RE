@@ -329,21 +329,43 @@ final class LocalCanonicalNpcAttackHandler {
      * Returns null only when this is not an exact semantic NPC ATTACK and the
      * residual interaction router should continue.
      */
-    // Per-session handler monitor linearizes cadence admission, immediate
-    // HP mutation and cooldown publication for concurrent opcode72 clicks.
-    // This does NOT serialize distinct handlers or guarantee scene lifetime.
+    // All canonical NPC click handlers bound to this player share a
+    // monitor. Also fence SAME-THREAD callback reentry: Java synchronized
+    // alone permits it before the outer attack has published cooldown.
+    // Non-attack interactions and combat dummies keep their normal route.
     Result handle(
         NpcAction action,
         NpcEntity clicked,
         ServerPacketWriter writer
     )throws IOException{
-        // Serialize DISTINCT handler instances bound to the same current
-        // WorldPlayer, not just simultaneous calls on this handler.
-        // Never acquire this player-owned lock from World/registry code.
         synchronized(player.canonicalNpcAttackLock()){
-            return handleUnderPlayerCadence(
-                action,clicked,writer
-            );
+            if(!player.tryEnterCanonicalNpcAttack()){
+                NpcInteractionRouter.Route nestedRoute=
+                    NpcInteractionRouter.resolve(action,clicked);
+                if(nestedRoute.service!=
+                        NpcInteractionRouter.Service.ATTACK||
+                   CombatTargetRepository.isCombatDummy(
+                       clicked.definitionId
+                   ))
+                    return handleUnderPlayerCadence(
+                        action,clicked,writer
+                    );
+                return result(
+                    Status.CADENCE_BLOCKED,
+                    clicked,
+                    clicked.canonicalId(),
+                    -1,-1,0,-1,-1,false
+                );
+            }
+            try{
+                return handleUnderPlayerCadence(
+                    action,clicked,writer
+                );
+            }finally{
+                // Also release on IOException, callback failure, stale
+                // ownership or early status return. Never reset cooldown.
+                player.leaveCanonicalNpcAttack();
+            }
         }
     }
 
