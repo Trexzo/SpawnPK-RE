@@ -116,7 +116,18 @@ public final class G21259ForeignJvmSameInodeAccountPreimageVetoTest {
             FilePlayerRepository mutated=new FilePlayerRepository(
                 LocalAccountProfiles::accountFile,
                 name->{},name->{},name->{},name->{},
-                name->{runChild(account);childRan[0]=true;});
+                name->{
+                    try{
+                        runChild(account);
+                        childRan[0]=true;
+                    }catch(IOException io){
+                        throw io;
+                    }catch(Exception childFailure){
+                        throw new IOException(
+                            "G21.259 foreign JVM test helper failure",
+                            childFailure);
+                    }
+                });
             boolean denied=false;
             try{mutated.save(snapshot(USER,"AFTER"));}
             catch(IOException veto){
