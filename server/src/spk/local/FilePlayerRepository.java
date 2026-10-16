@@ -1567,6 +1567,9 @@ final class FilePlayerRepository
                         requireNoTerminalAccountPostimage(
                             worldAccount,file
                         );
+                        final WorldActiveReviewWitness originalActiveReview=
+                            forceRealWorldPostimage
+                                ?observeWorldActiveReview(file):null;
                         insideWorldPublication.run(snapshot.username());
                         // G21.239: a lock leaf could be replaced AFTER
                         // the capture-bound worker witness. Reobserve
@@ -1606,8 +1609,8 @@ final class FilePlayerRepository
                                 afterForcedWorldMoveForTest.run(worldAccount);
                                 forceAndVerifyWorldPostimage(
                                     file,sealedWorldTemp);
-                                LocalDurableAccountReviewIntentPrimitive
-                                    .requireNoReviewMarker(file);
+                                requireWorldActiveReviewUnchanged(
+                                    file,originalActiveReview);
                                 requireUnfencedWorldSave(
                                     worldAccount,guardedMarkerPaths);
                                 // G21.273: the OLD account nlink gate
@@ -1743,6 +1746,89 @@ final class FilePlayerRepository
      * only after G21.192's strict atomic account replacement. No
      * REVIEW-intent retirement, no account owner/generation epoch.
      */
+    /**
+     * G21.275: an existing G21.188 ACTIVE review marker can be a
+     * deliberately retained one-shot session quarantine (G21.193).
+     * The earlier World writer did not retire it. Preserve this
+     * compatibility ONLY if the exact pre-move marker remains
+     * byte-for-byte and object-identical after publication.
+     *
+     * This is NEGATIVE evidence: it never authorizes a new login,
+     * marker release, recovery, or trusted owner epoch.
+     */
+    private static final class WorldActiveReviewWitness{
+        final BasicFileAttributes attributes;
+        final byte[] bytes;
+        WorldActiveReviewWitness(BasicFileAttributes attrs,byte[] data){
+            this.attributes=attrs;
+            this.bytes=data;
+        }
+    }
+
+    private static WorldActiveReviewWitness observeWorldActiveReview(
+        Path account
+    )throws IOException{
+        Path marker=LocalDurableAccountReviewIntentPrimitive
+            .markerPath(account);
+        final BasicFileAttributes before;
+        try{
+            before=Files.readAttributes(marker,
+                BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        }catch(NoSuchFileException absent){
+            return null;
+        }
+        if(!before.isRegularFile()||before.isSymbolicLink()||
+           before.fileKey()==null||before.size()>4096L)
+            throw new IOException(
+                "G21.275 WORLD_ACTIVE_REVIEW_MARKER_UNSAFE");
+        // Existing ACTIVE is acceptable as a retained NEGATIVE only
+        // if it is a valid, bounded durable marker. Do not infer
+        // that it belongs to a new login or authorizes release.
+        LocalDurableAccountReviewIntentPrimitive
+            .requireReviewMarker(account);
+        java.io.ByteArrayOutputStream bytes=
+            new java.io.ByteArrayOutputStream();
+        try(InputStream input=Files.newInputStream(marker,
+                StandardOpenOption.READ,LinkOption.NOFOLLOW_LINKS)){
+            byte[] chunk=new byte[1024];
+            for(int n;(n=input.read(chunk))!=-1;){
+                if(bytes.size()+n>4096)
+                    throw new IOException(
+                        "G21.275 WORLD_ACTIVE_REVIEW_MARKER_OVERSIZE");
+                bytes.write(chunk,0,n);
+            }
+        }
+        BasicFileAttributes after=Files.readAttributes(marker,
+            BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        if(!after.isRegularFile()||after.isSymbolicLink()||
+           !Objects.equals(before.fileKey(),after.fileKey())||
+           !Objects.equals(before.creationTime(),after.creationTime())||
+           before.size()!=after.size()||
+           !Objects.equals(before.lastModifiedTime(),
+                           after.lastModifiedTime()))
+            throw new IOException(
+                "G21.275 WORLD_ACTIVE_REVIEW_MARKER_READ_DRIFT");
+        return new WorldActiveReviewWitness(after,bytes.toByteArray());
+    }
+
+    private static void requireWorldActiveReviewUnchanged(
+        Path account,WorldActiveReviewWitness original
+    )throws IOException{
+        WorldActiveReviewWitness now=observeWorldActiveReview(account);
+        if(original==null&&now==null)return;
+        if(original==null||now==null||
+           !Objects.equals(original.attributes.fileKey(),
+                           now.attributes.fileKey())||
+           !Objects.equals(original.attributes.creationTime(),
+                           now.attributes.creationTime())||
+           original.attributes.size()!=now.attributes.size()||
+           !Objects.equals(original.attributes.lastModifiedTime(),
+                           now.attributes.lastModifiedTime())||
+           !java.security.MessageDigest.isEqual(original.bytes,now.bytes))
+            throw new IOException(
+                "G21.275 WORLD_ACTIVE_REVIEW_MARKER_CHANGED_NO_ACK");
+    }
+
     private static void forceAndVerifyWorldPostimage(
         Path file,String expectedSha
     )throws IOException{
