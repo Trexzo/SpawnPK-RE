@@ -2265,6 +2265,10 @@ def currentTrainFocusedTests = [
     'spk.local.G2006OriginBoundaryG1PrestageFailureTest',
     'spk.local.G2007OriginBoundaryRecipientMismatchTest',
     'spk.local.G2008OriginBoundaryG14FailFastTest',
+    'spk.local.G2009BoundedFailureKindsEvictionTest',
+    'spk.local.G2010BoundedFailureKindsG1PrestageTest',
+    'spk.local.G2011BoundedFailureKindsG14DisconnectedTest',
+    'spk.local.G2012BoundedFailureKindsForeignAndOtherTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2632,10 +2636,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 785 ||
-    currentTrainFocusedTests.toSet().size() != 785) {
+if (currentTrainFocusedTests.size() != 789 ||
+    currentTrainFocusedTests.toSet().size() != 789) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 785 unique tests, found " +
+        "Current-train focused manifest drift: expected 789 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11790,4 +11794,44 @@ tasks.register('g21338LateSelectedForensicRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21338FinalWitnessForeignLateMutationControlTest')
+}
+
+
+tasks.register('g2009BoundedFailureKindsEvictionRegression', JavaExec) {
+    group = 'verification'
+    description = '131 actual settled NPC deaths retain bounded first-stage exception categories after report eviction.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2009BoundedFailureKindsEvictionTest')
+}
+
+
+tasks.register('g2010BoundedFailureKindsG1PrestageRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real G1 postground IllegalState maps to coarse first-failure type.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2010BoundedFailureKindsG1PrestageTest')
+}
+
+
+tasks.register('g2011BoundedFailureKindsG14DisconnectedRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real invalid G14, healthy and disconnected recipients distinguish throw vs skip.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2011BoundedFailureKindsG14DisconnectedTest')
+}
+
+
+tasks.register('g2012BoundedFailureKindsForeignOtherRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual settled NPC plus test-only IllegalArgument/OTHER category and mismatch fence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2012BoundedFailureKindsForeignAndOtherTest')
 }

@@ -150,6 +150,16 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                     !verified.hasDurableGrantAcknowledgement()&&
                     !verified.safeToAutomaticallyReplay(),
                 "real G1 postground exception reconciles first-blocker and six consumer marginals");
+            LocalLabTerminalFirstFailureTypeTally.Snapshot kinds=
+                stage.firstFailureTypes;
+            check(kinds.count(
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L&&
+                kinds.count(
+                    LocalLabTerminalFailureBoundaryTally.Boundary.G1,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.ILLEGAL_STATE)==
+                        (provokeSecondDeath?1L:0L),
+                "actual G1 postground IllegalStateException retains bounded coarse category");
             LocalLabTerminalDeliverySummary allConsumers=
                 LocalLabTerminalDeliverySummary.from(stage);
             check(allConsumers.observedTerminals==cycles&&

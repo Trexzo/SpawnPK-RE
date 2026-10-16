@@ -327,6 +327,15 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                         audit.findings.isEmpty()&&
                         !audit.safeToAutomaticallyReplay(),
                     "real G14 fail-fast or healthy callback has coherent detached diagnostics");
+                check(trace.firstFailureTypes.count(
+                        malformedG14
+                            ?LocalLabTerminalFailureBoundaryTally.Boundary.G14
+                            :LocalLabTerminalFailureBoundaryTally.Boundary
+                                .NO_THROW_RECORDED,
+                        malformedG14
+                            ?LocalLabTerminalFirstFailureTypeTally.Kind.ILLEGAL_STATE
+                            :LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L,
+                    "real G14 invalid persistence exception retained as bounded first-kind");
                 LocalLabTerminalDeliverySummary summary=
                     LocalLabTerminalDeliverySummary.from(trace);
                 check(summary.observedTerminals==1L&&
