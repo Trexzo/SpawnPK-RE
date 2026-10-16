@@ -2187,6 +2187,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1928UnrelatedLiveNpcLifecycleReplacedControlTest',
     'spk.local.G1929NpcLifecycleReplacedInOwnedDamageAdmissionTest',
     'spk.local.G1930UnrelatedNpcLifecycleReplacedInAdmissionControlTest',
+    'spk.local.G1931ConcurrentSameTickNpcAttackFenceTest',
+    'spk.local.G1932ConcurrentDifferentTargetCadenceControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2482,10 +2484,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 635 ||
-    currentTrainFocusedTests.toSet().size() != 635) {
+if (currentTrainFocusedTests.size() != 637 ||
+    currentTrainFocusedTests.toSet().size() != 637) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 635 unique tests, found " +
+        "Current-train focused manifest drift: expected 637 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10081,4 +10083,22 @@ tasks.register('g1930UnrelatedNpcLifecycleReplacedAdmissionControlRegression', J
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1930UnrelatedNpcLifecycleReplacedInAdmissionControlTest')
+}
+
+tasks.register('g1931ConcurrentSameTickNpcAttackFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Two real threads contest same-session same-tick decoded NPC Attack cadence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1931ConcurrentSameTickNpcAttackFenceTest')
+}
+
+tasks.register('g1932ConcurrentDifferentTargetCadenceControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Two real threads contest same-session same-tick decoded NPC Attack cadence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1932ConcurrentDifferentTargetCadenceControlTest')
 }

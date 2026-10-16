@@ -330,7 +330,10 @@ final class LocalCanonicalNpcAttackHandler {
      * Returns null only when this is not an exact semantic NPC ATTACK and the
      * residual interaction router should continue.
      */
-    Result handle(
+    // Per-session handler monitor linearizes cadence admission, immediate
+    // HP mutation and cooldown publication for concurrent opcode72 clicks.
+    // This does NOT serialize distinct handlers or guarantee scene lifetime.
+    synchronized Result handle(
         NpcAction action,
         NpcEntity clicked,
         ServerPacketWriter writer
@@ -922,7 +925,7 @@ final class LocalCanonicalNpcAttackHandler {
         );
     }
 
-    long nextAllowedAttackTick(){
+    synchronized long nextAllowedAttackTick(){
         return nextAllowedAttackTick;
     }
 
