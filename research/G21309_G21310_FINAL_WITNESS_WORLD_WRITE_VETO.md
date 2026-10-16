@@ -1,0 +1,15 @@
+# G21.309/310 — negative final-review witness also vetoes cooperating World writers
+
+Certified shared ancestor [#2863](https://github.com/Trexzo/SpawnPK-RE/pull/2863) exact `f32b7cf26344360105ab52112be02862af394a9b` passed hosted 725/725 focused, Java11 major55 and Gradle. Parent [#2867](https://github.com/Trexzo/SpawnPK-RE/pull/2867) exact `f3b72ee6ca801bcc4da63cf122217a7f0616c820` is a 729 candidate integrating Chat2 G1977–80 diagnostics with Chat1 G21304–07 and 49 explicit critical regression anchors.
+
+## Actual source issue
+G21.302 made a retained, untrusted `.g21298-final-review-witness` an unconditional **session admission** veto, even if G21.188 ACTIVE was deleted or experimental writer disabled on JVM restart. But the independently callable guarded `FilePlayerRepository.saveForWorld` still checked its *existing mailbox* negative sidecars and account hardlinks, not this new final-review witness. A stale/nonadmitted cooperating World save might therefore overwrite account bytes after a final-review witness was stranded. This must be a **negative write veto**, not a receipt or automatic restart permission.
+
+## Implemented
+- For **guarded World save only**, NOFOLLOW exact selected witness is checked before any World temp creation, under the G21.39 cooperating publication lock, after the existing deterministic `insideWorldPublication` seam, and immediately before the actual account replacement. For strict forced World mode, check it again in existing post-move uncertainty block; for nonforced mode also recheck before declaring a normal completed write. An externally inserted witness AFTER move means the write may already have happened and must be reported UNCERTAIN, not rolled back or claimed successful.
+- The initial real final World save remains possible: the witness is only published AFTER its forced account postimage by `WorldPlayerPersistence`, not before. Historical manual/raw `FilePlayerRepository.save` remains deliberately **unchanged/unfenced**, as previously characterized. This cannot prevent uncooperative external actors' atomic swaps after last observation.
+- G21309: real `saveForWorld` against an exact negative witness after foreign deletion of ACTIVE is rejected BEFORE World temp allocation; preserves account/witness bytes.
+- G21310: genuine World temp serialization and publication seam with uncooperative insertion of selected negative witness must reject BEFORE replacement while leaving original account and witness intact. No automatic cleanup.
+
+## Verification boundaries
+Focused 729→**731 unique** and all 49 G21.308 critical anchors retained, dedicated JavaExec gates. Require independent exact-head hosted **731/731**, G21309/10, earlier G21298–G21307, G1977–80, Java11 major55 and full Gradle. This adds fail-closed cooperative writer behavior **only when a witness exists**; it does not create authenticated cross-JVM owner epochs, safe automatic ACTIVE retirement, reusable login or consumer grant/replay. #2540/#2559/#2587 remain open. Draft/unmerged, main unchanged.
