@@ -91,6 +91,13 @@ final class LocalLabSequentialTerminalStageTrace {
         final long evicted;
         final List<Report> recent;
         final Map<Stage,Map<Outcome,Long>> outcomeCounts;
+        final Map<G1Outcome,Long> g1OutcomeCounts;
+
+        long g1OutcomeCount(G1Outcome outcome){
+            return g1OutcomeCounts.get(
+                Objects.requireNonNull(outcome,"g1Outcome")
+            );
+        }
 
         long outcomeCount(Stage stage,Outcome outcome){
             return outcomeCounts.get(Objects.requireNonNull(stage,"stage"))
@@ -101,7 +108,8 @@ final class LocalLabSequentialTerminalStageTrace {
             long observed,
             long evicted,
             ArrayDeque<Report> reports,
-            EnumMap<Stage,EnumMap<Outcome,Long>> totals
+            EnumMap<Stage,EnumMap<Outcome,Long>> totals,
+            EnumMap<G1Outcome,Long> g1Totals
         ){
             this.observed=observed;
             this.evicted=evicted;
@@ -115,6 +123,9 @@ final class LocalLabSequentialTerminalStageTrace {
                     new EnumMap<Outcome,Long>(totals.get(stage))
                 ));
             outcomeCounts=Collections.unmodifiableMap(detached);
+            g1OutcomeCounts=Collections.unmodifiableMap(
+                new EnumMap<G1Outcome,Long>(g1Totals)
+            );
         }
     }
 
@@ -225,11 +236,15 @@ final class LocalLabSequentialTerminalStageTrace {
     private final ArrayDeque<Report> reports=new ArrayDeque<>();
     private final EnumMap<Stage,EnumMap<Outcome,Long>> totals=
         new EnumMap<Stage,EnumMap<Outcome,Long>>(Stage.class);
+    private final EnumMap<G1Outcome,Long> g1Totals=
+        new EnumMap<G1Outcome,Long>(G1Outcome.class);
     private long observed;
     private long evicted;
 
     LocalLabSequentialTerminalStageTrace(World world){
         this.world=Objects.requireNonNull(world,"world");
+        for(G1Outcome outcome:G1Outcome.values())
+            g1Totals.put(outcome,0L);
         for(Stage stage:Stage.values()){
             EnumMap<Outcome,Long> row=
                 new EnumMap<Outcome,Long>(Outcome.class);
@@ -275,6 +290,9 @@ final class LocalLabSequentialTerminalStageTrace {
         // Detached report construction precedes counters/claim mutation.
         Report report=new Report(checked);
         checked.recorded=true;
+        long g1Prior=g1Totals.get(report.g1Outcome);
+        if(g1Prior<Long.MAX_VALUE)
+            g1Totals.put(report.g1Outcome,g1Prior+1L);
         for(Stage stage:Stage.values()){
             EnumMap<Outcome,Long> row=totals.get(stage);
             Outcome result=report.outcome(stage);
@@ -294,6 +312,6 @@ final class LocalLabSequentialTerminalStageTrace {
     }
 
     synchronized Snapshot snapshot(){
-        return new Snapshot(observed,evicted,reports,totals);
+        return new Snapshot(observed,evicted,reports,totals,g1Totals);
     }
 }

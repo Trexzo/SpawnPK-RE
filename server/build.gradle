@@ -2225,6 +2225,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1966SequentialStageOutcomeEvictionTotalsTest',
     'spk.local.G1967G1PreStageFailureDiagnosticTest',
     'spk.local.G1968G1PreStageHealthyControlTest',
+    'spk.local.G1969G1OutcomeEvictionRetentionTest',
+    'spk.local.G1970G1OutcomeMixedAndUnobservedControlTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2550,10 +2552,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 703 ||
-    currentTrainFocusedTests.toSet().size() != 703) {
+if (currentTrainFocusedTests.size() != 705 ||
+    currentTrainFocusedTests.toSet().size() != 705) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 703 unique tests, found " +
+        "Current-train focused manifest drift: expected 705 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10834,4 +10836,23 @@ tasks.register('g21292ForensicExactNlinkReportIsolationRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21292ForensicExactLinkCountReportIsolationTest')
+}
+
+
+tasks.register('g1969G1OutcomeEvictionRetentionRegression', JavaExec) {
+    group = 'verification'
+    description = '131 real NPC deaths preserve installed G1 outcome totals despite evicted diagnostic reports.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1969G1OutcomeEvictionRetentionTest')
+}
+
+tasks.register('g1970G1OutcomeMixedAndUnobservedControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual installed G1 returned/threw counts and synthetic absence remain distinct without any grant replay.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1970G1OutcomeMixedAndUnobservedControlTest')
 }

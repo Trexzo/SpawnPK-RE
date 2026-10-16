@@ -96,6 +96,23 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
                         check(after.outcomeCount(stage,outcome)==0L,
                             "no fabricated failure/skip/reach outcomes "+stage);
             }
+            LocalLabSequentialTerminalStageTrace.G1Outcome returned=
+                LocalLabSequentialTerminalStageTrace.G1Outcome.RETURNED;
+            check(early.g1OutcomeCount(returned)==1L&&
+                    after.g1OutcomeCount(returned)==cycles&&
+                    after.g1OutcomeCount(
+                        LocalLabSequentialTerminalStageTrace.G1Outcome.THREW)==0L&&
+                    after.g1OutcomeCount(
+                        LocalLabSequentialTerminalStageTrace.G1Outcome.NOT_OBSERVED)==0L,
+                "131 real installed G1 callbacks survive detail eviction");
+            boolean g1Readonly=false;
+            try{
+                after.g1OutcomeCounts.put(returned,0L);
+            }catch(UnsupportedOperationException expected){
+                g1Readonly=true;
+            }
+            check(g1Readonly&&early.g1OutcomeCount(returned)==1L,
+                "G1 aggregate snapshot deeply detached and immutable");
             boolean outerReadonly=false;
             boolean innerReadonly=false;
             try{

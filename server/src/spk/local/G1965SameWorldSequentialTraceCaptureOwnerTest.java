@@ -58,6 +58,13 @@ public final class G1965SameWorldSequentialTraceCaptureOwnerTest {
                     )==0L,
                 "rejected foreign capture cannot affect history or totals");
             a.record(capture);
+            check(a.snapshot().g1OutcomeCount(
+                    LocalLabSequentialTerminalStageTrace.G1Outcome.NOT_OBSERVED)
+                    ==1L&&
+                b.snapshot().g1OutcomeCount(
+                    LocalLabSequentialTerminalStageTrace.G1Outcome.NOT_OBSERVED)
+                    ==0L,
+                "test collector never fabricates a G1 callback and foreign rejection cannot affect totals");
             check(a.snapshot().observed==1L&&
                     a.snapshot().recent.size()==1&&
                     a.snapshot().outcomeCount(
