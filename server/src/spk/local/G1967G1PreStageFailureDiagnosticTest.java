@@ -104,6 +104,30 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                             .RETURNED_UNACKNOWLEDGED,
                     "first genuine terminal returned but was not durably acknowledged "+consumer);
 
+            LocalLabOriginConsumerOutcomeTally.Snapshot joint=
+                stage.originConsumerOutcomes;
+            LocalLabSettledDeathEnvelope.OriginStatus currentOrigin=
+                LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT;
+            check(joint.originCount(currentOrigin)==cycles&&
+                    joint.count(currentOrigin,
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence.RETURNED_UNACKNOWLEDGED)
+                        ==1L&&
+                    joint.count(currentOrigin,
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .THREW_MUTATION_UNCERTAIN)==
+                        (provokeSecondDeath?1L:0L)&&
+                    !joint.hasDurableGrantAcknowledgement()&&
+                    !joint.safeToAutomaticallyReplay(),
+                "actual G1 pre-stage exception remains exact-origin mutation uncertainty");
+            for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                    LocalLabTerminalDeliveryAssessment.Consumer.values())
+                if(consumer!=LocalLabTerminalDeliveryAssessment.Consumer.G1)
+                    check(joint.count(currentOrigin,consumer,
+                        LocalLabTerminalDeliveryAssessment.Evidence.NOT_REACHED)==
+                        (provokeSecondDeath?1L:0L),
+                        "post-G1 failure never attempts derived consumer "+consumer);
             LocalLabTerminalDeliverySummary allConsumers=
                 LocalLabTerminalDeliverySummary.from(stage);
             check(allConsumers.observedTerminals==cycles&&
