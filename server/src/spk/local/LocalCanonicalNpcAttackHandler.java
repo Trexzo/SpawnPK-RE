@@ -744,6 +744,13 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
+        // A missing outbound writer is a deterministic caller error.
+        // Reject it before the first callback / lifecycle HP mutation;
+        // checking only inside sendMaskLocal allowed a hit with no packet.
+        // Retain original early statuses for stale, dead, out-of-range
+        // and cadence-blocked requests without requiring an output writer.
+        Objects.requireNonNull(writer,"writer");
+
         NpcCombatResolutionService.Result hit;
 
         try{
@@ -920,19 +927,34 @@ final class LocalCanonicalNpcAttackHandler {
 
         // Type 1 is explicit LocalLab basic-hit compatibility. It is not a
         // SpawnPK max-hit or original damage-family claim.
-        npcs.sendMaskLocal(
-            clicked,
-            NpcSyncEncoder.Mask.singleHit(
-                damage.appliedDamage,
-                BASIC_HIT_TYPE,
-                after.hitpoints,
-                after.maxHitpoints
-            ),
-            Objects.requireNonNull(
-                writer,
-                "writer"
-            )
-        );
+        //
+        // HP and cooldown are already committed. A checked transport/write
+        // failure must not suppress a newly lethal NPC's terminal callback:
+        // no further client click is guaranteed after a broken connection.
+        // Preserve the original packet failure if terminalization succeeds;
+        // if both fail, propagate the terminal failure with I/O suppressed.
+        try{
+            npcs.sendMaskLocal(
+                clicked,
+                NpcSyncEncoder.Mask.singleHit(
+                    damage.appliedDamage,
+                    BASIC_HIT_TYPE,
+                    after.hitpoints,
+                    after.maxHitpoints
+                ),
+                writer
+            );
+        }catch(IOException presentationFailure){
+            if(damage.newlyDied){
+                try{
+                    finalizeLethal(target);
+                }catch(IOException|RuntimeException|Error terminalFailure){
+                    terminalFailure.addSuppressed(presentationFailure);
+                    throw terminalFailure;
+                }
+            }
+            throw presentationFailure;
+        }
 
         if(damage.newlyDied)
             finalizeLethal(
