@@ -287,6 +287,40 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                             stage.failureType(after)==null,
                         "remaining stages reflect real fail-fast boundary");
 
+                LocalLabTerminalDeliverySummary summary=
+                    LocalLabTerminalDeliverySummary.from(trace);
+                check(summary.observedTerminals==1L&&
+                    summary.count(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==1L&&
+                    summary.count(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G4,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==1L&&
+                    summary.count(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G14,
+                        malformedG14
+                            ?LocalLabTerminalDeliveryAssessment.Evidence
+                                .THREW_MUTATION_UNCERTAIN
+                            :LocalLabTerminalDeliveryAssessment.Evidence
+                                .RETURNED_UNACKNOWLEDGED)==1L&&
+                    summary.hasObservedMutationUncertainty()==malformedG14&&
+                    !summary.hasDurableGrantAcknowledgement()&&
+                    !summary.safeToAutomaticallyReplay(),
+                    "actual G14 fail-fast count accurately describes six consumers");
+                for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                        new LocalLabTerminalDeliveryAssessment.Consumer[]{
+                            LocalLabTerminalDeliveryAssessment.Consumer.G15,
+                            LocalLabTerminalDeliveryAssessment.Consumer.G16,
+                            LocalLabTerminalDeliveryAssessment.Consumer.G18
+                        })
+                    check(summary.count(consumer,
+                            malformedG14
+                                ?LocalLabTerminalDeliveryAssessment.Evidence.NOT_REACHED
+                                :LocalLabTerminalDeliveryAssessment.Evidence
+                                    .RETURNED_UNACKNOWLEDGED)==1L,
+                        "aggregate downstream progression respects fail-fast "+consumer);
                 LocalLabTerminalDeliveryAssessment assessment=
                     LocalLabTerminalDeliveryAssessment.from(stage);
                 check(assessment.evidence(
