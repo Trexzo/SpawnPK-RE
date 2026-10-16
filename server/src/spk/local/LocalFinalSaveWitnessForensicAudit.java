@@ -226,6 +226,13 @@ final class LocalFinalSaveWitnessForensicAudit {
            !sameSelectedObject(activeAtValidation,activeAtReturn))
             throw new IOException(
                 "G21.336 FINAL_WITNESS_SELECTED_OBJECT_CHANGED_DURING_AUDIT");
+        // G21.339: ACTIVE may acquire another pathname hardlink
+        // after the first source/link check, keeping inode/key,
+        // length, bytes and mtime identical. Never call that
+        // sampled state matching even as untrusted evidence.
+        if(!singleObservedHardlink(active))
+            throw new IOException(
+                "G21.339 FINAL_WITNESS_ACTIVE_LINK_CHANGED_DURING_AUDIT");
         byte[] witnessAtReturn=readBounded(witness);
         BasicFileAttributes witnessAfterSource=Files.readAttributes(
             witness,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
