@@ -39,8 +39,35 @@ final class LocalLabTerminalFailureBoundaryTally {
     static Boundary classify(LocalLabSequentialTerminalStageTrace.Report report){
         LocalLabSequentialTerminalStageTrace.Report r=
             Objects.requireNonNull(report,"report");
-        boolean afterFailure=
+        // Stage outcomes and their class-name-only failure evidence
+        // must agree BEFORE any World-owned collector is incremented.
+        // Package-local test captures can be malformed even when the
+        // installed default observer always writes both atomically.
+        // Audit-after-record is not sufficient: it would poison the
+        // durable-for-this-World aggregate counters until World close.
+        boolean g1Threw=
             r.g1Outcome==LocalLabSequentialTerminalStageTrace.G1Outcome.THREW;
+        if(g1Threw&&
+           (r.g1FailureType==null||r.g1FailureType.trim().isEmpty()))
+            throw new IllegalStateException(
+                "TERMINAL_FAILURE_BOUNDARY_MISSING_FAILURE_TYPE_G1");
+        if(!g1Threw&&r.g1FailureType!=null)
+            throw new IllegalStateException(
+                "TERMINAL_FAILURE_BOUNDARY_UNEXPECTED_FAILURE_TYPE_G1");
+        for(LocalLabSequentialTerminalStageTrace.Stage stage:
+                LocalLabSequentialTerminalStageTrace.Stage.values()){
+            LocalLabSequentialTerminalStageTrace.Outcome outcome=
+                Objects.requireNonNull(r.outcome(stage),"stageOutcome");
+            String type=r.failureType(stage);
+            if(outcome==LocalLabSequentialTerminalStageTrace.Outcome.THREW){
+                if(type==null||type.trim().isEmpty())
+                    throw new IllegalStateException(
+                        "TERMINAL_FAILURE_BOUNDARY_MISSING_FAILURE_TYPE_"+stage);
+            }else if(type!=null)
+                throw new IllegalStateException(
+                    "TERMINAL_FAILURE_BOUNDARY_UNEXPECTED_FAILURE_TYPE_"+stage);
+        }
+        boolean afterFailure=g1Threw;
         Boundary firstFailure=afterFailure?Boundary.G1:null;
         int skipped=0;
         // A sequential observer cannot reach a later stage after an
