@@ -91,6 +91,28 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                 "one real installed default-stage trace");
             LocalLabSequentialTerminalStageTrace.Report report=
                 actual.recent.get(0);
+            check(actual.originCount(envelope.originStatus)==1L&&
+                actual.originCount(
+                    crossWorld
+                        ?LocalLabSettledDeathEnvelope.OriginStatus.NO_CURRENT_RECIPIENT
+                        :LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT)
+                    ==0L,
+                "no-current and exact-current origin totals stay disjoint");
+            LocalLabTerminalDeliveryAssessment assessment=
+                LocalLabTerminalDeliveryAssessment.from(report);
+            check(!assessment.hasDurableGrantAcknowledgement()&&
+                    !assessment.safeToAutomaticallyReplay()&&
+                    assessment.originStatus==envelope.originStatus,
+                "origin observations never authorize restart-safe grants");
+            if(!crossWorld){
+                for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                        LocalLabTerminalDeliveryAssessment.Consumer.values())
+                    if(consumer!=LocalLabTerminalDeliveryAssessment.Consumer.G1)
+                        check(assessment.evidence(consumer)==
+                            LocalLabTerminalDeliveryAssessment.Evidence
+                                .SKIPPED_NO_CURRENT_RECIPIENT,
+                            "no current recipient skips derived consumer "+consumer);
+            }
             check(report.npcId.equals(npc.id)&&
                     report.originStatus==envelope.originStatus&&
                     report.deathTile.equals(envelope.deathTile)&&

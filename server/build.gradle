@@ -2229,6 +2229,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1970G1OutcomeMixedAndUnobservedControlTest',
     'spk.local.G1971SettledDeathEnvelopeExactIdentityTest',
     'spk.local.G1972SettledDeathEnvelopeNegativeOriginsTest',
+    'spk.local.G1973TerminalOriginRetentionAfterEvictionTest',
+    'spk.local.G1974TerminalOriginNegativeClassificationTest',
+    'spk.local.G1975ConsumerDeliveryUncertaintyG14Test',
+    'spk.local.G1976ConsumerDeliveryPrestageAndDisconnectTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2560,10 +2564,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 713 ||
-    currentTrainFocusedTests.toSet().size() != 713) {
+if (currentTrainFocusedTests.size() != 717 ||
+    currentTrainFocusedTests.toSet().size() != 717) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 713 unique tests, found " +
+        "Current-train focused manifest drift: expected 717 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10934,4 +10938,44 @@ tasks.register('g21299FinalWitnessFailClosedControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21299FinalReviewWitnessFailClosedControlsTest')
+}
+
+
+tasks.register('g1973TerminalOriginRetentionAfterEvictionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Genuine 131 settled deaths retain exact origin counts beyond 128 reports.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1973TerminalOriginRetentionAfterEvictionTest')
+}
+
+
+tasks.register('g1974TerminalOriginNegativeClassificationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real rebind, disconnect, missing original and foreign World origin negatives.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1974TerminalOriginNegativeClassificationTest')
+}
+
+
+tasks.register('g1975ConsumerDeliveryUncertaintyG14Regression', JavaExec) {
+    group = 'verification'
+    description = 'Real healthy and G14 fail-fast terminal outcomes are unacknowledged diagnostic states.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1975ConsumerDeliveryUncertaintyG14Test')
+}
+
+
+tasks.register('g1976ConsumerDeliveryPrestageDisconnectRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real G1 partial mutation uncertainty and disconnected-stage skips never enable replay.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1976ConsumerDeliveryPrestageAndDisconnectTest')
 }

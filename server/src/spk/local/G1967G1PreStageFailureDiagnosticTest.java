@@ -87,6 +87,23 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                     LocalLabSequentialTerminalStageTrace.G1Outcome.NOT_OBSERVED)==0L,
                 "G1 observed return/failure totals are separate from derived stages");
 
+            check(stage.originCount(
+                    LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT)
+                    ==cycles,
+                "real G1 return and post-settlement exception keep the same exact origin");
+            LocalLabTerminalDeliveryAssessment firstAssessment=
+                LocalLabTerminalDeliveryAssessment.from(first);
+            check(!firstAssessment.hasMutationUncertainty()&&
+                    !firstAssessment.safeToAutomaticallyReplay()&&
+                    !firstAssessment.hasDurableGrantAcknowledgement(),
+                "successful callbacks never become durable credit receipts");
+            for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                    LocalLabTerminalDeliveryAssessment.Consumer.values())
+                check(firstAssessment.evidence(consumer)==
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED,
+                    "first genuine terminal returned but was not durably acknowledged "+consumer);
+
             MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics all=
                 installed.runtime().terminalObserverDiagnostics();
             check(all.totalAttempts==cycles&&
@@ -97,6 +114,23 @@ public final class G1967G1PreStageFailureDiagnosticTest {
             if(provokeSecondDeath){
                 LocalLabSequentialTerminalStageTrace.Report second=
                     stage.recent.get(1);
+                LocalLabTerminalDeliveryAssessment secondAssessment=
+                    LocalLabTerminalDeliveryAssessment.from(second);
+                check(secondAssessment.hasMutationUncertainty()&&
+                    secondAssessment.evidence(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1)==
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .THREW_MUTATION_UNCERTAIN&&
+                    !secondAssessment.safeToAutomaticallyReplay()&&
+                    !secondAssessment.hasDurableGrantAcknowledgement(),
+                    "G1 may mutate before exception; no automatic replay");
+                for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                        LocalLabTerminalDeliveryAssessment.Consumer.values())
+                    if(consumer!=LocalLabTerminalDeliveryAssessment.Consumer.G1)
+                        check(secondAssessment.evidence(consumer)==
+                            LocalLabTerminalDeliveryAssessment.Evidence.NOT_REACHED,
+                            "G1 failure stopped all downstream consumers "+consumer);
+
                 check(second.g1Outcome==
                         LocalLabSequentialTerminalStageTrace.G1Outcome.THREW&&
                     IllegalStateException.class.getName().equals(
