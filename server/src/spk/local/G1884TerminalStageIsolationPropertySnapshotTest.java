@@ -308,6 +308,14 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                     !joint.hasDurableGrantAcknowledgement()&&
                     !joint.safeToAutomaticallyReplay(),
                     "exact matching-origin G14 exception retains downstream delivery boundary");
+                LocalLabTerminalEvidenceConsistencyAudit.Result audit=
+                    LocalLabTerminalEvidenceConsistencyAudit.inspect(trace);
+                check(audit.status==
+                        LocalLabTerminalEvidenceConsistencyAudit.Status.CONSISTENT&&
+                        audit.observedTerminals==1L&&
+                        audit.findings.isEmpty()&&
+                        !audit.safeToAutomaticallyReplay(),
+                    "real G14 fail-fast or healthy callback has coherent detached diagnostics");
                 LocalLabTerminalDeliverySummary summary=
                     LocalLabTerminalDeliverySummary.from(trace);
                 check(summary.observedTerminals==1L&&

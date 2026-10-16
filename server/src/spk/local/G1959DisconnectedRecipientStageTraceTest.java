@@ -109,6 +109,15 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                             LocalLabTerminalDeliveryAssessment.Evidence
                                 .SKIPPED_NO_CURRENT_RECIPIENT)==1L,
                             "disconnected origin never upgrades skipped consumer "+consumer);
+            LocalLabTerminalEvidenceConsistencyAudit.Result audit=
+                LocalLabTerminalEvidenceConsistencyAudit.inspect(actual);
+            check(audit.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.CONSISTENT&&
+                    audit.observedTerminals==1L&&
+                    audit.findings.isEmpty()&&
+                    !audit.hasDurableGrantAcknowledgement()&&
+                    !audit.safeToAutomaticallyReplay(),
+                "disconnected or exact recipient audit consistent and strictly non-granting");
             LocalLabTerminalDeliverySummary summary=
                 LocalLabTerminalDeliverySummary.from(actual);
             check(summary.observedTerminals==1L&&

@@ -127,6 +127,16 @@ public final class G1965SameWorldSequentialTraceCaptureOwnerTest {
                         LocalLabSettledDeathEnvelope.OriginStatus
                             .CURRENT_SPAWN_RECIPIENT)==0L,
                 "invalid post-G1 evidence rejected before all marginal and joint tallies");
+            LocalLabTerminalEvidenceConsistencyAudit.Result unchanged=
+                LocalLabTerminalEvidenceConsistencyAudit.inspect(
+                    corrupted.snapshot()
+                );
+            check(unchanged.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.CONSISTENT&&
+                    unchanged.observedTerminals==0L&&
+                    unchanged.findings.isEmpty()&&
+                    !unchanged.safeToAutomaticallyReplay(),
+                "invalid event rejected without leaving inconsistent forensic state");
             check(graph.runtime().finalizeIfOwned(npc).status==
                     MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
                     world.groundItems().findOwned(

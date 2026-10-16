@@ -247,6 +247,47 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
             check(boundaryReadonly&&
                     early.failureBoundaries.count(noThrow)==1L,
                 "first-failure historical snapshots detached and immutable");
+            LocalLabTerminalEvidenceConsistencyAudit.Result earlyAudit=
+                LocalLabTerminalEvidenceConsistencyAudit.inspect(early);
+            LocalLabTerminalEvidenceConsistencyAudit.Result afterAudit=
+                LocalLabTerminalEvidenceConsistencyAudit.inspect(after);
+            check(earlyAudit.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.CONSISTENT&&
+                    afterAudit.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.CONSISTENT&&
+                    afterAudit.observedTerminals==cycles&&
+                    afterAudit.findings.isEmpty()&&
+                    !afterAudit.hasDurableGrantAcknowledgement()&&
+                    !afterAudit.safeToAutomaticallyReplay(),
+                "131 real settled deaths reconcile origin x consumer, boundaries and marginal totals");
+            LocalLabTerminalEvidenceConsistencyAudit.Result mismatchedEpoch=
+                LocalLabTerminalEvidenceConsistencyAudit.inspectComponents(
+                    after,LocalLabTerminalDeliverySummary.from(early),
+                    after.originConsumerOutcomes
+                );
+            check(mismatchedEpoch.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.DRIFT&&
+                    !mismatchedEpoch.findings.isEmpty()&&
+                    !mismatchedEpoch.safeToAutomaticallyReplay(),
+                "separate time snapshots rejected instead of inventing grant consistency");
+            LocalLabTerminalEvidenceConsistencyAudit.Result staleJoint=
+                LocalLabTerminalEvidenceConsistencyAudit.inspectComponents(
+                    after,LocalLabTerminalDeliverySummary.from(after),
+                    early.originConsumerOutcomes
+                );
+            check(staleJoint.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.DRIFT&&
+                    !staleJoint.findings.isEmpty()&&
+                    !staleJoint.hasDurableGrantAcknowledgement(),
+                "stale cross-tab cannot masquerade as a current complete diagnostic snapshot");
+            boolean auditReadonly=false;
+            try{
+                mismatchedEpoch.findings.clear();
+            }catch(UnsupportedOperationException expected){
+                auditReadonly=true;
+            }
+            check(auditReadonly&&earlyAudit.observedTerminals==1L,
+                "immutable forensic audit result cannot be retroactively modified");
             boolean outerReadonly=false;
             boolean innerReadonly=false;
             try{

@@ -2245,6 +2245,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1986FirstTerminalBoundaryG1FailureTest',
     'spk.local.G1987FirstTerminalBoundaryG14AndDisconnectTest',
     'spk.local.G1988FirstTerminalBoundaryInvalidSequenceFenceTest',
+    'spk.local.G1989TerminalEvidenceMarginalConsistencyTest',
+    'spk.local.G1990TerminalEvidenceRealFailuresConsistencyTest',
+    'spk.local.G1991TerminalEvidenceMixedSnapshotDriftTest',
+    'spk.local.G1992TerminalEvidenceWorldAndSequenceFenceTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2592,10 +2596,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 745 ||
-    currentTrainFocusedTests.toSet().size() != 745) {
+if (currentTrainFocusedTests.size() != 749 ||
+    currentTrainFocusedTests.toSet().size() != 749) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 745 unique tests, found " +
+        "Current-train focused manifest drift: expected 749 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2705,6 +2709,13 @@ def currentTrainCriticalCoverage = [
         'spk.local.G1986FirstTerminalBoundaryG1FailureTest',
         'spk.local.G1987FirstTerminalBoundaryG14AndDisconnectTest',
         'spk.local.G1988FirstTerminalBoundaryInvalidSequenceFenceTest',
+    ],
+    // G19.9.2: strengthen the cumulative evidence-coherence safety net.
+    'g1992-terminal-evidence-consistency': [
+        'spk.local.G1989TerminalEvidenceMarginalConsistencyTest',
+        'spk.local.G1990TerminalEvidenceRealFailuresConsistencyTest',
+        'spk.local.G1991TerminalEvidenceMixedSnapshotDriftTest',
+        'spk.local.G1992TerminalEvidenceWorldAndSequenceFenceTest',
     ],
 ]
 currentTrainCriticalCoverage.each { family, requiredClasses ->
@@ -11323,4 +11334,44 @@ tasks.register('g1988FirstTerminalBoundaryInvalidSequenceFenceRegression', JavaE
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1988FirstTerminalBoundaryInvalidSequenceFenceTest')
+}
+
+
+tasks.register('g1989TerminalEvidenceMarginalConsistencyRegression', JavaExec) {
+    group = 'verification'
+    description = 'Audit origin, consumer, first-failure and ring totals after 131 real settled NPC events.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1989TerminalEvidenceMarginalConsistencyTest')
+}
+
+
+tasks.register('g1990TerminalEvidenceRealFailuresConsistencyRegression', JavaExec) {
+    group = 'verification'
+    description = 'Genuine postground G1 and G14 failures retain coherent diagnostics without grant retries.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1990TerminalEvidenceRealFailuresConsistencyTest')
+}
+
+
+tasks.register('g1991TerminalEvidenceMixedSnapshotDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject stale consumer and origin-cross snapshots mixed across different terminal counts.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1991TerminalEvidenceMixedSnapshotDriftTest')
+}
+
+
+tasks.register('g1992TerminalEvidenceWorldSequenceFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Disconnected and foreign World plus invalid stage evidence never pollute audit totals.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1992TerminalEvidenceWorldAndSequenceFenceTest')
 }

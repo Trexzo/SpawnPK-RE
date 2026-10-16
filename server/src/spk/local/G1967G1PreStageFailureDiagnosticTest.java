@@ -128,6 +128,15 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                         LocalLabTerminalDeliveryAssessment.Evidence.NOT_REACHED)==
                         (provokeSecondDeath?1L:0L),
                         "post-G1 failure never attempts derived consumer "+consumer);
+            LocalLabTerminalEvidenceConsistencyAudit.Result verified=
+                LocalLabTerminalEvidenceConsistencyAudit.inspect(stage);
+            check(verified.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.CONSISTENT&&
+                    verified.observedTerminals==cycles&&
+                    verified.findings.isEmpty()&&
+                    !verified.hasDurableGrantAcknowledgement()&&
+                    !verified.safeToAutomaticallyReplay(),
+                "real G1 postground exception reconciles first-blocker and six consumer marginals");
             LocalLabTerminalDeliverySummary allConsumers=
                 LocalLabTerminalDeliverySummary.from(stage);
             check(allConsumers.observedTerminals==cycles&&
