@@ -131,6 +131,56 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
             }
             check(g1Readonly&&early.g1OutcomeCount(returned)==1L,
                 "G1 aggregate snapshot deeply detached and immutable");
+            LocalLabTerminalDeliverySummary firstSummary=
+                LocalLabTerminalDeliverySummary.from(early);
+            LocalLabTerminalDeliverySummary finalSummary=
+                LocalLabTerminalDeliverySummary.from(after);
+            check(firstSummary.observedTerminals==1L&&
+                    finalSummary.observedTerminals==cycles&&
+                    finalSummary.evictedDetailReports==3L&&
+                    finalSummary.retainedDetailReports==128&&
+                    !finalSummary.hasObservedMutationUncertainty()&&
+                    !finalSummary.hasDurableGrantAcknowledgement()&&
+                    !finalSummary.safeToAutomaticallyReplay(),
+                "aggregate summary after 131 canonical settled NPC deaths");
+            for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                    LocalLabTerminalDeliveryAssessment.Consumer.values()){
+                check(firstSummary.count(consumer,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==1L&&
+                    finalSummary.count(consumer,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==cycles&&
+                    finalSummary.totalObservationsFor(consumer)==cycles,
+                    "six consumer counts retained beyond ring eviction "+consumer);
+                for(LocalLabTerminalDeliveryAssessment.Evidence evidence:
+                        LocalLabTerminalDeliveryAssessment.Evidence.values())
+                    if(evidence!=LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)
+                        check(finalSummary.count(consumer,evidence)==0L,
+                            "no fabricated consumer failure or skipped state "+consumer);
+            }
+            boolean summaryImmutable=false;
+            boolean summaryNestedImmutable=false;
+            try{
+                finalSummary.consumerCounts.clear();
+            }catch(UnsupportedOperationException expected){
+                summaryImmutable=true;
+            }
+            try{
+                finalSummary.consumerCounts.get(
+                    LocalLabTerminalDeliveryAssessment.Consumer.G1).put(
+                        LocalLabTerminalDeliveryAssessment.Evidence.RETURNED_UNACKNOWLEDGED,
+                        0L);
+            }catch(UnsupportedOperationException expected){
+                summaryNestedImmutable=true;
+            }
+            check(summaryImmutable&&summaryNestedImmutable&&
+                    firstSummary.count(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==1L,
+                "detached six-consumer historical map deeply immutable");
             boolean outerReadonly=false;
             boolean innerReadonly=false;
             try{
