@@ -99,6 +99,34 @@ public final class G1965SameWorldSequentialTraceCaptureOwnerTest {
             check("SEQUENTIAL_TERMINAL_STAGE_CAPTURE_ALREADY_RECORDED"
                     .equals(repeated)&&a.snapshot().observed==1L,
                 "captured observation cannot be recorded twice");
+            // Deliberately construct an inconsistent TEST observation
+            // from this already genuinely settled NPC. The original
+            // G1 exception must prevent ANY derived G4 callback from
+            // being recorded as returned. No gameplay callback executes.
+            LocalLabSequentialTerminalStageTrace corrupted=
+                new LocalLabSequentialTerminalStageTrace(world);
+            LocalLabSequentialTerminalStageTrace.Capture inconsistent=
+                corrupted.begin(terminal);
+            inconsistent.g1Threw(new IllegalStateException(
+                "test-only ambiguous postground callback"));
+            inconsistent.run(
+                LocalLabSequentialTerminalStageTrace.Stage.G4,()->{}
+            );
+            String inconsistentRejected=null;
+            try{
+                corrupted.record(inconsistent);
+            }catch(IllegalStateException expected){
+                inconsistentRejected=expected.getMessage();
+            }
+            check("TERMINAL_FAILURE_BOUNDARY_POST_THROW_STAGE_G4"
+                    .equals(inconsistentRejected)&&
+                    corrupted.snapshot().observed==0L&&
+                    corrupted.snapshot().failureBoundaries.count(
+                        LocalLabTerminalFailureBoundaryTally.Boundary.G1)==0L&&
+                    corrupted.snapshot().originConsumerOutcomes.originCount(
+                        LocalLabSettledDeathEnvelope.OriginStatus
+                            .CURRENT_SPAWN_RECIPIENT)==0L,
+                "invalid post-G1 evidence rejected before all marginal and joint tallies");
             check(graph.runtime().finalizeIfOwned(npc).status==
                     MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
                     world.groundItems().findOwned(

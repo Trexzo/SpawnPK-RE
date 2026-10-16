@@ -128,6 +128,13 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                             LocalLabTerminalDeliveryAssessment.Evidence
                                 .SKIPPED_NO_CURRENT_RECIPIENT)==1L,
                             "disconnected recipient remains an explicit skip "+consumer);
+            check(summary.firstBoundaryCount(
+                    crossWorld
+                        ?LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_THROW_RECORDED
+                        :LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_CURRENT_RECIPIENT)==1L,
+                "disconnection must never be labeled a consumer exception");
             LocalLabSequentialTerminalStageTrace.Report report=
                 actual.recent.get(0);
             check(actual.originCount(envelope.originStatus)==1L&&

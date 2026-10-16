@@ -24,6 +24,8 @@ final class LocalLabTerminalDeliverySummary {
         Map<LocalLabTerminalDeliveryAssessment.Evidence,Long>
     > consumerCounts;
     final Map<LocalLabSettledDeathEnvelope.OriginStatus,Long> originCounts;
+    final Map<LocalLabTerminalFailureBoundaryTally.Boundary,Long>
+        firstBoundaryCounts;
 
     private LocalLabTerminalDeliverySummary(
         LocalLabSequentialTerminalStageTrace.Snapshot source,
@@ -41,6 +43,11 @@ final class LocalLabTerminalDeliverySummary {
                 source.originCounts
             )
         );
+        firstBoundaryCounts=Collections.unmodifiableMap(
+            new EnumMap<LocalLabTerminalFailureBoundaryTally.Boundary,Long>(
+                source.failureBoundaries.boundaryCounts
+            )
+        );
     }
 
     long count(
@@ -53,6 +60,10 @@ final class LocalLabTerminalDeliverySummary {
 
     long originCount(LocalLabSettledDeathEnvelope.OriginStatus status){
         return originCounts.get(Objects.requireNonNull(status,"origin"));
+    }
+
+    long firstBoundaryCount(LocalLabTerminalFailureBoundaryTally.Boundary boundary){
+        return firstBoundaryCounts.get(Objects.requireNonNull(boundary,"boundary"));
     }
 
     boolean hasObservedMutationUncertainty(){
