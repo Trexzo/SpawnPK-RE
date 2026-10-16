@@ -113,6 +113,10 @@ final class LocalSessionPlayerInitializer {
             reviewVeto,persistentAccount);
         LocalOneShotActiveReviewOnAdmission.requireConfiguration(
             oneShotReview,persistentAccount,reviewVeto);
+        // G21.298: reject inconsistent opt-in durable NEGATIVE
+        // final-review evidence before any account hydration/admission.
+        LocalFinalSaveNegativeWitness.requireAdmissionConfiguration(
+            persistentAccount);
 
         // G21.181 opt-in: acquire before loading or creating any account
         // state. A competing World with the same concrete account path

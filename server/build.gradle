@@ -2247,6 +2247,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21295FinalSaveCompletionInterruptPreservationTest',
     'spk.local.G21296RealWorldFinalActionInterruptBoundaryTest',
     'spk.local.G21297RealWorldFinalActionTimeoutBoundaryTest',
+    'spk.local.G21298ActualFinalNegativeReviewWitnessTest',
+    'spk.local.G21299FinalReviewWitnessFailClosedControlsTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2558,10 +2560,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 711 ||
-    currentTrainFocusedTests.toSet().size() != 711) {
+if (currentTrainFocusedTests.size() != 713 ||
+    currentTrainFocusedTests.toSet().size() != 713) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 711 unique tests, found " +
+        "Current-train focused manifest drift: expected 713 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10915,4 +10917,21 @@ tasks.register('g1972SettledDeathEnvelopeNegativeOriginsRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1972SettledDeathEnvelopeNegativeOriginsTest')
+}
+tasks.register('g21298RealFinalNegativeWitnessRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.298: actual TCP final World save forces a non-admitting one-shot review witness.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21298ActualFinalNegativeReviewWitnessTest')
+}
+
+tasks.register('g21299FinalWitnessFailClosedControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.299: reject unsupported opt-in, occupied witness leaves and invalid generations.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21299FinalReviewWitnessFailClosedControlsTest')
 }
