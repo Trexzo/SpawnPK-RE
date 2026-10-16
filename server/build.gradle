@@ -2229,6 +2229,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21284UnrelatedForensicAncestorSymlinkControlTest',
     'spk.local.G21285ForensicSelectedAccountHardlinkNegativeTest',
     'spk.local.G21286ForensicUnrelatedAccountHardlinkControlTest',
+    'spk.local.G21287ForensicMultipleToMultipleAliasDriftTest',
+    'spk.local.G21288ForensicUnrelatedMultipleAliasChurnControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2540,10 +2542,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 693 ||
-    currentTrainFocusedTests.toSet().size() != 693) {
+if (currentTrainFocusedTests.size() != 695 ||
+    currentTrainFocusedTests.toSet().size() != 695) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 693 unique tests, found " +
+        "Current-train focused manifest drift: expected 695 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10624,6 +10626,24 @@ tasks.register('g21286ForensicUnrelatedHardlinkControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21286ForensicUnrelatedAccountHardlinkControlTest')
+}
+
+tasks.register('g21287ForensicExactMultipleAliasDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.287: selected hardlinks changing 2 to 3 invalidate read-only witness.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21287ForensicMultipleToMultipleAliasDriftTest')
+}
+
+tasks.register('g21288ForensicForeignAliasChurnControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.288: foreign multiple-link alias churn never invalidates selected witness.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21288ForensicUnrelatedMultipleAliasChurnControlTest')
 }
 
 tasks.register('g1959DisconnectedRecipientStageTraceRegression', JavaExec) {
