@@ -332,7 +332,7 @@ final class LocalCanonicalNpcAttackHandler {
     // Per-session handler monitor linearizes cadence admission, immediate
     // HP mutation and cooldown publication for concurrent opcode72 clicks.
     // This does NOT serialize distinct handlers or guarantee scene lifetime.
-    synchronized Result handle(
+    Result handle(
         NpcAction action,
         NpcEntity clicked,
         ServerPacketWriter writer
@@ -940,7 +940,7 @@ final class LocalCanonicalNpcAttackHandler {
         );
     }
 
-    synchronized long nextAllowedAttackTick(){
+    long nextAllowedAttackTick(){
         return player.canonicalNpcAttackNextAllowedTick();
     }
 
