@@ -100,6 +100,16 @@ final class LocalFinalSaveNegativeWitness {
      * A failed/partial CREATE_NEW is left as negative operator
      * evidence and can never be cleaned up automatically.
      */
+    private static BasicFileAttributes requireSourceIdentity(
+        Path selected,String code
+    )throws IOException{
+        BasicFileAttributes a=Files.readAttributes(selected,
+            BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        if(!a.isRegularFile()||a.isSymbolicLink()||a.fileKey()==null)
+            throw new IOException(code);
+        return a;
+    }
+
     static Path publishOnce(
         Path account,String username,long generation,long sequence
     )throws IOException{
@@ -121,6 +131,17 @@ final class LocalFinalSaveNegativeWitness {
                     LocalAccountForensicEvidence.inspect(selected);
                 final String markerBefore=before
                     .negativeSidecarContentWitnesses.get("activeReview");
+                // G21.313/314: hashes alone cannot distinguish
+                // byte-identical selected account or ACTIVE marker
+                // pathname replacement during witness publication.
+                final Path active=LocalDurableAccountReviewIntentPrimitive
+                    .markerPath(selected);
+                final BasicFileAttributes accountBeforeIdentity=
+                    requireSourceIdentity(selected,
+                        "G21.313 FINAL_WITNESS_ACCOUNT_IDENTITY_UNPROVEN");
+                final BasicFileAttributes markerBeforeIdentity=
+                    requireSourceIdentity(active,
+                        "G21.314 FINAL_WITNESS_ACTIVE_IDENTITY_UNPROVEN");
                 if(!"PRESENT_REGULAR".equals(before.accountState)||
                    !"1".equals(before.accountObservedLinkCount)||
                    !"PRESENT_REGULAR_NEGATIVE".equals(
@@ -222,6 +243,28 @@ final class LocalFinalSaveNegativeWitness {
                        .negativeSidecarContentWitnesses.get("activeReview")))
                     throw new IOException(
                         "G21.298 NEGATIVE_FINAL_WITNESS_ACCOUNT_OR_INTENT_DRIFT");
+                // G21.313: an uncooperative actor can replace the
+                // selected account with a different SAME-BYTES inode,
+                // or add a new hardlink after the initial single-link
+                // forensic read. Neither changes its SHA256.
+                BasicFileAttributes accountAfterIdentity=
+                    requireSourceIdentity(selected,
+                        "G21.313 FINAL_WITNESS_ACCOUNT_IDENTITY_UNPROVEN");
+                if(!accountBeforeIdentity.fileKey().equals(
+                        accountAfterIdentity.fileKey())||
+                   !"1".equals(after.accountObservedLinkCount))
+                    throw new IOException(
+                        "G21.313 FINAL_WITNESS_ACCOUNT_OBJECT_OR_LINK_DRIFT_NEGATIVE");
+                // G21.314: identical marker bytes / canonical content
+                // do not prove the selected ACTIVE pathname retained
+                // its original filesystem object.
+                BasicFileAttributes markerAfterIdentity=
+                    requireSourceIdentity(active,
+                        "G21.314 FINAL_WITNESS_ACTIVE_IDENTITY_UNPROVEN");
+                if(!markerBeforeIdentity.fileKey().equals(
+                        markerAfterIdentity.fileKey()))
+                    throw new IOException(
+                        "G21.314 FINAL_WITNESS_ACTIVE_OBJECT_DRIFT_NEGATIVE");
                 LocalDurableAccountReviewIntentPrimitive
                     .requireReviewMarker(selected);
                 return output;
