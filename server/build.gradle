@@ -2191,6 +2191,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
     'spk.local.G21261ForeignJvmLateRawHardlinkCountVetoTest',
+    'spk.local.G21262LateForcedRawReviewMarkerInsertionVetoTest',
+    'spk.local.G21263UnrelatedLateForcedRawMarkerPositiveControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2482,10 +2484,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 635 ||
-    currentTrainFocusedTests.toSet().size() != 635) {
+if (currentTrainFocusedTests.size() != 637 ||
+    currentTrainFocusedTests.toSet().size() != 637) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 635 unique tests, found " +
+        "Current-train focused manifest drift: expected 637 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10081,4 +10083,22 @@ tasks.register('g1930UnrelatedNpcLifecycleReplacedAdmissionControlRegression', J
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1930UnrelatedNpcLifecycleReplacedInAdmissionControlTest')
+}
+
+tasks.register('g21262LateForcedRawNegativeMarkerVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.262: late account-local ACTIVE/mailbox negative-marker injection vetoes opt-in forced RAW publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21262LateForcedRawReviewMarkerInsertionVetoTest')
+}
+
+tasks.register('g21263UnrelatedLateForcedRawMarkerControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.263: late review marker for an unrelated account cannot veto the selected forced RAW publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21263UnrelatedLateForcedRawMarkerPositiveControlTest')
 }
