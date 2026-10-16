@@ -2193,6 +2193,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1934DifferentHandlerInstancesDifferentTargetCadenceTest',
     'spk.local.G1935ReentrantNpcAttackFenceTest',
     'spk.local.G1936ReentrantNpcAdmissionExceptionRecoveryTest',
+    'spk.local.G1937MissingNpcPacketWriterPreflightTest',
+    'spk.local.G1938MissingNpcPacketWriterLethalFenceTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2496,10 +2498,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 649 ||
-    currentTrainFocusedTests.toSet().size() != 649) {
+if (currentTrainFocusedTests.size() != 651 ||
+    currentTrainFocusedTests.toSet().size() != 651) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 649 unique tests, found " +
+        "Current-train focused manifest drift: expected 651 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10221,4 +10223,22 @@ tasks.register('g1936ReentrantNpcAdmissionExceptionRecoveryRegression', JavaExec
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1936ReentrantNpcAdmissionExceptionRecoveryTest')
+}
+
+tasks.register('g1937MissingNpcPacketWriterPreflightRegression', JavaExec) {
+    group = 'verification'
+    description = 'A null writer cannot commit canonical NPC HP or cadence before packet encoding.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1937MissingNpcPacketWriterPreflightTest')
+}
+
+tasks.register('g1938MissingNpcPacketWriterLethalFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Missing packet writer cannot kill an NPC or finalize the target.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1938MissingNpcPacketWriterLethalFenceTest')
 }
