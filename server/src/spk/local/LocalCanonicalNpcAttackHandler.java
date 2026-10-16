@@ -945,7 +945,12 @@ final class LocalCanonicalNpcAttackHandler {
         // exception suppressed. Both checked I/O and unchecked publication
         // failures can occur after HP has already been committed.
         try{
-            npcs.sendMaskLocal(
+            // Canonical HP lives in World, not one session's viewer scene.
+            // Publish locally AND enqueue semantic presentation to registered
+            // remote viewers via the existing World-owned relay. The relay
+            // translates their independent scene indices after player-81
+            // ordering barriers. This is not a damage or reward broadcast.
+            npcs.sendMask(
                 clicked,
                 NpcSyncEncoder.Mask.singleHit(
                     damage.appliedDamage,
