@@ -145,6 +145,20 @@ public final class G1961SameNameRecipientRebindObservationTest {
                 require(stages!=null&&stages.observed==1L&&
                         stages.recent.size()==1,
                     "one default sequential stage report");
+                LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundary=
+                    stages.originFailureBoundaries;
+                require(originBoundary.count(
+                        LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND,
+                        LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED)
+                        ==1L&&
+                    originBoundary.count(
+                        LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT,
+                        LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED)
+                        ==0L&&
+                    !originBoundary.hasDurableGrantAcknowledgement()&&
+                    !originBoundary.safeToAutomaticallyReplay(),
+                    "real same-name replacement retains completed delivery observation as non-ACK");
+
                 LocalLabSequentialTerminalStageTrace.Report report=
                     stages.recent.get(0);
                 require(stages.originCount(
