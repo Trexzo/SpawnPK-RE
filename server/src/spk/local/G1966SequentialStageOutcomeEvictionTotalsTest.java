@@ -323,6 +323,17 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
                     !staleJoint.findings.isEmpty()&&
                     !staleJoint.hasDurableGrantAcknowledgement(),
                 "stale cross-tab cannot masquerade as a current complete diagnostic snapshot");
+            LocalLabTerminalEvidenceConsistencyAudit.Result staleOriginBoundary=
+                LocalLabTerminalEvidenceConsistencyAudit.inspectComponents(
+                    after,LocalLabTerminalDeliverySummary.from(after),
+                    after.originConsumerOutcomes,
+                    early.originFailureBoundaries
+                );
+            check(staleOriginBoundary.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.DRIFT&&
+                    !staleOriginBoundary.findings.isEmpty()&&
+                    !staleOriginBoundary.safeToAutomaticallyReplay(),
+                "stale origin x first-boundary cross-tab fails the read-only mixed-epoch audit");
             boolean auditReadonly=false;
             try{
                 mismatchedEpoch.findings.clear();
