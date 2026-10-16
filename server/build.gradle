@@ -2207,6 +2207,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1948FailedCanonicalNpcMaskNoRemoteRelayTest',
     'spk.local.G1949CanonicalHitmaskBatchAbortFenceTest',
     'spk.local.G1950CanonicalHitmaskBatchCommitRelayTest',
+    'spk.local.G1951TerminalObserverReturnedDiagnosticTest',
+    'spk.local.G1952TerminalObserverFailureDiagnosticTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2518,10 +2520,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 671 ||
-    currentTrainFocusedTests.toSet().size() != 671) {
+if (currentTrainFocusedTests.size() != 673 ||
+    currentTrainFocusedTests.toSet().size() != 673) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 671 unique tests, found " +
+        "Current-train focused manifest drift: expected 673 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10441,4 +10443,22 @@ tasks.register('g1950CanonicalHitmaskBatchCommitRelayRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1950CanonicalHitmaskBatchCommitRelayTest')
+}
+
+tasks.register('g1951TerminalObserverReturnedDiagnosticRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual post-settlement terminal observer success is observable but not a reward ACK.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1951TerminalObserverReturnedDiagnosticTest')
+}
+
+tasks.register('g1952TerminalObserverFailureDiagnosticRegression', JavaExec) {
+    group = 'verification'
+    description = 'A post-settlement observer RuntimeException or Error is recorded without unsafe replay.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1952TerminalObserverFailureDiagnosticTest')
 }
