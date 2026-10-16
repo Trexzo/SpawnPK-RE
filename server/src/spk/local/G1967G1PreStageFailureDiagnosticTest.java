@@ -78,6 +78,15 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                     "healthy actual consumer callback reached "+consumer);
             }
 
+            check(stage.g1OutcomeCount(
+                    LocalLabSequentialTerminalStageTrace.G1Outcome.RETURNED)==1L&&
+                  stage.g1OutcomeCount(
+                    LocalLabSequentialTerminalStageTrace.G1Outcome.THREW)==
+                        (provokeSecondDeath?1L:0L)&&
+                  stage.g1OutcomeCount(
+                    LocalLabSequentialTerminalStageTrace.G1Outcome.NOT_OBSERVED)==0L,
+                "G1 observed return/failure totals are separate from derived stages");
+
             MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics all=
                 installed.runtime().terminalObserverDiagnostics();
             check(all.totalAttempts==cycles&&
