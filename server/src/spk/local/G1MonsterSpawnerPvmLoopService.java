@@ -161,25 +161,22 @@ final class G1MonsterSpawnerPvmLoopService {
                 session.ownerRef
             );
 
-        WorldPlayer recipient=
-            world.players().byName(
-                finalization.recipientRef
+        // Credit the exact player/generation observed when this NPC
+        // spawned. A username lookup here may resolve a newly logged-in
+        // replacement session after the originating player disconnected.
+        MonsterSpawnerPvmRuntime.RecipientOrigin origin=
+            terminal.recipientOrigin;
+        boolean originalRecipientCurrent=
+            origin!=null&&
+            finalization.recipientRef.equals(origin.recipientRef)&&
+            origin.stillCurrentIn(world);
+        if(originalRecipientCurrent)
+            records.recordIfCurrent(
+                origin.player,
+                origin.generation,
+                finalization.npcId,
+                finalization.deathTick
             );
-
-        if(recipient!=null){
-            long generation=
-                recipient.generation();
-
-            if(world.players().owns(
-                    recipient,
-                    generation))
-                records.recordIfCurrent(
-                    recipient,
-                    generation,
-                    finalization.npcId,
-                    finalization.deathTick
-                );
-        }
 
         WorldPlayer owner=
             world.players().byName(
@@ -190,6 +187,13 @@ final class G1MonsterSpawnerPvmLoopService {
            !world.players().owns(
                 owner,
                 owner.generation()))
+            return;
+
+        // In the common owner==recipient configuration a later same-name
+        // session must not inherit the old NPC's automatic respawn ticket.
+        // A genuinely separate owner still retains its existing policy.
+        if(session.ownerRef.equals(finalization.recipientRef)&&
+           !originalRecipientCurrent)
             return;
 
         schedule(
