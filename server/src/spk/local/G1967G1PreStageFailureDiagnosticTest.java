@@ -104,6 +104,33 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                             .RETURNED_UNACKNOWLEDGED,
                     "first genuine terminal returned but was not durably acknowledged "+consumer);
 
+            LocalLabTerminalDeliverySummary allConsumers=
+                LocalLabTerminalDeliverySummary.from(stage);
+            check(allConsumers.observedTerminals==cycles&&
+                    allConsumers.count(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==1L&&
+                    allConsumers.count(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .THREW_MUTATION_UNCERTAIN)==
+                        (provokeSecondDeath?1L:0L)&&
+                    allConsumers.hasObservedMutationUncertainty()==provokeSecondDeath&&
+                    !allConsumers.hasDurableGrantAcknowledgement()&&
+                    !allConsumers.safeToAutomaticallyReplay(),
+                "G1 observed returns/throws never become durable grants");
+            for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                    LocalLabTerminalDeliveryAssessment.Consumer.values())
+                if(consumer!=LocalLabTerminalDeliveryAssessment.Consumer.G1)
+                    check(allConsumers.count(consumer,
+                            LocalLabTerminalDeliveryAssessment.Evidence.NOT_REACHED)==
+                            (provokeSecondDeath?1L:0L)&&
+                        allConsumers.count(consumer,
+                            LocalLabTerminalDeliveryAssessment.Evidence
+                                .RETURNED_UNACKNOWLEDGED)==1L,
+                        "G1 pre-stage exception leaves five derived consumers unattempted "+
+                            consumer);
             MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics all=
                 installed.runtime().terminalObserverDiagnostics();
             check(all.totalAttempts==cycles&&
