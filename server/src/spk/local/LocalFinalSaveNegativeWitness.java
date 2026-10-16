@@ -24,6 +24,22 @@ final class LocalFinalSaveNegativeWitness {
     static final String PROPERTY=
         "spk.local.experimentalNegativeFinalSaveReviewWitness";
     static final String SUFFIX=".g21298-final-review-witness";
+
+    // G21.300/301 package-only deterministic crash/fault seams.
+    // Ordinary production never configures either probe. They run
+    // under the cooperating account publication lock and cannot
+    // relax any marker, source-file or forced-directory validation.
+    @FunctionalInterface interface Probe {
+        void run(Path witness)throws IOException;
+    }
+    private static volatile Probe afterWriteBeforeForceForTest;
+    private static volatile Probe afterDirectoryForceForTest;
+    static void setAfterWriteBeforeForceForTest(Probe p){
+        afterWriteBeforeForceForTest=p;
+    }
+    static void setAfterDirectoryForceForTest(Probe p){
+        afterDirectoryForceForTest=p;
+    }
     private LocalFinalSaveNegativeWitness(){}
 
     static boolean enabled(){
@@ -110,6 +126,8 @@ final class LocalFinalSaveNegativeWitness {
                         LinkOption.NOFOLLOW_LINKS)){
                     ByteBuffer data=ByteBuffer.wrap(bytes);
                     while(data.hasRemaining())file.write(data);
+                    Probe beforeForce=afterWriteBeforeForceForTest;
+                    if(beforeForce!=null)beforeForce.run(output);
                     file.force(true);
                 }
                 try(FileChannel directory=FileChannel.open(
@@ -117,6 +135,8 @@ final class LocalFinalSaveNegativeWitness {
                         LinkOption.NOFOLLOW_LINKS)){
                     directory.force(true);
                 }
+                Probe afterForce=afterDirectoryForceForTest;
+                if(afterForce!=null)afterForce.run(output);
                 BasicFileAttributes attrs=Files.readAttributes(output,
                     BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
                 if(!attrs.isRegularFile()||attrs.isSymbolicLink()||
