@@ -744,6 +744,13 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
+        // A missing outbound writer is a deterministic caller error.
+        // Reject it before the first callback / lifecycle HP mutation;
+        // checking only inside sendMaskLocal allowed a hit with no packet.
+        // Retain original early statuses for stale, dead, out-of-range
+        // and cadence-blocked requests without requiring an output writer.
+        Objects.requireNonNull(writer,"writer");
+
         NpcCombatResolutionService.Result hit;
 
         try{
@@ -928,10 +935,7 @@ final class LocalCanonicalNpcAttackHandler {
                 after.hitpoints,
                 after.maxHitpoints
             ),
-            Objects.requireNonNull(
-                writer,
-                "writer"
-            )
+            writer
         );
 
         if(damage.newlyDied)
