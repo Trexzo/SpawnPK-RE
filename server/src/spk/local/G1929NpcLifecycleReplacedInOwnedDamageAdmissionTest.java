@@ -52,6 +52,7 @@ public final class G1929NpcLifecycleReplacedInOwnedDamageAdmissionTest {
             final NpcLifecycleService.Snapshot previous=
                 replaceSelected?priorSelected:priorOther;
             final int[] admissionCalls={0};
+            final long capturedGeneration=generation;
             NpcCombatResolutionService.Result accepted=null;
             boolean expectedRejection=false;
             try{
@@ -61,7 +62,7 @@ public final class G1929NpcLifecycleReplacedInOwnedDamageAdmissionTest {
                     (attacker,target)->{
                         admissionCalls[0]++;
                         check(attacker==player&&target==selected&&
-                                world.players().owns(player,generation)&&
+                                world.players().owns(player,capturedGeneration)&&
                                 world.npcs().byId(selected.id)==selected,
                             "callback runs after exact World/attacker/target ownership");
                         check(lifecycle.unregisterExact(toRestart),
