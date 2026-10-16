@@ -287,6 +287,27 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                             stage.failureType(after)==null,
                         "remaining stages reflect real fail-fast boundary");
 
+                LocalLabOriginConsumerOutcomeTally.Snapshot joint=
+                    trace.originConsumerOutcomes;
+                LocalLabSettledDeathEnvelope.OriginStatus currentOrigin=
+                    LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT;
+                check(joint.originCount(currentOrigin)==1L&&
+                    joint.count(currentOrigin,
+                        LocalLabTerminalDeliveryAssessment.Consumer.G14,
+                        malformedG14
+                            ?LocalLabTerminalDeliveryAssessment.Evidence
+                                .THREW_MUTATION_UNCERTAIN
+                            :LocalLabTerminalDeliveryAssessment.Evidence
+                                .RETURNED_UNACKNOWLEDGED)==1L&&
+                    joint.count(currentOrigin,
+                        LocalLabTerminalDeliveryAssessment.Consumer.G15,
+                        malformedG14
+                            ?LocalLabTerminalDeliveryAssessment.Evidence.NOT_REACHED
+                            :LocalLabTerminalDeliveryAssessment.Evidence
+                                .RETURNED_UNACKNOWLEDGED)==1L&&
+                    !joint.hasDurableGrantAcknowledgement()&&
+                    !joint.safeToAutomaticallyReplay(),
+                    "exact matching-origin G14 exception retains downstream delivery boundary");
                 LocalLabTerminalDeliverySummary summary=
                     LocalLabTerminalDeliverySummary.from(trace);
                 check(summary.observedTerminals==1L&&
