@@ -2199,6 +2199,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1940LethalNpcDualFailureDiagnosticTest',
     'spk.local.G1941UncheckedNpcMaskFailureTerminalizationTest',
     'spk.local.G1942UncheckedNpcMaskAndTerminalDualFailureTest',
+    'spk.local.G1943RealSpawnerCheckedMaskFailureSettlementTest',
+    'spk.local.G1944RealSpawnerUncheckedMaskFailureSettlementTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2506,10 +2508,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 659 ||
-    currentTrainFocusedTests.toSet().size() != 659) {
+if (currentTrainFocusedTests.size() != 661 ||
+    currentTrainFocusedTests.toSet().size() != 661) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 659 unique tests, found " +
+        "Current-train focused manifest drift: expected 661 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10321,4 +10323,22 @@ tasks.register('g1942UncheckedNpcMaskAndTerminalDualFailureRegression', JavaExec
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1942UncheckedNpcMaskAndTerminalDualFailureTest')
+}
+
+tasks.register('g1943RealSpawnerCheckedMaskFailureSettlementRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real MonsterSpawner terminal/drop settlement survives checked attack mask IO failure.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1943RealSpawnerCheckedMaskFailureSettlementTest')
+}
+
+tasks.register('g1944RealSpawnerUncheckedMaskFailureSettlementRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real MonsterSpawner terminal/drop settlement survives unchecked attack mask failure.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1944RealSpawnerUncheckedMaskFailureSettlementTest')
 }
