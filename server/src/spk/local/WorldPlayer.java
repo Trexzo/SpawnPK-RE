@@ -37,6 +37,11 @@ final class WorldPlayer {
     // Separate from legacy CombatState and original SpawnPK authority.
     private final Object canonicalNpcAttackLock=new Object();
     private long canonicalNpcAttackNextAllowedTick;
+    // Java monitors are reentrant. A synchronous hook/callback may initiate
+    // another opcode72 attack from the SAME thread before the first call
+    // publishes its cooldown. Track the in-flight admission independently
+    // of the shared thread monitor. This is not an account/session lease.
+    private boolean canonicalNpcAttackInFlight;
     private String username;
     private long generation;
     private boolean registered;
@@ -82,6 +87,25 @@ final class WorldPlayer {
     Object mutationLock(){return mutationLock;}
 
     Object canonicalNpcAttackLock(){return canonicalNpcAttackLock;}
+
+    // Must be called while holding canonicalNpcAttackLock, as handle does.
+    // The inner synchronization is intentionally reentrant for this guard.
+    boolean tryEnterCanonicalNpcAttack(){
+        synchronized(canonicalNpcAttackLock){
+            if(canonicalNpcAttackInFlight)return false;
+            canonicalNpcAttackInFlight=true;
+            return true;
+        }
+    }
+
+    void leaveCanonicalNpcAttack(){
+        synchronized(canonicalNpcAttackLock){
+            if(!canonicalNpcAttackInFlight)
+                throw new IllegalStateException(
+                    "canonical NPC admission was not active");
+            canonicalNpcAttackInFlight=false;
+        }
+    }
 
     long canonicalNpcAttackNextAllowedTick(){
         synchronized(canonicalNpcAttackLock){
