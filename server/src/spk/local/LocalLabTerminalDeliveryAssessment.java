@@ -111,5 +111,4 @@ final class LocalLabTerminalDeliveryAssessment {
         return new LocalLabTerminalDeliveryAssessment(checked,states);
     }
 
-    private LocalLabTerminalDeliveryAssessment(){}
 }
