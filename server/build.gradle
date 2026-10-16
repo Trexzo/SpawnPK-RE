@@ -2305,6 +2305,10 @@ def currentTrainFocusedTests = [
     'spk.local.G21324FinalWitnessSelectedSourceMismatchAuditTest',
     'spk.local.G21325FinalWitnessMalformedAndNonregularAuditTest',
     'spk.local.G21326FinalWitnessInPlaceReadDriftAuditTest',
+    'spk.local.G21327FinalWitnessAuditAccountAliasTest',
+    'spk.local.G21328FinalWitnessAuditActiveAliasTest',
+    'spk.local.G21329FinalWitnessAuditForeignAliasesControlTest',
+    'spk.local.G21330FinalWitnessAuditMultipleSelectedAliasesTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2616,10 +2620,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 769 ||
-    currentTrainFocusedTests.toSet().size() != 769) {
+if (currentTrainFocusedTests.size() != 773 ||
+    currentTrainFocusedTests.toSet().size() != 773) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 769 unique tests, found " +
+        "Current-train focused manifest drift: expected 773 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2757,6 +2761,13 @@ def currentTrainCriticalCoverage = [
         'spk.local.G2002TerminalReturnedWithStaleFailureTypeTest',
         'spk.local.G2003TerminalUnreachedSkippedFailureTypeTest',
         'spk.local.G2004TerminalTypedFailurePositiveControlTest',
+    ],
+    // G21.327-330: read-only matching cannot hide selected source hardlinks.
+    'g21330-readonly-final-witness-source-alias-evidence': [
+        'spk.local.G21327FinalWitnessAuditAccountAliasTest',
+        'spk.local.G21328FinalWitnessAuditActiveAliasTest',
+        'spk.local.G21329FinalWitnessAuditForeignAliasesControlTest',
+        'spk.local.G21330FinalWitnessAuditMultipleSelectedAliasesTest',
     ],
     // G21.319/320: selected ACTIVE/witness hardlink drift must remain tested.
     'g21320-negative-final-witness-hardlink-count': [
@@ -11610,4 +11621,36 @@ tasks.register('g2004TerminalTypedFailurePositiveControlRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2004TerminalTypedFailurePositiveControlTest')
+}
+
+tasks.register('g21327ForensicSourceAliasRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21327FinalWitnessAuditAccountAliasTest')
+}
+
+tasks.register('g21328ForensicSourceAliasRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21328FinalWitnessAuditActiveAliasTest')
+}
+
+tasks.register('g21329ForensicSourceAliasRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21329FinalWitnessAuditForeignAliasesControlTest')
+}
+
+tasks.register('g21330ForensicSourceAliasRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21330FinalWitnessAuditMultipleSelectedAliasesTest')
 }
