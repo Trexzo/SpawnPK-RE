@@ -17,6 +17,7 @@ final class LocalCanonicalNpcAttackHandler {
     enum Status {
         LEGACY_DUMMY,
         NONCANONICAL_SCENE,
+        STALE_SCENE,
         STALE_CANONICAL,
         DEFINITION_MISMATCH,
         LIFECYCLE_MISSING,
@@ -358,6 +359,26 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
+        // The scene index in a client packet is a viewer-local slot,
+        // not authority to supply a detached or forged NpcEntity.
+        // Resolve the current scene object by identity BEFORE reading
+        // canonical NPC ownership or initiating any dead retry/damage.
+        // This does not disambiguate a replayed wire index after reuse:
+        // packets carry no independent scene-generation token.
+        if(action.sceneIndex!=clicked.sceneIndex||
+           npcs.scene(action.sceneIndex)!=clicked)
+            return result(
+                Status.STALE_SCENE,
+                clicked,
+                clicked.canonicalId(),
+                -1,
+                -1,
+                0,
+                -1,
+                -1,
+                false
+            );
+
         EntityId canonicalId=
             clicked.canonicalId();
 
@@ -424,24 +445,10 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
-        if(before.dead()){
-            retryDeadFinalization(
-                target
-            );
-
-            return result(
-                Status.TARGET_DEAD,
-                clicked,
-                canonicalId,
-                -1,
-                -1,
-                0,
-                before.hitpoints,
-                before.maxHitpoints,
-                false
-            );
-        }
-
+        // Exact session admission must precede the dead-NPC retry too.
+        // A stale handler has no authority to trigger settlement retries
+        // or observer callbacks via a previously finalized target.
+        // This is an entry-time guard, not an atomic logout fence.
         long generation=
             generationSupplier.getAsLong();
 
@@ -460,6 +467,24 @@ final class LocalCanonicalNpcAttackHandler {
                 before.maxHitpoints,
                 false
             );
+
+        if(before.dead()){
+            retryDeadFinalization(
+                target
+            );
+
+            return result(
+                Status.TARGET_DEAD,
+                clicked,
+                canonicalId,
+                -1,
+                -1,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }
 
         int playerX;
         int playerY;
@@ -587,6 +612,24 @@ final class LocalCanonicalNpcAttackHandler {
                 target,
                 generation
             );
+
+            // The viewer projection can be retired after the initial
+            // action/scene check but before immediate damage admission.
+            // Do not apply HP when its identity changed in this window,
+            // leaving packet-65 without the exact recipient scene.
+            // This is a second admission check, not an atomic lease.
+            if(npcs.scene(action.sceneIndex)!=clicked)
+                return result(
+                    Status.STALE_SCENE,
+                    clicked,
+                    canonicalId,
+                    distance,
+                    legalRange,
+                    0,
+                    before.hitpoints,
+                    before.maxHitpoints,
+                    false
+                );
 
             hit=
                 resolution.resolveImmediateOwnedAdmitted(
