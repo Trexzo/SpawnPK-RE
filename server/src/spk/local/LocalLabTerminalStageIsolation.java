@@ -236,7 +236,13 @@ final class LocalLabTerminalStageIsolation {
             new EnumMap<Stage,Outcome>(Stage.class);
 
         for(Stage stage:Stage.values()){
-            if(recipient==null||
+            // The preexisting matched witness was diagnostic only.
+            // A same-name replacement WorldPlayer must never inherit
+            // progression originating with the retired spawn recipient.
+            // Recheck for every stage to fence an intervening retirement.
+            if(!matched||origin==null||
+               !origin.stillCurrentIn(checked)||
+               recipient==null||
                checked.players().byName(recipientRef)!=recipient||
                !checked.players().owns(recipient,generation)){
                 outcomes.put(stage,Outcome.SKIPPED_NO_CURRENT_RECIPIENT);
