@@ -2203,6 +2203,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1944RealSpawnerUncheckedMaskFailureSettlementTest',
     'spk.local.G1945DelayedResolutionWorldTickCadenceTest',
     'spk.local.G1946DifferentTargetCompletionTickCadenceTest',
+    'spk.local.G1947CanonicalNpcHitmaskRemoteRelayTest',
+    'spk.local.G1948FailedCanonicalNpcMaskNoRemoteRelayTest',
+    'spk.local.G1949CanonicalHitmaskBatchAbortFenceTest',
+    'spk.local.G1950CanonicalHitmaskBatchCommitRelayTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2514,10 +2518,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 667 ||
-    currentTrainFocusedTests.toSet().size() != 667) {
+if (currentTrainFocusedTests.size() != 671 ||
+    currentTrainFocusedTests.toSet().size() != 671) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 667 unique tests, found " +
+        "Current-train focused manifest drift: expected 671 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10401,4 +10405,40 @@ tasks.register('g1946DifferentTargetCompletionTickCadenceRegression', JavaExec) 
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1946DifferentTargetCompletionTickCadenceTest')
+}
+
+tasks.register('g1947CanonicalNpcHitmaskRemoteRelayRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual canonical NPC hitmask reaches a second World viewer exactly once.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1947CanonicalNpcHitmaskRemoteRelayTest')
+}
+
+tasks.register('g1948FailedCanonicalNpcMaskNoRemoteRelayRegression', JavaExec) {
+    group = 'verification'
+    description = 'An attacker packet I/O failure cannot create phantom remote NPC hitmask.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1948FailedCanonicalNpcMaskNoRemoteRelayTest')
+}
+
+tasks.register('g1949CanonicalHitmaskBatchAbortFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Abort attacker packet batch without emitting a remote canonical hitmask.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1949CanonicalHitmaskBatchAbortFenceTest')
+}
+
+tasks.register('g1950CanonicalHitmaskBatchCommitRelayRegression', JavaExec) {
+    group = 'verification'
+    description = 'Commit attacker packet batch before exact canonical spectator mask relay.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1950CanonicalHitmaskBatchCommitRelayTest')
 }
