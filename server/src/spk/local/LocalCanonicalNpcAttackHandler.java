@@ -22,6 +22,7 @@ final class LocalCanonicalNpcAttackHandler {
         STALE_CANONICAL,
         DEFINITION_MISMATCH,
         LIFECYCLE_MISSING,
+        STALE_LIFECYCLE,
         TARGET_DEAD,
         STALE_PLAYER,
         OUT_OF_RANGE,
@@ -512,6 +513,54 @@ final class LocalCanonicalNpcAttackHandler {
                     0,
                     before.hitpoints,
                     before.maxHitpoints,
+                    false
+                );
+
+            // A generation callback may have removed the previously
+            // observed canonical NPC or its lifecycle. A snapshot
+            // captured before that callback cannot authorize retry.
+            // This check does not create an atomic terminal lease.
+            if(world.npcs().byId(canonicalId)!=target)
+                return result(
+                    Status.STALE_CANONICAL,
+                    clicked,
+                    canonicalId,
+                    -1,
+                    -1,
+                    0,
+                    before.hitpoints,
+                    before.maxHitpoints,
+                    false
+                );
+
+            NpcLifecycleService.Snapshot currentDeath=
+                world.npcLifecycle().get(canonicalId);
+
+            if(currentDeath==null)
+                return result(
+                    Status.LIFECYCLE_MISSING,
+                    clicked,
+                    canonicalId,
+                    -1,
+                    -1,
+                    0,
+                    before.hitpoints,
+                    before.maxHitpoints,
+                    false
+                );
+
+            if(!currentDeath.dead()||
+               currentDeath.deathTick!=before.deathTick||
+               currentDeath.maxHitpoints!=before.maxHitpoints)
+                return result(
+                    Status.STALE_LIFECYCLE,
+                    clicked,
+                    canonicalId,
+                    -1,
+                    -1,
+                    0,
+                    currentDeath.hitpoints,
+                    currentDeath.maxHitpoints,
                     false
                 );
 
