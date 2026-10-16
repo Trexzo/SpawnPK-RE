@@ -13,6 +13,13 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class G1931ConcurrentSameTickNpcAttackFenceTest {
     static void run(boolean sameTarget)throws Exception{
+        run(sameTarget,false);
+    }
+
+    static void run(
+        boolean sameTarget,
+        boolean separateHandlerInstances
+    )throws Exception{
         World world=World.isolatedForTest(600L);
         WorldPlayer player=new WorldPlayer();
         long generation=-1L;
@@ -68,10 +75,7 @@ public final class G1931ConcurrentSameTickNpcAttackFenceTest {
             final AtomicInteger hookCount=new AtomicInteger();
             final CountDownLatch insideFirstHook=new CountDownLatch(1);
             final CountDownLatch secondStarted=new CountDownLatch(1);
-            LocalCanonicalNpcAttackHandler handler=
-                new LocalCanonicalNpcAttackHandler(
-                    world,player,()->capturedGeneration,
-                    player.equipment(),player.combatStyles(),registry,
+            LocalCanonicalNpcAttackHandler.BeforeResolutionHook hook=
                     (target,expectedGeneration)->{
                         int nth=hookCount.incrementAndGet();
                         if(nth==1){
@@ -91,7 +95,19 @@ public final class G1931ConcurrentSameTickNpcAttackFenceTest {
                                 );
                             }
                         }
-                    });
+                    };
+            LocalCanonicalNpcAttackHandler handler=
+                new LocalCanonicalNpcAttackHandler(
+                    world,player,()->capturedGeneration,
+                    player.equipment(),player.combatStyles(),registry,hook);
+            LocalCanonicalNpcAttackHandler otherHandler=
+                separateHandlerInstances
+                    ?new LocalCanonicalNpcAttackHandler(
+                        world,player,()->capturedGeneration,
+                        player.equipment(),player.combatStyles(),registry,hook)
+                    :handler;
+            check(!separateHandlerInstances||otherHandler!=handler,
+                "second handler instance genuinely independent");
             AtomicReference<LocalCanonicalNpcAttackHandler.Result> rA=
                 new AtomicReference<>();
             AtomicReference<LocalCanonicalNpcAttackHandler.Result> rSecond=
@@ -111,7 +127,7 @@ public final class G1931ConcurrentSameTickNpcAttackFenceTest {
             second=new Thread(()->{
                 secondStarted.countDown();
                 try{
-                    rSecond.set(handler.handle(
+                    rSecond.set(otherHandler.handle(
                         reqSecond.action(),secondView,
                         G1911CanonicalNpcSceneObjectIdentityFenceTest
                             .writer(bytesSecond)));
@@ -140,7 +156,7 @@ public final class G1931ConcurrentSameTickNpcAttackFenceTest {
             check(blocked&&hookCount.get()==1&&
                     world.npcLifecycle().get(npcA.id).hitpoints==20&&
                     world.npcLifecycle().get(npcB.id).hitpoints==20,
-                "second same-handler attack waits while first owns cadence");
+                "second same-player attack waits while first owns cadence");
             allowFirst.countDown();
             first.join(5000L);
             second.join(5000L);
@@ -162,6 +178,8 @@ public final class G1931ConcurrentSameTickNpcAttackFenceTest {
                     world.npcLifecycle().get(npcA.id).hitpoints==10&&
                     world.npcLifecycle().get(npcB.id).hitpoints==20&&
                     handler.nextAllowedAttackTick()>world.clock().tick()&&
+                    otherHandler.nextAllowedAttackTick()==
+                        handler.nextAllowedAttackTick()&&
                     world.pvmRecords().receiptCount()==0,
                 "exactly one hit admitted for same-tick concurrent clicks");
 
@@ -170,7 +188,7 @@ public final class G1931ConcurrentSameTickNpcAttackFenceTest {
             for(int tick=0;tick<12;tick++)world.clock().advance();
             ByteArrayOutputStream laterMask=new ByteArrayOutputStream();
             LocalCanonicalNpcAttackHandler.Result later=
-                handler.handle(
+                otherHandler.handle(
                     reqSecond.action(),secondView,
                     G1911CanonicalNpcSceneObjectIdentityFenceTest
                         .writer(laterMask));
