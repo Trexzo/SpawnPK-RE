@@ -2205,6 +2205,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21267UnrelatedPostMoveHardlinkPositiveControlTest',
     'spk.local.G21268ForeignJvmPostMoveHardlinkUncertainTest',
     'spk.local.G21269ForeignJvmUnrelatedPostMoveHardlinkControlTest',
+    'spk.local.G21271ForcedWorldPostMoveNegativeSidecarTest',
+    'spk.local.G21272UnrelatedForcedWorldPostMoveMarkerControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2496,10 +2498,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 649 ||
-    currentTrainFocusedTests.toSet().size() != 649) {
+if (currentTrainFocusedTests.size() != 651 ||
+    currentTrainFocusedTests.toSet().size() != 651) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 649 unique tests, found " +
+        "Current-train focused manifest drift: expected 651 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10221,4 +10223,22 @@ tasks.register('g1936ReentrantNpcAdmissionExceptionRecoveryRegression', JavaExec
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1936ReentrantNpcAdmissionExceptionRecoveryTest')
+}
+
+tasks.register('g21271ForcedWorldPostMoveNegativeSidecarUncertainRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.271: actual World-owned forced save is uncertain if negative account marker arrives after ATOMIC_MOVE.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21271ForcedWorldPostMoveNegativeSidecarTest')
+}
+
+tasks.register('g21272UnrelatedForcedWorldPostMoveMarkerControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.272: late marker for unrelated account leaves a valid forced World save unaffected.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21272UnrelatedForcedWorldPostMoveMarkerControlTest')
 }
