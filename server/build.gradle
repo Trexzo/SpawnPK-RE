@@ -2197,6 +2197,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21261ForeignJvmLateRawHardlinkCountVetoTest',
     'spk.local.G21262LateForcedRawReviewMarkerInsertionVetoTest',
     'spk.local.G21263UnrelatedLateForcedRawMarkerPositiveControlTest',
+    'spk.local.G21264PostMoveRawNegativeMarkerUncertainTest',
+    'spk.local.G21265UnrelatedPostMoveRawMarkerControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2488,10 +2490,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 641 ||
-    currentTrainFocusedTests.toSet().size() != 641) {
+if (currentTrainFocusedTests.size() != 643 ||
+    currentTrainFocusedTests.toSet().size() != 643) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 641 unique tests, found " +
+        "Current-train focused manifest drift: expected 643 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10141,4 +10143,22 @@ tasks.register('g1934DifferentHandlerInstancesDifferentTargetCadenceRegression',
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1934DifferentHandlerInstancesDifferentTargetCadenceTest')
+}
+
+tasks.register('g21264PostMoveRawNegativeMarkerUncertainRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.264: an exact account-local negative marker after RAW replacement precludes a normal completion receipt.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21264PostMoveRawNegativeMarkerUncertainTest')
+}
+
+tasks.register('g21265UnrelatedPostMoveRawMarkerControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.265: an unrelated postmove negative marker cannot veto healthy exact-account RAW completion.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21265UnrelatedPostMoveRawMarkerControlTest')
 }
