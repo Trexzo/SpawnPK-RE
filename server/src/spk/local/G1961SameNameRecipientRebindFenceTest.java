@@ -120,7 +120,7 @@ public final class G1961SameNameRecipientRebindFenceTest {
                     "isolated production stages produced one diagnostic");
                 LocalLabTerminalStageIsolation.Report report=
                     stages.recentReports.get(0);
-                check(!report.spawnOriginMatched,
+                check(!report.spawnOriginMatchedAtDispatch,
                     "isolated stage observer detects rejected original origin");
                 for(LocalLabTerminalStageIsolation.Stage stage:
                     LocalLabTerminalStageIsolation.Stage.values())
