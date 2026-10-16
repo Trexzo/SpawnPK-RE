@@ -114,6 +114,28 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
             Objects.requireNonNull(summary,"summary");
         LocalLabOriginConsumerOutcomeTally.Snapshot matrix=
             Objects.requireNonNull(joint,"joint");
+        return inspectComponents(s,derived,matrix,s.originFailureBoundaries);
+    }
+
+    /**
+     * Compare an externally supplied origin x first-boundary snapshot
+     * against same-epoch marginals. This remains a pure negative audit
+     * for mixed-epoch or corrupt diagnostic data, never a grant gate.
+     */
+    static Result inspectComponents(
+        LocalLabSequentialTerminalStageTrace.Snapshot source,
+        LocalLabTerminalDeliverySummary summary,
+        LocalLabOriginConsumerOutcomeTally.Snapshot joint,
+        LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundaries
+    ){
+        LocalLabSequentialTerminalStageTrace.Snapshot s=
+            Objects.requireNonNull(source,"source");
+        LocalLabTerminalDeliverySummary derived=
+            Objects.requireNonNull(summary,"summary");
+        LocalLabOriginConsumerOutcomeTally.Snapshot matrix=
+            Objects.requireNonNull(joint,"joint");
+        LocalLabOriginFirstFailureBoundaryTally.Snapshot crossed=
+            Objects.requireNonNull(originBoundaries,"originBoundaries");
         Checker c=new Checker();
         long observed=s.observed;
 
@@ -133,6 +155,16 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
             boundaryTotal=c.add(boundaryTotal,count,"BOUNDARY_TOTAL");
         }
         c.equal(boundaryTotal,observed,"FIRST_BOUNDARIES_OBSERVED");
+        for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                LocalLabTerminalFailureBoundaryTally.Boundary.values()){
+            long sum=0L;
+            for(LocalLabSettledDeathEnvelope.OriginStatus origin:
+                    LocalLabSettledDeathEnvelope.OriginStatus.values())
+                sum=c.add(sum,crossed.count(origin,boundary),
+                    "ORIGIN_FIRST_COLUMN_"+boundary);
+            c.equal(sum,s.failureBoundaries.count(boundary),
+                "ORIGIN_FIRST_VS_BOUNDARY_"+boundary);
+        }
 
         for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
                 LocalLabTerminalDeliveryAssessment.Consumer.values()){
@@ -176,6 +208,13 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                 "SUMMARY_ORIGIN_"+origin);
             totalOrigin=c.add(totalOrigin,originCount,
                 "ORIGINS_TOTAL");
+            long firstForOrigin=0L;
+            for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                    LocalLabTerminalFailureBoundaryTally.Boundary.values())
+                firstForOrigin=c.add(firstForOrigin,
+                    crossed.count(origin,boundary),"ORIGIN_FIRST_ROW_"+origin);
+            c.equal(firstForOrigin,originCount,
+                "ORIGIN_FIRST_VS_ORIGIN_"+origin);
             for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
                     LocalLabTerminalDeliveryAssessment.Consumer.values()){
                 long row=0L;
@@ -198,7 +237,7 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                     .SKIPPED_NO_CURRENT_RECIPIENT),
             "FIRST_NO_CURRENT_VS_G4_SKIP"
         );
-        inspectRetainedDetails(s,derived,matrix,c);
+        inspectRetainedDetails(s,derived,matrix,crossed,c);
         return c.finish(observed);
     }
 
@@ -212,6 +251,7 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
         LocalLabSequentialTerminalStageTrace.Snapshot source,
         LocalLabTerminalDeliverySummary summary,
         LocalLabOriginConsumerOutcomeTally.Snapshot matrix,
+        LocalLabOriginFirstFailureBoundaryTally.Snapshot cross,
         Checker c
     ){
         LocalLabSettledDeathEnvelope.OriginStatus[] origins=
@@ -224,6 +264,8 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
             LocalLabTerminalFailureBoundaryTally.Boundary.values();
         long[] originCount=new long[origins.length];
         long[] boundaryCount=new long[boundaries.length];
+        long[][] originBoundaryCount=
+            new long[origins.length][boundaries.length];
         long[][] consumerCount=new long[consumers.length][evidences.length];
         long[][][] jointCount=
             new long[origins.length][consumers.length][evidences.length];
@@ -275,6 +317,8 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                     LocalLabTerminalDeliveryAssessment.from(report);
                 originCount[report.originStatus.ordinal()]++;
                 boundaryCount[boundary.ordinal()]++;
+                originBoundaryCount[report.originStatus.ordinal()]
+                    [boundary.ordinal()]++;
                 for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
                         consumers){
                     LocalLabTerminalDeliveryAssessment.Evidence evidence=
@@ -303,6 +347,13 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
             c.retained(boundaryCount[boundary.ordinal()],
                 source.failureBoundaries.count(boundary),exact,
                 "FIRST_"+boundary);
+        for(LocalLabSettledDeathEnvelope.OriginStatus origin:origins)
+            for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                    boundaries)
+                c.retained(
+                    originBoundaryCount[origin.ordinal()][boundary.ordinal()],
+                    cross.count(origin,boundary),exact,
+                    "ORIGIN_FIRST_"+origin+"_"+boundary);
         for(LocalLabTerminalDeliveryAssessment.Consumer consumer:consumers)
             for(LocalLabTerminalDeliveryAssessment.Evidence evidence:evidences){
                 c.retained(consumerCount[consumer.ordinal()][evidence.ordinal()],
