@@ -240,6 +240,23 @@ final class LocalOptInRawTemp {
             raw.requireLockObjectContinuity();
             BeforeAccountMoveProbe moveProbe=beforeMoveProbeForTest;
             if(moveProbe!=null)moveProbe.beforeMove(account);
+            // G21.262: the before-move seam may introduce a previously
+            // absent NEGATIVE review marker, even when the earlier
+            // publication-locked check was clear. Recheck every exact
+            // account-local sidecar after this seam before replacing the
+            // old account. This only narrows an observed race; foreign
+            // uncooperative marker creation after the final check cannot
+            // be atomically fenced by these filesystem probes.
+            LocalDurableAccountReviewIntentPrimitive
+                .requireNoReviewMarker(account);
+            if(new MailboxDurableReviewFence(pinned)
+                    .present(accountUsername)||
+               new MailboxStrictUncertainFence(pinned)
+                    .present(accountUsername)||
+               new MailboxStrictWriteIntentFence(pinned)
+                    .present(accountUsername))
+                throw new IOException(
+                    "G21.251 FORCED_RAW_MAILBOX_REVIEW_FENCE_PRESENT");
             requirePublicationLockName(account,publicationLockIdentity);
             requireAccountPreimageUnchanged(account,expectedPreimage);
             // G21.260: with the existing DEFAULT-OFF G21.230 nlink
