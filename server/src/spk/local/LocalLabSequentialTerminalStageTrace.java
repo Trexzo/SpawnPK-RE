@@ -35,6 +35,11 @@ final class LocalLabSequentialTerminalStageTrace {
         final long deathTick;
         final String recipientRef;
         final long spawnRecipientGeneration;
+        // Observation ONLY. A false match means the current same-name
+        // WorldPlayer is not the immutable NPC spawn-time player/epoch.
+        // This does not authorize blocking or replaying any grant.
+        final boolean spawnOriginMatchedAtDispatch;
+        final long observedCurrentGeneration;
         final Map<Stage,Outcome> outcomes;
         final Map<Stage,String> failureTypes;
 
@@ -48,6 +53,9 @@ final class LocalLabSequentialTerminalStageTrace {
                 terminal.recipientOrigin==null
                     ?-1L
                     :terminal.recipientOrigin.generation;
+            spawnOriginMatchedAtDispatch=
+                capture.spawnOriginMatchedAtDispatch;
+            observedCurrentGeneration=capture.observedCurrentGeneration;
             outcomes=Collections.unmodifiableMap(
                 new EnumMap<Stage,Outcome>(capture.outcomes)
             );
@@ -94,6 +102,8 @@ final class LocalLabSequentialTerminalStageTrace {
      */
     static final class Capture {
         final MonsterSpawnerPvmRuntime.FinalizeResult terminal;
+        final boolean spawnOriginMatchedAtDispatch;
+        final long observedCurrentGeneration;
         final EnumMap<Stage,Outcome> outcomes=
             new EnumMap<Stage,Outcome>(Stage.class);
         final EnumMap<Stage,String> failureTypes=
@@ -101,9 +111,22 @@ final class LocalLabSequentialTerminalStageTrace {
         private boolean recorded;
 
         private Capture(
-            MonsterSpawnerPvmRuntime.FinalizeResult terminal
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal,
+            World world
         ){
             this.terminal=terminal;
+            MonsterSpawnerPvmRuntime.RecipientOrigin origin=
+                terminal.recipientOrigin;
+            String recipientRef=terminal.finalization.recipientRef;
+            WorldPlayer observed=world.players().byName(recipientRef);
+            observedCurrentGeneration=
+                observed==null?-1L:observed.generation();
+            spawnOriginMatchedAtDispatch=
+                origin!=null&&observed!=null&&
+                origin.player==observed&&
+                origin.generation==observedCurrentGeneration&&
+                recipientRef.equals(origin.recipientRef)&&
+                origin.stillCurrentIn(world);
             for(Stage stage:Stage.values())
                 outcomes.put(stage,Outcome.NOT_REACHED);
         }
@@ -175,7 +198,7 @@ final class LocalLabSequentialTerminalStageTrace {
             throw new IllegalArgumentException(
                 "sequential stages require a settled FINALIZED event"
             );
-        return new Capture(event);
+        return new Capture(event,world);
     }
 
     synchronized void record(Capture capture){
