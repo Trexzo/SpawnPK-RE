@@ -2,8 +2,10 @@ package spk.local;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Pure, read-only integrity check of a single DEFAULT World-local terminal
@@ -56,6 +58,16 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                 return Long.MAX_VALUE;
             }
             return left+right;
+        }
+
+        void retained(long detail,long total,boolean exact,String label){
+            nonnegative(total,"RETAINED_TOTAL_"+label);
+            if(total==Long.MAX_VALUE){
+                saturated=true;
+                return;
+            }
+            if(detail>total||(exact&&detail!=total))
+                issue("DETAIL_DRIFT_"+label);
         }
 
         void equal(long actual,long expected,String label){
@@ -186,7 +198,122 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                     .SKIPPED_NO_CURRENT_RECIPIENT),
             "FIRST_NO_CURRENT_VS_G4_SKIP"
         );
+        inspectRetainedDetails(s,derived,matrix,c);
         return c.finish(observed);
+    }
+
+    /**
+     * Retained report evidence is at most a SUBSET after ring eviction.
+     * Before the first eviction, it MUST reproduce every marginal/joint
+     * outcome and first-blocker count exactly. No evicted per-death detail
+     * or grant acknowledgement can be reconstructed from these totals.
+     */
+    private static void inspectRetainedDetails(
+        LocalLabSequentialTerminalStageTrace.Snapshot source,
+        LocalLabTerminalDeliverySummary summary,
+        LocalLabOriginConsumerOutcomeTally.Snapshot matrix,
+        Checker c
+    ){
+        LocalLabSettledDeathEnvelope.OriginStatus[] origins=
+            LocalLabSettledDeathEnvelope.OriginStatus.values();
+        LocalLabTerminalDeliveryAssessment.Consumer[] consumers=
+            LocalLabTerminalDeliveryAssessment.Consumer.values();
+        LocalLabTerminalDeliveryAssessment.Evidence[] evidences=
+            LocalLabTerminalDeliveryAssessment.Evidence.values();
+        LocalLabTerminalFailureBoundaryTally.Boundary[] boundaries=
+            LocalLabTerminalFailureBoundaryTally.Boundary.values();
+        long[] originCount=new long[origins.length];
+        long[] boundaryCount=new long[boundaries.length];
+        long[][] consumerCount=new long[consumers.length][evidences.length];
+        long[][][] jointCount=
+            new long[origins.length][consumers.length][evidences.length];
+        Set<EntityId> seenNpcIds=new HashSet<EntityId>();
+
+        for(LocalLabSequentialTerminalStageTrace.Report report:
+                source.recent){
+            if(report==null){
+                c.issue("DETAIL_NULL_REPORT");
+                continue;
+            }
+            if(report.npcId==null||report.deathTile==null||
+               report.recipientRef==null||report.originStatus==null){
+                c.issue("DETAIL_MISSING_DEATH_IDENTITY");
+                continue;
+            }
+            if(!seenNpcIds.add(report.npcId))
+                c.issue("DETAIL_DUPLICATE_NPC_ID");
+            if(report.spawnOriginMatchedAtDispatch!=
+                    (report.originStatus==
+                        LocalLabSettledDeathEnvelope.OriginStatus
+                            .CURRENT_SPAWN_RECIPIENT))
+                c.issue("DETAIL_ORIGIN_MATCH_FLAG_CONTRADICTION");
+            if(report.originStatus==
+                    LocalLabSettledDeathEnvelope.OriginStatus.NO_CURRENT_RECIPIENT&&
+               report.observedCurrentGeneration!=-1L)
+                c.issue("DETAIL_DISCONNECTED_GENERATION_CONTRADICTION");
+            if(report.originStatus==
+                    LocalLabSettledDeathEnvelope.OriginStatus.MISSING_SPAWN_ORIGIN&&
+               report.spawnRecipientGeneration!=-1L)
+                c.issue("DETAIL_MISSING_ORIGIN_GENERATION_CONTRADICTION");
+
+            boolean g1Threw=report.g1Outcome==
+                LocalLabSequentialTerminalStageTrace.G1Outcome.THREW;
+            if(g1Threw!=(report.g1FailureType!=null))
+                c.issue("DETAIL_G1_FAILURE_TYPE_CONTRADICTION");
+            for(LocalLabSequentialTerminalStageTrace.Stage stage:
+                    LocalLabSequentialTerminalStageTrace.Stage.values()){
+                if((report.outcome(stage)==
+                        LocalLabSequentialTerminalStageTrace.Outcome.THREW)!=
+                   (report.failureType(stage)!=null))
+                    c.issue("DETAIL_STAGE_FAILURE_TYPE_"+stage);
+            }
+
+            try{
+                LocalLabTerminalFailureBoundaryTally.Boundary boundary=
+                    LocalLabTerminalFailureBoundaryTally.classify(report);
+                LocalLabTerminalDeliveryAssessment assessment=
+                    LocalLabTerminalDeliveryAssessment.from(report);
+                originCount[report.originStatus.ordinal()]++;
+                boundaryCount[boundary.ordinal()]++;
+                for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                        consumers){
+                    LocalLabTerminalDeliveryAssessment.Evidence evidence=
+                        assessment.evidence(consumer);
+                    if(evidence==null){
+                        c.issue("DETAIL_MISSING_CONSUMER_"+consumer);
+                        continue;
+                    }
+                    consumerCount[consumer.ordinal()][evidence.ordinal()]++;
+                    jointCount[report.originStatus.ordinal()]
+                        [consumer.ordinal()][evidence.ordinal()]++;
+                }
+            }catch(RuntimeException invalid){
+                // Never let a corrupt diagnostic record authorize gameplay
+                // mutation, and do not retain the exception object itself.
+                c.issue("DETAIL_INVALID_STAGE_SEQUENCE");
+            }
+        }
+
+        boolean exact=source.evicted==0L;
+        for(LocalLabSettledDeathEnvelope.OriginStatus origin:origins)
+            c.retained(originCount[origin.ordinal()],
+                source.originCount(origin),exact,"ORIGIN_"+origin);
+        for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                boundaries)
+            c.retained(boundaryCount[boundary.ordinal()],
+                source.failureBoundaries.count(boundary),exact,
+                "FIRST_"+boundary);
+        for(LocalLabTerminalDeliveryAssessment.Consumer consumer:consumers)
+            for(LocalLabTerminalDeliveryAssessment.Evidence evidence:evidences){
+                c.retained(consumerCount[consumer.ordinal()][evidence.ordinal()],
+                    summary.count(consumer,evidence),exact,
+                    "CONSUMER_"+consumer+"_"+evidence);
+                for(LocalLabSettledDeathEnvelope.OriginStatus origin:origins)
+                    c.retained(jointCount[origin.ordinal()]
+                            [consumer.ordinal()][evidence.ordinal()],
+                        matrix.count(origin,consumer,evidence),exact,
+                        "JOINT_"+origin+"_"+consumer+"_"+evidence);
+            }
     }
 
     private LocalLabTerminalEvidenceConsistencyAudit(){}
