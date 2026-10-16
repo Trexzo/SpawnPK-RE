@@ -64,6 +64,19 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                 stage.evicted==0L&&stage.recent.size()==cycles,
                 "one forensic diagnostic report per real terminal event");
 
+            LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundary=
+                stage.originFailureBoundaries;
+            LocalLabSettledDeathEnvelope.OriginStatus exact=
+                LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT;
+            check(originBoundary.count(exact,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED)
+                    ==1L&&
+                originBoundary.count(exact,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.G1)
+                    ==(provokeSecondDeath?1L:0L)&&
+                !originBoundary.hasDurableGrantAcknowledgement()&&
+                !originBoundary.safeToAutomaticallyReplay(),
+                "real G1 return and post-ground exception retain exact origin/boundary counts");
             LocalLabSequentialTerminalStageTrace.Report first=
                 stage.recent.get(0);
             check(first.g1Outcome==

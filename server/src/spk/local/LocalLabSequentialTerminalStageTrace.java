@@ -97,6 +97,7 @@ final class LocalLabSequentialTerminalStageTrace {
         final Map<LocalLabSettledDeathEnvelope.OriginStatus,Long> originCounts;
         final LocalLabOriginConsumerOutcomeTally.Snapshot originConsumerOutcomes;
         final LocalLabTerminalFailureBoundaryTally.Snapshot failureBoundaries;
+        final LocalLabOriginFirstFailureBoundaryTally.Snapshot originFailureBoundaries;
 
         long originCount(LocalLabSettledDeathEnvelope.OriginStatus origin){
             return originCounts.get(Objects.requireNonNull(origin,"origin"));
@@ -121,7 +122,8 @@ final class LocalLabSequentialTerminalStageTrace {
             EnumMap<G1Outcome,Long> g1Totals,
             EnumMap<LocalLabSettledDeathEnvelope.OriginStatus,Long> originTotals,
             LocalLabOriginConsumerOutcomeTally.Snapshot jointEvidence,
-            LocalLabTerminalFailureBoundaryTally.Snapshot boundaries
+            LocalLabTerminalFailureBoundaryTally.Snapshot boundaries,
+            LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundaries
         ){
             this.observed=observed;
             this.evicted=evicted;
@@ -147,6 +149,8 @@ final class LocalLabSequentialTerminalStageTrace {
                 jointEvidence,"jointEvidence");
             failureBoundaries=Objects.requireNonNull(
                 boundaries,"boundaries");
+            originFailureBoundaries=Objects.requireNonNull(
+                originBoundaries,"originBoundaries");
         }
     }
 
@@ -254,6 +258,8 @@ final class LocalLabSequentialTerminalStageTrace {
         new LocalLabOriginConsumerOutcomeTally();
     private final LocalLabTerminalFailureBoundaryTally firstFailureTally=
         new LocalLabTerminalFailureBoundaryTally();
+    private final LocalLabOriginFirstFailureBoundaryTally originFailureTally=
+        new LocalLabOriginFirstFailureBoundaryTally();
     private final EnumMap<Stage,EnumMap<Outcome,Long>> totals=
         new EnumMap<Stage,EnumMap<Outcome,Long>>(Stage.class);
     private final EnumMap<G1Outcome,Long> g1Totals=
@@ -327,6 +333,7 @@ final class LocalLabSequentialTerminalStageTrace {
         // before recording the joint origin/consumer evidence.
         jointTally.accept(report,assessment);
         firstFailureTally.acceptValidated(firstBoundary);
+        originFailureTally.acceptValidated(report.originStatus,firstBoundary);
         checked.recorded=true;
         long originPrior=originTotals.get(report.originStatus);
         if(originPrior<Long.MAX_VALUE)
@@ -355,7 +362,8 @@ final class LocalLabSequentialTerminalStageTrace {
     synchronized Snapshot snapshot(){
         return new Snapshot(
             observed,evicted,reports,totals,g1Totals,originTotals,
-            jointTally.snapshot(),firstFailureTally.snapshot()
+            jointTally.snapshot(),firstFailureTally.snapshot(),
+            originFailureTally.snapshot()
         );
     }
 }

@@ -245,6 +245,17 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                 check(trace.observed==1L&&trace.evicted==0L&&
                         trace.recent.size()==1,
                     "default mode records one exact sequential trace");
+                LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundary=
+                    trace.originFailureBoundaries;
+                check(originBoundary.count(
+                        LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT,
+                        malformedG14
+                            ?LocalLabTerminalFailureBoundaryTally.Boundary.G14
+                            :LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED)
+                        ==1L&&
+                    !originBoundary.hasDurableGrantAcknowledgement()&&
+                    !originBoundary.safeToAutomaticallyReplay(),
+                    "actual G14 failing/healthy origin-boundary cross-observation");
                 LocalLabSequentialTerminalStageTrace.Report stage=
                     trace.recent.get(0);
                 check(stage.npcId.equals(npc.id)&&
