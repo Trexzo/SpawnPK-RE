@@ -2176,6 +2176,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1917DeadNpcSceneRetiredDuringGenerationTest',
     'spk.local.G1918DeadNpcOtherSceneRetiredControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
+    'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2467,10 +2468,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 620 ||
-    currentTrainFocusedTests.toSet().size() != 620) {
+if (currentTrainFocusedTests.size() != 621 ||
+    currentTrainFocusedTests.toSet().size() != 621) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 620 unique tests, found " +
+        "Current-train focused manifest drift: expected 621 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9934,4 +9935,12 @@ tasks.register('g1918DeadNpcOtherSceneRetiredControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1918DeadNpcOtherSceneRetiredControlTest')
+}
+
+tasks.register('g21259ForeignJvmSameInodeAccountPreimageVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.259: independent JVM mutates the OLD account inode while forced RAW save holds cooperating locks; preimage gate must prevent stale overwrite.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest')
 }
