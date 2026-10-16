@@ -2171,6 +2171,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1912RetiredReusedSceneIndexAttackerFenceTest',
     'spk.local.G1913ProjectionRetiredBeforeDamageAdmissionTest',
     'spk.local.G1914UnrelatedProjectionRetiredAttackControlTest',
+    'spk.local.G1915ClosedWorldDeadNpcRetryVetoTest',
+    'spk.local.G1916OpenWorldDeadNpcRetryPositiveControlTest',
+    'spk.local.G1917DeadNpcSceneRetiredDuringGenerationTest',
+    'spk.local.G1918DeadNpcOtherSceneRetiredControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2462,10 +2466,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 615 ||
-    currentTrainFocusedTests.toSet().size() != 615) {
+if (currentTrainFocusedTests.size() != 619 ||
+    currentTrainFocusedTests.toSet().size() != 619) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 615 unique tests, found " +
+        "Current-train focused manifest drift: expected 619 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9885,4 +9889,40 @@ tasks.register('g1914UnrelatedProjectionRetiredAttackControlRegression', JavaExe
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1914UnrelatedProjectionRetiredAttackControlTest')
+}
+
+tasks.register('g1915ClosedWorldDeadNpcRetryVeto', JavaExec) {
+    group = 'verification'
+    description = 'G19.1.5: dead-NPC retry world/scene admission characterization; no original SpawnPK authority claim.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1915ClosedWorldDeadNpcRetryVetoTest')
+}
+
+tasks.register('g1916OpenWorldDeadNpcRetryControl', JavaExec) {
+    group = 'verification'
+    description = 'G19.1.6: dead-NPC retry world/scene admission characterization; no original SpawnPK authority claim.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1916OpenWorldDeadNpcRetryPositiveControlTest')
+}
+
+tasks.register('g1917DeadNpcSceneRetiredDuringGeneration', JavaExec) {
+    group = 'verification'
+    description = 'G19.1.7: dead-NPC retry world/scene admission characterization; no original SpawnPK authority claim.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1917DeadNpcSceneRetiredDuringGenerationTest')
+}
+
+tasks.register('g1918DeadNpcOtherSceneRetiredControl', JavaExec) {
+    group = 'verification'
+    description = 'G19.1.8: dead-NPC retry world/scene admission characterization; no original SpawnPK authority claim.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1918DeadNpcOtherSceneRetiredControlTest')
 }
