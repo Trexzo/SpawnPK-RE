@@ -549,7 +549,12 @@ final class LocalCanonicalNpcAttackHandler {
                     false
                 );
 
-            if(!currentDeath.dead()||
+            // A replacement lifecycle can die again at the exact same
+            // tick with identical HP and source authority. Values alone
+            // cannot authenticate its registration lifetime.
+            if(currentDeath.registrationIdentity!=
+                    before.registrationIdentity||
+               !currentDeath.dead()||
                currentDeath.deathTick!=before.deathTick||
                currentDeath.maxHitpoints!=before.maxHitpoints)
                 return result(
