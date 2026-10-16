@@ -2201,6 +2201,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21265UnrelatedPostMoveRawMarkerControlTest',
     'spk.local.G21266PostMoveNewAccountHardlinkUncertainTest',
     'spk.local.G21267UnrelatedPostMoveHardlinkPositiveControlTest',
+    'spk.local.G21268ForeignJvmPostMoveHardlinkUncertainTest',
+    'spk.local.G21269ForeignJvmUnrelatedPostMoveHardlinkControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2492,10 +2494,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 645 ||
-    currentTrainFocusedTests.toSet().size() != 645) {
+if (currentTrainFocusedTests.size() != 647 ||
+    currentTrainFocusedTests.toSet().size() != 647) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 645 unique tests, found " +
+        "Current-train focused manifest drift: expected 647 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10181,4 +10183,22 @@ tasks.register('g21267UnrelatedPostMoveHardlinkControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21267UnrelatedPostMoveHardlinkPositiveControlTest')
+}
+
+tasks.register('g21268ForeignJvmPostMoveNewAccountHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.268: real second JVM creates foreign new-inode hardlink after forced RAW atomic replacement.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21268ForeignJvmPostMoveHardlinkUncertainTest')
+}
+
+tasks.register('g21269ForeignJvmUnrelatedPostMoveHardlinkControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.269: foreign JVM creates another account hardlink without vetoing selected RAW postimage.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21269ForeignJvmUnrelatedPostMoveHardlinkControlTest')
 }
