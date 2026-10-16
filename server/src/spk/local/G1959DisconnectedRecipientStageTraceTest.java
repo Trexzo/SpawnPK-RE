@@ -89,6 +89,26 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                     actual.observed==1&&actual.evicted==0&&
                     actual.recent.size()==1,
                 "one real installed default-stage trace");
+            LocalLabOriginConsumerOutcomeTally.Snapshot joint=
+                actual.originConsumerOutcomes;
+            check(joint.originCount(envelope.originStatus)==1L&&
+                    joint.count(envelope.originStatus,
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence.RETURNED_UNACKNOWLEDGED)
+                        ==1L&&
+                    !joint.hasDurableGrantAcknowledgement()&&
+                    !joint.safeToAutomaticallyReplay(),
+                "exact installed recipient origin separated from G1 callback outcome");
+            if(!crossWorld)
+                for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                        LocalLabTerminalDeliveryAssessment.Consumer.values())
+                    if(consumer!=LocalLabTerminalDeliveryAssessment.Consumer.G1)
+                        check(joint.count(
+                            LocalLabSettledDeathEnvelope.OriginStatus.NO_CURRENT_RECIPIENT,
+                            consumer,
+                            LocalLabTerminalDeliveryAssessment.Evidence
+                                .SKIPPED_NO_CURRENT_RECIPIENT)==1L,
+                            "disconnected origin never upgrades skipped consumer "+consumer);
             LocalLabTerminalDeliverySummary summary=
                 LocalLabTerminalDeliverySummary.from(actual);
             check(summary.observedTerminals==1L&&

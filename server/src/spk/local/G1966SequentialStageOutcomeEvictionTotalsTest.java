@@ -131,6 +131,51 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
             }
             check(g1Readonly&&early.g1OutcomeCount(returned)==1L,
                 "G1 aggregate snapshot deeply detached and immutable");
+            LocalLabOriginConsumerOutcomeTally.Snapshot firstJoint=
+                early.originConsumerOutcomes;
+            LocalLabOriginConsumerOutcomeTally.Snapshot finalJoint=
+                after.originConsumerOutcomes;
+            LocalLabSettledDeathEnvelope.OriginStatus currentOrigin=
+                LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT;
+            check(firstJoint.originCount(currentOrigin)==1L&&
+                    finalJoint.originCount(currentOrigin)==cycles&&
+                    !finalJoint.hasDurableGrantAcknowledgement()&&
+                    !finalJoint.safeToAutomaticallyReplay(),
+                "retained exact current-origin joint count after 131 real deaths");
+            for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                    LocalLabTerminalDeliveryAssessment.Consumer.values()){
+                check(firstJoint.count(currentOrigin,consumer,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==1L&&
+                    finalJoint.count(currentOrigin,consumer,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==cycles,
+                    "current-origin six-consumer correlation survives eviction "+consumer);
+                for(LocalLabTerminalDeliveryAssessment.Evidence e:
+                        LocalLabTerminalDeliveryAssessment.Evidence.values())
+                    if(e!=LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)
+                        check(finalJoint.count(currentOrigin,consumer,e)==0L,
+                            "no fabricated origin/consumer failure "+consumer);
+            }
+            boolean jointOuterImmutable=false;
+            boolean jointInnerImmutable=false;
+            try{
+                finalJoint.crossCounts.clear();
+            }catch(UnsupportedOperationException expected){
+                jointOuterImmutable=true;
+            }
+            try{
+                finalJoint.crossCounts.get(currentOrigin).get(
+                    LocalLabTerminalDeliveryAssessment.Consumer.G1).put(
+                    LocalLabTerminalDeliveryAssessment.Evidence.RETURNED_UNACKNOWLEDGED,
+                    0L);
+            }catch(UnsupportedOperationException expected){
+                jointInnerImmutable=true;
+            }
+            check(jointOuterImmutable&&jointInnerImmutable&&
+                    firstJoint.originCount(currentOrigin)==1L,
+                "joint origin by consumer history deeply detached and immutable");
             LocalLabTerminalDeliverySummary firstSummary=
                 LocalLabTerminalDeliverySummary.from(early);
             LocalLabTerminalDeliverySummary finalSummary=

@@ -154,6 +154,27 @@ public final class G1961SameNameRecipientRebindObservationTest {
                         LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT)
                         ==0L,
                     "historical owner rebound is aggregated without credit policy changes");
+                LocalLabOriginConsumerOutcomeTally.Snapshot joint=
+                    stages.originConsumerOutcomes;
+                require(joint.originCount(
+                        LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND)==1L&&
+                    joint.count(
+                        LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND,
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence.RETURNED_UNACKNOWLEDGED)
+                        ==1L&&
+                    joint.count(
+                        LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND,
+                        LocalLabTerminalDeliveryAssessment.Consumer.G15,
+                        LocalLabTerminalDeliveryAssessment.Evidence.RETURNED_UNACKNOWLEDGED)
+                        ==1L&&
+                    joint.count(
+                        LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT,
+                        LocalLabTerminalDeliveryAssessment.Consumer.G15,
+                        LocalLabTerminalDeliveryAssessment.Evidence.RETURNED_UNACKNOWLEDGED)
+                        ==0L&&
+                    !joint.safeToAutomaticallyReplay(),
+                    "historical same-name credit remains a rebound origin observation");
                 LocalLabTerminalDeliveryAssessment assessment=
                     LocalLabTerminalDeliveryAssessment.from(report);
                 require(assessment.originStatus==

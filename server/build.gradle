@@ -2237,6 +2237,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1978ConsumerSummaryG1FailureTest',
     'spk.local.G1979ConsumerSummaryG14FailFastTest',
     'spk.local.G1980ConsumerSummaryDisconnectedAndWorldFenceTest',
+    'spk.local.G1981OriginConsumerEvictionCorrelationTest',
+    'spk.local.G1982OriginConsumerRebindDisconnectTest',
+    'spk.local.G1983OriginConsumerG1G14FailureTest',
+    'spk.local.G1984OriginConsumerCollectorFenceTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2578,10 +2582,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 731 ||
-    currentTrainFocusedTests.toSet().size() != 731) {
+if (currentTrainFocusedTests.size() != 735 ||
+    currentTrainFocusedTests.toSet().size() != 735) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 731 unique tests, found " +
+        "Current-train focused manifest drift: expected 735 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11151,4 +11155,44 @@ tasks.register('g21310LateFinalWitnessWorldPublisherVeto', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21310LateFinalWitnessWorldPublicationVetoTest')
+}
+
+
+tasks.register('g1981OriginConsumerEvictionCorrelationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exact origin by six-consumer outcomes after 131 canonical NPC deaths and report evictions.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1981OriginConsumerEvictionCorrelationTest')
+}
+
+
+tasks.register('g1982OriginConsumerRebindDisconnectRegression', JavaExec) {
+    group = 'verification'
+    description = 'Same-name rebinding, missing spawn recipient and disconnected origin correlation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1982OriginConsumerRebindDisconnectTest')
+}
+
+
+tasks.register('g1983OriginConsumerG1G14FailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Genuine post-ground G1 and G14 fail-fast origin-specific outcome correlation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1983OriginConsumerG1G14FailureTest')
+}
+
+
+tasks.register('g1984OriginConsumerCollectorFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Same-World foreign collector and cross-World terminal refuse outcome duplication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1984OriginConsumerCollectorFenceTest')
 }
