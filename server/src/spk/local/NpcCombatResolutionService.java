@@ -279,6 +279,21 @@ final class NpcCombatResolutionService {
         long worldTick,
         ImmediateDamageAdmission admission
     )throws java.io.IOException{
+        return resolveImmediateOwnedAdmitted(
+            world,expectedAttackerGeneration,target,weaponId,style,
+            worldTick,admission,null);
+    }
+
+    Result resolveImmediateOwnedAdmitted(
+        World world,
+        long expectedAttackerGeneration,
+        WorldNpc target,
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick,
+        ImmediateDamageAdmission admission,
+        Object expectedLifecycleRegistrationIdentity
+    )throws java.io.IOException{
         Objects.requireNonNull(world,"world");
         WorldNpc checkedTarget=
             Objects.requireNonNull(target,"target");
@@ -330,7 +345,8 @@ final class NpcCombatResolutionService {
                 checkedTarget,
                 prepared,
                 worldTick,
-                checkedAdmission
+                checkedAdmission,
+                expectedLifecycleRegistrationIdentity
             );
 
         return new Result(
@@ -496,6 +512,20 @@ final class NpcCombatResolutionService {
         long worldTick,
         ImmediateDamageAdmission admission
     )throws java.io.IOException{
+        return applyImmediateOwned(
+            world,expectedAttackerGeneration,checkedTarget,prepared,
+            worldTick,admission,null);
+    }
+
+    private NpcLifecycleService.DamageResult applyImmediateOwned(
+        World world,
+        long expectedAttackerGeneration,
+        WorldNpc checkedTarget,
+        Prepared prepared,
+        long worldTick,
+        ImmediateDamageAdmission admission,
+        Object expectedLifecycleRegistrationIdentity
+    )throws java.io.IOException{
         final NpcLifecycleService.DamageResult[] lifecycleResult=
             new NpcLifecycleService.DamageResult[1];
 
@@ -533,10 +563,17 @@ final class NpcCombatResolutionService {
                                                 );
 
                                             lifecycleResult[0]=
-                                                lifecycle.applyDamageOwned(
+                                                expectedLifecycleRegistrationIdentity==null
+                                                ?lifecycle.applyDamageOwned(
                                                     checkedTarget.id,
                                                     prepared.damage.damage,
                                                     worldTick
+                                                )
+                                                :lifecycle.applyDamageOwnedIfRegistered(
+                                                    checkedTarget.id,
+                                                    prepared.damage.damage,
+                                                    worldTick,
+                                                    expectedLifecycleRegistrationIdentity
                                                 );
                                         }
                                     );
