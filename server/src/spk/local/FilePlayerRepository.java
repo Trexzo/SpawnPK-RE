@@ -1610,6 +1610,16 @@ final class FilePlayerRepository
                                     .requireNoReviewMarker(file);
                                 requireUnfencedWorldSave(
                                     worldAccount,guardedMarkerPaths);
+                                // G21.273: the OLD account nlink gate
+                                // ran before ATOMIC_MOVE. A foreign
+                                // hardlink can name the newly published
+                                // inode after replacement instead. With
+                                // existing default-OFF G21.230 opt-in,
+                                // observe NEW leaf nlink before normal
+                                // World completion. Postmove denial is
+                                // UNCERTAIN, never a rollback.
+                                LocalJvmAccountSessionLease
+                                    .requireNonHardlinkedAccount(file);
                             }catch(IOException uncertain){
                                 throw new IOException(
                                     "G21.271 FORCED_WORLD_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
