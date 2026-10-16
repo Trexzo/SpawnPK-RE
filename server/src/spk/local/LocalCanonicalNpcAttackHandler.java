@@ -193,7 +193,6 @@ final class LocalCanonicalNpcAttackHandler {
     private final BeforeResolutionHook beforeResolution;
     private final LethalFinalizer lethalFinalizer;
     private final DeadFinalizationRetry deadFinalizationRetry;
-    private long nextAllowedAttackTick;
 
     LocalCanonicalNpcAttackHandler(
         World world,
@@ -334,6 +333,21 @@ final class LocalCanonicalNpcAttackHandler {
     // HP mutation and cooldown publication for concurrent opcode72 clicks.
     // This does NOT serialize distinct handlers or guarantee scene lifetime.
     synchronized Result handle(
+        NpcAction action,
+        NpcEntity clicked,
+        ServerPacketWriter writer
+    )throws IOException{
+        // Serialize DISTINCT handler instances bound to the same current
+        // WorldPlayer, not just simultaneous calls on this handler.
+        // Never acquire this player-owned lock from World/registry code.
+        synchronized(player.canonicalNpcAttackLock()){
+            return handleUnderPlayerCadence(
+                action,clicked,writer
+            );
+        }
+    }
+
+    private Result handleUnderPlayerCadence(
         NpcAction action,
         NpcEntity clicked,
         ServerPacketWriter writer
@@ -695,7 +709,7 @@ final class LocalCanonicalNpcAttackHandler {
         long attackTick=
             world.clock().tick();
 
-        if(attackTick<nextAllowedAttackTick)
+        if(attackTick<player.canonicalNpcAttackNextAllowedTick())
             return result(
                 Status.CADENCE_BLOCKED,
                 clicked,
@@ -875,11 +889,12 @@ final class LocalCanonicalNpcAttackHandler {
                 canonicalId
             );
 
-        nextAllowedAttackTick=
+        player.canonicalNpcAttackNextAllowedTick(
             Math.addExact(
                 attackTick,
                 hit.nextAttackDelayTicks
-            );
+            )
+        );
 
         // Type 1 is explicit LocalLab basic-hit compatibility. It is not a
         // SpawnPK max-hit or original damage-family claim.
@@ -926,7 +941,7 @@ final class LocalCanonicalNpcAttackHandler {
     }
 
     synchronized long nextAllowedAttackTick(){
-        return nextAllowedAttackTick;
+        return player.canonicalNpcAttackNextAllowedTick();
     }
 
     private void finalizeLethal(
