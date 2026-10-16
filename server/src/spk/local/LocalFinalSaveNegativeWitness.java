@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
+import java.util.Arrays;
 
 /**
  * G21.298 EXPERIMENTAL, DEFAULT-OFF: one-shot, negative-only,
@@ -140,12 +141,26 @@ final class LocalFinalSaveNegativeWitness {
                     "ownerEpochProven=false\n"+
                     "finalSaveAck=false\n";
                 byte[] bytes=body.getBytes(StandardCharsets.US_ASCII);
+                // Capture original name-to-inode evidence before
+                // either deterministic postwrite fault seam. A
+                // substituted object of identical length/bytes is
+                // still untrusted and must never be reported stable.
+                final Object createdFileKey;
                 try(FileChannel file=FileChannel.open(output,
                         StandardOpenOption.CREATE_NEW,
                         StandardOpenOption.WRITE,
                         LinkOption.NOFOLLOW_LINKS)){
                     ByteBuffer data=ByteBuffer.wrap(bytes);
                     while(data.hasRemaining())file.write(data);
+                    BasicFileAttributes created=Files.readAttributes(
+                        output,BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS);
+                    if(!created.isRegularFile()||
+                       created.isSymbolicLink()||
+                       created.fileKey()==null)
+                        throw new IOException(
+                            "G21.305 NEGATIVE_FINAL_WITNESS_INITIAL_IDENTITY_UNPROVEN");
+                    createdFileKey=created.fileKey();
                     Probe beforeForce=afterWriteBeforeForceForTest;
                     if(beforeForce!=null)beforeForce.run(output);
                     file.force(true);
@@ -163,6 +178,43 @@ final class LocalFinalSaveNegativeWitness {
                    attrs.fileKey()==null||attrs.size()!=bytes.length)
                     throw new IOException(
                         "G21.298 NEGATIVE_FINAL_WITNESS_POSTWRITE_UNPROVEN");
+                if(!createdFileKey.equals(attrs.fileKey()))
+                    throw new IOException(
+                        "G21.305 NEGATIVE_FINAL_WITNESS_FILE_OBJECT_CHANGED");
+                // G21.304: stat length alone cannot catch a
+                // same-inode, same-length rewrite after file and
+                // parent-directory force. Verify the EXACT written
+                // bytes through a second bounded, NOFOLLOW read.
+                // This is untrusted observation, NOT a MAC.
+                ByteBuffer reread=ByteBuffer.allocate(bytes.length+1);
+                try(FileChannel verify=FileChannel.open(output,
+                        StandardOpenOption.READ,
+                        LinkOption.NOFOLLOW_LINKS)){
+                    while(reread.hasRemaining()){
+                        int read=verify.read(reread);
+                        if(read<0)break;
+                        if(read==0)
+                            throw new IOException(
+                                "G21.304 NEGATIVE_FINAL_WITNESS_READ_NO_PROGRESS");
+                    }
+                }
+                if(reread.position()!=bytes.length)
+                    throw new IOException(
+                        "G21.304 NEGATIVE_FINAL_WITNESS_POSTFORCE_BYTES_CHANGED");
+                byte[] checked=Arrays.copyOf(reread.array(),
+                    reread.position());
+                if(!Arrays.equals(bytes,checked))
+                    throw new IOException(
+                        "G21.304 NEGATIVE_FINAL_WITNESS_POSTFORCE_BYTES_CHANGED");
+                BasicFileAttributes finalIdentity=Files.readAttributes(
+                    output,BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+                if(!finalIdentity.isRegularFile()||
+                   finalIdentity.isSymbolicLink()||
+                   !createdFileKey.equals(finalIdentity.fileKey())||
+                   finalIdentity.size()!=bytes.length)
+                    throw new IOException(
+                        "G21.305 NEGATIVE_FINAL_WITNESS_FILE_OBJECT_CHANGED");
                 LocalAccountForensicEvidence.Evidence after=
                     LocalAccountForensicEvidence.inspect(selected);
                 if(!before.accountSha256.equals(after.accountSha256)||
