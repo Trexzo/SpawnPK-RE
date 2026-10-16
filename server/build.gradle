@@ -2249,6 +2249,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1990TerminalEvidenceRealFailuresConsistencyTest',
     'spk.local.G1991TerminalEvidenceMixedSnapshotDriftTest',
     'spk.local.G1992TerminalEvidenceWorldAndSequenceFenceTest',
+    'spk.local.G1993RetainedDetailEvictionSubsetTest',
+    'spk.local.G1994RetainedDetailFailureClassificationTest',
+    'spk.local.G1995RetainedDetailDuplicateNpcAuditTest',
+    'spk.local.G1996RetainedDetailNoRecipientWorldFenceTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2600,10 +2604,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 753 ||
-    currentTrainFocusedTests.toSet().size() != 753) {
+if (currentTrainFocusedTests.size() != 757 ||
+    currentTrainFocusedTests.toSet().size() != 757) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 753 unique tests, found " +
+        "Current-train focused manifest drift: expected 757 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2720,6 +2724,13 @@ def currentTrainCriticalCoverage = [
         'spk.local.G1990TerminalEvidenceRealFailuresConsistencyTest',
         'spk.local.G1991TerminalEvidenceMixedSnapshotDriftTest',
         'spk.local.G1992TerminalEvidenceWorldAndSequenceFenceTest',
+    ],
+    // G19.9.6: retained, individual settled-NPC evidence is mandatory.
+    'g1996-retained-detail-integrity': [
+        'spk.local.G1993RetainedDetailEvictionSubsetTest',
+        'spk.local.G1994RetainedDetailFailureClassificationTest',
+        'spk.local.G1995RetainedDetailDuplicateNpcAuditTest',
+        'spk.local.G1996RetainedDetailNoRecipientWorldFenceTest',
     ],
     // G21.319/320: selected ACTIVE/witness hardlink drift must remain tested.
     'g21320-negative-final-witness-hardlink-count': [
@@ -11418,4 +11429,44 @@ tasks.register('g21322BeforeForceWitnessHardlinkRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21322BeforeForceWitnessAliasNegativeTest')
+}
+
+
+tasks.register('g1993RetainedDetailEvictionSubsetRegression', JavaExec) {
+    group = 'verification'
+    description = '131 canonical settled deaths reconcile retained detail lower bounds after ring eviction.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1993RetainedDetailEvictionSubsetTest')
+}
+
+
+tasks.register('g1994RetainedDetailFailureClassificationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Genuine G1 and G14 callback failures preserve individual-report classes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1994RetainedDetailFailureClassificationTest')
+}
+
+
+tasks.register('g1995RetainedDetailDuplicateNpcAuditRegression', JavaExec) {
+    group = 'verification'
+    description = 'Two test-only observations of one real settled death trigger duplicate-NPC drift.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1995RetainedDetailDuplicateNpcAuditTest')
+}
+
+
+tasks.register('g1996RetainedDetailNoRecipientWorldFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Disconnected, missing-spawn and foreign-World terminal evidence is not grant authority.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1996RetainedDetailNoRecipientWorldFenceTest')
 }

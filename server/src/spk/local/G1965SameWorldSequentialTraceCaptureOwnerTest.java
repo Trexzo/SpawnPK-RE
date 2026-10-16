@@ -137,6 +137,32 @@ public final class G1965SameWorldSequentialTraceCaptureOwnerTest {
                     unchanged.findings.isEmpty()&&
                     !unchanged.safeToAutomaticallyReplay(),
                 "invalid event rejected without leaving inconsistent forensic state");
+            // This deliberately constructs two *diagnostic* observations
+            // from the SAME genuinely settled canonical death. It never
+            // invokes the World terminal observer or grants a reward.
+            // Marginal and cross-tab counters are mathematically equal;
+            // the new retained-detail check must still reject the
+            // duplicate NPC identity as ambiguous evidence.
+            LocalLabSequentialTerminalStageTrace duplicated=
+                new LocalLabSequentialTerminalStageTrace(world);
+            duplicated.record(duplicated.begin(terminal));
+            duplicated.record(duplicated.begin(terminal));
+            LocalLabSequentialTerminalStageTrace.Snapshot duplicateSnapshot=
+                duplicated.snapshot();
+            check(duplicateSnapshot.observed==2L&&
+                    duplicateSnapshot.recent.size()==2,
+                "test-only duplicate evidence shares a real settled death");
+            LocalLabTerminalEvidenceConsistencyAudit.Result duplicateAudit=
+                LocalLabTerminalEvidenceConsistencyAudit.inspect(
+                    duplicateSnapshot);
+            check(duplicateAudit.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.DRIFT&&
+                    duplicateAudit.findings.contains(
+                        "DETAIL_DUPLICATE_NPC_ID")&&
+                    !duplicateAudit.hasDurableGrantAcknowledgement()&&
+                    !duplicateAudit.safeToAutomaticallyReplay(),
+                "mathematically balanced duplicate NPC report is flagged as unreliable");
+
             check(graph.runtime().finalizeIfOwned(npc).status==
                     MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
                     world.groundItems().findOwned(
