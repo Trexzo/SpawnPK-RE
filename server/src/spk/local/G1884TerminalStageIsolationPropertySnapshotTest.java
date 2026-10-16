@@ -41,6 +41,21 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
         }
     }
 
+    // G1953/54: independent focused entry point for the actual installed
+    // LocalLab observer, restoring the JVM property after its test case.
+    static void runObserverDiagnosticCase(
+        boolean isolate,
+        long deathTick
+    )throws Exception{
+        String prior=System.getProperty(PROPERTY);
+        try{
+            runCase(isolate,deathTick);
+        }finally{
+            if(prior==null)System.clearProperty(PROPERTY);
+            else System.setProperty(PROPERTY,prior);
+        }
+    }
+
     private static void runCase(
         boolean optInAtComposition,
         long deathTick
@@ -142,10 +157,64 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                     invalid.contains("Daily Challenge persistence invalid"),
                 "original malformed TEST-ONLY G14 still fails");
 
+            // Inspect the REAL installed terminal-observer execution
+            // after G1 and actual ground settlement. This overall outcome
+            // is distinct from per-consumer G14 failure/credit.
+            MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics observer=
+                installed.runtime().terminalObserverDiagnostics();
+            check(observer.totalAttempts==1L&&
+                    observer.failedAttempts==
+                        (optInAtComposition?0L:1L)&&
+                    observer.evictedAttempts==0L&&
+                    observer.recentAttempts.size()==1,
+                "one installed observer attempt after ground commit");
+            MonsterSpawnerPvmRuntime.TerminalObserverAttempt attempt=
+                observer.recentAttempts.get(0);
+            check(attempt.npcId.equals(npc.id)&&
+                    attempt.deathTick==deathTick&&
+                    USER.equals(attempt.recipientRef)&&
+                    attempt.spawnRecipientGeneration==generation&&
+                    attempt.outcome==
+                        (optInAtComposition
+                            ?MonsterSpawnerPvmRuntime
+                                .TerminalObserverOutcome.RETURNED
+                            :MonsterSpawnerPvmRuntime
+                                .TerminalObserverOutcome.THREW)&&
+                    (optInAtComposition
+                        ?attempt.failureType==null
+                        :IllegalStateException.class.getName().equals(
+                            attempt.failureType)),
+                "overall observer outcome captures isolated vs sequential failure");
+
+            LocalLabTerminalStageIsolation.DiagnosticSnapshot stages=
+                installed.terminalDiagnosticSnapshot();
+            if(optInAtComposition){
+                check(stages!=null&&
+                        stages.observedCount==1L&&
+                        stages.recentReports.size()==1&&
+                        stages.recentReports.get(0).outcome(
+                            LocalLabTerminalStageIsolation.Stage.G14)==
+                            LocalLabTerminalStageIsolation.Outcome.THREW&&
+                        stages.recentReports.get(0).outcome(
+                            LocalLabTerminalStageIsolation.Stage.G15)==
+                            LocalLabTerminalStageIsolation.Outcome.RETURNED&&
+                        stages.recentReports.get(0).outcome(
+                            LocalLabTerminalStageIsolation.Stage.G16)==
+                            LocalLabTerminalStageIsolation.Outcome.RETURNED&&
+                        stages.recentReports.get(0).outcome(
+                            LocalLabTerminalStageIsolation.Stage.G18)==
+                            LocalLabTerminalStageIsolation.Outcome.RETURNED,
+                    "overall RETURNED must not hide failed individual G14");
+            }else
+                check(stages==null,
+                    "sequential mode does not claim isolated stage diagnostics");
+
             check(installed.runtime().finalizeIfOwned(npc).status==
                     MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
-                    world.pvmRecords().receiptCount()==1,
-                "one real canonical terminal independent of switch");
+                    world.pvmRecords().receiptCount()==1&&
+                    installed.runtime().terminalObserverDiagnostics()
+                        .totalAttempts==1L,
+                "one real canonical terminal and observer no replay");
         }finally {
             if(generation>=0L&&world.players().owns(player,generation))
                 world.unregisterPlayer(player,generation);
