@@ -2253,6 +2253,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1994RetainedDetailFailureClassificationTest',
     'spk.local.G1995RetainedDetailDuplicateNpcAuditTest',
     'spk.local.G1996RetainedDetailNoRecipientWorldFenceTest',
+    'spk.local.G1997TerminalTimelineGapFenceTest',
+    'spk.local.G1998TerminalTimelineFailureGapFenceTest',
+    'spk.local.G1999TerminalTimelineValidPrefixTest',
+    'spk.local.G2000TerminalTimelineUnobservedControlTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2608,10 +2612,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 761 ||
-    currentTrainFocusedTests.toSet().size() != 761) {
+if (currentTrainFocusedTests.size() != 765 ||
+    currentTrainFocusedTests.toSet().size() != 765) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 761 unique tests, found " +
+        "Current-train focused manifest drift: expected 765 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2735,6 +2739,12 @@ def currentTrainCriticalCoverage = [
         'spk.local.G1994RetainedDetailFailureClassificationTest',
         'spk.local.G1995RetainedDetailDuplicateNpcAuditTest',
         'spk.local.G1996RetainedDetailNoRecipientWorldFenceTest',
+    ],
+    'g2000-terminal-chronology-integrity': [
+        'spk.local.G1997TerminalTimelineGapFenceTest',
+        'spk.local.G1998TerminalTimelineFailureGapFenceTest',
+        'spk.local.G1999TerminalTimelineValidPrefixTest',
+        'spk.local.G2000TerminalTimelineUnobservedControlTest',
     ],
     // G21.319/320: selected ACTIVE/witness hardlink drift must remain tested.
     'g21320-negative-final-witness-hardlink-count': [
@@ -11473,6 +11483,46 @@ tasks.register('g1996RetainedDetailNoRecipientWorldFenceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1996RetainedDetailNoRecipientWorldFenceTest')
+}
+
+
+tasks.register('g1997TerminalTimelineGapFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject G14 after never attempted G4 on a real settled NPC diagnostic.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1997TerminalTimelineGapFenceTest')
+}
+
+
+tasks.register('g1998TerminalTimelineFailureGapFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject G16 throwing after an unattempted G14/G15 on real settled NPC.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1998TerminalTimelineFailureGapFenceTest')
+}
+
+
+tasks.register('g1999TerminalTimelineValidPrefixRegression', JavaExec) {
+    group = 'verification'
+    description = 'Preserve valid G4/G14 prefix and no-op unobserved G1 without replay.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1999TerminalTimelineValidPrefixTest')
+}
+
+
+tasks.register('g2000TerminalTimelineUnobservedControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Preserve entirely unobserved diagnostic capture with no grant.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2000TerminalTimelineUnobservedControlTest')
 }
 
 tasks.register('g21323CanonicalFinalReviewOperatorAudit', JavaExec) {
