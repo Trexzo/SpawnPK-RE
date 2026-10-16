@@ -2193,6 +2193,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1934DifferentHandlerInstancesDifferentTargetCadenceTest',
     'spk.local.G1935ReentrantNpcAttackFenceTest',
     'spk.local.G1936ReentrantNpcAdmissionExceptionRecoveryTest',
+    'spk.local.G1937MissingNpcPacketWriterPreflightTest',
+    'spk.local.G1938MissingNpcPacketWriterLethalFenceTest',
+    'spk.local.G1939LethalNpcPacketIoFinalizationTest',
+    'spk.local.G1940LethalNpcDualFailureDiagnosticTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2500,10 +2504,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 653 ||
-    currentTrainFocusedTests.toSet().size() != 653) {
+if (currentTrainFocusedTests.size() != 657 ||
+    currentTrainFocusedTests.toSet().size() != 657) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 653 unique tests, found " +
+        "Current-train focused manifest drift: expected 657 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10261,4 +10265,40 @@ tasks.register('g21274UnrelatedForcedWorldPostMoveForeignJvmHardlinkControl', Ja
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21274UnrelatedForcedWorldPostMoveForeignJvmHardlinkTest')
+}
+
+tasks.register('g1937MissingNpcPacketWriterPreflightRegression', JavaExec) {
+    group = 'verification'
+    description = 'A null writer cannot commit canonical NPC HP or cadence before packet encoding.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1937MissingNpcPacketWriterPreflightTest')
+}
+
+tasks.register('g1938MissingNpcPacketWriterLethalFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Missing packet writer cannot kill an NPC or finalize the target.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1938MissingNpcPacketWriterLethalFenceTest')
+}
+
+tasks.register('g1939LethalNpcPacketIoFinalizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Checked packet-65 IOException must not skip lethal NPC finalizer.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1939LethalNpcPacketIoFinalizationTest')
+}
+
+tasks.register('g1940LethalNpcDualFailureDiagnosticRegression', JavaExec) {
+    group = 'verification'
+    description = 'Packet and terminal callback dual failure preserves suppressed I/O.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1940LethalNpcDualFailureDiagnosticTest')
 }
