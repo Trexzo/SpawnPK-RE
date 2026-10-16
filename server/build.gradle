@@ -2201,6 +2201,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1942UncheckedNpcMaskAndTerminalDualFailureTest',
     'spk.local.G1943RealSpawnerCheckedMaskFailureSettlementTest',
     'spk.local.G1944RealSpawnerUncheckedMaskFailureSettlementTest',
+    'spk.local.G1945DelayedResolutionWorldTickCadenceTest',
+    'spk.local.G1946DifferentTargetCompletionTickCadenceTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2510,10 +2512,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 663 ||
-    currentTrainFocusedTests.toSet().size() != 663) {
+if (currentTrainFocusedTests.size() != 665 ||
+    currentTrainFocusedTests.toSet().size() != 665) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 663 unique tests, found " +
+        "Current-train focused manifest drift: expected 665 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10361,4 +10363,22 @@ tasks.register('g1944RealSpawnerUncheckedMaskFailureSettlementRegression', JavaE
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1944RealSpawnerUncheckedMaskFailureSettlementTest')
+}
+
+tasks.register('g1945DelayedResolutionWorldTickCadenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Post-damage World tick must anchor player NPC cadence after long callback.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1945DelayedResolutionWorldTickCadenceTest')
+}
+
+tasks.register('g1946DifferentTargetCompletionTickCadenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Other NPC cannot bypass completion-tick shared player attack cooldown.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1946DifferentTargetCompletionTickCadenceTest')
 }
