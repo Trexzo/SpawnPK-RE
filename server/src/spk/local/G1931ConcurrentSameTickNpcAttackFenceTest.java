@@ -79,9 +79,17 @@ public final class G1931ConcurrentSameTickNpcAttackFenceTest {
                                     expectedGeneration==capturedGeneration,
                                 "first callback owns first target and generation");
                             insideFirstHook.countDown();
-                            if(!allowFirst.await(5,TimeUnit.SECONDS))
-                                throw new AssertionError(
-                                    "G19.3.1 first admission release timeout");
+                            try{
+                                if(!allowFirst.await(5,TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "G19.3.1 first admission release timeout");
+                            }catch(InterruptedException interrupted){
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException(
+                                    "G19.3.1 parked attack interrupted",
+                                    interrupted
+                                );
+                            }
                         }
                     });
             AtomicReference<LocalCanonicalNpcAttackHandler.Result> rA=
