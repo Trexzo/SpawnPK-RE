@@ -10462,3 +10462,20 @@ tasks.register('g21280AccountForensicIsolationUnsafeLeafRegression', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest')
 }
+
+tasks.register('accountForensicReadOnly', JavaExec) {
+    group = 'verification'
+    description = 'G21.279: inspect one selected local account file and five negative sidecars without creating locks or changing state. No admission/clear/recovery rights.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountForensicEvidence')
+    doFirst {
+        if (!project.hasProperty('forensicAccountFile'))
+            throw new GradleException('G21.279 supply -PforensicAccountFile=/absolute/path/to/selected-account.properties; no other files are inspected')
+        def selected = project.property('forensicAccountFile').toString().trim()
+        if (!selected)
+            throw new GradleException('G21.279 selected forensic account path is blank')
+        args(selected)
+    }
+}
