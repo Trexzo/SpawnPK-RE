@@ -2560,6 +2560,61 @@ if (currentTrainFocusedTests.size() != 703 ||
     )
 }
 
+
+/*
+ * G21.293: release-train regression continuity. A count/uniqueness
+ * check alone is not enough: replacing a critical failure-characterization
+ * test with another test can leave the same size while deleting coverage.
+ * These are explicit MUST-RETAIN safety anchors, not an original server
+ * policy claim, and do not replace the full manifest's JavaExec run.
+ *
+ * When extending the train, preserve these anchors and add new cases to
+ * currentTrainFocusedTests; do not delete historical failures to hit
+ * the expected count. Keep G21177/G21180 as negative characterization.
+ */
+def currentTrainCriticalCoverage = [
+    'account-durability-negative': [
+        'spk.local.G21177CoreSocketFailedFinalSaveStaleReconnectIntegrationTest',
+        'spk.local.G21180CoreSocketCrossWorldConcurrentAccountIntegrationTest',
+        'spk.local.G21193CoreForcedHealthySaveStillQuarantinedTest',
+        'spk.local.G21220CoreHardKilledActiveReviewRestartVetoTest',
+        'spk.local.G21220CoreHealthyFinalOneShotReviewNoRetirementTest',
+        'spk.local.G21253ForcedRawForeignJvmMailboxMarkerSerializationTest',
+    ],
+    'operator-forensics-exact-selected': [
+        'spk.local.G21285ForensicSelectedAccountHardlinkNegativeTest',
+        'spk.local.G21286ForensicUnrelatedAccountHardlinkControlTest',
+        'spk.local.G21287ForensicMultipleToMultipleAliasDriftTest',
+        'spk.local.G21288ForensicUnrelatedMultipleAliasChurnControlTest',
+        'spk.local.G21289ForensicNegativeSidecarRestoredMtimeDriftTest',
+        'spk.local.G21290ForensicUnrelatedMarkerByteDriftControlTest',
+        'spk.local.G21291ForensicMarkerFingerprintReportContinuityTest',
+        'spk.local.G21292ForensicExactLinkCountReportIsolationTest',
+    ],
+    'npc-terminal-origin-and-stage-diagnostics': [
+        'spk.local.G1847MonsterSpawnerNameReuseTerminalAttributionTest',
+        'spk.local.G1961SameNameRecipientRebindObservationTest',
+        'spk.local.G1962IsolatedSameNameRebindObservationTest',
+        'spk.local.G1963CurrentSpawnRecipientOriginPositiveControlTest',
+        'spk.local.G1964MissingSpawnRecipientOriginNegativeControlTest',
+        'spk.local.G1965SameWorldSequentialTraceCaptureOwnerTest',
+        'spk.local.G1966SequentialStageOutcomeEvictionTotalsTest',
+        'spk.local.G1967G1PreStageFailureDiagnosticTest',
+        'spk.local.G1968G1PreStageHealthyControlTest',
+    ]
+]
+currentTrainCriticalCoverage.each { family, requiredClasses ->
+    def missing = requiredClasses.findAll {
+        !currentTrainFocusedTests.contains(it)
+    }
+    if (!missing.isEmpty()) {
+        throw new GradleException(
+            "Current-train safety regression family omitted: " + family +
+            " missing=" + missing.join(', ')
+        )
+    }
+}
+
 tasks.register('currentTrainFocusedRegression') {
     group = 'verification'
     description = 'Runs the current-train focused release-safety regression manifest separately from the inherited 179-test R8.5 suite.'
