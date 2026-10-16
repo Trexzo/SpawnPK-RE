@@ -2241,6 +2241,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21290ForensicUnrelatedMarkerByteDriftControlTest',
     'spk.local.G21291ForensicMarkerFingerprintReportContinuityTest',
     'spk.local.G21292ForensicExactLinkCountReportIsolationTest',
+    'spk.local.G21294FinalSaveCompletionWaitTimeoutTest',
+    'spk.local.G21295FinalSaveCompletionInterruptPreservationTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2552,10 +2554,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 705 ||
-    currentTrainFocusedTests.toSet().size() != 705) {
+if (currentTrainFocusedTests.size() != 707 ||
+    currentTrainFocusedTests.toSet().size() != 707) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 705 unique tests, found " +
+        "Current-train focused manifest drift: expected 707 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10855,4 +10857,22 @@ tasks.register('g1970G1OutcomeMixedAndUnobservedControlRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1970G1OutcomeMixedAndUnobservedControlTest')
+}
+
+tasks.register('g21294FinalSaveWaitTimeoutRegression', JavaExec) {
+    group = 'verification'
+    description = 'Bounded wait never cancels or fabricates final-save worker completion.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21294FinalSaveCompletionWaitTimeoutTest')
+}
+
+tasks.register('g21295FinalSaveInterruptPreservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Interrupted final-save wait preserves caller interrupted status.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21295FinalSaveCompletionInterruptPreservationTest')
 }
