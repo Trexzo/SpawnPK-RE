@@ -2309,6 +2309,10 @@ def currentTrainFocusedTests = [
     'spk.local.G21328FinalWitnessAuditActiveAliasTest',
     'spk.local.G21329FinalWitnessAuditForeignAliasesControlTest',
     'spk.local.G21330FinalWitnessAuditMultipleSelectedAliasesTest',
+    'spk.local.G21331FinalReviewWitnessOperatorInventoryTest',
+    'spk.local.G21332ForeignFinalReviewOperatorIsolationTest',
+    'spk.local.G21333FinalReviewForensicByteDriftTest',
+    'spk.local.G21334FinalReviewNonregularOperatorNegativeTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2620,10 +2624,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 773 ||
-    currentTrainFocusedTests.toSet().size() != 773) {
+if (currentTrainFocusedTests.size() != 777 ||
+    currentTrainFocusedTests.toSet().size() != 777) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 773 unique tests, found " +
+        "Current-train focused manifest drift: expected 777 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2776,6 +2780,12 @@ def currentTrainCriticalCoverage = [
         'spk.local.G21321PreexistingActiveHardlinkAdmissionNegativeTest',
         'spk.local.G21322BeforeForceWitnessAliasNegativeTest',
     ],
+]
+currentTrainCriticalCoverage['sixth-negative-final-witness-inventory'] = [
+    'spk.local.G21331FinalReviewWitnessOperatorInventoryTest',
+    'spk.local.G21332ForeignFinalReviewOperatorIsolationTest',
+    'spk.local.G21333FinalReviewForensicByteDriftTest',
+    'spk.local.G21334FinalReviewNonregularOperatorNegativeTest'
 ]
 currentTrainCriticalCoverage.each { family, requiredClasses ->
     def missing = requiredClasses.findAll {
@@ -11653,4 +11663,36 @@ tasks.register('g21330ForensicSourceAliasRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21330FinalWitnessAuditMultipleSelectedAliasesTest')
+}
+
+tasks.register('g21331FinalReviewInventoryRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21331FinalReviewWitnessOperatorInventoryTest')
+}
+
+tasks.register('g21332FinalReviewInventoryRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21332ForeignFinalReviewOperatorIsolationTest')
+}
+
+tasks.register('g21333FinalReviewInventoryRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21333FinalReviewForensicByteDriftTest')
+}
+
+tasks.register('g21334FinalReviewInventoryRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21334FinalReviewNonregularOperatorNegativeTest')
 }
