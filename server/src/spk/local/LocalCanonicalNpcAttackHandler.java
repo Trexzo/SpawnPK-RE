@@ -754,7 +754,8 @@ final class LocalCanonicalNpcAttackHandler {
                                 currentTargetTile.y,
                                 legalRange
                             );
-                    }
+                    },
+                    before.registrationIdentity
                 );
         }catch(
             NpcCombatResolutionService
@@ -803,6 +804,21 @@ final class LocalCanonicalNpcAttackHandler {
             );
         }catch(
             NpcLifecycleService
+                .StaleLifecycleRegistrationException replaced
+        ){
+            return result(
+                Status.STALE_LIFECYCLE,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }catch(
+            NpcLifecycleService
                 .LifecycleOwnershipException stale
         ){
             return result(
@@ -840,6 +856,7 @@ final class LocalCanonicalNpcAttackHandler {
             );
 
         if(after==null||
+           after.registrationIdentity!=before.registrationIdentity||
            after.maxHitpoints!=before.maxHitpoints||
            after.hitpoints!=damage.hitpointsAfter)
             throw new IllegalStateException(

@@ -78,6 +78,18 @@ final class NpcLifecycleService {
         }
     }
 
+    /** Separate from a missing lifecycle: the exact observed registration
+     * was replaced before the owned damage mutation. */
+    static final class StaleLifecycleRegistrationException
+        extends IllegalStateException {
+        final EntityId npcId;
+        StaleLifecycleRegistrationException(EntityId npcId){
+            super("NPC lifecycle registration replaced before damage id="+
+                Objects.requireNonNull(npcId,"npcId"));
+            this.npcId=npcId;
+        }
+    }
+
     static final class DamageResult {
         final EntityId npcId;
         final int requestedDamage;
@@ -245,11 +257,35 @@ final class NpcLifecycleService {
         );
     }
 
+    DamageResult applyDamageOwnedIfRegistered(
+        EntityId npcId,
+        int amount,
+        long worldTick,
+        Object expectedRegistrationIdentity
+    ){
+        Objects.requireNonNull(
+            expectedRegistrationIdentity,
+            "expectedRegistrationIdentity");
+        return applyDamageInternal(
+            npcId,amount,worldTick,true,expectedRegistrationIdentity);
+    }
+
     private DamageResult applyDamageInternal(
         EntityId npcId,
         int amount,
         long worldTick,
         boolean typedOwnershipFailure
+    ){
+        return applyDamageInternal(
+            npcId,amount,worldTick,typedOwnershipFailure,null);
+    }
+
+    private DamageResult applyDamageInternal(
+        EntityId npcId,
+        int amount,
+        long worldTick,
+        boolean typedOwnershipFailure,
+        Object expectedRegistrationIdentity
     ){
         if(amount<0)
             throw new IllegalArgumentException(
@@ -316,6 +352,16 @@ final class NpcLifecycleService {
                                 key
                             );
                         }
+
+                        // This check and HP mutation share the same
+                        // lifecycle-entry monitor. A same-canonical
+                        // unregister/register cannot slip between them.
+                        if(expectedRegistrationIdentity!=null&&
+                           entry.registrationIdentity!=
+                               expectedRegistrationIdentity)
+                            throw new StaleLifecycleRegistrationException(
+                                key
+                            );
 
                         int before=
                             entry.hitpoints;
