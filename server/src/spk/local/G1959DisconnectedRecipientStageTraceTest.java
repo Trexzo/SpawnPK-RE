@@ -1,0 +1,162 @@
+package spk.local;
+
+/**
+ * G19.5.9/60: real installed sequential trace cannot mistake an NPC's
+ * settled drop for a delivered recipient reward after player retirement,
+ * and cannot accept a terminal from a foreign World.
+ */
+public final class G1959DisconnectedRecipientStageTraceTest {
+    static void run(boolean crossWorld)throws Exception{
+        World world=World.isolatedForTest(60_000L);
+        World foreign=crossWorld?World.isolatedForTest(60_000L):null;
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        final String username=crossWorld
+            ?"g1960-foreign-terminal"
+            :"g1959-disconnected-recipient";
+        try{
+            generation=world.registerPlayer(player,username);
+            player.movement().restoreAccountState(
+                false,100,3087,3495,0);
+
+            // Explicitly select default sequential dispatch instead of
+            // inheriting the process-wide diagnostic experiment property.
+            LocalMonsterSpawnerActivationRuntime graph=
+                LocalLabMonsterSpawnerProvisioning.create(world,null);
+            MonsterSpawnerService spawner=graph.service();
+            spawner.openSession(
+                username,
+                LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+            );
+            spawner.selectRow(username,0);
+            spawner.activate(username,1);
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                graph.runtime().spawnAndBind(
+                    username,username,3088,3495,0);
+            WorldNpc npc=spawned.spawn.combat.spawn.npc;
+            check(npc!=null&&
+                    spawned.runtime.recipientOrigin!=null&&
+                    spawned.runtime.recipientOrigin.player==player&&
+                    spawned.runtime.recipientOrigin.generation==generation,
+                "real canonical death retains immutable spawn recipient witness");
+
+            if(!crossWorld){
+                check(world.unregisterPlayer(player,generation),
+                    "retire exact recipient BEFORE real death finalization");
+            }
+            NpcLifecycleService.DamageResult lethal=
+                world.npcLifecycle().applyDamageOwned(
+                    npc.id,10,world.clock().tick());
+            check(lethal.newlyDied&&lethal.hitpointsAfter==0,
+                "actual canonical lethal lifecycle");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal=
+                graph.runtime().finalizeIfOwned(npc);
+            check(terminal!=null&&
+                    terminal.status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.sourceWorld==world&&
+                    terminal.finalization!=null&&
+                    terminal.settlement!=null&&
+                    graph.runtime().get(npc.id)==null&&
+                    world.npcs().byId(npc.id)==null&&
+                    world.npcLifecycle().get(npc.id)==null,
+                "exact terminal finalized and retired in source World");
+
+            GroundItem ground=world.groundItems().findOwned(
+                995,3088,3495,0,username);
+            check(ground!=null&&ground.amount==1,
+                "settled drop remains attributed to configured recipient name");
+
+            LocalLabSequentialTerminalStageTrace.Snapshot actual=
+                graph.sequentialTerminalDiagnosticSnapshot();
+            check(actual!=null&&
+                    actual.observed==1&&actual.evicted==0&&
+                    actual.recent.size()==1,
+                "one real installed default-stage trace");
+            LocalLabSequentialTerminalStageTrace.Report report=
+                actual.recent.get(0);
+            check(report.npcId.equals(npc.id)&&
+                    report.deathTick==terminal.finalization.deathTick&&
+                    report.recipientRef.equals(username)&&
+                    report.spawnRecipientGeneration==generation,
+                "trace captures immutable death and spawn recipient generation");
+
+            if(!crossWorld){
+                for(LocalLabSequentialTerminalStageTrace.Stage stage:
+                    LocalLabSequentialTerminalStageTrace.Stage.values())
+                    check(report.outcome(stage)==
+                            LocalLabSequentialTerminalStageTrace.Outcome
+                                .SKIPPED_NO_CURRENT_RECIPIENT&&
+                            report.failureType(stage)==null,
+                        "no current recipient means NO stage attempted");
+                MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics all=
+                    graph.runtime().terminalObserverDiagnostics();
+                check(all.totalAttempts==1L&&all.failedAttempts==0L&&
+                        all.recentAttempts.size()==1&&
+                        all.recentAttempts.get(0).outcome==
+                            MonsterSpawnerPvmRuntime.TerminalObserverOutcome
+                                .RETURNED&&
+                        world.pvmRecords().receiptCount()==0L,
+                    "successful observer return is NOT proof of recipient credit");
+                check(graph.runtime().finalizeIfOwned(npc).status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED,
+                    "recipient disconnect does not permit retry grant");
+            }else{
+                LocalLabSequentialTerminalStageTrace wrong=
+                    new LocalLabSequentialTerminalStageTrace(foreign);
+                String rejected=null;
+                try{
+                    wrong.begin(terminal);
+                }catch(IllegalStateException expected){
+                    rejected=expected.getMessage();
+                }
+                check(
+                    "SEQUENTIAL_TERMINAL_STAGE_SOURCE_WORLD_MISMATCH"
+                        .equals(rejected),
+                    "foreign World begin rejects before stage callback");
+
+                LocalLabSequentialTerminalStageTrace source=
+                    new LocalLabSequentialTerminalStageTrace(world);
+                LocalLabSequentialTerminalStageTrace.Capture capture=
+                    source.begin(terminal);
+                String recordRejected=null;
+                try{
+                    wrong.record(capture);
+                }catch(IllegalStateException expected){
+                    recordRejected=expected.getMessage();
+                }
+                check(
+                    "SEQUENTIAL_TERMINAL_STAGE_SOURCE_WORLD_MISMATCH"
+                        .equals(recordRejected)&&
+                    wrong.snapshot().observed==0L&&
+                    wrong.snapshot().recent.isEmpty(),
+                    "foreign World cannot record or mutate its history");
+                source.record(capture);
+                check(source.snapshot().observed==1L&&
+                        source.snapshot().recent.size()==1,
+                    "failed foreign attempt never consumes source capture");
+            }
+        }finally{
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+            if(foreign!=null)foreign.close();
+        }
+    }
+
+    public static void main(String[] args)throws Exception{
+        run(false);
+        System.out.println(
+            "G1959_DISCONNECTED_RECIPIENT_STAGE_TRACE_PASS"+
+            " exactCanonicalSpawnAndSettlement=true"+
+            " fiveStagesSkippedNoCurrentRecipient=true"+
+            " observerReturnedButNoCredit=true"+
+            " oneGroundDropNoReplay=true");
+    }
+
+    private static void check(boolean ok,String why){
+        if(!ok)throw new AssertionError("G19.5.9/60 "+why);
+    }
+
+    private G1959DisconnectedRecipientStageTraceTest(){}
+}
