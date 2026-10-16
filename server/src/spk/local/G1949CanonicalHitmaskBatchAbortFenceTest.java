@@ -51,12 +51,19 @@ public final class G1949CanonicalHitmaskBatchAbortFenceTest {
 
             NpcEntity sourceNpc=sourceNpcs.spawnMirroredNpc(
                 def,3088,3495,null,source.movement(),sourceWriter);
+            // Force spectator scene translation: reserve an unrelated
+            // noncanonical local view before its canonical NPC projection.
+            NpcEntity viewerFiller=viewerNpcs.spawnMirroredNpc(
+                def,3089,3495,null,viewer.movement(),viewerWriter);
             NpcEntity viewerNpc=viewerNpcs.spawnMirroredNpc(
                 def,3088,3495,null,viewer.movement(),viewerWriter);
-            check(sourceNpc!=null&&viewerNpc!=null&&
+            check(sourceNpc!=null&&viewerFiller!=null&&
+                    viewerNpc!=null&&
+                    sourceNpc.sceneIndex!=viewerNpc.sceneIndex&&
                     sourceNpcs.scene(sourceNpc.sceneIndex)==sourceNpc&&
+                    viewerNpcs.scene(viewerFiller.sceneIndex)==viewerFiller&&
                     viewerNpcs.scene(viewerNpc.sceneIndex)==viewerNpc,
-                "both independent projections currently active");
+                "independent projections have distinct scene indices");
             sourceNpc.bindCanonicalId(npc.id);
             viewerNpc.bindCanonicalId(npc.id);
             sourceQueue.drainTo(new ByteArrayOutputStream(),1<<20);
