@@ -32,12 +32,15 @@ public final class LocalAccountForensicEvidence {
     static final class Evidence {
         final String accountState;
         final String accountSha256;
+        final String accountHardlinkState;
         final Map<String,String> negativeSidecars;
         final int observedNegativeNames;
 
-        Evidence(String state,String sha,Map<String,String> names,int count){
+        Evidence(String state,String sha,String links,
+                 Map<String,String> names,int count){
             accountState=state;
             accountSha256=sha;
+            accountHardlinkState=links;
             negativeSidecars=Collections.unmodifiableMap(
                 new LinkedHashMap<>(names));
             observedNegativeNames=count;
@@ -48,6 +51,7 @@ public final class LocalAccountForensicEvidence {
                 "G21279_READ_ONLY_ACCOUNT_FORENSIC_EVIDENCE "+
                 "account="+accountState+
                 " accountSha256="+accountSha256+
+                " accountHardlinks="+accountHardlinkState+
                 " knownNegativeNames="+observedNegativeNames);
             for(Map.Entry<String,String> entry:negativeSidecars.entrySet())
                 b.append(' ').append(entry.getKey()).append('=')
@@ -128,6 +132,32 @@ public final class LocalAccountForensicEvidence {
         }
     }
 
+    /**
+     * G21.285 read-only nlink observation. A single observed name
+     * does NOT authorize any login or owner epoch. Unsupported
+     * filesystems are UNPROVEN, never assumed single-name.
+     */
+    private static String accountHardlinks(Path account,Stat stat)
+        throws IOException{
+        if(stat.attributes==null)return "ABSENT";
+        final Object count;
+        try{
+            count=Files.getAttribute(account,"unix:nlink",
+                LinkOption.NOFOLLOW_LINKS);
+        }catch(UnsupportedOperationException|IllegalArgumentException
+                unavailable){
+            return "UNAVAILABLE_UNPROVEN";
+        }
+        if(!(count instanceof Number))
+            return "UNAVAILABLE_UNPROVEN";
+        long n=((Number)count).longValue();
+        if(n<1L)
+            throw new IOException(
+                "G21.285 ACCOUNT_HARDLINK_COUNT_INVALID_NO_AUTHORITY");
+        return n==1L?"ONE_OBSERVED_NOT_AUTHORITY":
+            "MULTIPLE_ACCOUNT_LINKS_NEGATIVE";
+    }
+
     private static String hashAccount(Path account,Stat stat)
         throws IOException{
         if(stat.attributes==null)return "ABSENT";
@@ -205,6 +235,7 @@ public final class LocalAccountForensicEvidence {
             MailboxGuardedDiskCommitRecord.SUFFIX));
 
         Stat accountBefore=observe(account);
+        String linksBefore=accountHardlinks(account,accountBefore);
         Map<String,Stat> sidecarsBefore=new LinkedHashMap<>();
         for(Map.Entry<String,Path> entry:names.entrySet())
             sidecarsBefore.put(entry.getKey(),observe(entry.getValue()));
@@ -216,6 +247,13 @@ public final class LocalAccountForensicEvidence {
         // preflight. Observe the entire parent ancestry again
         // before trusting postread metadata or its second digest.
         requireForensicAncestryStillSafe(account);
+        // G21.285: check the independently observed nlink witness at
+        // the exact after-first-digest seam before metadata checks.
+        // Otherwise filesystem-specific ctime mapping may classify
+        // the same alias race as a generic metadata drift.
+        if(!linksBefore.equals(accountHardlinks(account,accountBefore)))
+            throw new IOException(
+                "G21.285 ACCOUNT_HARDLINK_COUNT_CHANGED_DURING_READ");
         Stat accountAfter=observe(account);
         if(!same(accountBefore,accountAfter))
             throw new IOException(
@@ -250,9 +288,16 @@ public final class LocalAccountForensicEvidence {
             throw new IOException(
                 "G21.279 ACCOUNT_CHANGED_DURING_FORENSIC_READ");
         requireForensicAncestryStillSafe(account);
+        // Read-only twice: an alias of the selected inode added or
+        // removed during inspection invalidates the observation.
+        // This cannot fence foreign nlink mutation after our probe.
+        String linksAfter=accountHardlinks(account,accountBefore);
+        if(!linksBefore.equals(linksAfter))
+            throw new IOException(
+                "G21.285 ACCOUNT_HARDLINK_COUNT_CHANGED_DURING_READ");
         String state=accountBefore.attributes==null
             ?"ABSENT":"PRESENT_REGULAR";
-        return new Evidence(state,hash,states,found);
+        return new Evidence(state,hash,linksAfter,states,found);
     }
 
     /** Operator CLI: java -cp ... spk.local.LocalAccountForensicEvidence
