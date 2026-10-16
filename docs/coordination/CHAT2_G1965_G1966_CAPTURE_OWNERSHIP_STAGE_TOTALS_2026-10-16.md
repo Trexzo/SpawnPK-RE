@@ -24,3 +24,8 @@ Focused manifest 693 -> **695 unique**, plus exact `g1965...` and `g1966...` Jav
 ## Limits
 
 The counters are **process-local diagnostics**. They are not persisted through World restart. `RETURNED` does not mean reward credited; `THREW` can mean partial mutation. No original SpawnPK killer authority is inferred. There is no consumer grant transaction, persisted death-event outbox, idempotency key, replay loop, durable ACK or reward migration. Issue #2587 remains open; nothing here should justify automatic replay of rewards.
+
+## Hosted-fixture corrections (do not mistake initial CI for certification)
+
+- Initial 695 attempt at `ca836e...` failed G1966 due to a *connected* owner retaining a G1 pending respawn ticket across accelerated manual death cycles; production behavior was not defective.
+- Second attempt at `fa54326...` detached the spawner session owner from the registered reward recipient and eliminated G1 respawn collision, but failed at G1966 iteration 2 because the real G1 teardown retired the spawner session. Corrected fixture now recreates an absent owner session and its selection between iterations, preserving all authentic runtime lifecycle and settlement transitions. Require a third exact-head hosted successful result before marking 695 certified.
