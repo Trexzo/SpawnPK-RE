@@ -2261,6 +2261,10 @@ def currentTrainFocusedTests = [
     'spk.local.G2002TerminalReturnedWithStaleFailureTypeTest',
     'spk.local.G2003TerminalUnreachedSkippedFailureTypeTest',
     'spk.local.G2004TerminalTypedFailurePositiveControlTest',
+    'spk.local.G2005OriginBoundaryEvictionRetentionTest',
+    'spk.local.G2006OriginBoundaryG1PrestageFailureTest',
+    'spk.local.G2007OriginBoundaryRecipientMismatchTest',
+    'spk.local.G2008OriginBoundaryG14FailFastTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2624,10 +2628,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 777 ||
-    currentTrainFocusedTests.toSet().size() != 777) {
+if (currentTrainFocusedTests.size() != 781 ||
+    currentTrainFocusedTests.toSet().size() != 781) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 777 unique tests, found " +
+        "Current-train focused manifest drift: expected 781 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2772,6 +2776,12 @@ def currentTrainCriticalCoverage = [
         'spk.local.G21328FinalWitnessAuditActiveAliasTest',
         'spk.local.G21329FinalWitnessAuditForeignAliasesControlTest',
         'spk.local.G21330FinalWitnessAuditMultipleSelectedAliasesTest',
+    ],
+    'g2008-origin-first-blocking-boundary': [
+        'spk.local.G2005OriginBoundaryEvictionRetentionTest',
+        'spk.local.G2006OriginBoundaryG1PrestageFailureTest',
+        'spk.local.G2007OriginBoundaryRecipientMismatchTest',
+        'spk.local.G2008OriginBoundaryG14FailFastTest',
     ],
     // G21.319/320: selected ACTIVE/witness hardlink drift must remain tested.
     'g21320-negative-final-witness-hardlink-count': [
@@ -11695,4 +11705,44 @@ tasks.register('g21334FinalReviewInventoryRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21334FinalReviewNonregularOperatorNegativeTest')
+}
+
+
+tasks.register('g2005OriginBoundaryEvictionRetentionRegression', JavaExec) {
+    group = 'verification'
+    description = '131 real settled deaths preserve current-origin first-boundary totals after 128 report eviction.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2005OriginBoundaryEvictionRetentionTest')
+}
+
+
+tasks.register('g2006OriginBoundaryG1PrestageFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'First G1 returned and second genuine post-settlement G1 exception retain exact origin-first-boundary outcomes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2006OriginBoundaryG1PrestageFailureTest')
+}
+
+
+tasks.register('g2007OriginBoundaryRecipientMismatchRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real disconnected and same-name-rebound origin-boundary cross-tab retains name-based credit behavior.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2007OriginBoundaryRecipientMismatchTest')
+}
+
+
+tasks.register('g2008OriginBoundaryG14FailFastRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real malformed G14 and healthy control classify first failing consumer separately by exact origin.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2008OriginBoundaryG14FailFastTest')
 }

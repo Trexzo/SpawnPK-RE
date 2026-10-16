@@ -89,6 +89,20 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                     actual.observed==1&&actual.evicted==0&&
                     actual.recent.size()==1,
                 "one real installed default-stage trace");
+            LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundary=
+                actual.originFailureBoundaries;
+            LocalLabSettledDeathEnvelope.OriginStatus firstOrigin=
+                crossWorld
+                    ?LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT
+                    :LocalLabSettledDeathEnvelope.OriginStatus.NO_CURRENT_RECIPIENT;
+            LocalLabTerminalFailureBoundaryTally.Boundary first=
+                crossWorld
+                    ?LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED
+                    :LocalLabTerminalFailureBoundaryTally.Boundary.NO_CURRENT_RECIPIENT;
+            check(originBoundary.count(firstOrigin,first)==1L&&
+                !originBoundary.hasDurableGrantAcknowledgement()&&
+                !originBoundary.safeToAutomaticallyReplay(),
+                "actual disconnected or current origin retains correct first blocking stage");
             LocalLabOriginConsumerOutcomeTally.Snapshot joint=
                 actual.originConsumerOutcomes;
             check(joint.originCount(envelope.originStatus)==1L&&
