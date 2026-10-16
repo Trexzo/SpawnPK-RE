@@ -147,6 +147,23 @@ public final class G1961SameNameRecipientRebindObservationTest {
                     "one default sequential stage report");
                 LocalLabSequentialTerminalStageTrace.Report report=
                     stages.recent.get(0);
+                require(stages.originCount(
+                        LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND)
+                        ==1L&&
+                    stages.originCount(
+                        LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT)
+                        ==0L,
+                    "historical owner rebound is aggregated without credit policy changes");
+                LocalLabTerminalDeliveryAssessment assessment=
+                    LocalLabTerminalDeliveryAssessment.from(report);
+                require(assessment.originStatus==
+                        LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND&&
+                    assessment.evidence(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1)==
+                        LocalLabTerminalDeliveryAssessment.Evidence.RETURNED_UNACKNOWLEDGED&&
+                    !assessment.safeToAutomaticallyReplay()&&
+                    !assessment.hasDurableGrantAcknowledgement(),
+                    "same-name credits remain observable, never retroactively authoritative");
                 require(!report.spawnOriginMatchedAtDispatch&&
                         report.originStatus==
                             LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND&&
