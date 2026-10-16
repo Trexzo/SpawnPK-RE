@@ -52,7 +52,7 @@ public final class G21256ForcedRawForeignJvmPublicationDeadlineTest {
         MailboxAccountPublicationCoordinator.withExclusivePublication(
             account,()->{
                 Files.writeString(ready,READY,StandardCharsets.US_ASCII);
-                long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(25);
+                long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(60);
                 while(!Files.exists(release,LinkOption.NOFOLLOW_LINKS)&&
                       System.nanoTime()<until){
                     try{Thread.sleep(20L);}
@@ -104,14 +104,30 @@ public final class G21256ForcedRawForeignJvmPublicationDeadlineTest {
                 ready.toString(),release.toString());
             pb.redirectErrorStream(true);
             victim=pb.start();
-            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(15L);
-            while(!Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
-                  victim.isAlive()&&System.nanoTime()<deadline)
+            // G21.262 CI fixture: an existing signal filename can
+            // precede completion of Files.writeString; poll the exact
+            // complete payload, not mere file existence. Under hosted
+            // build contention, JVM startup may also exceed 15 seconds.
+            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(35L);
+            boolean signaled=false;
+            while(victim.isAlive()&&System.nanoTime()<deadline){
+                if(Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                   READY.equals(Files.readString(ready,
+                       StandardCharsets.US_ASCII))){
+                    signaled=true;
+                    break;
+                }
                 Thread.sleep(20L);
-            check(Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
-                READY.equals(Files.readString(ready,
-                    StandardCharsets.US_ASCII)),
-                "foreign Java process did not hold G21.39 lock");
+            }
+            if(!signaled){
+                String status=victim.isAlive()
+                    ?"FOREIGN_JVM_ALIVE_NO_COMPLETE_READY"
+                    :new String(victim.getInputStream().readAllBytes(),
+                        StandardCharsets.UTF_8);
+                throw new AssertionError(
+                    "G21.262 foreign JVM publication lock handshake absent "+
+                    status);
+            }
             check(victim.isAlive(),"foreign JVM exited too early");
             long started=System.nanoTime();
             boolean bounded=false;
@@ -135,7 +151,7 @@ public final class G21256ForcedRawForeignJvmPublicationDeadlineTest {
             check(Arrays.equals(beforeA,Files.readAllBytes(a)),
                 "other account save modified held account");
             Files.createFile(release);
-            check(victim.waitFor(15L,TimeUnit.SECONDS),
+            check(victim.waitFor(30L,TimeUnit.SECONDS),
                 "foreign lock owner did not terminate after release");
             String output=new String(victim.getInputStream().readAllBytes(),
                 StandardCharsets.UTF_8);
