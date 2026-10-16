@@ -33,16 +33,22 @@ public final class LocalAccountForensicEvidence {
         final String accountState;
         final String accountSha256;
         final String accountHardlinkState;
+        final String accountObservedLinkCount;
         final Map<String,String> negativeSidecars;
+        final Map<String,String> negativeSidecarContentWitnesses;
         final int observedNegativeNames;
 
-        Evidence(String state,String sha,String links,
-                 Map<String,String> names,int count){
+        Evidence(String state,String sha,String links,String linkCount,
+                 Map<String,String> names,Map<String,String> witnesses,
+                 int count){
             accountState=state;
             accountSha256=sha;
             accountHardlinkState=links;
+            accountObservedLinkCount=linkCount;
             negativeSidecars=Collections.unmodifiableMap(
                 new LinkedHashMap<>(names));
+            negativeSidecarContentWitnesses=Collections.unmodifiableMap(
+                new LinkedHashMap<>(witnesses));
             observedNegativeNames=count;
         }
 
@@ -52,9 +58,17 @@ public final class LocalAccountForensicEvidence {
                 "account="+accountState+
                 " accountSha256="+accountSha256+
                 " accountHardlinks="+accountHardlinkState+
+                " accountObservedLinkCount="+accountObservedLinkCount+
                 " knownNegativeNames="+observedNegativeNames);
             for(Map.Entry<String,String> entry:negativeSidecars.entrySet())
                 b.append(' ').append(entry.getKey()).append('=')
+                    .append(entry.getValue());
+            // G21.291: these bounded, read-only digests help an
+            // operator compare separate reports. They do NOT attest
+            // to ownership, durable saving, atomicity, or recovery.
+            for(Map.Entry<String,String> entry:
+                    negativeSidecarContentWitnesses.entrySet())
+                b.append(' ').append(entry.getKey()).append("Content=")
                     .append(entry.getValue());
             b.append(" recoveryAuthorized=false")
                 .append(" loginAuthorized=false")
@@ -311,6 +325,7 @@ public final class LocalAccountForensicEvidence {
             throw new IOException(
                 "G21.279 ACCOUNT_CHANGED_DURING_FORENSIC_READ");
         Map<String,String> states=new LinkedHashMap<>();
+        Map<String,String> stableContentWitnesses=new LinkedHashMap<>();
         int found=0;
         for(Map.Entry<String,Path> entry:names.entrySet()){
             Stat before=sidecarsBefore.get(entry.getKey());
@@ -320,10 +335,13 @@ public final class LocalAccountForensicEvidence {
                     "G21.279 NEGATIVE_SIDECAR_CHANGED_DURING_READ");
             // An ordinary stat-only check misses in-place byte edits
             // when a foreign process restores original size and mtime.
+            final String latestWitness=
+                negativeSidecarContentWitness(entry.getValue(),after);
             if(!Objects.equals(sidecarBytesBefore.get(entry.getKey()),
-                negativeSidecarContentWitness(entry.getValue(),after)))
+                latestWitness))
                 throw new IOException(
                     "G21.289 NEGATIVE_SIDECAR_BYTES_CHANGED_DURING_READ");
+            stableContentWitnesses.put(entry.getKey(),latestWitness);
             states.put(entry.getKey(),after.classification);
             if(after.attributes!=null)found++;
         }
@@ -353,7 +371,12 @@ public final class LocalAccountForensicEvidence {
         requireSameHardlinkWitness(linksBefore,linksAfter);
         String state=accountBefore.attributes==null
             ?"ABSENT":"PRESENT_REGULAR";
-        return new Evidence(state,hash,linksAfter.state,states,found);
+        // Exact count is an observation, not a link ownership grant;
+        // unsupported/absent filesystems remain explicitly unproven.
+        String observedCount=linksAfter.count>=0L
+            ?Long.toString(linksAfter.count):linksAfter.state;
+        return new Evidence(state,hash,linksAfter.state,observedCount,
+            states,stableContentWitnesses,found);
     }
 
     /** Operator CLI: java -cp ... spk.local.LocalAccountForensicEvidence
