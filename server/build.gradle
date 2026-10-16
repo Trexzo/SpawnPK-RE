@@ -2249,6 +2249,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21297RealWorldFinalActionTimeoutBoundaryTest',
     'spk.local.G21298ActualFinalNegativeReviewWitnessTest',
     'spk.local.G21299FinalReviewWitnessFailClosedControlsTest',
+    'spk.local.G21300HardKilledMidFinalWitnessNegativeRestartTest',
+    'spk.local.G21301ForcedNegativeWitnessPostForceFailureTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2560,10 +2562,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 713 ||
-    currentTrainFocusedTests.toSet().size() != 713) {
+if (currentTrainFocusedTests.size() != 715 ||
+    currentTrainFocusedTests.toSet().size() != 715) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 713 unique tests, found " +
+        "Current-train focused manifest drift: expected 715 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10934,4 +10936,21 @@ tasks.register('g21299FinalWitnessFailClosedControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21299FinalReviewWitnessFailClosedControlsTest')
+}
+tasks.register('g21300HardKilledWitnessBeforeForceRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.300: kill actual witness-writing JVM before file force; restart remains vetoed.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21300HardKilledMidFinalWitnessNegativeRestartTest')
+}
+
+tasks.register('g21301WitnessPostForceFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.301: after file+directory force failure is uncertain and witness never retired.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21301ForcedNegativeWitnessPostForceFailureTest')
 }
