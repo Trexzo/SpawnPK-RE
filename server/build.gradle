@@ -2207,6 +2207,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21269ForeignJvmUnrelatedPostMoveHardlinkControlTest',
     'spk.local.G21271ForcedWorldPostMoveNegativeSidecarTest',
     'spk.local.G21272UnrelatedForcedWorldPostMoveMarkerControlTest',
+    'spk.local.G21273ForcedWorldPostMoveForeignJvmHardlinkTest',
+    'spk.local.G21274UnrelatedForcedWorldPostMoveForeignJvmHardlinkTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2498,10 +2500,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 651 ||
-    currentTrainFocusedTests.toSet().size() != 651) {
+if (currentTrainFocusedTests.size() != 653 ||
+    currentTrainFocusedTests.toSet().size() != 653) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 651 unique tests, found " +
+        "Current-train focused manifest drift: expected 653 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10241,4 +10243,22 @@ tasks.register('g21272UnrelatedForcedWorldPostMoveMarkerControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21272UnrelatedForcedWorldPostMoveMarkerControlTest')
+}
+
+tasks.register('g21273ForcedWorldPostMoveForeignJvmHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.273: actual independent JVM inserts new-inode alias after forced World account ATOMIC_MOVE.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21273ForcedWorldPostMoveForeignJvmHardlinkTest')
+}
+
+tasks.register('g21274UnrelatedForcedWorldPostMoveForeignJvmHardlinkControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.274: independent JVM aliases unrelated named account while current forced World postimage succeeds.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21274UnrelatedForcedWorldPostMoveForeignJvmHardlinkTest')
 }
