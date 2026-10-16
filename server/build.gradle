@@ -2243,6 +2243,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21292ForensicExactLinkCountReportIsolationTest',
     'spk.local.G21294FinalSaveCompletionWaitTimeoutTest',
     'spk.local.G21295FinalSaveCompletionInterruptPreservationTest',
+    'spk.local.G21296RealWorldFinalActionInterruptBoundaryTest',
+    'spk.local.G21297RealWorldFinalActionTimeoutBoundaryTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2554,10 +2556,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 707 ||
-    currentTrainFocusedTests.toSet().size() != 707) {
+if (currentTrainFocusedTests.size() != 709 ||
+    currentTrainFocusedTests.toSet().size() != 709) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 707 unique tests, found " +
+        "Current-train focused manifest drift: expected 709 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10875,4 +10877,21 @@ tasks.register('g21295FinalSaveInterruptPreservationRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21295FinalSaveCompletionInterruptPreservationTest')
+}
+tasks.register('g21296WorldFinalActionInterruptRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real World.submit action survives interrupted final teardown caller wait.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21296RealWorldFinalActionInterruptBoundaryTest')
+}
+
+tasks.register('g21297WorldFinalActionTimeoutRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real in-flight World command survives bounded final teardown caller timeout.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21297RealWorldFinalActionTimeoutBoundaryTest')
 }
