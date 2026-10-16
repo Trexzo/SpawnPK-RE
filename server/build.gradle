@@ -2217,6 +2217,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
     'spk.local.G21282ForensicExactAccountContinuityControlTest',
+    'spk.local.G21283ForensicAncestorSymlinkSwapTest',
+    'spk.local.G21284UnrelatedForensicAncestorSymlinkControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2528,10 +2530,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 681 ||
-    currentTrainFocusedTests.toSet().size() != 681) {
+if (currentTrainFocusedTests.size() != 683 ||
+    currentTrainFocusedTests.toSet().size() != 683) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 681 unique tests, found " +
+        "Current-train focused manifest drift: expected 683 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10558,4 +10560,22 @@ tasks.register('g21282ForensicExactAccountDoubleDigestControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21282ForensicExactAccountContinuityControlTest')
+}
+
+tasks.register('g21283ForensicParentSymlinkSwapVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.283: reject an intermediate parent directory changed into symlink after selected account first forensic digest.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21283ForensicAncestorSymlinkSwapTest')
+}
+
+tasks.register('g21284UnrelatedForensicAncestorSymlinkControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.284: unrelated parent symlink has no authority over the selected stable forensic account scan.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21284UnrelatedForensicAncestorSymlinkControlTest')
 }

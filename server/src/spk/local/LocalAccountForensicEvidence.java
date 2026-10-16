@@ -116,6 +116,18 @@ public final class LocalAccountForensicEvidence {
         return out.toString();
     }
 
+    private static void requireForensicAncestryStillSafe(Path account)
+        throws IOException{
+        try{
+            MailboxAccountPublicationCoordinator
+                .requireSafeWorldTempAncestry(account,false);
+        }catch(IOException changed){
+            throw new IOException(
+                "G21.283 FORENSIC_ACCOUNT_ANCESTRY_CHANGED_NO_AUTHORITY",
+                changed);
+        }
+    }
+
     private static String hashAccount(Path account,Stat stat)
         throws IOException{
         if(stat.attributes==null)return "ABSENT";
@@ -198,6 +210,12 @@ public final class LocalAccountForensicEvidence {
             sidecarsBefore.put(entry.getKey(),observe(entry.getValue()));
         final String hash=hashAccount(account,accountBefore);
         afterFirstDigest.run(account);
+        // G21.283: NOFOLLOW on the final account leaf does NOT
+        // prevent an intermediate parent directory from being
+        // replaced by a symbolic link after the initial ancestry
+        // preflight. Observe the entire parent ancestry again
+        // before trusting postread metadata or its second digest.
+        requireForensicAncestryStillSafe(account);
         Stat accountAfter=observe(account);
         if(!same(accountBefore,accountAfter))
             throw new IOException(
@@ -231,6 +249,7 @@ public final class LocalAccountForensicEvidence {
         if(!same(accountBefore,observe(account)))
             throw new IOException(
                 "G21.279 ACCOUNT_CHANGED_DURING_FORENSIC_READ");
+        requireForensicAncestryStillSafe(account);
         String state=accountBefore.attributes==null
             ?"ABSENT":"PRESENT_REGULAR";
         return new Evidence(state,hash,states,found);
