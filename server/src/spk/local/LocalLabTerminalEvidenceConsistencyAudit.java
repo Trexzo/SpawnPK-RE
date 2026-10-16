@@ -157,6 +157,24 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
         c.equal(boundaryTotal,observed,"FIRST_BOUNDARIES_OBSERVED");
         for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
                 LocalLabTerminalFailureBoundaryTally.Boundary.values()){
+            long byKind=0L;
+            for(LocalLabTerminalFirstFailureTypeTally.Kind kind:
+                    LocalLabTerminalFirstFailureTypeTally.Kind.values()){
+                long n=s.firstFailureTypes.count(boundary,kind);
+                byKind=c.add(byKind,n,"FIRST_TYPE_TOTAL_"+boundary);
+                boolean noThrow=boundary==
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED||
+                    boundary==LocalLabTerminalFailureBoundaryTally.Boundary
+                        .NO_CURRENT_RECIPIENT;
+                if(noThrow!=(kind==LocalLabTerminalFirstFailureTypeTally.Kind
+                        .NO_EXCEPTION)&&n>0L)
+                    c.issue("FIRST_TYPE_IMPOSSIBLE_"+boundary+"_"+kind);
+            }
+            c.equal(byKind,s.failureBoundaries.count(boundary),
+                "FIRST_TYPE_VS_BOUNDARY_"+boundary);
+        }
+        for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                LocalLabTerminalFailureBoundaryTally.Boundary.values()){
             long sum=0L;
             for(LocalLabSettledDeathEnvelope.OriginStatus origin:
                     LocalLabSettledDeathEnvelope.OriginStatus.values())
@@ -266,6 +284,8 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
         long[] boundaryCount=new long[boundaries.length];
         long[][] originBoundaryCount=
             new long[origins.length][boundaries.length];
+        long[][] kindCount=new long[boundaries.length][
+            LocalLabTerminalFirstFailureTypeTally.Kind.values().length];
         long[][] consumerCount=new long[consumers.length][evidences.length];
         long[][][] jointCount=
             new long[origins.length][consumers.length][evidences.length];
@@ -317,6 +337,11 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                     LocalLabTerminalDeliveryAssessment.from(report);
                 originCount[report.originStatus.ordinal()]++;
                 boundaryCount[boundary.ordinal()]++;
+                LocalLabTerminalFirstFailureTypeTally.Kind kind=
+                    LocalLabTerminalFirstFailureTypeTally.classify(
+                        report,boundary
+                    );
+                kindCount[boundary.ordinal()][kind.ordinal()]++;
                 originBoundaryCount[report.originStatus.ordinal()]
                     [boundary.ordinal()]++;
                 for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
@@ -347,6 +372,12 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
             c.retained(boundaryCount[boundary.ordinal()],
                 source.failureBoundaries.count(boundary),exact,
                 "FIRST_"+boundary);
+        for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:boundaries)
+            for(LocalLabTerminalFirstFailureTypeTally.Kind kind:
+                    LocalLabTerminalFirstFailureTypeTally.Kind.values())
+                c.retained(kindCount[boundary.ordinal()][kind.ordinal()],
+                    source.firstFailureTypes.count(boundary,kind),exact,
+                    "FIRST_TYPE_"+boundary+"_"+kind);
         for(LocalLabSettledDeathEnvelope.OriginStatus origin:origins)
             for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
                     boundaries)

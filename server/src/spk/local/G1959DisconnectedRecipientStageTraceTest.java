@@ -132,6 +132,14 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                     !audit.hasDurableGrantAcknowledgement()&&
                     !audit.safeToAutomaticallyReplay(),
                 "disconnected or exact recipient audit consistent and strictly non-granting");
+            check(actual.firstFailureTypes.count(
+                    crossWorld
+                        ?LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_THROW_RECORDED
+                        :LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_CURRENT_RECIPIENT,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L,
+                "missing current recipient must not fabricate a throwing class");
             LocalLabTerminalDeliverySummary summary=
                 LocalLabTerminalDeliverySummary.from(actual);
             check(summary.observedTerminals==1L&&
