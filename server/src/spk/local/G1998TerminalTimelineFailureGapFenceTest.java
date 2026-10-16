@@ -13,7 +13,6 @@ public final class G1998TerminalTimelineFailureGapFenceTest {
             " syntheticG16ThrowAfterUnattemptedG14Rejected=true"+
             " zeroCollectorCountersChanged=true"+
             " noGrantReplay=true");
-
     }
     private G1998TerminalTimelineFailureGapFenceTest(){}
 }
