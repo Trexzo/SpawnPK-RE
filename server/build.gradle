@@ -2219,6 +2219,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21274UnrelatedForcedWorldPostMoveForeignJvmHardlinkTest',
     'spk.local.G21275ActiveReviewMarkerPostMoveByteDriftTest',
     'spk.local.G21276ExistingActiveReviewMarkerWorldControlTest',
+    'spk.local.G21277ForeignJvmWorldPostMoveActiveMarkerTest',
+    'spk.local.G21278ForeignJvmUnrelatedWorldActiveMarkerControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2510,10 +2512,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 663 ||
-    currentTrainFocusedTests.toSet().size() != 663) {
+if (currentTrainFocusedTests.size() != 665 ||
+    currentTrainFocusedTests.toSet().size() != 665) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 663 unique tests, found " +
+        "Current-train focused manifest drift: expected 665 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10361,4 +10363,22 @@ tasks.register('g1944RealSpawnerUncheckedMaskFailureSettlementRegression', JavaE
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1944RealSpawnerUncheckedMaskFailureSettlementTest')
+}
+
+tasks.register('g21277ForeignJvmWorldPostMoveActiveMarkerRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.277: independent JVM creates a valid ACTIVE review marker after forced World account ATOMIC_MOVE.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21277ForeignJvmWorldPostMoveActiveMarkerTest')
+}
+
+tasks.register('g21278ForeignJvmUnrelatedWorldActiveMarkerControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.278: second JVM creates valid ACTIVE marker for another account without blocking selected World save.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21278ForeignJvmUnrelatedWorldActiveMarkerControlTest')
 }
