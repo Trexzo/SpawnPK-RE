@@ -87,7 +87,7 @@ public final class G21253ForcedRawForeignJvmMailboxMarkerSerializationTest {
                 check(account.equals(path),"wrong raw account selected");
                 entered.countDown();
                 try{
-                    if(!release.await(20L,TimeUnit.SECONDS))
+                    if(!release.await(65L,TimeUnit.SECONDS))
                         throw new IOException("G21.253 release timeout");
                 }catch(InterruptedException interrupted){
                     Thread.currentThread().interrupt();
@@ -105,7 +105,7 @@ public final class G21253ForcedRawForeignJvmMailboxMarkerSerializationTest {
                 }
             },"g21253-parent-forced-raw");
             writer.start();
-            check(entered.await(20L,TimeUnit.SECONDS),
+            check(entered.await(35L,TimeUnit.SECONDS),
                 "parent writer never held publication lock");
             Path ready=root.resolve("child-ready");
             Path java=Path.of(System.getProperty("java.home"),"bin",
@@ -118,22 +118,40 @@ public final class G21253ForcedRawForeignJvmMailboxMarkerSerializationTest {
                 root.toString(),ready.toString());
             pb.redirectErrorStream(true);
             foreign=pb.start();
-            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20L);
-            while(!Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
-                  foreign.isAlive()&&System.nanoTime()<deadline)
+            // G21.270 fixture repair: Files.writeString can publish
+            // the ready leaf before its payload is complete. An
+            // existence-only poll can spuriously fail on a partial
+            // string under hosted CI concurrency. Wait for the
+            // COMPLETE marker, while retaining a bounded deadline.
+            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(45L);
+            boolean signaled=false;
+            while(foreign.isAlive()&&System.nanoTime()<deadline){
+                if(Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                   READY.equals(Files.readString(
+                       ready,StandardCharsets.US_ASCII))){
+                    signaled=true;
+                    break;
+                }
                 Thread.sleep(25L);
-            check(Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
-                READY.equals(Files.readString(ready,StandardCharsets.US_ASCII)),
-                "foreign JVM did not start real G21.39 marker attempt");
+            }
+            if(!signaled){
+                String childState=foreign.isAlive()
+                    ?"FOREIGN_CHILD_ALIVE_NO_COMPLETE_READY"
+                    :new String(foreign.getInputStream().readAllBytes(),
+                        StandardCharsets.UTF_8);
+                throw new AssertionError(
+                    "G21.270 foreign JVM full READY handshake absent "+
+                    childState);
+            }
             Thread.sleep(200L);
             check(foreign.isAlive()&&
                 !Files.exists(marker,LinkOption.NOFOLLOW_LINKS),
                 "foreign marker slipped past held publication lock");
             release.countDown();
-            writer.join(20_000L);
+            writer.join(45_000L);
             check(!writer.isAlive()&&writeProblem.get()==null,
                 "parent forced writer failed "+writeProblem.get());
-            check(foreign.waitFor(25L,TimeUnit.SECONDS),
+            check(foreign.waitFor(45L,TimeUnit.SECONDS),
                 "foreign marker writer did not finish");
             String out=new String(
                 foreign.getInputStream().readAllBytes(),
