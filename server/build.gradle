@@ -2223,6 +2223,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1964MissingSpawnRecipientOriginNegativeControlTest',
     'spk.local.G1965SameWorldSequentialTraceCaptureOwnerTest',
     'spk.local.G1966SequentialStageOutcomeEvictionTotalsTest',
+    'spk.local.G1967G1PreStageFailureDiagnosticTest',
+    'spk.local.G1968G1PreStageHealthyControlTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2546,10 +2548,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 699 ||
-    currentTrainFocusedTests.toSet().size() != 699) {
+if (currentTrainFocusedTests.size() != 701 ||
+    currentTrainFocusedTests.toSet().size() != 701) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 699 unique tests, found " +
+        "Current-train focused manifest drift: expected 701 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10738,4 +10740,23 @@ tasks.register('g21290ForensicUnrelatedMarkerDriftControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21290ForensicUnrelatedMarkerByteDriftControlTest')
+}
+
+
+tasks.register('g1967G1PreStageFailureDiagnosticRegression', JavaExec) {
+    group = 'verification'
+    description = 'G1 callback exception after real settlement records pre-stage THREW and five NOT_REACHED outcomes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1967G1PreStageFailureDiagnosticTest')
+}
+
+tasks.register('g1968G1PreStageHealthyControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Healthy real G1 callback and five progression stages retain positive diagnostic evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1968G1PreStageHealthyControlTest')
 }
