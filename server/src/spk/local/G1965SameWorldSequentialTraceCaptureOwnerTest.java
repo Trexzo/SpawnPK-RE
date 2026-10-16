@@ -36,11 +36,29 @@ public final class G1965SameWorldSequentialTraceCaptureOwnerTest {
                     graph.sequentialTerminalDiagnosticSnapshot().observed==1L,
                 "real installed observer and actual ground settlement");
 
+            LocalLabSettledDeathEnvelope envelope=
+                LocalLabSettledDeathEnvelope.observe(world,terminal);
+            check(envelope.npcId.equals(npc.id)&&
+                    envelope.definitionId==terminal.finalization.definitionId&&
+                    envelope.deathTile.equals(terminal.finalization.deathTile)&&
+                    envelope.deathTick==terminal.finalization.deathTick&&
+                    name.equals(envelope.recipientRef)&&
+                    envelope.spawnRecipientGeneration==generation&&
+                    envelope.observedCurrentGeneration==generation&&
+                    envelope.spawnRecipientStillCurrent()&&
+                    envelope.originStatus==
+                        LocalLabSettledDeathEnvelope.OriginStatus
+                            .CURRENT_SPAWN_RECIPIENT,
+                "real canonical finalization and drop identity reflected in envelope");
             LocalLabSequentialTerminalStageTrace a=
                 new LocalLabSequentialTerminalStageTrace(world);
             LocalLabSequentialTerminalStageTrace b=
                 new LocalLabSequentialTerminalStageTrace(world);
             LocalLabSequentialTerminalStageTrace.Capture capture=a.begin(terminal);
+            check(capture.envelope.npcId.equals(envelope.npcId)&&
+                    capture.envelope.deathTick==envelope.deathTick&&
+                    capture.envelope.originStatus==envelope.originStatus,
+                "installed stage capture consumes validated terminal evidence");
             String rejection=null;
             try {
                 b.record(capture);
