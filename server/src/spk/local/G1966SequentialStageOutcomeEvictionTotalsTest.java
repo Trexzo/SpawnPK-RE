@@ -270,6 +270,16 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
                     !mismatchedEpoch.findings.isEmpty()&&
                     !mismatchedEpoch.safeToAutomaticallyReplay(),
                 "separate time snapshots rejected instead of inventing grant consistency");
+            LocalLabTerminalEvidenceConsistencyAudit.Result staleJoint=
+                LocalLabTerminalEvidenceConsistencyAudit.inspectComponents(
+                    after,LocalLabTerminalDeliverySummary.from(after),
+                    early.originConsumerOutcomes
+                );
+            check(staleJoint.status==
+                    LocalLabTerminalEvidenceConsistencyAudit.Status.DRIFT&&
+                    !staleJoint.findings.isEmpty()&&
+                    !staleJoint.hasDurableGrantAcknowledgement(),
+                "stale cross-tab cannot masquerade as a current complete diagnostic snapshot");
             boolean auditReadonly=false;
             try{
                 mismatchedEpoch.findings.clear();
