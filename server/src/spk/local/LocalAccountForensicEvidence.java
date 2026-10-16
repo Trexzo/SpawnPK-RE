@@ -211,6 +211,29 @@ public final class LocalAccountForensicEvidence {
     }
 
     /**
+     * G21.289: selected negative marker content is a forensic witness
+     * even if an uncooperative actor restores its size/mtime after
+     * editing the same inode. Hash only bounded, regular, NOFOLLOW
+     * sidecars. Nonregular/oversize/unidentifiable objects stay
+     * explicitly opaque NEGATIVE evidence, never clean authority.
+     *
+     * This does NOT decode markers, validate their authority, create
+     * account epochs, or establish an atomic snapshot.
+     */
+    private static String negativeSidecarContentWitness(
+        Path sidecar,Stat observed)throws IOException{
+        if(observed.attributes==null)return "ABSENT";
+        BasicFileAttributes attrs=observed.attributes;
+        if(!attrs.isRegularFile()||attrs.isSymbolicLink())
+            return "NONREGULAR_OPAQUE_NEGATIVE";
+        if(attrs.fileKey()==null)
+            return "UNIDENTIFIED_OPAQUE_NEGATIVE";
+        if(attrs.size()>MAX_ACCOUNT_BYTES)
+            return "OVERSIZE_OPAQUE_NEGATIVE";
+        return "SHA256:"+hashAccount(sidecar,observed);
+    }
+
+    /**
      * Read only; every retained sidecar is NEGATIVE regardless of
      * contents. A nonregular (including symlink) sidecar is negative,
      * not a reason to follow its target. Races trigger an exception.
@@ -262,8 +285,13 @@ public final class LocalAccountForensicEvidence {
         Stat accountBefore=observe(account);
         HardlinkWitness linksBefore=accountHardlinks(account,accountBefore);
         Map<String,Stat> sidecarsBefore=new LinkedHashMap<>();
-        for(Map.Entry<String,Path> entry:names.entrySet())
-            sidecarsBefore.put(entry.getKey(),observe(entry.getValue()));
+        Map<String,String> sidecarBytesBefore=new LinkedHashMap<>();
+        for(Map.Entry<String,Path> entry:names.entrySet()){
+            Stat previous=observe(entry.getValue());
+            sidecarsBefore.put(entry.getKey(),previous);
+            sidecarBytesBefore.put(entry.getKey(),
+                negativeSidecarContentWitness(entry.getValue(),previous));
+        }
         final String hash=hashAccount(account,accountBefore);
         afterFirstDigest.run(account);
         // G21.283: NOFOLLOW on the final account leaf does NOT
@@ -290,6 +318,12 @@ public final class LocalAccountForensicEvidence {
             if(!same(before,after))
                 throw new IOException(
                     "G21.279 NEGATIVE_SIDECAR_CHANGED_DURING_READ");
+            // An ordinary stat-only check misses in-place byte edits
+            // when a foreign process restores original size and mtime.
+            if(!Objects.equals(sidecarBytesBefore.get(entry.getKey()),
+                negativeSidecarContentWitness(entry.getValue(),after)))
+                throw new IOException(
+                    "G21.289 NEGATIVE_SIDECAR_BYTES_CHANGED_DURING_READ");
             states.put(entry.getKey(),after.classification);
             if(after.attributes!=null)found++;
         }
