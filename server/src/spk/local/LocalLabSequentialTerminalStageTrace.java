@@ -30,6 +30,11 @@ final class LocalLabSequentialTerminalStageTrace {
         SKIPPED_NO_CURRENT_RECIPIENT
     }
 
+    // G1 executes before the five derived progression consumers.
+    // RETURNED means the G1 callback returned, NOT that its receipt was
+    // durably acknowledged. THREW may be after a partial G1 mutation.
+    enum G1Outcome { NOT_OBSERVED, RETURNED, THREW }
+
     static final class Report {
         final EntityId npcId;
         final long deathTick;
@@ -40,6 +45,8 @@ final class LocalLabSequentialTerminalStageTrace {
         // This does not authorize blocking or replaying any grant.
         final boolean spawnOriginMatchedAtDispatch;
         final long observedCurrentGeneration;
+        final G1Outcome g1Outcome;
+        final String g1FailureType;
         final Map<Stage,Outcome> outcomes;
         final Map<Stage,String> failureTypes;
 
@@ -56,6 +63,8 @@ final class LocalLabSequentialTerminalStageTrace {
             spawnOriginMatchedAtDispatch=
                 capture.spawnOriginMatchedAtDispatch;
             observedCurrentGeneration=capture.observedCurrentGeneration;
+            g1Outcome=capture.g1Outcome;
+            g1FailureType=capture.g1FailureType;
             outcomes=Collections.unmodifiableMap(
                 new EnumMap<Stage,Outcome>(capture.outcomes)
             );
@@ -124,6 +133,26 @@ final class LocalLabSequentialTerminalStageTrace {
         final EnumMap<Stage,String> failureTypes=
             new EnumMap<Stage,String>(Stage.class);
         private boolean recorded;
+        private G1Outcome g1Outcome=G1Outcome.NOT_OBSERVED;
+        private String g1FailureType;
+
+        private void claimG1(G1Outcome outcome,Throwable failure){
+            if(recorded||g1Outcome!=G1Outcome.NOT_OBSERVED)
+                throw new IllegalStateException(
+                    "SEQUENTIAL_TERMINAL_G1_ALREADY_OBSERVED"
+                );
+            g1Outcome=Objects.requireNonNull(outcome,"g1Outcome");
+            g1FailureType=failure==null
+                ?null:failure.getClass().getName();
+        }
+
+        void g1Returned(){
+            claimG1(G1Outcome.RETURNED,null);
+        }
+
+        void g1Threw(Throwable failure){
+            claimG1(G1Outcome.THREW,Objects.requireNonNull(failure,"failure"));
+        }
 
         private Capture(
             LocalLabSequentialTerminalStageTrace owner,
