@@ -13,9 +13,11 @@ public final class G1919DeadNpcRemovedDuringGenerationTest {
     static final int REMOVE_OTHER_NPC=1;
     static final int REMOVE_SELECTED_LIFECYCLE=2;
     static final int REMOVE_OTHER_LIFECYCLE=3;
+    static final int RESTART_SELECTED_LIFECYCLE=4;
+    static final int RESTART_OTHER_LIFECYCLE=5;
 
     static void run(int mode)throws Exception{
-        if(mode<0||mode>3)
+        if(mode<0||mode>5)
             throw new IllegalArgumentException("mode");
         World world=World.isolatedForTest(600L);
         WorldPlayer player=new WorldPlayer();
@@ -86,6 +88,22 @@ public final class G1919DeadNpcRemovedDuringGenerationTest {
                                 removed=world.npcLifecycle()
                                     .unregisterExact(other);
                                 break;
+                            case RESTART_SELECTED_LIFECYCLE:
+                                removed=world.npcLifecycle()
+                                    .unregisterExact(target);
+                                if(removed)
+                                    world.npcLifecycle().register(
+                                        target,20,
+                                        "CUSTOM_LOCALLAB_G1923_RESTARTED");
+                                break;
+                            case RESTART_OTHER_LIFECYCLE:
+                                removed=world.npcLifecycle()
+                                    .unregisterExact(other);
+                                if(removed)
+                                    world.npcLifecycle().register(
+                                        other,20,
+                                        "CUSTOM_LOCALLAB_G1924_RESTARTED");
+                                break;
                             default: throw new AssertionError(mode);
                         }
                         check(removed,
@@ -110,13 +128,16 @@ public final class G1919DeadNpcRemovedDuringGenerationTest {
 
             boolean selectedRemoved=
                 mode==REMOVE_SELECTED_NPC||
-                mode==REMOVE_SELECTED_LIFECYCLE;
+                mode==REMOVE_SELECTED_LIFECYCLE||
+                mode==RESTART_SELECTED_LIFECYCLE;
             LocalCanonicalNpcAttackHandler.Status expected=
                 mode==REMOVE_SELECTED_NPC
                     ?LocalCanonicalNpcAttackHandler.Status.STALE_CANONICAL
                     :mode==REMOVE_SELECTED_LIFECYCLE
                         ?LocalCanonicalNpcAttackHandler.Status.LIFECYCLE_MISSING
-                        :LocalCanonicalNpcAttackHandler.Status.TARGET_DEAD;
+                        :mode==RESTART_SELECTED_LIFECYCLE
+                            ?LocalCanonicalNpcAttackHandler.Status.STALE_LIFECYCLE
+                            :LocalCanonicalNpcAttackHandler.Status.TARGET_DEAD;
             check(supplierCalls[0]==1&&result!=null&&
                     result.status==expected&&
                     result.acceptedHit==null&&
@@ -139,6 +160,10 @@ public final class G1919DeadNpcRemovedDuringGenerationTest {
             if(mode==REMOVE_SELECTED_LIFECYCLE)
                 check(world.npcLifecycle().get(target.id)==null,
                     "selected lifecycle really removed");
+            else if(mode==RESTART_SELECTED_LIFECYCLE)
+                check(world.npcLifecycle().get(target.id)!=null&&
+                        world.npcLifecycle().get(target.id).alive(),
+                    "selected lifecycle restarted alive with new epoch");
             else
                 check(world.npcLifecycle().get(target.id).dead(),
                     "selected lifecycle still dead");
