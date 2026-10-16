@@ -105,6 +105,24 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
                     after.g1OutcomeCount(
                         LocalLabSequentialTerminalStageTrace.G1Outcome.NOT_OBSERVED)==0L,
                 "131 real installed G1 callbacks survive detail eviction");
+            LocalLabSettledDeathEnvelope.OriginStatus current=
+                LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT;
+            check(early.originCount(current)==1L&&
+                    after.originCount(current)==cycles,
+                "131 genuine current spawn origins retained after three evictions");
+            for(LocalLabSettledDeathEnvelope.OriginStatus origin:
+                    LocalLabSettledDeathEnvelope.OriginStatus.values())
+                if(origin!=current)
+                    check(after.originCount(origin)==0L,
+                        "no invented stale or disconnected origins "+origin);
+            boolean originImmutable=false;
+            try{
+                after.originCounts.put(current,0L);
+            }catch(UnsupportedOperationException expected){
+                originImmutable=true;
+            }
+            check(originImmutable&&early.originCount(current)==1L,
+                "historic origin aggregate snapshot detached and immutable");
             boolean g1Readonly=false;
             try{
                 after.g1OutcomeCounts.put(returned,0L);
