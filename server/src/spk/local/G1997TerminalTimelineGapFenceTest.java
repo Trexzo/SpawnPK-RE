@@ -120,6 +120,14 @@ public final class G1997TerminalTimelineGapFenceTest {
                     IllegalStateException.class.getName());
                 expectedFailure=
                     "TERMINAL_FAILURE_BOUNDARY_UNEXPECTED_FAILURE_TYPE_G4";
+            }else if(scenario==10){
+                capture.outcomes.put(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,
+                    LocalLabSequentialTerminalStageTrace.Outcome.THREW);
+                capture.failureTypes.put(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,"   ");
+                expectedFailure=
+                    "TERMINAL_FAILURE_BOUNDARY_MISSING_FAILURE_TYPE_G4";
             }else throw new IllegalArgumentException("scenario="+scenario);
 
             String rejected=null;
@@ -154,7 +162,7 @@ public final class G1997TerminalTimelineGapFenceTest {
                 // Correct the test-only inconsistency and record it once;
                 // still no rewards, re-finalization or second drop.
                 if(scenario>=5){
-                    if(scenario==5)
+                    if(scenario==5||scenario==10)
                         capture.failureTypes.put(
                             LocalLabSequentialTerminalStageTrace.Stage.G4,
                             IllegalStateException.class.getName());
