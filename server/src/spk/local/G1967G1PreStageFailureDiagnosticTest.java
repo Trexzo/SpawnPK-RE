@@ -155,6 +155,16 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                                 .RETURNED_UNACKNOWLEDGED)==1L,
                         "G1 pre-stage exception leaves five derived consumers unattempted "+
                             consumer);
+            check(allConsumers.firstBoundaryCount(
+                    LocalLabTerminalFailureBoundaryTally.Boundary
+                        .NO_THROW_RECORDED)==1L&&
+                allConsumers.firstBoundaryCount(
+                    LocalLabTerminalFailureBoundaryTally.Boundary.G1)==
+                    (provokeSecondDeath?1L:0L)&&
+                stage.failureBoundaries.count(
+                    LocalLabTerminalFailureBoundaryTally.Boundary.G1)==
+                    (provokeSecondDeath?1L:0L),
+                "real G1 postground exception is the earliest blocking stage");
             MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics all=
                 installed.runtime().terminalObserverDiagnostics();
             check(all.totalAttempts==cycles&&

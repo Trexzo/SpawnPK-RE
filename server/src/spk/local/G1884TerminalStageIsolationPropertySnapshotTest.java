@@ -342,6 +342,14 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                                 :LocalLabTerminalDeliveryAssessment.Evidence
                                     .RETURNED_UNACKNOWLEDGED)==1L,
                         "aggregate downstream progression respects fail-fast "+consumer);
+                check(summary.firstBoundaryCount(
+                        malformedG14
+                            ?LocalLabTerminalFailureBoundaryTally.Boundary.G14
+                            :LocalLabTerminalFailureBoundaryTally.Boundary
+                                .NO_THROW_RECORDED)==1L&&
+                    summary.firstBoundaryCount(
+                        LocalLabTerminalFailureBoundaryTally.Boundary.G1)==0L,
+                    "genuine G14 fail-fast is the first observed blocking stage");
                 LocalLabTerminalDeliveryAssessment assessment=
                     LocalLabTerminalDeliveryAssessment.from(stage);
                 check(assessment.evidence(

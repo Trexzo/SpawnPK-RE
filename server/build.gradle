@@ -2241,6 +2241,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1982OriginConsumerRebindDisconnectTest',
     'spk.local.G1983OriginConsumerG1G14FailureTest',
     'spk.local.G1984OriginConsumerCollectorFenceTest',
+    'spk.local.G1985FirstTerminalBoundaryEvictionTotalsTest',
+    'spk.local.G1986FirstTerminalBoundaryG1FailureTest',
+    'spk.local.G1987FirstTerminalBoundaryG14AndDisconnectTest',
+    'spk.local.G1988FirstTerminalBoundaryInvalidSequenceFenceTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2586,10 +2590,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 739 ||
-    currentTrainFocusedTests.toSet().size() != 739) {
+if (currentTrainFocusedTests.size() != 743 ||
+    currentTrainFocusedTests.toSet().size() != 743) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 739 unique tests, found " +
+        "Current-train focused manifest drift: expected 743 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11235,4 +11239,44 @@ tasks.register('g21314FinalReviewActiveObjectDriftRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21314NegativeFinalWitnessActiveIdentityDriftTest')
+}
+
+
+tasks.register('g1985FirstTerminalBoundaryEvictionTotalsRegression', JavaExec) {
+    group = 'verification'
+    description = '131 real settled NPCs preserve NO_THROW first failure tally across detailed report eviction.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1985FirstTerminalBoundaryEvictionTotalsTest')
+}
+
+
+tasks.register('g1986FirstTerminalBoundaryG1FailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Genuine post-settlement G1 exception is the first blocking stage and five remain unattempted.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1986FirstTerminalBoundaryG1FailureTest')
+}
+
+
+tasks.register('g1987FirstTerminalBoundaryG14DisconnectRegression', JavaExec) {
+    group = 'verification'
+    description = 'Genuine G14 exception and disconnected recipient have distinct first-boundary outcomes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1987FirstTerminalBoundaryG14AndDisconnectTest')
+}
+
+
+tasks.register('g1988FirstTerminalBoundaryInvalidSequenceFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject inconsistent G1+G4 failure report before mutating cross-tab or failure counts.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1988FirstTerminalBoundaryInvalidSequenceFenceTest')
 }
