@@ -2275,6 +2275,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21312ForcedWorldForeignPostmoveFinalWitnessControlTest',
     'spk.local.G21313NegativeFinalWitnessAccountIdentityDriftTest',
     'spk.local.G21314NegativeFinalWitnessActiveIdentityDriftTest',
+    'spk.local.G21315RealSocketFinalAccountInodeDriftTest',
+    'spk.local.G21316RealSocketFinalActiveInodeDriftTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2586,10 +2588,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 739 ||
-    currentTrainFocusedTests.toSet().size() != 739) {
+if (currentTrainFocusedTests.size() != 741 ||
+    currentTrainFocusedTests.toSet().size() != 741) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 739 unique tests, found " +
+        "Current-train focused manifest drift: expected 741 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11235,4 +11237,21 @@ tasks.register('g21314FinalReviewActiveObjectDriftRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21314NegativeFinalWitnessActiveIdentityDriftTest')
+}
+tasks.register('g21315RealTcpFinalAccountInodeDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual LocalSession forced final-save worker rejects same-byte account inode swap.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21315RealSocketFinalAccountInodeDriftTest')
+}
+
+tasks.register('g21316RealTcpFinalActiveInodeDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual LocalSession forced final-save worker rejects same-byte ACTIVE inode swap.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21316RealSocketFinalActiveInodeDriftTest')
 }
