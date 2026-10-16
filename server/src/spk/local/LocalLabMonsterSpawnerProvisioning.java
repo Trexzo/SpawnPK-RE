@@ -72,6 +72,10 @@ final class LocalLabMonsterSpawnerProvisioning {
         if(optionalStageIsolation!=null)
             optionalStageIsolation.bindTo(checkedWorld);
 
+        // Observational only: cannot apply or replay any reward.
+        LocalLabSequentialTerminalStageTrace sequentialTrace=
+            new LocalLabSequentialTerminalStageTrace(checkedWorld);
+
         MonsterSpawnerService service=
             new MonsterSpawnerService(
                 checkedWorld.npcs()
@@ -234,13 +238,22 @@ final class LocalLabMonsterSpawnerProvisioning {
                     finalization=result.finalization;
 
                 if(optionalStageIsolation==null){
-                    creditTerminalProgression(
-                        checkedWorld,
-                        finalization.recipientRef,
-                        finalization.definitionId,
-                        finalization.deathTile,
-                        finalization.deathTick
-                    );
+                    LocalLabSequentialTerminalStageTrace.Capture capture=
+                        sequentialTrace.begin(result);
+                    try{
+                        creditTerminalProgression(
+                            checkedWorld,
+                            finalization.recipientRef,
+                            finalization.definitionId,
+                            finalization.deathTile,
+                            finalization.deathTick,
+                            capture
+                        );
+                    }finally{
+                        // Record NOT_REACHED after a failed stage but
+                        // preserve the original caller exception.
+                        sequentialTrace.record(capture);
+                    }
                 }else{
                     optionalStageIsolation.deliver(
                         checkedWorld,result
@@ -283,7 +296,8 @@ final class LocalLabMonsterSpawnerProvisioning {
                     return CATALOG_AUTHORITY;
                 }
             },
-            optionalStageIsolation
+            optionalStageIsolation,
+            sequentialTrace
         );
     }
 
@@ -301,6 +315,19 @@ final class LocalLabMonsterSpawnerProvisioning {
         int definitionId,
         Tile deathTile,
         long deathTick
+    ){
+        return creditTerminalProgression(
+            world,recipientRef,definitionId,deathTile,deathTick,null
+        );
+    }
+
+    private static boolean creditTerminalProgression(
+        World world,
+        String recipientRef,
+        int definitionId,
+        Tile deathTile,
+        long deathTick,
+        LocalLabSequentialTerminalStageTrace.Capture trace
     ){
         World checkedWorld=
             Objects.requireNonNull(
@@ -322,54 +349,73 @@ final class LocalLabMonsterSpawnerProvisioning {
                 recipientRefChecked
             );
 
-        if(recipient==null)
+        if(recipient==null){
+            if(trace!=null)trace.skipNoCurrentRecipient();
             return false;
+        }
 
         long generation=
             recipient.generation();
 
         if(!checkedWorld.players().owns(
                 recipient,
-                generation))
+                generation)){
+            if(trace!=null)trace.skipNoCurrentRecipient();
             return false;
+        }
 
-        checkedWorld.localLabSlayer()
-            .recordMonsterSpawnerFinalization(
-                recipientRefChecked,
-                definitionId,
-                tile,
-                deathTick
-            );
+        deliverSequentialStage(
+            trace,LocalLabSequentialTerminalStageTrace.Stage.G4,
+            ()->checkedWorld.localLabSlayer()
+                .recordMonsterSpawnerFinalization(
+                    recipientRefChecked,definitionId,tile,deathTick
+                )
+        );
 
-        checkedWorld.localLabDailyChallenges()
-            .recordMonsterSpawnerFinalization(
-                recipientRefChecked,
-                definitionId,
-                deathTick
-            );
+        deliverSequentialStage(
+            trace,LocalLabSequentialTerminalStageTrace.Stage.G14,
+            ()->checkedWorld.localLabDailyChallenges()
+                .recordMonsterSpawnerFinalization(
+                    recipientRefChecked,definitionId,deathTick
+                )
+        );
 
-        checkedWorld.localLabTaskScrolls()
-            .recordMonsterSpawnerFinalization(
-                recipientRefChecked,
-                definitionId,
-                deathTick
-            );
+        deliverSequentialStage(
+            trace,LocalLabSequentialTerminalStageTrace.Stage.G15,
+            ()->checkedWorld.localLabTaskScrolls()
+                .recordMonsterSpawnerFinalization(
+                    recipientRefChecked,definitionId,deathTick
+                )
+        );
 
-        checkedWorld.localLabAdventures()
-            .recordMonsterSpawnerFinalization(
-                recipientRefChecked,
-                definitionId,
-                deathTick
-            );
+        deliverSequentialStage(
+            trace,LocalLabSequentialTerminalStageTrace.Stage.G16,
+            ()->checkedWorld.localLabAdventures()
+                .recordMonsterSpawnerFinalization(
+                    recipientRefChecked,definitionId,deathTick
+                )
+        );
 
-        checkedWorld.localLabDailyMoneyMaking()
-            .recordMonsterSpawnerFinalization(
-                recipientRefChecked,
-                definitionId,
-                deathTick
-            );
+        deliverSequentialStage(
+            trace,LocalLabSequentialTerminalStageTrace.Stage.G18,
+            ()->checkedWorld.localLabDailyMoneyMaking()
+                .recordMonsterSpawnerFinalization(
+                    recipientRefChecked,definitionId,deathTick
+                )
+        );
 
         return true;
+    }
+
+    private static void deliverSequentialStage(
+        LocalLabSequentialTerminalStageTrace.Capture trace,
+        LocalLabSequentialTerminalStageTrace.Stage stage,
+        Runnable consumer
+    ){
+        if(trace==null)
+            consumer.run();
+        else
+            trace.run(stage,consumer);
     }
 
     static Tile resolveCurrentOwnerAdjacentTile(
