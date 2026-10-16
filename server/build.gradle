@@ -2287,6 +2287,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21316RealSocketFinalActiveInodeDriftTest',
     'spk.local.G21319NegativeFinalWitnessActiveHardlinkDriftTest',
     'spk.local.G21320NegativeFinalWitnessHardlinkDriftAndIsolationTest',
+    'spk.local.G21321PreexistingActiveHardlinkAdmissionNegativeTest',
+    'spk.local.G21322BeforeForceWitnessAliasNegativeTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2598,10 +2600,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 751 ||
-    currentTrainFocusedTests.toSet().size() != 751) {
+if (currentTrainFocusedTests.size() != 753 ||
+    currentTrainFocusedTests.toSet().size() != 753) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 751 unique tests, found " +
+        "Current-train focused manifest drift: expected 753 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2723,6 +2725,8 @@ def currentTrainCriticalCoverage = [
     'g21320-negative-final-witness-hardlink-count': [
         'spk.local.G21319NegativeFinalWitnessActiveHardlinkDriftTest',
         'spk.local.G21320NegativeFinalWitnessHardlinkDriftAndIsolationTest',
+        'spk.local.G21321PreexistingActiveHardlinkAdmissionNegativeTest',
+        'spk.local.G21322BeforeForceWitnessAliasNegativeTest',
     ],
 ]
 currentTrainCriticalCoverage.each { family, requiredClasses ->
@@ -11398,4 +11402,20 @@ tasks.register('g21320FinalWitnessHardlinkDriftAndIsolationRegression', JavaExec
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21320NegativeFinalWitnessHardlinkDriftAndIsolationTest')
+}
+tasks.register('g21321PreexistingActiveHardlinkPreflightRegression', JavaExec) {
+    group = 'verification'
+    description = 'Preexisting exact ACTIVE alias denied before CREATE_NEW witness.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21321PreexistingActiveHardlinkAdmissionNegativeTest')
+}
+tasks.register('g21322BeforeForceWitnessHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'Post-CREATE_NEW pre-file-force exact witness alias remains negative.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21322BeforeForceWitnessAliasNegativeTest')
 }
