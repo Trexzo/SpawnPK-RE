@@ -247,6 +247,13 @@ public final class LocalAccountForensicEvidence {
         // preflight. Observe the entire parent ancestry again
         // before trusting postread metadata or its second digest.
         requireForensicAncestryStillSafe(account);
+        // G21.285: check the independently observed nlink witness at
+        // the exact after-first-digest seam before metadata checks.
+        // Otherwise filesystem-specific ctime mapping may classify
+        // the same alias race as a generic metadata drift.
+        if(!linksBefore.equals(accountHardlinks(account,accountBefore)))
+            throw new IOException(
+                "G21.285 ACCOUNT_HARDLINK_COUNT_CHANGED_DURING_READ");
         Stat accountAfter=observe(account);
         if(!same(accountBefore,accountAfter))
             throw new IOException(
