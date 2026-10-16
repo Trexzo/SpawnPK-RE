@@ -501,6 +501,161 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
             throw new AssertionError("G19.5.1/52 "+message);
     }
 
+    /**
+     * G19.5.5/56: repeatedly settle actual canonical spawner deaths
+     * into one World-local runtime. The 128-entry observer ring remains
+     * bounded and older failures survive only as observational totals.
+     * A runtime without an observer records no fabricated attempts.
+     */
+    static void runObserverHistoryBoundaries(
+        boolean installObserver
+    )throws Exception{
+        World world=World.isolatedForTest(60_000L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            final String recipient=installObserver
+                ?"g1955-observer-bounded"
+                :"g1956-observer-absent";
+            generation=world.registerPlayer(player,recipient);
+            player.movement().restoreAccountState(
+                false,100,3087,3495,0);
+            RuntimeGraph graph=new RuntimeGraph(
+                world,attackDefinition(),recipient);
+            world.installMonsterSpawnerPvmRuntime(graph.runtime);
+            final int[] callbackCount={0};
+            if(installObserver)
+                graph.runtime.installTerminalObserver(
+                    terminal->{
+                        if(terminal.status!=
+                                MonsterSpawnerPvmRuntime
+                                    .FinalizeStatus.FINALIZED||
+                           terminal.finalization==null||
+                           terminal.settlement==null)
+                            throw new AssertionError(
+                                "G1955 callback before real settlement");
+                        callbackCount[0]++;
+                        // The one failed observer is deliberately FIRST.
+                        // After 131 completions its detailed ring entry
+                        // is evicted, but the failure total must survive.
+                        if(callbackCount[0]==1)
+                            throw new IllegalStateException(
+                                "G1955_FIRST_OBSERVER_AFTER_GROUND_FAILURE");
+                    });
+
+            int cycles=installObserver
+                ?MonsterSpawnerPvmRuntime
+                    .MAX_TERMINAL_OBSERVER_ATTEMPTS+3
+                :3;
+            java.util.ArrayList<EntityId> ids=
+                new java.util.ArrayList<EntityId>();
+            MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics
+                firstSnapshot=null;
+
+            for(int n=0;n<cycles;n++){
+                if(n>0)
+                    graph.spawner.activate(recipient,1);
+                MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                    graph.runtime.spawnAndBind(
+                        recipient,recipient,3088,3495,0);
+                WorldNpc npc=spawned.spawn.combat.spawn.npc;
+                ids.add(npc.id);
+                NpcLifecycleService.DamageResult killed=
+                    world.npcLifecycle().applyDamageOwned(
+                        npc.id,10,world.clock().tick());
+                if(!killed.newlyDied)
+                    throw new AssertionError(
+                        "G1955 expected exact canonical lethal NPC");
+                MonsterSpawnerPvmRuntime.FinalizeResult finalized=
+                    graph.runtime.finalizeIfOwned(npc);
+                if(finalized==null||
+                   finalized.status!=
+                       MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED||
+                   finalized.settlement==null||
+                   graph.runtime.get(npc.id)!=null||
+                   world.npcs().byId(npc.id)!=null)
+                    throw new AssertionError(
+                        "G1955 actual canonical teardown and drop");
+                if(n==0)
+                    firstSnapshot=
+                        graph.runtime.terminalObserverDiagnostics();
+            }
+
+            MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics after=
+                graph.runtime.terminalObserverDiagnostics();
+            GroundItem ground=world.groundItems().findOwned(
+                995,3088,3495,0,recipient);
+            checkObserver(ground!=null&&ground.amount==5*cycles&&
+                    graph.dropCalls==cycles&&
+                    graph.runtime.size()==0,
+                "all genuine deaths settle exactly once into ground stack");
+
+            if(installObserver){
+                int limit=MonsterSpawnerPvmRuntime
+                    .MAX_TERMINAL_OBSERVER_ATTEMPTS;
+                MonsterSpawnerPvmRuntime.TerminalObserverAttempt
+                    firstVisible=after.recentAttempts.get(0);
+                MonsterSpawnerPvmRuntime.TerminalObserverAttempt
+                    lastVisible=after.recentAttempts.get(limit-1);
+                checkObserver(
+                    firstSnapshot!=null&&
+                    firstSnapshot.totalAttempts==1L&&
+                    firstSnapshot.failedAttempts==1L&&
+                    firstSnapshot.recentAttempts.size()==1&&
+                    firstSnapshot.recentAttempts.get(0)
+                        .npcId.equals(ids.get(0))&&
+                    after.totalAttempts==cycles&&
+                    after.failedAttempts==1L&&
+                    after.evictedAttempts==3L&&
+                    after.recentAttempts.size()==limit&&
+                    firstVisible.npcId.equals(ids.get(3))&&
+                    lastVisible.npcId.equals(ids.get(cycles-1))&&
+                    firstVisible.outcome==
+                        MonsterSpawnerPvmRuntime
+                            .TerminalObserverOutcome.RETURNED&&
+                    lastVisible.outcome==
+                        MonsterSpawnerPvmRuntime
+                            .TerminalObserverOutcome.RETURNED&&
+                    callbackCount[0]==cycles,
+                    "bounded ring evicts detail but preserves failure totals");
+
+                boolean immutable=false;
+                try{
+                    after.recentAttempts.remove(0);
+                }catch(UnsupportedOperationException expected){
+                    immutable=true;
+                }
+                checkObserver(immutable&&after.recentAttempts.size()==limit,
+                    "full ring returns detached immutable snapshot");
+            }else
+                checkObserver(
+                    firstSnapshot!=null&&
+                    firstSnapshot.totalAttempts==0&&
+                    firstSnapshot.failedAttempts==0&&
+                    firstSnapshot.recentAttempts.isEmpty()&&
+                    after.totalAttempts==0L&&
+                    after.failedAttempts==0L&&
+                    after.evictedAttempts==0L&&
+                    after.recentAttempts.isEmpty()&&
+                    callbackCount[0]==0,
+                    "runtime without installed observer invents no attempts");
+
+            checkObserver(
+                graph.runtime.retrySettlement(ids.get(cycles-1))
+                    .status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                graph.dropCalls==cycles&&
+                graph.runtime.terminalObserverDiagnostics()
+                    .totalAttempts==
+                    (installObserver?cycles:0),
+                "post-settlement retry cannot replay old observers");
+        }finally{
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
+    }
+
     private static void configuredRuntimeFinalizes(
         int definition
     )throws Exception{
