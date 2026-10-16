@@ -77,6 +77,49 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
                     after.observed==cycles&&after.evicted==3L&&
                     after.recent.size()==128&&unique.size()==cycles,
                 "bounded detail and monotonic aggregate observations");
+            LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundary=
+                after.originFailureBoundaries;
+            LocalLabOriginFirstFailureBoundaryTally.Snapshot earliestBoundary=
+                early.originFailureBoundaries;
+            LocalLabSettledDeathEnvelope.OriginStatus exactOrigin=
+                LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT;
+            check(originBoundary.count(exactOrigin,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED)
+                        ==cycles&&
+                    earliestBoundary.count(exactOrigin,
+                        LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED)
+                        ==1L&&
+                    !originBoundary.hasDurableGrantAcknowledgement()&&
+                    !originBoundary.safeToAutomaticallyReplay(),
+                "131 exact-origin terminal first-boundary observations survive eviction");
+            for(LocalLabSettledDeathEnvelope.OriginStatus origin:
+                    LocalLabSettledDeathEnvelope.OriginStatus.values())
+                for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                        LocalLabTerminalFailureBoundaryTally.Boundary.values())
+                    if(origin!=exactOrigin||
+                       boundary!=LocalLabTerminalFailureBoundaryTally.Boundary
+                           .NO_THROW_RECORDED)
+                        check(originBoundary.count(origin,boundary)==0L,
+                            "no invented origin/first-boundary pair "+origin+"/"+boundary);
+            boolean originBoundaryImmutable=false;
+            boolean originBoundaryNestedImmutable=false;
+            try{
+                originBoundary.crossCounts.clear();
+            }catch(UnsupportedOperationException expected){
+                originBoundaryImmutable=true;
+            }
+            try{
+                originBoundary.crossCounts.get(exactOrigin).put(
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED,
+                    0L);
+            }catch(UnsupportedOperationException expected){
+                originBoundaryNestedImmutable=true;
+            }
+            check(originBoundaryImmutable&&originBoundaryNestedImmutable&&
+                    earliestBoundary.count(exactOrigin,
+                        LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED)
+                        ==1L,
+                "origin × first-boundary historical snapshots detached and deeply immutable");
             check(after.recent.get(0).npcId.equals(ids.get(3))&&
                     after.recent.get(127).npcId.equals(ids.get(cycles-1)),
                 "oldest three genuine death reports evicted first");
