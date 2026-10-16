@@ -2171,6 +2171,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1912RetiredReusedSceneIndexAttackerFenceTest',
     'spk.local.G1913ProjectionRetiredBeforeDamageAdmissionTest',
     'spk.local.G1914UnrelatedProjectionRetiredAttackControlTest',
+    'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2462,10 +2463,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 615 ||
-    currentTrainFocusedTests.toSet().size() != 615) {
+if (currentTrainFocusedTests.size() != 616 ||
+    currentTrainFocusedTests.toSet().size() != 616) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 615 unique tests, found " +
+        "Current-train focused manifest drift: expected 616 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9885,4 +9886,12 @@ tasks.register('g1914UnrelatedProjectionRetiredAttackControlRegression', JavaExe
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1914UnrelatedProjectionRetiredAttackControlTest')
+}
+
+tasks.register('g21258ForcedRawAccountPreimageDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.258: opt-in forced RAW primary/named/repository veto same-inode old account byte drift despite preserved length/mtime.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21258ForcedRawAccountPreimageDriftTest')
 }

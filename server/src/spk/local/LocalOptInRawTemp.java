@@ -9,6 +9,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -188,7 +189,7 @@ final class LocalOptInRawTemp {
     static void forcePublish(
         Path temp,Path account,BasicFileAttributes identity,
         byte[] sealed,LocalJvmAccountSessionLease.RawWriteReservation raw,
-        String accountUsername
+        String accountUsername,AccountPreimage expectedPreimage
     )throws IOException{
         if(!forcePostimageEnabled()||raw==null)
             throw new IOException(
@@ -240,6 +241,7 @@ final class LocalOptInRawTemp {
             BeforeAccountMoveProbe moveProbe=beforeMoveProbeForTest;
             if(moveProbe!=null)moveProbe.beforeMove(account);
             requirePublicationLockName(account,publicationLockIdentity);
+            requireAccountPreimageUnchanged(account,expectedPreimage);
             raw.requireLockObjectContinuity();
             try{
                 Files.move(
@@ -282,6 +284,61 @@ final class LocalOptInRawTemp {
      * descriptor to the named leaf against a hostile race before the
      * first observation or after the final check.
      */
+    /**
+     * G21.258: optional, strictly NEGATIVE optimistic account-file
+     * preimage witness before RAW serialization. Capturing absent
+     * versus a bounded NOFOLLOW exact preexisting inode + digest lets
+     * us veto an externally changed account at final publication.
+     * The writer's caller is still responsible for stale semantic
+     * snapshots prepared BEFORE this capture, and last-check/move
+     * remains inherently vulnerable to an uncooperative actor.
+     */
+    static final class AccountPreimage{
+        final BasicFileAttributes attributes;
+        final byte[] sha256;
+        AccountPreimage(BasicFileAttributes a,byte[] sha){
+            attributes=a;sha256=sha;
+        }
+    }
+    static AccountPreimage captureAccountPreimage(Path account)
+        throws IOException{
+        BasicFileAttributes attributes;
+        try{
+            attributes=Files.readAttributes(
+                account,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        }catch(NoSuchFileException absent){
+            return new AccountPreimage(null,null);
+        }
+        if(!attributes.isRegularFile()||
+           attributes.isSymbolicLink()||attributes.fileKey()==null)
+            throw new IOException(
+                "G21.258 ACCOUNT_PREIMAGE_UNSAFE_NO_PUBLICATION");
+        return new AccountPreimage(
+            attributes,fingerprint(account,attributes));
+    }
+
+    static void requireAccountPreimageUnchanged(
+        Path account,AccountPreimage original
+    )throws IOException{
+        if(original==null)
+            throw new IOException(
+                "G21.258 ACCOUNT_PREIMAGE_WITNESS_REQUIRED");
+        AccountPreimage current=captureAccountPreimage(account);
+        BasicFileAttributes before=original.attributes;
+        BasicFileAttributes after=current.attributes;
+        if((before==null)!=(after==null))
+            throw new IOException(
+                "G21.258 FORCED_RAW_PREIMAGE_DRIFT_NO_MOVE");
+        if(before==null)return;
+        if(!Objects.equals(before.fileKey(),after.fileKey())||
+           !Objects.equals(before.creationTime(),after.creationTime())||
+           before.size()!=after.size()||
+           !Objects.equals(before.lastModifiedTime(),after.lastModifiedTime())||
+           !MessageDigest.isEqual(original.sha256,current.sha256))
+            throw new IOException(
+                "G21.258 FORCED_RAW_PREIMAGE_DRIFT_NO_MOVE");
+    }
+
     static BasicFileAttributes observePublicationLock(Path account)
         throws IOException{
         Path lock=MailboxAccountPublicationCoordinator.lockPath(account);

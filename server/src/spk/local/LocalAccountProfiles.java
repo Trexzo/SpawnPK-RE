@@ -201,6 +201,9 @@ final class LocalAccountProfiles {
         );
 
         final boolean safeTemp=LocalOptInRawTemp.enabled();
+        final LocalOptInRawTemp.AccountPreimage accountPreimage=
+            LocalOptInRawTemp.forcePostimageEnabled()
+                ?LocalOptInRawTemp.captureAccountPreimage(file):null;
         Path tmp=safeTemp?LocalOptInRawTemp.create(file):
             file.resolveSibling(file.getFileName().toString()+".tmp");
         final java.nio.file.attribute.BasicFileAttributes tempIdentity=
@@ -226,7 +229,8 @@ final class LocalAccountProfiles {
                     tmp,tempIdentity,sealedTemp);
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
-                    tmp,file,tempIdentity,sealedTemp,reservation,u);
+                    tmp,file,tempIdentity,sealedTemp,reservation,
+                    u,accountPreimage);
             }else try{
                 if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);
