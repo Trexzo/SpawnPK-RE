@@ -2257,6 +2257,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1998TerminalTimelineFailureGapFenceTest',
     'spk.local.G1999TerminalTimelineValidPrefixTest',
     'spk.local.G2000TerminalTimelineUnobservedControlTest',
+    'spk.local.G2001TerminalMissingFailureTypeFenceTest',
+    'spk.local.G2002TerminalReturnedWithStaleFailureTypeTest',
+    'spk.local.G2003TerminalUnreachedSkippedFailureTypeTest',
+    'spk.local.G2004TerminalTypedFailurePositiveControlTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2612,10 +2616,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 765 ||
-    currentTrainFocusedTests.toSet().size() != 765) {
+if (currentTrainFocusedTests.size() != 769 ||
+    currentTrainFocusedTests.toSet().size() != 769) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 765 unique tests, found " +
+        "Current-train focused manifest drift: expected 769 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2745,6 +2749,14 @@ def currentTrainCriticalCoverage = [
         'spk.local.G1998TerminalTimelineFailureGapFenceTest',
         'spk.local.G1999TerminalTimelineValidPrefixTest',
         'spk.local.G2000TerminalTimelineUnobservedControlTest',
+    ],
+    // G20.0.4: failing stages must carry their actual exception type.
+    // Missing/stale metadata must not pollute World-local retained totals.
+    'g2004-terminal-failure-metadata-integrity': [
+        'spk.local.G2001TerminalMissingFailureTypeFenceTest',
+        'spk.local.G2002TerminalReturnedWithStaleFailureTypeTest',
+        'spk.local.G2003TerminalUnreachedSkippedFailureTypeTest',
+        'spk.local.G2004TerminalTypedFailurePositiveControlTest',
     ],
     // G21.319/320: selected ACTIVE/witness hardlink drift must remain tested.
     'g21320-negative-final-witness-hardlink-count': [
@@ -11558,4 +11570,44 @@ tasks.register('g2000TerminalTimelineUnobservedControlRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2000TerminalTimelineUnobservedControlTest')
+}
+
+
+tasks.register('g2001TerminalMissingFailureTypeFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject missing or blank G4 THREW class evidence before collector mutation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2001TerminalMissingFailureTypeFenceTest')
+}
+
+
+tasks.register('g2002TerminalReturnedStaleFailureTypeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject RETURNED stages incorrectly carrying a stale exception.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2002TerminalReturnedWithStaleFailureTypeTest')
+}
+
+
+tasks.register('g2003TerminalUnreachedSkippedFailureTypeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject failure metadata on NOT_REACHED or recipient-SKIPPED stages.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2003TerminalUnreachedSkippedFailureTypeTest')
+}
+
+
+tasks.register('g2004TerminalTypedFailurePositiveControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Keep real installed G14 and correctly typed test G4 failure diagnostics.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2004TerminalTypedFailurePositiveControlTest')
 }
