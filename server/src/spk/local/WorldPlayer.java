@@ -31,6 +31,12 @@ final class WorldPlayer {
         );
     private boolean mailboxSnapshotKnown;
     private final Object mutationLock=new Object();
+    // Exact LocalLab semantic NPC Attack cooldown is player-owned rather
+    // than handler-instance-owned: multiple wrappers for this WorldPlayer
+    // must share both the admission monitor and authoritative next tick.
+    // Separate from legacy CombatState and original SpawnPK authority.
+    private final Object canonicalNpcAttackLock=new Object();
+    private long canonicalNpcAttackNextAllowedTick;
     private String username;
     private long generation;
     private boolean registered;
@@ -74,6 +80,27 @@ final class WorldPlayer {
     }
 
     Object mutationLock(){return mutationLock;}
+
+    Object canonicalNpcAttackLock(){return canonicalNpcAttackLock;}
+
+    long canonicalNpcAttackNextAllowedTick(){
+        synchronized(canonicalNpcAttackLock){
+            return canonicalNpcAttackNextAllowedTick;
+        }
+    }
+
+    void canonicalNpcAttackNextAllowedTick(long nextTick){
+        if(nextTick<0L)
+            throw new IllegalArgumentException("nextTick="+nextTick);
+        synchronized(canonicalNpcAttackLock){
+            if(nextTick<canonicalNpcAttackNextAllowedTick)
+                throw new IllegalArgumentException(
+                    "canonical NPC next tick regressed old="+
+                    canonicalNpcAttackNextAllowedTick+" new="+nextTick
+                );
+            canonicalNpcAttackNextAllowedTick=nextTick;
+        }
+    }
 
     synchronized String username(){return username;}
     synchronized long generation(){return generation;}
