@@ -2182,6 +2182,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
+    'spk.local.G21261ForeignJvmLateRawHardlinkCountVetoTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2473,10 +2474,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 626 ||
-    currentTrainFocusedTests.toSet().size() != 626) {
+if (currentTrainFocusedTests.size() != 627 ||
+    currentTrainFocusedTests.toSet().size() != 627) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 626 unique tests, found " +
+        "Current-train focused manifest drift: expected 627 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9992,4 +9993,12 @@ tasks.register('g21260LateRawAccountHardlinkCountVetoRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21260LateRawAccountHardlinkCountVetoTest')
+}
+
+tasks.register('g21261ForeignJvmLateRawHardlinkCountVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.261: real second JVM creates hardlink after RAW early nlink gate; late pre-move gate prevents account replace.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21261ForeignJvmLateRawHardlinkCountVetoTest')
 }
