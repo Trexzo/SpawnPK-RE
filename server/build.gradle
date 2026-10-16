@@ -2237,6 +2237,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21288ForensicUnrelatedMultipleAliasChurnControlTest',
     'spk.local.G21289ForensicNegativeSidecarRestoredMtimeDriftTest',
     'spk.local.G21290ForensicUnrelatedMarkerByteDriftControlTest',
+    'spk.local.G21291ForensicMarkerFingerprintReportContinuityTest',
+    'spk.local.G21292ForensicExactLinkCountReportIsolationTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2548,10 +2550,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 701 ||
-    currentTrainFocusedTests.toSet().size() != 701) {
+if (currentTrainFocusedTests.size() != 703 ||
+    currentTrainFocusedTests.toSet().size() != 703) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 701 unique tests, found " +
+        "Current-train focused manifest drift: expected 703 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10759,4 +10761,22 @@ tasks.register('g1968G1PreStageHealthyControlRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1968G1PreStageHealthyControlTest')
+}
+
+tasks.register('g21291ForensicMarkerReportFingerprintRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.291: independent operator scans expose exact bounded changed marker fingerprints.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21291ForensicMarkerFingerprintReportContinuityTest')
+}
+
+tasks.register('g21292ForensicExactNlinkReportIsolationRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.292: separate stable scans distinguish selected 2/3 inode links, no cross-account bleed.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21292ForensicExactLinkCountReportIsolationTest')
 }
