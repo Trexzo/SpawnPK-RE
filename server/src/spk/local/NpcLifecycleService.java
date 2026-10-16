@@ -26,6 +26,9 @@ final class NpcLifecycleService {
         final State state;
         final long deathTick;
         final String sourceAuthority;
+        // Opaque per-register lifetime witness (no global/serialized epoch).
+        // Distinguishes unregister/register ABA even if deathTick/HP match.
+        final Object registrationIdentity;
 
         Snapshot(Entry entry){
             this.npcId=entry.npc.id;
@@ -35,6 +38,7 @@ final class NpcLifecycleService {
             this.state=entry.state;
             this.deathTick=entry.deathTick;
             this.sourceAuthority=entry.sourceAuthority;
+            this.registrationIdentity=entry.registrationIdentity;
         }
 
         boolean alive(){
@@ -111,6 +115,7 @@ final class NpcLifecycleService {
         final WorldNpc npc;
         final int maxHitpoints;
         final String sourceAuthority;
+        final Object registrationIdentity=new Object();
 
         int hitpoints;
         State state=State.ALIVE;

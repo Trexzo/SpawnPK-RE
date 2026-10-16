@@ -2181,6 +2181,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1922UnrelatedNpcLifecycleRemovedRetryControlTest',
     'spk.local.G1923DeadNpcLifecycleRestartedDuringGenerationTest',
     'spk.local.G1924UnrelatedNpcLifecycleRestartedRetryControlTest',
+    'spk.local.G1925DeadNpcSameTickLifecycleAbaRejectedTest',
+    'spk.local.G1926UnrelatedNpcSameTickLifecycleAbaControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2476,10 +2478,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 629 ||
-    currentTrainFocusedTests.toSet().size() != 629) {
+if (currentTrainFocusedTests.size() != 631 ||
+    currentTrainFocusedTests.toSet().size() != 631) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 629 unique tests, found " +
+        "Current-train focused manifest drift: expected 631 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10021,4 +10023,22 @@ tasks.register('g1924UnrelatedNpcLifecycleRestartControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1924UnrelatedNpcLifecycleRestartedRetryControlTest')
+}
+
+tasks.register('g1925DeadNpcSameTickLifecycleAbaRegression', JavaExec) {
+    group = 'verification'
+    description = 'Current dead NPC lifecycle registration ABA distinguished from equal-valued prior death.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1925DeadNpcSameTickLifecycleAbaRejectedTest')
+}
+
+tasks.register('g1926UnrelatedNpcSameTickLifecycleAbaControl', JavaExec) {
+    group = 'verification'
+    description = 'Current dead NPC lifecycle registration ABA distinguished from equal-valued prior death.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1926UnrelatedNpcSameTickLifecycleAbaControlTest')
 }

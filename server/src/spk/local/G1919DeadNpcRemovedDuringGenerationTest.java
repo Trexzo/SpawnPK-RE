@@ -15,9 +15,11 @@ public final class G1919DeadNpcRemovedDuringGenerationTest {
     static final int REMOVE_OTHER_LIFECYCLE=3;
     static final int RESTART_SELECTED_LIFECYCLE=4;
     static final int RESTART_OTHER_LIFECYCLE=5;
+    static final int REDEAD_SELECTED_SAME_TICK=6;
+    static final int REDEAD_OTHER_SAME_TICK=7;
 
     static void run(int mode)throws Exception{
-        if(mode<0||mode>5)
+        if(mode<0||mode>7)
             throw new IllegalArgumentException("mode");
         World world=World.isolatedForTest(600L);
         WorldPlayer player=new WorldPlayer();
@@ -66,6 +68,17 @@ public final class G1919DeadNpcRemovedDuringGenerationTest {
             check(death.newlyDied&&
                     world.npcLifecycle().get(target.id).dead(),
                 "selected NPC was truly canonical dead before handler");
+            final NpcLifecycleService.Snapshot originalDeath=
+                world.npcLifecycle().get(target.id);
+            if(mode==REDEAD_OTHER_SAME_TICK){
+                NpcLifecycleService.DamageResult otherDeath=
+                    world.npcLifecycle().applyDamage(other.id,20,1919L);
+                check(otherDeath.newlyDied,
+                    "unrelated NPC must also start dead same tick");
+            }
+            final NpcLifecycleService.Snapshot originalOtherDeath=
+                mode==REDEAD_OTHER_SAME_TICK
+                    ?world.npcLifecycle().get(other.id):null;
             final long exactGeneration=generation;
             final int[] supplierCalls={0},callbackCalls={0};
             LocalCanonicalNpcAttackHandler handler=
@@ -104,6 +117,39 @@ public final class G1919DeadNpcRemovedDuringGenerationTest {
                                         other,20,
                                         "CUSTOM_LOCALLAB_G1924_RESTARTED");
                                 break;
+                            case REDEAD_SELECTED_SAME_TICK:
+                            case REDEAD_OTHER_SAME_TICK:
+                                WorldNpc toRestart=
+                                    mode==REDEAD_SELECTED_SAME_TICK
+                                        ?target:other;
+                                NpcLifecycleService.Snapshot initial=
+                                    mode==REDEAD_SELECTED_SAME_TICK
+                                        ?originalDeath:originalOtherDeath;
+                                removed=world.npcLifecycle()
+                                    .unregisterExact(toRestart);
+                                if(removed){
+                                    world.npcLifecycle().register(
+                                        toRestart,20,
+                                        mode==REDEAD_SELECTED_SAME_TICK
+                                          ?"CUSTOM_LOCALLAB_G1919_SELECTED"
+                                          :"CUSTOM_LOCALLAB_G1919_UNRELATED");
+                                    NpcLifecycleService.DamageResult
+                                        again=world.npcLifecycle().applyDamage(
+                                            toRestart.id,20,1919L);
+                                    NpcLifecycleService.Snapshot newer=
+                                        world.npcLifecycle().get(toRestart.id);
+                                    check(again.newlyDied&&
+                                        newer!=null&&newer.dead()&&
+                                        newer.deathTick==initial.deathTick&&
+                                        newer.maxHitpoints==initial.maxHitpoints&&
+                                        newer.hitpoints==initial.hitpoints&&
+                                        newer.sourceAuthority.equals(
+                                            initial.sourceAuthority)&&
+                                        newer.registrationIdentity!=
+                                            initial.registrationIdentity,
+                                        "new death matches every public value but not registration");
+                                }
+                                break;
                             default: throw new AssertionError(mode);
                         }
                         check(removed,
@@ -129,13 +175,15 @@ public final class G1919DeadNpcRemovedDuringGenerationTest {
             boolean selectedRemoved=
                 mode==REMOVE_SELECTED_NPC||
                 mode==REMOVE_SELECTED_LIFECYCLE||
-                mode==RESTART_SELECTED_LIFECYCLE;
+                mode==RESTART_SELECTED_LIFECYCLE||
+                mode==REDEAD_SELECTED_SAME_TICK;
             LocalCanonicalNpcAttackHandler.Status expected=
                 mode==REMOVE_SELECTED_NPC
                     ?LocalCanonicalNpcAttackHandler.Status.STALE_CANONICAL
                     :mode==REMOVE_SELECTED_LIFECYCLE
                         ?LocalCanonicalNpcAttackHandler.Status.LIFECYCLE_MISSING
-                        :mode==RESTART_SELECTED_LIFECYCLE
+                        :mode==RESTART_SELECTED_LIFECYCLE||
+                         mode==REDEAD_SELECTED_SAME_TICK
                             ?LocalCanonicalNpcAttackHandler.Status.STALE_LIFECYCLE
                             :LocalCanonicalNpcAttackHandler.Status.TARGET_DEAD;
             check(supplierCalls[0]==1&&result!=null&&
