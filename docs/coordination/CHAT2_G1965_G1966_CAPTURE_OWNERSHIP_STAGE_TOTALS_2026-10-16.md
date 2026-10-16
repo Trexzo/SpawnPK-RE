@@ -17,7 +17,7 @@ Parent: integration PR #2837, exact base commit `0e27d11c841b70c0f6b9b875814e14f
 ## Focused tests
 
 - `G1965SameWorldSequentialTraceCaptureOwnerTest`: genuine finalized and settled NPC, two separate same-World trace instances, reject misattribution without consuming original capture, reject double record, no additional settlement.
-- `G1966SequentialStageOutcomeEvictionTotalsTest`: 131 unique real canonical NPC deaths in an installed default progression graph; check 128 retained, three evicted, all 131 per-stage RETURNED callback totals, deeply immutable detached early snapshot, no fabricated alternative outcome, one ground drop per NPC.
+- `G1966SequentialStageOutcomeEvictionTotalsTest`: 131 unique real canonical NPC deaths in an installed default progression graph; check 128 retained, three evicted, all 131 per-stage RETURNED callback totals, deeply immutable detached early snapshot, no fabricated alternative outcome, one ground drop per NPC. The fixture uses an **unregistered spawner session owner** but a **registered and current recipient**. This prevents unrelated G1 auto-respawn pending-ticket collisions while exercising authentic World NPC lifecycle, ground settlement, G1 recipient record and installed G4/G14/G15/G16/G18 callbacks. It does not change the production policy.
 
 Focused manifest 693 -> **695 unique**, plus exact `g1965...` and `g1966...` JavaExec regressions. Require fresh hosted exact-head 695/695, Java11 major 55, and full Gradle before certification. All existing G21 account/security code is untouched.
 
