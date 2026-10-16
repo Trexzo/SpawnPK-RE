@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /**
@@ -35,7 +36,7 @@ public final class G21275ActiveReviewMarkerPostMoveByteDriftTest {
             "core_g21275",Collections.singletonMap("phase",phase));
         return PlayerSnapshotCodec.capture(username,player);
     }
-    private static void editOneValidUuidNibble(Path marker)
+    private static void editOneValidUuidNibble(Path account,Path marker)
         throws IOException{
         byte[] before=Files.readAllBytes(marker);
         String text=new String(before,StandardCharsets.UTF_8);
@@ -63,9 +64,7 @@ public final class G21275ActiveReviewMarkerPostMoveByteDriftTest {
         // The changed UUID remains syntactically legal. Distinguish
         // digest/identity drift from a malformed marker rejection.
         LocalDurableAccountReviewIntentPrimitive
-            .requireReviewMarker(
-                marker.resolveSibling(marker.getFileName().toString()
-                    .replace(".g21188-active-review","")));
+            .requireReviewMarker(account);
     }
     static void run(boolean mutate)throws Exception{
         String user=mutate?"g21275-mutated-review":"g21276-retained-review";
@@ -86,6 +85,7 @@ public final class G21275ActiveReviewMarkerPostMoveByteDriftTest {
             Path marker=LocalDurableAccountReviewIntentPrimitive
                 .markerPath(account);
             AtomicReference<byte[]> postmove=new AtomicReference<>();
+            AtomicBoolean tamperValidated=new AtomicBoolean();
             FilePlayerRepository repo=new FilePlayerRepository(
                 LocalAccountProfiles::accountFile,
                 a->{},a->{},a->{},a->{},a->{},
@@ -93,7 +93,10 @@ public final class G21275ActiveReviewMarkerPostMoveByteDriftTest {
                     check(user.equals(a),
                         "wrong account selected in after-move hook");
                     postmove.set(Files.readAllBytes(account));
-                    if(mutate)editOneValidUuidNibble(marker);
+                    if(mutate){
+                        editOneValidUuidNibble(account,marker);
+                        tamperValidated.set(true);
+                    }
                 });
             repo.save(snapshot(user,"BEFORE"));
             LocalDurableAccountReviewIntentPrimitive
@@ -127,11 +130,17 @@ public final class G21275ActiveReviewMarkerPostMoveByteDriftTest {
                 Throwable e=failed.getCause();
                 uncertain=e!=null&&
                     String.valueOf(e.getMessage()).contains(
-                        "G21.271 FORCED_WORLD_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW");
+                        "G21.271 FORCED_WORLD_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW")&&
+                    (!mutate||(e.getCause()!=null&&
+                        String.valueOf(e.getCause().getMessage()).contains(
+                            "G21.275 WORLD_ACTIVE_REVIEW_MARKER_CHANGED_NO_ACK")));
                 if(!mutate)throw failed;
             }
             check(uncertain==mutate,
                 "ACTIVE marker continuity was not distinguished");
+            if(mutate)
+                check(tamperValidated.get(),
+                    "tampered ACTIVE nonce not fully validated in hook");
             check(postmove.get()!=null&&
                 !Arrays.equals(accountBefore,postmove.get())&&
                 Arrays.equals(postmove.get(),Files.readAllBytes(account)),
