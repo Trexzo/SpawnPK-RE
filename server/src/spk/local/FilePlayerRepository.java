@@ -112,19 +112,6 @@ final class FilePlayerRepository
         BeforeWorldReplace betweenRestartWitnessPasses,
         BeforeWorldReplace beforeRawReplace
     ){
-        this.paths=Objects.requireNonNull(paths,"paths");
-        this.beforeWorldReplace=Objects.requireNonNull(
-            beforeWorldReplace,"beforeWorldReplace"
-        );
-        this.insideWorldPublication=Objects.requireNonNull(
-            insideWorldPublication,"insideWorldPublication"
-        );
-        this.afterWorldSessionRead=Objects.requireNonNull(
-            afterWorldSessionRead,"afterWorldSessionRead"
-        );
-        this.betweenRestartWitnessPasses=Objects.requireNonNull(
-            betweenRestartWitnessPasses,"betweenRestartWitnessPasses"
-        );
         this(paths,beforeWorldReplace,insideWorldPublication,
             afterWorldSessionRead,betweenRestartWitnessPasses,
             beforeRawReplace,account->{});
