@@ -2211,6 +2211,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1952TerminalObserverFailureDiagnosticTest',
     'spk.local.G1953InstalledSequentialObserverFailureTest',
     'spk.local.G1954InstalledIsolatedObserverReturnWithStageFailureTest',
+    'spk.local.G1955ObserverOutcomeBoundedRetentionTest',
+    'spk.local.G1956NoObserverNoOutcomeFabricationTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2522,10 +2524,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 675 ||
-    currentTrainFocusedTests.toSet().size() != 675) {
+if (currentTrainFocusedTests.size() != 677 ||
+    currentTrainFocusedTests.toSet().size() != 677) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 675 unique tests, found " +
+        "Current-train focused manifest drift: expected 677 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10481,4 +10483,22 @@ tasks.register('g1954InstalledIsolatedObserverReturnWithStageFailureRegression',
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1954InstalledIsolatedObserverReturnWithStageFailureTest')
+}
+
+tasks.register('g1955ObserverOutcomeBoundedRetentionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real settled NPC deaths cannot grow observer outcome history without bound.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1955ObserverOutcomeBoundedRetentionTest')
+}
+
+tasks.register('g1956NoObserverNoOutcomeFabricationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Absent terminal observer yields zero fabricated outcome records.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1956NoObserverNoOutcomeFabricationTest')
 }
