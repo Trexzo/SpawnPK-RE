@@ -2217,6 +2217,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1958SequentialHealthyStageTraceTest',
     'spk.local.G1959DisconnectedRecipientStageTraceTest',
     'spk.local.G1960ForeignWorldSequentialTraceFenceTest',
+    'spk.local.G1961SameNameRecipientRebindObservationTest',
+    'spk.local.G1962IsolatedSameNameRebindObservationTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2534,10 +2536,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 687 ||
-    currentTrainFocusedTests.toSet().size() != 687) {
+if (currentTrainFocusedTests.size() != 689 ||
+    currentTrainFocusedTests.toSet().size() != 689) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 687 unique tests, found " +
+        "Current-train focused manifest drift: expected 689 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10618,4 +10620,22 @@ tasks.register('g1960ForeignWorldSequentialTraceFenceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1960ForeignWorldSequentialTraceFenceTest')
+}
+
+tasks.register('g1961SameNameRecipientRebindObservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Characterize existing same-name NPC credit and default-stage origin mismatch.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1961SameNameRecipientRebindObservationTest')
+}
+
+tasks.register('g1962IsolatedSameNameRebindObservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Characterize opt-in isolated-stage origin mismatch without changing credit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1962IsolatedSameNameRebindObservationTest')
 }
