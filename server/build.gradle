@@ -2191,6 +2191,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1932ConcurrentDifferentTargetCadenceControlTest',
     'spk.local.G1933DifferentHandlerInstancesSameTargetCadenceTest',
     'spk.local.G1934DifferentHandlerInstancesDifferentTargetCadenceTest',
+    'spk.local.G1935ReentrantNpcAttackFenceTest',
+    'spk.local.G1936ReentrantNpcAdmissionExceptionRecoveryTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2490,10 +2492,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 643 ||
-    currentTrainFocusedTests.toSet().size() != 643) {
+if (currentTrainFocusedTests.size() != 645 ||
+    currentTrainFocusedTests.toSet().size() != 645) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 643 unique tests, found " +
+        "Current-train focused manifest drift: expected 645 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10161,4 +10163,22 @@ tasks.register('g21265UnrelatedPostMoveRawMarkerControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21265UnrelatedPostMoveRawMarkerControlTest')
+}
+
+tasks.register('g1935ReentrantNpcAttackFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Nested synchronous opcode72 attack cannot bypass shared player cooldown.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1935ReentrantNpcAttackFenceTest')
+}
+
+tasks.register('g1936ReentrantNpcAdmissionExceptionRecoveryRegression', JavaExec) {
+    group = 'verification'
+    description = 'A callback exception must release the shared NPC attack in-flight guard.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1936ReentrantNpcAdmissionExceptionRecoveryTest')
 }
