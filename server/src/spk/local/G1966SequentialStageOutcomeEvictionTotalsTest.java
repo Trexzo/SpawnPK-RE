@@ -15,25 +15,29 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
         WorldPlayer player=new WorldPlayer();
         long generation=-1L;
         final String name="g1966-actual-stage-outcome-evictions";
+        // The unregistered session owner suppresses unrelated G1 auto-respawn
+        // scheduling while preserving a real connected recipient and all five
+        // installed default progression callbacks across 131 manual spawns.
+        final String sessionOwner=name+"-unregistered-spawner-owner";
         try {
             generation=world.registerPlayer(player,name);
             player.movement().restoreAccountState(false,100,3087,3495,0);
             LocalMonsterSpawnerActivationRuntime graph=
                 LocalLabMonsterSpawnerProvisioning.create(world,null);
             MonsterSpawnerService service=graph.service();
-            service.openSession(name,
+            service.openSession(sessionOwner,
                 LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY);
-            service.selectRow(name,0);
-            service.activate(name,1);
+            service.selectRow(sessionOwner,0);
+            service.activate(sessionOwner,1);
 
             int cycles=LocalLabSequentialTerminalStageTrace.MAX_REPORTS+3;
             ArrayList<EntityId> ids=new ArrayList<EntityId>();
             HashSet<EntityId> unique=new HashSet<EntityId>();
             LocalLabSequentialTerminalStageTrace.Snapshot early=null;
             for(int n=0;n<cycles;n++){
-                if(n>0)service.activate(name,1);
+                if(n>0)service.activate(sessionOwner,1);
                 MonsterSpawnerPvmRuntime.SpawnResult spawned=
-                    graph.runtime().spawnAndBind(name,name,3088,3495,0);
+                    graph.runtime().spawnAndBind(sessionOwner,name,3088,3495,0);
                 WorldNpc npc=spawned.spawn.combat.spawn.npc;
                 check(npc!=null&&unique.add(npc.id),
                     "each cycle uses a distinct real NPC identity");
