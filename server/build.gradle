@@ -2219,6 +2219,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1960ForeignWorldSequentialTraceFenceTest',
     'spk.local.G1961SameNameRecipientRebindObservationTest',
     'spk.local.G1962IsolatedSameNameRebindObservationTest',
+    'spk.local.G1963CurrentSpawnRecipientOriginPositiveControlTest',
+    'spk.local.G1964MissingSpawnRecipientOriginNegativeControlTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2538,10 +2540,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 691 ||
-    currentTrainFocusedTests.toSet().size() != 691) {
+if (currentTrainFocusedTests.size() != 693 ||
+    currentTrainFocusedTests.toSet().size() != 693) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 691 unique tests, found " +
+        "Current-train focused manifest drift: expected 693 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10658,4 +10660,22 @@ tasks.register('g1962IsolatedSameNameRebindObservationRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1962IsolatedSameNameRebindObservationTest')
+}
+
+tasks.register('g1963CurrentSpawnRecipientOriginPositiveControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real default stage trace positively matches still-current spawn player/generation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1963CurrentSpawnRecipientOriginPositiveControlTest')
+}
+
+tasks.register('g1964MissingSpawnRecipientOriginNegativeControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Disconnected recipient yields false origin match and observed generation -1.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1964MissingSpawnRecipientOriginNegativeControlTest')
 }
