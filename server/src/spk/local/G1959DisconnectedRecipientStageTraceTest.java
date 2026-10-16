@@ -78,8 +78,11 @@ public final class G1959DisconnectedRecipientStageTraceTest {
             check(report.npcId.equals(npc.id)&&
                     report.deathTick==terminal.finalization.deathTick&&
                     report.recipientRef.equals(username)&&
-                    report.spawnRecipientGeneration==generation,
-                "trace captures immutable death and spawn recipient generation");
+                    report.spawnRecipientGeneration==generation&&
+                    report.spawnOriginMatchedAtDispatch==crossWorld&&
+                    report.observedCurrentGeneration==
+                        (crossWorld?generation:-1L),
+                "trace separates current matching origin from missing recipient");
 
             if(!crossWorld){
                 for(LocalLabSequentialTerminalStageTrace.Stage stage:
