@@ -2227,6 +2227,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1968G1PreStageHealthyControlTest',
     'spk.local.G1969G1OutcomeEvictionRetentionTest',
     'spk.local.G1970G1OutcomeMixedAndUnobservedControlTest',
+    'spk.local.G1971SettledDeathEnvelopeExactIdentityTest',
+    'spk.local.G1972SettledDeathEnvelopeNegativeOriginsTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2556,10 +2558,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 709 ||
-    currentTrainFocusedTests.toSet().size() != 709) {
+if (currentTrainFocusedTests.size() != 711 ||
+    currentTrainFocusedTests.toSet().size() != 711) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 709 unique tests, found " +
+        "Current-train focused manifest drift: expected 711 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10894,4 +10896,23 @@ tasks.register('g21297WorldFinalActionTimeoutRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21297RealWorldFinalActionTimeoutBoundaryTest')
+}
+
+
+tasks.register('g1971SettledDeathEnvelopeExactIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exact finalized World NPC, ground identity and current spawn-recipient authority audit without reward replay.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1971SettledDeathEnvelopeExactIdentityTest')
+}
+
+tasks.register('g1972SettledDeathEnvelopeNegativeOriginsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real same-name rebind, disconnect, unregistered-at-spawn and foreign-World provenance negatives.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1972SettledDeathEnvelopeNegativeOriginsTest')
 }

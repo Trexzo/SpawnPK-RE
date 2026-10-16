@@ -94,6 +94,17 @@ public final class G1961SameNameRecipientRebindObservationTest {
                     installed.runtime().get(npc.id)==null,
                 "real finalized NPC retains immutable old spawn origin");
 
+            LocalLabSettledDeathEnvelope envelope=
+                LocalLabSettledDeathEnvelope.observe(world,terminal);
+            require(envelope.originStatus==
+                    LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND&&
+                    envelope.spawnRecipientGeneration==originalGeneration&&
+                    envelope.observedCurrentGeneration==replacementGeneration&&
+                    !envelope.spawnRecipientStillCurrent()&&
+                    envelope.npcId.equals(npc.id)&&
+                    envelope.deathTick==terminal.finalization.deathTick,
+                "settled death envelope retains old origin separate from replacement player");
+
             GroundItem drop=world.groundItems().findOwned(
                 995,3088,3495,0,user);
             require(drop!=null&&drop.amount==1&&
@@ -137,6 +148,10 @@ public final class G1961SameNameRecipientRebindObservationTest {
                 LocalLabSequentialTerminalStageTrace.Report report=
                     stages.recent.get(0);
                 require(!report.spawnOriginMatchedAtDispatch&&
+                        report.originStatus==
+                            LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND&&
+                        report.definitionId==terminal.finalization.definitionId&&
+                        report.deathTile.equals(terminal.finalization.deathTile)&&
                         report.spawnRecipientGeneration==
                             originalGeneration&&
                         report.observedCurrentGeneration==
