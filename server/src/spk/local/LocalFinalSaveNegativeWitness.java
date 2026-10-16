@@ -62,6 +62,26 @@ final class LocalFinalSaveNegativeWitness {
                 "G21.298 NEGATIVE_FINAL_WITNESS_REQUIRES_ALL_EXPERIMENTAL_GATES");
     }
 
+    /**
+     * G21.302: a previously created (or forged/corrupted) final
+     * review witness is ALWAYS a negative admission sidecar.
+     * Never parse its body or use its presence as positive proof.
+     * Check regardless of the current writer opt-in flag: a JVM
+     * restart must not erase this conservative witness by toggling
+     * optional instrumentation off. Missing is NOT proof of safety.
+     */
+    static void requireNoNegativeWitness(Path account)throws IOException{
+        Path witness=witnessPath(account);
+        try{
+            Files.readAttributes(witness,BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        }catch(java.nio.file.NoSuchFileException absent){
+            return;
+        }
+        throw new IOException(
+            "G21.302 NEGATIVE_FINAL_WITNESS_PRESENT_NO_AUTO_RECOVERY");
+    }
+
     static Path witnessPath(Path account)throws IOException{
         Path selected=Objects.requireNonNull(account,"account")
             .toAbsolutePath().normalize();
