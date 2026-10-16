@@ -2301,6 +2301,10 @@ def currentTrainFocusedTests = [
     'spk.local.G21324FinalWitnessSelectedSourceMismatchAuditTest',
     'spk.local.G21325FinalWitnessMalformedAndNonregularAuditTest',
     'spk.local.G21326FinalWitnessInPlaceReadDriftAuditTest',
+    'spk.local.G21327FinalWitnessAuditAccountAliasTest',
+    'spk.local.G21328FinalWitnessAuditActiveAliasTest',
+    'spk.local.G21329FinalWitnessAuditForeignAliasesControlTest',
+    'spk.local.G21330FinalWitnessAuditMultipleSelectedAliasesTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2612,10 +2616,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 765 ||
-    currentTrainFocusedTests.toSet().size() != 765) {
+if (currentTrainFocusedTests.size() != 769 ||
+    currentTrainFocusedTests.toSet().size() != 769) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 765 unique tests, found " +
+        "Current-train focused manifest drift: expected 769 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11558,4 +11562,36 @@ tasks.register('g21326FinalReviewDoubleReadDriftAudit', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21326FinalWitnessInPlaceReadDriftAuditTest')
+}
+
+tasks.register('g21327ForensicSourceAliasRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21327FinalWitnessAuditAccountAliasTest')
+}
+
+tasks.register('g21328ForensicSourceAliasRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21328FinalWitnessAuditActiveAliasTest')
+}
+
+tasks.register('g21329ForensicSourceAliasRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21329FinalWitnessAuditForeignAliasesControlTest')
+}
+
+tasks.register('g21330ForensicSourceAliasRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21330FinalWitnessAuditMultipleSelectedAliasesTest')
 }
