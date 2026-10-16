@@ -2197,6 +2197,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1938MissingNpcPacketWriterLethalFenceTest',
     'spk.local.G1939LethalNpcPacketIoFinalizationTest',
     'spk.local.G1940LethalNpcDualFailureDiagnosticTest',
+    'spk.local.G1941UncheckedNpcMaskFailureTerminalizationTest',
+    'spk.local.G1942UncheckedNpcMaskAndTerminalDualFailureTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2504,10 +2506,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 657 ||
-    currentTrainFocusedTests.toSet().size() != 657) {
+if (currentTrainFocusedTests.size() != 659 ||
+    currentTrainFocusedTests.toSet().size() != 659) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 657 unique tests, found " +
+        "Current-train focused manifest drift: expected 659 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10301,4 +10303,22 @@ tasks.register('g1940LethalNpcDualFailureDiagnosticRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1940LethalNpcDualFailureDiagnosticTest')
+}
+
+tasks.register('g1941UncheckedNpcMaskFailureTerminalizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Unchecked packet mask failure cannot skip NPC lethal finalization.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1941UncheckedNpcMaskFailureTerminalizationTest')
+}
+
+tasks.register('g1942UncheckedNpcMaskAndTerminalDualFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Preserve both packet runtime and terminal callback failure provenance.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1942UncheckedNpcMaskAndTerminalDualFailureTest')
 }

@@ -932,7 +932,9 @@ final class LocalCanonicalNpcAttackHandler {
         // failure must not suppress a newly lethal NPC's terminal callback:
         // no further client click is guaranteed after a broken connection.
         // Preserve the original packet failure if terminalization succeeds;
-        // if both fail, propagate the terminal failure with I/O suppressed.
+        // if both fail, propagate the terminal failure with the presentation
+        // exception suppressed. Both checked I/O and unchecked publication
+        // failures can occur after HP has already been committed.
         try{
             npcs.sendMaskLocal(
                 clicked,
@@ -944,12 +946,13 @@ final class LocalCanonicalNpcAttackHandler {
                 ),
                 writer
             );
-        }catch(IOException presentationFailure){
+        }catch(IOException|RuntimeException presentationFailure){
             if(damage.newlyDied){
                 try{
                     finalizeLethal(target);
                 }catch(IOException|RuntimeException|Error terminalFailure){
-                    terminalFailure.addSuppressed(presentationFailure);
+                    if(terminalFailure!=presentationFailure)
+                        terminalFailure.addSuppressed(presentationFailure);
                     throw terminalFailure;
                 }
             }
