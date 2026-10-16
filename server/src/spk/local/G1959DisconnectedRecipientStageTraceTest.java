@@ -62,6 +62,22 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                     world.npcLifecycle().get(npc.id)==null,
                 "exact terminal finalized and retired in source World");
 
+            LocalLabSettledDeathEnvelope envelope=
+                LocalLabSettledDeathEnvelope.observe(world,terminal);
+            check(envelope.npcId.equals(npc.id)&&
+                    envelope.deathTick==terminal.finalization.deathTick&&
+                    envelope.spawnRecipientGeneration==generation&&
+                    envelope.observedCurrentGeneration==
+                        (crossWorld?generation:-1L)&&
+                    envelope.originStatus==
+                        (crossWorld
+                            ?LocalLabSettledDeathEnvelope.OriginStatus
+                                .CURRENT_SPAWN_RECIPIENT
+                            :LocalLabSettledDeathEnvelope.OriginStatus
+                                .NO_CURRENT_RECIPIENT)&&
+                    envelope.spawnRecipientStillCurrent()==crossWorld,
+                "settled envelope separates connected and absent original recipient");
+
             GroundItem ground=world.groundItems().findOwned(
                 995,3088,3495,0,username);
             check(ground!=null&&ground.amount==1,
@@ -76,6 +92,9 @@ public final class G1959DisconnectedRecipientStageTraceTest {
             LocalLabSequentialTerminalStageTrace.Report report=
                 actual.recent.get(0);
             check(report.npcId.equals(npc.id)&&
+                    report.originStatus==envelope.originStatus&&
+                    report.deathTile.equals(envelope.deathTile)&&
+                    report.definitionId==envelope.definitionId&&
                     report.deathTick==terminal.finalization.deathTick&&
                     report.recipientRef.equals(username)&&
                     report.spawnRecipientGeneration==generation&&
@@ -105,6 +124,15 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                     MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED,
                     "recipient disconnect does not permit retry grant");
             }else{
+                String envelopeRejected=null;
+                try{
+                    LocalLabSettledDeathEnvelope.observe(foreign,terminal);
+                }catch(IllegalStateException expected){
+                    envelopeRejected=expected.getMessage();
+                }
+                check("SETTLED_DEATH_ENVELOPE_SOURCE_WORLD_MISMATCH"
+                        .equals(envelopeRejected),
+                    "foreign World cannot capture a settled death envelope");
                 LocalLabSequentialTerminalStageTrace wrong=
                     new LocalLabSequentialTerminalStageTrace(foreign);
                 String rejected=null;
