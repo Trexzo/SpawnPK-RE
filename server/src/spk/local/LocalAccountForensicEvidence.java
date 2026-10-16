@@ -34,17 +34,21 @@ public final class LocalAccountForensicEvidence {
         final String accountSha256;
         final String accountHardlinkState;
         final String accountObservedLinkCount;
+        final String finalReviewWitnessState;
+        final String finalReviewWitnessContent;
         final Map<String,String> negativeSidecars;
         final Map<String,String> negativeSidecarContentWitnesses;
         final int observedNegativeNames;
 
         Evidence(String state,String sha,String links,String linkCount,
                  Map<String,String> names,Map<String,String> witnesses,
-                 int count){
+                 int count,String finalState,String finalContent){
             accountState=state;
             accountSha256=sha;
             accountHardlinkState=links;
             accountObservedLinkCount=linkCount;
+            finalReviewWitnessState=finalState;
+            finalReviewWitnessContent=finalContent;
             negativeSidecars=Collections.unmodifiableMap(
                 new LinkedHashMap<>(names));
             negativeSidecarContentWitnesses=Collections.unmodifiableMap(
@@ -59,7 +63,9 @@ public final class LocalAccountForensicEvidence {
                 " accountSha256="+accountSha256+
                 " accountHardlinks="+accountHardlinkState+
                 " accountObservedLinkCount="+accountObservedLinkCount+
-                " knownNegativeNames="+observedNegativeNames);
+                " knownNegativeNames="+observedNegativeNames+
+                " finalReviewWitness="+finalReviewWitnessState+
+                " finalReviewWitnessContent="+finalReviewWitnessContent);
             for(Map.Entry<String,String> entry:negativeSidecars.entrySet())
                 b.append(' ').append(entry.getKey()).append('=')
                     .append(entry.getValue());
@@ -296,6 +302,10 @@ public final class LocalAccountForensicEvidence {
             account.getFileName().toString()+
             MailboxGuardedDiskCommitRecord.SUFFIX));
 
+        // G21.331: a sixth negative leaf, independent of the original five.
+        final Path finalReview=LocalFinalSaveNegativeWitness.witnessPath(account);
+        final Stat finalBefore=observe(finalReview);
+        final String finalBytesBefore=negativeSidecarContentWitness(finalReview,finalBefore);
         Stat accountBefore=observe(account);
         HardlinkWitness linksBefore=accountHardlinks(account,accountBefore);
         Map<String,Stat> sidecarsBefore=new LinkedHashMap<>();
@@ -324,6 +334,12 @@ public final class LocalAccountForensicEvidence {
         if(!same(accountBefore,accountAfter))
             throw new IOException(
                 "G21.279 ACCOUNT_CHANGED_DURING_FORENSIC_READ");
+        final Stat finalAfter=observe(finalReview);
+        if(!same(finalBefore,finalAfter))
+            throw new IOException("G21.331 FINAL_REVIEW_WITNESS_CHANGED_DURING_READ");
+        final String finalBytesAfter=negativeSidecarContentWitness(finalReview,finalAfter);
+        if(!Objects.equals(finalBytesBefore,finalBytesAfter))
+            throw new IOException("G21.333 FINAL_REVIEW_WITNESS_BYTES_CHANGED_DURING_READ");
         Map<String,String> states=new LinkedHashMap<>();
         Map<String,String> stableContentWitnesses=new LinkedHashMap<>();
         int found=0;
@@ -364,6 +380,12 @@ public final class LocalAccountForensicEvidence {
             throw new IOException(
                 "G21.279 ACCOUNT_CHANGED_DURING_FORENSIC_READ");
         requireForensicAncestryStillSafe(account);
+        // Keep sixth-leaf continuity until after account second hash.
+        final Stat finalLast=observe(finalReview);
+        if(!same(finalBefore,finalLast)||
+           !Objects.equals(finalBytesBefore,
+               negativeSidecarContentWitness(finalReview,finalLast)))
+            throw new IOException("G21.331 FINAL_REVIEW_WITNESS_CHANGED_DURING_READ");
         // Read-only twice: an alias of the selected inode added or
         // removed during inspection invalidates the observation.
         // This cannot fence foreign nlink mutation after our probe.
@@ -376,7 +398,8 @@ public final class LocalAccountForensicEvidence {
         String observedCount=linksAfter.count>=0L
             ?Long.toString(linksAfter.count):linksAfter.state;
         return new Evidence(state,hash,linksAfter.state,observedCount,
-            states,stableContentWitnesses,found);
+            states,stableContentWitnesses,found,
+            finalAfter.classification,finalBytesAfter);
     }
 
     /** Operator CLI: java -cp ... spk.local.LocalAccountForensicEvidence
