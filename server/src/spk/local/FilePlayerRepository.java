@@ -51,6 +51,10 @@ final class FilePlayerRepository
     // immediately before unguarded legacy fixed-temp replacement.
     // Ordinary repositories install an inert callback.
     private final BeforeWorldReplace beforeRawReplace;
+    // G21.271 package-only deterministic seam AFTER guarded forced
+    // World account replacement, BEFORE final postimage and negative
+    // sidecar observations. Never used for ordinary production saves.
+    private final BeforeWorldReplace afterForcedWorldMoveForTest;
 
     FilePlayerRepository(){
         this(
@@ -121,8 +125,33 @@ final class FilePlayerRepository
         this.betweenRestartWitnessPasses=Objects.requireNonNull(
             betweenRestartWitnessPasses,"betweenRestartWitnessPasses"
         );
+        this(paths,beforeWorldReplace,insideWorldPublication,
+            afterWorldSessionRead,betweenRestartWitnessPasses,
+            beforeRawReplace,account->{});
+    }
+
+    /** G21.271 test-only post-ATOMIC_MOVE forced World race seam. */
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication,
+        BeforeWorldReplace afterWorldSessionRead,
+        BeforeWorldReplace betweenRestartWitnessPasses,
+        BeforeWorldReplace beforeRawReplace,
+        BeforeWorldReplace afterForcedWorldMoveForTest
+    ){
+        this.paths=Objects.requireNonNull(paths,"paths");
+        this.beforeWorldReplace=Objects.requireNonNull(
+            beforeWorldReplace,"beforeWorldReplace");
+        this.insideWorldPublication=Objects.requireNonNull(
+            insideWorldPublication,"insideWorldPublication");
+        this.afterWorldSessionRead=Objects.requireNonNull(
+            afterWorldSessionRead,"afterWorldSessionRead");
+        this.betweenRestartWitnessPasses=Objects.requireNonNull(
+            betweenRestartWitnessPasses,"betweenRestartWitnessPasses");
         this.beforeRawReplace=Objects.requireNonNull(
             beforeRawReplace,"beforeRawReplace");
+        this.afterForcedWorldMoveForTest=Objects.requireNonNull(
+            afterForcedWorldMoveForTest,"afterForcedWorldMoveForTest");
     }
 
     @Override public Optional<PlayerSnapshot> load(
@@ -1581,8 +1610,24 @@ final class FilePlayerRepository
                             // A successful atomic rename is not a
                             // durable receipt. Force parent directory
                             // and independently verify exact postimage.
-                            forceAndVerifyWorldPostimage(
-                                file,sealedWorldTemp);
+                            // G21.271: late uncooperative negative sidecar
+                            // publication AFTER the actual account move
+                            // must not be reported as a confirmed normal
+                            // World save. Bytes may ALREADY be replaced.
+                            // This is not rollback or durable owner ACK.
+                            try{
+                                afterForcedWorldMoveForTest.run(worldAccount);
+                                forceAndVerifyWorldPostimage(
+                                    file,sealedWorldTemp);
+                                LocalDurableAccountReviewIntentPrimitive
+                                    .requireNoReviewMarker(file);
+                                requireUnfencedWorldSave(
+                                    worldAccount,guardedMarkerPaths);
+                            }catch(IOException uncertain){
+                                throw new IOException(
+                                    "G21.271 FORCED_WORLD_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
+                                    uncertain);
+                            }
                             forcedWorldPostimageCount.incrementAndGet();
                         }
                         return null;
