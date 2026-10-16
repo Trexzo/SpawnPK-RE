@@ -147,7 +147,7 @@ public final class G1961SameNameRecipientRebindObservationTest {
                     "one default sequential stage report");
                 LocalLabSequentialTerminalStageTrace.Report report=
                     stages.recent.get(0);
-                check(stages.originCount(
+                require(stages.originCount(
                         LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND)
                         ==1L&&
                     stages.originCount(
@@ -156,7 +156,7 @@ public final class G1961SameNameRecipientRebindObservationTest {
                     "historical owner rebound is aggregated without credit policy changes");
                 LocalLabTerminalDeliveryAssessment assessment=
                     LocalLabTerminalDeliveryAssessment.from(report);
-                check(assessment.originStatus==
+                require(assessment.originStatus==
                         LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND&&
                     assessment.evidence(
                         LocalLabTerminalDeliveryAssessment.Consumer.G1)==
