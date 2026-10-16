@@ -1,0 +1,9 @@
+# G21.308 — preserve 49 exact critical account and NPC regressions
+
+Parent [#2865](https://github.com/Trexzo/SpawnPK-RE/pull/2865) `4a59f31e69a6e5cf10d7f3678975244ea7815490` (729 focused candidate) combines Chat1 final-save integrity and genuine TCP restarts with Chat2 immutable World-local six-consumer outcome summary G1977–80. Latest independently certified source [#2861](https://github.com/Trexzo/SpawnPK-RE/pull/2861) exact `bf26a3577e0fca0a182e1449be96934bb29c1641`, hosted 723/723, Java11 major55 and full Gradle.
+
+**Bug class**: the existing G21.293 Gradle fail-closed must-retain list protects only 23 historical classes, ending NPC G1968 and account forensic G21292. Later G1969–G1980 and G21294–G21307 characterize equally important real World/G1/reward uncertainty, real final-save waits/interruptions, forced negative witness integrity and genuine TCP account admission. Mere manifest COUNT+UNIQUENESS could permit an integration to delete one of these tests and replace it with unrelated test without CI noticing loss of a safety boundary.
+
+**Source change:** extend the existing build-configuration-time `currentTrainCriticalCoverage` table to assert all 14 exact G21294–G21307 classes and 12 exact G1969–G1980 classes. Preserve the previous 23 byte-for-byte in their own groups. **49/49 required unique** preflight actual manifest classes. The regular Gradle configuration fails with the exact missing family/classes if a critical entry is dropped. The 729-name focused manifest is byte-for-byte unchanged and all previous JavaExec tasks remain.
+
+**Authority limit**: a CI guard is not an implementation of a cross-JVM owner epoch, authenticated final-save receipt, safe ACTIVE retirement, exact-once NPC reward ledger or original SpawnPK server policy. No runtime/protocol/persistence source changes. Full exact-head hosted 729/729, Java11 major55 and complete Gradle required; keep draft, main untouched.

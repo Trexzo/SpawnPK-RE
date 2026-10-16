@@ -2627,6 +2627,42 @@ def currentTrainCriticalCoverage = [
         'spk.local.G1966SequentialStageOutcomeEvictionTotalsTest',
         'spk.local.G1967G1PreStageFailureDiagnosticTest',
         'spk.local.G1968G1PreStageHealthyControlTest',
+    ],
+
+    // G21.308: deliberate release-train retention of the new
+    // opt-in final-save teardown and negative operator witness tests.
+    // Missing tests are a CI failure, not evidence of safe recovery.
+    'account-final-save-review-critical': [
+        'spk.local.G21294FinalSaveCompletionWaitTimeoutTest',
+        'spk.local.G21295FinalSaveCompletionInterruptPreservationTest',
+        'spk.local.G21296RealWorldFinalActionInterruptBoundaryTest',
+        'spk.local.G21297RealWorldFinalActionTimeoutBoundaryTest',
+        'spk.local.G21298ActualFinalNegativeReviewWitnessTest',
+        'spk.local.G21299FinalReviewWitnessFailClosedControlsTest',
+        'spk.local.G21300HardKilledMidFinalWitnessNegativeRestartTest',
+        'spk.local.G21301ForcedNegativeWitnessPostForceFailureTest',
+        'spk.local.G21302FinalWitnessRestartAdmissionVetoTest',
+        'spk.local.G21303NegativeFinalWitnessForeignAccountIsolationTest',
+        'spk.local.G21304NegativeFinalWitnessPostforceByteDriftTest',
+        'spk.local.G21305NegativeFinalWitnessSameBytesInodeSwapTest',
+        'spk.local.G21306CoreSocketRetainedFinalWitnessRestartVetoTest',
+        'spk.local.G21307CoreSocketForeignFinalWitnessIsolationTest',
+    ],
+    // G21.308: exact World terminal/consumer diagnostics must not
+    // be replaced by unrelated tests when Chat1/Chat2 reconcile.
+    'npc-terminal-delivery-critical': [
+        'spk.local.G1969G1OutcomeEvictionRetentionTest',
+        'spk.local.G1970G1OutcomeMixedAndUnobservedControlTest',
+        'spk.local.G1971SettledDeathEnvelopeExactIdentityTest',
+        'spk.local.G1972SettledDeathEnvelopeNegativeOriginsTest',
+        'spk.local.G1973TerminalOriginRetentionAfterEvictionTest',
+        'spk.local.G1974TerminalOriginNegativeClassificationTest',
+        'spk.local.G1975ConsumerDeliveryUncertaintyG14Test',
+        'spk.local.G1976ConsumerDeliveryPrestageAndDisconnectTest',
+        'spk.local.G1977ConsumerSummaryHistoryEvictionTest',
+        'spk.local.G1978ConsumerSummaryG1FailureTest',
+        'spk.local.G1979ConsumerSummaryG14FailFastTest',
+        'spk.local.G1980ConsumerSummaryDisconnectedAndWorldFenceTest',
     ]
 ]
 currentTrainCriticalCoverage.each { family, requiredClasses ->
