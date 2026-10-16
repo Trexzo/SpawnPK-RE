@@ -26,6 +26,11 @@ final class LocalMonsterSpawnerActivationRuntime
     // Optional, internal to THIS World-local LocalLab graph. This pointer
     // is never returned; callers only obtain a detached, immutable view.
     private final LocalLabTerminalStageIsolation terminalStageDiagnostics;
+    // Read-only trace of the DEFAULT fail-fast progression stages. This
+    // has no consumer grant/replay methods and never changes the opt-in
+    // experimental stage isolation policy.
+    private final LocalLabSequentialTerminalStageTrace
+        sequentialTerminalTrace;
 
     LocalMonsterSpawnerActivationRuntime(
         World world,
@@ -52,7 +57,25 @@ final class LocalMonsterSpawnerActivationRuntime
         LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver selectedLabel,
         LocalLabTerminalStageIsolation terminalStageDiagnostics
     ){
+        this(
+            world,service,runtime,executor,sessionAuthority,
+            activationBudget,selectedLabel,terminalStageDiagnostics,null
+        );
+    }
+
+    LocalMonsterSpawnerActivationRuntime(
+        World world,
+        MonsterSpawnerService service,
+        MonsterSpawnerPvmRuntime runtime,
+        MonsterSpawnerPvmSpawnExecutor executor,
+        String sessionAuthority,
+        LocalMonsterSpawnerUiHandler.ActivationBudgetResolver activationBudget,
+        LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver selectedLabel,
+        LocalLabTerminalStageIsolation terminalStageDiagnostics,
+        LocalLabSequentialTerminalStageTrace sequentialTrace
+    ){
         this.terminalStageDiagnostics=terminalStageDiagnostics;
+        this.sequentialTerminalTrace=sequentialTrace;
         this.world=Objects.requireNonNull(
             world,
             "world"
@@ -310,6 +333,18 @@ final class LocalMonsterSpawnerActivationRuntime
         return terminalStageDiagnostics==null
             ?null
             :terminalStageDiagnostics.diagnosticSnapshot();
+    }
+
+    /**
+     * Read-only default sequential stage outcomes; null for explicitly
+     * constructed legacy graphs without a trace. No replay or grant
+     * capabilities are exposed through this API.
+     */
+    LocalLabSequentialTerminalStageTrace.Snapshot
+        sequentialTerminalDiagnosticSnapshot(){
+        return sequentialTerminalTrace==null
+            ?null
+            :sequentialTerminalTrace.snapshot();
     }
 
     private static void rethrowCreateFailure(
