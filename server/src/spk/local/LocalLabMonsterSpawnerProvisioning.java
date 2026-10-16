@@ -247,7 +247,8 @@ final class LocalLabMonsterSpawnerProvisioning {
                             finalization.definitionId,
                             finalization.deathTile,
                             finalization.deathTick,
-                            capture
+                            capture,
+                            result.recipientOrigin
                         );
                     }finally{
                         // Record NOT_REACHED after a failed stage but
@@ -317,7 +318,7 @@ final class LocalLabMonsterSpawnerProvisioning {
         long deathTick
     ){
         return creditTerminalProgression(
-            world,recipientRef,definitionId,deathTile,deathTick,null
+            world,recipientRef,definitionId,deathTile,deathTick,null,null
         );
     }
 
@@ -327,7 +328,8 @@ final class LocalLabMonsterSpawnerProvisioning {
         int definitionId,
         Tile deathTile,
         long deathTick,
-        LocalLabSequentialTerminalStageTrace.Capture trace
+        LocalLabSequentialTerminalStageTrace.Capture trace,
+        MonsterSpawnerPvmRuntime.RecipientOrigin spawnOrigin
     ){
         World checkedWorld=
             Objects.requireNonNull(
@@ -359,63 +361,90 @@ final class LocalLabMonsterSpawnerProvisioning {
 
         if(!checkedWorld.players().owns(
                 recipient,
-                generation)){
+                generation)||
+           (trace!=null&&
+                (spawnOrigin==null||
+                 !recipientRefChecked.equals(spawnOrigin.recipientRef)||
+                 spawnOrigin.player!=recipient||
+                 spawnOrigin.generation!=generation||
+                 !spawnOrigin.stillCurrentIn(checkedWorld)))){
             if(trace!=null)trace.skipNoCurrentRecipient();
             return false;
         }
 
-        deliverSequentialStage(
+        if(!deliverSequentialStage(
+            checkedWorld,spawnOrigin,
             trace,LocalLabSequentialTerminalStageTrace.Stage.G4,
             ()->checkedWorld.localLabSlayer()
                 .recordMonsterSpawnerFinalization(
                     recipientRefChecked,definitionId,tile,deathTick
                 )
-        );
+        ))
+            return false;
 
-        deliverSequentialStage(
+        if(!deliverSequentialStage(
+            checkedWorld,spawnOrigin,
             trace,LocalLabSequentialTerminalStageTrace.Stage.G14,
             ()->checkedWorld.localLabDailyChallenges()
                 .recordMonsterSpawnerFinalization(
                     recipientRefChecked,definitionId,deathTick
                 )
-        );
+        ))
+            return false;
 
-        deliverSequentialStage(
+        if(!deliverSequentialStage(
+            checkedWorld,spawnOrigin,
             trace,LocalLabSequentialTerminalStageTrace.Stage.G15,
             ()->checkedWorld.localLabTaskScrolls()
                 .recordMonsterSpawnerFinalization(
                     recipientRefChecked,definitionId,deathTick
                 )
-        );
+        ))
+            return false;
 
-        deliverSequentialStage(
+        if(!deliverSequentialStage(
+            checkedWorld,spawnOrigin,
             trace,LocalLabSequentialTerminalStageTrace.Stage.G16,
             ()->checkedWorld.localLabAdventures()
                 .recordMonsterSpawnerFinalization(
                     recipientRefChecked,definitionId,deathTick
                 )
-        );
+        ))
+            return false;
 
-        deliverSequentialStage(
+        if(!deliverSequentialStage(
+            checkedWorld,spawnOrigin,
             trace,LocalLabSequentialTerminalStageTrace.Stage.G18,
             ()->checkedWorld.localLabDailyMoneyMaking()
                 .recordMonsterSpawnerFinalization(
                     recipientRefChecked,definitionId,deathTick
                 )
-        );
+        ))
+            return false;
 
         return true;
     }
 
-    private static void deliverSequentialStage(
+    private static boolean deliverSequentialStage(
+        World world,
+        MonsterSpawnerPvmRuntime.RecipientOrigin spawnOrigin,
         LocalLabSequentialTerminalStageTrace.Capture trace,
         LocalLabSequentialTerminalStageTrace.Stage stage,
         Runnable consumer
     ){
+        // The old public helper (trace==null) retains its historical
+        // caller-validated policy. Only installed canonical terminal
+        // delivery is required to retain its spawn-time identity.
+        if(trace!=null&&
+           (spawnOrigin==null||!spawnOrigin.stillCurrentIn(world))){
+            trace.skipRemainingNoCurrentRecipient();
+            return false;
+        }
         if(trace==null)
             consumer.run();
         else
             trace.run(stage,consumer);
+        return true;
     }
 
     static Tile resolveCurrentOwnerAdjacentTile(

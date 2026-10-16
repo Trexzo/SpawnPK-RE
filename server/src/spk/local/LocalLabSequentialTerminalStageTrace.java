@@ -145,10 +145,25 @@ final class LocalLabSequentialTerminalStageTrace {
                     throw new IllegalStateException(
                         "cannot mark started stage skipped"
                     );
-                outcomes.put(
-                    stage,Outcome.SKIPPED_NO_CURRENT_RECIPIENT
-                );
             }
+            skipRemainingNoCurrentRecipient();
+        }
+
+        /**
+         * The same-name recipient may be retired/replaced BETWEEN stage
+         * callbacks. Preserve already completed outcomes and mark only
+         * remaining unattempted stages SKIPPED, never replay or credit.
+         */
+        void skipRemainingNoCurrentRecipient(){
+            if(recorded)
+                throw new IllegalStateException(
+                    "sequential stage capture already recorded"
+                );
+            for(Stage stage:Stage.values())
+                if(outcomes.get(stage)==Outcome.NOT_REACHED)
+                    outcomes.put(
+                        stage,Outcome.SKIPPED_NO_CURRENT_RECIPIENT
+                    );
         }
     }
 
