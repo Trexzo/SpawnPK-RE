@@ -1482,6 +1482,9 @@ final class FilePlayerRepository
         // preserve original direct save() file layout and semantics.
         final boolean safeRawTemp=
             !enforceWorldAdmission&&LocalOptInRawTemp.enabled();
+        final LocalOptInRawTemp.AccountPreimage accountPreimage=
+            safeRawTemp&&LocalOptInRawTemp.forcePostimageEnabled()
+                ?LocalOptInRawTemp.captureAccountPreimage(file):null;
         Path tmp=enforceWorldAdmission
             ?Files.createTempFile(
                 parent,file.getFileName().toString()+".g21170-world-",
@@ -1602,7 +1605,7 @@ final class FilePlayerRepository
                 if(LocalOptInRawTemp.forcePostimageEnabled()){
                     LocalOptInRawTemp.forcePublish(
                         tmp,file,originalRawTemp,sealedRawTemp,raw,
-                        snapshot.username());
+                        snapshot.username(),accountPreimage);
                 }else{
                     replaceSnapshotTemp(tmp,file,raw);
                 }

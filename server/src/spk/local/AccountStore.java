@@ -137,6 +137,9 @@ final class AccountStore {
         );
 
         final boolean safeTemp=LocalOptInRawTemp.enabled();
+        final LocalOptInRawTemp.AccountPreimage accountPreimage=
+            LocalOptInRawTemp.forcePostimageEnabled()
+                ?LocalOptInRawTemp.captureAccountPreimage(file):null;
         Path tmp = safeTemp
             ?LocalOptInRawTemp.create(file)
             :file.resolveSibling(file.getFileName().toString()+".tmp");
@@ -164,7 +167,7 @@ final class AccountStore {
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
                     tmp,file,tempIdentity,sealedTemp,reservation,
-                    CANONICAL_USERNAME);
+                    CANONICAL_USERNAME,accountPreimage);
             }else try {
                 if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
