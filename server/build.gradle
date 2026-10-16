@@ -2317,6 +2317,10 @@ def currentTrainFocusedTests = [
     'spk.local.G21332ForeignFinalReviewOperatorIsolationTest',
     'spk.local.G21333FinalReviewForensicByteDriftTest',
     'spk.local.G21334FinalReviewNonregularOperatorNegativeTest',
+    'spk.local.G21335FinalWitnessLateAccountDriftTest',
+    'spk.local.G21336FinalWitnessLateActiveDriftTest',
+    'spk.local.G21337FinalWitnessLateWitnessDriftTest',
+    'spk.local.G21338FinalWitnessForeignLateMutationControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2628,10 +2632,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 781 ||
-    currentTrainFocusedTests.toSet().size() != 781) {
+if (currentTrainFocusedTests.size() != 785 ||
+    currentTrainFocusedTests.toSet().size() != 785) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 781 unique tests, found " +
+        "Current-train focused manifest drift: expected 785 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2796,6 +2800,12 @@ currentTrainCriticalCoverage['origin-by-first-failure-stage'] = [
     'spk.local.G2006OriginBoundaryG1PrestageFailureTest',
     'spk.local.G2007OriginBoundaryRecipientMismatchTest',
     'spk.local.G2008OriginBoundaryG14FailFastTest'
+]
+currentTrainCriticalCoverage['g21335-final-witness-late-audit'] = [
+    'spk.local.G21335FinalWitnessLateAccountDriftTest',
+    'spk.local.G21336FinalWitnessLateActiveDriftTest',
+    'spk.local.G21337FinalWitnessLateWitnessDriftTest',
+    'spk.local.G21338FinalWitnessForeignLateMutationControlTest',
 ]
 currentTrainCriticalCoverage.each { family, requiredClasses ->
     def missing = requiredClasses.findAll {
@@ -11744,4 +11754,40 @@ tasks.register('g2008OriginBoundaryG14FailFastRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2008OriginBoundaryG14FailFastTest')
+}
+
+tasks.register('g21335LateSelectedForensicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only exact selected final witness forensic late-stage continuity and foreign isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21335FinalWitnessLateAccountDriftTest')
+}
+
+tasks.register('g21336LateSelectedForensicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only exact selected final witness forensic late-stage continuity and foreign isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21336FinalWitnessLateActiveDriftTest')
+}
+
+tasks.register('g21337LateSelectedForensicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only exact selected final witness forensic late-stage continuity and foreign isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21337FinalWitnessLateWitnessDriftTest')
+}
+
+tasks.register('g21338LateSelectedForensicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only exact selected final witness forensic late-stage continuity and foreign isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21338FinalWitnessForeignLateMutationControlTest')
 }
