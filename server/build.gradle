@@ -2181,6 +2181,7 @@ def currentTrainFocusedTests = [
     'spk.local.G1922UnrelatedNpcLifecycleRemovedRetryControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
+    'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2472,10 +2473,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 625 ||
-    currentTrainFocusedTests.toSet().size() != 625) {
+if (currentTrainFocusedTests.size() != 626 ||
+    currentTrainFocusedTests.toSet().size() != 626) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 625 unique tests, found " +
+        "Current-train focused manifest drift: expected 626 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9983,4 +9984,12 @@ tasks.register('g1922DeadNpcCanonicalLifecycleAfterGenerationRegression', JavaEx
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1922UnrelatedNpcLifecycleRemovedRetryControlTest')
+}
+
+tasks.register('g21260LateRawAccountHardlinkCountVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.260: account nlink alias injected AFTER the early check must block forced RAW atomic replace with G21.230 gate enabled.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21260LateRawAccountHardlinkCountVetoTest')
 }
