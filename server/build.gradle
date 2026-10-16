@@ -2179,6 +2179,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1920UnrelatedNpcRemovedDeadRetryControlTest',
     'spk.local.G1921DeadNpcLifecycleRemovedDuringGenerationTest',
     'spk.local.G1922UnrelatedNpcLifecycleRemovedRetryControlTest',
+    'spk.local.G1923DeadNpcLifecycleRestartedDuringGenerationTest',
+    'spk.local.G1924UnrelatedNpcLifecycleRestartedRetryControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2469,10 +2471,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 622 ||
-    currentTrainFocusedTests.toSet().size() != 622) {
+if (currentTrainFocusedTests.size() != 624 ||
+    currentTrainFocusedTests.toSet().size() != 624) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 622 unique tests, found " +
+        "Current-train focused manifest drift: expected 624 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -9956,4 +9958,22 @@ tasks.register('g1922DeadNpcCanonicalLifecycleAfterGenerationRegression', JavaEx
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1922UnrelatedNpcLifecycleRemovedRetryControlTest')
+}
+
+tasks.register('g1923DeadNpcLifecycleRestartRegression', JavaExec) {
+    group = 'verification'
+    description = 'Selected dead NPC lifecycle restart veto versus unrelated lifecycle restart positive control.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1923DeadNpcLifecycleRestartedDuringGenerationTest')
+}
+
+tasks.register('g1924UnrelatedNpcLifecycleRestartControl', JavaExec) {
+    group = 'verification'
+    description = 'Selected dead NPC lifecycle restart veto versus unrelated lifecycle restart positive control.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1924UnrelatedNpcLifecycleRestartedRetryControlTest')
 }
