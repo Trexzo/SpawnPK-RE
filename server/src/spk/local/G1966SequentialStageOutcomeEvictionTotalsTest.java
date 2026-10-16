@@ -226,6 +226,27 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
                         LocalLabTerminalDeliveryAssessment.Evidence
                             .RETURNED_UNACKNOWLEDGED)==1L,
                 "detached six-consumer historical map deeply immutable");
+            LocalLabTerminalFailureBoundaryTally.Boundary noThrow=
+                LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED;
+            check(early.failureBoundaries.count(noThrow)==1L&&
+                    after.failureBoundaries.count(noThrow)==cycles&&
+                    firstSummary.firstBoundaryCount(noThrow)==1L&&
+                    finalSummary.firstBoundaryCount(noThrow)==cycles,
+                "131 no-throw traces retained beyond 3 detail evictions");
+            for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                    LocalLabTerminalFailureBoundaryTally.Boundary.values())
+                if(boundary!=noThrow)
+                    check(after.failureBoundaries.count(boundary)==0L,
+                        "no synthetic first failure "+boundary);
+            boolean boundaryReadonly=false;
+            try{
+                after.failureBoundaries.boundaryCounts.put(noThrow,0L);
+            }catch(UnsupportedOperationException expected){
+                boundaryReadonly=true;
+            }
+            check(boundaryReadonly&&
+                    early.failureBoundaries.count(noThrow)==1L,
+                "first-failure historical snapshots detached and immutable");
             boolean outerReadonly=false;
             boolean innerReadonly=false;
             try{
