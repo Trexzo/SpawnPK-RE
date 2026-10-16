@@ -89,6 +89,25 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                     actual.observed==1&&actual.evicted==0&&
                     actual.recent.size()==1,
                 "one real installed default-stage trace");
+            LocalLabTerminalDeliverySummary summary=
+                LocalLabTerminalDeliverySummary.from(actual);
+            check(summary.observedTerminals==1L&&
+                    summary.originCount(envelope.originStatus)==1L&&
+                    summary.count(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1,
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED)==1L&&
+                    !summary.hasDurableGrantAcknowledgement()&&
+                    !summary.safeToAutomaticallyReplay(),
+                "installed one-event summary is neither reward nor replay ACK");
+            if(!crossWorld)
+                for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                        LocalLabTerminalDeliveryAssessment.Consumer.values())
+                    if(consumer!=LocalLabTerminalDeliveryAssessment.Consumer.G1)
+                        check(summary.count(consumer,
+                            LocalLabTerminalDeliveryAssessment.Evidence
+                                .SKIPPED_NO_CURRENT_RECIPIENT)==1L,
+                            "disconnected recipient remains an explicit skip "+consumer);
             LocalLabSequentialTerminalStageTrace.Report report=
                 actual.recent.get(0);
             check(actual.originCount(envelope.originStatus)==1L&&
