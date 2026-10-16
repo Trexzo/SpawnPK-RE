@@ -203,6 +203,162 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
         }
     }
 
+    /**
+     * G19.4.3/44: an actual MonsterSpawnerPvmRuntime must settle drops
+     * and remove its exact World-owned NPC even though the originating
+     * player's packet-65 hitmark failed after lifecycle lethal damage.
+     */
+    static void runSpawnerLethalAfterMaskFailure(
+        boolean uncheckedWriterFailure
+    )throws Exception{
+        final int definition=attackDefinition();
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        final String username=uncheckedWriterFailure
+            ?"g1944-runtime-mask-spawner"
+            :"g1943-io-mask-spawner";
+        long generation=world.registerPlayer(player,username);
+        player.movement().restoreAccountState(
+            false,100,3087,3495,0);
+        RuntimeGraph graph=new RuntimeGraph(
+            world,definition,"g1943-mask-owner");
+        world.installMonsterSpawnerPvmRuntime(graph.runtime);
+        NpcRegistry registry=new NpcRegistry(
+            new DevAuthorityWorkbench(),
+            world.petNpcs(),player.id());
+        ServerPacketWriter relayWriter=
+            writer(new ByteArrayOutputStream());
+        boolean relayRegistered=false;
+        try{
+            SharedNpcWorldRelay.register(
+                relayWriter,world,player,registry,player.movement());
+            relayRegistered=true;
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                graph.runtime.spawnAndBind(
+                    "g1943-mask-owner",username,3088,3495,0);
+            WorldNpc canonical=spawned.spawn.combat.spawn.npc;
+            SharedNpcWorldRelay.syncRemotePets(relayWriter);
+            NpcEntity view=requireView(registry,canonical);
+            NpcActionClientRequest exact=
+                G1903DecodedOpcode72AcceptedHitWitnessTest
+                    .decodeExactAttack(
+                        view.sceneIndex,
+                        new int[]{1943,1944,1945,1946});
+            require(exact.action().opcode==72&&
+                    exact.metadata().provenance==
+                        ClientRequestProvenance.EXACT_CURRENT_CLIENT,
+                "real decoded attacker click before broken mask");
+
+            final int[] callbacks={0};
+            final MonsterSpawnerPvmRuntime.FinalizeResult[]
+                terminal={null};
+            final long expectedGeneration=generation;
+            LocalCanonicalNpcAttackHandler handler=
+                new LocalCanonicalNpcAttackHandler(
+                    world,player,()->expectedGeneration,
+                    player.equipment(),player.combatStyles(),registry,
+                    (npc,expected)->{
+                        require(npc==canonical&&
+                                expected==expectedGeneration,
+                            "final spawner click matched current source");
+                    },
+                    npc->{
+                        require(npc==canonical,"exact terminal source");
+                        callbacks[0]++;
+                        terminal[0]=
+                            world.finalizeMonsterSpawnerPvmIfOwned(npc);
+                    },
+                    npc->
+                        world.retryMonsterSpawnerPvmFinalizationIfPending(npc));
+
+            ServerPacketWriter failingWriter;
+            if(uncheckedWriterFailure){
+                java.io.OutputStream crashing=new java.io.OutputStream(){
+                    @Override public void write(int b){
+                        throw new IllegalStateException(
+                            "G1944_MASK_RUNTIME_OUTPUT_FAILURE");
+                    }
+                    @Override public void write(
+                        byte[] b,int off,int len
+                    ){
+                        throw new IllegalStateException(
+                            "G1944_MASK_RUNTIME_OUTPUT_FAILURE");
+                    }
+                };
+                failingWriter=new ServerPacketWriter(
+                    crashing,new IsaacCipher(new int[]{0,0,0,0}));
+            }else{
+                failingWriter=writer(new ByteArrayOutputStream());
+                failingWriter.markTerminal();
+            }
+
+            Throwable original=null;
+            try{
+                handler.handle(
+                    exact.action(),view,failingWriter);
+            }catch(java.io.IOException|RuntimeException failed){
+                original=failed;
+            }
+            require(
+                original!=null&&
+                (uncheckedWriterFailure
+                    ?original instanceof IllegalStateException&&
+                     "G1944_MASK_RUNTIME_OUTPUT_FAILURE".equals(
+                         original.getMessage())
+                    :original instanceof java.io.IOException&&
+                     String.valueOf(original.getMessage()).contains(
+                         "server packet writer terminal")),
+                "actual outbound exception preserved from lethal hit");
+            GroundItem ground=
+                world.groundItems().findOwned(
+                    995,3088,3495,0,username);
+            List<WorldGroundItemPresentationEvents.Event> pending=
+                world.groundItemPresentationEvents().pendingFor(
+                    player.id(),generation,System.currentTimeMillis());
+            require(
+                callbacks[0]==1&&
+                terminal[0]!=null&&
+                terminal[0].status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                graph.runtime.get(canonical.id)==null&&
+                graph.runtime.size()==0&&
+                world.npcs().byId(canonical.id)==null&&
+                world.npcLifecycle().get(canonical.id)==null&&
+                graph.binder.get(canonical.id)==null&&
+                graph.dropCalls==1&&
+                ground!=null&&ground.amount==5&&
+                pending.size()==1&&
+                pending.get(0).itemId==995&&
+                pending.get(0).newAmount==5,
+                "actual runtime must settle exactly one drop after mask failure");
+
+            // The event is terminal and detached; another finalization
+            // attempt must not recreate NPC or deliver a second drop.
+            MonsterSpawnerPvmRuntime.FinalizeResult again=
+                world.finalizeMonsterSpawnerPvmIfOwned(canonical);
+            GroundItem sameGround=
+                world.groundItems().findOwned(
+                    995,3088,3495,0,username);
+            require(
+                again!=null&&
+                again.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                graph.dropCalls==1&&
+                graph.runtime.size()==0&&
+                sameGround!=null&&sameGround.amount==5&&
+                world.groundItemPresentationEvents().pendingFor(
+                    player.id(),generation,System.currentTimeMillis()
+                ).size()==1,
+                "repeated terminalization cannot duplicate committed loot");
+        }finally{
+            if(relayRegistered)
+                SharedNpcWorldRelay.unregister(relayWriter);
+            if(world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
+    }
+
     private static void configuredRuntimeFinalizes(
         int definition
     )throws Exception{
