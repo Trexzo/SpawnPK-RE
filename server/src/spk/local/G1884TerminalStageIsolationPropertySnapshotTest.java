@@ -287,6 +287,50 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                             stage.failureType(after)==null,
                         "remaining stages reflect real fail-fast boundary");
 
+                LocalLabTerminalDeliveryAssessment assessment=
+                    LocalLabTerminalDeliveryAssessment.from(stage);
+                check(assessment.evidence(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G1)==
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED&&
+                    assessment.evidence(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G4)==
+                        LocalLabTerminalDeliveryAssessment.Evidence
+                            .RETURNED_UNACKNOWLEDGED&&
+                    assessment.evidence(
+                        LocalLabTerminalDeliveryAssessment.Consumer.G14)==
+                        (malformedG14
+                            ?LocalLabTerminalDeliveryAssessment.Evidence
+                                .THREW_MUTATION_UNCERTAIN
+                            :LocalLabTerminalDeliveryAssessment.Evidence
+                                .RETURNED_UNACKNOWLEDGED)&&
+                    assessment.hasMutationUncertainty()==malformedG14&&
+                    !assessment.hasDurableGrantAcknowledgement()&&
+                    !assessment.safeToAutomaticallyReplay(),
+                    "G14 failure/healthy triage is not proof of grant");
+                for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
+                        new LocalLabTerminalDeliveryAssessment.Consumer[]{
+                            LocalLabTerminalDeliveryAssessment.Consumer.G15,
+                            LocalLabTerminalDeliveryAssessment.Consumer.G16,
+                            LocalLabTerminalDeliveryAssessment.Consumer.G18
+                        })
+                    check(assessment.evidence(consumer)==
+                            (malformedG14
+                                ?LocalLabTerminalDeliveryAssessment.Evidence.NOT_REACHED
+                                :LocalLabTerminalDeliveryAssessment.Evidence
+                                    .RETURNED_UNACKNOWLEDGED),
+                        "consumer triage respects fail-fast after G14 "+consumer);
+                boolean immutableMap=false;
+                try{
+                    assessment.consumers.clear();
+                }catch(UnsupportedOperationException readonly){
+                    immutableMap=true;
+                }
+                check(immutableMap&&
+                    assessment.consumers.size()==
+                        LocalLabTerminalDeliveryAssessment.Consumer.values().length,
+                    "per-consumer snapshot immutable and complete");
+
                 boolean immutable=false;
                 try{
                     trace.recent.clear();
