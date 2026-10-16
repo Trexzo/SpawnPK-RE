@@ -2215,6 +2215,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1956NoObserverNoOutcomeFabricationTest',
     'spk.local.G1957SequentialG14FailureStageTraceTest',
     'spk.local.G1958SequentialHealthyStageTraceTest',
+    'spk.local.G1959DisconnectedRecipientStageTraceTest',
+    'spk.local.G1960ForeignWorldSequentialTraceFenceTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2526,10 +2528,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 679 ||
-    currentTrainFocusedTests.toSet().size() != 679) {
+if (currentTrainFocusedTests.size() != 681 ||
+    currentTrainFocusedTests.toSet().size() != 681) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 679 unique tests, found " +
+        "Current-train focused manifest drift: expected 681 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10521,4 +10523,22 @@ tasks.register('g1958SequentialHealthyStageTraceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1958SequentialHealthyStageTraceTest')
+}
+
+tasks.register('g1959DisconnectedRecipientStageTraceRegression', JavaExec) {
+    group = 'verification'
+    description = 'A settled NPC after recipient disconnection records skipped stages, not a credit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1959DisconnectedRecipientStageTraceTest')
+}
+
+tasks.register('g1960ForeignWorldSequentialTraceFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Cross-World finalized terminal cannot contaminate another World stage diagnostics.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1960ForeignWorldSequentialTraceFenceTest')
 }
