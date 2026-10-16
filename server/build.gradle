@@ -2233,6 +2233,10 @@ def currentTrainFocusedTests = [
     'spk.local.G1974TerminalOriginNegativeClassificationTest',
     'spk.local.G1975ConsumerDeliveryUncertaintyG14Test',
     'spk.local.G1976ConsumerDeliveryPrestageAndDisconnectTest',
+    'spk.local.G1977ConsumerSummaryHistoryEvictionTest',
+    'spk.local.G1978ConsumerSummaryG1FailureTest',
+    'spk.local.G1979ConsumerSummaryG14FailFastTest',
+    'spk.local.G1980ConsumerSummaryDisconnectedAndWorldFenceTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2570,10 +2574,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 723 ||
-    currentTrainFocusedTests.toSet().size() != 723) {
+if (currentTrainFocusedTests.size() != 727 ||
+    currentTrainFocusedTests.toSet().size() != 727) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 723 unique tests, found " +
+        "Current-train focused manifest drift: expected 727 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11036,4 +11040,44 @@ tasks.register('g21305NegativeWitnessInodeSwapRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21305NegativeFinalWitnessSameBytesInodeSwapTest')
+}
+
+
+tasks.register('g1977ConsumerSummaryHistoryEvictionRegression', JavaExec) {
+    group = 'verification'
+    description = '131 real settled deaths preserve six-consumer evidence after 128-report eviction.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1977ConsumerSummaryHistoryEvictionTest')
+}
+
+
+tasks.register('g1978ConsumerSummaryG1FailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Post-settlement G1 exception retains partial-mutation uncertainty and five NOT_REACHED.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1978ConsumerSummaryG1FailureTest')
+}
+
+
+tasks.register('g1979ConsumerSummaryG14FailFastRegression', JavaExec) {
+    group = 'verification'
+    description = 'Healthy and malformed G14 installed callbacks retain exact downstream fail-fast aggregate.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1979ConsumerSummaryG14FailFastTest')
+}
+
+
+tasks.register('g1980ConsumerSummaryDisconnectedWorldFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Disconnected recipient and foreign World classify skips without phantom reward acknowledgements.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1980ConsumerSummaryDisconnectedAndWorldFenceTest')
 }
