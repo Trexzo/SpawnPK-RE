@@ -449,6 +449,12 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
                             )
                 );
 
+            // These two independent terminalization cases intentionally
+            // occur on different authoritative World ticks. They are NOT
+            // a test of bypassing the same WorldPlayer's click cadence.
+            for(int elapsed=0;elapsed<12;elapsed++)
+                world.clock().advance();
+
             LocalCanonicalNpcAttackHandler.Result foreignHit=
                 foreignHandler.handle(
                     new NpcAction(
