@@ -2213,6 +2213,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21272UnrelatedForcedWorldPostMoveMarkerControlTest',
     'spk.local.G21273ForcedWorldPostMoveForeignJvmHardlinkTest',
     'spk.local.G21274UnrelatedForcedWorldPostMoveForeignJvmHardlinkTest',
+    'spk.local.G21275ActiveReviewMarkerPostMoveByteDriftTest',
+    'spk.local.G21276ExistingActiveReviewMarkerWorldControlTest',
     'spk.local.G191LoginRewardPresentationIntegrationTest',
     'spk.local.G192LoginRewardEmptyShellIntegrationTest',
     'spk.local.G201ConstructionAuthorityIntegrationTest',
@@ -2504,10 +2506,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 657 ||
-    currentTrainFocusedTests.toSet().size() != 657) {
+if (currentTrainFocusedTests.size() != 659 ||
+    currentTrainFocusedTests.toSet().size() != 659) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 657 unique tests, found " +
+        "Current-train focused manifest drift: expected 659 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10301,4 +10303,22 @@ tasks.register('g1940LethalNpcDualFailureDiagnosticRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1940LethalNpcDualFailureDiagnosticTest')
+}
+
+tasks.register('g21275WorldActiveReviewSameInodeByteDriftVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.275: restored-mtime valid ACTIVE marker byte drift after real World atomic account publication yields uncertain completion.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21275ActiveReviewMarkerPostMoveByteDriftTest')
+}
+
+tasks.register('g21276ExistingWorldActiveReviewRetainedControl', JavaExec) {
+    group = 'verification'
+    description = 'G21.276: previously retained valid ACTIVE marker remains negative without blocking healthy World snapshot publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21276ExistingActiveReviewMarkerWorldControlTest')
 }
