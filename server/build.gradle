@@ -2185,6 +2185,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1926UnrelatedNpcSameTickLifecycleAbaControlTest',
     'spk.local.G1927LiveNpcLifecycleReplacedBeforeDamageTest',
     'spk.local.G1928UnrelatedLiveNpcLifecycleReplacedControlTest',
+    'spk.local.G1929NpcLifecycleReplacedInOwnedDamageAdmissionTest',
+    'spk.local.G1930UnrelatedNpcLifecycleReplacedInAdmissionControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2480,10 +2482,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 633 ||
-    currentTrainFocusedTests.toSet().size() != 633) {
+if (currentTrainFocusedTests.size() != 635 ||
+    currentTrainFocusedTests.toSet().size() != 635) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 633 unique tests, found " +
+        "Current-train focused manifest drift: expected 635 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10061,4 +10063,22 @@ tasks.register('g1928UnrelatedLiveNpcLifecycleReplacedControlRegression', JavaEx
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1928UnrelatedLiveNpcLifecycleReplacedControlTest')
+}
+
+tasks.register('g1929NpcLifecycleReplacedInsideDamageAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exact lifecycle identity during last-window immediate damage admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1929NpcLifecycleReplacedInOwnedDamageAdmissionTest')
+}
+
+tasks.register('g1930UnrelatedNpcLifecycleReplacedAdmissionControlRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exact lifecycle identity during last-window immediate damage admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1930UnrelatedNpcLifecycleReplacedInAdmissionControlTest')
 }
