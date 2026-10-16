@@ -291,6 +291,15 @@ final class LocalOptInRawTemp {
                 requireSealed(account,identity,sealed);
                 requirePublicationLockName(account,publicationLockIdentity);
                 raw.requireLockObjectContinuity();
+                // G21.266: an alias of the NEW published account inode
+                // may appear after ATOMIC_MOVE, even when the old inode
+                // passed the pre-move G21.260 nlink test. With the
+                // existing DEFAULT-OFF G21.230 gate, detect this late
+                // new-inode alias before ordinary RAW completion.
+                // This is observed-only; the account may already be
+                // replaced, so failure is UNCERTAIN, not rollback.
+                LocalJvmAccountSessionLease
+                    .requireNonHardlinkedAccount(account);
                 // G21.264: an uncooperative marker may be introduced
                 // AFTER account replacement (e.g. through the
                 // deterministic after-move fault seam). Do not report
