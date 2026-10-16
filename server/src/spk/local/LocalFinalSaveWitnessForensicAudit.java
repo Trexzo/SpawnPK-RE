@@ -35,6 +35,8 @@ final class LocalFinalSaveWitnessForensicAudit {
         WRONG_ACCOUNT_NEGATIVE,
         ACTIVE_MISSING_NEGATIVE,
         SOURCE_MISMATCH_NEGATIVE,
+        SOURCE_LINK_COUNT_UNPROVEN_NEGATIVE,
+        ACTIVE_LINK_COUNT_UNPROVEN_NEGATIVE,
         ACTIVE_INVALID_NEGATIVE,
         MATCHES_UNTRUSTED_NEGATIVE
     }
@@ -156,6 +158,12 @@ final class LocalFinalSaveWitnessForensicAudit {
            !fields[4].equals("accountSha256="+current.accountSha256))
             return new Evidence(
                 State.SOURCE_MISMATCH_NEGATIVE,digest,gen,seq);
+        // G21.327: a matching account digest cannot prove single
+        // observed inode ownership after new hardlink names appear.
+        if(!"1".equals(current.accountObservedLinkCount))
+            return new Evidence(
+                State.SOURCE_LINK_COUNT_UNPROVEN_NEGATIVE,
+                digest,gen,seq);
         String marker=current.negativeSidecarContentWitnesses
             .get("activeReview");
         if("ABSENT".equals(marker))
@@ -164,6 +172,14 @@ final class LocalFinalSaveWitnessForensicAudit {
         if(!fields[5].equals("activeMarkerWitness="+marker))
             return new Evidence(
                 State.SOURCE_MISMATCH_NEGATIVE,digest,gen,seq);
+        // G21.328: ACTIVE may have another hardlink even when
+        // its fingerprint matches the original forced record.
+        Path active=LocalDurableAccountReviewIntentPrimitive
+            .markerPath(selected);
+        if(!singleObservedHardlink(active))
+            return new Evidence(
+                State.ACTIVE_LINK_COUNT_UNPROVEN_NEGATIVE,
+                digest,gen,seq);
         try{
             LocalDurableAccountReviewIntentPrimitive
                 .requireReviewMarker(selected);
