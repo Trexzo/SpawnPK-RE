@@ -359,6 +359,148 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
         }
     }
 
+    /**
+     * G19.5.1/52: use the real MonsterSpawner lifecycle/drop settlement
+     * graph with an installed observer. The runtime must expose the
+     * nonfatal post-settlement outcome, not infer reward application or
+     * accidentally replay an observer that may have partially mutated.
+     */
+    static void runObserverOutcomeDiagnostics(
+        int failingMode
+    )throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        try{
+            final String recipient=
+                failingMode==0?"g1951-observer-success":
+                failingMode==1?"g1952-observer-runtime":
+                    "g1952-observer-error";
+            generation=world.registerPlayer(player,recipient);
+            player.movement().restoreAccountState(
+                false,100,3087,3495,0);
+
+            int definition=attackDefinition();
+            RuntimeGraph graph=new RuntimeGraph(
+                world,definition,"g1951-observer-owner");
+            world.installMonsterSpawnerPvmRuntime(graph.runtime);
+            final int[] calls={0};
+            graph.runtime.installTerminalObserver(
+                terminal->{
+                    checkObserver(terminal.status==
+                            MonsterSpawnerPvmRuntime
+                                .FinalizeStatus.FINALIZED&&
+                        terminal.finalization!=null&&
+                        terminal.settlement!=null,
+                        "observer runs only on post-ground-settlement result");
+                    calls[0]++;
+                    if(failingMode==1)
+                        throw new IllegalStateException(
+                            "G1952_POST_SETTLEMENT_OBSERVER_EXCEPTION");
+                    if(failingMode==2)
+                        throw new AssertionError(
+                            "G1952_POST_SETTLEMENT_OBSERVER_ERROR");
+                });
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                graph.runtime.spawnAndBind(
+                    "g1951-observer-owner",recipient,
+                    3088,3495,0);
+            WorldNpc canonical=spawned.spawn.combat.spawn.npc;
+            // Only the observer path is under test here. Commit a
+            // genuine canonical lethal HP result via the lifecycle API;
+            // no fake FinalizeResult is constructed by the test.
+            NpcLifecycleService.DamageResult lethal=
+                world.npcLifecycle().applyDamageOwned(
+                    canonical.id,10,world.clock().tick());
+            checkObserver(lethal.newlyDied&&
+                    lethal.hitpointsAfter==0,
+                "real canonical lifecycle reached lethal state");
+            MonsterSpawnerPvmRuntime.FinalizeResult completed=
+                world.finalizeMonsterSpawnerPvmIfOwned(canonical);
+
+            GroundItem ground=world.groundItems().findOwned(
+                995,3088,3495,0,recipient);
+            MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics diag=
+                graph.runtime.terminalObserverDiagnostics();
+            checkObserver(completed!=null&&
+                    completed.status==
+                        MonsterSpawnerPvmRuntime
+                            .FinalizeStatus.FINALIZED&&
+                    completed.settlement!=null&&
+                    calls[0]==1&&graph.dropCalls==1&&
+                    graph.runtime.get(canonical.id)==null&&
+                    world.npcs().byId(canonical.id)==null&&
+                    world.npcLifecycle().get(canonical.id)==null&&
+                    ground!=null&&ground.amount==5&&
+                    diag.totalAttempts==1L&&
+                    diag.failedAttempts==(failingMode==0?0L:1L)&&
+                    diag.evictedAttempts==0L&&
+                    diag.recentAttempts.size()==1,
+                "drop settled and one observer outcome recorded");
+
+            MonsterSpawnerPvmRuntime.TerminalObserverAttempt observed=
+                diag.recentAttempts.get(0);
+            checkObserver(observed.npcId.equals(canonical.id)&&
+                    observed.deathTick==
+                        completed.finalization.deathTick&&
+                    recipient.equals(observed.recipientRef)&&
+                    observed.spawnRecipientGeneration==generation&&
+                    observed.outcome==
+                        (failingMode==0
+                            ?MonsterSpawnerPvmRuntime
+                                .TerminalObserverOutcome.RETURNED
+                            :MonsterSpawnerPvmRuntime
+                                .TerminalObserverOutcome.THREW)&&
+                    (failingMode==0
+                        ?observed.failureType==null
+                        :(failingMode==1
+                            ?IllegalStateException.class.getName()
+                                .equals(observed.failureType)
+                            :AssertionError.class.getName()
+                                .equals(observed.failureType))),
+                "exact immutable terminal identity and failure class recorded");
+
+            boolean immutable=false;
+            try{
+                diag.recentAttempts.clear();
+            }catch(UnsupportedOperationException expected){
+                immutable=true;
+            }
+            checkObserver(immutable&&diag.recentAttempts.size()==1,
+                "diagnostic snapshot cannot be mutated by caller");
+
+            MonsterSpawnerPvmRuntime.FinalizeResult noReplay=
+                graph.runtime.retrySettlement(canonical.id);
+            MonsterSpawnerPvmRuntime.FinalizeResult noSecondFinalizer=
+                graph.runtime.finalizeIfOwned(canonical);
+            MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics after=
+                graph.runtime.terminalObserverDiagnostics();
+            GroundItem unchanged=world.groundItems().findOwned(
+                995,3088,3495,0,recipient);
+            checkObserver(noReplay.status==
+                    MonsterSpawnerPvmRuntime
+                        .FinalizeStatus.NOT_OWNED&&
+                    noSecondFinalizer.status==
+                        MonsterSpawnerPvmRuntime
+                            .FinalizeStatus.NOT_OWNED&&
+                    calls[0]==1&&graph.dropCalls==1&&
+                    after.totalAttempts==1&&
+                    after.failedAttempts==diag.failedAttempts&&
+                    unchanged!=null&&unchanged.amount==5,
+                "post-settlement observation does not enable unsafe replay");
+        }finally{
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
+    }
+
+    private static void checkObserver(boolean condition,String message){
+        if(!condition)
+            throw new AssertionError("G19.5.1/52 "+message);
+    }
+
     private static void configuredRuntimeFinalizes(
         int definition
     )throws Exception{
