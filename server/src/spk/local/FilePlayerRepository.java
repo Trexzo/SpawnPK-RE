@@ -176,6 +176,11 @@ final class FilePlayerRepository
         // This is not an atomic disk snapshot or a lock on raw save().
         return MailboxAccountPublicationCoordinator
             .withExclusivePublication(file,()->{
+                // G21.302: always refuse retained negative final
+                // review witness, even after feature was disabled at
+                // process restart or a foreign actor removed ACTIVE.
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(file);
                 requireUnfencedSessionLoad(account,markerPaths);
                 requireNoDiskCommitForSession(account,file);
                 final byte[] journalBefore=
@@ -193,6 +198,11 @@ final class FilePlayerRepository
                 Optional<PlayerSnapshot> observed=
                     loadExactFile(account,file,true,decodedHash);
                 afterWorldSessionRead.run(account);
+                // G21.303: an external actor can create this negative
+                // file while the admitted account bytes are being read.
+                // Recheck exact selected pathname before returning.
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(file);
                 requireUnfencedSessionLoad(account,markerPaths);
                 requireNoDiskCommitForSession(account,file);
                 if(!file.equals(normalizedPath(account)))

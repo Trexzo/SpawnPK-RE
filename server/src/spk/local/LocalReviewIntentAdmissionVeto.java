@@ -45,6 +45,10 @@ final class LocalReviewIntentAdmissionVeto {
         try{
             LocalDurableAccountReviewIntentPrimitive
                 .requireNoReviewMarker(lockedPath);
+            // G21.302: even if ACTIVE was removed, an existing
+            // one-shot final-review witness remains NEGATIVE.
+            LocalFinalSaveNegativeWitness
+                .requireNoNegativeWitness(lockedPath);
         }catch(IOException negative){
             throw new IllegalStateException(
                 "G21.189 REVIEW_INTENT_LOGIN_DENIED_NO_AUTO_RECOVERY",
