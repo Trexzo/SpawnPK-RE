@@ -159,6 +159,103 @@ final class MonsterSpawnerPvmRuntime {
         }
     }
 
+    /**
+     * World-process-local OBSERVATION of a completed post-settlement
+     * observer invocation. RETURNED is not an applied reward ACK;
+     * THREW may have mutated some consumers before the exception.
+     */
+    enum TerminalObserverOutcome { RETURNED, THREW }
+
+    static final class TerminalObserverAttempt {
+        final EntityId npcId;
+        final long deathTick;
+        final String recipientRef;
+        final long spawnRecipientGeneration;
+        final TerminalObserverOutcome outcome;
+        final String failureType;
+
+        private TerminalObserverAttempt(
+            FinalizeResult terminal,
+            Throwable failure
+        ){
+            this.npcId=terminal.finalization.npcId;
+            this.deathTick=terminal.finalization.deathTick;
+            this.recipientRef=terminal.finalization.recipientRef;
+            this.spawnRecipientGeneration=
+                terminal.recipientOrigin==null
+                    ?-1L
+                    :terminal.recipientOrigin.generation;
+            this.outcome=failure==null
+                ?TerminalObserverOutcome.RETURNED
+                :TerminalObserverOutcome.THREW;
+            // Do not retain Throwable objects (or mutable World state)
+            // beyond an invocation's own stack lifetime.
+            this.failureType=failure==null
+                ?null
+                :failure.getClass().getName();
+        }
+    }
+
+    static final class TerminalObserverDiagnostics {
+        final long totalAttempts;
+        final long failedAttempts;
+        final long evictedAttempts;
+        final List<TerminalObserverAttempt> recentAttempts;
+
+        private TerminalObserverDiagnostics(
+            long total,
+            long failed,
+            long evicted,
+            ArrayDeque<TerminalObserverAttempt> recent
+        ){
+            totalAttempts=total;
+            failedAttempts=failed;
+            evictedAttempts=evicted;
+            recentAttempts=Collections.unmodifiableList(
+                new ArrayList<TerminalObserverAttempt>(recent)
+            );
+        }
+    }
+
+    // A bounded diagnostic ring, NOT a recovery queue or durable ledger.
+    // Any observer failure after ground settlement remains non-replayable
+    // until per-consumer idempotent grants and persisted ACKs exist.
+    static final int MAX_TERMINAL_OBSERVER_ATTEMPTS=128;
+    private final ArrayDeque<TerminalObserverAttempt>
+        terminalObserverAttempts=new ArrayDeque<>();
+    private long totalObserverAttempts;
+    private long failedObserverAttempts;
+    private long evictedObserverAttempts;
+
+    synchronized TerminalObserverDiagnostics
+        terminalObserverDiagnostics(){
+        return new TerminalObserverDiagnostics(
+            totalObserverAttempts,
+            failedObserverAttempts,
+            evictedObserverAttempts,
+            terminalObserverAttempts
+        );
+    }
+
+    private synchronized void recordTerminalObserverAttempt(
+        FinalizeResult terminal,
+        Throwable failure
+    ){
+        if(totalObserverAttempts<Long.MAX_VALUE)
+            totalObserverAttempts++;
+        if(failure!=null&&failedObserverAttempts<Long.MAX_VALUE)
+            failedObserverAttempts++;
+        if(terminalObserverAttempts.size()==
+                MAX_TERMINAL_OBSERVER_ATTEMPTS){
+            terminalObserverAttempts.removeFirst();
+            if(evictedObserverAttempts<Long.MAX_VALUE)
+                evictedObserverAttempts++;
+        }
+        terminalObserverAttempts.addLast(
+            new TerminalObserverAttempt(terminal,failure)
+        );
+    }
+
     private static final class Entry {
         final WorldNpc npc;
         final String ownerRef;
@@ -796,11 +893,15 @@ final class MonsterSpawnerPvmRuntime {
         }
 
         if(observer!=null){
+            Throwable observerFailure=null;
             try{
                 observer.onFinalized(
                     terminal
                 );
             }catch(Throwable failure){
+                // Preserve the existing nonfatal observer boundary. Ground
+                // drops are already settled and NPC identity retired.
+                observerFailure=failure;
                 System.err.println(
                     "[world] G1_PVM_TERMINAL_OBSERVER_FAILED npc="+
                     finalized.npcId+
@@ -808,6 +909,14 @@ final class MonsterSpawnerPvmRuntime {
                     finalized.deathTick+
                     " error="+
                     failure
+                );
+            }finally{
+                // Record after the callback without holding the runtime
+                // monitor across external stage consumers. An exception
+                // is evidence of UNKNOWN PARTIAL DELIVERY, not a safe
+                // instruction to replay awards.
+                recordTerminalObserverAttempt(
+                    terminal,observerFailure
                 );
             }
         }
