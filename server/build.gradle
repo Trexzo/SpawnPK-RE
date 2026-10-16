@@ -2273,6 +2273,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21310LateFinalWitnessWorldPublicationVetoTest',
     'spk.local.G21311ForcedWorldPostmoveFinalWitnessUncertaintyTest',
     'spk.local.G21312ForcedWorldForeignPostmoveFinalWitnessControlTest',
+    'spk.local.G21313NegativeFinalWitnessAccountIdentityDriftTest',
+    'spk.local.G21314NegativeFinalWitnessActiveIdentityDriftTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2584,10 +2586,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 737 ||
-    currentTrainFocusedTests.toSet().size() != 737) {
+if (currentTrainFocusedTests.size() != 739 ||
+    currentTrainFocusedTests.toSet().size() != 739) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 737 unique tests, found " +
+        "Current-train focused manifest drift: expected 739 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11216,4 +11218,21 @@ tasks.register('g21312ForcedWorldForeignWitnessPostmoveControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21312ForcedWorldForeignPostmoveFinalWitnessControlTest')
+}
+tasks.register('g21313FinalReviewAccountObjectLinkDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'Same-bytes account inode swap and new hardlink after witness force remain negative.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21313NegativeFinalWitnessAccountIdentityDriftTest')
+}
+
+tasks.register('g21314FinalReviewActiveObjectDriftRegression', JavaExec) {
+    group = 'verification'
+    description = 'Same-byte selected ACTIVE review object swap after witness force remains negative.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21314NegativeFinalWitnessActiveIdentityDriftTest')
 }
