@@ -4446,7 +4446,32 @@ final class WorldPlayerPersistence
                             snapshot.username(),
                             capturedCheckpoint.owner,
                             capturedCheckpoint.expectedGeneration);
-                files.saveForWorld(snapshot);
+                // G21.298: an optional, one-shot *negative* witness is
+                // forced only after a real FINAL World postimage. This
+                // never retires ACTIVE, admits a session or certifies
+                // an authenticated cross-process owner epoch.
+                if(capturedSave!=null&&capturedSave.finalDisconnect&&
+                   LocalFinalSaveNegativeWitness.enabled()){
+                    LocalFinalSaveNegativeWitness
+                        .requireAdmissionConfiguration(true);
+                    boolean bound=LocalJvmAccountSessionLease
+                        .requireCapturedWitnessBeforeWrite(
+                            capturedSave.ownerWitness,
+                            files.accountFilePath(snapshot.username()),
+                            snapshot.username(),
+                            capturedSave.owner,
+                            capturedSave.expectedGeneration);
+                    if(!bound)
+                        throw new IOException(
+                            "G21.298 NEGATIVE_FINAL_WITNESS_REQUIRES_CAPTURED_LEASE");
+                    files.saveForWorld(snapshot);
+                    LocalFinalSaveNegativeWitness.publishOnce(
+                        files.accountFilePath(snapshot.username()),
+                        snapshot.username(),
+                        capturedSave.expectedGeneration,
+                        saveSequence);
+                }else
+                    files.saveForWorld(snapshot);
             }else
                 repository.save(snapshot);
 
