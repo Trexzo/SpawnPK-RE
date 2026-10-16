@@ -56,13 +56,23 @@ public final class G1947CanonicalNpcHitmaskRemoteRelayTest {
             NpcEntity attackView=sourceNpcs.spawnMirroredNpc(
                 definition,3088,3495,null,attacker.movement(),
                 attackerWriter);
+            // Consume the spectator's first free scene slot with a
+            // local noncanonical projection so its canonical target must
+            // use a DIFFERENT numeric index than the attacker's view.
+            NpcEntity spectatorFiller=viewerNpcs.spawnMirroredNpc(
+                definition,3089,3495,null,spectator.movement(),
+                spectatorWriter);
             NpcEntity spectatorView=viewerNpcs.spawnMirroredNpc(
                 definition,3088,3495,null,spectator.movement(),
                 spectatorWriter);
-            check(attackView!=null&&spectatorView!=null&&
+            check(attackView!=null&&spectatorFiller!=null&&
+                    spectatorView!=null&&
+                    attackView.sceneIndex!=spectatorView.sceneIndex&&
                     sourceNpcs.scene(attackView.sceneIndex)==attackView&&
+                    viewerNpcs.scene(spectatorFiller.sceneIndex)==
+                        spectatorFiller&&
                     viewerNpcs.scene(spectatorView.sceneIndex)==spectatorView,
-                "both projections currently visible");
+                "independent projections use distinct scene indices");
             attackView.bindCanonicalId(npc.id);
             spectatorView.bindCanonicalId(npc.id);
 
