@@ -79,6 +79,55 @@ public final class G1997TerminalTimelineGapFenceTest {
             }else if(scenario==4){
                 // Legitimate empty test collector; all stages NOT_REACHED
                 // with G1 NOT_OBSERVED, not evidence of reward failure.
+            }else if(scenario==5){
+                // Package-local test evidence: claimed throw with no
+                // exception type. Real installed Capture.run always sets it.
+                capture.outcomes.put(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,
+                    LocalLabSequentialTerminalStageTrace.Outcome.THREW);
+                expectedFailure=
+                    "TERMINAL_FAILURE_BOUNDARY_MISSING_FAILURE_TYPE_G4";
+            }else if(scenario==6){
+                capture.run(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,()->{});
+                capture.failureTypes.put(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,
+                    IllegalStateException.class.getName());
+                expectedFailure=
+                    "TERMINAL_FAILURE_BOUNDARY_UNEXPECTED_FAILURE_TYPE_G4";
+            }else if(scenario==7){
+                capture.failureTypes.put(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,
+                    IllegalStateException.class.getName());
+                expectedFailure=
+                    "TERMINAL_FAILURE_BOUNDARY_UNEXPECTED_FAILURE_TYPE_G4";
+            }else if(scenario==8){
+                // Positive control: the no-grant test callback actually
+                // threw and Capture.run recorded matching exception type.
+                try{
+                    capture.run(
+                        LocalLabSequentialTerminalStageTrace.Stage.G4,
+                        ()->{throw new IllegalStateException(
+                            "expected test-only typed failure");});
+                }catch(IllegalStateException expected){
+                    check(expected.getMessage().contains("test-only"),
+                        "test-only typed failure caught by fixture");
+                }
+            }else if(scenario==9){
+                capture.skipNoCurrentRecipient();
+                capture.failureTypes.put(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,
+                    IllegalStateException.class.getName());
+                expectedFailure=
+                    "TERMINAL_FAILURE_BOUNDARY_UNEXPECTED_FAILURE_TYPE_G4";
+            }else if(scenario==10){
+                capture.outcomes.put(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,
+                    LocalLabSequentialTerminalStageTrace.Outcome.THREW);
+                capture.failureTypes.put(
+                    LocalLabSequentialTerminalStageTrace.Stage.G4,"   ");
+                expectedFailure=
+                    "TERMINAL_FAILURE_BOUNDARY_MISSING_FAILURE_TYPE_G4";
             }else throw new IllegalArgumentException("scenario="+scenario);
 
             String rejected=null;
@@ -108,7 +157,36 @@ public final class G1997TerminalTimelineGapFenceTest {
                 check(audit.status==
                     LocalLabTerminalEvidenceConsistencyAudit.Status.CONSISTENT&&
                     audit.findings.isEmpty(),
-                    "rejected synthetic chronology cannot corrupt audit");
+                    "rejected malformed diagnostic cannot corrupt audit");
+                // Rejected records must not consume the original capture.
+                // Correct the test-only inconsistency and record it once;
+                // still no rewards, re-finalization or second drop.
+                if(scenario>=5){
+                    if(scenario==5||scenario==10)
+                        capture.failureTypes.put(
+                            LocalLabSequentialTerminalStageTrace.Stage.G4,
+                            IllegalStateException.class.getName());
+                    else
+                        capture.failureTypes.remove(
+                            LocalLabSequentialTerminalStageTrace.Stage.G4);
+                    observer.record(capture);
+                    check(observer.snapshot().observed==1L&&
+                        observer.snapshot().recent.size()==1&&
+                        LocalLabTerminalEvidenceConsistencyAudit.inspect(
+                            observer.snapshot()).status==
+                            LocalLabTerminalEvidenceConsistencyAudit.Status.CONSISTENT,
+                        "corrected typed diagnostic accepted exactly once");
+                    boolean duplicateRejected=false;
+                    try{
+                        observer.record(capture);
+                    }catch(IllegalStateException expected){
+                        duplicateRejected=
+                            "SEQUENTIAL_TERMINAL_STAGE_CAPTURE_ALREADY_RECORDED"
+                                .equals(expected.getMessage());
+                    }
+                    check(duplicateRejected&&observer.snapshot().observed==1L,
+                        "rejected-then-corrected capture consumes only on success");
+                }
             }else{
                 check(rejected==null&&
                     observer.snapshot().observed==1L&&
@@ -119,6 +197,16 @@ public final class G1997TerminalTimelineGapFenceTest {
                 check(detail.g1Outcome==
                     LocalLabSequentialTerminalStageTrace.G1Outcome.NOT_OBSERVED,
                     "synthetic capture does not forge real G1 outcome");
+                if(scenario==8)
+                    check(detail.outcome(
+                            LocalLabSequentialTerminalStageTrace.Stage.G4)==
+                            LocalLabSequentialTerminalStageTrace.Outcome.THREW&&
+                        IllegalStateException.class.getName().equals(
+                            detail.failureType(
+                                LocalLabSequentialTerminalStageTrace.Stage.G4))&&
+                        observer.snapshot().failureBoundaries.count(
+                            LocalLabTerminalFailureBoundaryTally.Boundary.G4)==1L,
+                        "genuine typed test-only failure remains valid and first");
                 if(scenario==3)
                     check(detail.outcome(
                         LocalLabSequentialTerminalStageTrace.Stage.G14)==
