@@ -56,9 +56,30 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
         }
     }
 
+    static void runSequentialStageTraceCase(
+        boolean malformedG14,
+        long deathTick
+    )throws Exception{
+        String prior=System.getProperty(PROPERTY);
+        try{
+            runCase(false,deathTick,malformedG14);
+        }finally{
+            if(prior==null)System.clearProperty(PROPERTY);
+            else System.setProperty(PROPERTY,prior);
+        }
+    }
+
     private static void runCase(
         boolean optInAtComposition,
         long deathTick
+    )throws Exception{
+        runCase(optInAtComposition,deathTick,true);
+    }
+
+    private static void runCase(
+        boolean optInAtComposition,
+        long deathTick,
+        boolean malformedG14
     )throws Exception{
         if(optInAtComposition)
             System.setProperty(PROPERTY,"true");
@@ -97,10 +118,11 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
 
             // Keep G14 unhydrated before injecting invalid TEST-ONLY
             // state. No TCP or account-file corruption is modeled.
-            player.snapshotExtensions().replaceNamespace(
-                LocalLabDailyChallengePersistence.NAMESPACE,
-                Collections.singletonMap(
-                    "version","invalid-g1884-test-only"));
+            if(malformedG14)
+                player.snapshotExtensions().replaceNamespace(
+                    LocalLabDailyChallengePersistence.NAMESPACE,
+                    Collections.singletonMap(
+                        "version","invalid-g1884-test-only"));
 
             LocalMonsterSpawnerActivationRuntime installed=
                 LocalLabMonsterSpawnerProvisioning.create(world);
@@ -130,7 +152,7 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
 
             MonsterSpawnerPvmRuntime.FinalizeResult finished=
                 installed.runtime().finalizeIfOwned(npc);
-            int expected=optInAtComposition?1:0;
+            int expected=(optInAtComposition||!malformedG14)?1:0;
             check(finished!=null&&
                     finished.status==
                         MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
@@ -153,9 +175,11 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
             }catch(IllegalStateException caught){
                 invalid=caught.getMessage();
             }
-            check(invalid!=null&&
-                    invalid.contains("Daily Challenge persistence invalid"),
-                "original malformed TEST-ONLY G14 still fails");
+            check(malformedG14
+                    ?invalid!=null&&invalid.contains(
+                        "Daily Challenge persistence invalid")
+                    :invalid==null,
+                "G14 validation matches requested test-only fixture");
 
             // Inspect the REAL installed terminal-observer execution
             // after G1 and actual ground settlement. This overall outcome
@@ -164,7 +188,7 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                 installed.runtime().terminalObserverDiagnostics();
             check(observer.totalAttempts==1L&&
                     observer.failedAttempts==
-                        (optInAtComposition?0L:1L)&&
+                        (optInAtComposition||!malformedG14?0L:1L)&&
                     observer.evictedAttempts==0L&&
                     observer.recentAttempts.size()==1,
                 "one installed observer attempt after ground commit");
@@ -175,12 +199,12 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                     USER.equals(attempt.recipientRef)&&
                     attempt.spawnRecipientGeneration==generation&&
                     attempt.outcome==
-                        (optInAtComposition
+                        (optInAtComposition||!malformedG14
                             ?MonsterSpawnerPvmRuntime
                                 .TerminalObserverOutcome.RETURNED
                             :MonsterSpawnerPvmRuntime
                                 .TerminalObserverOutcome.THREW)&&
-                    (optInAtComposition
+                    (optInAtComposition||!malformedG14
                         ?attempt.failureType==null
                         :IllegalStateException.class.getName().equals(
                             attempt.failureType)),
@@ -208,6 +232,68 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
             }else
                 check(stages==null,
                     "sequential mode does not claim isolated stage diagnostics");
+
+            LocalLabSequentialTerminalStageTrace.Snapshot trace=
+                installed.sequentialTerminalDiagnosticSnapshot();
+            check(trace!=null,
+                "production composition owns World-local trace instance");
+            if(optInAtComposition)
+                check(trace.observed==0L&&trace.evicted==0L&&
+                        trace.recent.isEmpty(),
+                    "isolation mode does not fabricate sequential stages");
+            else{
+                check(trace.observed==1L&&trace.evicted==0L&&
+                        trace.recent.size()==1,
+                    "default mode records one exact sequential trace");
+                LocalLabSequentialTerminalStageTrace.Report stage=
+                    trace.recent.get(0);
+                check(stage.npcId.equals(npc.id)&&
+                        stage.deathTick==deathTick&&
+                        USER.equals(stage.recipientRef)&&
+                        stage.spawnRecipientGeneration==generation&&
+                        stage.outcome(
+                            LocalLabSequentialTerminalStageTrace.Stage.G4)==
+                            LocalLabSequentialTerminalStageTrace
+                                .Outcome.RETURNED&&
+                        stage.outcome(
+                            LocalLabSequentialTerminalStageTrace.Stage.G14)==
+                            (malformedG14
+                                ?LocalLabSequentialTerminalStageTrace
+                                    .Outcome.THREW
+                                :LocalLabSequentialTerminalStageTrace
+                                    .Outcome.RETURNED)&&
+                        (malformedG14
+                            ?IllegalStateException.class.getName().equals(
+                                stage.failureType(
+                                    LocalLabSequentialTerminalStageTrace.Stage.G14))
+                            :stage.failureType(
+                                LocalLabSequentialTerminalStageTrace.Stage.G14)
+                                ==null),
+                    "sequential G4/G14 exact stage outcome");
+                for(LocalLabSequentialTerminalStageTrace.Stage after:
+                    new LocalLabSequentialTerminalStageTrace.Stage[]{
+                        LocalLabSequentialTerminalStageTrace.Stage.G15,
+                        LocalLabSequentialTerminalStageTrace.Stage.G16,
+                        LocalLabSequentialTerminalStageTrace.Stage.G18
+                    })
+                    check(stage.outcome(after)==
+                            (malformedG14
+                                ?LocalLabSequentialTerminalStageTrace
+                                    .Outcome.NOT_REACHED
+                                :LocalLabSequentialTerminalStageTrace
+                                    .Outcome.RETURNED)&&
+                            stage.failureType(after)==null,
+                        "remaining stages reflect real fail-fast boundary");
+
+                boolean immutable=false;
+                try{
+                    trace.recent.clear();
+                }catch(UnsupportedOperationException expectedReadonly){
+                    immutable=true;
+                }
+                check(immutable,
+                    "sequential trace snapshot is read-only");
+            }
 
             check(installed.runtime().finalizeIfOwned(npc).status==
                     MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&

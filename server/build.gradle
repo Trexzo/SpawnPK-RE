@@ -2213,6 +2213,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1954InstalledIsolatedObserverReturnWithStageFailureTest',
     'spk.local.G1955ObserverOutcomeBoundedRetentionTest',
     'spk.local.G1956NoObserverNoOutcomeFabricationTest',
+    'spk.local.G1957SequentialG14FailureStageTraceTest',
+    'spk.local.G1958SequentialHealthyStageTraceTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2530,10 +2532,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 683 ||
-    currentTrainFocusedTests.toSet().size() != 683) {
+if (currentTrainFocusedTests.size() != 685 ||
+    currentTrainFocusedTests.toSet().size() != 685) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 683 unique tests, found " +
+        "Current-train focused manifest drift: expected 685 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10578,4 +10580,22 @@ tasks.register('g21284UnrelatedForensicAncestorSymlinkControl', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21284UnrelatedForensicAncestorSymlinkControlTest')
+}
+
+tasks.register('g1957SequentialG14FailureStageTraceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual default terminal G14 failure identifies later unattempted consumer stages.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1957SequentialG14FailureStageTraceTest')
+}
+
+tasks.register('g1958SequentialHealthyStageTraceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual healthy default progression reports RETURNED across five consumer stages.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1958SequentialHealthyStageTraceTest')
 }
