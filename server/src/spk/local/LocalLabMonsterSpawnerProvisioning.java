@@ -226,7 +226,30 @@ final class LocalLabMonsterSpawnerProvisioning {
                  * consumes only the already-finalized death and cannot create
                  * kill authority for a stale/unregistered recipient.
                  */
-                loop.onFinalized(result);
+                try{
+                    loop.onFinalized(result);
+                }catch(RuntimeException|Error g1Failure){
+                    // G1 runs BEFORE the default sequential trace. A
+                    // post-settlement G1 exception previously left no
+                    // G4/G14/G15/G16/G18 report at all. Preserve the
+                    // exact original exception/fail-fast semantics and
+                    // record only detached, read-only failure evidence.
+                    if(optionalStageIsolation==null&&result!=null&&
+                       result.status==
+                           MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                       result.finalization!=null&&result.settlement!=null){
+                        try{
+                            LocalLabSequentialTerminalStageTrace.Capture
+                                failed=sequentialTrace.begin(result);
+                            failed.g1Threw(g1Failure);
+                            sequentialTrace.record(failed);
+                        }catch(RuntimeException|Error traceFailure){
+                            if(traceFailure!=g1Failure)
+                                g1Failure.addSuppressed(traceFailure);
+                        }
+                    }
+                    throw g1Failure;
+                }
 
                 if(result.status!=
                         MonsterSpawnerPvmRuntime
@@ -240,6 +263,7 @@ final class LocalLabMonsterSpawnerProvisioning {
                 if(optionalStageIsolation==null){
                     LocalLabSequentialTerminalStageTrace.Capture capture=
                         sequentialTrace.begin(result);
+                    capture.g1Returned();
                     try{
                         creditTerminalProgression(
                             checkedWorld,
