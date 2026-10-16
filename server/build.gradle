@@ -2221,6 +2221,8 @@ def currentTrainFocusedTests = [
     'spk.local.G1962IsolatedSameNameRebindObservationTest',
     'spk.local.G1963CurrentSpawnRecipientOriginPositiveControlTest',
     'spk.local.G1964MissingSpawnRecipientOriginNegativeControlTest',
+    'spk.local.G1965SameWorldSequentialTraceCaptureOwnerTest',
+    'spk.local.G1966SequentialStageOutcomeEvictionTotalsTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2542,10 +2544,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 695 ||
-    currentTrainFocusedTests.toSet().size() != 695) {
+if (currentTrainFocusedTests.size() != 697 ||
+    currentTrainFocusedTests.toSet().size() != 697) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 695 unique tests, found " +
+        "Current-train focused manifest drift: expected 697 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -10698,4 +10700,22 @@ tasks.register('g1964MissingSpawnRecipientOriginNegativeControlRegression', Java
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G1964MissingSpawnRecipientOriginNegativeControlTest')
+}
+
+tasks.register('g1965SameWorldSequentialTraceCaptureOwnerRegression', JavaExec) {
+    group = 'verification'
+    description = 'Same-World diagnostic collector cannot record another collector invocation-local capture.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1965SameWorldSequentialTraceCaptureOwnerTest')
+}
+
+tasks.register('g1966SequentialStageOutcomeEvictionTotalsRegression', JavaExec) {
+    group = 'verification'
+    description = '131 real canonical deaths retain per-stage counts beyond bounded report eviction.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G1966SequentialStageOutcomeEvictionTotalsTest')
 }
