@@ -35,7 +35,20 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
             HashSet<EntityId> unique=new HashSet<EntityId>();
             LocalLabSequentialTerminalStageTrace.Snapshot early=null;
             for(int n=0;n<cycles;n++){
-                if(n>0)service.activate(sessionOwner,1);
+                if(n>0){
+                    // The real G1 teardown may retire the owner session
+                    // after each finalized NPC. Re-establish the exact
+                    // LocalLab catalog selection before another genuine
+                    // spawn instead of bypassing session lifecycle.
+                    if(service.getSession(sessionOwner)==null){
+                        service.openSession(
+                            sessionOwner,
+                            LocalLabMonsterSpawnerProvisioning.SESSION_AUTHORITY
+                        );
+                        service.selectRow(sessionOwner,0);
+                    }
+                    service.activate(sessionOwner,1);
+                }
                 MonsterSpawnerPvmRuntime.SpawnResult spawned=
                     graph.runtime().spawnAndBind(sessionOwner,name,3088,3495,0);
                 WorldNpc npc=spawned.spawn.combat.spawn.npc;
