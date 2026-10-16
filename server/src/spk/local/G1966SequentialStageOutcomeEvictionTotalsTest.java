@@ -158,6 +158,36 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
                 if(origin!=current)
                     check(after.originCount(origin)==0L,
                         "no invented stale or disconnected origins "+origin);
+            LocalLabTerminalFirstFailureTypeTally.Snapshot types=
+                after.firstFailureTypes;
+            check(types.count(
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION
+                    )==cycles&&
+                early.firstFailureTypes.count(
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L,
+                "131 genuine settled deaths preserve no-exception first boundaries");
+            for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                    LocalLabTerminalFailureBoundaryTally.Boundary.values())
+                for(LocalLabTerminalFirstFailureTypeTally.Kind kind:
+                        LocalLabTerminalFirstFailureTypeTally.Kind.values())
+                    if(boundary!=LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_THROW_RECORDED||
+                       kind!=LocalLabTerminalFirstFailureTypeTally.Kind
+                            .NO_EXCEPTION)
+                        check(types.count(boundary,kind)==0L,
+                            "no synthetic exception kind after real healthy deaths");
+            boolean typeImmutable=false;
+            try{
+                types.counts.get(
+                    LocalLabTerminalFailureBoundaryTally.Boundary
+                        .NO_THROW_RECORDED).put(
+                            LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION,0L);
+            }catch(UnsupportedOperationException readonly){
+                typeImmutable=true;
+            }
+            check(typeImmutable,"failure type aggregate deeply immutable");
             boolean originImmutable=false;
             try{
                 after.originCounts.put(current,0L);
