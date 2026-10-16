@@ -43,10 +43,22 @@ final class LocalLabTerminalFailureBoundaryTally {
             r.g1Outcome==LocalLabSequentialTerminalStageTrace.G1Outcome.THREW;
         Boundary firstFailure=afterFailure?Boundary.G1:null;
         int skipped=0;
+        // A sequential observer cannot reach a later stage after an
+        // earlier NOT_REACHED stage. A partial diagnostic prefix may
+        // legitimately end in NOT_REACHED, but cannot then resume.
+        // Validate before any World-local count or report is recorded.
+        boolean stoppedBeforeStage=false;
         for(LocalLabSequentialTerminalStageTrace.Stage stage:
                 LocalLabSequentialTerminalStageTrace.Stage.values()){
             LocalLabSequentialTerminalStageTrace.Outcome outcome=
                 Objects.requireNonNull(r.outcome(stage),"stageOutcome");
+            if(!afterFailure){
+                if(outcome==LocalLabSequentialTerminalStageTrace.Outcome.NOT_REACHED)
+                    stoppedBeforeStage=true;
+                else if(stoppedBeforeStage)
+                    throw new IllegalStateException(
+                        "TERMINAL_FAILURE_BOUNDARY_REACHED_AFTER_GAP_"+stage);
+            }
             if(afterFailure){
                 if(outcome!=LocalLabSequentialTerminalStageTrace.Outcome.NOT_REACHED)
                     throw new IllegalStateException(
