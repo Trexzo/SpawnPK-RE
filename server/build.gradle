@@ -2308,6 +2308,12 @@ def currentTrainFocusedTests = [
     'spk.local.G2049DiskJournalRealJvmCrashBeforeMoveTest',
     'spk.local.G2050DiskJournalRealJvmCrashAfterMoveTest',
     'spk.local.G2051DiskJournalExternalProcessTamperTest',
+    'spk.local.G2052DiskForensicsMissingNonmutatingTest',
+    'spk.local.G2053DiskForensicsRealNpcHistoryTest',
+    'spk.local.G2054DiskForensicsCorruptAndUnknownTest',
+    'spk.local.G2055DiskForensicsJvmCrashBeforeMoveTest',
+    'spk.local.G2056DiskForensicsJvmCrashAfterMoveTest',
+    'spk.local.G2057DiskForensicsSymlinkHardlinkDenialTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2399,6 +2405,9 @@ def currentTrainFocusedTests = [
     'spk.local.G21371StrictPreActiveAbsentAccountProviderTest',
     'spk.local.G21372StrictPreActiveSelectedHardlinkTest',
     'spk.local.G21373StrictPreActiveForeignHardlinkControlTest',
+    'spk.local.G21374StrictOneShotTokenAbsentProviderTest',
+    'spk.local.G21375StrictOneShotTokenSelectedAliasTest',
+    'spk.local.G21376StrictOneShotTokenForeignAliasTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2710,10 +2719,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 863 ||
-    currentTrainFocusedTests.toSet().size() != 863) {
+if (currentTrainFocusedTests.size() != 872 ||
+    currentTrainFocusedTests.toSet().size() != 872) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 863 unique tests, found " +
+        "Current-train focused manifest drift: expected 872 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2913,6 +2922,11 @@ currentTrainCriticalCoverage['g21355-forced-world-active-identity-premove'] = [
     'spk.local.G21355ForcedWorldActiveInodeSwapTest',
     'spk.local.G21356ForcedWorldActiveNonceMutationTest',
 ]
+currentTrainCriticalCoverage['g21376-real-token-pre-active-link-provider'] = [
+    'spk.local.G21374StrictOneShotTokenAbsentProviderTest',
+    'spk.local.G21375StrictOneShotTokenSelectedAliasTest',
+    'spk.local.G21376StrictOneShotTokenForeignAliasTest',
+]
 currentTrainCriticalCoverage['g21373-pre-active-link-provider'] = [
     'spk.local.G21371StrictPreActiveAbsentAccountProviderTest',
     'spk.local.G21372StrictPreActiveSelectedHardlinkTest',
@@ -2939,6 +2953,14 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2057-npc-journal-unlocked-forensic-only'] = [
+    'spk.local.G2052DiskForensicsMissingNonmutatingTest',
+    'spk.local.G2053DiskForensicsRealNpcHistoryTest',
+    'spk.local.G2054DiskForensicsCorruptAndUnknownTest',
+    'spk.local.G2055DiskForensicsJvmCrashBeforeMoveTest',
+    'spk.local.G2056DiskForensicsJvmCrashAfterMoveTest',
+    'spk.local.G2057DiskForensicsSymlinkHardlinkDenialTest',
 ]
 currentTrainCriticalCoverage['g2051-npc-journal-cross-jvm-crash-boundaries'] = [
     'spk.local.G2046DiskJournalCrossJvmLockTest',
@@ -12684,4 +12706,85 @@ tasks.register('g2051DiskJournalCrossJvmRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2051DiskJournalExternalProcessTamperTest')
+}
+
+tasks.register('g21374StrictOneShotTokenAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.374: strict filesystem provider veto in real account token and World membership path.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21374StrictOneShotTokenAbsentProviderTest')
+}
+
+tasks.register('g21375StrictOneShotTokenAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.375: strict filesystem provider veto in real account token and World membership path.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21375StrictOneShotTokenSelectedAliasTest')
+}
+
+tasks.register('g21376StrictOneShotTokenAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.376: strict filesystem provider veto in real account token and World membership path.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21376StrictOneShotTokenForeignAliasTest')
+}
+
+tasks.register('g2052DiskForensicsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only unlocked operator diagnostics of experimental NPC journal'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2052DiskForensicsMissingNonmutatingTest')
+}
+
+tasks.register('g2053DiskForensicsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only unlocked operator diagnostics of experimental NPC journal'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2053DiskForensicsRealNpcHistoryTest')
+}
+
+tasks.register('g2054DiskForensicsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only unlocked operator diagnostics of experimental NPC journal'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2054DiskForensicsCorruptAndUnknownTest')
+}
+
+tasks.register('g2055DiskForensicsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only unlocked operator diagnostics of experimental NPC journal'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2055DiskForensicsJvmCrashBeforeMoveTest')
+}
+
+tasks.register('g2056DiskForensicsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only unlocked operator diagnostics of experimental NPC journal'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2056DiskForensicsJvmCrashAfterMoveTest')
+}
+
+tasks.register('g2057DiskForensicsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Read-only unlocked operator diagnostics of experimental NPC journal'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2057DiskForensicsSymlinkHardlinkDenialTest')
 }
