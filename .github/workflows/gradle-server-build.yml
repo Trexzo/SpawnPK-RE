@@ -37,5 +37,33 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # The main-aligned candidate initially failed before compilation:
+      # Maven Central returned HTTP 429 for Kotlin scripting dependencies.
+      # Cache Gradle's immutable downloads instead of fetching everything
+      # for each new PR and retry ONLY explicitly transient HTTP 429 errors.
+      - name: Cache Gradle dependency and wrapper downloads
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
+
       - name: Build and verify Java 11 bytecode
-        run: bash server/gradlew --no-daemon clean build
+        shell: bash
+        run: |
+          set -o pipefail
+          for attempt in 1 2 3; do
+            echo "GRADLE_FULL_BUILD_ATTEMPT=${attempt}"
+            if bash server/gradlew --no-daemon clean build 2>&1 | tee gradle-build-attempt.log; then
+              echo "GRADLE_FULL_BUILD_SUCCESS attempt=${attempt}"
+              exit 0
+            fi
+            if ! grep -Eiq 'Received status code 429|HTTP (response )?429|Too Many Requests' gradle-build-attempt.log; then
+              echo "::error::Non-rate-limit Gradle failure; no automatic retry."
+              exit 1
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "::error::Maven rate limit persisted through all three bounded attempts."
+              exit 1
+            fi
+            echo "::warning::Dependency endpoint returned HTTP 429; retrying the exact full build after a bounded delay."
+            sleep $((attempt * 30))
+          done

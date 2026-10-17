@@ -18,3 +18,9 @@
 ## Architecture limits
 
 Account-side checks provide negative preimage/alias observations, not atomic hostile-writer exclusion, cross-JVM durable owner epoch, or authenticated final-save ACK. Gameplay journal remains UNWIRED and NON-GRANTING with test-supplied UUIDs. No authenticated event identity, reward+consumer ACK, directory durability guarantee or safe replay is implied.
+
+## 2026-10-17 hosted CI infrastructure gate — separate from source correctness
+
+The first main-aligned PR CI run [#39028875765](https://github.com/Trexzo/SpawnPK-RE/actions/runs/39028875765) **FAILED before Java compilation**: Maven Central returned HTTP 429 Too Many Requests for `org.jetbrains.kotlin` version `2.4.20` POM metadata. It did not exercise any focused regression. This is an environmental dependency retrieval failure, not an assertion about source compatibility or test quality.
+
+The draft branch now also adjusts **only** `.github/workflows/gradle-server-build.yml`: use `gradle/actions/setup-gradle@v4` to cache Gradle/wrapper/dependency downloads and retry the **identical** `clean build` up to three attempts only if stdout/stderr explicitly contains HTTP 429 / Too Many Requests. Non-429 compile/test/configuration failures abort immediately. Backoff is bounded 30/60 seconds; no skipped tests, dependency version substitution, ignore-failure flags, or grant/recovery changes. A new exact-head CI run is required. When reviewing cumulative-vs-main alignment, include this CI-only workflow amendment and this note in the list of differences; all Java/Gradle/client/cache production sources remain byte-identical.
