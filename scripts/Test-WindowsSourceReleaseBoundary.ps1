@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $checker = Join-Path $PSScriptRoot "Assert-WindowsSourceReleaseBoundary.ps1"
 $root = Join-Path ([IO.Path]::GetTempPath()) ("SPK-negative-boundary-" + [Guid]::NewGuid().ToString("N"))
-$input = Join-Path $root "client.json"
+$clientEvidenceFile = Join-Path $root "client.json"
 $probe = Join-Path $root "probe.txt"
 $output = Join-Path $root "decision.json"
 $expectedV308 = "854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6"
@@ -27,13 +27,13 @@ function New-NegativeClientReport {
     }
 }
 function Write-Client([object]$Report) {
-    [IO.File]::WriteAllText($input, ($Report | ConvertTo-Json -Depth 6))
+    [IO.File]::WriteAllText($clientEvidenceFile, ($Report | ConvertTo-Json -Depth 6))
 }
 function Write-Probe([string]$Line) {
     [IO.File]::WriteAllText($probe, $Line)
 }
 function Run-Gate {
-    & $checker -ClientEvidencePath $input -LinkCountEvidencePath $probe -OutputPath $output |
+    & $checker -ClientEvidencePath $clientEvidenceFile -LinkCountEvidencePath $probe -OutputPath $output |
         Out-Null
     return [IO.File]::ReadAllText($output) | ConvertFrom-Json
 }
