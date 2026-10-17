@@ -80,13 +80,50 @@ public final class G2012BoundedFailureKindsForeignAndOtherTest {
                         LocalLabTerminalFailureBoundaryTally.Boundary.G4)==1L&&
                     snapshot.observed==1L,
                     "bounded non-raw category at the correct first G4 boundary");
+                LocalLabOriginFirstFailureKindTally.Snapshot typeOrigin=
+                    snapshot.originFirstFailureKinds;
+                LocalLabSettledDeathEnvelope.OriginStatus current=
+                    LocalLabSettledDeathEnvelope.OriginStatus
+                        .CURRENT_SPAWN_RECIPIENT;
+                check(typeOrigin.count(
+                        current,
+                        LocalLabTerminalFailureBoundaryTally.Boundary.G4,
+                        expected)==1L&&
+                    !typeOrigin.hasDurableGrantAcknowledgement()&&
+                    !typeOrigin.safeToAutomaticallyReplay(),
+                    "two diagnostic-only exception kinds retain true origin");
                 for(LocalLabTerminalFirstFailureTypeTally.Kind kind:
                         LocalLabTerminalFirstFailureTypeTally.Kind.values())
                     if(kind!=expected)
                         check(snapshot.firstFailureTypes.count(
                             LocalLabTerminalFailureBoundaryTally.Boundary.G4,
-                            kind)==0L,
+                            kind)==0L&&typeOrigin.count(
+                                current,
+                                LocalLabTerminalFailureBoundaryTally.Boundary.G4,
+                                kind)==0L,
                             "no fabricated alternative exception category");
+
+                // Replace only the third-dimension origin with an otherwise
+                // category- and boundary-matching foreign cohort. An audit
+                // must detect this mixed-epoch/foreign cross-tab even if the
+                // old first-stage/type marginals still match.
+                LocalLabOriginFirstFailureKindTally wrongOrigin=
+                    new LocalLabOriginFirstFailureKindTally();
+                wrongOrigin.acceptValidated(
+                    LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.G4,
+                    expected);
+                LocalLabTerminalEvidenceConsistencyAudit.Result mismatch=
+                    LocalLabTerminalEvidenceConsistencyAudit.inspectComponents(
+                        snapshot,LocalLabTerminalDeliverySummary.from(snapshot),
+                        snapshot.originConsumerOutcomes,
+                        snapshot.originFailureBoundaries,wrongOrigin.snapshot());
+                check(mismatch.status==
+                        LocalLabTerminalEvidenceConsistencyAudit.Status.DRIFT&&
+                    !mismatch.findings.isEmpty()&&
+                    !mismatch.hasDurableGrantAcknowledgement()&&
+                    !mismatch.safeToAutomaticallyReplay(),
+                    "foreign origin with identical typed marginal remains DRIFT");
 
                 LocalLabTerminalEvidenceConsistencyAudit.Result audit=
                     LocalLabTerminalEvidenceConsistencyAudit.inspect(snapshot);
@@ -108,11 +145,27 @@ public final class G2012BoundedFailureKindsForeignAndOtherTest {
             }catch(IllegalArgumentException expected){
                 badPairRejected=true;
             }
-            check(badPairRejected&&
+            LocalLabOriginFirstFailureKindTally originInvalid=
+                new LocalLabOriginFirstFailureKindTally();
+            boolean tripleRejected=false;
+            try{
+                originInvalid.acceptValidated(
+                    LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT,
+                    LocalLabTerminalFailureBoundaryTally.Boundary
+                        .NO_CURRENT_RECIPIENT,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.ILLEGAL_ARGUMENT);
+            }catch(IllegalArgumentException expected){
+                tripleRejected=true;
+            }
+            check(badPairRejected&&tripleRejected&&
+                originInvalid.snapshot().count(
+                    LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_CURRENT_RECIPIENT,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.ILLEGAL_ARGUMENT)==0L&&
                 isolated.snapshot().count(
                     LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED,
                     LocalLabTerminalFirstFailureTypeTally.Kind.ILLEGAL_STATE)==0L,
-                "impossible boundary/category pair rejected before mutation");
+                "impossible boundary/category triples rejected before mutation");
 
             check(world.groundItems().findOwned(
                     995,3088,3495,0,name).amount==1&&

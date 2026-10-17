@@ -99,6 +99,7 @@ final class LocalLabSequentialTerminalStageTrace {
         final LocalLabTerminalFailureBoundaryTally.Snapshot failureBoundaries;
         final LocalLabOriginFirstFailureBoundaryTally.Snapshot originFailureBoundaries;
         final LocalLabTerminalFirstFailureTypeTally.Snapshot firstFailureTypes;
+        final LocalLabOriginFirstFailureKindTally.Snapshot originFirstFailureKinds;
 
         long originCount(LocalLabSettledDeathEnvelope.OriginStatus origin){
             return originCounts.get(Objects.requireNonNull(origin,"origin"));
@@ -125,7 +126,8 @@ final class LocalLabSequentialTerminalStageTrace {
             LocalLabOriginConsumerOutcomeTally.Snapshot jointEvidence,
             LocalLabTerminalFailureBoundaryTally.Snapshot boundaries,
             LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundaries,
-            LocalLabTerminalFirstFailureTypeTally.Snapshot failureTypes
+            LocalLabTerminalFirstFailureTypeTally.Snapshot failureTypes,
+            LocalLabOriginFirstFailureKindTally.Snapshot originKinds
         ){
             this.observed=observed;
             this.evicted=evicted;
@@ -154,6 +156,7 @@ final class LocalLabSequentialTerminalStageTrace {
             originFailureBoundaries=Objects.requireNonNull(
                 originBoundaries,"originBoundaries");
             firstFailureTypes=Objects.requireNonNull(failureTypes,"failureTypes");
+            originFirstFailureKinds=Objects.requireNonNull(originKinds,"originKinds");
         }
     }
 
@@ -265,6 +268,8 @@ final class LocalLabSequentialTerminalStageTrace {
         new LocalLabOriginFirstFailureBoundaryTally();
     private final LocalLabTerminalFirstFailureTypeTally failureTypeTally=
         new LocalLabTerminalFirstFailureTypeTally();
+    private final LocalLabOriginFirstFailureKindTally originKindTally=
+        new LocalLabOriginFirstFailureKindTally();
     private final EnumMap<Stage,EnumMap<Outcome,Long>> totals=
         new EnumMap<Stage,EnumMap<Outcome,Long>>(Stage.class);
     private final EnumMap<G1Outcome,Long> g1Totals=
@@ -344,6 +349,8 @@ final class LocalLabSequentialTerminalStageTrace {
         firstFailureTally.acceptValidated(firstBoundary);
         originFailureTally.acceptValidated(report.originStatus,firstBoundary);
         failureTypeTally.acceptValidated(firstBoundary,firstFailureKind);
+        originKindTally.acceptValidated(
+            report.originStatus,firstBoundary,firstFailureKind);
         checked.recorded=true;
         long originPrior=originTotals.get(report.originStatus);
         if(originPrior<Long.MAX_VALUE)
@@ -373,7 +380,8 @@ final class LocalLabSequentialTerminalStageTrace {
         return new Snapshot(
             observed,evicted,reports,totals,g1Totals,originTotals,
             jointTally.snapshot(),firstFailureTally.snapshot(),
-            originFailureTally.snapshot(),failureTypeTally.snapshot()
+            originFailureTally.snapshot(),failureTypeTally.snapshot(),
+            originKindTally.snapshot()
         );
     }
 }
