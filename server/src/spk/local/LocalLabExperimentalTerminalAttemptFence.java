@@ -69,6 +69,7 @@ final class LocalLabExperimentalTerminalAttemptFence {
         final int definitionId;
         final Tile deathTile;
         final long spawnRecipientGeneration;
+        final long observedCurrentGeneration;
         final long deathTick;
         final String recipientRef;
         final LocalLabSettledDeathEnvelope.OriginStatus originStatus;
@@ -87,6 +88,7 @@ final class LocalLabExperimentalTerminalAttemptFence {
             definitionId=envelope.definitionId;
             deathTile=envelope.deathTile;
             spawnRecipientGeneration=envelope.spawnRecipientGeneration;
+            observedCurrentGeneration=envelope.observedCurrentGeneration;
             deathTick=envelope.deathTick;
             recipientRef=envelope.recipientRef;
             originStatus=envelope.originStatus;
@@ -99,6 +101,7 @@ final class LocalLabExperimentalTerminalAttemptFence {
         final long deathTick;
         final String recipientRef;
         final LocalLabSettledDeathEnvelope.OriginStatus originStatus;
+        final long observedCurrentGeneration;
         final LocalLabTerminalDeliveryAssessment.Consumer consumer;
         final Observation observation;
         final String failureType;
@@ -108,6 +111,7 @@ final class LocalLabExperimentalTerminalAttemptFence {
             deathTick=token.deathTick;
             recipientRef=token.recipientRef;
             originStatus=token.originStatus;
+            observedCurrentGeneration=token.observedCurrentGeneration;
             consumer=token.consumer;
             observation=token.observation;
             failureType=token.failureType;
@@ -184,12 +188,15 @@ final class LocalLabExperimentalTerminalAttemptFence {
             attempted.get(key);
         if(existing!=null){
             for(Attempt token:existing.values()){
-                // Same id/tick/name with different finalized metadata must
-                // fail before treating the second record as valid evidence.
+                // Same id/tick/name with different finalized metadata OR
+                // different current recipient generation is conflicting.
+                // Two replacements can both be SAME_NAME_REBOUND while
+                // referring to distinct WorldPlayer generations.
                 if(token.originStatus!=death.originStatus||
                    token.definitionId!=death.definitionId||
                    !Objects.equals(token.deathTile,death.deathTile)||
-                   token.spawnRecipientGeneration!=death.spawnRecipientGeneration){
+                   token.spawnRecipientGeneration!=death.spawnRecipientGeneration||
+                   token.observedCurrentGeneration!=death.observedCurrentGeneration){
                     refused(Refusal.CONFLICTING_DEATH_EVIDENCE);
                     throw new IllegalStateException(
                         "TERMINAL_ATTEMPT_CONFLICTING_DEATH_EVIDENCE");
