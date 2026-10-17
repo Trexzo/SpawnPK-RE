@@ -23,7 +23,25 @@ final class WorldPlayer {
     private final PetAccessoryState petAccessoryState=new PetAccessoryState();
     private final PlayerSnapshotExtensionState snapshotExtensions=
         new PlayerSnapshotExtensionState();
+    // Explicit LocalLab policy: account-owned messages, max 128 envelopes.
+    // Server-only until a session/root/input routing authority is established.
+    private final MailboxRewardDeliveryService mailbox=
+        new MailboxRewardDeliveryService(
+            LocalLabMailboxPersistence.MAX_MESSAGES
+        );
+    private boolean mailboxSnapshotKnown;
     private final Object mutationLock=new Object();
+    // Exact LocalLab semantic NPC Attack cooldown is player-owned rather
+    // than handler-instance-owned: multiple wrappers for this WorldPlayer
+    // must share both the admission monitor and authoritative next tick.
+    // Separate from legacy CombatState and original SpawnPK authority.
+    private final Object canonicalNpcAttackLock=new Object();
+    private long canonicalNpcAttackNextAllowedTick;
+    // Java monitors are reentrant. A synchronous hook/callback may initiate
+    // another opcode72 attack from the SAME thread before the first call
+    // publishes its cooldown. Track the in-flight admission independently
+    // of the shared thread monitor. This is not an account/session lease.
+    private boolean canonicalNpcAttackInFlight;
     private String username;
     private long generation;
     private boolean registered;
@@ -47,7 +65,66 @@ final class WorldPlayer {
     PlayerSnapshotExtensionState snapshotExtensions(){
         return snapshotExtensions;
     }
+    MailboxRewardDeliveryService mailbox(){return mailbox;}
+
+    /**
+     * Tracks a namespace that was restored or first captured, so a later
+     * delete-all saves an explicit empty mailbox rather than replaying
+     * an older nonempty account snapshot.
+     */
+    boolean mailboxSnapshotKnown(){
+        synchronized(mutationLock){
+            return mailboxSnapshotKnown;
+        }
+    }
+
+    void markMailboxSnapshotKnown(){
+        synchronized(mutationLock){
+            mailboxSnapshotKnown=true;
+        }
+    }
+
     Object mutationLock(){return mutationLock;}
+
+    Object canonicalNpcAttackLock(){return canonicalNpcAttackLock;}
+
+    // Must be called while holding canonicalNpcAttackLock, as handle does.
+    // The inner synchronization is intentionally reentrant for this guard.
+    boolean tryEnterCanonicalNpcAttack(){
+        synchronized(canonicalNpcAttackLock){
+            if(canonicalNpcAttackInFlight)return false;
+            canonicalNpcAttackInFlight=true;
+            return true;
+        }
+    }
+
+    void leaveCanonicalNpcAttack(){
+        synchronized(canonicalNpcAttackLock){
+            if(!canonicalNpcAttackInFlight)
+                throw new IllegalStateException(
+                    "canonical NPC admission was not active");
+            canonicalNpcAttackInFlight=false;
+        }
+    }
+
+    long canonicalNpcAttackNextAllowedTick(){
+        synchronized(canonicalNpcAttackLock){
+            return canonicalNpcAttackNextAllowedTick;
+        }
+    }
+
+    void canonicalNpcAttackNextAllowedTick(long nextTick){
+        if(nextTick<0L)
+            throw new IllegalArgumentException("nextTick="+nextTick);
+        synchronized(canonicalNpcAttackLock){
+            if(nextTick<canonicalNpcAttackNextAllowedTick)
+                throw new IllegalArgumentException(
+                    "canonical NPC next tick regressed old="+
+                    canonicalNpcAttackNextAllowedTick+" new="+nextTick
+                );
+            canonicalNpcAttackNextAllowedTick=nextTick;
+        }
+    }
 
     synchronized String username(){return username;}
     synchronized long generation(){return generation;}

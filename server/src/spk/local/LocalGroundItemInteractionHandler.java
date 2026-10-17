@@ -17,6 +17,7 @@ final class LocalGroundItemInteractionHandler {
     private GroundItemInteraction pendingTake;
     private long pendingTakeGroundId;
     private long pendingTakeDeadlineMs;
+    private String pendingTakeUsername;
 
     LocalGroundItemInteractionHandler(
         World world,
@@ -36,11 +37,15 @@ final class LocalGroundItemInteractionHandler {
     )throws IOException{
         if(action==null)return null;
 
-        GroundItem ground=world.groundItems().find(
-            action.itemId,action.worldX,action.worldY,0);
+        GroundItem ground=world.groundItems().findVisible(
+            action.itemId,
+            action.worldX,
+            action.worldY,
+            movement.plane(),
+            username
+        );
 
-        if(ground==null ||
-           (ground.owner!=null&&!ground.owner.equalsIgnoreCase(username))){
+        if(ground==null){
             return Result.log(
                 "V511_GROUND_ACTION "+action+
                 " result=REJECTED_NOT_VISIBLE_OR_MISSING"
@@ -74,7 +79,10 @@ final class LocalGroundItemInteractionHandler {
 
         if(onTile(ground.tile.x,ground.tile.y)){
             return takeNow(
-                ground,scenePublisher,serverPackets,
+                ground,
+                username,
+                scenePublisher,
+                serverPackets,
                 "TAKE_ON_TILE_IMMEDIATE"
             );
         }
@@ -82,6 +90,7 @@ final class LocalGroundItemInteractionHandler {
         pendingTake=action;
         pendingTakeGroundId=ground.id;
         pendingTakeDeadlineMs=System.currentTimeMillis()+10_000L;
+        pendingTakeUsername=username;
 
         return Result.log(
             "V5122_GROUND_TAKE "+action+
@@ -107,7 +116,7 @@ final class LocalGroundItemInteractionHandler {
            ground.itemId!=action.itemId||
            ground.tile.x!=action.worldX||
            ground.tile.y!=action.worldY||
-           ground.tile.plane!=0||
+           ground.tile.plane!=movement.plane()||
            now>pendingTakeDeadlineMs){
             clearPendingTake();
             return Result.log(
@@ -127,12 +136,23 @@ final class LocalGroundItemInteractionHandler {
             return null;
         }
 
-        clearPendingTake();
         movement.clearQueuedPath();
-        return takeNow(
-            ground,scenePublisher,serverPackets,
-            "TAKE_AFTER_EXACT_TILE_ARRIVAL"
-        );
+
+        Result result=
+            takeNow(
+                ground,
+                pendingTakeUsername,
+                scenePublisher,
+                serverPackets,
+                "TAKE_AFTER_EXACT_TILE_ARRIVAL"
+            );
+
+        /*
+         * Clear only after the standalone Take transaction returns normally.
+         * Transport failure leaves the exact pending identity retryable.
+         */
+        clearPendingTake();
+        return result;
     }
 
     boolean hasPendingTake(){
@@ -147,27 +167,120 @@ final class LocalGroundItemInteractionHandler {
         pendingTake=null;
         pendingTakeGroundId=0L;
         pendingTakeDeadlineMs=0L;
+        pendingTakeUsername=null;
     }
 
     private Result takeNow(
         GroundItem ground,
+        String username,
         SceneUpdatePublisher scenePublisher,
         ServerPacketWriter serverPackets,
         String reason
     )throws IOException{
-        if(!bank.canAddInventoryAmount(ground.itemId,ground.amount)){
+        BankState.PreparedInventoryMutation inventoryMutation=
+            bank.prepareAddInventoryAmount(
+                ground.itemId,
+                ground.amount
+            );
+
+        if(!inventoryMutation.accepted()){
             return Result.log(
                 "V511_GROUND_TAKE id="+ground.id+
                 " result=REJECTED_INVENTORY_FULL"
             );
         }
 
-        int destination=bank.addInventoryAmount(
-            ground.itemId,ground.amount,serverPackets);
-        if(destination<0)return null;
+        GroundItemRegistry.PreparedRemove groundMutation=
+            world.groundItems().prepareRemove(
+                ground.id
+            );
 
-        world.groundItems().remove(ground.id);
-        scenePublisher.groundRemove(ground);
+        if(groundMutation.expected!=ground)
+            return null;
+
+        SceneCoordinateContext.Snapshot sceneBefore=
+            scenePublisher.context().snapshot();
+
+        serverPackets.beginBatch();
+        boolean ended=false;
+
+        try{
+            bank.publishPreparedInventoryMutation(
+                inventoryMutation,
+                serverPackets
+            );
+            scenePublisher.groundRemove(
+                ground
+            );
+            serverPackets.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            scenePublisher.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            scenePublisher.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            scenePublisher.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        int destination=
+            bank.commitPreparedInventoryMutation(
+                inventoryMutation
+            );
+
+        if(!world.groundItems().commitPreparedRemove(
+                groundMutation
+           ))
+            throw new IllegalStateException(
+                "prepared ground remove did not commit"
+            );
+
+        int crossViewerRemoves=0;
+        int pickerFallbackQueued=0;
+
+        try{
+            if(ground.owner==null)
+                crossViewerRemoves=
+                    enqueuePublicRemoveForOtherViewers(
+                        ground,
+                        username,
+                        System.currentTimeMillis()
+                    );
+            else
+                pickerFallbackQueued=
+                    enqueuePrivatePickupPublicFallback(
+                        ground,
+                        username,
+                        System.currentTimeMillis()
+                    );
+        }catch(RuntimeException presentationFailure){
+            System.err.println(
+                "[ground-take] post-commit presentation enqueue failed item="+
+                ground.id+
+                " error="+
+                presentationFailure
+            );
+        }
 
         return new Result(
             "V511_GROUND_TAKE id="+ground.id+
@@ -175,9 +288,144 @@ final class LocalGroundItemInteractionHandler {
             " amount="+ground.amount+
             " dst="+destination+
             " world="+ground.tile+
+            " crossViewerRemoveQueued="+
+            crossViewerRemoves+
+            " pickerFallbackQueued="+
+            pickerFallbackQueued+
             " result="+reason,
             "GROUND_TAKE"
         );
+    }
+
+    private int enqueuePrivatePickupPublicFallback(
+        GroundItem removedPrivate,
+        String pickerUsername,
+        long now
+    ){
+        if(pickerUsername==null)
+            return 0;
+
+        GroundItem publicFallback=
+            world.groundItems()
+                .findOwned(
+                    removedPrivate.itemId,
+                    removedPrivate.tile.x,
+                    removedPrivate.tile.y,
+                    removedPrivate.tile.plane,
+                    null
+                );
+
+        if(publicFallback==null)
+            return 0;
+
+        WorldPlayer picker=
+            world.players().byName(
+                pickerUsername
+            );
+
+        if(picker==null)
+            return 0;
+
+        long generation=
+            picker.generation();
+
+        MovementState pickerMovement=
+            picker.movement();
+
+        if(!world.players().owns(
+                picker,
+                generation)||
+           pickerMovement.plane()!=
+                removedPrivate.tile.plane||
+           !pickerMovement
+                .insideCurrentLoadedRegion(
+                    removedPrivate.tile.x,
+                    removedPrivate.tile.y
+                ))
+            return 0;
+
+        return world.groundItemPresentationEvents()
+                .enqueueSpawnSnapshot(
+                    now,
+                    publicFallback,
+                    picker,
+                    generation
+                )
+            ?1
+            :0;
+    }
+
+    private int enqueuePublicRemoveForOtherViewers(
+        GroundItem ground,
+        String pickerUsername,
+        long now
+    ){
+        int queued=0;
+
+        for(WorldPlayer recipient:
+                world.players().snapshot()){
+            long generation=
+                recipient.generation();
+
+            if(!world.players().owns(
+                    recipient,
+                    generation))
+                continue;
+
+            if(pickerUsername!=null&&
+               pickerUsername.equalsIgnoreCase(
+                    recipient.username()
+               ))
+                continue;
+
+            MovementState recipientMovement=
+                recipient.movement();
+
+            if(recipientMovement.plane()!=
+                    ground.tile.plane||
+               !recipientMovement
+                    .insideCurrentLoadedRegion(
+                        ground.tile.x,
+                        ground.tile.y
+                    ))
+                continue;
+
+            if(world.groundItemPresentationEvents()
+                    .enqueueRemove(
+                        now,
+                        ground,
+                        recipient,
+                        generation
+                    )){
+                /*
+                 * Ground packets identify by item + tile, not registry ID.
+                 * If this viewer still owns an overlapping private stack,
+                 * normalize its scene after removing the public stack.
+                 */
+                GroundItem privateReplacement=
+                    world.groundItems()
+                        .findOwned(
+                            ground.itemId,
+                            ground.tile.x,
+                            ground.tile.y,
+                            ground.tile.plane,
+                            recipient.username()
+                        );
+
+                if(privateReplacement!=null)
+                    world.groundItemPresentationEvents()
+                        .enqueueSpawnSnapshot(
+                            now,
+                            privateReplacement,
+                            recipient,
+                            generation
+                        );
+
+                queued++;
+            }
+        }
+
+        return queued;
     }
 
     private boolean onTile(int x,int y){

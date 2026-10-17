@@ -16,7 +16,9 @@ final class LocalPlayerInteractionHandler {
     private final EquipmentState equipment;
     private final CombatStyleState combatStyles;
     private final LongSupplier ownerGeneration;
+    private final PlayerPvpEligibilityPolicy pvpEligibility;
     private final PlayerCombatResolutionService pvpCombat;
+    private final PlayerPvpDelayedHitService delayedPvpHits;
 
     private EntityId activeFollow;
     private long activeFollowGeneration;
@@ -25,6 +27,55 @@ final class LocalPlayerInteractionHandler {
     private EntityId activeTrade;
     private long activeTradeGeneration;
     private long nextAttackTick;
+
+    static final class Snapshot {
+        final EntityId activeFollow;
+        final long activeFollowGeneration;
+        final EntityId activeAttack;
+        final long activeAttackGeneration;
+        final EntityId activeTrade;
+        final long activeTradeGeneration;
+        final long nextAttackTick;
+
+        private Snapshot(
+            LocalPlayerInteractionHandler source
+        ){
+            activeFollow=source.activeFollow;
+            activeFollowGeneration=
+                source.activeFollowGeneration;
+            activeAttack=source.activeAttack;
+            activeAttackGeneration=
+                source.activeAttackGeneration;
+            activeTrade=source.activeTrade;
+            activeTradeGeneration=
+                source.activeTradeGeneration;
+            nextAttackTick=source.nextAttackTick;
+        }
+    }
+
+    Snapshot snapshot(){
+        return new Snapshot(this);
+    }
+
+    void restore(
+        Snapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "player interaction snapshot"
+            );
+
+        activeFollow=snapshot.activeFollow;
+        activeFollowGeneration=
+            snapshot.activeFollowGeneration;
+        activeAttack=snapshot.activeAttack;
+        activeAttackGeneration=
+            snapshot.activeAttackGeneration;
+        activeTrade=snapshot.activeTrade;
+        activeTradeGeneration=
+            snapshot.activeTradeGeneration;
+        nextAttackTick=snapshot.nextAttackTick;
+    }
 
     LocalPlayerInteractionHandler(
         World world,
@@ -61,7 +112,32 @@ final class LocalPlayerInteractionHandler {
             owner==null
                 ?CombatSystemHooks.none()
                 :CombatSystemHooks.forPlayer(owner),
-            ownerGeneration
+            ownerGeneration,
+            PlayerPvpEligibilityPolicy.allowAllTestSeam()
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        LongSupplier ownerGeneration,
+        PlayerPvpEligibilityPolicy pvpEligibility
+    ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
+            owner==null?null:owner.combatStyles(),
+            CombatDamageRules.localLabFallback(),
+            CombatAttackTimingRules.recoveredCompatibility(),
+            owner==null
+                ?CombatSystemHooks.none()
+                :CombatSystemHooks.forPlayer(owner),
+            ownerGeneration,
+            pvpEligibility
         );
     }
 
@@ -86,7 +162,8 @@ final class LocalPlayerInteractionHandler {
             systemHooks,
             owner==null
                 ?()->0L
-                :owner::generation
+                :owner::generation,
+            PlayerPvpEligibilityPolicy.allowAllTestSeam()
         );
     }
 
@@ -101,6 +178,32 @@ final class LocalPlayerInteractionHandler {
         CombatSystemHooks systemHooks,
         LongSupplier ownerGeneration
     ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
+            combatStyles,
+            damageRules,
+            timingRules,
+            systemHooks,
+            ownerGeneration,
+            PlayerPvpEligibilityPolicy.allowAllTestSeam()
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatSystemHooks systemHooks,
+        LongSupplier ownerGeneration,
+        PlayerPvpEligibilityPolicy pvpEligibility
+    ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.owner=java.util.Objects.requireNonNull(owner,"owner");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
@@ -113,6 +216,11 @@ final class LocalPlayerInteractionHandler {
             java.util.Objects.requireNonNull(
                 ownerGeneration,
                 "ownerGeneration"
+            );
+        this.pvpEligibility=
+            java.util.Objects.requireNonNull(
+                pvpEligibility,
+                "pvpEligibility"
             );
         this.pvpCombat=
             new PlayerCombatResolutionService(
@@ -128,7 +236,33 @@ final class LocalPlayerInteractionHandler {
                 java.util.Objects.requireNonNull(
                     systemHooks,
                     "systemHooks"
-                )
+                ),
+                world.pvpRecords()
+            );
+        this.delayedPvpHits=
+            new PlayerPvpDelayedHitService(
+                world,
+                "CUSTOM_LOCALLAB_G5_DELAYED_PVP_HIT_V1",
+                PlayerPvpDelayedHitService
+                    .REQUIRE_CURRENT_PLAYER_GENERATIONS,
+                pvpCombat.outcomeObserver(),
+                (deliveredTarget,damageResult)->
+                    Player81WorldSync.sendSkillUpdate(
+                        world,
+                        deliveredTarget,
+                        PlayerState.HITPOINTS,
+                        deliveredTarget.playerState().xp(
+                            PlayerState.HITPOINTS
+                        ),
+                        deliveredTarget.playerState().currentLevel(
+                            PlayerState.HITPOINTS
+                        )
+                    ),
+                (attacker,deliveredTarget)->
+                    this.pvpEligibility.evaluate(
+                        attacker,
+                        deliveredTarget
+                    ).eligible
             );
     }
 
@@ -170,6 +304,21 @@ final class LocalPlayerInteractionHandler {
                     " target="+target.username()+
                     " reason="+validity.reason+
                     " detail="+validity.detail;
+            }
+
+            PlayerPvpEligibilityPolicy.Result eligibility=
+                pvpEligibility.evaluate(
+                    owner,
+                    target
+                );
+
+            if(!eligibility.eligible){
+                clearAttack();
+                movement.clearQueuedPath();
+                return "V5131_PLAYER_ATTACK_REJECTED "+action+
+                    " target="+target.username()+
+                    " reason=PVP_REGION_POLICY"+
+                    " detail="+eligibility.detail;
             }
 
             clearTrade();
@@ -289,6 +438,21 @@ final class LocalPlayerInteractionHandler {
                     "] V5131_PLAYER_ATTACK_CANCELLED reason="+
                     validity.reason+
                     " detail="+validity.detail+
+                    " worldTick="+worldTick;
+            }
+
+            PlayerPvpEligibilityPolicy.Result eligibility=
+                pvpEligibility.evaluate(
+                    owner,
+                    target
+                );
+
+            if(!eligibility.eligible){
+                clearAttack();
+                movement.clearQueuedPath();
+                return "[world player="+owner.id()+
+                    "] V5131_PLAYER_ATTACK_CANCELLED reason=PVP_REGION_POLICY"+
+                    " detail="+eligibility.detail+
                     " worldTick="+worldTick;
             }
         }else if(target==null||
@@ -467,6 +631,20 @@ final class LocalPlayerInteractionHandler {
                 " worldTick="+worldTick;
         }
 
+        PlayerPvpEligibilityPolicy.Result eligibility=
+            pvpEligibility.evaluate(
+                owner,
+                target
+            );
+
+        if(!eligibility.eligible){
+            clearAttack();
+            movement.clearQueuedPath();
+            return "V5131_PLAYER_ATTACK_CANCELLED reason=PVP_REGION_POLICY"+
+                " detail="+eligibility.detail+
+                " worldTick="+worldTick;
+        }
+
         int targetValue=sync.interactionTargetFor(target);
 
         int range=playerAttackRange();
@@ -508,18 +686,19 @@ final class LocalPlayerInteractionHandler {
                 )
             );
 
-        PlayerCombatResolutionService.Result resolution;
+        PlayerCombatResolutionService.AttackResolution resolution;
 
         try{
             resolution=
-                pvpCombat.resolveImmediateOwned(
+                pvpCombat.resolveOwned(
                     world,
                     ownerGeneration.getAsLong(),
                     target,
                     targetGeneration,
                     equipment.weapon(),
                     style,
-                    worldTick
+                    worldTick,
+                    delayedPvpHits
                 );
         }catch(
             PlayerCombatResolutionService
@@ -542,6 +721,46 @@ final class LocalPlayerInteractionHandler {
             return "V5131_PLAYER_ATTACK_CANCELLED reason=TARGET_OWNERSHIP_CHANGED"+
                 " expectedGeneration="+targetGeneration+
                 " worldTick="+worldTick;
+        }catch(IOException io){
+            throw io;
+        }catch(RuntimeException runtime){
+            throw runtime;
+        }catch(Exception checked){
+            throw new IOException(
+                "delayed PvP resolution failed",
+                checked
+            );
+        }
+
+        nextAttackTick=
+            worldTick+
+            resolution.nextAttackDelayTicks;
+
+        if(resolution.delivery==
+                PlayerCombatResolutionService
+                    .Delivery.SCHEDULED){
+            PlayerPvpDelayedHitService.Snapshot scheduled=
+                resolution.scheduledHit;
+
+            return "V5131_PLAYER_ATTACK_SCHEDULED target="+target.username()+
+                " clientTarget="+targetValue+
+                " distance="+Math.max(dx,dy)+
+                " range="+range+
+                " weapon="+equipment.weapon()+
+                " attackAnim="+(animation>=0?animation:"DEFERRED")+
+                " speedTicks="+resolution.nextAttackDelayTicks+
+                " cadenceAuthority="+resolution.timing.cadenceAuthority+
+                " hitDelayTicks="+resolution.timing.hitDelayTicks+
+                " hitDelayAuthority="+resolution.timing.hitDelayAuthority+
+                " damage="+resolution.damage.damage+
+                " damageAuthority="+resolution.damage.authority+
+                " damageFormula="+resolution.damage.formula+
+                " dueTick="+scheduled.dueTick+
+                " delayedHitId="+scheduled.hitId+
+                " targetHpPacket134=DEFERRED_UNTIL_DUE"+
+                " systemHooks="+resolution.hooks+
+                " remoteMaskRelay=true nextAttackTick="+
+                nextAttackTick;
         }
 
         boolean hpPublished=
@@ -556,10 +775,6 @@ final class LocalPlayerInteractionHandler {
                     PlayerState.HITPOINTS
                 )
             );
-
-        nextAttackTick=
-            worldTick+
-            resolution.nextAttackDelayTicks;
 
         if(resolution.lifecycle.died){
             clearAttack();

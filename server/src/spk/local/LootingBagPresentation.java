@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 
 /**
@@ -56,6 +57,33 @@ final class LootingBagPresentation {
                     "Looting Bag availability drift slot="+
                     slot.slotId+
                     " amount="+slot.amount+
+                    " available="+available
+                );
+        }
+
+        ProjectedSlot(
+            int clientSlot,
+            LootingBagService.SlotId slotId,
+            int itemId,
+            long amount,
+            long available
+        ){
+            this.clientSlot=clientSlot;
+            this.slotId=
+                Objects.requireNonNull(
+                    slotId,
+                    "slotId"
+                );
+            this.itemId=checkedItemId(itemId);
+            this.quantity=checkedQuantity(amount);
+            this.available=available;
+
+            if(available<0L||
+               available>amount)
+                throw new IllegalStateException(
+                    "Looting Bag predicted availability drift slot="+
+                    slotId+
+                    " amount="+amount+
                     " available="+available
                 );
         }
@@ -187,6 +215,108 @@ final class LootingBagPresentation {
         return new Projection(
             checked.ownerRef,
             slots
+        );
+    }
+
+    static Projection projectAfterBankDeposit(
+        LootingBagService.Snapshot snapshot,
+        LootingBagService.SettlementSnapshot settlement
+    ){
+        LootingBagService.Snapshot checked=
+            Objects.requireNonNull(
+                snapshot,
+                "snapshot"
+            );
+        LootingBagService.SettlementSnapshot reserved=
+            Objects.requireNonNull(
+                settlement,
+                "settlement"
+            );
+
+        if(reserved.state!=
+                LootingBagService.SettlementState.RESERVED)
+            throw new IllegalArgumentException(
+                "reserved Looting Bag settlement required"
+            );
+
+        if(!checked.ownerRef.equals(
+                reserved.ownerRef))
+            throw new IllegalArgumentException(
+                "Looting Bag settlement owner mismatch"
+            );
+
+        LinkedHashMap<LootingBagService.SlotId,Long>
+            amounts=
+                new LinkedHashMap<>();
+
+        for(LootingBagService.SettlementLineSnapshot line:
+                reserved.lines){
+            if(line.amount<=0L||
+               amounts.put(
+                   Objects.requireNonNull(
+                       line.slotId,
+                       "settlement slotId"
+                   ),
+                   line.amount
+               )!=null)
+                throw new IllegalArgumentException(
+                    "invalid duplicate/amount Looting Bag settlement line"
+                );
+        }
+
+        ArrayList<ProjectedSlot> projected=
+            new ArrayList<>();
+
+        for(LootingBagService.SlotSnapshot slot:
+                checked.slots){
+            Long debit=amounts.remove(slot.slotId);
+            long line=
+                debit==null
+                    ?0L
+                    :debit.longValue();
+
+            if(line<0L||
+               line>slot.reserved||
+               line>slot.amount)
+                throw new IllegalStateException(
+                    "Looting Bag settlement exceeds reserved slot="+
+                    slot.slotId
+                );
+
+            long nextAmount=
+                slot.amount-line;
+            long nextReserved=
+                slot.reserved-line;
+
+            if(nextAmount==0L){
+                if(nextReserved!=0L)
+                    throw new IllegalStateException(
+                        "Looting Bag zero postimage retains reservation slot="+
+                        slot.slotId
+                    );
+                continue;
+            }
+
+            projected.add(
+                new ProjectedSlot(
+                    projected.size(),
+                    slot.slotId,
+                    slot.itemId,
+                    nextAmount,
+                    nextAmount-nextReserved
+                )
+            );
+        }
+
+        if(!amounts.isEmpty())
+            throw new IllegalStateException(
+                "Looting Bag settlement references missing slots "+
+                amounts.keySet()
+            );
+
+        return new Projection(
+            checked.ownerRef,
+            projected
         );
     }
 

@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -19,6 +20,10 @@ final class WorldPlayerPersistence
 
     static final long AUTOSAVE_INTERVAL_TICKS=100L;
     static final int MAX_PENDING_WRITES=64;
+    // G21.70: the full FIFO + lock + World command + final read uses
+    // one monotonic budget, not a fresh five seconds after dispatch.
+    static final long TERMINAL_FRESHNESS_BUDGET_NANOS=
+        TimeUnit.SECONDS.toNanos(5L);
 
     static final class SaveTicket {
         final long sequence;
@@ -43,6 +48,8 @@ final class WorldPlayerPersistence
         final int petAccessoryItem;
         final String tag;
         final String reason;
+        final boolean finalDisconnect;
+        final LocalJvmAccountSessionLease.SaveCaptureWitness ownerWitness;
         private boolean submitted;
 
         CapturedSave(
@@ -51,7 +58,9 @@ final class WorldPlayerPersistence
             long expectedGeneration,
             int petAccessoryItem,
             String tag,
-            String reason
+            String reason,
+            boolean finalDisconnect,
+            LocalJvmAccountSessionLease.SaveCaptureWitness ownerWitness
         ){
             this.ticket=ticket;
             this.owner=owner;
@@ -59,6 +68,8 @@ final class WorldPlayerPersistence
             this.petAccessoryItem=petAccessoryItem;
             this.tag=tag;
             this.reason=reason;
+            this.finalDisconnect=finalDisconnect;
+            this.ownerWitness=ownerWitness;
         }
 
         synchronized void markSubmitted(){
@@ -72,19 +83,136 @@ final class WorldPlayerPersistence
         }
     }
 
+    final class FinalSaveReservation {
+        private final ReservedFinalSaveTask task;
+        private boolean settled;
+
+        private FinalSaveReservation(
+            ReservedFinalSaveTask task
+        ){
+            this.task=Objects.requireNonNull(
+                task,
+                "task"
+            );
+        }
+
+        SaveTicket publish(
+            CapturedSave captured
+        ){
+            Objects.requireNonNull(
+                captured,
+                "captured"
+            );
+
+            if(!captured.finalDisconnect){
+                IllegalArgumentException failure=
+                    new IllegalArgumentException(
+                        "final save reservation requires final disconnect capture"
+                    );
+
+                abort(
+                    failure
+                );
+                throw failure;
+            }
+
+            if(task.owner!=null&&
+               (captured.owner!=task.owner||
+                captured.expectedGeneration!=
+                    task.ownerGeneration)){
+                IllegalArgumentException failure=
+                    new IllegalArgumentException(
+                        "final save reservation owner mismatch player="+
+                        task.owner.id()+
+                        " expectedGeneration="+
+                        task.ownerGeneration
+                    );
+
+                abort(
+                    failure
+                );
+                throw failure;
+            }
+
+            synchronized(this){
+                if(settled)
+                    throw new IllegalStateException(
+                        "final save reservation already settled"
+                    );
+                settled=true;
+            }
+
+            try{
+                captured.markSubmitted();
+            }catch(RuntimeException|Error failure){
+                task.abort(
+                    failure
+                );
+                throw failure;
+            }
+
+            if(!task.publish(captured)){
+                RejectedExecutionException failure=
+                    new RejectedExecutionException(
+                        "final save reservation no longer active"
+                    );
+
+                saveTask(captured).reject(
+                    failure,
+                    "FINAL_RESERVATION_REJECTED"
+                );
+
+                throw failure;
+            }
+
+            return captured.ticket;
+        }
+
+        void abort(
+            Throwable failure
+        ){
+            synchronized(this){
+                if(settled)
+                    return;
+                settled=true;
+            }
+
+            task.abort(
+                failure==null
+                    ?new IllegalStateException(
+                        "final save reservation aborted"
+                    )
+                    :failure
+            );
+        }
+    }
+
     private static final class PendingCheckpoint {
         final long tick;
+        final long captureSequence;
         final PlayerSnapshot snapshot;
         final int petAccessoryItem;
+        final WorldPlayer owner;
+        final long expectedGeneration;
+        final LocalJvmAccountSessionLease.SaveCaptureWitness
+            ownerWitness;
 
         PendingCheckpoint(
             long tick,
+            long captureSequence,
             PlayerSnapshot snapshot,
-            int petAccessoryItem
+            int petAccessoryItem,
+            WorldPlayer owner,
+            long expectedGeneration,
+            LocalJvmAccountSessionLease.SaveCaptureWitness ownerWitness
         ){
             this.tick=tick;
+            this.captureSequence=captureSequence;
             this.snapshot=snapshot;
             this.petAccessoryItem=petAccessoryItem;
+            this.owner=owner;
+            this.expectedGeneration=expectedGeneration;
+            this.ownerWitness=ownerWitness;
         }
     }
 
@@ -96,6 +224,7 @@ final class WorldPlayerPersistence
     private static final class DroppedTaskCounts {
         int loads;
         int saves;
+        int finalReservations;
         int checkpoints;
         int unknown;
     }
@@ -110,6 +239,53 @@ final class WorldPlayerPersistence
         new AtomicReference<>();
     private final AtomicReference<SaveTask> inFlightSave=
         new AtomicReference<>();
+    private final AtomicReference<PreparedStrictBarrierTask>
+        inFlightStrictBarrier=new AtomicReference<>();
+    private final AtomicReference<ReservedPreparedDrainTask>
+        inFlightPreparedDrain=new AtomicReference<>();
+    private final AtomicReference<ReservedTerminalPreflightTask>
+        inFlightTerminalPreflight=new AtomicReference<>();
+    private final AtomicReference<ReservedTerminalPublicationTask>
+        inFlightTerminalPublication=new AtomicReference<>();
+    private final AtomicReference<ReservedTerminalReconciliationTask>
+        inFlightTerminalReconciliation=new AtomicReference<>();
+    private final AtomicReference<ReservedTerminalWorldFreshnessTask>
+        inFlightTerminalWorldFreshness=new AtomicReference<>();
+
+    /*
+     * Protected by io, shared with the single writer's admission lock.
+     * Prevents deferred pre-barrier captures/checkpoints admitted later
+     * from overwriting a strict PREPARED-only account snapshot.
+     * This is NOT a durable claim/grant transaction or a full account
+     * mutation epoch.
+     */
+    private final HashMap<String,Long>
+        strictPreparedAccountCutoffs=new HashMap<>();
+
+    // Opt-in G21.27 exclusion: in-memory admission/capture fence only.
+    // Existing writes already running inside repository.save may finish.
+    // No durable transaction, item credit or CLAIMED change is authorized.
+    static final int MAX_PREPARED_ACCOUNT_RESERVATIONS=32;
+    private final HashMap<String,PreparedAccountReservation>
+        preparedAccountReservations=new HashMap<>();
+
+    // G21.92 opt-in recovery quarantine: under the same persistence
+    // admission lock as ordinary/checkpoint/final writers. Never grants
+    // committed state, and never bypasses G21.87/88 disk fences.
+    static final int MAX_COMMITTED_RECOVERY_RESERVATIONS=32;
+    private final HashMap<String,CommittedRecoveryReservation>
+        committedRecoveryReservations=new HashMap<>();
+
+    /*
+     * Protected by the persistence admission lock (io). A bound final
+     * reservation becomes visible here only while it actually owns a FIFO
+     * position. Ordinary saves for that exact owner/generation are then
+     * rejected instead of being admitted behind the final slot.
+     */
+    private final IdentityHashMap<WorldPlayer,Long>
+        finalReservationGenerations=
+            new IdentityHashMap<>();
+
     private final Object checkpointLock=
         new Object();
     private final HashMap<EntityId,CheckpointSlot> checkpoints=
@@ -129,6 +305,12 @@ final class WorldPlayerPersistence
         new AtomicLong();
     private final AtomicLong failed=
         new AtomicLong();
+    // G21.178: strictly World-LIFETIME negative admission. This is
+    // not a crash-durable marker and never grants account recovery.
+    // The same persistence worker orders failed final-save handling
+    // before subsequent admitted session loads for this World.
+    private final Set<String> failedFinalSaveAccounts=
+        ConcurrentHashMap.newKeySet();
     private final AtomicLong checkpointCaptured=
         new AtomicLong();
     private final AtomicLong checkpointCoalesced=
@@ -180,8 +362,40 @@ final class WorldPlayerPersistence
             );
     }
 
+    /**
+     * G21.181 opt-in lease key uses the EXACT concrete file resolver.
+     * Non-file adapters do not enter this experimental lease protocol.
+     * This is not a path stability or cross-process lock guarantee.
+     */
+    java.nio.file.Path fileBackedAccountPathForJvmSessionLease(
+        String username
+    ){
+        return repository instanceof FilePlayerRepository
+            ?((FilePlayerRepository)repository).accountFilePath(username)
+            :null;
+    }
+
     Optional<PlayerSnapshot> load(
         String username
+    )throws IOException{
+        return loadInternal(username,true);
+    }
+
+    /**
+     * Read-only G21.26 disk observation, NOT a session hydration entry.
+     * Preserves the FIFO worker and intentionally permits inspecting
+     * untrusted hypothetical account bytes which the normal loader denies.
+     * Caller must enforce G21.26 exact owner/proposal validation; this
+     * method never applies account state or authorizes a settlement.
+     */
+    Optional<PlayerSnapshot> observeUntrustedMailboxAccount(
+        String username
+    )throws IOException{
+        return loadInternal(username,false);
+    }
+
+    private Optional<PlayerSnapshot> loadInternal(
+        String username,boolean enforceAdmission
     )throws IOException{
         if(world.pulse().inExecutionContext())
             throw new IllegalStateException(
@@ -189,7 +403,7 @@ final class WorldPlayerPersistence
             );
 
         LoadTask task=
-            new LoadTask(username);
+            new LoadTask(username,enforceAdmission);
 
         enqueueLoad(task);
 
@@ -319,16 +533,28 @@ final class WorldPlayerPersistence
         SaveTask task=
             saveTask(captured);
 
-        try{
-            io.execute(task);
-        }catch(RejectedExecutionException e){
-            task.reject(
-                e,
-                "IO_BACKPRESSURE"
-            );
-        }
+        enqueueSaveImmediate(
+            task
+        );
 
         return captured.ticket;
+    }
+
+    /**
+     * G21.202: immutable in-JVM provenance captured with the World-owned
+     * snapshot, BEFORE any asynchronous FIFO worker can observe a later
+     * account-path lease. Non-file repositories never enter this protocol.
+     */
+    private LocalJvmAccountSessionLease.SaveCaptureWitness
+        captureOwnerLeaseWitness(
+            String username,WorldPlayer player,long generation
+        ){
+        if(!(repository instanceof FilePlayerRepository))
+            return null;
+        java.nio.file.Path file=
+            ((FilePlayerRepository)repository).accountFilePath(username);
+        return LocalJvmAccountSessionLease.captureSaveWitness(
+            file,username,player,generation);
     }
 
     CapturedSave captureDeferredSave(
@@ -406,7 +632,9 @@ final class WorldPlayerPersistence
             expectedGeneration,
             petAccessoryItem,
             cleanTag(tag),
-            cleanReason(reason)
+            cleanReason(reason),
+            false,
+            captureOwnerLeaseWitness(username,player,expectedGeneration)
         );
     }
 
@@ -456,6 +684,27 @@ final class WorldPlayerPersistence
                         player,
                         petAccessoryItem
                     );
+
+                /*
+                 * A checkpoint captured after the ordered final reservation
+                 * was accepted can be queued behind that reservation. If left
+                 * pending, its drain would run after the final save and could
+                 * overwrite the repository with older pre-disconnect state.
+                 *
+                 * Only discard the still-pending/coalesced checkpoint after
+                 * final capture succeeds. A checkpoint already running was
+                 * dequeued ahead of the reservation and may finish normally
+                 * before the final save.
+                 */
+                synchronized(checkpointLock){
+                    CheckpointSlot slot=
+                        checkpoints.get(
+                            player.id()
+                        );
+
+                    if(slot!=null)
+                        slot.latest=null;
+                }
             }catch(RuntimeException|Error failure){
                 synchronized(checkpointLock){
                     Long current=
@@ -498,8 +747,143 @@ final class WorldPlayerPersistence
             expectedGeneration,
             petAccessoryItem,
             cleanTag(tag),
-            cleanReason(reason)
+            cleanReason(reason),
+            true,
+            captureOwnerLeaseWitness(username,player,expectedGeneration)
         );
+    }
+
+    FinalSaveReservation reserveFinalSaveWithBackpressure(
+        long timeoutMillis
+    ){
+        return reserveFinalSaveWithBackpressure(
+            null,
+            0L,
+            timeoutMillis
+        );
+    }
+
+    FinalSaveReservation reserveFinalSaveWithBackpressure(
+        WorldPlayer owner,
+        long expectedGeneration,
+        long timeoutMillis
+    ){
+        if(timeoutMillis<0L)
+            throw new IllegalArgumentException(
+                "timeoutMillis="+timeoutMillis
+            );
+
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "blocking final-save reservation on World execution context"
+            );
+
+        if(owner!=null&&
+           !world.players().owns(
+               owner,
+               expectedGeneration))
+            throw new IllegalStateException(
+                "final-save reservation owner changed player="+
+                owner.id()+
+                " expectedGeneration="+
+                expectedGeneration
+            );
+
+        ReservedFinalSaveTask task=
+            new ReservedFinalSaveTask(
+                owner,
+                expectedGeneration
+            );
+
+        enqueueFinalReservationWithBackpressure(
+            task,
+            timeoutMillis
+        );
+
+        return new FinalSaveReservation(
+            task
+        );
+    }
+
+    private void enqueueFinalReservationWithBackpressure(
+        ReservedFinalSaveTask task,
+        long timeoutMillis
+    ){
+        long timeoutNanos=
+            TimeUnit.MILLISECONDS.toNanos(
+                timeoutMillis
+            );
+        long started=
+            System.nanoTime();
+        boolean interrupted=false;
+        boolean executeAttempted=false;
+
+        try{
+            for(;;){
+                synchronized(io){
+                    if(io.isShutdown())
+                        throw new RejectedExecutionException(
+                            "persistence closed before final-save reservation"
+                        );
+
+                    if(!executeAttempted){
+                        executeAttempted=true;
+
+                        try{
+                            if(tryAdmitFinalReservationLocked(
+                                    task,
+                                    true))
+                                return;
+                        }catch(RejectedExecutionException full){
+                            if(io.isShutdown())
+                                throw new RejectedExecutionException(
+                                    "persistence closed before final-save reservation",
+                                    full
+                                );
+                        }
+                    }
+
+                    if(tryAdmitFinalReservationLocked(
+                            task,
+                            false))
+                        return;
+                }
+
+                long elapsed=
+                    System.nanoTime()-started;
+
+                if(elapsed>=timeoutNanos)
+                    throw new RejectedExecutionException(
+                        "final-save reservation timed out after "+
+                        timeoutMillis+"ms"
+                    );
+
+                long remaining=
+                    timeoutNanos-elapsed;
+                long sleepMillis=
+                    Math.max(
+                        1L,
+                        Math.min(
+                            5L,
+                            TimeUnit.NANOSECONDS.toMillis(
+                                remaining
+                            )
+                        )
+                    );
+
+                try{
+                    Thread.sleep(
+                        sleepMillis
+                    );
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }
+            }
+        }finally{
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+        }
     }
 
     SaveTicket submitCapturedWithBackpressure(
@@ -551,13 +935,193 @@ final class WorldPlayerPersistence
         CapturedSave captured
     ){
         return new SaveTask(
-            captured.ticket.sequence,
-            captured.ticket.snapshot,
-            captured.petAccessoryItem,
-            captured.tag,
-            captured.reason,
-            captured.ticket.completion
+            captured
         );
+    }
+
+    private boolean finalReservationBlocksLocked(
+        SaveTask task
+    ){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "final reservation save fence requires persistence admission ownership"
+            );
+
+        if(task==null||
+           task.finalDisconnect||
+           task.owner==null)
+            return false;
+
+        Long generation=
+            finalReservationGenerations.get(
+                task.owner
+            );
+
+        return generation!=null&&
+            generation.longValue()==
+                task.expectedGeneration;
+    }
+
+    private RejectedExecutionException
+        finalReservationSaveRejection(
+            SaveTask task
+        )
+    {
+        return new RejectedExecutionException(
+            "ordinary save blocked behind final reservation player="+
+            task.owner.id()+
+            " generation="+
+            task.expectedGeneration
+        );
+    }
+
+    private void activateFinalReservationLocked(
+        ReservedFinalSaveTask task
+    ){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "final reservation activation requires persistence admission ownership"
+            );
+
+        if(task.owner==null)
+            return;
+
+        if(preparedAccountBlockedLocked(task.owner.username()))
+            throw preparedWriteRejection(
+                task.owner.username()
+            );
+
+        Long existing=
+            finalReservationGenerations.get(
+                task.owner
+            );
+
+        if(existing!=null)
+            throw new IllegalStateException(
+                "final reservation already active player="+
+                task.owner.id()+
+                " generation="+
+                existing
+            );
+
+        finalReservationGenerations.put(
+            task.owner,
+            task.ownerGeneration
+        );
+    }
+
+    private void clearFinalReservationLocked(
+        WorldPlayer owner,
+        long expectedGeneration
+    ){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "final reservation clear requires persistence admission ownership"
+            );
+
+        if(owner==null)
+            return;
+
+        Long existing=
+            finalReservationGenerations.get(
+                owner
+            );
+
+        if(existing!=null&&
+           existing.longValue()==expectedGeneration)
+            finalReservationGenerations.remove(
+                owner
+            );
+    }
+
+    private void clearFinalReservation(
+        WorldPlayer owner,
+        long expectedGeneration
+    ){
+        if(owner==null)
+            return;
+
+        synchronized(io){
+            clearFinalReservationLocked(
+                owner,
+                expectedGeneration
+            );
+        }
+    }
+
+    private boolean tryAdmitFinalReservationLocked(
+        ReservedFinalSaveTask task,
+        boolean executorAdmission
+    ){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "final reservation admission requires persistence admission ownership"
+            );
+
+        activateFinalReservationLocked(
+            task
+        );
+
+        boolean admitted=false;
+
+        try{
+            if(executorAdmission){
+                io.execute(
+                    task
+                );
+                admitted=true;
+                return true;
+            }
+
+            admitted=
+                io.getQueue().offer(
+                    task
+                );
+            return admitted;
+        }finally{
+            if(!admitted)
+                clearFinalReservationLocked(
+                    task.owner,
+                    task.ownerGeneration
+                );
+        }
+    }
+
+    private void enqueueSaveImmediate(
+        SaveTask task
+    ){
+        synchronized(io){
+            if(preparedAccountBlockedLocked(task.snapshot.username())){
+                task.reject(
+                    preparedWriteRejection(task.snapshot.username()),
+                    "G2127_PREPARED_WRITE_RESERVATION"
+                );
+                return;
+            }
+            if(finalReservationBlocksLocked(
+                    task)){
+                task.reject(
+                    finalReservationSaveRejection(
+                        task
+                    ),
+                    "FINAL_RESERVATION_FENCE"
+                );
+                return;
+            }
+
+            try{
+                io.execute(
+                    task
+                );
+            }catch(RejectedExecutionException failure){
+                task.reject(
+                    failure,
+                    io.isShutdown()
+                        ?"SHUTDOWN"
+                        :"IO_BACKPRESSURE"
+                );
+            }
+        }
     }
 
     private void enqueueSaveWithBackpressure(
@@ -576,6 +1140,24 @@ final class WorldPlayerPersistence
         try{
             for(;;){
                 synchronized(io){
+                    if(preparedAccountBlockedLocked(task.snapshot.username())){
+                        task.reject(
+                            preparedWriteRejection(task.snapshot.username()),
+                            "G2127_PREPARED_WRITE_RESERVATION"
+                        );
+                        return;
+                    }
+                    if(finalReservationBlocksLocked(
+                            task)){
+                        task.reject(
+                            finalReservationSaveRejection(
+                                task
+                            ),
+                            "FINAL_RESERVATION_FENCE"
+                        );
+                        return;
+                    }
+
                     if(io.isShutdown()){
                         task.reject(
                             new RejectedExecutionException(
@@ -651,7 +1233,7 @@ final class WorldPlayerPersistence
     }
 
     /**
-     * World-tick autosave. Only the two persistent localhost profiles are
+     * World-tick autosave. Every persistence-eligible local profile is
      * checkpointed. At most one worker task per player is queued/in-flight;
      * additional due snapshots replace the pending snapshot with the newest
      * immutable state.
@@ -686,6 +1268,13 @@ final class WorldPlayerPersistence
                         username))
                     continue;
 
+                // Prevent even capturing NEWER autosave snapshots for
+                // this account while the opt-in exclusive fence lives.
+                synchronized(io){
+                    if(preparedAccountBlockedLocked(username))
+                        continue;
+                }
+
                 synchronized(checkpointLock){
                     Long suppressed=
                         checkpointSuppressedGenerations.get(
@@ -711,8 +1300,13 @@ final class WorldPlayerPersistence
                 pending=
                     new PendingCheckpoint(
                         tick,
+                        sequence.incrementAndGet(),
                         snapshot,
-                        accessoryItem
+                        accessoryItem,
+                        player,
+                        generation,
+                        captureOwnerLeaseWitness(
+                            username,player,generation)
                     );
 
                 synchronized(checkpointLock){
@@ -800,6 +1394,39 @@ final class WorldPlayerPersistence
             .getSimpleName();
     }
 
+    /** G21.37 socket-thread marker-only review check (not a world tick). */
+    boolean supportsDurableMailboxReviewFence(){
+        return repository instanceof FilePlayerRepository;
+    }
+
+    boolean hasDurableMailboxReviewFence(String account)
+        throws IOException{
+        if(!(repository instanceof FilePlayerRepository))
+            return false;
+        FilePlayerRepository files=(FilePlayerRepository)repository;
+        // Permanent G21.32/G21.47 review markers ALWAYS end a live
+        // session. A G21.48 transient intent may be the marker of this
+        // session's own still-running strict checkpoint; do not kick
+        // its owner solely because the writer has reached the small
+        // write-ahead publication interval.
+        if(files.hasPermanentMailboxReviewFence(account))
+            return true;
+        if(!files.hasStrictWriteIntent(account))
+            return false;
+        PreparedStrictBarrierTask current=inFlightStrictBarrier.get();
+        if(current!=null&&!current.completion.isDone()&&
+           account.equals(current.snapshot.username()))
+            return false;
+        // G21.66: terminal file publication also owns a transient
+        // G21.48 marker while its strict writer is still active.
+        // Only the exact in-flight account is exempt; a stranded
+        // marker or ANY permanent review fence remains a veto.
+        ReservedTerminalPublicationTask terminal=
+            inFlightTerminalPublication.get();
+        return terminal==null||terminal.completion.isDone()||
+            !account.equals(terminal.token.account);
+    }
+
     long checkpointCapturedCount(){
         return checkpointCaptured.get();
     }
@@ -818,6 +1445,19 @@ final class WorldPlayerPersistence
 
     long failedCount(){
         return failed.get();
+    }
+
+    int failedFinalSaveAdmissionVetoCount(){
+        return failedFinalSaveAccounts.size();
+    }
+
+    private void rememberFailedFinalSave(String account){
+        if(failedFinalSaveAccounts.add(account))
+            System.err.println(
+                "G21.178 FINAL_SAVE_WORLD_LIFETIME_NEGATIVE"+
+                " account="+account+
+                " durable=false recoveryAuthorized=false"
+            );
     }
 
     int queuedWrites(){
@@ -902,18 +1542,21 @@ final class WorldPlayerPersistence
                     playerId;
             }
 
-            long saveSequence=
-                sequence.incrementAndGet();
-
+            // The cutoff compares the World *capture* order,
+            // not the later worker drain order. A pending checkpoint
+            // older than a strict barrier is never allowed to overwrite
+            // the new durable PREPARED-only account snapshot.
             write(
-                saveSequence,
+                pending.captureSequence,
                 pending.snapshot,
                 pending.petAccessoryItem,
                 "[world] ",
                 "AUTOSAVE_TICK_"+
                     pending.tick,
                 completion,
-                true
+                true,
+                null,
+                pending
             );
 
             synchronized(checkpointLock){
@@ -942,12 +1585,14 @@ final class WorldPlayerPersistence
         implements Runnable {
 
         private final String username;
+        private final boolean enforceAdmission;
         private final CompletableFuture<
             Optional<PlayerSnapshot>
         > future=new CompletableFuture<>();
 
-        LoadTask(String username){
+        LoadTask(String username,boolean enforceAdmission){
             this.username=username;
+            this.enforceAdmission=enforceAdmission;
         }
 
         @Override public void run(){
@@ -957,9 +1602,46 @@ final class WorldPlayerPersistence
                 if(future.isDone())
                     return;
 
-                future.complete(
-                    repository.load(username)
-                );
+                // G21.178: only session-admitted loads are refused.
+                // The worker's FIFO orders a failed final SaveTask
+                // before later account loads. Read-only forensic
+                // observations intentionally retain their prior path.
+                // This memory-only veto vanishes on World recreation;
+                // durable failed-final-save intent is still missing.
+                if(enforceAdmission&&
+                   failedFinalSaveAccounts.contains(username))
+                    throw new IOException(
+                        "G21.178 FINAL_SAVE_WORLD_LIFETIME_VETO_NO_RECOVERY"+
+                        " account="+username
+                    );
+
+                // G21.32: detect a durable negative review marker BEFORE
+                // any session snapshot hydration, including absent accounts.
+                // Read-only G21.26 forensic observations intentionally skip
+                // admission but must never be used as session loads.
+                // G21.58: anchor both negative-marker admission checks
+                // and the account snapshot read to one file-backed path.
+                // Unadmitted read-only forensic observations and non-file
+                // PlayerRepository adapters retain their old read path.
+                java.util.Optional<PlayerSnapshot> loaded=
+                    enforceAdmission&&
+                        repository instanceof FilePlayerRepository
+                        ?((FilePlayerRepository)repository)
+                            .loadForWorldSession(username)
+                        :repository.load(username);
+                if(enforceAdmission&&loaded.isPresent()){
+                    MailboxPreparedRestartAdmission.Decision admission=
+                        MailboxPreparedRestartAdmission.inspect(
+                            loaded.get()
+                        );
+                    if(!admission.admissionAllowed)
+                        throw new IOException(
+                            "G21.31 MAILBOX_PREPARED_LOAD_QUARANTINE"+
+                            " account="+username+
+                            " reason="+admission.state
+                        );
+                }
+                future.complete(loaded);
             }catch(Throwable error){
                 future.completeExceptionally(
                     error
@@ -981,9 +1663,2537 @@ final class WorldPlayerPersistence
         }
     }
 
+    private final class ReservedFinalSaveTask
+        implements Runnable {
+
+        final WorldPlayer owner;
+        final long ownerGeneration;
+        private CapturedSave captured;
+        private Throwable terminalFailure;
+
+        ReservedFinalSaveTask(
+            WorldPlayer owner,
+            long ownerGeneration
+        ){
+            this.owner=owner;
+            this.ownerGeneration=ownerGeneration;
+        }
+
+        @Override public void run(){
+            CapturedSave ready=null;
+            Throwable terminal=null;
+            boolean interrupted=false;
+
+            synchronized(this){
+                while(captured==null&&
+                      terminalFailure==null){
+                    try{
+                        wait();
+                    }catch(InterruptedException failure){
+                        interrupted=true;
+                        terminalFailure=
+                            new RejectedExecutionException(
+                                "final-save reservation worker interrupted",
+                                failure
+                            );
+                    }
+                }
+
+                ready=captured;
+                terminal=terminalFailure;
+            }
+
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+
+            if(ready!=null){
+                saveTask(ready).run();
+                return;
+            }
+
+            if(terminal!=null)
+                clearFinalReservation(
+                    owner,
+                    ownerGeneration
+                );
+        }
+
+        synchronized boolean publish(
+            CapturedSave captured
+        ){
+            if(this.captured!=null||
+               terminalFailure!=null)
+                return false;
+
+            CapturedSave checked=
+                Objects.requireNonNull(
+                    captured,
+                    "captured"
+                );
+
+            if(owner!=null&&
+               (checked.owner!=owner||
+                checked.expectedGeneration!=
+                    ownerGeneration))
+                throw new IllegalArgumentException(
+                    "final reservation capture owner mismatch player="+
+                    owner.id()+
+                    " expectedGeneration="+
+                    ownerGeneration
+                );
+
+            this.captured=checked;
+            notifyAll();
+            return true;
+        }
+
+        void abort(
+            Throwable failure
+        ){
+            boolean changed=false;
+
+            synchronized(this){
+                if(captured!=null||
+                   terminalFailure!=null)
+                    return;
+
+                terminalFailure=
+                    failure==null
+                        ?new IllegalStateException(
+                            "final-save reservation aborted"
+                        )
+                        :failure;
+                changed=true;
+                notifyAll();
+            }
+
+            if(changed)
+                clearFinalReservation(
+                    owner,
+                    ownerGeneration
+                );
+        }
+
+        boolean reject(
+            RejectedExecutionException error,
+            String stage
+        ){
+            CapturedSave ready;
+
+            synchronized(this){
+                if(terminalFailure!=null)
+                    return false;
+
+                terminalFailure=error;
+                ready=captured;
+                notifyAll();
+            }
+
+            if(ready!=null)
+                return saveTask(ready)
+                    .reject(
+                        error,
+                        stage
+                    );
+
+            clearFinalReservation(
+                owner,
+                ownerGeneration
+            );
+            return true;
+        }
+    }
+
+    /**
+     * An opt-in PREPARED_NO_GRANT strict-write barrier, serialized on the
+     * existing single persistence worker. Never invoked by live native
+     * Mailbox reward-claim widgets.
+     */
+    final class PreparedStrictBarrierTask implements Runnable {
+        final long barrierSequence;
+        final WorldPlayer owner;
+        final long expectedGeneration;
+        final PlayerSnapshot snapshot;
+        final StrictDurablePlayerSnapshotWriter writer;
+        final CompletableFuture<
+            StrictDurablePlayerSnapshotWriter.Receipt> completion=
+                new CompletableFuture<>();
+
+        PreparedStrictBarrierTask(
+            long barrierSequence,WorldPlayer owner,
+            long expectedGeneration,PlayerSnapshot snapshot,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+            this.barrierSequence=barrierSequence;
+            this.owner=Objects.requireNonNull(owner,"strict barrier owner");
+            this.expectedGeneration=expectedGeneration;
+            this.snapshot=snapshot;
+            this.writer=writer;
+        }
+
+        @Override public void run(){
+            inFlightStrictBarrier.set(this);
+            try{
+                if(completion.isDone())
+                    return;
+                // G21.92: a recovery fence admitted while strict work
+                // waited in FIFO must also exclude this pre-existing task.
+                synchronized(io){
+                    if(committedRecoveryReservations.containsKey(
+                            snapshot.username()))
+                        throw preparedWriteRejection(snapshot.username());
+                }
+                // G21.44: queued strict work may have waited behind an
+                // earlier slow file operation. Recheck complete current
+                // owner/generation/snapshot on THIS existing persistence
+                // worker before invoking any strict writer file I/O.
+                if(repository instanceof FilePlayerRepository)
+                    requirePreparedOwnerStillCurrentBeforeWrite(
+                        owner,expectedGeneration,snapshot
+                    );
+
+                // G21.42: real file-backed World strict PREPARED saves
+                // coordinate with the G21.34 negative review marker.
+                // Keep legacy non-file adapters explicitly outside the
+                // exact FilePlayerRepository path guarantee.
+                StrictDurablePlayerSnapshotWriter.Receipt receipt=
+                    repository instanceof FilePlayerRepository
+                        ?writer.saveStrictForWorld(
+                            snapshot,
+                            ((FilePlayerRepository)repository)
+                                .accountFilePath(snapshot.username()),
+                            ()->requirePreparedOwnerStillCurrentAtPublication(
+                                owner,expectedGeneration,snapshot
+                            ),
+                            ()->requirePreparedOwnerStillCurrentAtPublication(
+                                owner,expectedGeneration,snapshot
+                            ),
+                            true // G21.48: write-ahead negative intent
+                        )
+                        :writer.saveStrict(snapshot);
+                completion.complete(receipt);
+            }catch(Throwable failure){
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightStrictBarrier.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+        }
+    }
+
+    /**
+     * G21.44 worker-side last-chance exact-state gate. Never performs
+     * disk I/O or holds a live owner lock across the strict file writer.
+     * A subsequent World mutation during serialization is a separate
+     * lifetime/epoch problem, not covered by this read-only check.
+     */
+    private void requirePreparedOwnerStillCurrentBeforeWrite(
+        WorldPlayer owner,long expectedGeneration,PlayerSnapshot snapshot
+    ){
+        synchronized(owner.mutationLock()){
+            if(!owner.accepts(expectedGeneration)||
+               !snapshot.username().equals(owner.username()))
+                throw new IllegalStateException(
+                    "G21.44 STRICT_PREPARED_WORKER_OWNER_RETIRED"
+                );
+            final PlayerSnapshot now;
+            try{
+                now=PlayerSnapshotCodec.capture(
+                    snapshot.username(),owner,
+                    PlayerSnapshotCodec.accessoryItem(snapshot)
+                );
+            }catch(RuntimeException invalid){
+                throw new IllegalStateException(
+                    "G21.44 STRICT_PREPARED_WORKER_SNAPSHOT_INVALID",
+                    invalid
+                );
+            }
+            if(!StrictDurablePlayerSnapshotWriter
+                    .canonicalSnapshotSha256(snapshot)
+                    .equals(StrictDurablePlayerSnapshotWriter
+                        .canonicalSnapshotSha256(now)))
+                throw new IllegalStateException(
+                    "G21.44 STRICT_PREPARED_WORKER_SNAPSHOT_DIVERGED"
+                );
+        }
+    }
+
+    /**
+     * G21.45: fail the actual World strict writer just before the
+     * account-file atomic replacement if gameplay changed during temp
+     * serialization or cross-process publication lock acquisition.
+     * Do not hold the owner mutation lock over disk write/fsync.
+     */
+    private void requirePreparedOwnerStillCurrentAtPublication(
+        WorldPlayer owner,long expectedGeneration,PlayerSnapshot snapshot
+    )throws IOException{
+        try{
+            requirePreparedOwnerStillCurrentBeforeWrite(
+                owner,expectedGeneration,snapshot
+            );
+        }catch(IllegalStateException stale){
+            throw new IOException(
+                "G21.45 STRICT_PREPARED_FINAL_RECHECK_VETO "+
+                stale.getMessage(),stale
+            );
+        }
+    }
+
+    /**
+     * Off-World admission only; snapshot must already be captured in
+     * current World ownership and contain G21.22 PREPARED_NO_GRANT.
+     * Existing queued and in-flight I/O precedes this FIFO barrier.
+     * Old deferred/captured saves are rejected by capture sequence.
+     *
+     * THIS IS NOT CLAIM SETTLEMENT: new captures after this barrier
+     * can still overwrite the snapshot unless their owner state has
+     * the committed postimage. No reward credit/CLAIMED allowed.
+     */
+    CompletableFuture<StrictDurablePlayerSnapshotWriter.Receipt>
+        submitPreparedStrictBarrier(
+            WorldPlayer owner,
+            long expectedGeneration,
+            PlayerSnapshot snapshot,
+            StrictDurablePlayerSnapshotWriter strictWriter
+        ){
+        Objects.requireNonNull(owner,"owner");
+        Objects.requireNonNull(snapshot,"snapshot");
+        Objects.requireNonNull(strictWriter,"strictWriter");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "strict file I/O barrier admission on World context"
+            );
+
+        if(!MailboxPreparedClaimJournal.STATE.equals(
+                snapshot.value("extension."+
+                    MailboxPreparedClaimJournal.NAMESPACE+
+                    ".state")))
+            throw new IllegalArgumentException(
+                "strict claim barrier requires PREPARED_NO_GRANT"
+            );
+
+        synchronized(owner.mutationLock()){
+            if(!world.players().owns(owner,expectedGeneration)||
+               !snapshot.username().equals(owner.username()))
+                throw new IllegalStateException(
+                    "strict prepared barrier World owner changed"
+                );
+
+            // G21.43: for the concrete file-backed World persistence
+            // path, a caller-supplied PREPARED snapshot is never accepted
+            // merely because its account/generation or journal-state
+            // fields look correct. Check the FULL canonical snapshot
+            // against the actual currently owned player under the same
+            // mutation lock, BEFORE reserving any worker sequence/cutoff.
+            // Historical custom PlayerRepository adapters retain their
+            // separate strict-barrier semantics and are not claimed safe.
+            if(repository instanceof FilePlayerRepository){
+                final PlayerSnapshot current;
+                final PlayerSnapshot normalized;
+                try{
+                    normalized=PlayerSnapshotCodec
+                        .validateAndNormalize(snapshot);
+                    current=PlayerSnapshotCodec.capture(
+                        snapshot.username(),
+                        owner,
+                        PlayerSnapshotCodec.accessoryItem(snapshot)
+                    );
+                }catch(RuntimeException invalid){
+                    throw new IllegalStateException(
+                        "G21.43 STRICT_PREPARED_ACCOUNT_SNAPSHOT_INVALID",
+                        invalid
+                    );
+                }
+                if(!normalized.values().equals(snapshot.values())||
+                   normalized.version()!=snapshot.version()||
+                   MailboxPreparedRestartAdmission.inspect(snapshot)
+                       .state!=MailboxPreparedRestartAdmission.State
+                           .VALID_PREPARED_UNCLAIMED)
+                    throw new IllegalStateException(
+                        "G21.43 STRICT_PREPARED_ACCOUNT_NOT_CANONICAL"
+                    );
+                if(!StrictDurablePlayerSnapshotWriter
+                       .canonicalSnapshotSha256(snapshot)
+                       .equals(StrictDurablePlayerSnapshotWriter
+                           .canonicalSnapshotSha256(current)))
+                    throw new IllegalStateException(
+                        "G21.43 STRICT_PREPARED_STALE_LIVE_OWNER_SNAPSHOT"
+                    );
+            }
+
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "strict prepared barrier after shutdown"
+                    );
+                if(preparedAccountBlockedLocked(snapshot.username()))
+                    throw preparedWriteRejection(snapshot.username());
+                Long finalGeneration=
+                    finalReservationGenerations.get(owner);
+                if(finalGeneration!=null&&
+                   finalGeneration.longValue()==expectedGeneration)
+                    throw new RejectedExecutionException(
+                        "strict prepared barrier blocked by final-save reservation"
+                    );
+
+                long barrierSequence=sequence.incrementAndGet();
+                PreparedStrictBarrierTask task=
+                    new PreparedStrictBarrierTask(
+                        barrierSequence,owner,expectedGeneration,
+                        snapshot,strictWriter
+                    );
+                // The cutoff must become visible only on a successful
+                // enqueue. Failed/backpressured admission changes nothing.
+                io.execute(task);
+                strictPreparedAccountCutoffs.put(
+                    snapshot.username(),barrierSequence
+                );
+                return task.completion;
+            }
+        }
+    }
+
+    /**
+     * G21.27 exclusive, fail-closed account WRITE reservation.
+     * No I/O receipt, actual transaction, or reward authorization.
+     * Deliberately no AutoCloseable: an arbitrary close() must never
+     * accidentally remove a fence around an uncertain claim.
+     */
+    final class PreparedAccountReservation {
+        final WorldPlayer owner;
+        final long generation;
+        final String account;
+        final String intentKey;
+        final RewardDeliveryMessage envelopeIdentity;
+        final PlayerSnapshot exactPreimage;
+        private boolean released;
+        private int pendingDrains;
+        private boolean drainAttempted;
+        private boolean lastDrainWasExactPrepared;
+        private boolean liveTransitionPending;
+        private boolean liveTransitionCandidateIssued;
+        private TerminalReconciliationEvidence lastBoundTerminalObservation;
+        private TerminalReconciliationEvidence issuedCandidateObservation;
+        private MailboxTerminalLiveTransitionCandidate issuedCandidate;
+        private boolean terminalFreshnessAttempted;
+
+        private PreparedAccountReservation(
+            WorldPlayer owner,long generation,
+            MailboxSettlementPostimagePlanner.Proposal proposal
+        ){
+            this.owner=owner;
+            this.generation=generation;
+            this.account=proposal.account;
+            this.intentKey=proposal.idempotencyKey;
+            MailboxRewardDeliveryService.Snapshot bound=
+                owner.mailbox().get(proposal.messageId);
+            if(bound==null)
+                throw new IllegalStateException(
+                    "G21.27 reservation envelope missing"
+                );
+            this.envelopeIdentity=bound.message;
+            this.exactPreimage=proposal.preparedPreimage;
+        }
+
+        boolean isActive(){
+            synchronized(io){
+                return !released&&
+                    preparedAccountReservations.get(account)==this;
+            }
+        }
+
+        /**
+         * Explicit cancellation ONLY while the owner is still at the
+         * exact PREPARED/UNCLAIMED inventory+Mailbox preimage. Divergence,
+         * logout or generation replacement leaves the reservation held.
+         * Never interprets a disk write or saved intent as a grant.
+         */
+        boolean cancelIfStillUnclaimed(){
+            synchronized(owner.mutationLock()){
+                synchronized(io){
+                    if(released)
+                        return false;
+                    if(pendingDrains!=0)
+                        throw new IllegalStateException(
+                            "G21.28 cannot release reservation while disk drain pending"
+                        );
+                    if(liveTransitionPending||liveTransitionCandidateIssued)
+                        throw new IllegalStateException(
+                            "G21.68 live terminal candidate prohibits prepared release"
+                        );
+                    if(drainAttempted&&!lastDrainWasExactPrepared)
+                        throw new IllegalStateException(
+                            "G21.28 last disk drain was not exact PREPARED"
+                        );
+                    if(preparedAccountReservations.get(account)!=this||
+                       !world.players().owns(owner,generation)||
+                       !owner.accepts(generation))
+                        throw new IllegalStateException(
+                            "G21.27 reservation owner retired"
+                        );
+                    MailboxRewardDeliveryService.Snapshot row=
+                        owner.mailbox().get(
+                            preparedAccountMessageId(this)
+                        );
+                    if(row==null||row.message!=envelopeIdentity)
+                        throw new IllegalStateException(
+                            "G21.27 selected envelope identity changed"
+                        );
+                    // Full snapshot rather than just a stable key:
+                    // prevents releasing across changes to inventory,
+                    // mail, items or unrelated account state.
+                    PlayerSnapshot current=PlayerSnapshotCodec.capture(
+                        account,owner,
+                        PlayerSnapshotCodec.accessoryItem(
+                            exactPreimage
+                        )
+                    );
+                    if(!current.values().equals(
+                            exactPreimage.values())||
+                       row.claimState!=
+                           MailboxRewardDeliveryService.ClaimState.UNCLAIMED)
+                        throw new IllegalStateException(
+                            "G21.27 reservation preimage changed"
+                        );
+                    MailboxPreparedClaimJournal.Intent prepared=
+                        MailboxPreparedClaimJournal.inspectPrepared(owner);
+                    if(prepared==null||
+                       !intentKey.equals(prepared.idempotencyKey))
+                        throw new IllegalStateException(
+                            "G21.27 prepared intent changed"
+                        );
+                    preparedAccountReservations.remove(account);
+                    released=true;
+                    return true;
+                }
+            }
+        }
+    }
+
+    /**
+     * A FIFO drain is a point-in-time repository observation after all
+     * previously admitted tasks. This is NOT file fsync proof or permission
+     * to mutate inventory or Mailbox state.
+     */
+    static final class PreparedDrainObservation {
+        enum State {
+            MISSING_ACCOUNT,
+            EXACT_PREPARED,
+            EXACT_HYPOTHETICAL,
+            DIVERGENT
+        }
+
+        final State state;
+        final String account;
+        final String intentKey;
+        final long generation;
+        final boolean workerQuiescentAtRead;
+        final boolean durabilityReceipt=false;
+        final boolean grantAuthorized=false;
+
+        PreparedDrainObservation(
+            State state,String account,String key,long generation
+        ){
+            this.state=state;
+            this.account=account;
+            this.intentKey=key;
+            this.generation=generation;
+            this.workerQuiescentAtRead=true;
+        }
+    }
+
+    private void verifyReservedProposal(
+        PreparedAccountReservation token,
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    ){
+        // Lock order must remain owner -> io, even on the I/O worker.
+        synchronized(token.owner.mutationLock()){
+            if(!world.players().owns(token.owner,token.generation)||
+               !token.owner.accepts(token.generation)||
+               !proposal.account.equals(token.account)||
+               proposal.ownerGeneration!=token.generation||
+               !proposal.idempotencyKey.equals(token.intentKey))
+                throw new IllegalStateException(
+                    "G21.28 reservation owner or proposal retired"
+                );
+
+            MailboxRewardDeliveryService.Snapshot row=
+                token.owner.mailbox().get(proposal.messageId);
+            if(row==null||row.message!=token.envelopeIdentity)
+                throw new IllegalStateException(
+                    "G21.28 selected immutable message replaced"
+                );
+
+            MailboxSettlementPostimagePlanner.Proposal current=
+                MailboxSettlementPostimagePlanner.plan(
+                    token.owner,token.generation,row
+                );
+            if(!current.preparedPreimage.values().equals(
+                    proposal.preparedPreimage.values())||
+               !current.hypotheticalPostimage.values().equals(
+                    proposal.hypotheticalPostimage.values()))
+                throw new IllegalStateException(
+                    "G21.28 live account postimage changed"
+                );
+
+            synchronized(io){
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.pendingDrains<1)
+                    throw new IllegalStateException(
+                        "G21.28 reservation no longer owns drain"
+                    );
+            }
+        }
+    }
+
+    private final class ReservedPreparedDrainTask implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final CompletableFuture<PreparedDrainObservation> completion=
+            new CompletableFuture<>();
+        private boolean unpinned;
+
+        ReservedPreparedDrainTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal
+        ){
+            this.token=token;
+            this.proposal=proposal;
+        }
+
+        private void unpin(boolean exact){
+            synchronized(io){
+                if(unpinned)
+                    return;
+                unpinned=true;
+                token.pendingDrains--;
+                token.lastDrainWasExactPrepared=exact;
+            }
+        }
+
+        @Override public void run(){
+            inFlightPreparedDrain.set(this);
+            try{
+                if(completion.isDone())
+                    return;
+                verifyReservedProposal(token,proposal);
+                java.util.Optional<PlayerSnapshot> disk=
+                    repository.load(token.account);
+                verifyReservedProposal(token,proposal);
+
+                PreparedDrainObservation.State state;
+                if(!disk.isPresent()){
+                    state=PreparedDrainObservation.State.MISSING_ACCOUNT;
+                }else{
+                    MailboxSettlementPostimagePlanner.RecoveryClass match=
+                        proposal.classify(disk.get());
+                    switch(match){
+                        case EXACT_PREPARED_PREIMAGE:
+                            state=PreparedDrainObservation.State.EXACT_PREPARED;
+                            break;
+                        case EXACT_HYPOTHETICAL_POSTIMAGE:
+                            state=PreparedDrainObservation.State.EXACT_HYPOTHETICAL;
+                            break;
+                        default:
+                            state=PreparedDrainObservation.State.DIVERGENT;
+                            break;
+                    }
+                }
+                // Unpin BEFORE waking any waiting futures, so a caller
+                // can immediately attempt the matching safe cancellation.
+                unpin(state==PreparedDrainObservation.State.EXACT_PREPARED);
+                completion.complete(new PreparedDrainObservation(
+                    state,token.account,token.intentKey,token.generation
+                ));
+            }catch(Throwable failure){
+                unpin(false);
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightPreparedDrain.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+            unpin(false);
+        }
+    }
+
+    /**
+     * Asynchronous, bounded-queue, off-World FIFO admission.
+     * The reservation remains pinned until the task resolves; no
+     * concurrent cancellation can unfreeze conflicting writers.
+     */
+    CompletableFuture<PreparedDrainObservation>
+        drainReservedPreparedAccount(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.28 drain cannot perform file I/O on World"
+            );
+
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.28 persistence worker closed"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.generation!=proposal.ownerGeneration||
+                   !token.intentKey.equals(proposal.idempotencyKey))
+                    throw new IllegalStateException(
+                        "G21.28 stale reserved drain admission"
+                    );
+                // Only one in-flight observation per token; no unbounded
+                // competing queued readers and no premature release.
+                if(token.pendingDrains!=0)
+                    throw new IllegalStateException(
+                        "G21.28 duplicate pending account drain"
+                    );
+
+                ReservedPreparedDrainTask task=
+                    new ReservedPreparedDrainTask(token,proposal);
+                io.execute(task); // if rejected, no reservation changes
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
+    private void verifyReservedAdmission(
+        PreparedAccountReservation token,
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    ){
+        synchronized(token.owner.mutationLock()){
+            if(!world.players().owns(token.owner,token.generation)||
+               !token.owner.accepts(token.generation)||
+               !proposal.account.equals(token.account)||
+               !proposal.idempotencyKey.equals(token.intentKey)||
+               proposal.ownerGeneration!=token.generation)
+                throw new IllegalStateException(
+                    "G21.28 drain requested for stale owner"
+                );
+            MailboxRewardDeliveryService.Snapshot row=
+                token.owner.mailbox().get(proposal.messageId);
+            if(row==null||row.message!=token.envelopeIdentity)
+                throw new IllegalStateException(
+                    "G21.28 drain envelope identity changed"
+                );
+            MailboxSettlementPostimagePlanner.Proposal current=
+                MailboxSettlementPostimagePlanner.plan(
+                    token.owner,token.generation,row
+                );
+            if(!current.preparedPreimage.values().equals(
+                    proposal.preparedPreimage.values())||
+               !current.hypotheticalPostimage.values().equals(
+                    proposal.hypotheticalPostimage.values()))
+                throw new IllegalStateException(
+                    "G21.28 drain postimage changed"
+                );
+        }
+    }
+
+
+    /**
+     * G21.65 real FIFO prepublication check for a single-account
+     * terminal postimage. It never writes or authorizes reward settlement.
+     * The observation expires immediately on return: a future writer
+     * MUST revalidate owner, reservation, disk and markers at publication.
+     */
+    static final class TerminalPrepublicationEvidence {
+        enum State {
+            EXACT_PREPARED_NO_GRANT,
+            MISSING_ACCOUNT,
+            DIVERGENT_ACCOUNT
+        }
+        final State state;
+        final String account;
+        final String intentKey;
+        final long generation;
+        final boolean workerFifoObservation=true;
+        final boolean durabilityReceipt=false;
+        final boolean publicationAuthorized=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+
+        TerminalPrepublicationEvidence(
+            State state,PreparedAccountReservation token
+        ){
+            this.state=Objects.requireNonNull(state,"state");
+            this.account=token.account;
+            this.intentKey=token.intentKey;
+            this.generation=token.generation;
+        }
+    }
+
+    private final class ReservedTerminalPreflightTask implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final PlayerSnapshot terminal;
+        final CompletableFuture<TerminalPrepublicationEvidence> completion=
+            new CompletableFuture<>();
+        private boolean unpinned;
+
+        ReservedTerminalPreflightTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal
+        ){
+            this.token=token;
+            this.proposal=proposal;
+            this.terminal=terminal;
+        }
+
+        private void unpin(boolean exact){
+            synchronized(io){
+                if(unpinned)return;
+                unpinned=true;
+                token.pendingDrains--;
+                token.lastDrainWasExactPrepared=exact;
+            }
+        }
+
+        @Override public void run(){
+            inFlightTerminalPreflight.set(this);
+            try{
+                if(completion.isDone())return;
+                verifyReservedProposal(token,proposal);
+                // This method performs an exact pinned account path read,
+                // cross-JVM cooperating publication lock and G21.58-61
+                // admission-style no-follow object/content verification.
+                // It still CANNOT reserve that disk image for a future
+                // write: no positive receipt is returned.
+                java.util.Optional<PlayerSnapshot> disk=
+                    ((FilePlayerRepository)repository)
+                        .loadForWorldSession(token.account);
+                verifyReservedProposal(token,proposal);
+                TerminalPrepublicationEvidence.State state=
+                    !disk.isPresent()
+                        ?TerminalPrepublicationEvidence.State.MISSING_ACCOUNT
+                        :(disk.get().version()==
+                              proposal.preparedPreimage.version()&&
+                          disk.get().values().equals(
+                              proposal.preparedPreimage.values())&&
+                          MailboxPreparedRestartAdmission.inspect(
+                              disk.get()).state==
+                              MailboxPreparedRestartAdmission.State
+                                  .VALID_PREPARED_UNCLAIMED)
+                            ?TerminalPrepublicationEvidence.State
+                                .EXACT_PREPARED_NO_GRANT
+                            :TerminalPrepublicationEvidence.State
+                                .DIVERGENT_ACCOUNT;
+                // Recheck original immutable terminal bytes, not merely
+                // its message/account identity; no caller-supplied
+                // alternate or tampered postimage may pass a queued task.
+                if(!MailboxAtomicTerminalSnapshot.compose(proposal)
+                        .values().equals(terminal.values()))
+                    throw new IllegalStateException(
+                        "G21.65 terminal postimage changed in worker");
+                boolean exact=state==
+                    TerminalPrepublicationEvidence.State
+                        .EXACT_PREPARED_NO_GRANT;
+                unpin(exact);
+                completion.complete(new TerminalPrepublicationEvidence(
+                    state,token
+                ));
+            }catch(Throwable failure){
+                unpin(false);
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightTerminalPreflight.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+            unpin(false);
+        }
+    }
+
+    /**
+     * Reserves a FIFO position AFTER all earlier admitted account saves.
+     * Later account saves are blocked by G21.27's held reservation.
+     * Terminal bytes are independently re-derived from the exact proposal
+     * both on admission and on the existing persistence worker.
+     *
+     * All evidence returned is non-persistent and NON-GRANTING.
+     */
+    CompletableFuture<TerminalPrepublicationEvidence>
+        preflightReservedTerminalPublication(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(terminal,"terminal");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.65 terminal preflight cannot run on World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.65 file-backed repository required"
+            );
+        if(terminal.version()!=PlayerSnapshot.CURRENT_VERSION||
+           !terminal.username().equals(proposal.account)||
+           MailboxAtomicTerminalSnapshot.inspect(terminal).state!=
+               MailboxAtomicTerminalSnapshot.State
+                   .COHERENT_TERMINAL_NO_GRANT||
+           !MailboxAtomicTerminalSnapshot.compose(proposal)
+               .values().equals(terminal.values()))
+            throw new IllegalArgumentException(
+                "G21.65 supplied terminal snapshot not exact"
+            );
+
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.65 terminal preflight worker shut down"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.generation!=proposal.ownerGeneration||
+                   !token.intentKey.equals(proposal.idempotencyKey))
+                    throw new IllegalStateException(
+                        "G21.65 reservation retired at enqueue"
+                    );
+                if(token.pendingDrains!=0)
+                    throw new IllegalStateException(
+                        "G21.65 duplicate reserved account IO pending"
+                    );
+                ReservedTerminalPreflightTask task=
+                    new ReservedTerminalPreflightTask(
+                        token,proposal,terminal
+                    );
+                io.execute(task);
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
+
+    /**
+     * G21.66: strict file-operation evidence ONLY. No item grant, Mailbox
+     * CLAIMED mutation on the live owner, client success or reservation
+     * release is implied even if the exact terminal file is forced.
+     */
+    static final class TerminalPublicationEvidence {
+        final String account;
+        final String intentKey;
+        final long generation;
+        final StrictDurablePlayerSnapshotWriter.Receipt strictReceipt;
+        final boolean fileOperationConfirmed=true;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean rollbackAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+        TerminalPublicationEvidence(
+            PreparedAccountReservation token,
+            StrictDurablePlayerSnapshotWriter.Receipt receipt
+        ){
+            account=token.account;
+            intentKey=token.intentKey;
+            generation=token.generation;
+            strictReceipt=Objects.requireNonNull(receipt,"strict receipt");
+        }
+    }
+
+    /**
+     * Checked while the G21.39 cross-JVM publication FileLock is held,
+     * immediately before or after atomic replacement. Do NOT acquire that
+     * lock recursively. Uncooperative raw file mutators remain untrusted.
+     */
+    private void requireTerminalDisk(
+        PreparedAccountReservation token,
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        Path expectedPath,PlayerSnapshot expected
+    )throws IOException{
+        verifyReservedProposal(token,proposal);
+        FilePlayerRepository files=(FilePlayerRepository)repository;
+        final Path pinned=files.accountFilePath(token.account)
+            .toAbsolutePath().normalize();
+        if(!pinned.equals(expectedPath))
+            throw new IOException(
+                "G21.66 TERMINAL_ACCOUNT_PATH_CHANGED_NO_GRANT"
+            );
+        final java.nio.file.attribute.BasicFileAttributes before=
+            java.nio.file.Files.readAttributes(
+                pinned,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS
+            );
+        if(!before.isRegularFile())
+            throw new IOException(
+                "G21.66 TERMINAL_ACCOUNT_NOT_REGULAR_NO_GRANT"
+            );
+        // A raw, pinned forensic read is mandatory: loadForWorldSession
+        // would recursively acquire the same account publication lock.
+        java.util.Optional<PlayerSnapshot> disk=
+            new FilePlayerRepository(a->{
+                if(!token.account.equals(a))
+                    throw new IllegalArgumentException(
+                        "G21.66 account identity changed"
+                    );
+                return pinned;
+            }).load(token.account);
+        final java.nio.file.attribute.BasicFileAttributes after=
+            java.nio.file.Files.readAttributes(
+                pinned,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS
+            );
+        if(!after.isRegularFile()||
+           !Objects.equals(before.fileKey(),after.fileKey())||
+           before.size()!=after.size()||
+           !Objects.equals(before.lastModifiedTime(),
+                           after.lastModifiedTime())||
+           !disk.isPresent()||
+           disk.get().version()!=expected.version()||
+           !disk.get().username().equals(expected.username())||
+           !disk.get().values().equals(expected.values()))
+            throw new IOException(
+                "G21.66 TERMINAL_ACCOUNT_IMAGE_MISMATCH_NO_GRANT"
+            );
+        verifyReservedProposal(token,proposal);
+    }
+
+    private final class ReservedTerminalPublicationTask implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final PlayerSnapshot terminal;
+        final StrictDurablePlayerSnapshotWriter writer;
+        final boolean recordWriterEvidence;
+        final boolean bindWorldTerminalResult;
+        final CompletableFuture<TerminalPublicationEvidence> completion=
+            new CompletableFuture<>();
+        private boolean unpinned;
+
+        ReservedTerminalPublicationTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer,
+            boolean recordWriterEvidence,boolean bindWorldTerminalResult
+        ){
+            this.token=token;
+            this.proposal=proposal;
+            this.terminal=terminal;
+            this.writer=writer;
+            this.recordWriterEvidence=recordWriterEvidence;
+            this.bindWorldTerminalResult=bindWorldTerminalResult;
+        }
+
+        private void unpin(){
+            synchronized(io){
+                if(unpinned)return;
+                unpinned=true;
+                token.pendingDrains--;
+                // A terminal publication attempt is never a safe
+                // PREPARED-only cancellation basis, even if it failed.
+                token.lastDrainWasExactPrepared=false;
+            }
+        }
+
+        @Override public void run(){
+            inFlightTerminalPublication.set(this);
+            try{
+                if(completion.isDone())return;
+                verifyReservedProposal(token,proposal);
+                if(!MailboxAtomicTerminalSnapshot.compose(proposal)
+                        .values().equals(terminal.values()))
+                    throw new IllegalStateException(
+                        "G21.66 terminal snapshot stale at worker"
+                    );
+                final FilePlayerRepository files=
+                    (FilePlayerRepository)repository;
+                final Path accountFile=files.accountFilePath(token.account)
+                    .toAbsolutePath().normalize();
+                final String preparedSha=
+                    StrictDurablePlayerSnapshotWriter
+                        .canonicalSnapshotSha256(proposal.preparedPreimage);
+                // G21.113: both paths use the EXACT same reserved
+                // proposal checks and pre/post-publication callbacks.
+                StrictDurablePlayerSnapshotWriter.BeforeWorldPublication
+                    before=()->requireTerminalDisk(
+                        token,proposal,accountFile,
+                        proposal.preparedPreimage);
+                StrictDurablePlayerSnapshotWriter.AfterWorldPublication
+                    after=()->requireTerminalDisk(
+                        token,proposal,accountFile,terminal);
+                StrictDurablePlayerSnapshotWriter.Receipt receipt=
+                    bindWorldTerminalResult
+                        ?writer.saveStrictTerminalForWorldWithResultBinding(
+                            terminal,accountFile,preparedSha,before,after)
+                        :recordWriterEvidence
+                            ?writer.saveStrictTerminalForWorldWithWriterEvidence(
+                                terminal,accountFile,preparedSha,before,after)
+                            :writer.saveStrictTerminalForWorld(
+                                terminal,accountFile,preparedSha,before,after);
+                if(!receipt.matchesSnapshot(terminal))
+                    throw new IllegalStateException(
+                        "G21.66 strict file receipt snapshot mismatch"
+                    );
+                unpin();
+                completion.complete(new TerminalPublicationEvidence(
+                    token,receipt
+                ));
+            }catch(Throwable failure){
+                unpin();
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightTerminalPublication.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+            unpin();
+        }
+    }
+
+    /**
+     * Opt-in reserved NO_GRANT terminal file publication. This is not
+     * invoked by the native Mailbox claim handler. All old admitted
+     * writes precede this task in the existing World persistence FIFO.
+     * The held account reservation blocks later competing autosaves,
+     * deferred writes, and final account snapshots.
+     */
+    CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictly(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+        return publishReservedTerminalStrictlyInternal(
+            token,proposal,terminal,writer,false);
+    }
+
+    /**
+     * G21.113: individually opted-in World FIFO terminal write. This
+     * retains the G21.66 reservation and task admission without making
+     * v1 evidence mandatory for any ordinary World persistence path.
+     */
+    CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictlyWithWriterEvidence(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+        return publishReservedTerminalStrictlyInternal(
+            token,proposal,terminal,writer,true);
+    }
+
+    /** G21.123: explicit opt-in ONLY; real reserved G21.66 World
+     * FIFO terminal publication with durable same-UUID result evidence.
+     */
+    CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictlyWithResultBinding(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer
+        ){
+        return publishReservedTerminalStrictlyInternal(
+            token,proposal,terminal,writer,true,true);
+    }
+
+    private CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictlyInternal(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer,
+            boolean recordWriterEvidence
+        ){
+        return publishReservedTerminalStrictlyInternal(
+            token,proposal,terminal,writer,recordWriterEvidence,false);
+    }
+
+    private CompletableFuture<TerminalPublicationEvidence>
+        publishReservedTerminalStrictlyInternal(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            StrictDurablePlayerSnapshotWriter writer,
+            boolean recordWriterEvidence,boolean bindWorldTerminalResult
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(terminal,"terminal");
+        Objects.requireNonNull(writer,"writer");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.66 terminal file publication forbidden on World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.66 exact FilePlayerRepository required"
+            );
+        if(terminal.version()!=PlayerSnapshot.CURRENT_VERSION||
+           !terminal.username().equals(proposal.account)||
+           MailboxAtomicTerminalSnapshot.inspect(terminal).state!=
+               MailboxAtomicTerminalSnapshot.State
+                   .COHERENT_TERMINAL_NO_GRANT||
+           !MailboxAtomicTerminalSnapshot.compose(proposal)
+               .values().equals(terminal.values()))
+            throw new IllegalArgumentException(
+                "G21.66 terminal snapshot does not match proposal"
+            );
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.66 terminal publication worker closed"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.generation!=proposal.ownerGeneration||
+                   !token.intentKey.equals(proposal.idempotencyKey))
+                    throw new IllegalStateException(
+                        "G21.66 stale reserved publication admission"
+                    );
+                if(token.pendingDrains!=0)
+                    throw new IllegalStateException(
+                        "G21.66 duplicate terminal account IO pending"
+                    );
+                ReservedTerminalPublicationTask task=
+                    new ReservedTerminalPublicationTask(
+                        token,proposal,terminal,writer,
+                        recordWriterEvidence,bindWorldTerminalResult
+                    );
+                io.execute(task);
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
+
+    /**
+     * G21.67: read-only terminal/live reconciliation evidence from the
+     * existing World FIFO. Even EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT
+     * is NOT an item transaction COMMIT or live state apply permit.
+     */
+    static final class TerminalReconciliationEvidence {
+        enum State {
+            EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT,
+            EXACT_TERMINAL_NO_RECEIPT,
+            EXACT_TERMINAL_RECEIPT_MISMATCH,
+            EXACT_PREPARED_NO_GRANT,
+            MISSING_ACCOUNT_QUARANTINE,
+            DIVERGENT_ACCOUNT_QUARANTINE,
+            NEGATIVE_FENCE_QUARANTINE
+        }
+        final State state;
+        final String account;
+        final String intentKey;
+        final long generation;
+        final boolean worldFifoReadOnly=true;
+        final boolean liveOwnerExactlyPrepared=true;
+        final boolean durabilityConfirmed=false;
+        final boolean settlementCommitted=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean rollbackAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+        TerminalReconciliationEvidence(
+            State state,PreparedAccountReservation token
+        ){
+            this.state=Objects.requireNonNull(state,"state");
+            this.account=token.account;
+            this.intentKey=token.intentKey;
+            this.generation=token.generation;
+        }
+    }
+
+    private final class ReservedTerminalReconciliationTask
+        implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final PlayerSnapshot terminal;
+        final TerminalPublicationEvidence receiptEvidence;
+        final CompletableFuture<TerminalReconciliationEvidence> completion=
+            new CompletableFuture<>();
+        private boolean unpinned;
+
+        ReservedTerminalReconciliationTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            TerminalPublicationEvidence receiptEvidence
+        ){
+            this.token=token;
+            this.proposal=proposal;
+            this.terminal=terminal;
+            this.receiptEvidence=receiptEvidence;
+        }
+
+        private void unpin(){
+            synchronized(io){
+                if(unpinned)return;
+                unpinned=true;
+                token.pendingDrains--;
+                // Even a matching terminal+file receipt never justifies
+                // releasing a G21.27 reserved PREPARED account.
+                token.lastDrainWasExactPrepared=false;
+            }
+        }
+
+        private TerminalReconciliationEvidence.State classifyDisk()
+            throws IOException{
+            FilePlayerRepository files=(FilePlayerRepository)repository;
+            final Path selected=files.accountFilePath(token.account)
+                .toAbsolutePath().normalize();
+            return MailboxAccountPublicationCoordinator
+                .withExclusivePublication(selected,()->{
+                    // The selected account path is the ONLY allowed file
+                    // for both marker evidence and raw account decoding.
+                    if(!selected.equals(files.accountFilePath(
+                            token.account).toAbsolutePath().normalize()))
+                        throw new IOException(
+                            "G21.67 pinned account resolver changed"
+                        );
+                    FilePlayerRepository.PathResolver pinned=
+                        requested->{
+                            if(!token.account.equals(requested))
+                                throw new IllegalArgumentException(
+                                    "G21.67 account identity changed");
+                            return selected;
+                        };
+                    if(new MailboxDurableReviewFence(pinned)
+                            .present(token.account)||
+                       new MailboxStrictUncertainFence(pinned)
+                            .present(token.account)||
+                       new MailboxStrictWriteIntentFence(pinned)
+                            .present(token.account))
+                        return TerminalReconciliationEvidence.State
+                            .NEGATIVE_FENCE_QUARANTINE;
+
+                    final java.nio.file.attribute.BasicFileAttributes before;
+                    try{
+                        before=java.nio.file.Files.readAttributes(
+                            selected,
+                            java.nio.file.attribute.BasicFileAttributes.class,
+                            java.nio.file.LinkOption.NOFOLLOW_LINKS
+                        );
+                    }catch(java.nio.file.NoSuchFileException missing){
+                        return TerminalReconciliationEvidence.State
+                            .MISSING_ACCOUNT_QUARANTINE;
+                    }
+                    if(!before.isRegularFile())
+                        throw new IOException(
+                            "G21.67 nonregular account file denied");
+                    // Deliberately use RAW read: the World session loader
+                    // must quarantine terminal snapshots and can never be
+                    // used as a recovery/settlement replay mechanism.
+                    java.util.Optional<PlayerSnapshot> read=
+                        new FilePlayerRepository(pinned).load(token.account);
+                    java.nio.file.attribute.BasicFileAttributes after=
+                        java.nio.file.Files.readAttributes(
+                            selected,
+                            java.nio.file.attribute.BasicFileAttributes.class,
+                            java.nio.file.LinkOption.NOFOLLOW_LINKS
+                        );
+                    if(!after.isRegularFile()||
+                       !Objects.equals(before.fileKey(),after.fileKey())||
+                       before.size()!=after.size()||
+                       !Objects.equals(before.lastModifiedTime(),
+                                       after.lastModifiedTime())||
+                       !selected.equals(files.accountFilePath(
+                           token.account).toAbsolutePath().normalize()))
+                        throw new IOException(
+                            "G21.67 account changed during pinned read");
+                    if(new MailboxDurableReviewFence(pinned)
+                            .present(token.account)||
+                       new MailboxStrictUncertainFence(pinned)
+                            .present(token.account)||
+                       new MailboxStrictWriteIntentFence(pinned)
+                            .present(token.account))
+                        return TerminalReconciliationEvidence.State
+                            .NEGATIVE_FENCE_QUARANTINE;
+                    verifyReservedProposal(token,proposal);
+                    if(!read.isPresent())
+                        return TerminalReconciliationEvidence.State
+                            .MISSING_ACCOUNT_QUARANTINE;
+                    PlayerSnapshot disk=read.get();
+                    if(disk.version()==terminal.version()&&
+                       disk.username().equals(terminal.username())&&
+                       disk.values().equals(terminal.values())&&
+                       MailboxAtomicTerminalSnapshot.inspect(disk).state==
+                           MailboxAtomicTerminalSnapshot.State
+                               .COHERENT_TERMINAL_NO_GRANT){
+                        if(receiptEvidence==null)
+                            return TerminalReconciliationEvidence.State
+                                .EXACT_TERMINAL_NO_RECEIPT;
+                        StrictDurablePlayerSnapshotWriter.Receipt receipt=
+                            receiptEvidence.strictReceipt;
+                        if(receiptEvidence.fileOperationConfirmed&&
+                           receiptEvidence.account.equals(token.account)&&
+                           receiptEvidence.intentKey.equals(token.intentKey)&&
+                           receiptEvidence.generation==token.generation&&
+                           receipt.matchesSnapshot(terminal)&&
+                           receipt.file.toAbsolutePath().normalize()
+                               .equals(selected))
+                            return TerminalReconciliationEvidence.State
+                                .EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT;
+                        return TerminalReconciliationEvidence.State
+                            .EXACT_TERMINAL_RECEIPT_MISMATCH;
+                    }
+                    if(disk.version()==proposal.preparedPreimage.version()&&
+                       disk.username().equals(token.account)&&
+                       disk.values().equals(
+                           proposal.preparedPreimage.values())&&
+                       MailboxPreparedRestartAdmission.inspect(disk).state==
+                           MailboxPreparedRestartAdmission.State
+                               .VALID_PREPARED_UNCLAIMED)
+                        return TerminalReconciliationEvidence.State
+                            .EXACT_PREPARED_NO_GRANT;
+                    return TerminalReconciliationEvidence.State
+                        .DIVERGENT_ACCOUNT_QUARANTINE;
+                });
+        }
+
+        @Override public void run(){
+            inFlightTerminalReconciliation.set(this);
+            try{
+                if(completion.isDone())return;
+                verifyReservedProposal(token,proposal);
+                if(!MailboxAtomicTerminalSnapshot.compose(proposal)
+                        .values().equals(terminal.values()))
+                    throw new IllegalStateException(
+                        "G21.67 terminal snapshot stale on FIFO");
+                TerminalReconciliationEvidence.State state=classifyDisk();
+                verifyReservedProposal(token,proposal);
+                TerminalReconciliationEvidence observed=
+                    new TerminalReconciliationEvidence(state,token);
+                synchronized(io){
+                    // Only THIS worker-produced exact matching receipt
+                    // is accepted by the later World-tick gate. A later
+                    // non-exact observation invalidates older evidence.
+                    token.lastBoundTerminalObservation=
+                        state==TerminalReconciliationEvidence.State
+                                .EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT
+                            ?observed:null;
+                }
+                unpin();
+                completion.complete(observed);
+            }catch(Throwable failure){
+                unpin();
+                completion.completeExceptionally(failure);
+            }finally{
+                inFlightTerminalReconciliation.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            completion.completeExceptionally(failure);
+            unpin();
+        }
+    }
+
+    /**
+     * Explicit read-only post-G21.66 reconciliation. A matching file
+     * receipt remains informative, never authorizes a live grant.
+     * Duplicate pending same-account observations and stale World owner
+     * are rejected. Uses the same bounded persistence worker.
+     */
+    CompletableFuture<TerminalReconciliationEvidence>
+        reconcileReservedTerminalReadOnly(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            TerminalPublicationEvidence receiptEvidence
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(terminal,"terminal");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.67 reconciliation forbidden on World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.67 exact file repository required"
+            );
+        if(terminal.version()!=PlayerSnapshot.CURRENT_VERSION||
+           !proposal.account.equals(terminal.username())||
+           MailboxAtomicTerminalSnapshot.inspect(terminal).state!=
+               MailboxAtomicTerminalSnapshot.State
+                   .COHERENT_TERMINAL_NO_GRANT||
+           !MailboxAtomicTerminalSnapshot.compose(proposal)
+               .values().equals(terminal.values()))
+            throw new IllegalArgumentException(
+                "G21.67 invalid terminal proposal or snapshot"
+            );
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.67 reconciliation worker shut down"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.generation!=proposal.ownerGeneration||
+                   !token.intentKey.equals(proposal.idempotencyKey))
+                    throw new IllegalStateException(
+                        "G21.67 reservation retired before enqueue"
+                    );
+                if(token.pendingDrains!=0)
+                    throw new IllegalStateException(
+                        "G21.67 duplicate reserved account IO pending"
+                    );
+                ReservedTerminalReconciliationTask task=
+                    new ReservedTerminalReconciliationTask(
+                        token,proposal,terminal,receiptEvidence
+                    );
+                io.execute(task);
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
+
+    /**
+     * G21.68: one-use World-owned transition CANDIDATE, not a transition.
+     * Prepared on a detached player off the tick and checked under the
+     * actual WorldCommandInbox execution-ownership guard.
+     *
+     * The immutable postimage is never applied to the live WorldPlayer.
+     */
+    CompletableFuture<MailboxTerminalLiveTransitionCandidate>
+        stageReservedTerminalWorldCandidate(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            TerminalReconciliationEvidence observed
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(terminal,"terminal");
+        Objects.requireNonNull(observed,"observed");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.68 candidate admission must be off the World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.68 file-backed World persistence required"
+            );
+        if(observed.state!=
+                TerminalReconciliationEvidence.State
+                    .EXACT_TERMINAL_BOUND_RECEIPT_NO_GRANT||
+           !observed.account.equals(token.account)||
+           !observed.intentKey.equals(token.intentKey)||
+           observed.generation!=token.generation)
+            throw new IllegalArgumentException(
+                "G21.68 missing exact bound terminal receipt evidence"
+            );
+        // Do all heavyweight decode/projection before World admission.
+        MailboxTerminalLiveTransitionCandidate candidate=
+            MailboxTerminalLiveTransitionCandidate.stageDetached(
+                proposal,terminal
+            );
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.68 persistence closed"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   token.pendingDrains!=0||
+                   token.lastBoundTerminalObservation!=observed||
+                   token.liveTransitionPending||
+                   token.liveTransitionCandidateIssued)
+                    throw new IllegalStateException(
+                        "G21.68 duplicate or unbound live transition candidate"
+                    );
+                token.liveTransitionPending=true;
+            }
+        }
+        CompletableFuture<MailboxTerminalLiveTransitionCandidate> result=
+            new CompletableFuture<>();
+        final CompletableFuture<Void> scheduled;
+        try{
+            scheduled=world.submit(
+                token.owner,token.generation,()->{
+                    if(!world.pulse().inExecutionContext())
+                        throw new IllegalStateException(
+                            "G21.68 World command did not execute on World"
+                        );
+                    // World runs this command under the owned player's
+                    // mutation lock. G21.27 token lock order is owner->io.
+                    verifyReservedAdmission(token,proposal);
+                    synchronized(io){
+                        if(io.isShutdown()||token.released||
+                           preparedAccountReservations.get(token.account)!=token||
+                           !token.liveTransitionPending||
+                           token.liveTransitionCandidateIssued||
+                           token.pendingDrains!=0||
+                           token.lastBoundTerminalObservation!=observed)
+                            throw new IllegalStateException(
+                                "G21.68 candidate invalidated before World execution"
+                            );
+                        // Revalidate FULL live account on this World tick.
+                        PlayerSnapshot now=PlayerSnapshotCodec.capture(
+                            token.account,token.owner,
+                            PlayerSnapshotCodec.accessoryItem(
+                                proposal.preparedPreimage)
+                        );
+                        if(!now.values().equals(
+                               proposal.preparedPreimage.values())||
+                           !now.username().equals(token.account)||
+                           !candidate.account.equals(token.account)||
+                           !candidate.intentKey.equals(token.intentKey)||
+                           candidate.generation!=token.generation)
+                            throw new IllegalStateException(
+                                "G21.68 live PREPARED image changed"
+                            );
+                        // Irreversible single-use *candidate issuance*
+                        // only. No inventory/CLAIMED or extension writes.
+                        token.liveTransitionCandidateIssued=true;
+                        token.issuedCandidateObservation=observed;
+                        token.issuedCandidate=candidate;
+                    }
+                    result.complete(candidate);
+                }
+            );
+        }catch(RuntimeException enqueueFailure){
+            synchronized(io){token.liveTransitionPending=false;}
+            result.completeExceptionally(enqueueFailure);
+            return result;
+        }
+        scheduled.whenComplete((done,failure)->{
+            synchronized(io){token.liveTransitionPending=false;}
+            if(failure!=null)
+                result.completeExceptionally(failure);
+            else if(!result.isDone())
+                result.completeExceptionally(new IllegalStateException(
+                    "G21.68 World candidate finished without output"));
+        });
+        return result;
+    }
+
+
+    /**
+     * G21.69: a one-use *fenced* World-tick observation that closes the
+     * cooperating-writer interval between the G21.67 disk read and
+     * G21.68 World candidate. Neither this nor the candidate is a grant.
+     */
+    static final class TerminalWorldFreshnessEvidence {
+        final String account;
+        final String intentKey;
+        final long ownerGeneration;
+        final String terminalSha256;
+        final boolean exactDiskBeforeAndAfterWorldTick=true;
+        final boolean ownerPreparedOnWorldTick=true;
+        final boolean publicationLockReleasedOnReturn=true;
+        final boolean durabilityConfirmed=false;
+        final boolean liveApplied=false;
+        final boolean transactionCommitted=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean rollbackAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+
+        TerminalWorldFreshnessEvidence(
+            PreparedAccountReservation token,
+            MailboxTerminalLiveTransitionCandidate candidate
+        ){
+            account=token.account;
+            intentKey=token.intentKey;
+            ownerGeneration=token.generation;
+            terminalSha256=candidate.terminalSnapshotSha256;
+        }
+    }
+
+    /**
+     * Called only INSIDE G21.39's account publication lock; using the
+     * World session loader would incorrectly admit a terminal snapshot
+     * or recursively lock this same account. No file writes.
+     */
+    private void requireFencedTerminalDisk(
+        PreparedAccountReservation token,
+        MailboxSettlementPostimagePlanner.Proposal proposal,
+        PlayerSnapshot terminal,Path pinned
+    )throws IOException{
+        if(!pinned.equals(((FilePlayerRepository)repository)
+                .accountFilePath(token.account)
+                .toAbsolutePath().normalize()))
+            throw new IOException(
+                "G21.69 TERMINAL_ACCOUNT_PATH_CHANGED_NO_GRANT"
+            );
+        FilePlayerRepository.PathResolver sameFile=requested->{
+            if(!token.account.equals(requested))
+                throw new IllegalArgumentException(
+                    "G21.69 pinned account identity mismatch"
+                );
+            return pinned;
+        };
+        if(new MailboxDurableReviewFence(sameFile)
+                .present(token.account)||
+           new MailboxStrictUncertainFence(sameFile)
+                .present(token.account)||
+           new MailboxStrictWriteIntentFence(sameFile)
+                .present(token.account))
+            throw new IOException(
+                "G21.69 NEGATIVE_REVIEW_FENCE_NO_GRANT"
+            );
+        final java.nio.file.attribute.BasicFileAttributes before=
+            java.nio.file.Files.readAttributes(
+                pinned,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS
+            );
+        if(!before.isRegularFile())
+            throw new IOException(
+                "G21.69 TERMINAL_ACCOUNT_NONREGULAR"
+            );
+        java.util.Optional<PlayerSnapshot> raw=
+            new FilePlayerRepository(sameFile).load(token.account);
+        final java.nio.file.attribute.BasicFileAttributes after=
+            java.nio.file.Files.readAttributes(
+                pinned,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS
+            );
+        if(!after.isRegularFile()||
+           !Objects.equals(before.fileKey(),after.fileKey())||
+           before.size()!=after.size()||
+           !Objects.equals(before.lastModifiedTime(),
+                           after.lastModifiedTime())||
+           !raw.isPresent()||
+           raw.get().version()!=terminal.version()||
+           !raw.get().username().equals(terminal.username())||
+           !raw.get().values().equals(terminal.values())||
+           MailboxAtomicTerminalSnapshot.inspect(raw.get()).state!=
+               MailboxAtomicTerminalSnapshot.State
+                   .COHERENT_TERMINAL_NO_GRANT)
+            throw new IOException(
+                "G21.69 TERMINAL_ACCOUNT_CHANGED_NO_GRANT"
+            );
+        if(new MailboxDurableReviewFence(sameFile)
+                .present(token.account)||
+           new MailboxStrictUncertainFence(sameFile)
+                .present(token.account)||
+           new MailboxStrictWriteIntentFence(sameFile)
+                .present(token.account)||
+           !pinned.equals(((FilePlayerRepository)repository)
+               .accountFilePath(token.account)
+               .toAbsolutePath().normalize()))
+            throw new IOException(
+                "G21.69 MARKER_OR_PATH_CHANGED_NO_GRANT"
+            );
+        verifyReservedProposal(token,proposal);
+    }
+
+    private final class ReservedTerminalWorldFreshnessTask
+        implements Runnable {
+        final PreparedAccountReservation token;
+        final MailboxSettlementPostimagePlanner.Proposal proposal;
+        final PlayerSnapshot terminal;
+        final MailboxTerminalLiveTransitionCandidate candidate;
+        final CompletableFuture<TerminalWorldFreshnessEvidence> completion=
+            new CompletableFuture<>();
+        final java.util.concurrent.atomic.AtomicBoolean active=
+            new java.util.concurrent.atomic.AtomicBoolean(true);
+        final long admittedAtNanos=System.nanoTime();
+        final AtomicReference<CompletableFuture<Void>> worldContinuation=
+            new AtomicReference<>();
+        private boolean unpinned;
+
+        void cancelLateWorldContinuation(){
+            CompletableFuture<Void> pending=worldContinuation.get();
+            if(pending!=null&&!pending.isDone())
+                pending.cancel(false);
+        }
+
+        long requireTimeRemaining()throws IOException{
+            if(!active.get())
+                throw new IOException(
+                    "G21.70 TERMINAL_FRESHNESS_CANCELED_NO_GRANT"
+                );
+            long remaining=TERMINAL_FRESHNESS_BUDGET_NANOS-
+                (System.nanoTime()-admittedAtNanos);
+            if(remaining<=0L){
+                active.set(false);
+                cancelLateWorldContinuation();
+                throw new IOException(
+                    "G21.70 TERMINAL_FRESHNESS_DEADLINE_EXPIRED_NO_GRANT"
+                );
+            }
+            return remaining;
+        }
+
+        ReservedTerminalWorldFreshnessTask(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            PlayerSnapshot terminal,
+            MailboxTerminalLiveTransitionCandidate candidate
+        ){
+            this.token=token;
+            this.proposal=proposal;
+            this.terminal=terminal;
+            this.candidate=candidate;
+        }
+
+        void unpin(){
+            synchronized(io){
+                if(unpinned)return;
+                unpinned=true;
+                token.pendingDrains--;
+                token.lastDrainWasExactPrepared=false;
+            }
+        }
+
+        @Override public void run(){
+            inFlightTerminalWorldFreshness.set(this);
+            try{
+                if(completion.isDone())return;
+                requireTimeRemaining();
+                verifyReservedProposal(token,proposal);
+                if(!MailboxAtomicTerminalSnapshot.compose(proposal)
+                        .values().equals(terminal.values())||
+                   !candidate.terminalSnapshotSha256.equals(
+                       StrictDurablePlayerSnapshotWriter
+                           .canonicalSnapshotSha256(terminal)))
+                    throw new IllegalStateException(
+                        "G21.69 terminal candidate changed before I/O"
+                    );
+
+                requireTimeRemaining();
+                final Path pinned=((FilePlayerRepository)repository)
+                    .accountFilePath(token.account)
+                    .toAbsolutePath().normalize();
+                MailboxAccountPublicationCoordinator
+                    .withExclusivePublication(pinned,()->{
+                        requireTimeRemaining();
+                        requireFencedTerminalDisk(
+                            token,proposal,terminal,pinned
+                        );
+                        // The lock is held across the ACTUAL World-tick
+                        // command. That command only reads World state;
+                        // no tick-side filesystem I/O or item writes.
+                        final java.util.concurrent.atomic.AtomicBoolean
+                            worldChecked=
+                                new java.util.concurrent.atomic.AtomicBoolean();
+                        requireTimeRemaining();
+                        CompletableFuture<Void> tick=
+                            world.submitTerminalFreshnessReadOnly(
+                            token.owner,token.generation,()->{
+                                if(!active.get()||
+                                   System.nanoTime()-admittedAtNanos>=
+                                       TERMINAL_FRESHNESS_BUDGET_NANOS||
+                                   !world.pulse().inExecutionContext())
+                                    throw new IllegalStateException(
+                                        "G21.69 fenced World task expired"
+                                    );
+                                verifyReservedAdmission(token,proposal);
+                                synchronized(io){
+                                    if(io.isShutdown()||
+                                       token.released||
+                                       token.pendingDrains!=1||
+                                       preparedAccountReservations.get(
+                                           token.account)!=token||
+                                       token.issuedCandidate!=candidate||
+                                       token.issuedCandidateObservation==null||
+                                       token.lastBoundTerminalObservation!=
+                                           token.issuedCandidateObservation||
+                                       !token.liveTransitionCandidateIssued)
+                                        throw new IllegalStateException(
+                                            "G21.69 World attestation owner/candidate changed"
+                                        );
+                                }
+                                PlayerSnapshot now=PlayerSnapshotCodec.capture(
+                                    token.account,token.owner,
+                                    PlayerSnapshotCodec.accessoryItem(
+                                        proposal.preparedPreimage)
+                                );
+                                if(!now.values().equals(
+                                        proposal.preparedPreimage.values())||
+                                   !now.username().equals(token.account)||
+                                   !active.get()||
+                                   System.nanoTime()-admittedAtNanos>=
+                                       TERMINAL_FRESHNESS_BUDGET_NANOS)
+                                    throw new IllegalStateException(
+                                        "G21.69 live PREPARED account stale"
+                                    );
+                                worldChecked.set(true);
+                            }
+                        );
+                        worldContinuation.set(tick);
+                        try{
+                            tick.get(
+                                requireTimeRemaining(),
+                                TimeUnit.NANOSECONDS
+                            );
+                        }catch(InterruptedException interrupted){
+                            Thread.currentThread().interrupt();
+                            active.set(false);
+                            cancelLateWorldContinuation();
+                            throw new IOException(
+                                "G21.69 World freshness interrupted",
+                                interrupted
+                            );
+                        }catch(ExecutionException|
+                                java.util.concurrent.TimeoutException failure){
+                            active.set(false);
+                            cancelLateWorldContinuation();
+                            throw new IOException(
+                                "G21.69 World freshness unconfirmed "+
+                                "action=NO_GRANT",failure
+                            );
+                        }
+                        requireTimeRemaining();
+                        if(!worldChecked.get())
+                            throw new IOException(
+                                "G21.69 World freshness not confirmed"
+                            );
+                        // Still inside the same cooperating lock after
+                        // the World command completed. Deny a marker
+                        // or account change that appeared during it.
+                        requireFencedTerminalDisk(
+                            token,proposal,terminal,pinned
+                        );
+                        requireTimeRemaining();
+                        return null;
+                    });
+                requireTimeRemaining();
+                unpin();
+                completion.complete(new TerminalWorldFreshnessEvidence(
+                    token,candidate
+                ));
+            }catch(Throwable failure){
+                active.set(false);
+                cancelLateWorldContinuation();
+                unpin();
+                completion.completeExceptionally(failure);
+            }finally{
+                active.set(false);
+                cancelLateWorldContinuation();
+                inFlightTerminalWorldFreshness.compareAndSet(this,null);
+            }
+        }
+
+        void reject(Throwable failure){
+            active.set(false);
+            cancelLateWorldContinuation();
+            completion.completeExceptionally(failure);
+            unpin();
+        }
+    }
+
+    /**
+     * Off-tick admission of a ONE-SHOT read-only account-file/World
+     * freshness gate. A failed/uncertain attempt consumes the token's
+     * attestation attempt; never accidentally reauthorize replay.
+     */
+    CompletableFuture<TerminalWorldFreshnessEvidence>
+        attestReservedTerminalWorldFreshness(
+            PreparedAccountReservation token,
+            MailboxSettlementPostimagePlanner.Proposal proposal,
+            MailboxTerminalLiveTransitionCandidate candidate
+        ){
+        Objects.requireNonNull(token,"token");
+        Objects.requireNonNull(proposal,"proposal");
+        Objects.requireNonNull(candidate,"candidate");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.69 fenced file observation forbidden on World tick"
+            );
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.69 exact file repository required"
+            );
+        verifyReservedAdmission(token,proposal);
+        synchronized(token.owner.mutationLock()){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.69 persistence worker shut down"
+                    );
+                if(token.released||
+                   preparedAccountReservations.get(token.account)!=token||
+                   !token.liveTransitionCandidateIssued||
+                   token.issuedCandidate!=candidate||
+                   token.issuedCandidateObservation==null||
+                   token.lastBoundTerminalObservation!=
+                       token.issuedCandidateObservation||
+                   token.terminalFreshnessAttempted||
+                   token.pendingDrains!=0||
+                   !candidate.account.equals(token.account)||
+                   !candidate.intentKey.equals(token.intentKey)||
+                   candidate.generation!=token.generation)
+                    throw new IllegalStateException(
+                        "G21.69 candidate missing, expired or already used"
+                    );
+                PlayerSnapshot terminal=
+                    MailboxAtomicTerminalSnapshot.compose(proposal);
+                if(!candidate.projectedTerminal.values().equals(
+                        terminal.values())||
+                   !candidate.terminalSnapshotSha256.equals(
+                       StrictDurablePlayerSnapshotWriter
+                           .canonicalSnapshotSha256(terminal)))
+                    throw new IllegalStateException(
+                        "G21.69 candidate is not exact terminal"
+                    );
+                ReservedTerminalWorldFreshnessTask task=
+                    new ReservedTerminalWorldFreshnessTask(
+                        token,proposal,terminal,candidate
+                    );
+                io.execute(task);
+                token.terminalFreshnessAttempted=true;
+                token.pendingDrains++;
+                token.drainAttempted=true;
+                token.lastDrainWasExactPrepared=false;
+                return task.completion;
+            }
+        }
+    }
+
+    private static String preparedAccountMessageId(
+        PreparedAccountReservation reservation
+    ){
+        // The captured intent namespace is immutable and canonical.
+        String id=reservation.exactPreimage.value(
+            "extension."+MailboxPreparedClaimJournal.NAMESPACE+
+            ".message"
+        );
+        if(id==null)
+            throw new IllegalStateException(
+                "G21.27 missing prepared envelope"
+            );
+        return id;
+    }
+
+    PreparedAccountReservation reservePreparedAccount(
+        WorldPlayer owner,
+        long expectedGeneration,
+        MailboxSettlementPostimagePlanner.Proposal proposal
+    ){
+        Objects.requireNonNull(owner,"owner");
+        Objects.requireNonNull(proposal,"proposal");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.27 reservation admission on World context"
+            );
+        synchronized(owner.mutationLock()){
+            if(!world.players().owns(owner,expectedGeneration)||
+               !owner.accepts(expectedGeneration)||
+               proposal.ownerGeneration!=expectedGeneration||
+               !proposal.account.equals(owner.username()))
+                throw new IllegalStateException(
+                    "G21.27 reservation account/generation mismatch"
+                );
+            MailboxRewardDeliveryService.Snapshot row=
+                owner.mailbox().get(proposal.messageId);
+            if(row==null)
+                throw new IllegalStateException(
+                    "G21.27 selected message absent"
+                );
+            MailboxSettlementPostimagePlanner.Proposal fresh=
+                MailboxSettlementPostimagePlanner.plan(
+                    owner,expectedGeneration,row
+                );
+            if(!fresh.idempotencyKey.equals(
+                    proposal.idempotencyKey)||
+               !fresh.preparedPreimage.values().equals(
+                    proposal.preparedPreimage.values())||
+               !fresh.hypotheticalPostimage.values().equals(
+                    proposal.hypotheticalPostimage.values()))
+                throw new IllegalStateException(
+                    "G21.27 stale PREPARED reservation proposal"
+                );
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.27 persistence already shut down"
+                    );
+                if(preparedAccountReservations.containsKey(
+                        proposal.account))
+                    throw new IllegalStateException(
+                        "G21.27 duplicate account reservation"
+                    );
+                if(preparedAccountReservations.size()>=
+                        MAX_PREPARED_ACCOUNT_RESERVATIONS)
+                    throw new RejectedExecutionException(
+                        "G21.27 prepared account reservation capacity"
+                    );
+                if(finalReservationGenerations.containsKey(owner))
+                    throw new RejectedExecutionException(
+                        "G21.27 final save already reserved"
+                    );
+
+                PreparedAccountReservation token=
+                    new PreparedAccountReservation(
+                        owner,expectedGeneration,proposal
+                    );
+                preparedAccountReservations.put(
+                    proposal.account,token
+                );
+                return token;
+            }
+        }
+    }
+
+
+    /**
+     * G21.92: a live owner/generation-bound **negative** write exclusion.
+     * No acquired capability, apply, reward, replay, session admission or
+     * disk COMMIT release can be derived from this token.
+     */
+    final class CommittedRecoveryReservation {
+        final WorldPlayer owner;
+        final long generation;
+        final String account;
+        final PlayerSnapshot exactFreshPreimage;
+        final CompletableFuture<Void> fifoDrained=new CompletableFuture<>();
+        private boolean released;
+        private ReadOnlyRecoveryEvidence issuedEvidence;
+        private boolean sealedNoAdmission;
+        private boolean publicationPinAttempted;
+        private boolean publicationPinVerified;
+
+        private CommittedRecoveryReservation(
+            WorldPlayer player,long expected,String selected,
+            PlayerSnapshot fresh
+        ){
+            owner=player;
+            generation=expected;
+            account=selected;
+            exactFreshPreimage=fresh;
+        }
+
+        boolean isActive(){
+            synchronized(io){
+                return !released&&
+                    committedRecoveryReservations.get(account)==this;
+            }
+        }
+
+        CompletableFuture<Void> drained(){
+            return fifoDrained;
+        }
+
+        boolean sealedNoAdmission(){
+            synchronized(io){
+                return sealedNoAdmission&&!released&&
+                    committedRecoveryReservations.get(account)==this;
+            }
+        }
+
+        boolean publicationPinVerified(){
+            synchronized(io){
+                return publicationPinVerified&&
+                    sealedNoAdmission&&!released&&
+                    committedRecoveryReservations.get(account)==this;
+            }
+        }
+
+        MailboxCommittedRestartHandoffAudit.Result
+            inspectReadOnlyAfterDrain(
+                MailboxCommittedDetachedRestartRecovery restorer
+            )throws Exception{
+            Objects.requireNonNull(restorer,"restorer");
+            if(world.pulse().inExecutionContext())
+                throw new IllegalStateException(
+                    "G21.92 disk audit on World context");
+            // FIFO ensures all tasks admitted before the token's worker
+            // marker have FINISHED (or failed) on this persistence worker.
+            // Does not fence raw/uncooperative writers or disk power loss.
+            fifoDrained.get();
+            if(!isActive())
+                throw new IllegalStateException(
+                    "G21.92 recovery reservation released or superseded");
+            MailboxCommittedRestartHandoffAudit.Result observed=
+                MailboxCommittedRestartHandoffAudit.inspect(
+                    world,owner,generation,account,restorer);
+            if(!isActive())
+                throw new IllegalStateException(
+                    "G21.92 recovery reservation changed during audit");
+            return observed;
+        }
+
+
+        /**
+         * Bind one successful G21.91 forensic observation to this exact
+         * reservation. Read-only disk work runs before World seal locks.
+         */
+        ReadOnlyRecoveryEvidence inspectOneShotHandoff(
+            MailboxCommittedDetachedRestartRecovery restorer
+        )throws Exception{
+            synchronized(io){
+                if(released||sealedNoAdmission||issuedEvidence!=null||
+                   committedRecoveryReservations.get(account)!=this)
+                    throw new IllegalStateException(
+                        "G21.93 handoff token retired or already issued");
+            }
+            MailboxCommittedRestartHandoffAudit.Result audit=
+                inspectReadOnlyAfterDrain(restorer);
+            if(audit.state!=
+                   MailboxCommittedRestartHandoffAudit.State
+                       .STABLE_CANDIDATE_NO_ADMISSION||
+               !account.equals(audit.account)||
+               audit.terminalSha256==null||
+               audit.transactionCommitted||audit.liveApplied||
+               audit.grantAuthorized||audit.replayAuthorized||
+               audit.restartAdmissionAuthorized||
+               audit.releaseAuthorized||audit.clientAckAuthorized)
+                throw new IllegalStateException(
+                    "G21.93 untrusted handoff audit");
+            synchronized(io){
+                if(released||sealedNoAdmission||issuedEvidence!=null||
+                   committedRecoveryReservations.get(account)!=this)
+                    throw new IllegalStateException(
+                        "G21.93 handoff token superseded");
+                issuedEvidence=new ReadOnlyRecoveryEvidence(this,audit);
+                return issuedEvidence;
+            }
+        }
+
+        /**
+         * Single-use NEGATIVE quarantine seal, not disk/World adoption.
+         * Lock order: World.lifecycle -> player.mutationLock -> io.
+         * Never perform filesystem I/O inside those locks.
+         */
+        RecoverySealDecision sealNoAdmission(
+            ReadOnlyRecoveryEvidence evidence
+        )throws Exception{
+            java.util.concurrent.atomic.AtomicReference<RecoverySealDecision>
+                decision=new java.util.concurrent.atomic.AtomicReference<>(
+                    RecoverySealDecision.REJECT_NOT_OWNED);
+            boolean owned=world.withOpenPlayerMutationOwnershipIfCurrent(
+                owner,generation,()->{
+                    synchronized(io){
+                        if(released||
+                           committedRecoveryReservations.get(account)!=this||
+                           io.isShutdown()){
+                            decision.set(
+                                RecoverySealDecision.REJECT_NOT_RESERVED);
+                            return;
+                        }
+                        if(sealedNoAdmission){
+                            decision.set(
+                                RecoverySealDecision.REJECT_ALREADY_SEALED);
+                            return;
+                        }
+                        if(evidence==null||issuedEvidence!=evidence||
+                           evidence.token!=this||
+                           evidence.generation!=generation||
+                           !account.equals(evidence.account)||
+                           evidence.audit.state!=
+                               MailboxCommittedRestartHandoffAudit.State
+                                   .STABLE_CANDIDATE_NO_ADMISSION||
+                           !account.equals(evidence.audit.account)||
+                           evidence.terminalSha256==null||
+                           !evidence.terminalSha256.equals(
+                               evidence.audit.terminalSha256)){
+                            decision.set(
+                                RecoverySealDecision.REJECT_EVIDENCE);
+                            return;
+                        }
+                        if(!fifoDrained.isDone()||
+                           fifoDrained.isCompletedExceptionally()||
+                           preparedAccountReservations.containsKey(account)||
+                           finalReservationGenerations.containsKey(owner)){
+                            decision.set(
+                                RecoverySealDecision.REJECT_UNDRAINED_OR_CONFLICT);
+                            return;
+                        }
+                        if(!owner.accepts(generation)||
+                           !account.equals(owner.username())||
+                           owner.mailboxSnapshotKnown()||
+                           owner.mailbox().size()!=0||
+                           owner.bank().inventorySlots()!=0||
+                           !exactFreshPreimage.values().equals(
+                               PlayerSnapshotCodec.capture(
+                                   account,owner).values())){
+                            decision.set(
+                                RecoverySealDecision.REJECT_NONFRESH);
+                            return;
+                        }
+                        sealedNoAdmission=true;
+                        decision.set(
+                            RecoverySealDecision.SEALED_QUARANTINE_NO_ADMISSION);
+                    }
+                });
+            return owned?decision.get():
+                RecoverySealDecision.REJECT_NOT_OWNED;
+        }
+
+        /**
+         * G21.94: use a single bounded cooperating disk publication
+         * lock across disk witness check, G21.93 World/persistence
+         * negative-only seal, and a second disk witness check.
+         *
+         * Never hold World lifecycle/player locks while reading disk.
+         * The attempt itself permanently retains the account fence,
+         * even on a lock timeout, corrupt disk or stale World player.
+         */
+        RecoverySealDecision sealWithPinnedPublication(
+            MailboxCommittedDetachedRestartRecovery restorer,
+            ReadOnlyRecoveryEvidence evidence
+        )throws IOException{
+            Objects.requireNonNull(restorer,"restorer");
+            if(world.pulse().inExecutionContext())
+                throw new IllegalStateException(
+                    "G21.94 publication pin on World context");
+            synchronized(io){
+                if(released||
+                   committedRecoveryReservations.get(account)!=this)
+                    return RecoverySealDecision.REJECT_NOT_RESERVED;
+                if(publicationPinAttempted)
+                    return RecoverySealDecision.REJECT_PIN_ALREADY_ATTEMPTED;
+                if(sealedNoAdmission||issuedEvidence==null||
+                   issuedEvidence!=evidence||evidence.token!=this)
+                    return RecoverySealDecision.REJECT_EVIDENCE;
+                // Irreversible *negative* fence before any possible
+                // competing cancellation. No positive authority minted.
+                publicationPinAttempted=true;
+            }
+            RecoverySealDecision result=restorer.withPinnedPublication(
+                account,current->{
+                    if(!evidence.audit.matchesPinnedDisk(current))
+                        return RecoverySealDecision.REJECT_DISK_CHANGED;
+                    try{
+                        return sealNoAdmission(evidence);
+                    }catch(Exception unexpected){
+                        throw new IOException(
+                            "G21.94 PINNED_WORLD_SEAL_UNCONFIRMED_NO_ADMISSION",
+                            unexpected);
+                    }
+                });
+            if(result==RecoverySealDecision
+                    .SEALED_QUARANTINE_NO_ADMISSION){
+                synchronized(io){
+                    if(committedRecoveryReservations.get(account)!=this||
+                       released||!sealedNoAdmission)
+                        throw new IOException(
+                            "G21.94 seal disappeared after pinned check");
+                    publicationPinVerified=true;
+                }
+            }
+            return result;
+        }
+
+        // Explicit, owner-safe cancellation only. A stale generation,
+        // divergent player, or uncertain FIFO boundary stays fenced.
+        boolean cancelIfStillFresh(){
+            synchronized(owner.mutationLock()){
+                synchronized(io){
+                    if(released||sealedNoAdmission||
+                       publicationPinAttempted||
+                       committedRecoveryReservations.get(account)!=this)
+                        return false;
+                    if(!fifoDrained.isDone()||
+                       fifoDrained.isCompletedExceptionally()||
+                       !world.players().owns(owner,generation)||
+                       !owner.accepts(generation)||
+                       !account.equals(owner.username()))
+                        return false;
+                    if(owner.mailboxSnapshotKnown()||
+                       owner.mailbox().size()!=0||
+                       owner.bank().inventorySlots()!=0)
+                        return false;
+                    PlayerSnapshot now=PlayerSnapshotCodec.capture(
+                        account,owner);
+                    if(!exactFreshPreimage.values().equals(now.values()))
+                        return false;
+                    committedRecoveryReservations.remove(account);
+                    released=true;
+                    return true;
+                }
+            }
+        }
+    }
+
+
+    /** Not a transferable recovery capability or admission ticket. */
+    final class ReadOnlyRecoveryEvidence {
+        final CommittedRecoveryReservation token;
+        final String account;
+        final long generation;
+        final String terminalSha256;
+        final MailboxCommittedRestartHandoffAudit.Result audit;
+        final boolean transactionCommitted=false;
+        final boolean liveApplied=false;
+        final boolean grantAuthorized=false;
+        final boolean replayAuthorized=false;
+        final boolean restartAdmissionAuthorized=false;
+        final boolean releaseAuthorized=false;
+        final boolean clientAckAuthorized=false;
+        private ReadOnlyRecoveryEvidence(
+            CommittedRecoveryReservation token,
+            MailboxCommittedRestartHandoffAudit.Result audit
+        ){
+            this.token=token;
+            this.account=token.account;
+            this.generation=token.generation;
+            this.terminalSha256=audit.terminalSha256;
+            this.audit=audit;
+        }
+    }
+
+    enum RecoverySealDecision {
+        SEALED_QUARANTINE_NO_ADMISSION,
+        REJECT_NOT_OWNED,
+        REJECT_NOT_RESERVED,
+        REJECT_EVIDENCE,
+        REJECT_UNDRAINED_OR_CONFLICT,
+        REJECT_NONFRESH,
+        REJECT_ALREADY_SEALED,
+        REJECT_DISK_CHANGED,
+        REJECT_PIN_ALREADY_ATTEMPTED
+    }
+
+    private final class CommittedRecoveryFifoBarrier
+        implements Runnable{
+        final CommittedRecoveryReservation token;
+        CommittedRecoveryFifoBarrier(CommittedRecoveryReservation token){
+            this.token=token;
+        }
+        @Override public void run(){
+            synchronized(io){
+                if(!token.released&&
+                   committedRecoveryReservations.get(token.account)==token)
+                    token.fifoDrained.complete(null);
+                else
+                    token.fifoDrained.completeExceptionally(
+                        new RejectedExecutionException(
+                            "G21.92 RECOVERY_FIFO_TOKEN_NOT_ACTIVE"));
+            }
+        }
+        void reject(Throwable reason){
+            token.fifoDrained.completeExceptionally(reason);
+        }
+    }
+
+    CommittedRecoveryReservation reserveCommittedRecovery(
+        WorldPlayer owner,long expectedGeneration,String account
+    ){
+        Objects.requireNonNull(owner,"owner");
+        if(account==null||!account.matches("[a-z0-9_-]{1,64}"))
+            throw new IllegalArgumentException(
+                "G21.92 recovery account not canonical");
+        if(!(repository instanceof FilePlayerRepository))
+            throw new IllegalStateException(
+                "G21.92 requires real FilePlayerRepository");
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "G21.92 reservation on World execution context");
+
+        synchronized(owner.mutationLock()){
+            if(!world.players().owns(owner,expectedGeneration)||
+               !owner.accepts(expectedGeneration)||
+               !account.equals(owner.username()))
+                throw new IllegalStateException(
+                    "G21.92 recovery reservation owner changed");
+            if(owner.mailboxSnapshotKnown()||
+               owner.mailbox().size()!=0||
+               owner.bank().inventorySlots()!=0)
+                throw new IllegalStateException(
+                    "G21.92 recovery receiver not fresh");
+            PlayerSnapshot exact=PlayerSnapshotCodec.capture(
+                account,owner);
+            PlayerSnapshot fresh=PlayerSnapshotCodec.capture(
+                account,new WorldPlayer());
+            if(!exact.values().equals(fresh.values()))
+                throw new IllegalStateException(
+                    "G21.92 recovery receiver snapshot not fresh");
+
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new RejectedExecutionException(
+                        "G21.92 persistence worker closed");
+                if(committedRecoveryReservations.containsKey(account)||
+                   preparedAccountReservations.containsKey(account)||
+                   finalReservationGenerations.containsKey(owner))
+                    throw new IllegalStateException(
+                        "G21.92 overlapping account reservation");
+                if(committedRecoveryReservations.size()>=
+                        MAX_COMMITTED_RECOVERY_RESERVATIONS)
+                    throw new RejectedExecutionException(
+                        "G21.92 recovery fence capacity");
+                CommittedRecoveryReservation token=
+                    new CommittedRecoveryReservation(
+                        owner,expectedGeneration,account,exact);
+                committedRecoveryReservations.put(account,token);
+                try{
+                    io.execute(new CommittedRecoveryFifoBarrier(token));
+                }catch(RejectedExecutionException rejected){
+                    committedRecoveryReservations.remove(account,token);
+                    token.fifoDrained.completeExceptionally(rejected);
+                    throw rejected;
+                }
+                return token;
+            }
+        }
+    }
+
+    int committedRecoveryReservationsForTest(){
+        synchronized(io){
+            return committedRecoveryReservations.size();
+        }
+    }
+
+    private boolean preparedAccountBlockedLocked(String username){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "G21.27 account fence requires io lock"
+            );
+        return username!=null&&
+            (preparedAccountReservations.containsKey(username)||
+             committedRecoveryReservations.containsKey(username));
+    }
+
+    private RejectedExecutionException preparedWriteRejection(
+        String username
+    ){
+        return new RejectedExecutionException(
+            committedRecoveryReservations.containsKey(username)
+                ?"G21.92 COMMITTED_RECOVERY_WRITE_FENCED "+username
+                :"G21.27 PREPARED_ACCOUNT_WRITE_RESERVED "+username
+        );
+    }
+
     private final class SaveTask
         implements Runnable {
 
+        private final WorldPlayer owner;
+        private final long expectedGeneration;
+        private final boolean finalDisconnect;
+        private final LocalJvmAccountSessionLease.SaveCaptureWitness
+            ownerWitness;
         private final long saveSequence;
         private final PlayerSnapshot snapshot;
         private final int petAccessoryItem;
@@ -992,19 +4202,30 @@ final class WorldPlayerPersistence
         private final CompletableFuture<Void> future;
 
         SaveTask(
-            long saveSequence,
-            PlayerSnapshot snapshot,
-            int petAccessoryItem,
-            String tag,
-            String reason,
-            CompletableFuture<Void> future
+            CapturedSave captured
         ){
-            this.saveSequence=saveSequence;
-            this.snapshot=snapshot;
-            this.petAccessoryItem=petAccessoryItem;
-            this.tag=tag;
-            this.reason=reason;
-            this.future=future;
+            CapturedSave checked=
+                Objects.requireNonNull(
+                    captured,
+                    "captured"
+                );
+
+            this.owner=checked.owner;
+            this.expectedGeneration=
+                checked.expectedGeneration;
+            this.finalDisconnect=
+                checked.finalDisconnect;
+            this.ownerWitness=checked.ownerWitness;
+            this.saveSequence=
+                checked.ticket.sequence;
+            this.snapshot=
+                checked.ticket.snapshot;
+            this.petAccessoryItem=
+                checked.petAccessoryItem;
+            this.tag=checked.tag;
+            this.reason=checked.reason;
+            this.future=
+                checked.ticket.completion;
         }
 
         @Override public void run(){
@@ -1017,13 +4238,24 @@ final class WorldPlayerPersistence
                     tag,
                     reason,
                     future,
-                    false
+                    false,
+                    this
                 );
             }finally{
+                // Mark BEFORE a queued next admission can run.
+                // Fail closed for the remainder of this World.
+                if(finalDisconnect&&future.isCompletedExceptionally())
+                    rememberFailedFinalSave(snapshot.username());
                 inFlightSave.compareAndSet(
                     this,
                     null
                 );
+
+                if(finalDisconnect)
+                    clearFinalReservation(
+                        owner,
+                        expectedGeneration
+                    );
             }
         }
 
@@ -1031,25 +4263,40 @@ final class WorldPlayerPersistence
             RejectedExecutionException error,
             String stage
         ){
+            boolean rejected;
+
             synchronized(future){
                 if(future.isDone())
-                    return false;
+                    rejected=false;
+                else{
+                    failed.incrementAndGet();
+                    future.completeExceptionally(
+                        error
+                    );
+                    rejected=true;
+                }
+            }
 
-                failed.incrementAndGet();
-                future.completeExceptionally(
+            if(rejected){
+                if(finalDisconnect)
+                    rememberFailedFinalSave(snapshot.username());
+                logRejected(
+                    snapshot,
+                    saveSequence,
+                    tag,
+                    reason,
+                    stage,
                     error
                 );
             }
 
-            logRejected(
-                snapshot,
-                saveSequence,
-                tag,
-                reason,
-                stage,
-                error
-            );
-            return true;
+            if(finalDisconnect)
+                clearFinalReservation(
+                    owner,
+                    expectedGeneration
+                );
+
+            return rejected;
         }
     }
 
@@ -1115,8 +4362,118 @@ final class WorldPlayerPersistence
         CompletableFuture<Void> future,
         boolean checkpoint
     ){
+        write(saveSequence,snapshot,petAccessoryItem,tag,reason,
+            future,checkpoint,null,null);
+    }
+
+    private void write(
+        long saveSequence,
+        PlayerSnapshot snapshot,
+        int petAccessoryItem,
+        String tag,
+        String reason,
+        CompletableFuture<Void> future,
+        boolean checkpoint,
+        SaveTask capturedSave
+    ){
+        write(saveSequence,snapshot,petAccessoryItem,tag,reason,
+            future,checkpoint,capturedSave,null);
+    }
+
+    private void write(
+        long saveSequence,
+        PlayerSnapshot snapshot,
+        int petAccessoryItem,
+        String tag,
+        String reason,
+        CompletableFuture<Void> future,
+        boolean checkpoint,
+        SaveTask capturedSave,
+        PendingCheckpoint capturedCheckpoint
+    ){
         try{
-            repository.save(snapshot);
+            synchronized(io){
+                if(failedFinalSaveAccounts.contains(snapshot.username()))
+                    throw new IOException(
+                        "G21.178 FINAL_SAVE_WORLD_LIFETIME_WRITE_VETO"+
+                        " account="+snapshot.username()
+                    );
+                if(preparedAccountBlockedLocked(snapshot.username()))
+                    throw preparedWriteRejection(snapshot.username());
+                Long cutoff=strictPreparedAccountCutoffs.get(
+                    snapshot.username()
+                );
+                if(cutoff!=null&&saveSequence<=cutoff)
+                    throw new RejectedExecutionException(
+                        "stale prepared strict barrier capture account="+
+                        snapshot.username()+" capture="+saveSequence+
+                        " cutoff="+cutoff
+                    );
+            }
+            // G21.36: ordinary, checkpoint and final session writes use
+            // the same file-backed review-fence admission boundary. This
+            // does NOT change non-file PlayerRepository adapter contracts.
+            if(repository instanceof FilePlayerRepository){
+                FilePlayerRepository files=
+                    (FilePlayerRepository)repository;
+                // G21.201: ONLY queued normal/final SaveTask writes
+                // with an already-held, opt-in JVM lease are checked
+                // against the immutable captured owner/generation
+                // immediately before existing file publication.
+                // Final saves occur AFTER owner unregisters: identity
+                // equality is required, not live registered state.
+                // Existing checkpoint path is NOT yet covered by this
+                // narrow experiment. No durable owner receipt/retirement.
+                if(capturedSave!=null&&capturedSave.owner!=null)
+                    LocalJvmAccountSessionLease
+                        .requireCapturedWitnessBeforeWrite(
+                            capturedSave.ownerWitness,
+                            files.accountFilePath(snapshot.username()),
+                            snapshot.username(),
+                            capturedSave.owner,
+                            capturedSave.expectedGeneration);
+                // G21.203: coalesced checkpoint origin is captured
+                // with the immutable snapshot, not rediscovered from
+                // whichever session holds the path at worker execution.
+                // A final save after unregister is unchanged. The
+                // default-OFF and G21.184 prior unleased paths remain
+                // outside the opt-in lease contract.
+                if(capturedCheckpoint!=null)
+                    LocalJvmAccountSessionLease
+                        .requireCapturedWitnessBeforeWrite(
+                            capturedCheckpoint.ownerWitness,
+                            files.accountFilePath(snapshot.username()),
+                            snapshot.username(),
+                            capturedCheckpoint.owner,
+                            capturedCheckpoint.expectedGeneration);
+                // G21.298: an optional, one-shot *negative* witness is
+                // forced only after a real FINAL World postimage. This
+                // never retires ACTIVE, admits a session or certifies
+                // an authenticated cross-process owner epoch.
+                if(capturedSave!=null&&capturedSave.finalDisconnect&&
+                   LocalFinalSaveNegativeWitness.enabled()){
+                    LocalFinalSaveNegativeWitness
+                        .requireAdmissionConfiguration(true);
+                    boolean bound=LocalJvmAccountSessionLease
+                        .requireCapturedWitnessBeforeWrite(
+                            capturedSave.ownerWitness,
+                            files.accountFilePath(snapshot.username()),
+                            snapshot.username(),
+                            capturedSave.owner,
+                            capturedSave.expectedGeneration);
+                    if(!bound)
+                        throw new IOException(
+                            "G21.298 NEGATIVE_FINAL_WITNESS_REQUIRES_CAPTURED_LEASE");
+                    files.saveForWorld(snapshot);
+                    LocalFinalSaveNegativeWitness.publishOnce(
+                        files.accountFilePath(snapshot.username()),
+                        snapshot.username(),
+                        capturedSave.expectedGeneration,
+                        saveSequence);
+                }else
+                    files.saveForWorld(snapshot);
+            }else
+                repository.save(snapshot);
 
             synchronized(future){
                 if(future.isDone())
@@ -1236,6 +4593,58 @@ final class WorldPlayerPersistence
                 continue;
             }
 
+            if(runnable instanceof ReservedFinalSaveTask){
+                counts.finalReservations++;
+                ((ReservedFinalSaveTask)runnable)
+                    .reject(
+                        error,
+                        stage
+                    );
+                continue;
+            }
+
+            if(runnable instanceof PreparedStrictBarrierTask){
+                counts.saves++;
+                ((PreparedStrictBarrierTask)runnable).reject(error);
+                continue;
+            }
+
+            if(runnable instanceof CommittedRecoveryFifoBarrier){
+                counts.loads++;
+                ((CommittedRecoveryFifoBarrier)runnable).reject(error);
+                continue;
+            }
+
+            if(runnable instanceof ReservedPreparedDrainTask){
+                counts.loads++;
+                ((ReservedPreparedDrainTask)runnable).reject(error);
+                continue;
+            }
+
+            if(runnable instanceof ReservedTerminalPreflightTask){
+                counts.loads++;
+                ((ReservedTerminalPreflightTask)runnable).reject(error);
+                continue;
+            }
+
+            if(runnable instanceof ReservedTerminalPublicationTask){
+                counts.saves++;
+                ((ReservedTerminalPublicationTask)runnable).reject(error);
+                continue;
+            }
+
+            if(runnable instanceof ReservedTerminalReconciliationTask){
+                counts.loads++;
+                ((ReservedTerminalReconciliationTask)runnable).reject(error);
+                continue;
+            }
+
+            if(runnable instanceof ReservedTerminalWorldFreshnessTask){
+                counts.loads++;
+                ((ReservedTerminalWorldFreshnessTask)runnable).reject(error);
+                continue;
+            }
+
             if(runnable instanceof CheckpointDrainTask){
                 counts.checkpoints++;
                 ((CheckpointDrainTask)runnable).reject(
@@ -1345,6 +4754,66 @@ final class WorldPlayerPersistence
         );
     }
 
+    private boolean rejectInFlightPreparedDrain(String stage){
+        ReservedPreparedDrainTask active=inFlightPreparedDrain.get();
+        if(active==null)
+            return false;
+        active.reject(new RejectedExecutionException(
+            "G21.28 reserved drain outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
+    private boolean rejectInFlightTerminalWorldFreshness(String stage){
+        ReservedTerminalWorldFreshnessTask current=
+            inFlightTerminalWorldFreshness.get();
+        if(current==null)return false;
+        current.reject(new RejectedExecutionException(
+            "G21.69 fenced World freshness unconfirmed during "+stage
+        ));
+        return true;
+    }
+
+    private boolean rejectInFlightTerminalReconciliation(String stage){
+        ReservedTerminalReconciliationTask current=
+            inFlightTerminalReconciliation.get();
+        if(current==null)return false;
+        current.reject(new RejectedExecutionException(
+            "G21.67 reconciliation unconfirmed during "+stage
+        ));
+        return true;
+    }
+
+    private boolean rejectInFlightTerminalPublication(String stage){
+        ReservedTerminalPublicationTask task=
+            inFlightTerminalPublication.get();
+        if(task==null)return false;
+        task.reject(new RejectedExecutionException(
+            "G21.66 terminal file outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
+    private boolean rejectInFlightTerminalPreflight(String stage){
+        ReservedTerminalPreflightTask active=
+            inFlightTerminalPreflight.get();
+        if(active==null)return false;
+        active.reject(new RejectedExecutionException(
+            "G21.65 terminal preflight outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
+    private boolean rejectInFlightStrictBarrier(String stage){
+        PreparedStrictBarrierTask active=inFlightStrictBarrier.get();
+        if(active==null)
+            return false;
+        active.reject(new RejectedExecutionException(
+            "strict prepared barrier outcome unconfirmed during "+stage
+        ));
+        return true;
+    }
+
     private boolean rejectInFlightSave(
         String stage
     ){
@@ -1428,6 +4897,30 @@ final class WorldPlayerPersistence
                     rejectInFlightSave(
                         "SHUTDOWN_IN_FLIGHT"
                     );
+                boolean strictBarrierSettled=
+                    !clean&&rejectInFlightStrictBarrier(
+                        "SHUTDOWN_STRICT_IN_FLIGHT"
+                    );
+                boolean reservedDrainSettled=
+                    !clean&&rejectInFlightPreparedDrain(
+                        "SHUTDOWN_RESERVED_DRAIN_IN_FLIGHT"
+                    );
+                boolean terminalPreflightSettled=
+                    !clean&&rejectInFlightTerminalPreflight(
+                        "SHUTDOWN_TERMINAL_PREFLIGHT_IN_FLIGHT"
+                    );
+                boolean terminalPublicationSettled=
+                    !clean&&rejectInFlightTerminalPublication(
+                        "SHUTDOWN_TERMINAL_PUBLICATION_IN_FLIGHT"
+                    );
+                boolean terminalReconciliationSettled=
+                    !clean&&rejectInFlightTerminalReconciliation(
+                        "SHUTDOWN_TERMINAL_RECONCILIATION_IN_FLIGHT"
+                    );
+                boolean terminalFreshnessSettled=
+                    !clean&&rejectInFlightTerminalWorldFreshness(
+                        "SHUTDOWN_TERMINAL_FRESHNESS_IN_FLIGHT"
+                    );
                 boolean checkpointInFlightSettled=
                     !clean&&
                     abortInFlightCheckpoint(
@@ -1472,6 +4965,22 @@ final class WorldPlayerPersistence
             boolean inFlightSettled=
                 rejectInFlightSave(
                     "SHUTDOWN_INTERRUPTED_IN_FLIGHT"
+                );
+            boolean terminalPreflightSettled=
+                rejectInFlightTerminalPreflight(
+                    "SHUTDOWN_INTERRUPTED_TERMINAL_PREFLIGHT"
+                );
+            boolean terminalPublicationSettled=
+                rejectInFlightTerminalPublication(
+                    "SHUTDOWN_INTERRUPTED_TERMINAL_PUBLICATION"
+                );
+            boolean terminalReconciliationSettled=
+                rejectInFlightTerminalReconciliation(
+                    "SHUTDOWN_INTERRUPTED_TERMINAL_RECONCILIATION"
+                );
+            boolean terminalFreshnessSettled=
+                rejectInFlightTerminalWorldFreshness(
+                    "SHUTDOWN_INTERRUPTED_TERMINAL_FRESHNESS"
                 );
             boolean checkpointInFlightSettled=
                 abortInFlightCheckpoint(

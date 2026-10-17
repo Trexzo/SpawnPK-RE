@@ -12,6 +12,41 @@ import java.util.Arrays;
  *    full combat modifiers remain intentionally deferred).
  */
 final class PlayerState {
+    static final class PreparedScopesightMaintenance {
+        final int expectedRanged;
+        final int expectedMagic;
+        final int nextRanged;
+        final int nextMagic;
+        final int changedMask;
+
+        PreparedScopesightMaintenance(
+            int expectedRanged,
+            int expectedMagic,
+            int nextRanged,
+            int nextMagic,
+            int changedMask
+        ){
+            this.expectedRanged=expectedRanged;
+            this.expectedMagic=expectedMagic;
+            this.nextRanged=nextRanged;
+            this.nextMagic=nextMagic;
+            this.changedMask=changedMask;
+        }
+
+        int levelForSkill(
+            int skill
+        ){
+            if(skill==RANGED)
+                return nextRanged;
+            if(skill==MAGIC)
+                return nextMagic;
+            throw new IllegalArgumentException(
+                "Scopesight prepared skill "+
+                skill
+            );
+        }
+    }
+
     static final int ATTACK=0, DEFENCE=1, STRENGTH=2, HITPOINTS=3, RANGED=4, PRAYER=5, MAGIC=6;
     static final int COMBAT_SKILL_COUNT=7;
     static final int XP_99=13_034_431;
@@ -159,16 +194,65 @@ final class PlayerState {
      * value. On removal, only unwind the exact maintained fixture values so this
      * milestone cannot erase future/other boost states.
      */
-    int syncScopesightMaintenance(boolean active){
+    PreparedScopesightMaintenance prepareScopesightMaintenance(
+        boolean active
+    ){
+        int ranged=current[RANGED];
+        int magic=current[MAGIC];
+        int nextRanged=ranged;
+        int nextMagic=magic;
         int changed=0;
+
         if(active){
-            if(current[RANGED]<114){current[RANGED]=114;changed|=1<<RANGED;}
-            if(current[MAGIC]<109){current[MAGIC]=109;changed|=1<<MAGIC;}
-        } else {
-            if(current[RANGED]==114){current[RANGED]=99;changed|=1<<RANGED;}
-            if(current[MAGIC]==109){current[MAGIC]=99;changed|=1<<MAGIC;}
+            if(nextRanged<114){
+                nextRanged=114;
+                changed|=1<<RANGED;
+            }
+            if(nextMagic<109){
+                nextMagic=109;
+                changed|=1<<MAGIC;
+            }
+        }else{
+            if(nextRanged==114){
+                nextRanged=99;
+                changed|=1<<RANGED;
+            }
+            if(nextMagic==109){
+                nextMagic=99;
+                changed|=1<<MAGIC;
+            }
         }
-        return changed;
+
+        return new PreparedScopesightMaintenance(
+            ranged,
+            magic,
+            nextRanged,
+            nextMagic,
+            changed
+        );
+    }
+
+    void commitScopesightMaintenance(
+        PreparedScopesightMaintenance prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException("prepared");
+
+        if(current[RANGED]!=prepared.expectedRanged||
+           current[MAGIC]!=prepared.expectedMagic)
+            throw new IllegalStateException(
+                "Scopesight skill preimage changed before commit"
+            );
+
+        current[RANGED]=prepared.nextRanged;
+        current[MAGIC]=prepared.nextMagic;
+    }
+
+    int syncScopesightMaintenance(boolean active){
+        PreparedScopesightMaintenance prepared=
+            prepareScopesightMaintenance(active);
+        commitScopesightMaintenance(prepared);
+        return prepared.changedMask;
     }
 
     boolean setCompSelectors(int[] values){

@@ -47,6 +47,26 @@ final class MailboxRewardDeliveryService {
         }
     }
 
+    /**
+     * Fully decoded, untrusted persistence input. Restore validates and
+     * commits all rows atomically into an empty semantic service.
+     */
+    static final class RestoredEntry {
+        final RewardDeliveryMessage message;
+        final ReadState readState;
+        final ClaimState claimState;
+
+        RestoredEntry(
+            RewardDeliveryMessage message,
+            ReadState readState,
+            ClaimState claimState
+        ){
+            this.message=Objects.requireNonNull(message,"message");
+            this.readState=Objects.requireNonNull(readState,"readState");
+            this.claimState=Objects.requireNonNull(claimState,"claimState");
+        }
+    }
+
     private static final class Entry {
         final RewardDeliveryMessage message;
         ReadState readState;
@@ -141,6 +161,65 @@ final class MailboxRewardDeliveryService {
         );
 
         return entry.snapshot();
+    }
+
+    /**
+     * Restore already-validated LocalLab account envelopes. Never performs
+     * item delivery/settlement. The service must be empty and remains intact
+     * on any malformed row, capacity overflow or duplicate message identity.
+     */
+    synchronized void restore(List<RestoredEntry> restored){
+        Objects.requireNonNull(restored,"restored");
+
+        if(!entries.isEmpty())
+            throw new IllegalStateException(
+                "Mailbox restore requires empty service"
+            );
+
+        if(restored.size()>capacity)
+            throw new IllegalArgumentException(
+                "Mailbox restored rows exceed capacity"
+            );
+
+        LinkedHashMap<String,Entry> next=
+            new LinkedHashMap<>();
+
+        for(RestoredEntry input:restored){
+            RestoredEntry row=
+                Objects.requireNonNull(input,"restored row");
+            RewardDeliveryMessage message=
+                Objects.requireNonNull(
+                    row.message,"restored message"
+                );
+            ReadState read=
+                Objects.requireNonNull(
+                    row.readState,"restored readState"
+                );
+            ClaimState claim=
+                Objects.requireNonNull(
+                    row.claimState,"restored claimState"
+                );
+
+            if(message.hasAttachments()
+                ?claim==ClaimState.EMPTY
+                :claim!=ClaimState.EMPTY)
+                throw new IllegalArgumentException(
+                    "Mailbox claim state contradicts attachments"
+                );
+
+            if(next.containsKey(message.messageId))
+                throw new IllegalArgumentException(
+                    "duplicate restored Mailbox message "+
+                    message.messageId
+                );
+
+            Entry entry=new Entry(message);
+            entry.readState=read;
+            entry.claimState=claim;
+            next.put(message.messageId,entry);
+        }
+
+        entries.putAll(next);
     }
 
     synchronized Snapshot get(

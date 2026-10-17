@@ -1,0 +1,8 @@
+# G21.349-352 — real late hardlink scope and alias veto regression
+Certified common parent: [PR #2906](https://github.com/Trexzo/SpawnPK-RE/pull/2906) `1eae3b4bd8c4de59a47df36d581cc8f33f903d77`, exact hosted GitHub Actions #38985843959 **803/803**, Java11 major55/full Gradle.
+
+Production `LocalFinalSaveNegativeWitness.publishOnce` already enforces selected account, ACTIVE review marker and newly written witness link-count controls at the final-return stage, but those branches had not been exercised by the G21341-48 same-inode byte mutations and identical-content inode replacements. This batch adds four focused real filesystem tests without modifying production semantics.
+
+At the package-scoped default-inert last-return seam, physically call `Files.createLink` on the account (G21349), ACTIVE (G21350), witness (G21351), and unrelated account (G21352). Assert original inode/fileKey, size, mtime, exact bytes are identical while `unix:nlink` goes 1→2. Selected account should refuse G21.341, ACTIVE G21.342 and witness G21.343. Foreign account alias should not cause a global veto. Every case leaves witness negative, refuses duplicate publisher calls, and never deletes/overwrites uncertain evidence.
+
+CI: **803→807 distinct focused tests**, four dedicated JavaExec tasks, four new G21.293 MUST-RETAIN critical anchors (119→123). Requires exact-head hosted **807/807**, G21349/50/51/52 PASS, Java11 bytecode major55 and full Gradle. Keep draft/unmerged; `main` unchanged. This is read-only negative observation and cooperative locking only; no authenticated session-epoch/final ACK, positive login recovery, ACTIVE marker retirement or original SpawnPK gameplay authority. Issues #2540/#2559/#2587 remain open.

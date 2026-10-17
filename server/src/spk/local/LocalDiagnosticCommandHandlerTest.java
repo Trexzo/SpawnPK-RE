@@ -58,6 +58,33 @@ public final class LocalDiagnosticCommandHandlerTest {
                         )
                     );
 
+            if(!h.itemLibrarySearchWillOpen(
+                    new String[]{
+                        "igsearch",
+                        "Scorching",
+                        "bow",
+                        "(i)"
+                    }
+                ))
+                throw new AssertionError(
+                    "known igsearch was not classified as root-publishing"
+                );
+
+            if(h.itemLibrarySearchWillOpen(
+                    new String[]{
+                        "igsearch",
+                        "definitely-not-an-item"
+                    }
+                )||
+               h.itemLibrarySearchWillOpen(
+                    new String[]{
+                        "engine"
+                    }
+                ))
+                throw new AssertionError(
+                    "non-publishing diagnostic was classified as Item Library root open"
+                );
+
             int before=
                 wire.size();
 
@@ -145,6 +172,7 @@ public final class LocalDiagnosticCommandHandlerTest {
                 "migratedRoutesRejected=true "+
                 "equipstrRuntimeEffect=true "+
                 "itemlibRuntimeEffect=true "+
+                "itemLibraryRootClassification=true "+
                 "engineEffect=true "+
                 "mutatingCommandRejected=true"
             );

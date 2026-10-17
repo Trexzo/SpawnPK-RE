@@ -11,11 +11,25 @@ import java.util.Objects;
  * renderer/widget/amount handlers.
  */
 final class LocalDevPanelCoordinator {
+    @FunctionalInterface
+    interface RootReplacingAmountAction {
+        LocalDevPanelAmountHandler.Outcome handle() throws IOException;
+    }
+
     interface SessionBridge {
         String username();
         SceneUpdatePublisher scenePublisher();
         void replaceScenePublisher(SceneUpdatePublisher replacement);
         void saveAccount(String tag,String reason);
+        default LocalDevPanelAmountHandler.Outcome
+            handleRootReplacingAmount(
+                RootReplacingAmountAction action
+            )throws IOException{
+            return Objects.requireNonNull(
+                action,
+                "action"
+            ).handle();
+        }
     }
 
     private final DevControlCenter devPanel;
@@ -57,21 +71,55 @@ final class LocalDevPanelCoordinator {
         DevControlCenter.Page page,
         ServerPacketWriter writer
     )throws IOException{
-        if(bank.isOpen())
-            bank.close(writer);
+        DevControlCenter.StateSnapshot prior=
+            devPanel.snapshot();
 
-        TradeService.cancelIfActive(
-            worldPlayer,
-            "DEV_PANEL_OPEN"
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.fixed(
+                219,
+                new byte[0]
+            );
+            devPanel.open(page);
+
+            if(!renderer.render(writer))
+                throw new IllegalStateException(
+                    "staged Dev Panel did not render"
+                );
+
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        dialogKeys.publish(
+            2482,
+            2483,
+            2484,
+            2485
         );
-
-        itemLibrary.close();
-        petDialogs.clearAll();
-        dialogKeys.clear();
-
-        writer.fixed(219,new byte[0]);
-        devPanel.open(page);
-        render(writer);
     }
 
     void render(
@@ -143,10 +191,42 @@ final class LocalDevPanelCoordinator {
         DevControlCenter.PendingAmount pending,
         ServerPacketWriter writer
     )throws IOException{
-        writer.fixed(219,new byte[0]);
-        dialogKeys.clear();
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.fixed(
+                219,
+                new byte[0]
+            );
+            writer.fixed(
+                27,
+                new byte[0]
+            );
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
         devPanel.prompt(pending);
-        writer.fixed(27,new byte[0]);
+        dialogKeys.clear();
     }
 
     void handleAmount(
@@ -154,13 +234,33 @@ final class LocalDevPanelCoordinator {
         ServerPacketWriter writer,
         String tag
     )throws IOException{
-        LocalDevPanelAmountHandler.Outcome outcome=
-            amounts.handle(
-                value,
-                bridge.username(),
-                bridge.scenePublisher(),
-                writer
-            );
+        LocalDevPanelAmountHandler.Outcome outcome;
+
+        if(devPanel.pending()==
+                DevControlCenter.PendingAmount.ITEM_LIBRARY_ID&&
+           ItemAuthorityRepository.get(value)!=null){
+            outcome=
+                bridge.handleRootReplacingAmount(
+                    ()->
+                        amounts.handle(
+                            value,
+                            bridge.username(),
+                            bridge.scenePublisher(),
+                            writer
+                        )
+                );
+
+            if(outcome==null)
+                return;
+        }else{
+            outcome=
+                amounts.handle(
+                    value,
+                    bridge.username(),
+                    bridge.scenePublisher(),
+                    writer
+                );
+        }
 
         if(outcome.scenePublisher!=null)
             bridge.replaceScenePublisher(
@@ -184,8 +284,51 @@ final class LocalDevPanelCoordinator {
         );
 
         if(outcome.reopen){
-            devPanel.finishPrompt();
-            render(writer);
+            DevControlCenter.StateSnapshot prior=
+                devPanel.snapshot();
+
+            writer.beginBatch();
+            boolean ended=false;
+
+            try{
+                devPanel.finishPrompt();
+
+                if(!renderer.render(writer))
+                    throw new IllegalStateException(
+                        "staged Dev Panel reopen did not render"
+                    );
+
+                writer.endBatch();
+                ended=true;
+            }catch(IOException failure){
+                devPanel.restore(prior);
+                if(!ended)
+                    try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+                throw failure;
+            }catch(RuntimeException failure){
+                devPanel.restore(prior);
+                if(!ended)
+                    try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+                throw failure;
+            }catch(Error failure){
+                devPanel.restore(prior);
+                if(!ended)
+                    try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
+                throw failure;
+            }
+
+            dialogKeys.publish(
+                2482,
+                2483,
+                2484,
+                2485
+            );
         }else{
             devPanel.cancelPending();
         }

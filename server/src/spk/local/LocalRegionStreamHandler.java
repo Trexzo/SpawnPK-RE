@@ -32,6 +32,34 @@ final class LocalRegionStreamHandler {
     private final RegionLoadLifecycle regionLoads;
     private final SessionBridge bridge;
 
+    private static final class RegionBatchSnapshot {
+        final MovementState.LoadedWindowSnapshot movementWindow;
+        final RegionLoadLifecycle.Snapshot regionLoad;
+        final NpcRegistry.RegionViewSnapshot npcView;
+        final HomeWorldRuntimePlan.ViewerPresentationSnapshot homePresentation;
+        final SceneUpdatePublisher scenePublisher;
+        final SceneCoordinateContext.Snapshot sceneContext;
+        boolean petFollowResetPending;
+
+        RegionBatchSnapshot(
+            MovementState.LoadedWindowSnapshot movementWindow,
+            RegionLoadLifecycle.Snapshot regionLoad,
+            NpcRegistry.RegionViewSnapshot npcView,
+            HomeWorldRuntimePlan.ViewerPresentationSnapshot homePresentation,
+            SceneUpdatePublisher scenePublisher,
+            SceneCoordinateContext.Snapshot sceneContext
+        ){
+            this.movementWindow=movementWindow;
+            this.regionLoad=regionLoad;
+            this.npcView=npcView;
+            this.homePresentation=homePresentation;
+            this.scenePublisher=scenePublisher;
+            this.sceneContext=sceneContext;
+        }
+    }
+
+    private RegionBatchSnapshot stagedRegionBatch;
+
     LocalRegionStreamHandler(
         boolean movementEnabled,
         World world,
@@ -101,7 +129,8 @@ final class LocalRegionStreamHandler {
                 writer,
                 tag,
                 false,
-                "AUTO_HOME_REATTACH"
+                "AUTO_HOME_REATTACH",
+                false
             );
             return true;
         }
@@ -149,6 +178,10 @@ final class LocalRegionStreamHandler {
             return false;
         }
 
+        beginRegionBatchIfNeeded(
+            writer
+        );
+
         boolean leavingHome=!movement.transientRegion();
         int removed=0;
 
@@ -158,7 +191,7 @@ final class LocalRegionStreamHandler {
                     writer
                 );
 
-            bridge.resetPetFollowRuntime();
+            resetPetFollowRuntimeWithBatchFence();
             TradeService.cancelIfActive(
                 worldPlayer,
                 "AUTO_REGION_REBASE"
@@ -218,13 +251,13 @@ final class LocalRegionStreamHandler {
         return true;
     }
 
-    void completeRegionLoad(
+    boolean completeRegionLoad(
         RegionLoadLifecycle.Completion completion,
         ServerPacketWriter writer,
         String tag
     )throws IOException{
         if(completion==null||!completion.matched)
-            return;
+            return false;
 
         String reason=completion.reason;
 
@@ -232,7 +265,7 @@ final class LocalRegionStreamHandler {
              "RESPAWN_REATTACH".equals(reason)||
              "DEV_RETURN_HOME_RELOCATION".equals(reason)||
              "MAGIC_HOME_TELEPORT".equals(reason)))
-            return;
+            return false;
 
         if(movement.transientRegion()||
            movement.loadedBaseX()!=MovementState.REGION_BASE_X||
@@ -246,7 +279,7 @@ final class LocalRegionStreamHandler {
                 " base="+movement.loadedBaseX()+","+movement.loadedBaseY()+
                 " transient="+movement.transientRegion()
             );
-            return;
+            return false;
         }
 
         SceneUpdatePublisher publisher=
@@ -256,6 +289,10 @@ final class LocalRegionStreamHandler {
             throw new IllegalStateException(
                 "HOME post-ACK replay has no scene publisher"
             );
+
+        beginRegionBatchIfNeeded(
+            writer
+        );
 
         HomeObjectOverlayReplayer.Stats scene=
             homeWorld.replayScene(
@@ -297,9 +334,113 @@ final class LocalRegionStreamHandler {
             " groundReplay="+groundReplay+
             " overlayTiming=AFTER_OPCODE121"
         );
+
+        return true;
     }
 
-    void reattachHomeForRespawn(
+    private void beginRegionBatchIfNeeded(
+        ServerPacketWriter writer
+    ){
+        if(writer==null||
+           !writer.batchActive())
+            return;
+
+        if(stagedRegionBatch!=null)
+            throw new IllegalStateException(
+                "region stream batch already staged"
+            );
+
+        SceneUpdatePublisher publisher=
+            bridge.scenePublisher();
+
+        stagedRegionBatch=
+            new RegionBatchSnapshot(
+                movement.snapshotLoadedWindow(),
+                regionLoads.snapshot(),
+                npcs.snapshotRegionView(),
+                homeWorld.snapshotViewerPresentation(),
+                publisher,
+                publisher==null
+                    ?null
+                    :publisher.context().snapshot()
+            );
+    }
+
+    boolean commitRegionStreamBatch(){
+        RegionBatchSnapshot snapshot=
+            stagedRegionBatch;
+
+        if(snapshot==null)
+            return false;
+
+        stagedRegionBatch=null;
+
+        if(snapshot.petFollowResetPending)
+            resetPetFollowRuntimeWithBatchFence();
+
+        return true;
+    }
+
+    boolean abortRegionStreamBatch(){
+        RegionBatchSnapshot snapshot=
+            stagedRegionBatch;
+
+        if(snapshot==null)
+            return false;
+
+        stagedRegionBatch=null;
+
+        movement.restoreLoadedWindow(
+            snapshot.movementWindow
+        );
+        regionLoads.restore(
+            snapshot.regionLoad
+        );
+        npcs.restoreRegionView(
+            snapshot.npcView
+        );
+        homeWorld.restoreViewerPresentation(
+            snapshot.homePresentation
+        );
+
+        if(snapshot.scenePublisher!=null&&
+           snapshot.sceneContext!=null)
+            snapshot.scenePublisher
+                .context()
+                .restore(
+                    snapshot.sceneContext
+                );
+
+        if(bridge.scenePublisher()!=
+                snapshot.scenePublisher)
+            bridge.replaceScenePublisher(
+                snapshot.scenePublisher
+            );
+
+        return true;
+    }
+
+    private void resetPetFollowRuntimeWithBatchFence(){
+        RegionBatchSnapshot snapshot=
+            stagedRegionBatch;
+
+        if(snapshot==null){
+            bridge.resetPetFollowRuntime();
+            return;
+        }
+
+        snapshot.petFollowResetPending=true;
+    }
+
+    boolean regionStreamBatchStaged(){
+        return stagedRegionBatch!=null;
+    }
+
+    boolean regionLoadPending(){
+        return regionLoads.pending();
+    }
+
+    void stageHomeForPreparedRespawn(
         ServerPacketWriter writer,
         String tag
     )throws IOException{
@@ -307,7 +448,8 @@ final class LocalRegionStreamHandler {
             writer,
             tag,
             true,
-            "RESPAWN_REATTACH"
+            "RESPAWN_REATTACH",
+            true
         );
     }
 
@@ -315,14 +457,31 @@ final class LocalRegionStreamHandler {
         ServerPacketWriter writer,
         String tag,
         boolean emitPlacement,
-        String reason
+        String reason,
+        boolean preparedRespawn
     )throws IOException{
+        beginRegionBatchIfNeeded(
+            writer
+        );
+
         int prunedTransientNpcView=
             npcs.detachRegionViewPreservingFollowers(
                 writer
             );
 
-        movement.restoreHomeWindowAtCurrentPosition();
+        if(preparedRespawn)
+            movement.stageHomeWindowForPreparedRespawn();
+        else
+            movement.restoreHomeWindowAtCurrentPosition();
+
+        int placementX=
+            preparedRespawn
+                ?MovementState.INITIAL_X
+                :movement.x();
+        int placementY=
+            preparedRespawn
+                ?MovementState.INITIAL_Y
+                :movement.y();
 
         writer.fixed(219,new byte[0]);
         writer.fixed(
@@ -343,8 +502,8 @@ final class LocalRegionStreamHandler {
                 81,
                 BootstrapPackets.player81TeleportNoAppearance(
                     0,
-                    movement.y()-MovementState.REGION_BASE_Y,
-                    movement.x()-MovementState.REGION_BASE_X
+                    placementY-MovementState.REGION_BASE_Y,
+                    placementX-MovementState.REGION_BASE_X
                 )
             );
         }
@@ -360,13 +519,13 @@ final class LocalRegionStreamHandler {
             );
         bridge.replaceScenePublisher(replacement);
 
-        bridge.resetPetFollowRuntime();
+        resetPetFollowRuntimeWithBatchFence();
 
         System.out.println(
             tag+
             "V5181_WORLD_AUTO_HOME_REATTACH world="+
-            movement.x()+","+
-            movement.y()+",0"+
+            placementX+","+
+            placementY+",0"+
             " base="+
             MovementState.REGION_BASE_X+","+
             MovementState.REGION_BASE_Y+

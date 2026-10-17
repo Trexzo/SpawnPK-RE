@@ -44,6 +44,35 @@ final class PlayerSnapshotCodec {
                     .snapshot()
             );
 
+            // Only opt into Mailbox extension storage after real messages
+            // exist or a prior saved namespace has been hydrated/captured.
+            // Once participating, persist an explicit empty snapshot too,
+            // preventing deleted messages from reappearing on later load.
+            if(player.mailbox().size()>0||
+                player.mailboxSnapshotKnown()){
+                SortedMap<String,String> mailbox=
+                    LocalLabMailboxPersistence.encode(
+                        player.mailbox()
+                    );
+                String prefix=
+                    PlayerSnapshotExtensionState.PREFIX+
+                    LocalLabMailboxPersistence.NAMESPACE+
+                    ".";
+
+                values.keySet().removeIf(
+                    key->key.startsWith(prefix)
+                );
+
+                for(Map.Entry<String,String> entry:
+                        mailbox.entrySet())
+                    values.put(
+                        prefix+entry.getKey(),
+                        entry.getValue()
+                    );
+
+                player.markMailboxSnapshotKnown();
+            }
+
             return new PlayerSnapshot(
                 PlayerSnapshot.CURRENT_VERSION,
                 username,
@@ -75,6 +104,7 @@ final class PlayerSnapshotCodec {
                             snapshot.values()
                         )
                 );
+            restoreMailboxNamespace(staged);
         }
 
         return capture(
@@ -103,6 +133,14 @@ final class PlayerSnapshotCodec {
             );
 
         synchronized(livePlayer.mutationLock()){
+            // A validated account cannot silently overwrite an already
+            // active, owned Mailbox. Require a fresh player on load.
+            if(livePlayer.mailboxSnapshotKnown()||
+                livePlayer.mailbox().size()!=0)
+                throw new IllegalStateException(
+                    "Mailbox snapshot apply requires fresh WorldPlayer"
+                );
+
             PlayerSnapshotSchemaV1.apply(
                 normalized,
                 livePlayer
@@ -114,6 +152,7 @@ final class PlayerSnapshotCodec {
                             normalized.values()
                         )
                 );
+            restoreMailboxNamespace(livePlayer);
         }
 
         return normalized;
@@ -142,6 +181,28 @@ final class PlayerSnapshotCodec {
                 player
             );
         }
+    }
+
+    /**
+     * Strictly decode and restore an already validated account namespace
+     * into its fresh WorldPlayer-owned Mailbox. No outgoing packets or
+     * item settlement occurs here.
+     */
+    private static void restoreMailboxNamespace(
+        WorldPlayer player
+    ){
+        SortedMap<String,String> namespace=
+            player.snapshotExtensions().namespace(
+                LocalLabMailboxPersistence.NAMESPACE
+            );
+
+        if(namespace.isEmpty())
+            return;
+
+        player.mailbox().restore(
+            LocalLabMailboxPersistence.decode(namespace)
+        );
+        player.markMailboxSnapshotKnown();
     }
 
     static int accessoryItem(
