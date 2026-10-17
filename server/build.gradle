@@ -2405,6 +2405,9 @@ def currentTrainFocusedTests = [
     'spk.local.G21371StrictPreActiveAbsentAccountProviderTest',
     'spk.local.G21372StrictPreActiveSelectedHardlinkTest',
     'spk.local.G21373StrictPreActiveForeignHardlinkControlTest',
+    'spk.local.G21374StrictOneShotTokenAbsentProviderTest',
+    'spk.local.G21375StrictOneShotTokenSelectedAliasTest',
+    'spk.local.G21376StrictOneShotTokenForeignAliasTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2716,10 +2719,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 869 ||
-    currentTrainFocusedTests.toSet().size() != 869) {
+if (currentTrainFocusedTests.size() != 872 ||
+    currentTrainFocusedTests.toSet().size() != 872) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 869 unique tests, found " +
+        "Current-train focused manifest drift: expected 872 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2918,6 +2921,11 @@ currentTrainCriticalCoverage['g21353-forced-world-active-premove'] = [
 currentTrainCriticalCoverage['g21355-forced-world-active-identity-premove'] = [
     'spk.local.G21355ForcedWorldActiveInodeSwapTest',
     'spk.local.G21356ForcedWorldActiveNonceMutationTest',
+]
+currentTrainCriticalCoverage['g21376-real-token-pre-active-link-provider'] = [
+    'spk.local.G21374StrictOneShotTokenAbsentProviderTest',
+    'spk.local.G21375StrictOneShotTokenSelectedAliasTest',
+    'spk.local.G21376StrictOneShotTokenForeignAliasTest',
 ]
 currentTrainCriticalCoverage['g21373-pre-active-link-provider'] = [
     'spk.local.G21371StrictPreActiveAbsentAccountProviderTest',
@@ -12752,4 +12760,31 @@ tasks.register('g2057DiskForensicsRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2057DiskForensicsSymlinkHardlinkDenialTest')
+}
+
+tasks.register('g21374StrictOneShotTokenAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.374: strict filesystem provider veto in real account token and World membership path.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21374StrictOneShotTokenAbsentProviderTest')
+}
+
+tasks.register('g21375StrictOneShotTokenAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.375: strict filesystem provider veto in real account token and World membership path.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21375StrictOneShotTokenSelectedAliasTest')
+}
+
+tasks.register('g21376StrictOneShotTokenAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.376: strict filesystem provider veto in real account token and World membership path.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21376StrictOneShotTokenForeignAliasTest')
 }
