@@ -79,6 +79,17 @@ final class G21374StrictOneShotTokenAdmissionFixture {
                     IllegalArgumentException unsupported) {
                 providerSupported=false;
             }
+            // G21.374 Windows fixture isolation: hosted Java lacks
+            // unix:nlink and may also have null fileKey for the
+            // independently experimental G21.221 lock identity check.
+            // Disable that separate optional feature ONLY when this
+            // provider is unsupported so the test genuinely reaches
+            // the G21.371 pre-ACTIVE refusal through a held OS token.
+            // Production account lock/identity policy is untouched.
+            if(!providerSupported)
+                System.setProperty(
+                    LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+                    "false");
             FilePlayerRepository repo=new FilePlayerRepository(
                 LocalAccountProfiles::accountFile);
             world=World.isolatedForTest(60_000L,repo);
