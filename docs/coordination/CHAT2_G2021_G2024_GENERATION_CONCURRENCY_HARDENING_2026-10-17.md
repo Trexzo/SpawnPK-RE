@@ -15,3 +15,5 @@ All four existing JavaExec task names and critical retention anchors remain inta
 
 ## Explicit safety and CI gate
 No historical SpawnPK server reward policy is claimed. This experiment has no persistent event identity, owner epoch, durable outbox, consumer mutation+ACK atomicity, safe replay or restart recovery. Preserve the #2587 blocker. Certify only on exact-head hosted 817/817 focused suite, G2021–24 markers, Java 11 major-55 and full Gradle. No merge to main without cross-chat review.
+## CI correction — 17 October
+The first exact-head job failed at G2021 when assuming two newly instantiated WorldPlayers must have different numeric generations. They do not: generation numbers are not a globally unique occupant identity. Corrected the **source** to carry the exact in-process observed WorldPlayer reference from the settled envelope into the attempt token; the conflict check compares both reference identity and generation. The test now asserts object identity rather than assuming monotonically increasing generation. The historical failing run must not be counted as a pass. This still supplies no cross-restart identity or reward authority.

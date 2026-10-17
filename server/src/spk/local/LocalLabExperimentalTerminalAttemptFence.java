@@ -70,6 +70,7 @@ final class LocalLabExperimentalTerminalAttemptFence {
         final Tile deathTile;
         final long spawnRecipientGeneration;
         final long observedCurrentGeneration;
+        final WorldPlayer observedCurrentPlayer;
         final long deathTick;
         final String recipientRef;
         final LocalLabSettledDeathEnvelope.OriginStatus originStatus;
@@ -89,6 +90,7 @@ final class LocalLabExperimentalTerminalAttemptFence {
             deathTile=envelope.deathTile;
             spawnRecipientGeneration=envelope.spawnRecipientGeneration;
             observedCurrentGeneration=envelope.observedCurrentGeneration;
+            observedCurrentPlayer=envelope.observedCurrentPlayer;
             deathTick=envelope.deathTick;
             recipientRef=envelope.recipientRef;
             originStatus=envelope.originStatus;
@@ -190,13 +192,15 @@ final class LocalLabExperimentalTerminalAttemptFence {
             for(Attempt token:existing.values()){
                 // Same id/tick/name with different finalized metadata OR
                 // different current recipient generation is conflicting.
-                // Two replacements can both be SAME_NAME_REBOUND while
-                // referring to distinct WorldPlayer generations.
+                // Two replacements can both be SAME_NAME_REBOUND and
+                // even share the same numeric generation. Pin the exact
+                // in-process WorldPlayer instance, never username alone.
                 if(token.originStatus!=death.originStatus||
                    token.definitionId!=death.definitionId||
                    !Objects.equals(token.deathTile,death.deathTile)||
                    token.spawnRecipientGeneration!=death.spawnRecipientGeneration||
-                   token.observedCurrentGeneration!=death.observedCurrentGeneration){
+                   token.observedCurrentGeneration!=death.observedCurrentGeneration||
+                   token.observedCurrentPlayer!=death.observedCurrentPlayer){
                     refused(Refusal.CONFLICTING_DEATH_EVIDENCE);
                     throw new IllegalStateException(
                         "TERMINAL_ATTEMPT_CONFLICTING_DEATH_EVIDENCE");

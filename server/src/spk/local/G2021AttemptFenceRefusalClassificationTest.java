@@ -20,7 +20,8 @@ public final class G2021AttemptFenceRefusalClassificationTest {
                 G2017TerminalAttemptFenceRealDeathTest.check(
                     token.originStatus==
                         LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND&&
-                    token.observedCurrentGeneration==firstGeneration,
+                    token.observedCurrentGeneration==firstGeneration&&
+                    token.observedCurrentPlayer==firstReplacement,
                     "first post-death replacement is an explicitly observed rebound");
                 f.world.unregisterPlayer(firstReplacement,firstGeneration);
                 secondGeneration=f.world.registerPlayer(secondReplacement,f.name);
@@ -30,8 +31,9 @@ public final class G2021AttemptFenceRefusalClassificationTest {
                     second.originStatus==
                         LocalLabSettledDeathEnvelope.OriginStatus.SAME_NAME_REBOUND&&
                     second.observedCurrentGeneration==secondGeneration&&
-                    secondGeneration!=firstGeneration,
-                    "second replacement retains same enum but has new generation");
+                    second.observedCurrentPlayer==secondReplacement&&
+                    token.observedCurrentPlayer!=second.observedCurrentPlayer,
+                    "two replacement objects distinguished even if generations match");
                 String denied=null;
                 try{
                     fence.reserve(death,LocalLabTerminalDeliveryAssessment.Consumer.G4);
