@@ -5,6 +5,7 @@ on:
     paths:
       - 'server/**'
       - 'scripts/Check-WindowsReleaseEvidence.ps1'
+      - 'tools/verification/FilesystemLinkCountProbe.java'
       - '.github/workflows/windows-source-preflight.yml'
   workflow_dispatch:
 
@@ -42,6 +43,26 @@ jobs:
             throw "WINDOWS_SOURCE_ONLY_BUILD_FAILED exitCode=$LASTEXITCODE"
           }
           Write-Host "SPK_WINDOWS_SOURCE_SMOKE_PASS java11Bytecode=true accountWaitFixture=true npcAttemptFixture=true originalClientGui=false"
+
+      - name: Probe strict Java unix:nlink capability (not a pass assertion)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path ./.spk-windows-probe | Out-Null
+          & javac --release 11 -d ./.spk-windows-probe ./tools/verification/FilesystemLinkCountProbe.java
+          if ($LASTEXITCODE -ne 0) { throw "Windows nlink probe compilation failed" }
+          & java -cp ./.spk-windows-probe FilesystemLinkCountProbe | Tee-Object -FilePath windows-linkcount-evidence.txt
+          if ($LASTEXITCODE -ne 0) { throw "Windows nlink probe execution failed" }
+          Write-Host "SPK_NLINK_PROBE_EXECUTED not_a_strict_gate_success_claim=true"
+
+      - name: Upload link-count provider capability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-linkcount-capability
+          path: windows-linkcount-evidence.txt
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload original-client preflight report
         if: always()

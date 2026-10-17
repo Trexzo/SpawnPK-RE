@@ -22,3 +22,9 @@ JSON boolean fields `originalClientGuiExercised=false`, `historical179TestAccept
 Require an actual Windows GitHub Actions success before claiming this limited smoke. Any Windows failure needs real logs, not synthetic PASS. Linux full 841/841 certification remains independent. Before merging the large source snapshot: original pinned v308 graphical runtime on the target Windows owner machine, actual 179 acceptance, crash/dual-JVM contention/restart evidence, client/network and build provenance, and operator manual review semantics remain open.
 
 All parent PRs are draft; this branch is verification-only, not changing `main` or the experimental gameplay/account authority.
+
+## Strict nlink provider capability probe
+
+A standalone `tools/verification/FilesystemLinkCountProbe.java` Java 11 class now checks the **actual hosted Windows provider**, initially observes `unix:nlink` on a private temporary file, creates a second hardlink (if supported), and then checks whether the count changes from **1 to 2** on the original inode. The job uploads its output as a separate `windows-linkcount-capability` artifact. `UNSUPPORTED_UNIX_NLINK_PROVIDER`, `HARDLINK_CREATION_UNAVAILABLE` and `UNSAFE_OR_INCONSISTENT_LINK_COUNT` must be treated as lack of positive evidence for the opt-in strict writer/journal path. It is a capability **observation**, not a production fallback and not a source-only job failure unless the probe itself cannot compile/run. Even observed 1→2 values do not prove hostile-race atomicity, directory durability or original-client GUI functionality.
+
+This addition means a source-only Windows job can be green while `strictWorldHardlinkGateUsable=false` is explicitly reported; operators MUST interpret the artifact rather than treating a green job as a strict feature qualification.
