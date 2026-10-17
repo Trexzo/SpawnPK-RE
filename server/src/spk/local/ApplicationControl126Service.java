@@ -29,7 +29,7 @@ final class ApplicationControl126Service {
         );
     }
 
-    static void constructionBuild(
+    static void constructionBuildMode(
         ServerPacketWriter writer,
         boolean enabled
     )throws IOException{
@@ -41,6 +41,60 @@ final class ApplicationControl126Service {
                         .CONSTRUCTION_BUILD_ON
                     :ApplicationControl126Command.Token
                         .CONSTRUCTION_BUILD_OFF
+            )
+        );
+    }
+
+    static void constructionBuild(
+        ServerPacketWriter writer,
+        boolean enabled
+    )throws IOException{
+        constructionBuildMode(
+            writer,
+            enabled
+        );
+    }
+
+    static void adventureBegin(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token.BEGIN_ADVENTURE
+            )
+        );
+    }
+
+    static void adventureOrb(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token.BEGIN_ADVENTURE_ORB
+            )
+        );
+    }
+
+    static void adventureBook(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token.BEGIN_ADVENTURE_BOOK
+            )
+        );
+    }
+
+    static void adventureEnd(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token.END_ADVENTURE
             )
         );
     }
@@ -61,7 +115,7 @@ final class ApplicationControl126Service {
         );
     }
 
-    static void achievementRebuild(
+    static void achievementClear(
         ServerPacketWriter writer
     )throws IOException{
         publish(
@@ -71,6 +125,46 @@ final class ApplicationControl126Service {
                     .CLEAR_ACHIEVEMENT_TAB
             )
         );
+    }
+
+    static void achievementBuild(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token
+                    .BUILD_ACHIEVEMENT_TAB
+            )
+        );
+    }
+
+    static void achievementRebuild(
+        ServerPacketWriter writer
+    )throws IOException{
+        achievementClear(
+            writer
+        );
+        achievementBuild(
+            writer
+        );
+    }
+
+    static void dailyChallengesClear(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command.token(
+                ApplicationControl126Command.Token
+                    .CLEAR_ACHIEVEMENT_TAB
+            )
+        );
+    }
+
+    static void dailyChallengesBuild(
+        ServerPacketWriter writer
+    )throws IOException{
         publish(
             writer,
             ApplicationControl126Command.token(
@@ -155,7 +249,7 @@ final class ApplicationControl126Service {
         );
     }
 
-    static void loginRewardIndex(
+    static void loginRewardContainerIndex(
         ServerPacketWriter writer,
         int index
     )throws IOException{
@@ -164,6 +258,90 @@ final class ApplicationControl126Service {
             ApplicationControl126Command
                 .loginRewardIndex(
                     index
+                )
+        );
+    }
+
+    static void loginRewardIndex(
+        ServerPacketWriter writer,
+        int index
+    )throws IOException{
+        loginRewardContainerIndex(
+            writer,
+            index
+        );
+    }
+
+    static void dailyMoneyMakingTrackingText(
+        ServerPacketWriter writer,
+        String text
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command
+                .dailyMoneyMakingTrackingText(
+                    text
+                )
+        );
+    }
+
+    static void dailyMoneyMakingDifficulty(
+        ServerPacketWriter writer,
+        DailyMoneyMakingStateService.Difficulty
+            difficulty
+    )throws IOException{
+        Objects.requireNonNull(
+            difficulty,
+            "difficulty"
+        );
+
+        final int state;
+
+        switch(difficulty){
+            case EASY:
+                state=1;
+                break;
+            case MEDIUM:
+                state=2;
+                break;
+            case HARD:
+                state=3;
+                break;
+            default:
+                throw new IllegalStateException(
+                    "unknown Daily Money Making difficulty "+
+                    difficulty
+                );
+        }
+
+        publish(
+            writer,
+            ApplicationControl126Command
+                .dailyMoneyMakingSelectedCategory(
+                    state
+                )
+        );
+    }
+
+    static void dailyChallengeDefinition(
+        ServerPacketWriter writer,
+        int metadataA,
+        int metadataB,
+        String challengeKey,
+        String description,
+        int current,
+        int target
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command
+                .dailyChallengeDefinition(
+                    metadataA,
+                    metadataB,
+                    challengeKey,
+                    description,
+                    current,
+                    target
                 )
         );
     }

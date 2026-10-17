@@ -1,0 +1,11 @@
+# G21.207 + G18.7.2 cumulative 521 focused
+
+Certified source checkpoint at composition: [G21.206/G18.7.1 #2658](https://github.com/Trexzo/SpawnPK-RE/pull/2658), exact `40f90d2435c268db4f8d3268e65ca6ce3a52f61a`, [Actions #38740491533](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38740491533) SUCCESS (519 focused, Java11 major55 and full Gradle).
+
+**Core G21.207 donor:** [Draft #2660](https://github.com/Trexzo/SpawnPK-RE/pull/2660) SHA `68321371a3e50319a22e630ff772001be37397f5`, [Actions #38741529833](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38741529833) in progress at branch composition. Test-only RAW `FilePlayerRepository.save()` stale overwrite while exact opt-in in-JVM World owner lease is held; pass means **gap**, not safety. Added +1 focused to 520.
+
+**Exact Chat 2 G18.7.2 donor:** [Draft #2656](https://github.com/Trexzo/SpawnPK-RE/pull/2656) SHA `abf3aa95800f6f173e99e742a14559774317ad3a`, [Actions #38739827136](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38739827136) SUCCESS 519 focused independently on [#2655](https://github.com/Trexzo/SpawnPK-RE/pull/2655) (518). Exact Java blob `28b6f53c2787aeb0894749d059e7ee8bb4e7ed4a` and exact scope note blob `dc2444ed3bcda3e9bf25201a4e12077422bed014` imported, with a single focused manifest entry and BOTH guard counts **520→521**. G18.7.2 is an actual installed Monster Spawner terminal with malformed TEST-ONLY G14 persisted extension causing later G15/G16/G18 consumer delivery to be skipped despite G1/G4 and ground settlement earlier in the same outer callback. This documents another delivery gap, not a producer-authoritative grant fix.
+
+Only the two donor artifacts, Gradle count/manifest, and this handoff differ from core G21.207. **No production Java, existing Chat 2 behavior, login, original-client, frozen R25, main, default flags, RAW fencing or recovery changes.** No ACTIVE marker retirement, cross-JVM epoch, crash recovery, Mailbox grant, gameplay replay or per-consumer outbox authority.
+
+**Required before certification:** exact-head GitHub Actions Java11 major55/full Gradle and **521/521 focused**, including `G21207_RAW_WRITER_HELD_SESSION_LEASE_BYPASS_PASS`, `G1872_G14_INVALID_PERSISTENCE_BLOCKS_G15_G16_G18_PASS`, G21206, G1871. Remain Draft/unmerged.

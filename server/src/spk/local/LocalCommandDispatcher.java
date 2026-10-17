@@ -13,11 +13,215 @@ import spk.content.api.ContentResult;
  * exposed through a narrow bridge rather than implemented here.
  */
 final class LocalCommandDispatcher {
+    @FunctionalInterface
+    interface RootReplacingCommandAction {
+        boolean handle() throws IOException;
+    }
+
+    static final class RootReplacingCommandDispatch {
+        final boolean admitted;
+        final boolean handled;
+
+        private RootReplacingCommandDispatch(
+            boolean admitted,
+            boolean handled
+        ){
+            this.admitted=admitted;
+            this.handled=handled;
+        }
+
+        static RootReplacingCommandDispatch admitted(
+            boolean handled
+        ){
+            return new RootReplacingCommandDispatch(
+                true,
+                handled
+            );
+        }
+
+        static RootReplacingCommandDispatch rejected(){
+            return new RootReplacingCommandDispatch(
+                false,
+                false
+            );
+        }
+    }
+
     interface SessionBridge {
         SceneUpdatePublisher scenePublisher();
         void replaceScenePublisher(SceneUpdatePublisher scenePublisher);
         void saveAccount(String tag,String reason);
         void openDevPanel(ServerPacketWriter serverPackets)throws IOException;
+        default boolean openMonsterSpawner(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openBloodSlayer(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openLootingBag(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openTournament(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openPkRatings(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openEventChest(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openGoodwillWell(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openLottery(
+            LotteryService.Channel channel,
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openVoting(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openUnclaimedCoffer(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openBloodFountain(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openBloodcoreSynthesis(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openEventActivity(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openAdventureBook(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openLoginRewards(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openTaskScroll(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openTaskScroll(
+            boolean assignIfAbsent,
+            long worldTick,
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return openTaskScroll(
+                serverPackets
+            );
+        }
+        default boolean openLegendaryPetFusion(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openItemEnchantment(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openDonorPanel(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openDonationCart(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default boolean openDuel(
+            String targetRef,
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
+        default RootReplacingCommandDispatch
+            handleRootReplacingCommand(
+                RootReplacingCommandAction action
+            )throws IOException{
+            return RootReplacingCommandDispatch.admitted(
+                Objects.requireNonNull(
+                    action,
+                    "action"
+                ).handle()
+            );
+        }
+        default LocalShopCommandHandler.Result
+            handleShopCommand(
+                String[] tokens
+            )throws IOException{
+            return null;
+        }
+        default LocalSlayerCommandHandler.Result
+            handleSlayerCommand(
+                String[] tokens,
+                long worldTick
+            )throws IOException{
+            return null;
+        }
+        default int openMailboxNative(
+            ServerPacketWriter writer
+        )throws IOException{
+            return -1;
+        }
+
+        default int syncMailboxRootless(
+            ServerPacketWriter writer
+        )throws IOException{
+            return -1;
+        }
+
+        default LocalMailboxStatusCommandHandler.Result
+            handleMailboxStatusCommand(String[] tokens)
+                throws IOException{
+            return null;
+        }
+
+        default LocalDailyChallengeCommandHandler.Result
+            handleDailyChallengeCommand(
+                String[] tokens
+            )throws IOException{
+            return null;
+        }
+        default LocalDuelCommandHandler.Result
+            handleDuelCommand(
+                String[] tokens
+            )throws IOException{
+            return null;
+        }
         void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
     }
 
@@ -127,6 +331,168 @@ final class LocalCommandDispatcher {
         String clean=clean(command);
         String[] p=tokens(clean);
 
+        // Exact-native v308 command ::mail opens the root recovered from
+        // pinned rs.n.c.c.a.a(); root+inbox order is LocalLab policy.
+        if(isNativeMailboxRootRoute(p)){
+            int rows=bridge.openMailboxNative(serverPackets);
+            new SocialChatPresentationPublisher(serverPackets)
+                .serverMessage(rows<0
+                    ?"Mailbox interface is not configured."
+                    :"Mailbox opened: "+rows+" messages.");
+            System.out.println(
+                tag+"G2117_MAILBOX_NATIVE_ROOT_OPEN rows="+rows+
+                " root=32019 exactC2S103=true"+
+                " originalServerOrderingClaim=false"+
+                " settlementOwned=false"
+            );
+            return true;
+        }
+
+        // Explicit CUSTOM_LOCALLAB opt-in, NOT the native Mailbox root.
+        // Rootless list packets are only published after this command,
+        // preserving the native ::mail read-only status fallback.
+        if(isMailboxRootlessSyncRoute(p)){
+            int rows=bridge.syncMailboxRootless(serverPackets);
+            new SocialChatPresentationPublisher(serverPackets)
+                .serverMessage(rows<0
+                    ?"Mailbox rootless sync is not configured."
+                    :"Mailbox rootless sync: "+rows+
+                     " rows. Mailbox interface not opened.");
+            System.out.println(
+                tag+"G2116_MAILBOX_ROOTLESS_SYNC rows="+rows+
+                " exactC2S103=true rootOpened=false"+
+                " rewardSettlement=false"
+            );
+            return true;
+        }
+
+        // Read-only CUSTOM_LOCALLAB command through the exact C2S103
+        // text path. SessionBridge enforces WorldPlayer generation.
+        LocalMailboxStatusCommandHandler.Result mailboxStatus=
+            bridge.handleMailboxStatusCommand(p);
+        if(mailboxStatus!=null){
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(mailboxStatus.clientMessage);
+            System.out.println(
+                tag+mailboxStatus.logText+
+                " route=EXACT_CURRENT_C2S103"+
+                " rootOpened=false rewardSettlement=false"
+            );
+            return true;
+        }
+
+        LocalShopCommandHandler.Result shopCommand=
+            bridge.handleShopCommand(
+                p
+            );
+        if(shopCommand!=null){
+            /*
+             * Canonical mutation has already committed inside the semantic
+             * handler. Request persistence before advisory S2C253 publication
+             * so a transport failure cannot suppress the successful save.
+             */
+            if(shopCommand.saveReason!=null)
+                bridge.saveAccount(
+                    tag,
+                    shopCommand.saveReason
+                );
+
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                shopCommand.clientMessage
+            );
+
+            System.out.println(
+                tag+
+                shopCommand.logText+
+                " clientFeedback=true"+
+                " persistenceBeforeFeedback=true"+
+                " route=EXACT_CURRENT_C2S103"
+            );
+            return true;
+        }
+
+        LocalSlayerCommandHandler.Result slayerCommand=
+            bridge.handleSlayerCommand(
+                p,
+                sessionWorldTick
+            );
+        if(slayerCommand!=null){
+            if(slayerCommand.saveReason!=null)
+                bridge.saveAccount(
+                    tag,
+                    slayerCommand.saveReason
+                );
+
+            boolean rootOpened=false;
+
+            if(slayerCommand.openRoot)
+                rootOpened=
+                    bridge.openBloodSlayer(
+                        serverPackets
+                    );
+
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                slayerCommand.openRoot&&
+                    !rootOpened
+                    ?"Blood Slayer interface unavailable."
+                    :slayerCommand.clientMessage
+            );
+
+            System.out.println(
+                tag+
+                slayerCommand.logText+
+                " clientFeedback=true"+
+                " route=EXACT_CURRENT_C2S103"+
+                " rootRequested="+
+                slayerCommand.openRoot+
+                " rootOpened="+
+                rootOpened+
+                " persistenceBeforeFeedback="+
+                (slayerCommand.saveReason!=null)
+            );
+            return true;
+        }
+
+        LocalDailyChallengeCommandHandler.Result
+            dailyChallenge=
+                bridge.handleDailyChallengeCommand(
+                    p
+                );
+
+        if(dailyChallenge!=null){
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                dailyChallenge.clientMessage
+            );
+
+            System.out.println(
+                tag+
+                dailyChallenge.logText+
+                " clientFeedback=true"+
+                " route=EXACT_CURRENT_C2S103"+
+                " commandPolicy=CUSTOM_LOCALLAB"+
+                " rewardClaimExposed=false"+
+                " persistenceAuthority=CUSTOM_LOCALLAB"+
+                " originalPersistenceClaim=false"+
+                " persistenceBeforeFeedback=false"
+            );
+            return true;
+        }
+
+        if(dispatchDuelLifecycleCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
+            return true;
+
         try{
             ContentResult content=
                 contentRegistry.dispatchCommand(
@@ -137,10 +503,54 @@ final class LocalCommandDispatcher {
 
             if(content!=null){
                 if(content.hasAction()){
+                    String contentActionKey=
+                        content.actionKey();
                     LocalContentCommandActionExecutor.Outcome
+                        action;
+
+                    if(isItemLibraryRootAction(
+                            contentActionKey
+                        )){
+                        final LocalContentCommandActionExecutor.Outcome[]
+                            rootAction={null};
+
+                        RootReplacingCommandDispatch rootDispatch=
+                            bridge.handleRootReplacingCommand(
+                                ()->{
+                                    rootAction[0]=
+                                        contentCommandActions
+                                            .executeOutcome(
+                                                contentActionKey,
+                                                command,
+                                                username,
+                                                loginAlias,
+                                                persistentAccount,
+                                                bridge.scenePublisher(),
+                                                serverPackets
+                                            );
+                                    return true;
+                                }
+                            );
+
+                        if(!rootDispatch.admitted){
+                            System.out.println(
+                                tag+
+                                "V5150_ITEM_LIBRARY_DEV_OPEN "+
+                                "result=LIFECYCLE_REJECTED"
+                            );
+                            return true;
+                        }
+
+                        action=rootAction[0];
+
+                        if(action==null)
+                            throw new IllegalStateException(
+                                "Item Library root action produced no runtime outcome"
+                            );
+                    }else{
                         action=
                             contentCommandActions.executeOutcome(
-                                content.actionKey(),
+                                contentActionKey,
                                 command,
                                 username,
                                 loginAlias,
@@ -148,6 +558,7 @@ final class LocalCommandDispatcher {
                                 bridge.scenePublisher(),
                                 serverPackets
                             );
+                    }
 
                     if(action.dialogResult!=null){
                         bridge.applyPetDialog(
@@ -193,12 +604,461 @@ final class LocalCommandDispatcher {
             );
         }
 
+        if(isLootingBagRoute(p)){
+            boolean opened=
+                bridge.openLootingBag(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G8_LOOTING_BAG_UI_COMMAND"+
+                " opened="+opened+
+                " root="+
+                LootingBagPresentation.ROOT+
+                " container="+
+                LootingBagPresentation.CONTAINER_WIDGET+
+                " presentationAuthority="+
+                LootingBagPresentation.PRESENTATION_AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"
+            );
+            return true;
+        }
+
+        if(isTournamentRoute(p)){
+            boolean opened=
+                bridge.openTournament(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G91_TOURNAMENT_UI_COMMAND"+
+                " opened="+opened+
+                " root="+
+                TournamentPresentation.TOURNAMENT_ROOT+
+                " presentationAuthority="+
+                TournamentPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLabTournamentRuntime.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"
+            );
+            return true;
+        }
+
+        if(dispatchPkRatingsCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
+            return true;
+
+        if(isEventChestRoute(p)){
+            boolean opened=
+                bridge.openEventChest(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G131_EVENT_CHEST_COMMAND"+
+                " opened="+opened+
+                " root="+
+                EventChestPresentation.ROOT+
+                " presentationAuthority="+
+                EventChestPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalEventChestUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isGoodwillWellRoute(p)){
+            boolean opened=
+                bridge.openGoodwillWell(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G132_GOODWILL_COMMAND"+
+                " opened="+opened+
+                " root="+
+                GoodwillWellPresentation.ROOT+
+                " presentationAuthority="+
+                GoodwillWellPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalGoodwillWellUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " campaignInvented=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        LotteryService.Channel lotteryChannel=
+            lotteryRoute(p);
+
+        if(lotteryChannel!=null){
+            boolean opened=
+                bridge.openLottery(
+                    lotteryChannel,
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G133_LOTTERY_COMMAND"+
+                " opened="+opened+
+                " channel="+lotteryChannel+
+                " root="+
+                LotteryPresentation.root(
+                    lotteryChannel
+                )+
+                " presentationAuthority="+
+                LotteryPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLotteryUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " roundInvented=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isVotingRoute(p)){
+            boolean opened=
+                bridge.openVoting(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G134_VOTING_COMMAND"+
+                " opened="+opened+
+                " root="+
+                VotingPresentation.ROOT+
+                " presentationAuthority="+
+                VotingPresentation.PRESENTATION_AUTHORITY+
+                " voteLiteralAuthority=EXACT_CURRENT_CLIENT"+
+                " rootOpenPolicy=CUSTOM_LOCALLAB"+
+                " inputRouter=false"+
+                " browserActionClaim=false"+
+                " originalServerCommandBehaviorClaim=false"
+            );
+            return true;
+        }
+
+        if(isUnclaimedCofferRoute(p)){
+            boolean opened=
+                bridge.openUnclaimedCoffer(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G135_UNCLAIMED_COFFER_COMMAND"+
+                " opened="+opened+
+                " root="+
+                UnclaimedRewardCofferPresentation.ROOT+
+                " container="+
+                UnclaimedRewardCofferPresentation.CONTAINER_WIDGET+
+                " presentationAuthority="+
+                UnclaimedRewardCofferPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalUnclaimedRewardCofferUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " semanticCofferCreated=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isBloodFountainRoute(p)){
+            boolean opened=
+                bridge.openBloodFountain(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G136_BLOOD_FOUNTAIN_COMMAND"+
+                " opened="+opened+
+                " root="+
+                BloodFountainHubPresentation.ROOT+
+                " presentationAuthority="+
+                BloodFountainHubPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalBloodFountainUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " exactSubNavigation=true"+
+                " originalWorldEntryClaim=false"
+            );
+            return true;
+        }
+
+        if(isBloodcoreSynthesisRoute(p)){
+            boolean opened=
+                bridge.openBloodcoreSynthesis(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G138_BLOODCORE_SYNTHESIS_COMMAND"+
+                " opened="+opened+
+                " root="+
+                BloodcoreSynthesisPresentation.ROOT+
+                " presentationAuthority="+
+                BloodcoreSynthesisPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalBloodcoreSynthesisUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " rawWidgetDispatch=false"+
+                " secondSurfaceClaim=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isEventActivityRoute(p)){
+            boolean opened=
+                bridge.openEventActivity(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G139_EVENT_ACTIVITY_COMMAND"+
+                " opened="+opened+
+                " root="+
+                EventActivityPresentation.ROOT+
+                " subtype="+
+                EventActivityPresentation.APPLICATION_SUBTYPE+
+                " presentationAuthority="+
+                EventActivityPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalEventActivityUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " zeroRows=true"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(dispatchLoginRewardCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
+            return true;
+
+        if(dispatchAdventureBookCommand(
+                p,
+                bridge,
+                serverPackets,
+                tag
+            ))
+            return true;
+
+        if(dispatchTaskScrollCommand(
+                p,
+                sessionWorldTick,
+                bridge,
+                serverPackets,
+                tag
+            ))
+            return true;
+
+        if(isLegendaryPetFusionRoute(p)){
+            boolean opened=
+                bridge.openLegendaryPetFusion(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G1310_LEGENDARY_PET_FUSION_COMMAND"+
+                " opened="+opened+
+                " root="+
+                LegendaryPetFusionPresentation.ROOT+
+                " fuseWire="+
+                LegendaryPetFusionPresentation.FUSE_WIRE_WIDGET+
+                " presentationAuthority="+
+                LegendaryPetFusionPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLegendaryPetFusionUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " legacyDefaultsUsed=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isItemEnchantmentRoute(p)){
+            boolean opened=
+                bridge.openItemEnchantment(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G1311_ITEM_ENCHANTMENT_COMMAND"+
+                " opened="+opened+
+                " categoryRoot="+
+                ItemEnchantmentPresentation.CATEGORY_ROOT+
+                " mainRootClaim=false"+
+                " presentationAuthority="+
+                ItemEnchantmentPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalItemEnchantmentUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " catalogClaim=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isDonorPanelRoute(p)){
+            boolean opened=
+                bridge.openDonorPanel(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G1312_DONOR_PANEL_COMMAND"+
+                " opened="+opened+
+                " root="+
+                DonorPanelPresentation.ROOT+
+                " presentationAuthority="+
+                DonorPanelPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalDonorPanelUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " paymentClaim=false"+
+                " teleportPolicyClaim=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isDonationCartRoute(p)){
+            boolean opened=
+                bridge.openDonationCart(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G1313_DONATION_CART_COMMAND"+
+                " opened="+opened+
+                " root="+
+                DonationCartPresentation.ROOT+
+                " productSlots="+
+                DonationCartPresentation.PRODUCT_SLOTS+
+                " presentationAuthority="+
+                DonationCartPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalDonationCartUiHandler.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " catalogClaim=false"+
+                " pricingClaim=false"+
+                " checkoutClaim=false"+
+                " paymentProcessingClaim=false"+
+                " originalNavigationClaim=false"
+            );
+            return true;
+        }
+
+        if(isDuelRoute(p)){
+            String target=
+                duelTarget(p);
+            boolean opened=
+                bridge.openDuel(
+                    target,
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "G103_NORMAL_DUEL_UI_COMMAND"+
+                " opened="+opened+
+                " target="+target+
+                " root="+
+                NormalDuelPresentation.SELECTOR_ROOT+
+                " presentationAuthority="+
+                NormalDuelPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLabDuelRuntime.AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"+
+                " originalTargetTransportClaim=false"
+            );
+            return true;
+        }
+
         if(isDevPanelRoute(p)){
             bridge.openDevPanel(serverPackets);
             System.out.println(
                 tag+"V5172_DEV_PANEL_OPEN route="+p[0]+
                 " authority="+ContentAuthorityRepository.summary()+
                 " runtimeWeaponProfiles="+V913WeaponRuntimeAuthority.count());
+            return true;
+        }
+
+        if(isMonsterSpawnerRoute(p)){
+            boolean opened=
+                bridge.openMonsterSpawner(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "MONSTER_SPAWNER_UI_COMMAND "+
+                "route="+p[0]+
+                " opened="+opened+
+                " presentationAuthority="+
+                MonsterSpawnerPresentation.PRESENTATION_AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"
+            );
+            return true;
+        }
+
+        if(diagnosticCommands.itemLibrarySearchWillOpen(
+                p
+            )){
+            RootReplacingCommandDispatch rootDispatch=
+                bridge.handleRootReplacingCommand(
+                    ()->
+                        diagnosticCommands.handle(
+                            p,
+                            serverPackets,
+                            tag,
+                            username,
+                            loginAlias,
+                            persistentAccount,
+                            bridge.scenePublisher()
+                        )
+                );
+
+            if(!rootDispatch.admitted){
+                System.out.println(
+                    tag+
+                    "V5150_ITEM_LIBRARY_IGSEARCH "+
+                    "result=LIFECYCLE_REJECTED"
+                );
+                return true;
+            }
+
+            if(!rootDispatch.handled)
+                throw new IllegalStateException(
+                    "known Item Library root command was not handled"
+                );
+
             return true;
         }
 
@@ -298,6 +1158,245 @@ final class LocalCommandDispatcher {
         return false;
     }
 
+    static boolean dispatchLoginRewardCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(!isLoginRewardRoute(tokens))
+            return false;
+
+        boolean opened=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).openLoginRewards(
+                Objects.requireNonNull(
+                    serverPackets,
+                    "serverPackets"
+                )
+            );
+
+        System.out.println(
+            tag+
+            "G192_LOGIN_REWARD_COMMAND"+
+            " opened="+opened+
+            " root="+
+                LoginRewardPresentation.ROOT+
+            " container="+
+                LoginRewardPresentation.ITEM_CONTAINER_WIDGET+
+            " slots="+
+                LoginRewardPresentation.SLOT_COUNT+
+            " routeAuthority=CUSTOM_LOCALLAB"+
+            " emptyProjection=true"+
+            " indexPublished=false"+
+            " inputRouter=false"+
+            " gameplayState=false"+
+            " rewardPolicyClaim=false"+
+            " cadenceClaim=false"+
+            " streakClaim=false"+
+            " claimTransportClaim=false"+
+            " settlementClaim=false"+
+            " persistenceClaim=false"+
+            " originalNavigationClaim=false"
+        );
+
+        return true;
+    }
+
+    static boolean dispatchAdventureBookCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(!isAdventureBookRoute(tokens))
+            return false;
+
+        boolean opened=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).openAdventureBook(
+                Objects.requireNonNull(
+                    serverPackets,
+                    "serverPackets"
+                )
+            );
+
+        System.out.println(
+            tag+
+            "G162_ADVENTURE_BOOK_COMMAND"+
+            " opened="+opened+
+            " command=adventurebook"+
+            " applicationSubtype="+
+                AdventureBookPresentation.APPLICATION_SUBTYPE+
+            " presentationAuthority="+
+                AdventureBookPresentation.PRESENTATION_AUTHORITY+
+            " routeAuthority=EXACT_CURRENT_C2S103"+
+            " emptyProjection=true"+
+            " interface97Claim=false"+
+            " inputRouter=false"+
+            " objectiveCatalogClaim=false"+
+            " rewardPolicyClaim=false"+
+            " teleportPolicyClaim=false"+
+            " persistenceClaim=false"+
+            " originalNavigationClaim=false"
+        );
+
+        return true;
+    }
+
+    static boolean dispatchTaskScrollCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        return dispatchTaskScrollCommand(
+            tokens,
+            0L,
+            bridge,
+            serverPackets,
+            tag
+        );
+    }
+
+    static boolean dispatchTaskScrollCommand(
+        String[] tokens,
+        long worldTick,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        boolean assign=
+            isTaskScrollAssignRoute(
+                tokens
+            );
+
+        if(!assign&&
+           !isTaskScrollRoute(tokens))
+            return false;
+
+        boolean opened=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).openTaskScroll(
+                assign,
+                worldTick,
+                Objects.requireNonNull(
+                    serverPackets,
+                    "serverPackets"
+                )
+            );
+
+        System.out.println(
+            tag+
+            "G153_TASK_SCROLL_COMMAND"+
+            " opened="+opened+
+            " assignRequested="+assign+
+            " worldTick="+worldTick+
+            " root="+
+            TaskScrollPresentation.ROOT+
+            " infoRows="+
+            TaskScrollPresentation.INFO_ROWS+
+            " rewardSlots="+
+            TaskScrollPresentation.REWARD_SLOTS+
+            " presentationAuthority="+
+            TaskScrollPresentation.PRESENTATION_AUTHORITY+
+            " gameplayAuthority="+
+            LocalLabTaskScrollRuntime.AUTHORITY+
+            " routeAuthority=CUSTOM_LOCALLAB"+
+            " inputRouter=false"+
+            " rewardPolicyClaim=false"+
+            " persistenceClaim=false"+
+            " originalNavigationClaim=false"
+        );
+
+        return true;
+    }
+
+    static boolean dispatchPkRatingsCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(!isPkRatingsRoute(tokens))
+            return false;
+
+        boolean opened=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).openPkRatings(
+                Objects.requireNonNull(
+                    serverPackets,
+                    "serverPackets"
+                )
+            );
+
+        System.out.println(
+            tag+
+            "G111_PK_RATINGS_COMMAND"+
+            " opened="+opened+
+            " root="+
+            PkRatingsPresentation.RATINGS_ROOT+
+            " subtype="+
+            PkRatingsPresentation.APPLICATION_SUBTYPE+
+            " presentationAuthority="+
+            PkRatingsPresentation.PRESENTATION_AUTHORITY+
+            " gameplayAuthority="+
+            LocalPkRatingsUiHandler.AUTHORITY+
+            " routeAuthority=CUSTOM_LOCALLAB"+
+            " ratingFormulaClaim=false"+
+            " originalCommandClaim=false"
+        );
+
+        return true;
+    }
+
+    static boolean dispatchDuelLifecycleCommand(
+        String[] tokens,
+        SessionBridge bridge,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        LocalDuelCommandHandler.Result duelCommand=
+            Objects.requireNonNull(
+                bridge,
+                "bridge"
+            ).handleDuelCommand(
+                tokens
+            );
+
+        if(duelCommand==null)
+            return false;
+
+        new SocialChatPresentationPublisher(
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            )
+        ).serverMessage(
+            duelCommand.clientMessage
+        );
+
+        System.out.println(
+            tag+
+            duelCommand.logText+
+            " clientFeedback=true"+
+            " route=EXACT_CURRENT_C2S103"+
+            " routeAuthority="+
+            LocalDuelCommandHandler.ROUTE_AUTHORITY+
+            " persistenceClaim=false"
+        );
+
+        return true;
+    }
+
     static String clean(String command){
         String clean=command==null?"":command.trim();
         if(clean.startsWith("::"))
@@ -307,6 +1406,321 @@ final class LocalCommandDispatcher {
 
     static String[] tokens(String clean){
         return clean.split("\\s+");
+    }
+
+    static boolean isItemLibraryRootAction(
+        String actionKey
+    ){
+        return actionKey!=null&&
+            actionKey.startsWith(
+                LocalDiagnosticContentModule
+                    .ITEMLIB_OPEN_ACTION_PREFIX+
+                ":"
+            );
+    }
+
+    /** Exact pinned-v308 notification C2S103 command. */
+    static boolean isNativeMailboxRootRoute(String[] tokens){
+        return tokens!=null&&tokens.length==1&&
+            "mail".equalsIgnoreCase(tokens[0]);
+    }
+
+    static boolean isMailboxRootlessSyncRoute(String[] tokens){
+        return tokens!=null&&tokens.length==2&&
+            ("mail".equalsIgnoreCase(tokens[0])||
+             "mailbox".equalsIgnoreCase(tokens[0]))&&
+            "sync".equalsIgnoreCase(tokens[1]);
+    }
+
+    static boolean isLootingBagRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "lootingbag"
+                )||
+                p[0].equalsIgnoreCase(
+                    "lootbag"
+                )
+            );
+    }
+
+    static boolean isTournamentRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "tournament"
+                )||
+                p[0].equalsIgnoreCase(
+                    "tourny"
+                )
+            );
+    }
+
+    static boolean isPkRatingsRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "pkratings"
+                )||
+                p[0].equalsIgnoreCase(
+                    "pkrating"
+                )
+            );
+    }
+
+    static boolean isEventChestRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "eventchest"
+                )||
+                p[0].equalsIgnoreCase(
+                    "echest"
+                )
+            );
+    }
+
+    static boolean isGoodwillWellRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "goodwill"
+                )||
+                p[0].equalsIgnoreCase(
+                    "well"
+                )
+            );
+    }
+
+    static LotteryService.Channel lotteryRoute(
+        String[] p
+    ){
+        if(p==null||p.length!=1)
+            return null;
+
+        if(p[0].equalsIgnoreCase(
+                "lottery"
+            )||
+           p[0].equalsIgnoreCase(
+                "lotto"
+            ))
+            return LotteryService.Channel.ORDINARY;
+
+        if(p[0].equalsIgnoreCase(
+                "bloodcorelottery"
+            )||
+           p[0].equalsIgnoreCase(
+                "bclottery"
+            ))
+            return LotteryService.Channel.BLOODCORE;
+
+        return null;
+    }
+
+    static boolean isVotingRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "vote"
+                )||
+                p[0].equalsIgnoreCase(
+                    "voting"
+                )
+            );
+    }
+
+    static boolean isUnclaimedCofferRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "coffer"
+                )||
+                p[0].equalsIgnoreCase(
+                    "unclaimed"
+                )
+            );
+    }
+
+    static boolean isBloodFountainRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "bloodfountain"
+                )||
+                p[0].equalsIgnoreCase(
+                    "bfountain"
+                )
+            );
+    }
+
+    static boolean isBloodcoreSynthesisRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "bloodcoresynthesis"
+                )||
+                p[0].equalsIgnoreCase(
+                    "bcsynthesis"
+                )
+            );
+    }
+
+    static boolean isEventActivityRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "eventactivity"
+                )||
+                p[0].equalsIgnoreCase(
+                    "activities"
+                )
+            );
+    }
+
+    static boolean isLoginRewardRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "loginrewards"
+                )||
+                p[0].equalsIgnoreCase(
+                    "loginreward"
+                )
+            );
+    }
+
+    static boolean isAdventureBookRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            p[0].equalsIgnoreCase(
+                "adventurebook"
+            );
+    }
+
+    static boolean isTaskScrollRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "taskscroll"
+                )||
+                p[0].equalsIgnoreCase(
+                    "tscroll"
+                )
+            );
+    }
+
+    static boolean isTaskScrollAssignRoute(String[] p){
+        return p!=null&&
+            p.length==2&&
+            (
+                p[0].equalsIgnoreCase(
+                    "taskscroll"
+                )||
+                p[0].equalsIgnoreCase(
+                    "tscroll"
+                )
+            )&&
+            p[1].equalsIgnoreCase(
+                "assign"
+            );
+    }
+
+    static boolean isLegendaryPetFusionRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "petfusion"
+                )||
+                p[0].equalsIgnoreCase(
+                    "legendaryfusion"
+                )
+            );
+    }
+
+    static boolean isItemEnchantmentRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "enchantments"
+                )||
+                p[0].equalsIgnoreCase(
+                    "enchanting"
+                )
+            );
+    }
+
+    static boolean isDonorPanelRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "donorpanel"
+                )||
+                p[0].equalsIgnoreCase(
+                    "donor"
+                )
+            );
+    }
+
+    static boolean isDonationCartRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "donationcart"
+                )||
+                p[0].equalsIgnoreCase(
+                    "donatecart"
+                )
+            );
+    }
+
+    static boolean isDuelRoute(String[] p){
+        return p!=null&&
+            p.length>=2&&
+            p[0].equalsIgnoreCase(
+                "duel"
+            );
+    }
+
+    static String duelTarget(String[] p){
+        if(!isDuelRoute(p))
+            throw new IllegalArgumentException(
+                "duel route requires target"
+            );
+
+        StringBuilder out=
+            new StringBuilder();
+
+        for(int i=1;i<p.length;i++){
+            if(i>1)
+                out.append(' ');
+            out.append(p[i]);
+        }
+
+        String target=
+            out.toString().trim();
+
+        if(target.isEmpty())
+            throw new IllegalArgumentException(
+                "duel target blank"
+            );
+
+        return target;
     }
 
     static boolean isDevPanelRoute(String[] p){
@@ -320,6 +1734,19 @@ final class LocalCommandDispatcher {
                     p[0].equalsIgnoreCase("dev")&&
                     p.length>=2&&
                     p[1].equalsIgnoreCase("panel")
+                )
+            );
+    }
+
+    static boolean isMonsterSpawnerRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "monsterspawner"
+                )||
+                p[0].equalsIgnoreCase(
+                    "mspawn"
                 )
             );
     }

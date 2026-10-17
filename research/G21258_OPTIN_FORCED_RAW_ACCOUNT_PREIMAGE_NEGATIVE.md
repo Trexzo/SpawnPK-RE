@@ -1,0 +1,11 @@
+# G21.258 — optimistic observed account-preimage drift veto in opt-in forced RAW
+
+**Exact source parent** [G21.257/G19.1.4 cumulative #2774](https://github.com/Trexzo/SpawnPK-RE/pull/2774), SHA `fede94226b9837528a13abe721b2927eadc27d49`, **615 focused candidate** (requires its own hosted CI). Parent retains independently certified Chat1 G21.257 609/609 and Chat2 G19.1.4 614/614.
+
+G21.248–257 strengthened serialized **new** RAW temp bytes, lock object identity and negative ACTIVE/Mailbox sidecars before forcing and verifying account rename. It did not check whether the **old account preimage** changed in place during an otherwise valid RAW serialization (a nonparticipating process can write the old inode while cooperating session+marker locks are held). This is a concrete source integrity risk, not a claim of detected original RSPS session ownership.
+
+G21.258 adds a bounded (64 MiB) NOFOLLOW regular-file SHA256+fileKey/creationTime/size/mtime fingerprint of the preexisting exact account name for all three opt-in forced RAW APIs, acquired after their RAW reservation and **before serialization**. Absence is a distinct witness. While holding G21.39 publication lock and immediately pre-ATOMIC_MOVE, repeat the account witness; any in-place old-account bytes modification (even same inode/length and restored mtime), physical replacement, or absent→created transition fails closed and leaves the competing account postimage untouched. No grant/replay/repair, no default/World/raw-unforced change. The final check still races an uncooperative writer and does not know if a caller's semantic `PlayerSnapshot` was stale BEFORE the baseline was captured.
+
+New genuine tests mutate each PRIMARY, NAMED and FilePlayerRepository account inside existing test-only post-serialize hooks by one byte on SAME inode with exact old mtime and size restored; 3 forced writes must veto without changing external bytes. Fourth missing-account hook creates a competitor, also rejected. Verify no owned temp or RAW/marker lease leaks. Manifest 615→616 and new task.
+
+**Require** hosted exact-head Java11 major55/full Gradle 616/616. DRAFT/unmerged, no durable owner epoch, final session ACK, original account semantics or automatic ACTIVE retirement.

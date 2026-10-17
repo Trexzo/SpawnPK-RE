@@ -65,7 +65,6 @@ final class LocalEquipmentItemActionHandler {
                 boolean changed=result.startsWith("COSMETIC_OVERRIDE_OK");
                 if(changed){
                     playerState.syncEquipmentPresentation(equipment);
-                    bank.sendCosmetic(serverPackets,playerState.cosmetic());
                     playerPresentation.refresh(
                         username,equipment,playerState,serverPackets);
                 }
@@ -117,7 +116,6 @@ final class LocalEquipmentItemActionHandler {
             boolean changed=result.startsWith("COSMETIC_EQUIP_OK");
             if(changed){
                 playerState.syncEquipmentPresentation(equipment);
-                bank.sendCosmetic(serverPackets,playerState.cosmetic());
                 playerPresentation.refresh(
                     username,equipment,playerState,serverPackets);
             }
@@ -201,7 +199,6 @@ final class LocalEquipmentItemActionHandler {
             boolean changed=result.startsWith("COSMETIC_UNEQUIP_OK");
             if(changed){
                 playerState.syncEquipmentPresentation(equipment);
-                bank.sendCosmetic(serverPackets,playerState.cosmetic());
                 playerPresentation.refresh(
                     username,equipment,playerState,serverPackets);
             }

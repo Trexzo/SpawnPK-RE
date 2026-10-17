@@ -16,6 +16,14 @@ public final class LocalRoutedNpcInteractionHandlerTest {
         LocalRoutedNpcInteractionHandler h=
             new LocalRoutedNpcInteractionHandler(npcs,bank,movement);
 
+        int[] bankRootPublishes={0};
+        h.installBankRootOwner(
+            action->{
+                bankRootPublishes[0]++;
+                return action.open();
+            }
+        );
+
         // Native option 3 Bank exercises the generic bank coordinator.
         String spawned=npcs.devSpawnNpc(
             7605,1,0,movement,w);
@@ -42,6 +50,11 @@ public final class LocalRoutedNpcInteractionHandlerTest {
             throw new AssertionError("bank did not open");
         if(wire.size()<=before)
             throw new AssertionError("banker open emitted no packets");
+        if(bankRootPublishes[0]!=1)
+            throw new AssertionError(
+                "adjacent banker did not publish exactly one owned root count="+
+                bankRootPublishes[0]
+            );
 
         // A second banker outside adjacency proves the coordinator owns the
         // deferred scene/deadline state and current path-ended cancellation.
@@ -66,6 +79,10 @@ public final class LocalRoutedNpcInteractionHandlerTest {
             throw new AssertionError("deferred banker route="+deferred);
         if(!h.hasPendingBank())
             throw new AssertionError("deferred bank scene not retained");
+        if(bankRootPublishes[0]!=1)
+            throw new AssertionError(
+                "deferred banker published root before authoritative arrival"
+            );
 
         // Generic RouteFinder ownership now reroutes a still-valid target when
         // the previous path ends. Make that transition explicit, then prove the
@@ -85,6 +102,10 @@ public final class LocalRoutedNpcInteractionHandlerTest {
             throw new AssertionError("deferred timeout cancellation="+cancelled);
         if(h.hasPendingBank())
             throw new AssertionError("cancelled bank scene still pending");
+        if(bankRootPublishes[0]!=1)
+            throw new AssertionError(
+                "cancelled/deferred banker path published a root"
+            );
 
         NpcEntity unknown=new NpcEntity(
             999,1,movement.x(),movement.y());
@@ -94,8 +115,240 @@ public final class LocalRoutedNpcInteractionHandlerTest {
            !generic.contains("V511_NPC_ACTION")||
            !generic.contains("result=DECODED_SEMANTIC_"))
             throw new AssertionError("generic route="+generic);
+        if(bankRootPublishes[0]!=1)
+            throw new AssertionError(
+                "non-bank NPC action entered bank root ownership"
+            );
+
+        WorldPlayer rejectedPlayer=new WorldPlayer();
+        MovementState rejectedMovement=rejectedPlayer.movement();
+        BankState rejectedBank=rejectedPlayer.bank();
+        NpcRegistry rejectedNpcs=new NpcRegistry();
+        ByteArrayOutputStream rejectedWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter rejectedWriter=
+            new ServerPacketWriter(
+                rejectedWire,
+                new IsaacCipher(new int[]{5,6,7,8})
+            );
+        LocalRoutedNpcInteractionHandler rejectedHandler=
+            new LocalRoutedNpcInteractionHandler(
+                rejectedNpcs,
+                rejectedBank,
+                rejectedMovement
+            );
+        int[] rejectedRootAdmissions={0};
+        rejectedHandler.installBankRootOwner(
+            action->{
+                rejectedRootAdmissions[0]++;
+                return null;
+            }
+        );
+
+        String rejectedSpawn=
+            rejectedNpcs.devSpawnNpc(
+                7605,
+                1,
+                0,
+                rejectedMovement,
+                rejectedWriter
+            );
+        if(!rejectedSpawn.startsWith(
+                "DEV_NPC_SPAWN_OK"
+            ))
+            throw new AssertionError(
+                "rejected banker spawn precondition="+
+                rejectedSpawn
+            );
+
+        NpcEntity rejectedBanker=null;
+        for(NpcEntity n:rejectedNpcs.snapshot()){
+            if(n.definitionId==7605){
+                rejectedBanker=n;
+                break;
+            }
+        }
+        if(rejectedBanker==null)
+            throw new AssertionError(
+                "rejected banker not visible"
+            );
+
+        int rejectedBefore=rejectedWire.size();
+        String rejectedOpen=
+            rejectedHandler.handle(
+                new NpcAction(
+                    17,
+                    rejectedBanker.sceneIndex
+                ),
+                rejectedBanker,
+                rejectedWriter
+            );
+
+        if(rejectedOpen!=null||
+           rejectedRootAdmissions[0]!=1||
+           rejectedBank.isOpen()||
+           rejectedWire.size()!=rejectedBefore)
+            throw new AssertionError(
+                "rejected bank-root ownership mutated/published state result="+
+                rejectedOpen+
+                " admissions="+
+                rejectedRootAdmissions[0]+
+                " bankOpen="+
+                rejectedBank.isOpen()
+            );
+
+        testDeferredBankPublicationFailureRetainsPending();
 
         System.out.println(
-            "LOCAL_ROUTED_NPC_INTERACTION_HANDLER_PASS bankerImmediate=true deferredOwnership=true pathEndReroute=true timeoutCancel=true genericFailClosed=true");
+            "LOCAL_ROUTED_NPC_INTERACTION_HANDLER_PASS "+
+            "bankerImmediate=true bankRootOwner=true "+
+            "deferredOwnership=true deferredNoEarlyRoot=true "+
+            "deferredPublicationFailureRetainsPending=true "+
+            "pathEndReroute=true timeoutCancel=true "+
+            "genericFailClosed=true rejectedRootNoMutation=true");
     }
+
+    private static void testDeferredBankPublicationFailureRetainsPending()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        MovementState movement=
+            player.movement();
+        BankState bank=
+            player.bank();
+        NpcRegistry npcs=
+            new NpcRegistry();
+
+        ByteArrayOutputStream healthyWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                healthyWire,
+                new IsaacCipher(
+                    new int[]{101,102,103,104}
+                )
+            );
+
+        LocalRoutedNpcInteractionHandler handler=
+            new LocalRoutedNpcInteractionHandler(
+                npcs,
+                bank,
+                movement
+            );
+
+        String spawned=
+            npcs.devSpawnNpc(
+                7605,
+                2,
+                0,
+                movement,
+                healthy
+            );
+
+        if(!spawned.startsWith(
+                "DEV_NPC_SPAWN_OK"))
+            throw new AssertionError(
+                "deferred banker failure fixture spawn="+
+                spawned
+            );
+
+        NpcEntity banker=null;
+
+        for(NpcEntity npc:
+                npcs.snapshot())
+            if(npc.definitionId==7605){
+                banker=npc;
+                break;
+            }
+
+        if(banker==null)
+            throw new AssertionError(
+                "deferred banker failure fixture missing"
+            );
+
+        String queued=
+            handler.handle(
+                new NpcAction(
+                    17,
+                    banker.sceneIndex
+                ),
+                banker,
+                healthy
+            );
+
+        if(queued==null||
+           !queued.contains(
+               "DEFERRED_UNTIL_ADJACENT")||
+           !handler.hasPendingBank()||
+           handler.pendingBankNpc()!=banker)
+            throw new AssertionError(
+                "deferred banker failure fixture not queued result="+
+                queued
+            );
+
+        if(movement.advance()==null)
+            throw new AssertionError(
+                "deferred banker failure fixture did not approach"
+            );
+
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        queue.offer(
+            new byte[1024]
+        );
+
+        ServerPacketWriter failed=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    new int[]{105,106,107,108}
+                )
+            );
+
+        boolean publicationFailed=false;
+
+        try{
+            handler.tick(
+                System.currentTimeMillis(),
+                failed
+            );
+        }catch(java.io.IOException expected){
+            publicationFailed=true;
+        }
+
+        if(!publicationFailed||
+           bank.isOpen()||
+           !handler.hasPendingBank()||
+           handler.pendingBankNpc()!=banker)
+            throw new AssertionError(
+                "failed deferred banker publication lost exact pending identity"
+            );
+
+        ByteArrayOutputStream drain=
+            new ByteArrayOutputStream();
+
+        queue.drainTo(
+            drain,
+            1<<20
+        );
+
+        String retry=
+            handler.tick(
+                System.currentTimeMillis(),
+                failed
+            );
+
+        if(retry==null||
+           !retry.contains(
+               "OPENED_AFTER_AUTHORITATIVE_ARRIVAL")||
+           !bank.isOpen()||
+           handler.hasPendingBank()||
+           queue.queuedBytes()<=0)
+            throw new AssertionError(
+                "deferred banker same-writer retry failed result="+
+                retry
+            );
+    }
+
 }

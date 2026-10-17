@@ -1,0 +1,7 @@
+# G21.249 — real two-JVM forced RAW lock exclusion and release
+
+Parent [G21.248 #2751](https://github.com/Trexzo/SpawnPK-RE/pull/2751) exact `4406cfd892a8a50219ffbd31a44bf82732351c59`, parent own fresh hosted CI required. G21.248 introduces disabled-by-default forced unique/NOFOLLOW temp, sealed SHA-256, mandatory atomic account replacement, directory force and postimage verification for 3 cooperating RAW entrypoints.
+
+G21.249 is additive genuine child-JVM regression. The parent JVM first persists a forced actual named-account snapshot, then holds its G21.216 real same-account OS RAW reservation. An independent child JVM with all safety gates enabled calls the actual FilePlayerRepository.save and MUST be excluded, with parent disk bytes unchanged. Once the first JVM releases its OS lock, another real child JVM writes a different forced snapshot to that same account; it must be visible when parent reloads. Verify no leaked in-JVM RAW reservations on all paths. This is more than an in-process simulation; it does not claim a server-authenticated final save or original game policy.
+
+One new Java source, one Gradle task and manifest hardguard **596→597**, no further production Java changes. Still no durable owner epoch, crash recovery, external uncooperative protection or ACTIVE review marker retirement. Own exact-head 597/597 focused, Java11 major55 and full Gradle required; remain DRAFT/unmerged.

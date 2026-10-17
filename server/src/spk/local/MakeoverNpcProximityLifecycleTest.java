@@ -162,10 +162,202 @@ public final class MakeoverNpcProximityLifecycleTest {
                 "manual movement cancellation failed"
             );
 
+        WorldPlayer retryPlayer=
+            new WorldPlayer();
+        MovementState retryMovement=
+            retryPlayer.movement();
+        NpcRegistry retryNpcs=
+            new NpcRegistry();
+        LocalMakeoverMageHandler retryHandler=
+            new LocalMakeoverMageHandler(
+                retryPlayer,
+                retryPlayer.equipment(),
+                retryMovement,
+                retryNpcs
+            );
+        OutboundPacketQueue retryQueue=
+            new OutboundPacketQueue(
+                1024
+            );
+        ServerPacketWriter retryPackets=
+            new ServerPacketWriter(
+                retryQueue,
+                new IsaacCipher(
+                    new int[]{55,66,77,88}
+                )
+            );
+        int[] retryTarget=
+            findRoutableTarget(
+                retryMovement
+            );
+        NpcEntity retryMage=
+            retryNpcs.spawnMirroredNpc(
+                LocalMakeoverMageHandler.NPC_ID,
+                retryTarget[0],
+                retryTarget[1],
+                null,
+                retryMovement,
+                retryPackets
+            );
+
+        drain(
+            retryQueue
+        );
+
+        if(!retryHandler.beginIfSupported(
+                new NpcAction(
+                    155,
+                    retryMage.sceneIndex
+                ),
+                retryMage,
+                retryPackets,
+                "[makeover-retry-test] "
+            )||
+           !retryHandler.pending()||
+           retryHandler.active())
+            throw new AssertionError(
+                "Make-over retry fixture did not defer"
+            );
+
+        for(int i=0;
+            i<64&&Math.max(
+                Math.abs(
+                    retryMovement.x()-retryMage.x
+                ),
+                Math.abs(
+                    retryMovement.y()-retryMage.y
+                ))>1;
+            i++)
+            retryMovement.advance();
+
+        if(Math.max(
+                Math.abs(
+                    retryMovement.x()-retryMage.x
+                ),
+                Math.abs(
+                    retryMovement.y()-retryMage.y
+                ))>1)
+            throw new AssertionError(
+                "Make-over retry fixture did not reach adjacency"
+            );
+
+        OutboundPacketQueue.BatchReservation
+            introPressure=
+                OutboundPacketQueue.reserveBatch(
+                    retryQueue,
+                    1024
+                );
+        boolean introFailed=false;
+
+        try{
+            retryHandler.tick(
+                System.currentTimeMillis(),
+                retryPackets,
+                "[makeover-retry-test] "
+            );
+        }catch(java.io.IOException expected){
+            introFailed=true;
+        }finally{
+            introPressure.release();
+        }
+
+        if(!introFailed||
+           !retryHandler.pending()||
+           retryHandler.active()||
+           retryQueue.queuedBytes()!=0)
+            throw new AssertionError(
+                "failed Make-over intro did not preserve exact pending preimage"
+            );
+
+        retryHandler.tick(
+            System.currentTimeMillis(),
+            retryPackets,
+            "[makeover-retry-test] "
+        );
+
+        if(retryHandler.pending()||
+           !retryHandler.active()||
+           retryQueue.queuedBytes()<=0)
+            throw new AssertionError(
+                "same-writer Make-over intro retry did not commit"
+            );
+
+        drain(
+            retryQueue
+        );
+
+        retryNpcs.detachRegionViewPreservingFollowers(
+            retryPackets
+        );
+        drain(
+            retryQueue
+        );
+
+        OutboundPacketQueue.BatchReservation
+            closePressure=
+                OutboundPacketQueue.reserveBatch(
+                    retryQueue,
+                    1024
+                );
+        boolean closeFailed=false;
+
+        try{
+            retryHandler.tick(
+                System.currentTimeMillis(),
+                retryPackets,
+                "[makeover-retry-test] "
+            );
+        }catch(java.io.IOException expected){
+            closeFailed=true;
+        }finally{
+            closePressure.release();
+        }
+
+        if(!closeFailed||
+           !retryHandler.active()||
+           retryQueue.queuedBytes()!=0)
+            throw new AssertionError(
+                "failed Make-over close cleared active semantic state"
+            );
+
+        String retryClose=
+            retryHandler.tick(
+                System.currentTimeMillis(),
+                retryPackets,
+                "[makeover-retry-test] "
+            );
+
+        if(retryHandler.active()||
+           retryClose==null||
+           !retryClose.contains(
+               "ACTIVE_TARGET_LOST"
+           )||
+           retryQueue.queuedBytes()<=0)
+            throw new AssertionError(
+                "same-writer Make-over close retry did not commit result="+
+                retryClose
+            );
+
         System.out.println(
             "MAKEOVER_NPC_PROXIMITY_LIFECYCLE_PASS "+
             "farDeferred=true authoritativeArrival=true "+
-            "exactTargetLossClose=true manualMovementClose=true"
+            "exactTargetLossClose=true manualMovementClose=true "+
+            "introAdmissionFailureRetainsPending=true "+
+            "introSameWriterRetry=true "+
+            "closeAdmissionFailureRetainsActive=true "+
+            "closeSameWriterRetry=true"
+        );
+    }
+
+    private static void drain(
+        OutboundPacketQueue queue
+    )throws Exception{
+        ByteArrayOutputStream out=
+            new ByteArrayOutputStream();
+
+        queue.drainTo(
+            out,
+            1<<20
         );
     }
 
