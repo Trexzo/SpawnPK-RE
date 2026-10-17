@@ -6,6 +6,8 @@ on:
       - 'server/**'
       - 'scripts/Check-WindowsReleaseEvidence.ps1'
       - 'scripts/Test-WindowsClientEvidenceContract.ps1'
+      - 'scripts/Assert-WindowsSourceReleaseBoundary.ps1'
+      - 'scripts/Test-WindowsSourceReleaseBoundary.ps1'
       - 'tools/verification/FilesystemLinkCountProbe.java'
       - '.github/workflows/windows-source-preflight.yml'
   workflow_dispatch:
@@ -73,6 +75,28 @@ jobs:
           & java -cp ./.spk-windows-probe FilesystemLinkCountProbe | Tee-Object -FilePath windows-linkcount-evidence.txt
           if ($LASTEXITCODE -ne 0) { throw "Windows nlink probe execution failed" }
           Write-Host "SPK_NLINK_PROBE_EXECUTED not_a_strict_gate_success_claim=true"
+
+      - name: Reject unsafe Windows release-evidence promotion (source-only)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-WindowsSourceReleaseBoundary.ps1
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "WINDOWS_NEGATIVE_RELEASE_BOUNDARY_TEST_FAILED"
+          }
+          & ./scripts/Assert-WindowsSourceReleaseBoundary.ps1 -ClientEvidencePath windows-release-evidence.json -LinkCountEvidencePath windows-linkcount-evidence.txt -OutputPath windows-source-release-boundary.json
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "WINDOWS_NEGATIVE_RELEASE_BOUNDARY_FAILED"
+          }
+
+      - name: Upload negative release boundary decision
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-negative-release-boundary
+          path: windows-source-release-boundary.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload link-count provider capability report
         if: always()
