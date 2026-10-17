@@ -384,6 +384,125 @@ public final class NpcDropGroundSettlementServiceTest {
         }
     }
 
+
+    // G2092-96: in-process ground batch preparation and failure boundaries.
+    static void runPrecommitRegression(int mode){
+        if(mode<0||mode>4)throw new IllegalArgumentException();
+        if(mode==3){
+            Fixture f=new Fixture(Arrays.asList(
+                new NpcDropResolutionService.Drop(995,5),
+                new NpcDropResolutionService.Drop(4151,2)),
+                "CUSTOM_LOCALLAB_G2095");
+            try{
+                NpcDropResolutionService.Resolution resolution=
+                    f.resolve("player:g2095");
+                NpcDropGroundSettlementService service=f.settlement();
+                final int[] failed={0};
+                f.world.groundItems().installBatchPreCommitFaultForTest(()->{
+                    failed[0]++;
+                    throw new IllegalStateException("G2095_PRECOMMIT");
+                });
+                expect(IllegalStateException.class,
+                    ()->service.settle(resolution),
+                    "NPC batch precommit rejection");
+                require(failed[0]==1&&service.size()==0&&
+                    service.get(f.npc.id)==null&&
+                    f.world.groundItems().size()==0,
+                    "NPC precommit failure leaked state");
+                f.world.groundItems().installBatchPreCommitFaultForTest(null);
+                NpcDropGroundSettlementService.Receipt receipt=
+                    service.settle(resolution);
+                GroundItem a=f.world.groundItems().findOwned(
+                    995,3200,3200,0,"player:g2095");
+                GroundItem b=f.world.groundItems().findOwned(
+                    4151,3200,3200,0,"player:g2095");
+                require(receipt!=null&&receipt.groundItems.size()==2&&
+                    service.settle(resolution)==receipt&&
+                    a!=null&&a.amount==5&&b!=null&&b.amount==2&&
+                    f.world.groundItems().size()==2,
+                    "real NPC retry failed exact one-time receipt");
+            }finally{f.close();}
+            return;
+        }
+        GroundItemRegistry registry=new GroundItemRegistry();
+        Tile tile=new Tile(3200,3200,0);
+        String owner="player:g2092";
+        int original=mode==2?Integer.MAX_VALUE-3:3;
+        GroundItem old=registry.add(995,original,tile,owner,51,false);
+        List<GroundItemRegistry.AddRequest> batch=new ArrayList<>();
+        if(mode==2){
+            batch.add(new GroundItemRegistry.AddRequest(
+                4151,7,tile,owner,52,false));
+            batch.add(new GroundItemRegistry.AddRequest(
+                995,10,tile,owner,52,false));
+            expect(IllegalStateException.class,
+                ()->registry.addBatchDetailed(batch),
+                "later stack overflow");
+            require(registry.size()==1&&old.amount==original&&
+                registry.findOwned(4151,3200,3200,0,owner)==null,
+                "overflow mutated first row");
+            require(registry.add(4151,7,tile,owner,52,false).id==
+                old.id+1,"overflow consumed ground id");
+            return;
+        }
+        batch.add(new GroundItemRegistry.AddRequest(
+            995,2,tile,owner,52,false));
+        batch.add(new GroundItemRegistry.AddRequest(
+            4151,7,tile,owner,52,false));
+        batch.add(new GroundItemRegistry.AddRequest(
+            mode==4?995:11730,mode==4?4:1,tile,owner,53,false));
+        if(mode==4){
+            List<GroundItemRegistry.BatchMutation> result=
+                registry.addBatchDetailed(batch);
+            GroundItem other=registry.findOwned(4151,3200,3200,0,owner);
+            require(result.size()==2&&old.amount==9&&
+                result.get(0).oldAmount==3&&
+                result.get(0).addedAmount==6&&
+                result.get(0).newAmount==9&&
+                result.get(1).created()&&
+                other!=null&&other.id==old.id+1&&
+                other.amount==7&&registry.size()==2,
+                "mixed merge/create batch mismatch");
+            expect(UnsupportedOperationException.class,
+                ()->result.clear(),"batch result mutable");
+            return;
+        }
+        final int[] calls={0};
+        registry.installBatchPreCommitFaultForTest(()->{
+            calls[0]++;
+            if(mode==0)throw new IllegalStateException("G2092_FAULT");
+            throw new AssertionError("G2093_FAULT"){
+                @Override public String toString(){
+                    throw new IllegalStateException(
+                        "FORBIDDEN_TOSTRING");
+                }
+            };
+        });
+        Throwable caught=null;
+        try{registry.addBatchDetailed(batch);}
+        catch(Throwable failure){caught=failure;}
+        require(calls[0]==1&&caught!=null&&
+            (mode==0?caught instanceof IllegalStateException:
+                caught instanceof AssertionError)&&
+            registry.size()==1&&
+            registry.byId(old.id)==old&&old.amount==3&&
+            registry.findOwned(4151,3200,3200,0,owner)==null&&
+            registry.findOwned(11730,3200,3200,0,owner)==null,
+            "precommit fault left partial stack or consumed item");
+        registry.installBatchPreCommitFaultForTest(null);
+        List<GroundItemRegistry.BatchMutation> rows=
+            registry.addBatchDetailed(batch);
+        GroundItem a=registry.findOwned(4151,3200,3200,0,owner);
+        GroundItem b=registry.findOwned(11730,3200,3200,0,owner);
+        require(rows.size()==3&&registry.size()==3&&old.amount==5&&
+            a!=null&&a.id==old.id+1&&
+            b!=null&&b.id==old.id+2&&
+            rows.get(0).oldAmount==3&&
+            rows.get(0).newAmount==5&&
+            rows.get(1).created()&&rows.get(2).created(),
+            "retry changed IDs or delivered incomplete receipt");
+    }
+
     private static final class Fixture {
         final World world=
             World.isolatedForTest(600L);

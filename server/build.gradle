@@ -2348,6 +2348,11 @@ def currentTrainFocusedTests = [
     'spk.local.G2089GroundPresentationHealthyControlTest',
     'spk.local.G2090GroundPresentationSecondDeathControlTest',
     'spk.local.G2091GroundPresentationAbsentRecipientTest',
+    'spk.local.G2092GroundBatchPrecommitExceptionTest',
+    'spk.local.G2093GroundBatchPrecommitHostileErrorTest',
+    'spk.local.G2094GroundBatchLaterOverflowAtomicTest',
+    'spk.local.G2095RealNpcDropBatchRetryAfterRefusalTest',
+    'spk.local.G2096GroundBatchMixedStackControlTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2753,10 +2758,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 906 ||
-    currentTrainFocusedTests.toSet().size() != 906) {
+if (currentTrainFocusedTests.size() != 911 ||
+    currentTrainFocusedTests.toSet().size() != 911) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 906 unique tests, found " +
+        "Current-train focused manifest drift: expected 911 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2987,6 +2992,13 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2096-ground-batch-precommit-atomicity'] = [
+    'spk.local.G2092GroundBatchPrecommitExceptionTest',
+    'spk.local.G2093GroundBatchPrecommitHostileErrorTest',
+    'spk.local.G2094GroundBatchLaterOverflowAtomicTest',
+    'spk.local.G2095RealNpcDropBatchRetryAfterRefusalTest',
+    'spk.local.G2096GroundBatchMixedStackControlTest',
 ]
 currentTrainCriticalCoverage['g2091-npc-presentation-postcommit'] = [
     'spk.local.G2087GroundPresentationRuntimeFailureTest',
@@ -13173,4 +13185,49 @@ tasks.register('g2091GroundPresentationPostCommitRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2091GroundPresentationAbsentRecipientTest')
+}
+
+tasks.register('g2092GroundBatchPrecommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical World ground batch preparation and retry boundaries.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2092GroundBatchPrecommitExceptionTest')
+}
+
+tasks.register('g2093GroundBatchPrecommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical World ground batch preparation and retry boundaries.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2093GroundBatchPrecommitHostileErrorTest')
+}
+
+tasks.register('g2094GroundBatchPrecommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical World ground batch preparation and retry boundaries.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2094GroundBatchLaterOverflowAtomicTest')
+}
+
+tasks.register('g2095GroundBatchPrecommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical World ground batch preparation and retry boundaries.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2095RealNpcDropBatchRetryAfterRefusalTest')
+}
+
+tasks.register('g2096GroundBatchPrecommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical World ground batch preparation and retry boundaries.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2096GroundBatchMixedStackControlTest')
 }

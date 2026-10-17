@@ -145,6 +145,11 @@ final class GroundItemRegistry {
         new LinkedHashMap<>();
     private final AtomicLong ids=
         new AtomicLong();
+    // TEST ONLY: after all preparation, before canonical mutation.
+    private volatile Runnable batchPreCommitFaultForTest;
+    void installBatchPreCommitFaultForTest(Runnable fault){
+        batchPreCommitFaultForTest=fault;
+    }
 
     static final class PreparedAdd {
         final GroundItem expectedExisting;
@@ -659,79 +664,55 @@ final class GroundItemRegistry {
                 );
         }
 
+        // Stage all allocations, IDs and immutable receipt data BEFORE
+        // changing any live ground stack or consuming a ground ID.
         ArrayList<BatchMutation> out=
-            new ArrayList<>(
-                requestedAmounts.size()
-            );
-
-        for(Map.Entry<StackKey,Long> entry:
+            new ArrayList<>(requestedAmounts.size());
+        LinkedHashMap<GroundItem,Integer> pendingMerges=
+            new LinkedHashMap<>();
+        ArrayList<GroundItem> pendingCreates=
+            new ArrayList<>();
+        long nextId=ids.get();
+        for(Map.Entry<StackKey,Long> row:
                 requestedAmounts.entrySet()){
-            StackKey key=entry.getKey();
-            int requested=
-                Math.toIntExact(
-                    entry.getValue()
-                );
-
-            GroundItem current=
-                existing.get(key);
-
+            StackKey key=row.getKey();
+            int amount=Math.toIntExact(row.getValue());
+            GroundItem current=existing.get(key);
             if(current!=null){
-                int oldAmount=
-                    current.amount;
-
-                current.amount=
-                    Math.addExact(
-                        current.amount,
-                        requested
-                    );
-                out.add(
-                    new BatchMutation(
-                        current,
-                        requested,
-                        oldAmount
-                    )
-                );
-                continue;
+                int old=current.amount;
+                int next=Math.addExact(old,amount);
+                GroundItem preview=new GroundItem(
+                    current.id,current.itemId,next,
+                    current.tile,current.owner,current.spawnedTick,
+                    current.devOwned);
+                out.add(new BatchMutation(preview,amount,old));
+                pendingMerges.put(current,next);
+            }else{
+                AddRequest first=firstRequest.get(key);
+                nextId=Math.addExact(nextId,1L);
+                if(nextId<=0L)
+                    throw new IllegalStateException(
+                        "ground item id sequence exhausted");
+                GroundItem created=new GroundItem(
+                    nextId,key.itemId,amount,key.tile,key.owner,
+                    first.spawnedTick,key.devOwned);
+                out.add(new BatchMutation(created,amount,0));
+                pendingCreates.add(created);
             }
-
-            AddRequest first=
-                firstRequest.get(key);
-
-            long id=
-                ids.incrementAndGet();
-
-            if(id<=0L)
-                throw new IllegalStateException(
-                    "ground item id sequence exhausted"
-                );
-
-            GroundItem created=
-                new GroundItem(
-                    id,
-                    key.itemId,
-                    requested,
-                    key.tile,
-                    key.owner,
-                    first.spawnedTick,
-                    key.devOwned
-                );
-
-            byId.put(
-                created.id,
-                created
-            );
-            out.add(
-                new BatchMutation(
-                    created,
-                    requested,
-                    0
-                )
-            );
         }
-
-        return Collections.unmodifiableList(
-            out
-        );
+        List<BatchMutation> result=
+            Collections.unmodifiableList(out);
+        Runnable fault=batchPreCommitFaultForTest;
+        if(fault!=null)fault.run();
+        // No user callbacks or later receipt construction. The existing
+        // synchronized monitor protects every normal mutation path.
+        for(Map.Entry<GroundItem,Integer> row:
+                pendingMerges.entrySet())
+            row.getKey().amount=row.getValue();
+        for(GroundItem created:pendingCreates)
+            byId.put(created.id,created);
+        ids.set(nextId);
+        return result;
     }
 
     synchronized GroundItem byId(long id){
