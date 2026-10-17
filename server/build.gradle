@@ -2314,6 +2314,12 @@ def currentTrainFocusedTests = [
     'spk.local.G2055DiskForensicsJvmCrashBeforeMoveTest',
     'spk.local.G2056DiskForensicsJvmCrashAfterMoveTest',
     'spk.local.G2057DiskForensicsSymlinkHardlinkDenialTest',
+    'spk.local.G2058ForensicCliProcessTest',
+    'spk.local.G2059ForensicCliRealHistoryTest',
+    'spk.local.G2060ForensicCliCrashBeforeMoveTest',
+    'spk.local.G2061ForensicCliCrashAfterMoveTest',
+    'spk.local.G2062ForensicCliTamperAndUnknownTest',
+    'spk.local.G2063ForensicCliNoSensitivePathOutputTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2719,10 +2725,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 872 ||
-    currentTrainFocusedTests.toSet().size() != 872) {
+if (currentTrainFocusedTests.size() != 878 ||
+    currentTrainFocusedTests.toSet().size() != 878) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 872 unique tests, found " +
+        "Current-train focused manifest drift: expected 878 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2953,6 +2959,14 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2063-npc-journal-forensic-cli'] = [
+    'spk.local.G2058ForensicCliProcessTest',
+    'spk.local.G2059ForensicCliRealHistoryTest',
+    'spk.local.G2060ForensicCliCrashBeforeMoveTest',
+    'spk.local.G2061ForensicCliCrashAfterMoveTest',
+    'spk.local.G2062ForensicCliTamperAndUnknownTest',
+    'spk.local.G2063ForensicCliNoSensitivePathOutputTest',
 ]
 currentTrainCriticalCoverage['g2057-npc-journal-unlocked-forensic-only'] = [
     'spk.local.G2052DiskForensicsMissingNonmutatingTest',
@@ -12787,4 +12801,58 @@ tasks.register('g2057DiskForensicsRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2057DiskForensicsSymlinkHardlinkDenialTest')
+}
+
+tasks.register('g2058ForensicsCliRegression', JavaExec) {
+    group = 'verification'
+    description = 'Independent Java-process read-only NPC journal inspector regression'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2058ForensicCliProcessTest')
+}
+
+tasks.register('g2059ForensicsCliRegression', JavaExec) {
+    group = 'verification'
+    description = 'Independent Java-process read-only NPC journal inspector regression'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2059ForensicCliRealHistoryTest')
+}
+
+tasks.register('g2060ForensicsCliRegression', JavaExec) {
+    group = 'verification'
+    description = 'Independent Java-process read-only NPC journal inspector regression'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2060ForensicCliCrashBeforeMoveTest')
+}
+
+tasks.register('g2061ForensicsCliRegression', JavaExec) {
+    group = 'verification'
+    description = 'Independent Java-process read-only NPC journal inspector regression'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2061ForensicCliCrashAfterMoveTest')
+}
+
+tasks.register('g2062ForensicsCliRegression', JavaExec) {
+    group = 'verification'
+    description = 'Independent Java-process read-only NPC journal inspector regression'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2062ForensicCliTamperAndUnknownTest')
+}
+
+tasks.register('g2063ForensicsCliRegression', JavaExec) {
+    group = 'verification'
+    description = 'Independent Java-process read-only NPC journal inspector regression'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2063ForensicCliNoSensitivePathOutputTest')
 }
