@@ -120,6 +120,9 @@ sourceSets {
             // classify the sealed flat R8.5 tree without moving source files.
             srcDirs = ['src']
             exclude '**/*Test.java'
+            // G2046: subprocess test worker references a Test-only NPC
+            // fixture. Never ship or compile it as production source.
+            exclude '**/G2046DiskJournalChildWorker.java'
         }
         resources {
             srcDirs = ['src']
@@ -133,6 +136,9 @@ sourceSets {
         java {
             srcDirs = ['src']
             include '**/*Test.java'
+            // Explicit test-only subprocess main class despite not
+            // ending in Test.java; launched by six real-JVM fixtures.
+            include '**/G2046DiskJournalChildWorker.java'
         }
         resources {
             srcDirs = []
@@ -206,6 +212,19 @@ tasks.register('verifyJava11Bytecode') {
             }
         }
 
+        // Prevent Gradle classification drift from silently moving the
+        // separate-JVM synthetic helper into SpawnPKLocalServer.jar.
+        File mainWorker = new File(layout.buildDirectory.get().asFile,
+            'classes/java/main/spk/local/G2046DiskJournalChildWorker.class')
+        File testWorker = new File(layout.buildDirectory.get().asFile,
+            'classes/java/test/spk/local/G2046DiskJournalChildWorker.class')
+        if(mainWorker.exists() || !testWorker.isFile()) {
+            throw new GradleException(
+                "G2046 test worker source-set isolation failed " +
+                "mainPresent=" + mainWorker.exists() +
+                " testPresent=" + testWorker.isFile())
+        }
+        logger.lifecycle("G2046_JOURNAL_WORKER_TEST_SOURCESET_PASS mainExcluded=true testCompiled=true")
         logger.lifecycle("LOCALLAB_BYTECODE_MAJOR_PASS major=55 classes=${classFiles.size()}")
     }
 }
