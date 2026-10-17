@@ -47,7 +47,21 @@ Assert-True (
     )
 ) 'Gradle bootstrap lost the pinned 8.10.2 distribution SHA-256.'
 
-Assert-True ($bootstrap -match 'function\s+Get-ExactSha256') 'Gradle bootstrap lost exact SHA-256 helper.'
+$hashHelperPath = Join-Path $repo 'server\\gradle\\ExactSha256.ps1'
+Assert-True (Test-Path -LiteralPath $hashHelperPath -PathType Leaf) 'Gradle SHA-256 helper script missing.'
+$hashHelper = Get-Content -LiteralPath $hashHelperPath -Raw
+$helperTokens = $null
+$helperErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile(
+    $hashHelperPath,
+    [ref]$helperTokens,
+    [ref]$helperErrors
+)
+Assert-True ($helperErrors.Count -eq 0) 'Gradle SHA-256 helper fails PowerShell parsing.'
+Assert-True ($bootstrap.Contains(". (Join-Path `$PSScriptRoot 'ExactSha256.ps1')")) 'Gradle bootstrap lost exact SHA-256 helper import.'
+Assert-True ($hashHelper -match 'function\\s+Get-ExactSha256') 'Gradle SHA-256 helper lost implementation.'
+Assert-True ($hashHelper -match 'System\\.Security\\.Cryptography\\.SHA256') 'Gradle SHA-256 helper lost .NET SHA-256 implementation.'
+Assert-True ($hashHelper -match 'ComputeHash\\(\\$stream\\)') 'Gradle SHA-256 helper no longer hashes file bytes.'
 Assert-True ($bootstrap -match 'Get-ExactSha256\s+\$zip') 'Gradle bootstrap does not verify the persistent cached ZIP.'
 Assert-True ($bootstrap -match 'Get-ExactSha256\s+\$download') 'Gradle bootstrap does not verify a downloaded ZIP before cache publication.'
 Assert-True ($bootstrap -match 'Get-ExactSha256\s+\$invocationZip') 'Gradle bootstrap does not independently hash the invocation-owned ZIP.'
