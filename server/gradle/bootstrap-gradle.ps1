@@ -19,11 +19,9 @@ if (-not (Test-Path -LiteralPath $selector -PathType Leaf)) {
 . $selector
 [void](Set-LocalLabBuildJava)
 
-function Get-ExactSha256([string]$Path) {
-    return (
-        Get-FileHash -LiteralPath $Path -Algorithm SHA256
-    ).Hash.ToLowerInvariant()
-}
+# Avoid dependency on Get-FileHash cmdlet availability in hosted
+# Windows PowerShell subprocesses. Keep the EXACT pinned SHA-256 gate.
+. (Join-Path $PSScriptRoot 'ExactSha256.ps1')
 
 $cacheRoot = Join-Path (
     [Environment]::GetFolderPath('UserProfile')

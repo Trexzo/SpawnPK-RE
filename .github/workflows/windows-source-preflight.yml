@@ -26,6 +26,15 @@ jobs:
       - name: Cache Gradle artifacts
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Verify pinned Gradle SHA256 implementation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-GradleBootstrapHash.ps1
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "GRADLE_SHA256_VECTOR_TEST_FAILED"
+          }
+
       - name: Record original-client availability without fabricating GUI acceptance
         shell: pwsh
         run: |
