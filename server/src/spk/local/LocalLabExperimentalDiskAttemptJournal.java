@@ -141,7 +141,7 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         int count;
     }
 
-    private static void requireSingleLink(Path path) throws IOException {
+    static void requireSingleLink(Path path) throws IOException {
         try {
             Object value = Files.getAttribute(path, "unix:nlink",
                 LinkOption.NOFOLLOW_LINKS);
@@ -155,7 +155,7 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         }
     }
 
-    private static void requireSafeAncestorChain(Path path) throws IOException {
+    static void requireSafeAncestorChain(Path path) throws IOException {
         // Fail before mkdir in open(), and before each read/write rescan.
         // This is observation, not hostile actor path-atomic exclusion.
         for (Path current = path; current != null; current = current.getParent())
@@ -163,7 +163,7 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
                 throw new IOException("DISK_ATTEMPT_UNSAFE_ANCESTOR_LINK");
     }
 
-    private static Object requireDirectoryKey(Path path) throws IOException {
+    static Object requireDirectoryKey(Path path) throws IOException {
         BasicFileAttributes attrs = Files.readAttributes(path,
             BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (!attrs.isDirectory() || attrs.fileKey() == null)
@@ -171,7 +171,7 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         return attrs.fileKey();
     }
 
-    private static Object requireFileKey(Path path) throws IOException {
+    static Object requireFileKey(Path path) throws IOException {
         BasicFileAttributes a = Files.readAttributes(path,
             BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (!a.isRegularFile() || a.fileKey() == null)
@@ -179,7 +179,7 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         return a.fileKey();
     }
 
-    private static byte[] readBoundedRecord(Path path) throws IOException {
+    static byte[] readBoundedRecord(Path path) throws IOException {
         try (FileChannel ch = FileChannel.open(path,
                 StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
             ByteBuffer buffer = ByteBuffer.allocate(4097);
@@ -494,7 +494,7 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         return (body + sha256(body) + "\n").getBytes(StandardCharsets.UTF_8);
     }
 
-    private static Entry parse(byte[] data, UUID expected) throws IOException {
+    static Entry parse(byte[] data, UUID expected) throws IOException {
         String text = new String(data, StandardCharsets.UTF_8);
         String[] parts = text.split("\n", -1);
         if (parts.length != 6 || !parts[5].isEmpty() ||
