@@ -79,17 +79,6 @@ final class G21374StrictOneShotTokenAdmissionFixture {
                     IllegalArgumentException unsupported) {
                 providerSupported=false;
             }
-            // G21.374 Windows fixture isolation: hosted Java lacks
-            // unix:nlink and may also have null fileKey for the
-            // independently experimental G21.221 lock identity check.
-            // Disable that separate optional feature ONLY when this
-            // provider is unsupported so the test genuinely reaches
-            // the G21.371 pre-ACTIVE refusal through a held OS token.
-            // Production account lock/identity policy is untouched.
-            if(!providerSupported)
-                System.setProperty(
-                    LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
-                    "false");
             FilePlayerRepository repo=new FilePlayerRepository(
                 LocalAccountProfiles::accountFile);
             world=World.isolatedForTest(60_000L,repo);
@@ -97,7 +86,49 @@ final class G21374StrictOneShotTokenAdmissionFixture {
             LocalReviewIntentAdmissionVeto.requireConfiguration(true,true);
             LocalOneShotActiveReviewOnAdmission.requireConfiguration(
                 true,true,true);
-            token=LocalJvmAccountSessionLease.acquire(world.persistence(),user);
+            // Hosted Windows can observe BOTH unix:nlink unsupported
+            // and fileKey==null on its .session.lck object. Full strict
+            // final-witness configuration REQUIRES G21.221 continuity
+            // (G21.298); never disable that production requirement.
+            // An earlier exact lock-identity denial is a valid
+            // fail-closed admission outcome, but it is NOT evidence
+            // that the later G21.371 provider check was reached.
+            boolean earlyLockIdentityDenied=false;
+            try{
+                token=LocalJvmAccountSessionLease.acquire(
+                    world.persistence(),user);
+            }catch(IllegalStateException deniedAtLock){
+                if(!providerSupported&&
+                   String.valueOf(deniedAtLock.getMessage()).contains(
+                       "G21.185 CROSS_JVM_ACCOUNT_SESSION_DENIED")&&
+                   deniedAtLock.getCause()!=null&&
+                   String.valueOf(deniedAtLock.getCause().getMessage())
+                       .contains("G21.221 INITIAL_LOCK_FILE_IDENTITY_UNSAFE"))
+                    earlyLockIdentityDenied=true;
+                else
+                    throw deniedAtLock;
+            }
+            if(earlyLockIdentityDenied){
+                check(!Files.exists(active,LinkOption.NOFOLLOW_LINKS)&&
+                    world.players().size()==0,
+                    "early G21.221 veto must not publish ACTIVE or World member");
+                if(scenario==Scenario.ABSENT)
+                    check(!Files.exists(account,LinkOption.NOFOLLOW_LINKS),
+                        "early lock denial created first account");
+                if(scenario==Scenario.FOREIGN_ALIAS)
+                    check(Files.isSameFile(other,alias),
+                        "early lock denial changed foreign account alias");
+                System.out.println("G"+id(scenario)+
+                    "_REAL_TOKEN_PRE_ACTIVE_PROVIDER_PASS"+
+                    " providerSupported=false"+
+                    " tokenAcquired=false"+
+                    " earlyLockIdentityDenied=true"+
+                    " strictPreActiveReached=false"+
+                    " admissionBeforeActiveDenied=true"+
+                    " actualWorldMembership=false"+
+                    " automaticRecovery=false receipt=false");
+                return;
+            }
             check(token!=null,"real session token absent");
             LocalReviewIntentAdmissionVeto.requireAdmissible(true,true,token);
             IllegalStateException denied=null;
@@ -147,6 +178,8 @@ final class G21374StrictOneShotTokenAdmissionFixture {
             System.out.println("G"+id(scenario)+
                 "_REAL_TOKEN_PRE_ACTIVE_PROVIDER_PASS"+
                 " providerSupported="+providerSupported+
+                " tokenAcquired=true earlyLockIdentityDenied=false"+
+                " strictPreActiveReached=true"+
                 " selectedAlias="+selectedAlias+
                 " admissionBeforeActiveDenied="+
                     (!providerSupported||selectedAlias)+
