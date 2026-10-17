@@ -29,12 +29,15 @@ final class LocalLabSettledDeathEnvelope {
     final String recipientRef;
     final long spawnRecipientGeneration;
     final long observedCurrentGeneration;
+    // In-process identity only; different players can have equal generations.
+    final WorldPlayer observedCurrentPlayer;
     final OriginStatus originStatus;
 
     private LocalLabSettledDeathEnvelope(
         MonsterSpawnerNpcDeathFinalizationService.Result death,
         MonsterSpawnerPvmRuntime.RecipientOrigin original,
         long observedGeneration,
+        WorldPlayer observedPlayer,
         OriginStatus status
     ){
         npcId=death.npcId;
@@ -44,6 +47,7 @@ final class LocalLabSettledDeathEnvelope {
         recipientRef=death.recipientRef;
         spawnRecipientGeneration=original==null?-1L:original.generation;
         observedCurrentGeneration=observedGeneration;
+        observedCurrentPlayer=observedPlayer;
         originStatus=Objects.requireNonNull(status,"originStatus");
     }
 
@@ -104,6 +108,6 @@ final class LocalLabSettledDeathEnvelope {
             status=OriginStatus.CURRENT_SPAWN_RECIPIENT;
 
         return new LocalLabSettledDeathEnvelope(
-            death,origin,currentGeneration,status);
+            death,origin,currentGeneration,observed,status);
     }
 }
