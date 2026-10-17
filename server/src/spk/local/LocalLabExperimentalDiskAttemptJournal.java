@@ -17,6 +17,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -68,17 +69,26 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
     private final FileChannel lockChannel;
     private final FileLock exclusiveLock;
     private final Object originalLockKey;
+    private final Object originalDirectoryKey;
     private final Map<UUID, Object> recordKeys = new LinkedHashMap<UUID, Object>();
+    // These are ONLY this journal instance's in-process observations.
+    // Loaded records have no reconstructed live finalization authority.
+    private final Map<UUID, MonsterSpawnerPvmRuntime.FinalizeResult>
+        liveEventOwners = new LinkedHashMap<UUID, MonsterSpawnerPvmRuntime.FinalizeResult>();
+    private final IdentityHashMap<MonsterSpawnerPvmRuntime.FinalizeResult, UUID>
+        liveDeathIds = new IdentityHashMap<MonsterSpawnerPvmRuntime.FinalizeResult, UUID>();
     private final Map<UUID, Entry> entries = new LinkedHashMap<UUID, Entry>();
     private int total;
     private boolean closed;
 
     private LocalLabExperimentalDiskAttemptJournal(
-        Path directory, FileChannel channel, FileLock lock, Object lockKey) {
+        Path directory, FileChannel channel, FileLock lock,
+        Object lockKey, Object directoryKey) {
         this.directory = directory;
         lockChannel = channel;
         exclusiveLock = lock;
         originalLockKey = lockKey;
+        originalDirectoryKey = directoryKey;
     }
 
     static LocalLabExperimentalDiskAttemptJournal open(Path input)
@@ -86,10 +96,15 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         Path root = Objects.requireNonNull(input, "directory").toAbsolutePath().normalize();
         if (Files.isSymbolicLink(root))
             throw new IOException("DISK_ATTEMPT_UNSAFE_DIRECTORY_LINK");
+        requireSafeAncestorChain(root);
         Files.createDirectories(root);
+        requireSafeAncestorChain(root);
         if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS) ||
             Files.isSymbolicLink(root))
             throw new IOException("DISK_ATTEMPT_UNSAFE_DIRECTORY");
+        // Bind this open journal to the exact directory inode, not merely its
+        // reusable path. This does not create a persistent owner epoch.
+        Object originalDirectoryKey = requireDirectoryKey(root);
         Path lockPath = root.resolve(LOCK_FILE);
         if (Files.isSymbolicLink(lockPath))
             throw new IOException("DISK_ATTEMPT_UNSAFE_LOCK_LINK");
@@ -108,7 +123,8 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
             requireSingleLink(lockPath);
             LocalLabExperimentalDiskAttemptJournal journal =
                 new LocalLabExperimentalDiskAttemptJournal(
-                    root, channel, lock, requireFileKey(lockPath));
+                    root, channel, lock, requireFileKey(lockPath),
+                    originalDirectoryKey);
             journal.loadStrictly();
             return journal;
         } catch (IOException | RuntimeException failed) {
@@ -138,6 +154,22 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         }
     }
 
+    private static void requireSafeAncestorChain(Path path) throws IOException {
+        // Fail before mkdir in open(), and before each read/write rescan.
+        // This is observation, not hostile actor path-atomic exclusion.
+        for (Path current = path; current != null; current = current.getParent())
+            if (Files.isSymbolicLink(current))
+                throw new IOException("DISK_ATTEMPT_UNSAFE_ANCESTOR_LINK");
+    }
+
+    private static Object requireDirectoryKey(Path path) throws IOException {
+        BasicFileAttributes attrs = Files.readAttributes(path,
+            BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!attrs.isDirectory() || attrs.fileKey() == null)
+            throw new IOException("DISK_ATTEMPT_DIRECTORY_IDENTITY_UNAVAILABLE");
+        return attrs.fileKey();
+    }
+
     private static Object requireFileKey(Path path) throws IOException {
         BasicFileAttributes a = Files.readAttributes(path,
             BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
@@ -165,9 +197,12 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
     }
 
     private DiskScan scanDirectory() throws IOException {
+        requireSafeAncestorChain(directory);
         if (Files.isSymbolicLink(directory) ||
             !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS))
             throw new IOException("DISK_ATTEMPT_UNSAFE_DIRECTORY");
+        if (!Objects.equals(originalDirectoryKey, requireDirectoryKey(directory)))
+            throw new IOException("DISK_ATTEMPT_DIRECTORY_IDENTITY_CHANGED");
         DiskScan scan = new DiskScan();
         boolean foundLock = false;
         try (DirectoryStream<Path> files = Files.newDirectoryStream(directory)) {
@@ -235,6 +270,18 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         return new Snapshot(entries, total);
     }
 
+    /**
+     * Unlike snapshot(), this scans actual on-disk records before returning
+     * evidence. It refuses outside edits, missing/replaced files, interrupted
+     * temp writes and a renamed/replaced journal directory. It still cannot
+     * prove a grant, restart replay, or exclusion of malicious races.
+     */
+    synchronized Snapshot auditedSnapshot() throws IOException {
+        ensureOpen();
+        requireNoExternalChanges();
+        return new Snapshot(entries, total);
+    }
+
     synchronized void reserve(World world,
                               MonsterSpawnerPvmRuntime.FinalizeResult terminal,
                               UUID testOnlyEventId,
@@ -259,6 +306,32 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
             throw new IllegalStateException("DISK_ATTEMPT_CONFLICTING_DEATH_EVIDENCE");
         if (previous != null && previous.reserved.contains(consumer))
             throw new IllegalStateException("DISK_ATTEMPT_DUPLICATE_CONSUMER");
+        if (previous != null) {
+            // Reopened event files preserve evidence, not the originating
+            // World/finalization objects. Do not mint another stage after a
+            // restart or even a close/open cycle in the same JVM.
+            MonsterSpawnerPvmRuntime.FinalizeResult owner =
+                liveEventOwners.get(testOnlyEventId);
+            if (owner == null)
+                throw new IllegalStateException(
+                    "DISK_ATTEMPT_REOPENED_EVENT_APPEND_FORBIDDEN");
+            if (owner != terminal)
+                throw new IllegalStateException(
+                    "DISK_ATTEMPT_TERMINAL_IDENTITY_CHANGED");
+        } else {
+            // Caller-supplied UUIDs are NOT event authority. A single actual
+            // finalized NPC may not become two claimed events in one session,
+            // even if the caller chooses two otherwise unique UUIDs.
+            if (liveDeathIds.containsKey(terminal))
+                throw new IllegalStateException(
+                    "DISK_ATTEMPT_DUPLICATE_TERMINAL_ALIAS");
+            // Also reject an equal diagnostic fingerprint from any loaded
+            // record. Equality is a conservative veto, never grant authority.
+            for (Entry entry : entries.values())
+                if (entry.observedFingerprint.equals(fingerprint))
+                    throw new IllegalStateException(
+                        "DISK_ATTEMPT_DUPLICATE_DEATH_FINGERPRINT");
+        }
         if (total >= MAX_ATTEMPTS)
             throw new IllegalStateException("DISK_ATTEMPT_CAPACITY_FAIL_CLOSED");
 
@@ -292,8 +365,15 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         // state did not reach this point. This is not a durable grant ACK.
         requireSingleLink(destination);
         Object newFileKey = requireFileKey(destination);
+        Entry published = parse(readBoundedRecord(destination), testOnlyEventId);
+        if (!published.observedFingerprint.equals(next.observedFingerprint) ||
+            !published.reserved.equals(next.reserved))
+            throw new IOException("DISK_ATTEMPT_POSTMOVE_UNCERTAIN");
+        // No external grant or consumer notification has occurred.
         entries.put(testOnlyEventId, next);
         recordKeys.put(testOnlyEventId, newFileKey);
+        liveEventOwners.put(testOnlyEventId, terminal);
+        liveDeathIds.put(terminal, testOnlyEventId);
         total++;
     }
 

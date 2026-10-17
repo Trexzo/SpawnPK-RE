@@ -2289,6 +2289,14 @@ def currentTrainFocusedTests = [
     'spk.local.G2030DiskJournalOrphanWhileOpenTest',
     'spk.local.G2031DiskJournalHardlinkAliasTest',
     'spk.local.G2032DiskJournalConcurrentAndInodeSwapTest',
+    'spk.local.G2033DiskJournalDirectoryReplacementTest',
+    'spk.local.G2034DiskJournalLockReplacementTest',
+    'spk.local.G2035DiskJournalAuditedSnapshotTest',
+    'spk.local.G2036DiskJournalRechecksummedForeignRewriteTest',
+    'spk.local.G2037DiskJournalAncestorSymlinkOpenTest',
+    'spk.local.G2038DiskJournalLiveAncestorSymlinkTest',
+    'spk.local.G2039DiskJournalReopenedEventAppendTest',
+    'spk.local.G2040DiskJournalTerminalUuidAliasRaceTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2688,10 +2696,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 841 ||
-    currentTrainFocusedTests.toSet().size() != 841) {
+if (currentTrainFocusedTests.size() != 849 ||
+    currentTrainFocusedTests.toSet().size() != 849) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 841 unique tests, found " +
+        "Current-train focused manifest drift: expected 849 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2912,6 +2920,18 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2040-npc-journal-event-authority-boundary'] = [
+    'spk.local.G2037DiskJournalAncestorSymlinkOpenTest',
+    'spk.local.G2038DiskJournalLiveAncestorSymlinkTest',
+    'spk.local.G2039DiskJournalReopenedEventAppendTest',
+    'spk.local.G2040DiskJournalTerminalUuidAliasRaceTest',
+]
+currentTrainCriticalCoverage['g2036-npc-journal-directory-lock-continuity'] = [
+    'spk.local.G2033DiskJournalDirectoryReplacementTest',
+    'spk.local.G2034DiskJournalLockReplacementTest',
+    'spk.local.G2035DiskJournalAuditedSnapshotTest',
+    'spk.local.G2036DiskJournalRechecksummedForeignRewriteTest',
 ]
 currentTrainCriticalCoverage['g2032-npc-disk-integrity-continuity'] = [
     'spk.local.G2029DiskJournalLiveTamperTest',
@@ -12432,4 +12452,76 @@ tasks.register('g2032DiskJournalIntegrityRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2032DiskJournalConcurrentAndInodeSwapTest')
+}
+
+tasks.register('g2033DiskJournalContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real canonical NPC terminal journal: disk path identity and audited evidence'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2033DiskJournalDirectoryReplacementTest')
+}
+
+tasks.register('g2034DiskJournalContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real canonical NPC terminal journal: disk path identity and audited evidence'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2034DiskJournalLockReplacementTest')
+}
+
+tasks.register('g2035DiskJournalContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real canonical NPC terminal journal: disk path identity and audited evidence'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2035DiskJournalAuditedSnapshotTest')
+}
+
+tasks.register('g2036DiskJournalContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real canonical NPC terminal journal: disk path identity and audited evidence'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2036DiskJournalRechecksummedForeignRewriteTest')
+}
+
+tasks.register('g2037DiskJournalAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting disk NPC journal: ancestors, reopen, caller UUID'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2037DiskJournalAncestorSymlinkOpenTest')
+}
+
+tasks.register('g2038DiskJournalAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting disk NPC journal: ancestors, reopen, caller UUID'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2038DiskJournalLiveAncestorSymlinkTest')
+}
+
+tasks.register('g2039DiskJournalAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting disk NPC journal: ancestors, reopen, caller UUID'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2039DiskJournalReopenedEventAppendTest')
+}
+
+tasks.register('g2040DiskJournalAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting disk NPC journal: ancestors, reopen, caller UUID'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2040DiskJournalTerminalUuidAliasRaceTest')
 }
