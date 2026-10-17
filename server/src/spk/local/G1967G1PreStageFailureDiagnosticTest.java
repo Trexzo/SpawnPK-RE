@@ -150,6 +150,20 @@ public final class G1967G1PreStageFailureDiagnosticTest {
                     !verified.hasDurableGrantAcknowledgement()&&
                     !verified.safeToAutomaticallyReplay(),
                 "real G1 postground exception reconciles first-blocker and six consumer marginals");
+            LocalLabOriginFirstFailureKindTally.Snapshot byOriginKind=
+                stage.originFirstFailureKinds;
+            LocalLabSettledDeathEnvelope.OriginStatus current=
+                LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT;
+            check(byOriginKind.count(
+                    current,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L&&
+                byOriginKind.count(
+                    current,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.G1,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.ILLEGAL_STATE)==
+                    (provokeSecondDeath?1L:0L),
+                "true G1 postground IllegalStateException retained by exact spawn origin");
             LocalLabTerminalFirstFailureTypeTally.Snapshot kinds=
                 stage.firstFailureTypes;
             check(kinds.count(

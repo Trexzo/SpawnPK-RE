@@ -140,6 +140,17 @@ public final class G1959DisconnectedRecipientStageTraceTest {
                             .NO_CURRENT_RECIPIENT,
                     LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L,
                 "missing current recipient must not fabricate a throwing class");
+            LocalLabOriginFirstFailureKindTally.Snapshot byOriginKind=
+                actual.originFirstFailureKinds;
+            check(byOriginKind.count(
+                    envelope.originStatus,
+                    crossWorld
+                        ?LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_THROW_RECORDED
+                        :LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_CURRENT_RECIPIENT,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L,
+                "connected/disconnected real terminal has exact nonexception type");
             LocalLabTerminalDeliverySummary summary=
                 LocalLabTerminalDeliverySummary.from(actual);
             check(summary.observedTerminals==1L&&
