@@ -1,0 +1,18 @@
+# G21.281 / G21.282 — double-pass account byte witness in read-only operator forensics
+
+**Exact source parent:** [#2821](https://github.com/Trexzo/SpawnPK-RE/pull/2821), `9eb479db34b3fa4ca31be4aecec9d17bfcf1ce0a`, 679 focused cumulative Chat1+Chat2 candidate; its exact-hosted CI still needs independent verification. The base includes independently certified [#2819](https://github.com/Trexzo/SpawnPK-RE/pull/2819), `bf6ac4c62698568290f05f288e07baeb978d187f`, **677/677** Java 11 and full Gradle. G1955/56 real MonsterSpawner outcome-ring bounds tests are inherited unchanged.
+
+## Source-observed forensic gap
+
+The newly implemented `LocalAccountForensicEvidence.inspect` (G21.279) performs a single bounded `SHA-256` read of a selected account leaf with `NOFOLLOW_LINKS`, then checks its `BasicFileAttributes` (fileKey, creation time, last modification time, length and type) before and after checking the five named negative sidecars. A foreign actor can modify an existing regular account file **in place** and restore its original size and modification time. The first digest then describes old bytes while every subsequent metadata witness looks identical; the scanner could report a misleading apparently stable fingerprint. This does not authorize account recovery, but a forensics command should at least detect that reproducible false-stability case.
+
+**G21.281 production correction:** add a package-private per-call injected observation seam (default inert) after the FIRST bounded account digest. Near the end of the forensic read, re-hash the exact selected account leaf via another bounded `NOFOLLOW_LINKS` channel and compare the two complete hex SHA-256 values; if mismatched, fail closed as `G21.281 ACCOUNT_BYTES_CHANGED_DURING_FORENSIC_READ`. Then recheck account metadata before returning. No global static mutable fixture, locking, file creation, registration, writer, grants, login, recovery or marker removal. **This is observational, not atomic.** An uncooperative process can still perform a change-and-restore between both reads or after the final check; the scan is not a durable owner epoch.
+
+## Exact filesystem regression cases
+
+- **G21.281:** real regular account and unrelated file; scan's package-only after-FIRST-digest seam modifies a byte of the selected account with `FileChannel` directly, retains its original inode, restores exact size and mtime, and proves ordinary metadata checks cannot distinguish pre/post file states. Scanner must throw the new digest-mismatch error, never emit a misleading stable report; unrelated account unaffected, no lock/marker/temporary created.
+- **G21.282:** same scan hook changes a DIFFERENT named account during the selected bounded double-pass scan. The selected original SHA-256 is preserved exactly, inspection succeeds, no global mutation veto, and `loginAuthorized=false`, `finalSaveAck=false`, `noKnownNamesIsNotSafety=true` remain explicit.
+
+**Manifest:** 679 core + 2 G21281/82 = **681 distinct focused**. Added one actual production Java module change, two dedicated Java test classes, two JavaExec Gradle gates. No edits to LocalLab World/canonical NPC, MonsterSpawner observer ledger, account session lease, RAW/World save writers, packet scene, mailbox or original SpawnPK authority.
+
+**Verification and limits:** independently hosted exact-head 681/681 with G21281/82, G21279/80, G1955/56, Java11 major55 and full Gradle; earlier parent heads also need certification. Even a two-pass digest is NOT a transactional snapshot, cryptographic signature, consent token, authenticated final-save ACK, cross-process writer exclusion, safety guarantee or authority to clear review markers. Draft/unmerged, `main` unchanged.

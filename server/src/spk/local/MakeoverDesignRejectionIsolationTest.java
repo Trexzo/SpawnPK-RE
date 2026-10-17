@@ -149,12 +149,59 @@ public final class MakeoverDesignRejectionIsolationTest {
             "stale-followup"
         );
 
-        // Fresh normal interaction must still succeed after the rejection path.
+        // Fresh designer: a close-publication failure must leave both the
+        // prior appearance and the designer authority intact for a clean retry.
         openDesigner(
             player,
             handler,
             packets
         );
+
+        ServerPacketWriter failedClosePackets=
+            new ServerPacketWriter(
+                new java.io.OutputStream(){
+                    @Override public void write(int value)
+                        throws java.io.IOException{
+                        throw new java.io.IOException(
+                            "EXPECTED_DESIGN_CLOSE_FAILURE"
+                        );
+                    }
+                },
+                new IsaacCipher(
+                    new int[]{9,10,11,12}
+                )
+            );
+
+        boolean closeFailed=false;
+
+        try{
+            handler.handleDesign(
+                validFemale,
+                failedClosePackets,
+                "[makeover-reject-test] "
+            );
+        }catch(java.io.IOException expected){
+            closeFailed=
+                "EXPECTED_DESIGN_CLOSE_FAILURE"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        assertAppearance(
+            state,
+            initialGender,
+            initialKits,
+            initialColours,
+            "failed-close"
+        );
+
+        if(!closeFailed||
+           !handler.active()||
+           !handler.designActive())
+            throw new AssertionError(
+                "failed design close did not preserve designer authority"
+            );
 
         LocalMakeoverMageHandler.Result accepted=
             handler.handleDesign(
@@ -190,6 +237,8 @@ public final class MakeoverDesignRejectionIsolationTest {
             "MAKEOVER_DESIGN_REJECTION_ISOLATION_PASS "+
             "unsolicitedNoMutation=true invalidNoMutation=true "+
             "invalidClosesStage=true staleFollowupRejected=true "+
+            "designCloseFailureAtomic=true "+
+            "designCloseFailurePreservesDesigner=true "+
             "freshSessionRecovers=true"
         );
     }

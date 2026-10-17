@@ -1,0 +1,19 @@
+# G21.77 — bounded read-only restart recovery account decoding and rehash (NO GRANT)
+
+**Base:** exact hosted-certified G21.76 `24da2d1e76fdf4d854f812c4c8d3b8a5b77a3414`, [Actions #37979796188](https://github.com/Trexzo/SpawnPK-RE/actions/runs/37979796188) SUCCESS, 376 Java11 focused. Issue [#2330](https://github.com/Trexzo/SpawnPK-RE/issues/2330).
+
+## Problem / defense
+
+G21.72 introduced `RESTART_WITNESS_MAX_ACCOUNT_BYTES=64 MiB` and `RESTART_WITNESS_MAX_MARKER_BYTES=4096` limits, but these were applied by `restartFingerprintPart` **after** the G21.71 recovery classifier called `loadExactFile(...)` and `Properties.load(...)`. Thus a local uncooperative writer could produce a sparse/huge account file; recovery fingerprint generation might first decode and allocate unbounded memory despite its advertised maximum. A cooperating per-account FileLock is not a defense against a raw writer.
+
+G21.77 adds `requireBoundedRestartFiles` immediately after the existing NOFOLLOW G21.74/75 account-and-four-marker census and G21.76 verified directory ancestry, **before any G21.71 account decode**. The exact same existing G21.72 limits now reject an oversized account or sidecar as `G21.77 RECOVERY_ACCOUNT_OVERSIZE_NO_GRANT` and `G21.77 RECOVERY_MARKER_OVERSIZE_NO_GRANT`. Marker presence remains a negative restart admission veto; oversized marker content is refused for the optional forensic witness and is not accepted as a legitimate transaction record.
+
+The preflight alone cannot guard against uncooperative file growth after the stat. The G21.71 account classifier now has a private **bounded forensic overload** used only for the G21.72 portable witness. That overload rejects an account whose NOFOLLOW file size already exceeds 64MiB, then uses a streaming `BoundedRecoveryInputStream` over the NOFOLLOW channel while `Properties.load` decodes. A byte after the configured cap causes `IOException G21.77 RECOVERY_STREAM_OVERSIZE_NO_GRANT` immediately rather than allowing unbounded parsing. The independent `digestAdmittedAccountFile` second read uses the same capped stream. Calls from direct G21.71 inspector and original ordinary World session loader delegate to the existing uncapped compatibility variant: their pre-existing behavior is unchanged. G21.72's existing bounded marker SHA256 streaming, G21.73 lock acquisition bound, G21.74 fileKey, G21.75 optional POSIX ctime and G21.76 ancestry evidence remain in place.
+
+This is a byte-count limit for the optional read-only witness, **not** a promise about decoded Properties heap bounds below 64MiB, hostile resource availability, disk I/O time, filesystem attribute accuracy or an uncooperative writer that changes data between samples. No positive COMMIT, crash-durable grant, restart replay, rollback, marker deletion, reservation release, client ACK or native widget32181 admission is introduced.
+
+## Real filesystem + deterministic stream regression
+
+`G2177MailboxBoundedRecoveryDecodeIntegrationTest` covers: 64MiB+1 sparse account preflight refused before entering G21.71's after-read test hook; 4097B marker refused before parsing; no forensic data mutation; exact 4096B marker still supports a negative forensic witness and continues to veto the normal session load; a valid larger raw account Properties comment under the 64MiB maximum decodes and compares across fresh repository instances; direct Java reflection checks the same private bounded decoder and independent rehash with one byte less than exact current file length (fail) and at exact byte boundary (accept); original non-forensic account reader unaffected; unrelated and missing account witnesses, no positive comparison fields, no tmp or lease leaks.
+
+**Focused Java11 train:** 376 → **377**; exact-head hosted full Gradle green required for certification. Draft/unmerged. Frozen R25 PR #1847 and C2S185 widget32181 NO_GRANT stay unchanged.

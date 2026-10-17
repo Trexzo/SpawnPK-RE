@@ -1,0 +1,9 @@
+# G21.131 — immutable evidence-leaf metadata drift veto (NO EPOCH)
+
+Certified G21.130 parent [PR #2440](https://github.com/Trexzo/SpawnPK-RE/pull/2440), exact `66cee076762f696ead645b419c7998f7a584f8f2`, [Actions #38247590116](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38247590116) SUCCESS Java11 430/430. Tracks #2441.
+
+G21.130 strengthened canonical account/PREPARED/COMMIT file metadata observations, but v1/v2/v3 evidence leaves previously had per-read identity checks only. G21.131 now makes a separate bounded NOFOLLOW physical inventory for all three immutable evidence namespaces within each capture under the SAME G21.129 G21.100 continuous OS advisory lease. It uses only exact selected account basename and versioned v1/v2/v3 prefix patterns; count bounds [32,32,4] match the original v1/v2/v3 portable captures. All file keys, sizes, creation times, and last-modified times must agree across the two observations or the witness rejects, even if the independently pinned source SHA hashes and v1/v2/v3 portable bytes still match.
+
+Java11 focused 430→431 `g21131MailboxEvidenceLeafMetadataRegression` tests genuine four bound real writers, v1/v2/v3 same-byte RAW writes with deliberately advanced mtime and exact metadata veto, followed by restoration and a deliberately timestamp-restored gap to demonstrate the observational limit. The original G21.129 and G21.130 tests remain in the manifest. No changes to archive formats or default writer entry points. Requires exact-head hosted CI before certification.
+
+**Absolute limits:** Raw writers that restore metadata/contents remain undetected. This does not prove independent authenticated pin provenance, historical/future/default writer completeness, semantic four-result cohort inside the held OS lease, atomic cross-file recovery epoch, or hardware power-loss. No archive rollover/pruning/cleanup/unlink and no World grant/replay/session/release/ACK. Frozen R25 #1847/G21.87/88 preserved.

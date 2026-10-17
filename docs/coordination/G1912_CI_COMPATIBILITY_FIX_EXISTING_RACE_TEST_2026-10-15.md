@@ -1,0 +1,7 @@
+# G19.1.2 compatibility correction for pre-existing ownership-race test
+
+Original Chat2 G1911/12 donor [#2766](https://github.com/Trexzo/SpawnPK-RE/pull/2766) exact `26f7f3ab921cf7023bf58b35144bd7d68ca30905`, hosted [Actions #38810507341](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38810507341) **FAILED** at `:canonicalNpcAttackOwnershipRaceRegression`: `LocalCanonicalNpcAttackOwnershipRaceTest.staleAttackerRace` expected STALE_PLAYER but got earlier STALE_SCENE from new production identity gate.
+
+Source review: old fixture makes detached `new NpcEntity(100,...)`, binds canonical ID but **never registers it in `NpcRegistry`**. New G1911 production `npcs.scene(action.sceneIndex)==clicked` is intentionally stricter, so pre-existing test never reaches its before-resolution injection. This branch updates ONLY the test fixture to spawn a genuine `NpcRegistry.spawnMirroredNpc` with a harmless `ByteArrayOutputStream` packet writer, confirms `scene(view.sceneIndex)==view`, then binds canonical ID. The race hook can again test STALE_PLAYER, STALE_CANONICAL, LIFECYCLE_MISSING and unexpected invariant propagation under a valid current viewer-local scene.
+
+No production Java, game rewards, packet schema, account/RAW code, default flags or CI manifest count changes. Require independent exact-head Java11 major55/full Gradle **610/610** hosted; all Draft/unmerged. Before merging or using as donor, Chat2 should confirm its G1911/12 tests still pass and consider this fixture correct rather than relaxing production STALE_SCENE protection.

@@ -1,0 +1,11 @@
+# Chat1/Chat2 cumulative: G21.208 + G18.7.3 (523 focused)
+
+**Authoritative parent:** Chat1 opt-in RAW JVM gate [Draft #2664](https://github.com/Trexzo/SpawnPK-RE/pull/2664), exact SHA `c5fa0e7da5d45b7da0d14a9e4bbfcaa61021d73e`, **522 focused**; full exact-head hosted CI required (still in progress during composition). Parent itself stacks on hosted-certified [#2662](https://github.com/Trexzo/SpawnPK-RE/pull/2662), SHA `d0a75bb9a9c9fb05838c89fe4e1fb5b99642c1fc` (521 focused).
+
+**Exact Chat2 donor:** [Draft #2663](https://github.com/Trexzo/SpawnPK-RE/pull/2663), SHA `9fd00c90edcbbd28607806234ab6c2fa915df958`, based on #2662. New Java test Git blob `b9006c184a70ca484050e52554919ec94dea5543`, original note blob `afe636d0033a9918a75bebbfae4119791a4c8594`. Standalone green G18.7.3 [#2659](https://github.com/Trexzo/SpawnPK-RE/pull/2659) Actions #38741012419, but cumulative #2663 still needs independent exact-head verification. Import these exact donor artifacts, add **one** G1873 focused manifest entry, increase BOTH hard guards **522→523**, write this note. No Chat2 production Java, existing gameplay tests, G21.208 code, or earlier raw gate test is overwritten.
+
+**What G18.7.3 proves:** real installed Monster Spawner terminal chain G1→G4→G14→G15→G16→G18 can leave G16/G18 without delivery after a test-only invalid G15 persisted namespace throws. Earlier G1/G14 and coin settlement still persist; two genuinely distinct NPC deaths prevent conflating this with same-event replay. It demonstrates the missing per-consumer outbox, not a fix or original server policy.
+
+**What G21.208 proves:** opt-in same-JVM cooperative `FilePlayerRepository.save` / `LocalJvmAccountSessionLease.acquire` exclusion for an exact file path. Default OFF. Same-path concurrent RAW writer denial is also tested to avoid legacy fixed `.tmp` collision. No global RAW writer completeness, durable epoch, cross-JVM admission guarantee, full account recovery, ACTIVE review retirement, replay/grant authority, or original-client parity.
+
+**Certification:** exact-head hosted Java11 bytecode major55, full Gradle and **523/523 focused** with G21208/G21207/G1873/G1872 markers. Stay Draft/unmerged. Research & coordination #2526 / ownership #2559 / gameplay outbox #2587 remain OPEN.

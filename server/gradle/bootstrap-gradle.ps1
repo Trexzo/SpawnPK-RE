@@ -19,57 +19,137 @@ if (-not (Test-Path -LiteralPath $selector -PathType Leaf)) {
 . $selector
 [void](Set-LocalLabBuildJava)
 
-$cacheRoot = Join-Path ([Environment]::GetFolderPath('UserProfile')) ".gradle\locallab-bootstrap"
+function Get-ExactSha256([string]$Path) {
+    return (
+        Get-FileHash -LiteralPath $Path -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+}
+
+$cacheRoot = Join-Path (
+    [Environment]::GetFolderPath('UserProfile')
+) '.gradle\locallab-bootstrap'
 $zip = Join-Path $cacheRoot "gradle-$version-bin.zip"
-$gradleHome = Join-Path $cacheRoot "gradle-$version"
-$gradleBat = Join-Path $gradleHome 'bin\gradle.bat'
 
 New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
 
-if (-not (Test-Path -LiteralPath $gradleBat -PathType Leaf)) {
-    if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) {
-        Write-Host "Downloading Gradle $version..." -ForegroundColor Cyan
-        Invoke-WebRequest -UseBasicParsing -Uri $distribution -OutFile $zip
+$cachedValid = $false
+if (Test-Path -LiteralPath $zip -PathType Leaf) {
+    $cachedSha = Get-ExactSha256 $zip
+    if ($cachedSha -eq $expectedSha256) {
+        $cachedValid = $true
     }
-
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        $stream = [System.IO.File]::OpenRead($zip)
-        try {
-            $actual = ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
-        }
-        finally {
-            $stream.Dispose()
-        }
-    }
-    finally {
-        $sha256.Dispose()
-    }
-    if ($actual -ne $expectedSha256) {
-        Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
-        throw "Gradle distribution SHA-256 mismatch. expected=$expectedSha256 actual=$actual"
-    }
-
-    $tmp = Join-Path $cacheRoot ("extract-" + [Guid]::NewGuid().ToString('N'))
-    try {
-        Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
-        $expanded = Join-Path $tmp "gradle-$version"
-        if (-not (Test-Path -LiteralPath $expanded -PathType Container)) {
-            throw "Gradle archive did not contain gradle-$version"
-        }
-        Remove-Item -LiteralPath $gradleHome -Recurse -Force -ErrorAction SilentlyContinue
-        Move-Item -LiteralPath $expanded -Destination $gradleHome
-    }
-    finally {
-        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    else {
+        Write-Host (
+            'Discarding invalid cached Gradle distribution. ' +
+            "expected=$expectedSha256 actual=$cachedSha"
+        ) -ForegroundColor Yellow
+        Remove-Item -LiteralPath $zip -Force
     }
 }
 
-Push-Location $serverRoot
+if (-not $cachedValid) {
+    $download = Join-Path $cacheRoot (
+        "gradle-$version-bin.zip.download-" +
+        [Guid]::NewGuid().ToString('N')
+    )
+
+    try {
+        Write-Host "Downloading Gradle $version..." -ForegroundColor Cyan
+        Invoke-WebRequest -UseBasicParsing -Uri $distribution -OutFile $download
+
+        $downloadSha = Get-ExactSha256 $download
+        if ($downloadSha -ne $expectedSha256) {
+            throw (
+                'Gradle distribution SHA-256 mismatch. ' +
+                "expected=$expectedSha256 actual=$downloadSha"
+            )
+        }
+
+        try {
+            Move-Item -LiteralPath $download -Destination $zip
+        }
+        catch {
+            # A concurrent bootstrap may have won the cache publication race.
+            # Accept that winner only when it is byte-identical to the same
+            # pinned distribution; otherwise preserve the publication failure.
+            if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) {
+                throw
+            }
+
+            $winnerSha = Get-ExactSha256 $zip
+            if ($winnerSha -ne $expectedSha256) {
+                throw
+            }
+
+            Write-Host (
+                'LOCALLAB_GRADLE_CACHE_RACE_ACCEPTED ' +
+                "sha256=$winnerSha"
+            ) -ForegroundColor DarkGray
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $download -PathType Leaf) {
+            Remove-Item -LiteralPath $download -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+# Persistent cache authority ends at the ZIP. Every execution gets a private
+# copy that is independently hash-gated before extraction, so a mutable
+# previously extracted Gradle home can never become build authority.
+$invocationRoot = Join-Path (
+    [IO.Path]::GetTempPath()
+) (
+    "SpawnPK-gradle-$version-" +
+    [Guid]::NewGuid().ToString('N')
+)
+$invocationZip = Join-Path $invocationRoot "gradle-$version-bin.zip"
+$extractRoot = Join-Path $invocationRoot 'extract'
+$gradleExit = $null
+
+New-Item -ItemType Directory -Force -Path $invocationRoot | Out-Null
+
 try {
-    & $gradleBat @GradleArgs
-    exit $LASTEXITCODE
+    Copy-Item -LiteralPath $zip -Destination $invocationZip
+
+    $invocationSha = Get-ExactSha256 $invocationZip
+    if ($invocationSha -ne $expectedSha256) {
+        throw (
+            'Invocation-owned Gradle distribution SHA-256 mismatch. ' +
+            "expected=$expectedSha256 actual=$invocationSha"
+        )
+    }
+
+    Write-Host (
+        'LOCALLAB_GRADLE_DISTRIBUTION_VERIFIED ' +
+        "version=$version sha256=$invocationSha invocationOwned=true"
+    ) -ForegroundColor Green
+
+    Expand-Archive -LiteralPath $invocationZip -DestinationPath $extractRoot
+
+    $gradleHome = Join-Path $extractRoot "gradle-$version"
+    $gradleBat = Join-Path $gradleHome 'bin\gradle.bat'
+    if (-not (Test-Path -LiteralPath $gradleBat -PathType Leaf)) {
+        throw "Verified Gradle archive did not contain gradle-$version\bin\gradle.bat"
+    }
+
+    Push-Location $serverRoot
+    try {
+        & $gradleBat @GradleArgs
+        $gradleExit = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
 }
 finally {
-    Pop-Location
+    if (Test-Path -LiteralPath $invocationRoot -PathType Container) {
+        Remove-Item -LiteralPath $invocationRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
+
+if ($null -eq $gradleExit) {
+    throw 'Verified invocation-owned Gradle process did not produce an exit code.'
+}
+
+exit $gradleExit

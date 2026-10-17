@@ -1,0 +1,21 @@
+# G21.154 — require exactly four different retained v3 result kinds (NO AUTHORITY)
+
+**Certified parent:** [G21.153 Draft PR #2486](https://github.com/Trexzo/SpawnPK-RE/pull/2486) exact `bf99dd53fe20bc9d93e3b0c4169d4c72f2a7ebbf`, [GitHub Actions #38315804489](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38315804489) SUCCESS, Java 11 focused 453/453, full Gradle. Issue #2487.
+
+## Concrete source-reader mismatch
+
+The real `MailboxFourBoundResultLeavesArchiveV1.captureInside` (G21.125/G21.129) explicitly requires **exactly four** physical v3 result leaves, one per family: `g21120-commit-result-v3`, `g21121-prepared-result-v3`, `g21122-strict-prepared-result-v3`, `g21123-world-terminal-result-v3`. It vetoes duplicate result kinds and missing kinds before emitting a positive readout. G21.152–153's *post-lease, retained in-memory* `MailboxSevenPlaneHistoricalIdentityDeltaV1.requireObservation` checked `counts[2] <= 4` but not that **each of the four required kinds occurs once**. If an actor coherently changes all historical BEFORE, historical AFTER, current BEFORE and current AFTER maps to 1, 2, or 3 total v3 leaves, or four v3 entries that repeat one kind while omitting another, the comparator could issue an apparent `MATCHED_OBSERVED_METADATA_NO_AUTHORITY` for an impossible originally successful readout.
+
+G21.154 adds **negative-only checked `IOException`** diagnostics `MISSING_V3_RESULT_KIND` and `DUPLICATE_V3_RESULT_KIND` inside the existing retained report preflight. It keeps independent 32 v1 / 32 v2 / 4 v3 family caps (including `EXCESS_EVIDENCE_FAMILY` priority for >4), exact lower-case 8-4-4-4-12 source UUIDs and all prior malformed portable/SHA/size/key diagnostics. No new disk IO, filesystem writer action, OS FileLock, signed provenance or permission is added.
+
+## Regression compatibility and acceptance
+
+Five legacy post-lease **synthetic** fixture classes from G21.149–153 previously used just one v3 leaf, which was adequate for their earlier narrow shape checks but not a true G21.129-successful result set. Their synthetic in-memory maps now include the other three canonical v3 kinds, each backed by a distinct constructed `PhysicalIdentity` instance from already-recorded NOFOLLOW test fixture metadata. The six actual test source files, portable archive digest checks, original diagnostic expectations, and all live World integration tests stay unchanged.
+
+G21.151's synthetic **68-entry** non-authority negative control is retained but now builds its 32/32/4 distribution from the four already present v3 names rather than adding duplicates. G21.152's inherited >4 v3 mutation still fails closed, but now reaches the original-reader-consistent `DUPLICATE_V3_RESULT_KIND` check before its fifth v3 entry could hit the family-capacity bound; the inherited test explicitly requires that checked diagnostic.
+
+New `G21154MailboxFourResultKindsIntegrationTest`: six genuine NOFOLLOW physical fixture observations used to construct four in-memory retained snapshots. Check **4 v3 kinds × 2 invalid modes (missing one kind, replace with second UUID for an already-present kind) × 4 individual capture positions = 32** veto cases, plus **8 coordinated four-capture** corruptions that would otherwise appear internally and historically consistent. Every negative case requires the appropriate checked diagnostic, restores mutated retained map fields in `finally`, and reruns the original positive MATCH only for observational status with all authority flags false. Assert zero active JVM leases and local watches. Inherited focused tests remain in build manifest.
+
+**Hosted acceptance:** dedicated `g21154MailboxFourResultKindsRegression`, Java 11 bytecode major 55, focused **454/454**, full Gradle build on exact PR SHA. Source changes alone are NOT certification.
+
+**Safety:** Shape validation neither authenticates the retained historical observation nor reconstructs an atomic crash-recovery epoch. Still NO complete raw/default/historical/future writer fence, original signed physical identity pins, trusted leaf contents, cleanup/pruning/rollover/unlink, grant/replay/session/release/client ACK. R25 #1847 and G21.87/88 remain frozen. Keep Draft/unmerged.

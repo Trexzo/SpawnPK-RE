@@ -143,6 +143,32 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "raw petcharge route remains"
             );
 
+        if(handler.handle(
+                new String[]{"behemothhit","50"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw behemothhit route remains"
+            );
+
+        if(handler.handle(
+                new String[]{"petdamage","50"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw petdamage route remains"
+            );
+
+        List<String> nonpositiveDamage=
+            handler.damage(
+                0,
+                writer
+            );
+
+        assertContains(
+            nonpositiveDamage,
+            "source=MANUAL_BEHEMOTH_HIT result=IGNORED_NONPOSITIVE damage=0",
+            "damage effect source/order"
+        );
+
         List<String> armed=handler.handle(
             new String[]{"pettestall"},
             writer);
@@ -200,7 +226,7 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "unrelated command consumed");
 
         System.out.println(
-            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false scopeEffect=true rawScopeSnipeRoute=false procEffect=true rawPetProcRoute=false chargeEffect=true chargeEligibilityBeforeRange=true rawPetChargeRoutes=false sequence=true damageBoundary=true unrelatedRejected=true");
+            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false scopeEffect=true rawScopeSnipeRoute=false procEffect=true rawPetProcRoute=false chargeEffect=true chargeEligibilityBeforeRange=true rawPetChargeRoutes=false damageEffect=true rawPetDamageRoutes=false sequence=true damageBoundary=true unrelatedRejected=true");
     }
 
     private static void assertContains(

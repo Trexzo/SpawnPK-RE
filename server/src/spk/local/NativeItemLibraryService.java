@@ -21,8 +21,8 @@ final class NativeItemLibraryService {
     String open(ServerPacketWriter w,int itemId)throws IOException{
         ItemAuthorityRepository.Entry e=ItemAuthorityRepository.get(itemId);
         if(e==null)return "ITEM_LIBRARY_REJECTED_UNKNOWN_ITEM id="+itemId;
-        open=true;selectedItem=itemId;
         w.beginBatch();
+        boolean ended=false;
         try{
             w.fixed(97,BootstrapPackets.interface97(ROOT));
             control(w,"ITEM_GUIDE_RESET_PREVIEW");
@@ -45,7 +45,16 @@ final class NativeItemLibraryService {
             text(w,53,"SLOT_1 "+e.itemId);
             control(w,"ITEM_GUIDE_REFRESH_PREVIEW");
             populateDescription(w,e);
-        } finally { w.endBatch(); }
+            w.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    w.abortBatch();
+                }catch(Throwable ignored){}
+        }
+        open=true;
+        selectedItem=itemId;
         return "ITEM_LIBRARY_OPEN root=47500 item="+itemId+" name="+clean(e.name)+" authority=EXACT_CURRENT_NATIVE_UI";
     }
 

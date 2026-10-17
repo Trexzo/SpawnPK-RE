@@ -23,6 +23,18 @@ final class ApplicationControl126Command {
             37,
             "blood-pool-slot-append"
         ),
+        DAILY_CHALLENGE_DEFINITION(
+            55,
+            "daily-challenge-definition"
+        ),
+        DAILY_MONEY_MAKING_TRACKING_TEXT(
+            26,
+            "daily-money-making-tracking-text"
+        ),
+        DAILY_MONEY_MAKING_SELECTED_CATEGORY(
+            36,
+            "daily-money-making-selected-category"
+        ),
         COLLECTION_CLEAR_ROWS(
             54315,
             "collection-log-clear-rows"
@@ -176,9 +188,77 @@ final class ApplicationControl126Command {
         );
     }
 
+    static ApplicationControl126Command dailyMoneyMakingTrackingText(
+        String text
+    ){
+        if(text==null)
+            throw new NullPointerException(
+                "text"
+            );
+
+        if(text.indexOf('\n')>=0||
+           text.indexOf('\r')>=0)
+            throw new IllegalArgumentException(
+                "Daily Money Making tracking text contains line break"
+            );
+
+        return exact(
+            Target.DAILY_MONEY_MAKING_TRACKING_TEXT,
+            text,
+            "daily-money-making:tracking-text"
+        );
+    }
+
+    static ApplicationControl126Command dailyMoneyMakingSelectedCategory(
+        int state
+    ){
+        if(state<1||state>3)
+            throw new IllegalArgumentException(
+                "Daily Money Making category state="+
+                state
+            );
+
+        return exact(
+            Target.DAILY_MONEY_MAKING_SELECTED_CATEGORY,
+            Integer.toString(state),
+            "daily-money-making:selected-category"
+        );
+    }
+
     static ApplicationControl126Command bloodPoolResetSlots(){
         return token(
             Token.RESET_BLOOD_POOL_SHOP_SLOTS
+        );
+    }
+
+    static ApplicationControl126Command dailyChallengeDefinition(
+        int metadataA,
+        int metadataB,
+        String challengeKey,
+        String description,
+        int current,
+        int target
+    ){
+        requireDailyChallengeField(
+            challengeKey,
+            "challengeKey",
+            false
+        );
+        requireDailyChallengeField(
+            description,
+            "description",
+            true
+        );
+
+        return exact(
+            Target.DAILY_CHALLENGE_DEFINITION,
+            metadataA+";"+
+                metadataB+";"+
+                challengeKey+";"+
+                description+";"+
+                current+";"+
+                target,
+            "daily-challenge:definition"
         );
     }
 
@@ -307,6 +387,31 @@ final class ApplicationControl126Command {
             ),
             "collection-log:select-category"
         );
+    }
+
+    private static void requireDailyChallengeField(
+        String value,
+        String name,
+        boolean allowEmpty
+    ){
+        if(value==null)
+            throw new NullPointerException(
+                name
+            );
+
+        if(!allowEmpty&&
+           value.isEmpty())
+            throw new IllegalArgumentException(
+                name+" empty"
+            );
+
+        if(value.indexOf(';')>=0||
+           value.indexOf('\n')>=0||
+           value.indexOf('\r')>=0)
+            throw new IllegalArgumentException(
+                name+
+                " contains Daily Challenge record delimiter"
+            );
     }
 
     private static ApplicationControl126Command exact(

@@ -75,7 +75,43 @@ final class AccountStore {
     }
 
     static String save(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
+        return saveGuarded(bank,equipment,movement,pet,player,account->{});
+    }
+
+    /** G21.245 package-only deterministic PRE-move legacy writer test seam. */
+    static String saveWithPreMoveHookForTest(
+        BankState bank,EquipmentState equipment,MovementState movement,
+        PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
+    )throws IOException{
+        return saveGuarded(bank,equipment,movement,pet,player,beforeMove);
+    }
+
+    private static String saveGuarded(
+        BankState bank,EquipmentState equipment,MovementState movement,
+        PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
+    )throws IOException{
+        java.util.Objects.requireNonNull(beforeMove,"beforeMove");
         Path file = accountFile();
+        // G21.212: PRIMARY uses exactly the same optional cooperating
+        // in-JVM RAW write reservation as named profiles/repository.
+        // Capture a SINGLE resolved account path and claim the lease
+        // BEFORE legacy fixed .tmp or parent-directory mutation.
+        try(LocalJvmAccountSessionLease.RawWriteReservation reservation=
+                LocalJvmAccountSessionLease.reserveRawWrite(
+                    file,CANONICAL_USERNAME)){
+            return saveSelectedFile(
+                file,bank,equipment,movement,pet,player,reservation,beforeMove);
+        }
+    }
+
+    private static String saveSelectedFile(
+        Path file,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player,
+        LocalJvmAccountSessionLease.RawWriteReservation reservation,
+        FilePlayerRepository.BeforeWorldReplace beforeMove
+    )throws IOException{
         Files.createDirectories(file.getParent());
 
         PlayerSnapshot snapshot =
@@ -100,20 +136,50 @@ final class AccountStore {
             Instant.now().toString()
         );
 
-        Path tmp = file.resolveSibling(file.getFileName().toString()+".tmp");
+        final boolean safeTemp=LocalOptInRawTemp.enabled();
+        final LocalOptInRawTemp.AccountPreimage accountPreimage=
+            LocalOptInRawTemp.forcePostimageEnabled()
+                ?LocalOptInRawTemp.captureAccountPreimage(file):null;
+        Path tmp = safeTemp
+            ?LocalOptInRawTemp.create(file)
+            :file.resolveSibling(file.getFileName().toString()+".tmp");
+        final java.nio.file.attribute.BasicFileAttributes tempIdentity=
+            safeTemp?LocalOptInRawTemp.observe(tmp):null;
         boolean completed = false;
         try {
-            try (OutputStream out = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+            try (OutputStream out = safeTemp
+                    ?Files.newOutputStream(
+                        tmp,StandardOpenOption.WRITE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                        LinkOption.NOFOLLOW_LINKS)
+                    :Files.newOutputStream(
+                        tmp,StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.WRITE)) {
                 properties.store(out, "SpawnPK LocalLab localhost account state");
             }
-            try {
+            final byte[] sealedTemp=safeTemp
+                ?LocalOptInRawTemp.seal(tmp,tempIdentity):null;
+            beforeMove.run(CANONICAL_USERNAME);
+            if(safeTemp)
+                LocalOptInRawTemp.requireSealed(
+                    tmp,tempIdentity,sealedTemp);
+            if(LocalOptInRawTemp.forcePostimageEnabled()){
+                LocalOptInRawTemp.forcePublish(
+                    tmp,file,tempIdentity,sealedTemp,reservation,
+                    CANONICAL_USERNAME,accountPreimage);
+            }else try {
+                if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
+                if(reservation!=null)reservation.requireLockObjectContinuity();
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
             completed = true;
         } finally {
-            if (!completed) Files.deleteIfExists(tmp);
+            if (!completed &&
+                (!safeTemp||LocalOptInRawTemp.stillOwns(tmp,tempIdentity)))
+                Files.deleteIfExists(tmp);
         }
 
         return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()

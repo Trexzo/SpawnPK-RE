@@ -228,11 +228,17 @@ public final class LocalRegionStreamHandlerTest {
             RegionLoadLifecycle.Completion completion=
                 homeLifecycle.complete();
 
-            h.completeRegionLoad(
-                completion,
-                writer,
-                "[region-stream-test] "
-            );
+            boolean homeGroundSnapshot=
+                h.completeRegionLoad(
+                    completion,
+                    writer,
+                    "[region-stream-test] "
+                );
+
+            if(!homeGroundSnapshot)
+                throw new AssertionError(
+                    "HOME completion did not report ground snapshot"
+                );
 
             if(wire.size()<=wireBeforeAck)
                 throw new AssertionError(
@@ -253,7 +259,9 @@ public final class LocalRegionStreamHandlerTest {
                 "LOCAL_REGION_STREAM_HANDLER_PASS "+
                 "disabledFailClosed=true homeReattach=true "+
                 "homeMargin16=true positionPreserved=true "+
-                "sceneReplaced=true overlayAfter121=true"
+                "sceneReplaced=true overlayAfter121=true "+
+                "groundSnapshotCompletionFact=true "+
+                "standalonePetFollowReset=true"
             );
         }finally{
             enabledWorld.close();
@@ -392,6 +400,18 @@ public final class LocalRegionStreamHandlerTest {
                 throw new AssertionError(
                     "ordinary window rebase emitted an extra packet; "+
                     "packet81 relocation must remain separate"
+                );
+
+            boolean autoGroundSnapshot=
+                h.completeRegionLoad(
+                    lifecycle.complete(),
+                    rebaseWriter,
+                    "[region-rebase-probe] "
+                );
+
+            if(autoGroundSnapshot)
+                throw new AssertionError(
+                    "AUTO_WINDOW_REBASE falsely reported ground snapshot"
                 );
 
             System.out.println(

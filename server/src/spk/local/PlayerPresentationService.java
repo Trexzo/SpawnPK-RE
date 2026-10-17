@@ -19,11 +19,35 @@ final class PlayerPresentationService {
     }
 
     void refresh(String username,EquipmentState equipment,PlayerState player,ServerPacketWriter packets) throws IOException {
+        publishAppearance(
+            username,
+            equipment,
+            player,
+            dev.playerNpcTransformId(),
+            packets
+        );
+    }
+
+    void refreshSnapshot(
+        String username,
+        int[] appearanceItems,
+        PlayerState player,
+        ServerPacketWriter packets
+    )throws IOException{
+        if(appearanceItems==null||
+           appearanceItems.length!=
+                EquipmentState.APPEARANCE_SLOTS)
+            throw new IllegalArgumentException(
+                "appearanceItems must have "+
+                EquipmentState.APPEARANCE_SLOTS+
+                " slots"
+            );
+
         packets.varShort(
             81,
             BootstrapPackets.player81AppearanceOnly(
                 username,
-                equipment.appearanceItems(),
+                appearanceItems.clone(),
                 player,
                 dev.playerNpcTransformId(),
                 world.appearanceRoleFor(
@@ -34,9 +58,44 @@ final class PlayerPresentationService {
         );
     }
 
+    private void publishAppearance(
+        String username,
+        EquipmentState equipment,
+        PlayerState player,
+        Integer npcTransformId,
+        ServerPacketWriter packets
+    )throws IOException{
+        packets.varShort(
+            81,
+            BootstrapPackets.player81AppearanceOnly(
+                username,
+                equipment.appearanceItems(),
+                player,
+                npcTransformId,
+                world.appearanceRoleFor(
+                    username,
+                    player
+                )
+            )
+        );
+    }
+
     String morph(int npcId,String username,EquipmentState equipment,PlayerState player,ServerPacketWriter packets) throws IOException {
+        // Validate through the same authoritative setter contract without
+        // committing hidden state before the target appearance publishes.
+        if(npcId<0||npcId>16383)
+            throw new IllegalArgumentException(
+                "npc transform 0..16383"
+            );
+
+        publishAppearance(
+            username,
+            equipment,
+            player,
+            npcId,
+            packets
+        );
         dev.setPlayerNpcTransformId(npcId);
-        refresh(username,equipment,player,packets);
         dev.trace().record("PLAYER_NPC_MORPH",
             "REQUEST=C2S103_DEV -> route=PlayerPresentationService -> state=npcTransformId:"+npcId+
             " -> publish=S2C81_APPEARANCE(slot0=0xFFFF,npc="+npcId+") -> result=CLIENT_PLAYER_RENDERS_NPC",
@@ -46,8 +105,15 @@ final class PlayerPresentationService {
 
     String clear(String username,EquipmentState equipment,PlayerState player,ServerPacketWriter packets) throws IOException {
         Integer old=dev.playerNpcTransformId();
+
+        publishAppearance(
+            username,
+            equipment,
+            player,
+            null,
+            packets
+        );
         dev.setPlayerNpcTransformId(null);
-        refresh(username,equipment,player,packets);
         dev.trace().record("PLAYER_NPC_MORPH_CLEAR",
             "REQUEST=C2S103_DEV -> route=PlayerPresentationService -> state=npcTransformId:AUTO -> publish=S2C81_APPEARANCE(normalEquipment) -> result=NORMAL_PLAYER_MODEL",
             "EXACT_CURRENT_CLIENT");

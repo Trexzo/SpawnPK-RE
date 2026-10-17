@@ -2,9 +2,23 @@ package spk.local;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import spk.event.PlayerTickEvent;
 
 /** One execution context for shared logical ticks and queued gameplay commands. */
 final class WorldPulse implements AutoCloseable,Runnable {
+    interface PulseThreadFactory {
+        Thread create(
+            Runnable target,
+            String name
+        );
+    }
+
+    interface PulseThreadStarter {
+        void start(
+            Thread thread
+        );
+    }
+
     static final int MAX_COMMANDS_PER_TICK=512;
     static final int MAX_COMMANDS_PER_PLAYER_PER_TICK=32;
     /**
@@ -16,6 +30,8 @@ final class WorldPulse implements AutoCloseable,Runnable {
     static final int MAX_COMMANDS_PER_PLAYER_PER_FAST_LOOP=32;
     private final World world;
     private final long tickMillis;
+    private final PulseThreadFactory threadFactory;
+    private final PulseThreadStarter threadStarter;
     private final AtomicBoolean running=new AtomicBoolean();
     private Thread thread;
     private volatile Thread compatibilityExecutionThread;
@@ -32,15 +48,106 @@ final class WorldPulse implements AutoCloseable,Runnable {
     private long fastCommandsProcessed;
     private long tasksProcessed;
 
-    WorldPulse(World world,long tickMillis){this.world=world;this.tickMillis=tickMillis;}
+    WorldPulse(
+        World world,
+        long tickMillis
+    ){
+        this(
+            world,
+            tickMillis,
+            (target,name)->
+                new Thread(
+                    target,
+                    name
+                ),
+            Thread::start
+        );
+    }
+
+    WorldPulse(
+        World world,
+        long tickMillis,
+        PulseThreadFactory threadFactory,
+        PulseThreadStarter threadStarter
+    ){
+        this.world=
+            Objects.requireNonNull(
+                world,
+                "world"
+            );
+        this.tickMillis=tickMillis;
+        this.threadFactory=
+            Objects.requireNonNull(
+                threadFactory,
+                "threadFactory"
+            );
+        this.threadStarter=
+            Objects.requireNonNull(
+                threadStarter,
+                "threadStarter"
+            );
+    }
 
     synchronized void start(){
-        if(running.get())return;
-        running.set(true);
-        nextTickAt=System.currentTimeMillis()+tickMillis;
-        thread=new Thread(this,"spk-world-pulse");
-        thread.setDaemon(true);
-        thread.start();
+        if(running.get())
+            return;
+
+        Thread candidate=null;
+
+        try{
+            candidate=
+                Objects.requireNonNull(
+                    threadFactory.create(
+                        this,
+                        "spk-world-pulse"
+                    ),
+                    "pulse thread"
+                );
+            candidate.setDaemon(
+                true
+            );
+
+            nextTickAt=
+                System.currentTimeMillis()+
+                tickMillis;
+            thread=candidate;
+
+            // The new run() may execute immediately, so publish running before
+            // invoking the starter. Any starter failure rolls this publication
+            // back before start() returns.
+            running.set(
+                true
+            );
+
+            threadStarter.start(
+                candidate
+            );
+        }catch(Throwable failure){
+            running.set(
+                false
+            );
+
+            thread=null;
+            nextTickAt=0L;
+            notifyAll();
+
+            rethrowStartFailure(
+                failure
+            );
+        }
+    }
+
+    private static void rethrowStartFailure(
+        Throwable failure
+    ){
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     boolean running(){return running.get();}
@@ -113,6 +220,58 @@ final class WorldPulse implements AutoCloseable,Runnable {
             if(world.closed())
                 return;
 
+            try{
+                world.retryMonsterSpawnerPendingSettlements();
+            }catch(Throwable t){
+                System.err.println(
+                    "[world] Monster Spawner pending settlement retry failed tick="+
+                    tick+
+                    " error="+
+                    t
+                );
+            }
+
+            try{
+                world.deathLootLifecycle()
+                    .tick(nowMillis);
+            }catch(Throwable t){
+                System.err.println(
+                    "[world] death-loot lifecycle tick failed tick="+
+                    tick+
+                    " error="+
+                    t
+                );
+            }
+
+            try{
+                long restocked=
+                    world.localLabShops()
+                        .onWorldTick(tick);
+
+                if(restocked>0L)
+                    System.out.println(
+                        "[world] G2_SHOP_RESTOCK tick="+
+                        tick+
+                        " item="+
+                        LocalLabShopRuntime.ROCKTAIL+
+                        " added="+restocked+
+                        " stock="+
+                        world.localLabShops()
+                            .rocktailStock()+
+                        " authority=CUSTOM_LOCALLAB"
+                    );
+            }catch(Throwable t){
+                System.err.println(
+                    "[world] LocalLab Shop restock failed tick="+
+                    tick+
+                    " error="+
+                    t
+                );
+            }
+
+            if(world.closed())
+                return;
+
             for(WorldPlayer player:world.players().snapshot()){
                 if(world.closed())
                     return;
@@ -124,6 +283,25 @@ final class WorldPulse implements AutoCloseable,Runnable {
                         generation
                     ))
                     continue;
+
+                try{
+                    world.domainEvents().publish(
+                        new PlayerTickEvent(
+                            player.username(),
+                            tick
+                        )
+                    );
+                }catch(Throwable t){
+                    System.err.println(
+                        "[world] player tick domain event failed tick="+
+                        tick+
+                        " owner="+player.id()+
+                        " error="+t
+                    );
+                }
+
+                if(world.closed())
+                    return;
 
                 try{
                     world.withOpenPlayerMutationOwnershipIfCurrent(
@@ -172,6 +350,44 @@ final class WorldPulse implements AutoCloseable,Runnable {
                         " owner="+
                         target.ownerId()+
                         " error="+t
+                    );
+                }
+
+                if(world.closed())
+                    return;
+            }
+
+            if(world.closed())
+                return;
+
+            for(WorldNpcTickTarget target:
+                    world.npcTickTargetsSnapshot()){
+                if(world.closed())
+                    return;
+
+                if(world.npcs().byId(
+                        target.npcId()
+                    )==null){
+                    world.detachNpcTickTarget(
+                        target.npcId(),
+                        target
+                    );
+                    continue;
+                }
+
+                try{
+                    target.onWorldNpcTick(
+                        tick,
+                        nowMillis
+                    );
+                }catch(Throwable t){
+                    System.err.println(
+                        "[world] NPC tick target failed tick="+
+                        tick+
+                        " npc="+
+                        target.npcId()+
+                        " error="+
+                        t
                     );
                 }
 

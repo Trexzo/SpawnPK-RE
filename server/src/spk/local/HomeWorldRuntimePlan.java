@@ -39,6 +39,22 @@ final class HomeWorldRuntimePlan {
         }
     }
 
+    static final class ViewerPresentationSnapshot {
+        final boolean bootstrapEstablished;
+        final LinkedHashSet<Integer> clientVisibleWorldSceneIndexes;
+
+        ViewerPresentationSnapshot(
+            boolean bootstrapEstablished,
+            Set<Integer> clientVisibleWorldSceneIndexes
+        ){
+            this.bootstrapEstablished=bootstrapEstablished;
+            this.clientVisibleWorldSceneIndexes=
+                new LinkedHashSet<>(
+                    clientVisibleWorldSceneIndexes
+                );
+        }
+    }
+
     static final class RemoveOnlyOpenOverride {
         final int worldX,worldY,layer,shape,rotation;
         final String provenance;
@@ -109,6 +125,57 @@ final class HomeWorldRuntimePlan {
             clientVisibleWorldSceneIndexes.add(n.sceneIndex);
         npcBootstrapEstablished=true;
         return Collections.unmodifiableList(initial);
+    }
+
+    ViewerPresentationSnapshot snapshotViewerPresentation(){
+        return new ViewerPresentationSnapshot(
+            npcBootstrapEstablished,
+            clientVisibleWorldSceneIndexes
+        );
+    }
+
+    void restoreViewerPresentation(
+        ViewerPresentationSnapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "snapshot"
+            );
+
+        npcBootstrapEstablished=
+            snapshot.bootstrapEstablished;
+        clientVisibleWorldSceneIndexes.clear();
+        clientVisibleWorldSceneIndexes.addAll(
+            snapshot.clientVisibleWorldSceneIndexes
+        );
+    }
+
+    List<NpcEntity> currentProjection(
+        int playerX,
+        int playerY
+    ){
+        if(!npcBootstrapEstablished)
+            throw new IllegalStateException(
+                "bootstrapNpcs must be called before currentProjection"
+            );
+
+        ArrayList<NpcEntity> current=
+            new ArrayList<>();
+
+        for(WorldHomeNpcService.VisibleNpc visible:
+                homeNpcs.visibleCanonical(
+                    playerX,
+                    playerY
+                ))
+            current.add(
+                project(
+                    visible
+                )
+            );
+
+        return Collections.unmodifiableList(
+            current
+        );
     }
 
     /**
