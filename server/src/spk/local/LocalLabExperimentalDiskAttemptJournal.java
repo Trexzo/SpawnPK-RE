@@ -15,6 +15,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.IdentityHashMap;
@@ -197,6 +198,11 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
     }
 
     private DiskScan scanDirectory() throws IOException {
+        return scanDirectory(null, null);
+    }
+
+    private DiskScan scanDirectory(Path allowedPending, Object allowedPendingKey)
+        throws IOException {
         requireSafeAncestorChain(directory);
         if (Files.isSymbolicLink(directory) ||
             !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS))
@@ -205,6 +211,7 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
             throw new IOException("DISK_ATTEMPT_DIRECTORY_IDENTITY_CHANGED");
         DiskScan scan = new DiskScan();
         boolean foundLock = false;
+        boolean foundOwnedPending = false;
         try (DirectoryStream<Path> files = Files.newDirectoryStream(directory)) {
             for (Path path : files) {
                 String name = path.getFileName().toString();
@@ -213,6 +220,14 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
                     throw new IOException("DISK_ATTEMPT_UNKNOWN_OR_UNSAFE_FILE");
                 requireSingleLink(path);
                 Object key = requireFileKey(path);
+                if (allowedPending != null && allowedPending.equals(path)) {
+                    if (foundOwnedPending ||
+                        !Objects.equals(allowedPendingKey, key))
+                        throw new IOException(
+                            "DISK_ATTEMPT_PENDING_IDENTITY_CHANGED");
+                    foundOwnedPending = true;
+                    continue;
+                }
                 if (LOCK_FILE.equals(name)) {
                     if (foundLock || !Objects.equals(originalLockKey, key))
                         throw new IOException("DISK_ATTEMPT_LOCK_IDENTITY_CHANGED");
@@ -239,6 +254,8 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         }
         if (!foundLock)
             throw new IOException("DISK_ATTEMPT_LOCK_IDENTITY_CHANGED");
+        if (allowedPending != null && !foundOwnedPending)
+            throw new IOException("DISK_ATTEMPT_PENDING_IDENTITY_CHANGED");
         return scan;
     }
 
@@ -250,7 +267,12 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
     }
 
     private void requireNoExternalChanges() throws IOException {
-        DiskScan actual = scanDirectory();
+        requireNoExternalChanges(null, null);
+    }
+
+    private void requireNoExternalChanges(Path allowedPending, Object key)
+        throws IOException {
+        DiskScan actual = scanDirectory(allowedPending, key);
         if (actual.count != total ||
             actual.found.size() != entries.size() ||
             !actual.found.keySet().equals(entries.keySet()) ||
@@ -282,10 +304,27 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         return new Snapshot(entries, total);
     }
 
+    /** Only a deterministic test cutpoint: it cannot authorize grants. */
+    @FunctionalInterface
+    interface PublicationTestCutpoint {
+        void afterTempForced(Path ownedPending, Path destination) throws IOException;
+    }
+
     synchronized void reserve(World world,
                               MonsterSpawnerPvmRuntime.FinalizeResult terminal,
                               UUID testOnlyEventId,
                               LocalLabTerminalDeliveryAssessment.Consumer consumer)
+        throws IOException {
+        reserveWithTestCutpoint(world, terminal, testOnlyEventId, consumer, null);
+    }
+
+    /** Exercises real NIO publication using deliberately injected filesystem races. */
+    synchronized void reserveWithTestCutpoint(
+                              World world,
+                              MonsterSpawnerPvmRuntime.FinalizeResult terminal,
+                              UUID testOnlyEventId,
+                              LocalLabTerminalDeliveryAssessment.Consumer consumer,
+                              PublicationTestCutpoint afterTempForced)
         throws IOException {
         ensureOpen();
         Objects.requireNonNull(testOnlyEventId, "testOnlyEventId");
@@ -355,6 +394,35 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
             while (bytes.hasRemaining()) channel.write(bytes);
             channel.force(true);
         }
+        // Pin the exact forced pending inode. A test hook may simulate
+        // adversarial in-publication mutations, without inserting any
+        // callback into ordinary gameplay or delivery execution.
+        Object pendingKey = requireFileKey(pending);
+        if (afterTempForced != null)
+            afterTempForced.afterTempForced(pending, destination);
+
+        // The owned temp is the ONLY permitted non-event file in this scan.
+        // Previous records, lock and directory are rechecked after allocation,
+        // because an external writer can act while bytes are being forced.
+        requireNoExternalChanges(pending, pendingKey);
+        requireSingleLink(pending);
+        if (!Objects.equals(pendingKey, requireFileKey(pending)))
+            throw new IOException("DISK_ATTEMPT_PENDING_IDENTITY_CHANGED");
+        if (!Arrays.equals(payload, readBoundedRecord(pending)))
+            throw new IOException("DISK_ATTEMPT_PENDING_BYTES_CHANGED_BEFORE_MOVE");
+
+        // Do not overwrite an unobserved event name; original record identity
+        // must match the prior journal snapshot immediately before move.
+        if (previous == null) {
+            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS))
+                throw new IOException("DISK_ATTEMPT_DESTINATION_UNEXPECTED");
+        } else if (!Objects.equals(recordKeys.get(testOnlyEventId),
+                                 requireFileKey(destination))) {
+            throw new IOException("DISK_ATTEMPT_DESTINATION_IDENTITY_CHANGED");
+        }
+
+        // Still not an exclusion barrier against a hostile actor racing this
+        // check with ATOMIC_MOVE; no exactly-once or grant ACK is claimed.
         Files.move(pending, destination,
                    StandardCopyOption.ATOMIC_MOVE,
                    StandardCopyOption.REPLACE_EXISTING);
