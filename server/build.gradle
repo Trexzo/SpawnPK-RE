@@ -2277,6 +2277,10 @@ def currentTrainFocusedTests = [
     'spk.local.G2018TerminalAttemptFenceForeignWorldTest',
     'spk.local.G2019TerminalAttemptFenceFailureUncertaintyTest',
     'spk.local.G2020TerminalAttemptFenceCapacityFailClosedTest',
+    'spk.local.G2021AttemptFenceRefusalClassificationTest',
+    'spk.local.G2022AttemptFenceForeignAndCompletionRefusalsTest',
+    'spk.local.G2023AttemptFenceUncertainCompletionEvidenceTest',
+    'spk.local.G2024AttemptFenceCapacityRefusalRetentionTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2662,10 +2666,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 815 ||
-    currentTrainFocusedTests.toSet().size() != 815) {
+if (currentTrainFocusedTests.size() != 819 ||
+    currentTrainFocusedTests.toSet().size() != 819) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 815 unique tests, found " +
+        "Current-train focused manifest drift: expected 819 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -12129,4 +12133,43 @@ tasks.register('g21356ForcedWorldActiveNonceMutationBeforeMoveRegression', JavaE
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21356ForcedWorldActiveNonceMutationTest')
+}
+
+tasks.register('g2021AttemptFenceRefusalClassificationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real World canonical NPC experimental attempt fence refusal/observation audit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2021AttemptFenceRefusalClassificationTest')
+}
+
+
+tasks.register('g2022AttemptFenceForeignAndCompletionRefusalsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real World canonical NPC experimental attempt fence refusal/observation audit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2022AttemptFenceForeignAndCompletionRefusalsTest')
+}
+
+
+tasks.register('g2023AttemptFenceUncertainCompletionEvidenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real World canonical NPC experimental attempt fence refusal/observation audit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2023AttemptFenceUncertainCompletionEvidenceTest')
+}
+
+
+tasks.register('g2024AttemptFenceCapacityRefusalRetentionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real World canonical NPC experimental attempt fence refusal/observation audit.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2024AttemptFenceCapacityRefusalRetentionTest')
 }

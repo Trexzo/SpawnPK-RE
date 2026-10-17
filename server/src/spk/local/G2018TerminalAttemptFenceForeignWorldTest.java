@@ -38,6 +38,12 @@ public final class G2018TerminalAttemptFenceForeignWorldTest {
                         LocalLabExperimentalTerminalAttemptFence.Observation
                             .RESERVED_UNCERTAIN,
                     "foreign instance cannot consume original token");
+                G2017TerminalAttemptFenceRealDeathTest.check(
+                    other.snapshot().refusalCount(
+                        LocalLabExperimentalTerminalAttemptFence.Refusal.FOREIGN_FENCE)==1L&&
+                    source.snapshot().refusalCount(
+                        LocalLabExperimentalTerminalAttemptFence.Refusal.FOREIGN_FENCE)==0L,
+                    "foreign fence refusal is recorded only by refusing fence");
                 source.returned(token);
                 rejected=null;
                 try{source.threw(token,new IllegalStateException("late"));}

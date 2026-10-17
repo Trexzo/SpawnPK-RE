@@ -47,6 +47,13 @@ public final class G2019TerminalAttemptFenceFailureUncertaintyTest {
             G2017TerminalAttemptFenceRealDeathTest.check(
                 "TERMINAL_ATTEMPT_DUPLICATE_CONSUMER".equals(rejected),
                 "THREW consumer cannot automatically retry");
+            G2017TerminalAttemptFenceRealDeathTest.check(
+                fence.snapshot().refusalCount(
+                    LocalLabExperimentalTerminalAttemptFence.Refusal.DUPLICATE_CONSUMER)==1L&&
+                fence.snapshot().observationCount(
+                    LocalLabExperimentalTerminalAttemptFence.Observation
+                        .THREW_MUTATION_UNCERTAIN)==1L,
+                "failed consumer records one immutable uncertainty and one duplicate refusal");
             LocalLabExperimentalTerminalAttemptFence.Attempt g14=
                 fence.reserve(
                     terminal,LocalLabTerminalDeliveryAssessment.Consumer.G14);
