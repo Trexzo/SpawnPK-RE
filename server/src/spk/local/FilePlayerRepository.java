@@ -1477,9 +1477,16 @@ final class FilePlayerRepository
             // allocation. Without it a later failed witness could
             // follow an already-published account replacement.
             if(forceRealWorldPostimage&&
-               LocalFinalSaveNegativeWitness.enabled())
+               LocalFinalSaveNegativeWitness.enabled()){
                 LocalDurableAccountReviewIntentPrimitive
                     .requireReviewMarker(file);
+                // G21.357: a preexisting ACTIVE hardlink alias
+                // can mutate the same inode through another name.
+                // Reject before allocating any World temp.
+                LocalFinalSaveNegativeWitness.requireSingleObservedLink(
+                    LocalDurableAccountReviewIntentPrimitive.markerPath(file),
+                    "G21.357 WORLD_ACTIVE_REVIEW_HARDLINK_NEGATIVE");
+            }
             MailboxPreparedRestartAdmission.Decision admission=
                 MailboxPreparedRestartAdmission.inspect(snapshot);
             if(!admission.admissionAllowed)
@@ -1651,6 +1658,18 @@ final class FilePlayerRepository
                         if(forceRealWorldPostimage)
                             requireWorldActiveReviewUnchanged(
                                 file,originalActiveReview);
+                        // G21.358: marker inode and bytes can remain
+                        // identical while the link count increases
+                        // inside the guarded publication callback.
+                        // The post-move final witness rejects aliases
+                        // too late to preserve the old account file.
+                        if(forceRealWorldPostimage&&
+                           LocalFinalSaveNegativeWitness.enabled())
+                            LocalFinalSaveNegativeWitness
+                                .requireSingleObservedLink(
+                                    LocalDurableAccountReviewIntentPrimitive
+                                        .markerPath(file),
+                                    "G21.358 WORLD_ACTIVE_REVIEW_LATE_ALIAS_NEGATIVE");
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);
                         if(forceRealWorldPostimage){
