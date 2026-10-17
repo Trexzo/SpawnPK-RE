@@ -11,3 +11,7 @@ Certified baseline [#2938](https://github.com/Trexzo/SpawnPK-RE/pull/2938) exact
 All tests release the actual lease without claiming a FINAL save, keep any forced ACTIVE as operator-negative and perform NO marker retirement. Real account generation + binding use the same production interface seen in G21220. Manifest 857→860 focused, critical retention and three JavaExec tasks; Windows source-only workflow runs all three in addition to G21371–73 (it still does NOT run the entire 860).
 
 **Trust boundary:** Windows source smoke remains nlink unsupported and fail-closed; no final-save ACK, globally durable owner epoch, power-loss safe directory transaction, original pinned v308 client 179 parity, or GUI result is asserted. Exact-head Linux **860/860** full build and Windows targeted proof required before certification; `main` unchanged.
+
+## Test-only source classification
+
+The shared real-token scenario helper is deliberately named `G21374StrictOneShotTokenAdmissionFixtureTest.java` although its package-private class remains `G21374StrictOneShotTokenAdmissionFixture`. The established flat `server/build.gradle` compiles only `**/*Test.java` in its test sourceSet, so the fixture and its G21374–76 wrappers are all test-only and will NOT enter the production server JAR. This also avoids the exact G2046 subprocess-source misclassification already discovered and repaired in Chat 2's independent 863 lane.
