@@ -78,11 +78,13 @@ if ($probeLines.Count -ne 1) {
     throw "RELEASE_BOUNDARY_NLINK_PROBE_MISSING_OR_DUPLICATE"
 }
 $line = $probeLines[0]
-if ($line -cnotmatch '^SPK_NLINK_PROBE_STATUS=([A-Z_]+) strictWorldHardlinkGateUsable=(true|false)(?:\s|$)') {
+$probeMatch = [regex]::Match($line,
+    '^SPK_NLINK_PROBE_STATUS=([A-Z_]+) strictWorldHardlinkGateUsable=(true|false)(?:\s|$)')
+if (-not $probeMatch.Success) {
     throw "RELEASE_BOUNDARY_NLINK_PROBE_MALFORMED"
 }
-$status = $Matches[1]
-$usable = ($Matches[2] -ceq "true")
+$status = $probeMatch.Groups[1].Value
+$usable = ($probeMatch.Groups[2].Value -ceq "true")
 $negative = @(
     "UNSUPPORTED_UNIX_NLINK_PROVIDER", "UNSAFE_INITIAL_LINK_COUNT",
     "HARDLINK_CREATION_UNAVAILABLE", "HARDLINK_CREATION_FAILED",
