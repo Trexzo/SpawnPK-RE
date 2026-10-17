@@ -120,10 +120,11 @@ final class LocalFinalSaveNegativeWitness {
      * G21.319/320: refuse a selected inode with multiple current
      * hardlink names. A file key and stable SHA are insufficient if
      * an additional alias can later mutate the same storage object.
+     * G21.357/358: also applies to pre-move ACTIVE identity evidence.
      * Unsupported unix:nlink is UNKNOWN/negative, not a single-link
      * assertion. This is NOT a hostile-writer atomic fence.
      */
-    private static void requireSingleObservedLink(
+    static void requireSingleObservedLink(
         Path selected,String code
     )throws IOException{
         requireSourceIdentity(selected,code);
