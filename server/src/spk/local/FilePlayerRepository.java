@@ -1641,6 +1641,16 @@ final class FilePlayerRepository
                         // exclusion of nonparticipating processes.
                         LocalFinalSaveNegativeWitness
                             .requireNoNegativeWitness(file);
+                        // G21.355/356: a still-canonical ACTIVE marker may
+                        // have changed inode or nonce DURING the guarded
+                        // World publication callback. The post-move
+                        // G21.275 check detects it too late to preserve
+                        // the previous disk account. Fail BEFORE the
+                        // account ATOMIC_MOVE on observed drift.
+                        // This is NOT a global ownership epoch or ACK.
+                        if(forceRealWorldPostimage)
+                            requireWorldActiveReviewUnchanged(
+                                file,originalActiveReview);
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);
                         if(forceRealWorldPostimage){
