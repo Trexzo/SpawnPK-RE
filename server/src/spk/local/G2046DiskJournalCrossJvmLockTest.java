@@ -29,7 +29,7 @@ public final class G2046DiskJournalCrossJvmLockTest {
             UUID.randomUUID().toString() + ".log");
         ProcessBuilder command = new ProcessBuilder(javaExe, "-cp",
             System.getProperty("java.class.path"),
-            "spk.local.G2046DiskJournalChildWorker", mode,
+            "spk.local.G2046DiskJournalChildWorkerTest", mode,
             dir.toString(), marker.toString(), id.toString());
         command.redirectErrorStream(true);
         command.redirectOutput(log.toFile());
