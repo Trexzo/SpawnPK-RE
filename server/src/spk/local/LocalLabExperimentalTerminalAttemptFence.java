@@ -56,6 +56,9 @@ final class LocalLabExperimentalTerminalAttemptFence {
 
     static final class Attempt {
         final EntityId npcId;
+        final int definitionId;
+        final Tile deathTile;
+        final long spawnRecipientGeneration;
         final long deathTick;
         final String recipientRef;
         final LocalLabSettledDeathEnvelope.OriginStatus originStatus;
@@ -71,6 +74,9 @@ final class LocalLabExperimentalTerminalAttemptFence {
         ){
             this.owner=owner;
             npcId=envelope.npcId;
+            definitionId=envelope.definitionId;
+            deathTile=envelope.deathTile;
+            spawnRecipientGeneration=envelope.spawnRecipientGeneration;
             deathTick=envelope.deathTick;
             recipientRef=envelope.recipientRef;
             originStatus=envelope.originStatus;
@@ -139,9 +145,12 @@ final class LocalLabExperimentalTerminalAttemptFence {
             for(Attempt token:existing.values()){
                 // Same id/tick/name with different finalized metadata must
                 // fail before treating the second record as valid evidence.
-                if(token.originStatus!=death.originStatus)
+                if(token.originStatus!=death.originStatus||
+                   token.definitionId!=death.definitionId||
+                   !Objects.equals(token.deathTile,death.deathTile)||
+                   token.spawnRecipientGeneration!=death.spawnRecipientGeneration)
                     throw new IllegalStateException(
-                        "TERMINAL_ATTEMPT_CONFLICTING_ORIGIN_EVIDENCE");
+                        "TERMINAL_ATTEMPT_CONFLICTING_DEATH_EVIDENCE");
             }
             if(existing.containsKey(checked))
                 throw new IllegalStateException(
