@@ -1707,6 +1707,17 @@ final class FilePlayerRepository
                                 .requireSingleObservedLinkIfPresent(file,
                                     "G21.365 WORLD_ACCOUNT_LATE_ALIAS_NEGATIVE");
                         }
+                        // G21.367/368: World temp identity and SHA do
+                        // not reveal a new hardlink to that same inode.
+                        // A linked temp becomes an externally mutable
+                        // account inode after ATOMIC_MOVE. Fail before
+                        // publication, never infer exclusive ownership
+                        // solely from stable bytes/fileKey metadata.
+                        if(forceRealWorldPostimage&&
+                           LocalFinalSaveNegativeWitness.enabled())
+                            LocalFinalSaveNegativeWitness
+                                .requireSingleObservedLink(tmp,
+                                    "G21.367 WORLD_TEMP_ALIAS_PREMOVE_NEGATIVE");
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);
                         if(forceRealWorldPostimage){
@@ -1722,6 +1733,14 @@ final class FilePlayerRepository
                                 afterForcedWorldMoveForTest.run(worldAccount);
                                 forceAndVerifyWorldPostimage(
                                     file,sealedWorldTemp);
+                                // G21.369: a new hardlink can be added
+                                // to the published NEW account inode
+                                // after the temp gate. Postmove denial
+                                // is uncertain evidence, NOT rollback.
+                                if(LocalFinalSaveNegativeWitness.enabled())
+                                    LocalFinalSaveNegativeWitness
+                                        .requireSingleObservedLink(file,
+                                            "G21.369 WORLD_POSTIMAGE_ALIAS_UNCERTAIN");
                                 requireWorldActiveReviewUnchanged(
                                     file,originalActiveReview);
                                 requireUnfencedWorldSave(

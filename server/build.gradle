@@ -2369,6 +2369,10 @@ def currentTrainFocusedTests = [
     'spk.local.G21364ForcedWorldExistingAccountAliasTest',
     'spk.local.G21365ForcedWorldLateAccountAliasTest',
     'spk.local.G21366ForcedWorldForeignAccountAliasControlTest',
+    'spk.local.G21367ForcedWorldPrelockTempAliasTest',
+    'spk.local.G21368ForcedWorldInsideLockTempAliasTest',
+    'spk.local.G21369ForcedWorldPostmoveAliasTest',
+    'spk.local.G21370ForcedWorldForeignTempAliasControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2680,10 +2684,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 833 ||
-    currentTrainFocusedTests.toSet().size() != 833) {
+if (currentTrainFocusedTests.size() != 837 ||
+    currentTrainFocusedTests.toSet().size() != 837) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 833 unique tests, found " +
+        "Current-train focused manifest drift: expected 837 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2882,6 +2886,12 @@ currentTrainCriticalCoverage['g21353-forced-world-active-premove'] = [
 currentTrainCriticalCoverage['g21355-forced-world-active-identity-premove'] = [
     'spk.local.G21355ForcedWorldActiveInodeSwapTest',
     'spk.local.G21356ForcedWorldActiveNonceMutationTest',
+]
+currentTrainCriticalCoverage['g21370-forced-world-temp-hardlink'] = [
+    'spk.local.G21367ForcedWorldPrelockTempAliasTest',
+    'spk.local.G21368ForcedWorldInsideLockTempAliasTest',
+    'spk.local.G21369ForcedWorldPostmoveAliasTest',
+    'spk.local.G21370ForcedWorldForeignTempAliasControlTest',
 ]
 currentTrainCriticalCoverage['g21366-forced-world-account-hardlink'] = [
     'spk.local.G21364ForcedWorldExistingAccountAliasTest',
@@ -12340,4 +12350,40 @@ tasks.register('g2028DiskAttemptWitnessRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2028DiskAttemptJournalCapacityRetentionTest')
+}
+
+tasks.register('g21367ForcedWorldTempHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.367: forced World temp/new-account hardlink publication evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21367ForcedWorldPrelockTempAliasTest')
+}
+
+tasks.register('g21368ForcedWorldTempHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.368: forced World temp/new-account hardlink publication evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21368ForcedWorldInsideLockTempAliasTest')
+}
+
+tasks.register('g21369ForcedWorldTempHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.369: forced World temp/new-account hardlink publication evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21369ForcedWorldPostmoveAliasTest')
+}
+
+tasks.register('g21370ForcedWorldTempHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.370: forced World temp/new-account hardlink publication evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21370ForcedWorldForeignTempAliasControlTest')
 }
