@@ -135,7 +135,7 @@ try {
     Write-Probe "no qualified observation"
     Assert-Rejected "missing-nlink-probe"
 
-    Write-Host "SPK_WINDOWS_RELEASE_BOUNDARY_CONTRACT_PASS validBlocked=2 falsifiedOrMalformedRejected=13 genuineClientSpoofed=false"
+    Write-Host "SPK_WINDOWS_RELEASE_BOUNDARY_CONTRACT_PASS validBlocked=2 falsifiedOrMalformedRejected=14 genuineClientSpoofed=false"
 }
 finally {
     if ([IO.Directory]::Exists($root)) {
