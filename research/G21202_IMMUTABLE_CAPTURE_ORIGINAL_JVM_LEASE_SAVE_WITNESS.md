@@ -1,0 +1,21 @@
+# Chat 1 G21.202 — immutable capture-time JVM lease identity on queued normal/final saves
+
+## Certified exact parent
+
+Base: [G21.201 + Chat 2 G18.6.2 cumulative Draft #2631](https://github.com/Trexzo/SpawnPK-RE/pull/2631) HEAD `2dfaed122b33b88e25730514338153a3ec5e9968`, hosted [Actions #38712878786](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38712878786) **SUCCESS** with 508 unique focused regressions / Java11 major55 and full Gradle. Corrected G21.201 core #2630 HEAD `ee966420ffa9441fe92e341615dfb41e535db189`, hosted Actions #38712416326 SUCCESS. Both corrected the G21.184 real unleased World A admitted before late enabling JVM lease B. The documented unsafe late-toggle stale overwrite remains deliberately reproduced; no positive recovery or original SpawnPK rule authority.
+
+## Narrow new guard
+
+G21.201 asked which opt-in lease currently holds an account path **at worker execution time**. G21.202 adds immutable in-JVM `LocalJvmAccountSessionLease.SaveCaptureWitness` to `WorldPlayerPersistence.CapturedSave` and each queued normal/final `SaveTask`. Real World-owned capture stamps the actual `WorldPlayer`, captured generation, exact account name/path, and the identity of the exact JVM lease `Token` then held. This is not an exported token, crypto credential, durable epoch or disk receipt. On the existing FIFO worker, immediately before FilePlayerRepository.saveForWorld, `requireCapturedWitnessBeforeWrite` checks the immutable witness and compares the **original Token object** to the currently held Token; if missing/replaced/released, it refuses rather than downgrading a leased capture into a no-lease write. A mismatched captured owner/account/generation is refused. A final save still validates its captured generation after unregister, not live `owner.accepts()`.
+
+**Three distinct origins:** (1) exact current opt-in token on capture, identity-fenced at worker; (2) a genuinely previously admitted default-OFF World with the original weak player/path/gen registration witness from G21.201, deliberately allowed the existing unleased late-toggle behavior (not a security fix); (3) other/manual World adapter captures that have no known earlier token and use the existing G21.201 worker fallback. `CheckpointDrainTask`, prepared/strict/mailbox special write lanes, non-file adapters and raw OS writers remain uncovered by this G21.202 guard.
+
+## Positive and negative evidence
+
+New `G21202CoreSaveCaptureOriginalLeaseWitnessTest` reuses real synthetic 317/ISAAC TCP login and the previously forced World final-save test. A manual capture witness from the exact live registered WorldPlayer is recognized, while a separate same-name WorldPlayer and an incorrect generation cannot reuse that witness. After manual probe counter boundary, healthy disconnect must produce a **new real asynchronous final SaveTask** guard hit attributable to a captured Token; the forced account mutation persists; healthy opt-in lease releases. Rechecking that prior captured witness after release must throw `G21.202 SAVE_CAPTURE_ORIGINAL_LEASE_LOST_OR_REPLACED`. The independent G21.190 ACTIVE sidecar still refuses next World TCP login and prior G21.184 legacy late-toggle characterization is unchanged. Test does not inject an actual foreign SaveTask into the FIFO; those negatives directly invoke the same worker check.
+
+## Certification
+
+Minimal changed files against #2631: `LocalJvmAccountSessionLease.java`, `WorldPlayerPersistence.java`, new G21.202 Java test, `server/build.gradle` focused **508→509 unique** and dedicated task, this research note. No Chat 2 G18.6.2, gameplay production, `World`, `LocalSession`, FilePlayerRepository, flags, client or main change. Require **fresh exact-head CI** for `G21202_ORIGINAL_LEASE_CAPTURE_WITNESS_PASS`, `G21184_LATE_ENABLE_PASS`, `G21201_WORKER_SAVE_OWNER_BINDING_PASS`, Chat2 G1862, 509/509, Java11 major55 and full Gradle. Draft/unmerged until CI checked.
+
+Limits: this is JVM identity only, not crash durability, account write compare-and-set, original session epoch across processes, owner-authorized forced postimage receipt, ACTIVE review retirement or a safe recovery/replay path. No power-loss or hostile raw-writer exclusion. #2540/#2559 account durability and #2587 gameplay outbox remain open.

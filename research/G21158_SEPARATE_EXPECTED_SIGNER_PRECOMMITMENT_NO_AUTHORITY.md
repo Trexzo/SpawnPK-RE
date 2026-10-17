@@ -1,0 +1,23 @@
+# G21.158 — separately supplied expected signer precommitment (NO AUTHORITY)
+
+**Certified parent:** [G21.157 Draft PR #2494](https://github.com/Trexzo/SpawnPK-RE/pull/2494), exact `d98cd27d03c72539caf3ebb9892b8c1c887a7b9a`, [Actions #38367316452](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38367316452) SUCCESS, Java 11 focused 457/457, full Gradle. Issue #2495.
+
+## Security gap and limited repair
+
+G21.157 verifies a P-256 SHA256withECDSA detached signature over the complete bounded historical report, but accepts both a candidate public key and **its own** SHA-256 fingerprint from a single caller. Thus an attacker can forge a coherent retained history, generate a new P-256 keypair, sign it and claim a matching self-derived fingerprint; the verification is mathematically valid but proves no independent provenance.
+
+G21.158 introduces `MailboxPrecommittedCandidateSignerPinV1.verifyAgainstSeparatePrecommitment`. In addition to the G21.157 inputs, a **distinct expected account** and **distinct expected lowercase 64-character SHA-256 public-key fingerprint** are required. A mismatched account, missing/invalid expected pin, malformed candidate pin, or candidate pin that differs from the expected pin **vetoes before** invoking G21.157. If those checks pass, the previous G21.157 verification still re-hashes the supplied X.509 candidate public key, checks the full retained-report preflight, validates account binding and verifies P-256 ECDSA math. A candidate signed with an attacker-owned key is **rejected** against a different separately expected key fingerprint even if it is mathematically self-consistent.
+
+This is a boundary for future independent provisioning, **not** the independent provisioner. The method cannot know who supplied the expected precommitted pin; callers may still control both expected and candidate fingerprints, so a self-signed forged report can satisfy the check when the attacker supplies their own expected pin. The only successful status is `MATCHED_UNTRUSTED_PRECOMMITMENT_NO_AUTHORITY`, with **all** independent source authentication, externally trusted signer, historical/raw/default/future writer exclusion, crash-safe atomic epoch, cleanup, grant, replay, session, release and ACK fields fixed **false**. No trust anchor store, secure key rotation, capture-time custody proof or production signer exists here. No signature generation or private keys in production code.
+
+## Focused Java 11 regression
+
+New `G21158MailboxPrecommittedSignerPinIntegrationTest` constructs historical/current retained four-capture reports from six real NOFOLLOW physical fixture files and the inherited G21.156-consistent portable snapshots. Two ephemeral P-256 test signers simulate an original candidate key and an attacker-controlled key. **Thirteen** checked negative cases include: a substituted signer mismatching an independently expected owner pin; wrong precommitment account; missing, malformed or uppercase precommitment; malformed candidate fingerprint; illegal precommitment account; caller falsely claiming the original fingerprint for attacker key; wrong signature; truncated signature; changed and rehashed historical portable bytes invalidating the previous signature; attacker re-signing changed history but mismatching the owner precommitment; and missing fileKey uncertainty. In all cases, failure stays checked with `UNSAFE_NO_AUTHORITY`.
+
+Two deliberately **positive but untrusted** adversarial controls: attacker-owned key, signature and matching attacker-supplied expected precommitment for the original history, and the same for an internally coherently modified history. Both pass candidate math but all provenance and recovery authority flags remain false. The test restores all mutated in-memory objects in `finally`, reconfirms the original valid owner precommitment and healthy observational MATCH, and checks **zero JVM leases/watches**.
+
+**Acceptance:** dedicated `g21158MailboxPrecommittedSignerPinRegression`, Java 11 bytecode major 55, focused **458/458** and full exact-head GitHub Actions Gradle success. Never infer success from unrun code.
+
+## Still unresolved
+
+Operator-authenticated original trust-root provisioning, independent signing-key custody, authenticated historical capture time, trusted signature replay/revocation handling, old/raw/default/future writer exclusion, atomic multi-file power-loss epoch, and all grant/prune/cleanup/rollover/replay/session/release/ACK permissions. The G21.129 original scanner, OS lifecycle lease, on-disk writer and real reward flow remain unchanged. Frozen R25 PR #1847 and G21.87/88 untouched; keep the PR **Draft/unmerged**.

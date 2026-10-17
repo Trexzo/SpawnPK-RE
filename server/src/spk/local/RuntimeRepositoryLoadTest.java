@@ -12,8 +12,11 @@ public final class RuntimeRepositoryLoadTest {
         System.out.println(
             "RUNTIME_REPOSITORY_LOAD_PASS "+
             "validStagedLoad=true "+
+            "loadedClassified=true "+
             "malformedNoPartialMutation=true "+
-            "missingKeepsDefaults=true"
+            "failedClassified=true "+
+            "missingKeepsDefaults=true "+
+            "missingClassified=true"
         );
     }
 
@@ -68,9 +71,15 @@ public final class RuntimeRepositoryLoadTest {
                 "[load-test] "
             );
 
-        if(!result.loaded)
+        if(!result.loaded||
+           result.missing||
+           result.failed||
+           result.status!=
+               LocalAccountLifecycle
+                   .LoadStatus.LOADED)
             throw new AssertionError(
-                "valid repository snapshot not loaded"
+                "valid repository snapshot classification "+
+                result.status
             );
 
         if(live.movement().runEnergy()!=64||
@@ -144,9 +153,15 @@ public final class RuntimeRepositoryLoadTest {
                 "[load-test] "
             );
 
-        if(result.loaded)
+        if(result.loaded||
+           result.missing||
+           !result.failed||
+           result.status!=
+               LocalAccountLifecycle
+                   .LoadStatus.FAILED)
             throw new AssertionError(
-                "malformed snapshot reported loaded"
+                "malformed snapshot classification "+
+                result.status
             );
 
         if(!live.movement().persistentRun()||
@@ -191,9 +206,15 @@ public final class RuntimeRepositoryLoadTest {
                 "[load-test] "
             );
 
-        if(result.loaded)
+        if(result.loaded||
+           !result.missing||
+           result.failed||
+           result.status!=
+               LocalAccountLifecycle
+                   .LoadStatus.MISSING)
             throw new AssertionError(
-                "missing snapshot reported loaded"
+                "missing snapshot classification "+
+                result.status
             );
 
         if(live.movement().runEnergy()!=77)

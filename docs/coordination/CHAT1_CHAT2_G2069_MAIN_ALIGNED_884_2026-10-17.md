@@ -1,0 +1,11 @@
+# Cumulative main-aligned 884 focused: Chat2 G2064–69 dual-observation change detection
+
+Core: Chat1 integration PR #2952 exact d9d49f365d721dcff5890655f5222961e4cdbaa6 (878-test main-aligned candidate with real G21374–76 Windows fail-closed fixture and Chat2 G2058–63 operator CLI). Donor: Chat2 PR #2953 exact ab6007bf24cc58ac076386afe06da59ea8631376 (884 candidate). Shared donor/base: 946ee1285a206bb889d4cb95911ff105471cda9f (fully certified 878/878, Linux and Windows source-only). Journal forensic production Git blob in core was verified IDENTICAL to shared 878 parent before overlay.
+
+Eight donor NON-BUILD blobs imported byte-for-byte: LocalLabExperimentalDiskJournalForensics.java; six G2064–69 genuine NPC/NIO read-only consistency tests; Chat2 engineering note. Only overlap server/build.gradle reconciled into 884 unique class manifest, six individual JavaExec tasks and critical retention, preserving all G21374–76, G2046–63, Windows evidence SHA, owner-account hardening and original client negative gates.
+
+Core change performs two successive unlocked DirectoryStream bounded record/lock reads and compares private exact file bytes + fileKey and root directory key. Detects observed between-pass same-byte inode replacement, valid in-place recomputed checksum stage rewrite, newly orphan pending temp, same-byte lock inode replacement, and redirected symlink ancestor. G2064 positive genuine NPC death observation remains readable as UNAUTHENTICATED history. Doesn't create/delete/repair/lock journal or expose event contents.
+
+The change does NOT solve hostile two-pass TOCTOU or authenticated server NPC identity, cross-JVM owner epoch, durable per-consumer reward grant+ACK, directory fsync or restart-safe replay. No Chat1 account production, World, actual reward/consumer code, Windows workflow or original client source touched. Windows unix:nlink remains unsupported; original v308 GUI and 179 gate not run.
+
+Gate: own exact-head hosted 884/884 Linux, G2064–69 PASS plus all prior critical markers, Java11 major 55/full Gradle, Windows targeted source-only G21374–76 and v308 negative evidence. Draft and unmerged, main unchanged. This is alternative cumulative work dependent on main-aligned review tree; do not merge historical snapshots together.

@@ -1,0 +1,9 @@
+# G21.252 — forced RAW vs cooperating Mailbox marker publication lock
+
+Parent [G21.251 #2756](https://github.com/Trexzo/SpawnPK-RE/pull/2756) exact `9b92b6b44cd7bd538dfddcb078e2c5a97f572579` (599 focused candidate, independent hosted CI required). G21.251 checks G21.32/47/48 sidecar presence and G21.188 ACTIVE under held G21.185 OS account session RAW lock, but Mailbox marker publishers use a **separate** G21.39 per-account publication lock. A marker may have been created *between* forced RAW's last negative check and its ATOMIC_MOVE without shared locking.
+
+G21.252 moves the G21.248 forced raw's final ancestry/negative marker checks, account atomic replacement, parent-directory force and postimage/OS-lock-continuity recheck under `MailboxAccountPublicationCoordinator.withExclusivePublication(exactAccount)`, while retaining the G21.185 session OS RAW reservation across the whole operation. Same session→G21.39 ordering as existing World writes; unique temp serialization and FileChannel.force are done *before* entering this per-account section. This coordinates cooperating G21.32/G21.47/G21.48 marker publishers without changing default direct RAW writers or strict writer behavior.
+
+G21.252 has a package-scoped test-only before-move latch after marker checks, inside the held G21.39 lock. A real concurrent marker publisher trying the same G21.39 lock cannot place its negative marker before forced RAW moves. When writer releases, marker publishes, and the NEXT forced save refuses the marker, preserving just-published account bytes. Verify no locks/reservations leaked. **599→600** focused, own Java11/full Gradle required.
+
+This does not coordinate uncooperative external processes, malicious .publication.lck object-name replacement, durable session epoch, post-crash active intent release, final-save ACK, original SpawnPK mailbox grants or safe account recovery. Remain DRAFT/unmerged.

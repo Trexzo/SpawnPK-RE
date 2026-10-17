@@ -1,0 +1,11 @@
+# G21.92 — World-owned recovery write reservation and worker FIFO barrier (NO ADMISSION)
+
+**Certified parent:** G21.91 `c599e650525a6ded5b6d048abf4a6982db9c1f7d`, [Actions #38055789125](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38055789125) SUCCESS, 391/391 focused Java 11. Tracking [#2363](https://github.com/Trexzo/SpawnPK-RE/issues/2363).
+
+An opt-in, **actual** `WorldPlayerPersistence.reserveCommittedRecovery` now reserves a canonical account for a currently-owned generation and a snapshot-equal, never-hydrated fresh World player. The exclusive in-memory token immediately fences ordinary, deferred, queued, final and autosave writes on the existing persistence worker; it also rejects strict PREPARED worker writes. It enqueues a FIFO barrier on the SAME worker and reports the barrier only after preceding worker tasks finish. Duplicate/overlapping reservations and worker rejection cannot leave an orphaned fence. Read-only G21.91 two-disk/two-World auditing occurs **after** the FIFO barrier, with no disk work inside World locks.
+
+Cancellation is explicit and only succeeds with a completed barrier, same token, same still-registered World generation and exact unchanged player snapshot. Retirement, mutation or uncertain worker status retains the quarantine. This does **not** weaken the separate G21.87 restart-session veto or G21.88 disk COMMIT World-save veto.
+
+Real-disk test creates PREPARED journal + strict terminal + disk COMMIT, injects an in-flight blocking World load on the single persistence worker and proves the new reservation's barrier waits behind it, then verifies duplicate/early cancellation denial, exact G21.91 audit, actual World-command save rejection, unchanged account/journal/COMMIT bytes and original UNCLAIMED inventory. It verifies safe cancellation of an untouched fresh owner and fail-closed retention after logout. Java 11 focused 391 -> 392, standalone `g2192MailboxRecoveryWriteFenceRegression`.
+
+**Limit:** This is only a single-process cooperating persistence-worker write exclusion, not a global process lock, hardware crash guarantee, or atomic disk/World handoff. Other processes/raw writers are not controlled. No actual live adoption, normal session admission, reward claim, inventory grant, replay, release or ACK. Keep R25 #1847 untouched and PR Draft/unmerged pending exact-head CI.

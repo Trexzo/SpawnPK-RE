@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * Owns the exact current interface-close and widget-action routing that was
@@ -11,6 +12,60 @@ import java.util.Objects;
  * does not own sockets, persistence implementation, or logout loop control.
  */
 final class LocalSessionUiActionHandler {
+    static final class MonsterSpawnerDispatch {
+        final boolean admitted;
+        final boolean closedUi;
+        final LocalMonsterSpawnerUiHandler.Result result;
+
+        private MonsterSpawnerDispatch(
+            boolean admitted,
+            boolean closedUi,
+            LocalMonsterSpawnerUiHandler.Result result
+        ){
+            this.admitted=admitted;
+            this.closedUi=closedUi;
+            this.result=result;
+        }
+
+        static MonsterSpawnerDispatch admitted(
+            LocalMonsterSpawnerUiHandler.Result result
+        ){
+            return new MonsterSpawnerDispatch(
+                true,
+                false,
+                result
+            );
+        }
+
+        static MonsterSpawnerDispatch closedUi(){
+            return new MonsterSpawnerDispatch(
+                true,
+                true,
+                null
+            );
+        }
+
+        static MonsterSpawnerDispatch rejected(){
+            return new MonsterSpawnerDispatch(
+                false,
+                false,
+                null
+            );
+        }
+    }
+
+    interface RootInterfaceAction {
+        String publish() throws IOException;
+    }
+
+    interface RootInterfaceBooleanAction {
+        boolean publish() throws IOException;
+    }
+
+    interface RootCommitAction {
+        void commit();
+    }
+
     interface SessionBridge {
         void saveAccount(String tag,String reason);
         void clearDialogNumberKeys();
@@ -27,6 +82,377 @@ final class LocalSessionUiActionHandler {
             ServerPacketWriter serverPackets,
             String tag
         )throws IOException{}
+        default void handleTeleportNavigation(
+            TeleportNavigationService.EntryKind kind,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{}
+        default void handleMonsterSpawnerResult(
+            LocalMonsterSpawnerUiHandler.Result result,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{}
+
+        default MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            LocalMonsterSpawnerUiHandler.Result result=
+                Objects.requireNonNull(
+                    handler,
+                    "handler"
+                ).handle(
+                    widget,
+                    serverPackets
+                );
+
+            if(result!=null)
+                handleMonsterSpawnerResult(
+                    result,
+                    serverPackets,
+                    tag
+                );
+
+            return MonsterSpawnerDispatch.admitted(
+                result
+            );
+        }
+
+        default MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter serverPackets,
+            String tag,
+            BooleanSupplier uiOpen
+        )throws IOException{
+            if(!Objects.requireNonNull(
+                    uiOpen,
+                    "uiOpen"
+                ).getAsBoolean())
+                return MonsterSpawnerDispatch.closedUi();
+
+            return handleMonsterSpawnerWidget(
+                handler,
+                widget,
+                serverPackets,
+                tag
+            );
+        }
+
+        default boolean closeMonsterSpawnerUi(
+            BooleanSupplier closeAction
+        )throws IOException{
+            return Objects.requireNonNull(
+                closeAction,
+                "closeAction"
+            ).getAsBoolean();
+        }
+
+        default String replaceMonsterSpawnerRoot(
+            RootInterfaceAction action
+        )throws IOException{
+            return Objects.requireNonNull(
+                action,
+                "action"
+            ).publish();
+        }
+
+        default boolean retireMakeoverDesignerRoot(){
+            return false;
+        }
+
+        default boolean retireLootingBagRoot(){
+            return false;
+        }
+
+        default boolean retireTournamentRoot(){
+            return false;
+        }
+
+        default boolean retireDuelRoot(){
+            return false;
+        }
+
+        default boolean retireQuickPrayerRoot(){
+            return false;
+        }
+
+        default boolean retireEventChestRoot(){
+            return false;
+        }
+
+        default boolean retireGoodwillWellRoot(){
+            return false;
+        }
+
+        default boolean retireLotteryRoot(){
+            return false;
+        }
+
+        default boolean retireUnclaimedCofferRoot(){
+            return false;
+        }
+
+        default boolean retireBloodFountainRoot(){
+            return false;
+        }
+
+        default boolean retireLegendaryPetFusionRoot(){
+            return false;
+        }
+
+        default boolean openLegendaryPetFusion(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalLegendaryPetFusionUiHandler.Result
+            handleLegendaryPetFusionWidget(
+                LegendaryPetFusionPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default boolean retireItemEnchantmentRoot(){
+            return false;
+        }
+
+        default boolean openItemEnchantmentCategories(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalItemEnchantmentUiHandler.Result
+            handleItemEnchantmentCategory(
+                ItemEnchantmentPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default LocalItemEnchantmentUiHandler.Result
+            handleItemEnchantmentInput(
+                ItemEnchantmentPresentation.Input input,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws IOException{
+            return handleItemEnchantmentCategory(
+                input,
+                tag
+            );
+        }
+
+        default boolean retireDonorPanelRoot(){
+            return false;
+        }
+
+        default boolean openDonorPanel(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalDonorPanelUiHandler.Result
+            handleDonorPanelIntent(
+                DonorPanelPresentation.Intent intent,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default LocalDonorPanelUiHandler.Result
+            handleDonorPanelLiveIntent(
+                DonorPanelPresentation.Intent intent,
+                String tag
+            )throws IOException{
+            return handleDonorPanelIntent(
+                intent,
+                tag
+            );
+        }
+
+        default boolean retireDonationCartRoot(){
+            return false;
+        }
+
+        default boolean openDonationCart(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalDonationCartUiHandler.Result
+            handleDonationCartInput(
+                DonationCartPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default boolean openBloodFountainHub(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalBloodFountainUiHandler.HubResult
+            handleBloodFountainHubIntent(
+                BloodFountainHubService.Intent intent,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default LocalBloodFountainUiHandler.SalvageResult
+            handleBloodShardSalvageWidget(
+                BloodShardSalvagePresentation.Intent intent,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default LocalBloodFountainUiHandler.FuserResult
+            handleBloodDiamondFuserWidget(
+                BloodDiamondFuserPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default boolean openUnclaimedCoffer(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalUnclaimedRewardCofferUiHandler.Result
+            handleUnclaimedCofferBulk(
+                UnclaimedRewardCofferPresentation.BulkIntent intent,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default boolean openLottery(
+            LotteryService.Channel channel,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalLotteryUiHandler.Result
+            handleLotteryEntry(
+                LotteryService.Channel channel,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default boolean openGoodwillWell(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalGoodwillWellUiHandler.Result
+            handleGoodwillWellWidget(
+                GoodwillWellPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default boolean openEventChest(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default LocalEventChestUiHandler.Result
+            handleEventChestWidget(
+                EventChestService.Action action,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default boolean openQuickPrayer(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default String handleQuickPrayerOff(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return null;
+        }
+
+        default String handleQuickPrayerWidget(
+            int widget,
+            String tag
+        )throws IOException{
+            return null;
+        }
+
+        default boolean openPkRatings(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default PkRatingsService.Snapshot
+            handlePkRatingsNavigation(
+                PkRatingsService.Navigation navigation,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default LocalDuelUiHandler.Result
+            handleDuelWidget(
+                NormalDuelPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default LocalTournamentUiHandler.Result
+            handleTournamentWidget(
+                TournamentPresentation.Input input,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
+        default LocalBloodSlayerUiHandler.Result
+            handleBloodSlayerWidget(
+                BloodSlayerPresentation.Input input,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws IOException{
+            return null;
+        }
+
         void requestLogout();
     }
 
@@ -37,9 +463,28 @@ final class LocalSessionUiActionHandler {
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
+    private volatile LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
+    private volatile boolean monsterSpawnerUiOpen;
+    private volatile boolean bloodSlayerUiOpen;
+    private volatile boolean pkRatingsUiOpen;
+    private volatile boolean quickPrayerUiOpen;
+    private volatile boolean eventChestUiOpen;
+    private volatile boolean goodwillWellUiOpen;
+    private volatile boolean lotteryUiOpen;
+    private volatile boolean unclaimedCofferUiOpen;
+    private volatile boolean bloodFountainUiOpen;
+    private volatile boolean legendaryPetFusionUiOpen;
+    private volatile boolean itemEnchantmentUiOpen;
+    private volatile boolean itemEnchantmentMainUiOpen;
+    private volatile boolean donorPanelUiOpen;
+    private volatile boolean donationCartUiOpen;
+    private final LocalBossTeleportUiHandler bossTeleportUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
+    private volatile LocalDailyMoneyMakingUiHandler
+        dailyMoneyMakingUi;
+    private boolean dailyMoneyMakingUiBound;
     private final SessionBridge bridge;
 
     LocalSessionUiActionHandler(
@@ -55,7 +500,74 @@ final class LocalSessionUiActionHandler {
         EquipmentState equipment,
         SessionBridge bridge
     ){
+        this(
+            worldPlayer,
+            itemLibrary,
+            devPanel,
+            bank,
+            compCapeCustomize,
+            petDialogs,
+            gameplayWidgetHandler,
+            movement,
+            movementEnabled,
+            equipment,
+            null,
+            null,
+            bridge
+        );
+    }
+
+    LocalSessionUiActionHandler(
+        WorldPlayer worldPlayer,
+        NativeItemLibraryService itemLibrary,
+        DevControlCenter devPanel,
+        BankState bank,
+        LocalCompCapeCustomizeHandler compCapeCustomize,
+        LocalPetInventoryDialogHandler petDialogs,
+        LocalGameplayWidgetHandler gameplayWidgetHandler,
+        MovementState movement,
+        boolean movementEnabled,
+        EquipmentState equipment,
+        LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler,
+        SessionBridge bridge
+    ){
+        this(
+            worldPlayer,
+            itemLibrary,
+            devPanel,
+            bank,
+            compCapeCustomize,
+            petDialogs,
+            gameplayWidgetHandler,
+            movement,
+            movementEnabled,
+            equipment,
+            monsterSpawnerUiHandler,
+            null,
+            bridge
+        );
+    }
+
+    LocalSessionUiActionHandler(
+        WorldPlayer worldPlayer,
+        NativeItemLibraryService itemLibrary,
+        DevControlCenter devPanel,
+        BankState bank,
+        LocalCompCapeCustomizeHandler compCapeCustomize,
+        LocalPetInventoryDialogHandler petDialogs,
+        LocalGameplayWidgetHandler gameplayWidgetHandler,
+        MovementState movement,
+        boolean movementEnabled,
+        EquipmentState equipment,
+        LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler,
+        LocalBossTeleportUiHandler bossTeleportUiHandler,
+        SessionBridge bridge
+    ){
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
+        this.dailyMoneyMakingUi=
+            new LocalDailyMoneyMakingUiHandler(
+                this.worldPlayer
+            );
         this.itemLibrary=Objects.requireNonNull(itemLibrary,"itemLibrary");
         this.devPanel=Objects.requireNonNull(devPanel,"devPanel");
         this.bank=Objects.requireNonNull(bank,"bank");
@@ -64,10 +576,164 @@ final class LocalSessionUiActionHandler {
         this.petDialogs=Objects.requireNonNull(petDialogs,"petDialogs");
         this.gameplayWidgetHandler=Objects.requireNonNull(
             gameplayWidgetHandler,"gameplayWidgetHandler");
+        this.monsterSpawnerUiHandler=monsterSpawnerUiHandler;
+        this.bossTeleportUiHandler=bossTeleportUiHandler;
         this.movement=Objects.requireNonNull(movement,"movement");
         this.movementEnabled=movementEnabled;
         this.equipment=Objects.requireNonNull(equipment,"equipment");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
+    }
+
+    /**
+     * Attach a post-login adapter only after World registration and account
+     * restoration. This replaces the pre-login UI shell without losing the
+     * existing G18.3 difficulty-persistence contract.
+     */
+    synchronized void installDailyMoneyMakingUiHandler(
+        LocalDailyMoneyMakingUiHandler handler
+    ){
+        Objects.requireNonNull(handler,"handler");
+        if(dailyMoneyMakingUiBound)
+            throw new IllegalStateException(
+                "Daily Money Making UI already installed");
+        dailyMoneyMakingUi=handler;
+        dailyMoneyMakingUiBound=true;
+    }
+
+    synchronized void installMonsterSpawnerUiHandler(
+        LocalMonsterSpawnerUiHandler adapter
+    ){
+        LocalMonsterSpawnerUiHandler checked=
+            Objects.requireNonNull(
+                adapter,
+                "adapter"
+            );
+
+        if(monsterSpawnerUiHandler==null){
+            monsterSpawnerUiHandler=checked;
+            return;
+        }
+
+        if(monsterSpawnerUiHandler!=checked)
+            throw new IllegalStateException(
+                "Monster Spawner UI adapter already installed"
+            );
+    }
+
+    static LocalDailyMoneyMakingUiHandler.Result
+        dispatchDailyMoneyMakingWidget(
+            LocalDailyMoneyMakingUiHandler handler,
+            int widget,
+            ServerPacketWriter serverPackets
+        )throws IOException{
+        DailyMoneyMakingPresentation.Input input=
+            DailyMoneyMakingPresentation
+                .resolveWidget(
+                    widget
+                );
+
+        if(input==null)
+            return null;
+
+        return Objects.requireNonNull(
+            handler,
+            "handler"
+        ).handle(
+            input,
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            )
+        );
+    }
+
+    boolean openMonsterSpawnerIfConfigured(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        LocalMonsterSpawnerUiHandler configured=
+            monsterSpawnerUiHandler;
+
+        if(configured==null)
+            return false;
+
+        configured.open(
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            )
+        );
+        itemLibrary.close();
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        monsterSpawnerUiOpen=true;
+        return true;
+    }
+
+    boolean openBossTeleportIfConfigured(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        LocalBossTeleportUiHandler configured=
+            bossTeleportUiHandler;
+
+        if(configured==null)
+            return false;
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishBossTeleportRootForOwnedSession(
+                        ()->
+                            configured
+                                .open(
+                                    Objects.requireNonNull(
+                                        serverPackets,
+                                        "serverPackets"
+                                    )
+                                )
+                                .detail
+                    )
+            );
+
+        return result!=null;
+    }
+
+    boolean openBloodSlayer(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        String result=
+            replaceMonsterSpawnerRoot(
+                ()->{
+                    BloodSlayerPresentation.open(
+                        Objects.requireNonNull(serverPackets,"serverPackets")
+                    );
+                    return "BLOOD_SLAYER_ROOT_OPENED";
+                }
+            );
+
+        if(result==null)
+            return false;
+
+        bloodSlayerUiOpen=true;
+        return true;
     }
 
     void handleInterfaceClose(
@@ -87,6 +753,64 @@ final class LocalSessionUiActionHandler {
             devPanel.isOpen()||devPanel.hasPending();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+
+        boolean monsterSpawnerWasOpen=
+            bridge.closeMonsterSpawnerUi(
+                ()->{
+                    boolean wasOpen=
+                        monsterSpawnerUiOpen;
+                    monsterSpawnerUiOpen=false;
+                    return wasOpen;
+                }
+            );
+
+        boolean bossTeleportWasOpen=
+            closeBossTeleportUi();
+
+        boolean bloodSlayerWasOpen=bloodSlayerUiOpen;
+        bloodSlayerUiOpen=false;
+
+        boolean pkRatingsWasOpen=pkRatingsUiOpen;
+        pkRatingsUiOpen=false;
+
+        boolean quickPrayerWasOpen=
+            retireQuickPrayerUi();
+
+        boolean eventChestWasOpen=
+            retireEventChestUi();
+
+        boolean goodwillWellWasOpen=
+            retireGoodwillWellUi();
+
+        boolean lotteryWasOpen=
+            retireLotteryUi();
+
+        boolean unclaimedCofferWasOpen=
+            retireUnclaimedCofferUi();
+
+        boolean bloodFountainWasOpen=
+            retireBloodFountainUi();
+
+        boolean legendaryPetFusionWasOpen=
+            retireLegendaryPetFusionUi();
+
+        boolean itemEnchantmentWasOpen=
+            retireItemEnchantmentUi();
+
+        boolean donorPanelWasOpen=
+            retireDonorPanelUi();
+
+        boolean donationCartWasOpen=
+            retireDonationCartUi();
+
+        boolean lootingBagWasOpen=
+            bridge.retireLootingBagRoot();
+
+        boolean tournamentWasOpen=
+            bridge.retireTournamentRoot();
+
+        boolean duelWasOpen=
+            bridge.retireDuelRoot();
 
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
@@ -113,6 +837,27 @@ final class LocalSessionUiActionHandler {
             " tradeWasOpen="+tradeWasOpen+
             " itemLibraryWasOpen="+itemLibraryWasOpen+
             " devPanelWasOpen="+devPanelWasOpen+
+            " monsterSpawnerWasOpen="+monsterSpawnerWasOpen+
+            " bossTeleportWasOpen="+bossTeleportWasOpen+
+            " bloodSlayerWasOpen="+bloodSlayerWasOpen+
+            " pkRatingsWasOpen="+pkRatingsWasOpen+
+            " quickPrayerWasOpen="+quickPrayerWasOpen+
+            " eventChestWasOpen="+eventChestWasOpen+
+            " goodwillWellWasOpen="+goodwillWellWasOpen+
+            " lotteryWasOpen="+lotteryWasOpen+
+            " unclaimedCofferWasOpen="+unclaimedCofferWasOpen+
+            " bloodFountainWasOpen="+bloodFountainWasOpen+
+            " legendaryPetFusionWasOpen="+
+                legendaryPetFusionWasOpen+
+            " itemEnchantmentWasOpen="+
+                itemEnchantmentWasOpen+
+            " donorPanelWasOpen="+
+                donorPanelWasOpen+
+            " donationCartWasOpen="+
+                donationCartWasOpen+
+            " lootingBagWasOpen="+lootingBagWasOpen+
+            " tournamentWasOpen="+tournamentWasOpen+
+            " duelWasOpen="+duelWasOpen+
             " petColorWasOpen="+petColorWasOpen+
             " miniConfigWasOpen="+miniConfigWasOpen+
             " petAccessoryWasOpen="+petAccessoryWasOpen+
@@ -136,7 +881,69 @@ final class LocalSessionUiActionHandler {
             return;
         }
 
+        LocalDailyMoneyMakingUiHandler.Result
+            dailyMoneyMaking=
+                dispatchDailyMoneyMakingWidget(
+                    dailyMoneyMakingUi,
+                    widget,
+                    serverPackets
+                );
+
+        if(dailyMoneyMaking!=null){
+            System.out.println(
+                tag+
+                "G182_DAILY_MONEY_MAKING_WIDGET"+
+                " widget="+widget+
+                " input="+
+                    dailyMoneyMaking.input+
+                " status="+
+                    dailyMoneyMaking.status+
+                " changed="+
+                    dailyMoneyMaking.stateChanged+
+                " selected="+
+                    dailyMoneyMaking.snapshot
+                        .selectedDifficulty+
+                " trackedObjective="+
+                    dailyMoneyMaking.snapshot
+                        .trackedObjectiveKey+
+                " routeAuthority="+
+                    LocalDailyMoneyMakingUiHandler
+                        .AUTHORITY+
+                " rootClaim=false"+
+                " rewardPolicyClaim=false"+
+                " progressPolicyClaim=false"+
+                " persistenceClaim=false"
+            );
+            return;
+        }
+
         if(devPanel.isOpen()&&isDevPanelWidget(widget)){
+            if(isDevPanelRootReplacementWidget(
+                    widget
+                )){
+                String replaced=
+                    replaceMonsterSpawnerRoot(
+                        ()->{
+                            bridge.handleDevPanelWidget(
+                                widget,
+                                serverPackets,
+                                tag
+                            );
+                            return "DEV_PANEL_ROOT_REPLACED";
+                        }
+                    );
+
+                if(replaced==null)
+                    System.out.println(
+                        tag+
+                        "V5171_DEV_PANEL widget="+
+                        widget+
+                        " result=LIFECYCLE_REJECTED"
+                    );
+
+                return;
+            }
+
             bridge.handleDevPanelWidget(
                 widget,
                 serverPackets,
@@ -147,10 +954,24 @@ final class LocalSessionUiActionHandler {
 
         if(widget==NativeEquipmentDeathUi.EQUIPMENT_STATS_BUTTON){
             String result=
-                NativeEquipmentDeathUi.openEquipmentStats(
-                    serverPackets,
-                    equipment
+                replaceMonsterSpawnerRoot(
+                    ()->
+                        NativeEquipmentDeathUi.openEquipmentStats(
+                            serverPackets,
+                            equipment
+                        )
                 );
+
+            if(result==null){
+                System.out.println(
+                    tag+
+                    "V5140_EQUIPMENT_STATS widget="+
+                    widget+
+                    " result=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
             System.out.println(
                 tag+"V5140_EQUIPMENT_STATS widget="+widget+
                 " result="+result
@@ -160,14 +981,839 @@ final class LocalSessionUiActionHandler {
 
         if(widget==NativeEquipmentDeathUi.DEATH_BUTTON){
             String result=
-                NativeEquipmentDeathUi.openDeathPreview(
-                    serverPackets,
-                    bank,
-                    equipment
+                replaceMonsterSpawnerRoot(
+                    ()->
+                        NativeEquipmentDeathUi.openDeathPreview(
+                            serverPackets,
+                            bank,
+                            equipment
+                        )
                 );
+
+            if(result==null){
+                System.out.println(
+                    tag+
+                    "V5140_DEATH_PREVIEW widget="+
+                    widget+
+                    " result=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
+            );
+            return;
+        }
+
+        if(donationCartUiOpen){
+            DonationCartPresentation.Input cartInput=
+                DonationCartPresentation.resolveWidget(
+                    widget
+                );
+
+            if(cartInput!=null){
+                LocalDonationCartUiHandler.Result result=
+                    bridge.handleDonationCartInput(
+                        cartInput,
+                        tag
+                    );
+
+                System.out.println(
+                    tag+
+                    "G1313_DONATION_CART widget="+
+                    widget+
+                    " kind="+cartInput.kind+
+                    " productIndex="+
+                    cartInput.productIndex+
+                    " delta="+
+                    cartInput.quantityDelta+
+                    " paymentMode="+
+                    cartInput.paymentMode+
+                    " status="+
+                    (result==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :result.status)+
+                    " succeeded="+
+                    (result!=null&&result.succeeded)+
+                    " catalogClaim=false"+
+                    " pricingClaim=false"+
+                    " checkoutClaim=false"+
+                    " paymentProcessingClaim=false"
+                );
+                return;
+            }
+        }
+
+        if(donorPanelUiOpen){
+            DonorPanelPresentation.Intent donorIntent=
+                DonorPanelPresentation.resolveWidget(
+                    widget
+                );
+
+            if(donorIntent!=null){
+                LocalDonorPanelUiHandler.Result result=
+                    bridge.handleDonorPanelLiveIntent(
+                        donorIntent,
+                        tag
+                    );
+
+                boolean cartOpened=false;
+
+                if(result!=null&&
+                   "NAVIGATE_DONATION_CART".equals(
+                       result.status)){
+                    String opened=
+                        replaceMonsterSpawnerWithDonationCartRoot(
+                            ()->{
+                                boolean published=
+                                    bridge.openDonationCart(
+                                        serverPackets,
+                                        tag
+                                    );
+
+                                return published
+                                    ?"DONATION_CART_ROOT_OPENED"
+                                    :null;
+                            }
+                        );
+
+                    cartOpened=opened!=null;
+                }
+
+                System.out.println(
+                    tag+
+                    "G1315_DONOR_PANEL widget="+
+                    widget+
+                    " intent="+donorIntent+
+                    " status="+
+                    (result==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :result.status)+
+                    " succeeded="+
+                    (result!=null&&result.succeeded)+
+                    " cartOpened="+cartOpened+
+                    " donorRootOpen="+donorPanelUiOpen+
+                    " donationCartRootOpen="+
+                        donationCartUiOpen+
+                    " paymentClaim=false"+
+                    " entitlementClaim=false"+
+                    " shopPolicyClaim=false"+
+                    " teleportPolicyClaim=false"+
+                    " originalNavigationClaim=false"
+                );
+                return;
+            }
+        }
+
+        if(itemEnchantmentUiOpen){
+            int activeRoot=
+                itemEnchantmentMainUiOpen
+                    ?ItemEnchantmentPresentation.MAIN_ROOT
+                    :ItemEnchantmentPresentation.CATEGORY_ROOT;
+
+            ItemEnchantmentPresentation.Input enchantmentInput=
+                ItemEnchantmentPresentation.resolveWidget(
+                    activeRoot,
+                    widget
+                );
+
+            if(enchantmentInput!=null){
+                LocalItemEnchantmentUiHandler.Result result=
+                    bridge.handleItemEnchantmentInput(
+                        enchantmentInput,
+                        serverPackets,
+                        tag
+                    );
+
+                if(result!=null&&
+                   "NAVIGATED_TO_EMPTY_MAIN".equals(
+                       result.status))
+                    itemEnchantmentMainUiOpen=true;
+                else if(result!=null&&
+                        "NAVIGATED_TO_CATEGORIES".equals(
+                            result.status))
+                    itemEnchantmentMainUiOpen=false;
+
+                System.out.println(
+                    tag+
+                    "G1314_ITEM_ENCHANTMENT widget="+
+                    widget+
+                    " activeRoot="+activeRoot+
+                    " kind="+enchantmentInput.kind+
+                    " category="+enchantmentInput.category+
+                    " status="+
+                    (result==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :result.status)+
+                    " succeeded="+
+                    (result!=null&&result.succeeded)+
+                    " mainRootOpen="+
+                    itemEnchantmentMainUiOpen+
+                    " catalogClaim=false"+
+                    " recipeClaim=false"+
+                    " searchTransportClaim=false"
+                );
+                return;
+            }
+        }
+
+        if(legendaryPetFusionUiOpen){
+            LegendaryPetFusionPresentation.Input petFusionInput=
+                LegendaryPetFusionPresentation.resolveWidget(
+                    LegendaryPetFusionPresentation.ROOT,
+                    widget
+                );
+
+            if(petFusionInput!=null){
+                LocalLegendaryPetFusionUiHandler.Result result=
+                    bridge.handleLegendaryPetFusionWidget(
+                        petFusionInput,
+                        tag
+                    );
+
+                if(result!=null&&
+                   result.kind==
+                        LegendaryPetFusionPresentation
+                            .InputKind.CLOSE&&
+                   result.succeeded)
+                    legendaryPetFusionUiOpen=false;
+
+                System.out.println(
+                    tag+
+                    "G1310_LEGENDARY_PET_FUSION widget="+
+                    widget+
+                    " kind="+petFusionInput.kind+
+                    " status="+
+                    (result==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :result.status)+
+                    " succeeded="+
+                    (result!=null&&result.succeeded)+
+                    " offeringClaim=false"+
+                    " legacyDefaultsUsed=false"+
+                    " rngClaim=false"
+                );
+                return;
+            }
+        }
+
+        BloodFountainHubService.Intent bloodFountainIntent=
+            BloodFountainHubPresentation.resolveWidget(
+                widget
+            );
+
+        if(bloodFountainIntent!=null){
+            if(!bloodFountainUiOpen){
+                System.out.println(
+                    tag+
+                    "G136_BLOOD_FOUNTAIN_HUB widget="+
+                    widget+
+                    " intent="+bloodFountainIntent+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalBloodFountainUiHandler.HubResult result=
+                bridge.handleBloodFountainHubIntent(
+                    bloodFountainIntent,
+                    serverPackets,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G136_BLOOD_FOUNTAIN_HUB widget="+
+                widget+
+                " intent="+bloodFountainIntent+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " navigated="+
+                (result!=null&&result.navigated)+
+                " targetMechanicsClaim=false"
+            );
+            return;
+        }
+
+        if(bloodFountainUiOpen){
+            BloodDiamondFuserPresentation.Input fuserInput=
+                BloodDiamondFuserPresentation.resolveWidget(
+                    widget
+                );
+
+            if(fuserInput!=null){
+                LocalBloodFountainUiHandler.FuserResult result=
+                    bridge.handleBloodDiamondFuserWidget(
+                        fuserInput,
+                        tag
+                    );
+
+                System.out.println(
+                    tag+
+                    "G137_BLOOD_DIAMOND_FUSER widget="+
+                    widget+
+                    " kind="+fuserInput.kind+
+                    " row="+fuserInput.rowIndex+
+                    " status="+
+                    (result==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :result.status)+
+                    " succeeded="+
+                    (result!=null&&result.succeeded)+
+                    " recipeBindingClaim=false"+
+                    " costClaim=false"+
+                    " cyclePolicyClaim=false"+
+                    " outcomeClaim=false"
+                );
+                return;
+            }
+        }
+
+        BloodShardSalvagePresentation.Intent salvageIntent=
+            BloodShardSalvagePresentation.resolveWidget(
+                widget
+            );
+
+        if(salvageIntent!=null){
+            if(!bloodFountainUiOpen){
+                System.out.println(
+                    tag+
+                    "G136_BLOOD_SHARD_SALVAGE widget="+
+                    widget+
+                    " intent="+salvageIntent+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalBloodFountainUiHandler.SalvageResult result=
+                bridge.handleBloodShardSalvageWidget(
+                    salvageIntent,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G136_BLOOD_SHARD_SALVAGE widget="+
+                widget+
+                " intent="+salvageIntent+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " recipeClaim=false"+
+                " yieldClaim=false"+
+                " guideContentClaim=false"
+            );
+            return;
+        }
+
+        UnclaimedRewardCofferPresentation.BulkIntent cofferBulk=
+            UnclaimedRewardCofferPresentation.resolveWidget(
+                widget
+            );
+
+        if(cofferBulk!=null){
+            if(!unclaimedCofferUiOpen){
+                System.out.println(
+                    tag+
+                    "G135_UNCLAIMED_COFFER_UI widget="+
+                    widget+
+                    " destination="+
+                    cofferBulk.destination+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalUnclaimedRewardCofferUiHandler.Result result=
+                bridge.handleUnclaimedCofferBulk(
+                    cofferBulk,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G135_UNCLAIMED_COFFER_UI widget="+
+                widget+
+                " destination="+
+                cofferBulk.destination+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " rewardDeliveryClaim=false"+
+                " inventoryMutationClaim=false"+
+                " bankMutationClaim=false"
+            );
+            return;
+        }
+
+        LotteryService.Channel lotteryChannel=
+            LotteryPresentation.resolveEntryWidget(
+                widget
+            );
+
+        if(lotteryChannel!=null){
+            if(!lotteryUiOpen){
+                System.out.println(
+                    tag+
+                    "G133_LOTTERY_UI widget="+
+                    widget+
+                    " channel="+lotteryChannel+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalLotteryUiHandler.Result result=
+                bridge.handleLotteryEntry(
+                    lotteryChannel,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G133_LOTTERY_UI widget="+
+                widget+
+                " channel="+lotteryChannel+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " entryEconomicsClaim=false"+
+                " rngClaim=false"+
+                " prizeClaim=false"
+            );
+            return;
+        }
+
+        GoodwillWellPresentation.Input goodwillInput=
+            GoodwillWellPresentation.resolveWidget(
+                widget
+            );
+
+        if(goodwillInput!=null){
+            if(!goodwillWellUiOpen){
+                System.out.println(
+                    tag+
+                    "G132_GOODWILL_UI widget="+
+                    widget+
+                    " kind="+goodwillInput.kind+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalGoodwillWellUiHandler.Result result=
+                bridge.handleGoodwillWellWidget(
+                    goodwillInput,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G132_GOODWILL_UI widget="+
+                widget+
+                " kind="+goodwillInput.kind+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " contributionAssetClaim=false"+
+                " goalClaim=false"+
+                " rewardClaim=false"
+            );
+            return;
+        }
+
+        EventChestService.Action eventChestAction=
+            EventChestPresentation.resolveAction(
+                widget
+            );
+
+        if(eventChestAction!=null){
+            if(!eventChestUiOpen){
+                System.out.println(
+                    tag+
+                    "G131_EVENT_CHEST_UI widget="+
+                    widget+
+                    " action="+eventChestAction+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalEventChestUiHandler.Result result=
+                bridge.handleEventChestWidget(
+                    eventChestAction,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G131_EVENT_CHEST_UI widget="+
+                widget+
+                " action="+eventChestAction+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :result.status)+
+                " succeeded="+
+                (result!=null&&result.succeeded)+
+                " mechanicsClaim=false"+
+                " rewardClaim=false"+
+                " rngClaim=false"
+            );
+            return;
+        }
+
+        if(widget==
+                QuickPrayerSelectionPresentation.QUICK_OFF_WIDGET){
+            String result=
+                bridge.handleQuickPrayerOff(
+                    serverPackets,
+                    tag
+                );
+
+            System.out.println(
+                tag+
+                "G122_QUICK_PRAYER_OFF widget="+
+                widget+
+                " status="+
+                (result==null
+                    ?"UNCONFIGURED_HANDLER_NOOP"
+                    :"CURRENT_BOOK_DEACTIVATED")+
+                " detail="+
+                (result==null?"none":result)+
+                " scopePolicy=LOCAL_LAB_CURRENT_PRAYER_BOOK"+
+                " quickOn5000Claim=false"+
+                " originalSpawnpkOffScopeClaim=false"
+            );
+            return;
+        }
+
+        if(widget==
+                QuickPrayerSelectionPresentation.SELECT_WIDGET){
+            final boolean[] opened={false};
+
+            String result=
+                replaceMonsterSpawnerWithQuickPrayerRoot(
+                    ()->{
+                        opened[0]=
+                            bridge.openQuickPrayer(
+                                serverPackets,
+                                tag
+                            );
+                        return opened[0]
+                            ?"QUICK_PRAYER_ROOT_OPENED"
+                            :"QUICK_PRAYER_ROOT_UNAVAILABLE";
+                    }
+                );
+
+            System.out.println(
+                tag+
+                "G121_QUICK_PRAYER_OPEN widget="+
+                widget+
+                " status="+
+                (result==null
+                    ?"LIFECYCLE_REJECTED"
+                    :opened[0]
+                        ?"OPENED"
+                        :"UNAVAILABLE")+
+                " normalRoot="+
+                QuickPrayerSelectionPresentation.NORMAL_ROOT+
+                " curseRoot="+
+                QuickPrayerSelectionPresentation.CURSES_ROOT+
+                " rootSelectionPolicy=LOCAL_LAB_CURRENT_PRAYER_BOOK"+
+                " originalSpawnpkRootPolicyClaim=false"
+            );
+            return;
+        }
+
+        if(QuickPrayerSelectionPresentation
+                .isSelectionWidget(widget)){
+            if(!quickPrayerUiOpen){
+                System.out.println(
+                    tag+
+                    "G121_QUICK_PRAYER_SELECTION widget="+
+                    widget+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            String action=
+                bridge.handleQuickPrayerWidget(
+                    widget,
+                    tag
+                );
+
+            if(action!=null&&
+               widget==
+                    QuickPrayerSelectionPresentation
+                        .CONFIRM_WIDGET)
+                quickPrayerUiOpen=false;
+
+            System.out.println(
+                tag+
+                "G121_QUICK_PRAYER_SELECTION widget="+
+                widget+
+                " status="+
+                (action==null
+                    ?"UNATTACHED_NOOP"
+                    :"HANDLED")+
+                " action="+
+                (action==null?"none":action)+
+                " activationClaim=false"+
+                " selectedConfigClaim=false"
+            );
+            return;
+        }
+
+        BloodSlayerPresentation.Input bloodSlayerInput=
+            BloodSlayerPresentation.resolveWidget(widget);
+
+        if(bloodSlayerInput!=null){
+            if(!bloodSlayerUiOpen){
+                System.out.println(
+                    tag+"G4_BLOOD_SLAYER_UI widget="+widget+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalBloodSlayerUiHandler.Result result=
+                bridge.handleBloodSlayerWidget(
+                    bloodSlayerInput,
+                    serverPackets,
+                    tag
+                );
+
+            if(result==null){
+                System.out.println(
+                    tag+"G4_BLOOD_SLAYER_UI widget="+widget+
+                    " status=UNCONFIGURED_HANDLER_NOOP"
+                );
+                return;
+            }
+
+            System.out.println(
+                tag+"G4_BLOOD_SLAYER_UI widget="+widget+
+                " status="+result.status+
+                " mode="+result.mode+
+                " c2s="+BloodSlayerPresentation.WIDGET_ACTION_OPCODE+
+                " authority="+LocalBloodSlayerUiHandler.AUTHORITY
+            );
+            return;
+        }
+
+        PkRatingsPresentation.Input pkRatingsInput=
+            PkRatingsPresentation.resolveWidget(
+                widget
+            );
+
+        if(pkRatingsInput!=null){
+            if(pkRatingsInput.kind==
+                    PkRatingsPresentation.InputKind
+                        .OPEN_RATINGS_TAB){
+                final boolean[] opened={false};
+
+                String result=
+                    replaceMonsterSpawnerWithPkRatingsRoot(
+                        ()->{
+                            opened[0]=
+                                bridge.openPkRatings(
+                                    serverPackets,
+                                    tag
+                                );
+                            return opened[0]
+                                ?"PK_RATINGS_ROOT_OPENED"
+                                :"PK_RATINGS_ROOT_UNAVAILABLE";
+                        }
+                    );
+
+                System.out.println(
+                    tag+
+                    "G112_PK_RATINGS_NATIVE_TAB widget="+
+                    widget+
+                    " status="+
+                    (result==null
+                        ?"LIFECYCLE_REJECTED"
+                        :opened[0]
+                            ?"OPENED"
+                            :"UNAVAILABLE")+
+                    " root="+
+                    PkRatingsPresentation.RATINGS_ROOT+
+                    " subtype="+
+                    PkRatingsPresentation.APPLICATION_SUBTYPE+
+                    " presentationAuthority="+
+                    PkRatingsPresentation.PRESENTATION_AUTHORITY+
+                    " gameplayAuthority="+
+                    LocalPkRatingsUiHandler.AUTHORITY+
+                    " dailyNavigationClaim=false"+
+                    " tournamentNavigationClaim=false"+
+                    " rowSelectionClaim=false"
+                );
+                return;
+            }
+
+            if(pkRatingsInput.kind==
+                    PkRatingsPresentation.InputKind
+                        .NAVIGATE){
+                if(!pkRatingsUiOpen){
+                    System.out.println(
+                        tag+
+                        "G113_PK_RATINGS_NAV widget="+
+                        widget+
+                        " status=CLOSED_UI_NOOP"
+                    );
+                    return;
+                }
+
+                PkRatingsService.Snapshot snapshot=
+                    bridge.handlePkRatingsNavigation(
+                        pkRatingsInput.navigation,
+                        serverPackets,
+                        tag
+                    );
+
+                System.out.println(
+                    tag+
+                    "G113_PK_RATINGS_NAV widget="+
+                    widget+
+                    " status="+
+                    (snapshot==null
+                        ?"UNCONFIGURED_HANDLER_NOOP"
+                        :"READ_ONLY_VIEW")+
+                    " navigation="+
+                    pkRatingsInput.navigation+
+                    " scoreClaim=false"+
+                    " rankingOrderClaim=false"+
+                    " rowSelectionClaim=false"
+                );
+                return;
+            }
+
+            if(pkRatingsInput.kind==
+                    PkRatingsPresentation.InputKind
+                        .SELECT_ROW){
+                System.out.println(
+                    tag+
+                    "G114_PK_RATINGS_ROW widget="+
+                    widget+
+                    " status="+
+                    (pkRatingsUiOpen
+                        ?"READ_ONLY_NOOP"
+                        :"CLOSED_UI_NOOP")+
+                    " row="+
+                    pkRatingsInput.rowIndex+
+                    " rowSelectionClaim=false"+
+                    " targetClaim=false"
+                );
+                return;
+            }
+        }
+
+        NormalDuelPresentation.Input duelInput=
+            NormalDuelPresentation.resolveSelectorWidget(
+                widget
+            );
+
+        if(duelInput!=null){
+            LocalDuelUiHandler.Result duel=
+                bridge.handleDuelWidget(
+                    duelInput,
+                    tag
+                );
+
+            if(duel==null){
+                System.out.println(
+                    tag+
+                    "G103_NORMAL_DUEL_UI widget="+
+                    widget+
+                    " status=UNCONFIGURED_HANDLER_NOOP"
+                );
+                return;
+            }
+
+            System.out.println(
+                tag+
+                "G103_NORMAL_DUEL_UI widget="+
+                widget+
+                " status="+duel.status+
+                " input="+duel.inputKind+
+                " mode="+duel.mode+
+                " target="+duel.targetRef+
+                " c2s="+
+                NormalDuelPresentation.WIDGET_ACTION_OPCODE+
+                " presentationAuthority="+
+                NormalDuelPresentation.PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLabDuelRuntime.AUTHORITY
+            );
+            return;
+        }
+
+        TournamentPresentation.Input tournamentInput=
+            TournamentPresentation.resolveWidget(
+                widget
+            );
+
+        if(tournamentInput!=null&&
+           tournamentInput.kind!=
+                TournamentPresentation.InputKind
+                    .LEADERBOARD_FILTER){
+            LocalTournamentUiHandler.Result
+                tournament=
+                    bridge.handleTournamentWidget(
+                        tournamentInput,
+                        tag
+                    );
+
+            if(tournament==null){
+                System.out.println(
+                    tag+
+                    "G91_TOURNAMENT_UI widget="+
+                    widget+
+                    " status=UNCONFIGURED_HANDLER_NOOP"
+                );
+                return;
+            }
+
+            System.out.println(
+                tag+
+                "G91_TOURNAMENT_UI widget="+
+                widget+
+                " status="+
+                tournament.status+
+                " input="+
+                tournament.inputKind+
+                " entrants="+
+                tournament.entrantCount+
+                " detail=["+
+                tournament.detail+
+                "] c2s="+
+                TournamentPresentation
+                    .WIDGET_ACTION_OPCODE+
+                " presentationAuthority="+
+                TournamentPresentation
+                    .PRESENTATION_AUTHORITY+
+                " gameplayAuthority="+
+                LocalLabTournamentRuntime
+                    .AUTHORITY
             );
             return;
         }
@@ -188,6 +1834,151 @@ final class LocalSessionUiActionHandler {
             System.out.println(
                 tag+"V5140_TRADE_WIDGET widget="+widget+
                 " result="+tradeWidget
+            );
+            return;
+        }
+
+        LocalMonsterSpawnerUiHandler configuredMonsterSpawner=
+            monsterSpawnerUiHandler;
+
+        if(configuredMonsterSpawner!=null&&
+           configuredMonsterSpawner.ownsWidget(
+                widget
+           )){
+            MonsterSpawnerDispatch dispatch=
+                bridge.handleMonsterSpawnerWidget(
+                    configuredMonsterSpawner,
+                    widget,
+                    serverPackets,
+                    tag,
+                    ()->monsterSpawnerUiOpen
+                );
+
+            if(!dispatch.admitted){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
+            if(dispatch.closedUi){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
+            LocalMonsterSpawnerUiHandler.Result monsterSpawner=
+                dispatch.result;
+
+            if(monsterSpawner!=null){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status="+
+                    monsterSpawner.status+
+                    " row="+
+                    monsterSpawner.rowIndex+
+                    " budget="+
+                    monsterSpawner.activationBudget
+                );
+                return;
+            }
+
+            System.out.println(
+                tag+
+                "MONSTER_SPAWNER_UI widget="+
+                widget+
+                " status=UNCONFIGURED_ROW_NOOP"
+            );
+            return;
+        }
+
+        LocalBossTeleportUiHandler configuredBossTeleport=
+            bossTeleportUiHandler;
+
+        if(configuredBossTeleport!=null&&
+           configuredBossTeleport.ownsWidget(
+                widget
+           )){
+            LocalBossTeleportUiHandler.Result boss=
+                configuredBossTeleport.handleWidget(
+                    widget,
+                    serverPackets,
+                    tag
+                );
+
+            boolean monsterSpawnerHandoff=false;
+
+            if(boss.status==
+                    LocalBossTeleportUiHandler.Status.TELEPORTED&&
+               boss.teleportSucceeded)
+                monsterSpawnerHandoff=
+                    openMonsterSpawnerIfConfigured(
+                        serverPackets
+                    );
+
+            System.out.println(
+                tag+
+                "G3_BOSS_TELEPORT_UI widget="+
+                widget+
+                " status="+
+                boss.status+
+                " row="+
+                boss.rowIndex+
+                " success="+
+                boss.teleportSucceeded+
+                " monsterSpawnerHandoff="+
+                monsterSpawnerHandoff+
+                " detail=["+
+                boss.detail+
+                "] authority="+
+                LocalBossTeleportUiHandler.POLICY_AUTHORITY
+            );
+            return;
+        }
+
+        TeleportNavigationService.EntryKind navigationKind=
+            TeleportNavigationWidgetAdapter.resolve(
+                widget
+            );
+
+        if(navigationKind!=null&&
+           navigationKind!=TeleportNavigationService.EntryKind.HOME){
+            if(navigationKind==
+                    TeleportNavigationService.EntryKind.BOSS&&
+               bossTeleportUiHandler!=null){
+                boolean opened=
+                    openBossTeleportIfConfigured(
+                        serverPackets
+                    );
+
+                System.out.println(
+                    tag+
+                    "G3_BOSS_TELEPORT_OPEN topLevelWidget="+
+                    widget+
+                    " opened="+
+                    opened+
+                    " root="+
+                    BossTeleportPresentation.ROOT+
+                    " directRelocation=false"+
+                    " authority="+
+                    LocalBossTeleportUiHandler.POLICY_AUTHORITY
+                );
+                return;
+            }
+
+            bridge.handleTeleportNavigation(
+                navigationKind,
+                serverPackets,
+                tag
             );
             return;
         }
@@ -278,6 +2069,1391 @@ final class LocalSessionUiActionHandler {
                 " action=CLOSE_BANK bankOpen="+bank.isOpen()
             );
         }
+    }
+
+    String replaceMonsterSpawnerRootCommand(
+        RootInterfaceBooleanAction publisher
+    )throws IOException{
+        RootInterfaceBooleanAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return replaceMonsterSpawnerRoot(
+            ()->
+                checked.publish()
+                    ?"ROOT_COMMAND_HANDLED"
+                    :"ROOT_COMMAND_NOT_HANDLED"
+        );
+    }
+
+    String replaceMonsterSpawnerWithItemLibraryRootCommand(
+        RootInterfaceBooleanAction publisher
+    )throws IOException{
+        RootInterfaceBooleanAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return replaceMonsterSpawnerWithItemLibraryRoot(
+            ()->
+                checked.publish()
+                    ?"ROOT_COMMAND_HANDLED"
+                    :"ROOT_COMMAND_NOT_HANDLED"
+        );
+    }
+
+    String publishDevPanelRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishBankRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishCompCapeRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishMakeoverRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishTradeRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishItemLibraryRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishCompetingRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        return result;
+    }
+
+    String publishDonationCartRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishDonorPanelRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishItemEnchantmentRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishLegendaryPetFusionRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishBloodFountainRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishUnclaimedCofferRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishLotteryRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishGoodwillWellRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishEventChestRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishQuickPrayerRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishLootingBagRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishTournamentRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireDuelRoot();
+
+        return result;
+    }
+
+    String publishDuelRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        closeBossTeleportUi();
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+
+        return result;
+    }
+
+    String publishBossTeleportRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        bloodSlayerUiOpen=false;
+        pkRatingsUiOpen=false;
+        retireQuickPrayerUi();
+        retireEventChestUi();
+        retireGoodwillWellUi();
+        retireLotteryUi();
+        retireUnclaimedCofferUi();
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+        itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+
+        bridge.retireLootingBagRoot();
+        bridge.retireTournamentRoot();
+        bridge.retireDuelRoot();
+        return result;
+    }
+
+    private boolean closeBossTeleportUi(){
+        LocalBossTeleportUiHandler configured=
+            bossTeleportUiHandler;
+
+        return configured!=null&&
+            configured.close();
+    }
+
+    String replaceMonsterSpawnerWithItemLibraryRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishItemLibraryRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithMakeoverRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishMakeoverRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithMakeoverRoot(
+        RootInterfaceAction publisher,
+        RootCommitAction commit
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+        RootCommitAction checkedCommit=
+            Objects.requireNonNull(
+                commit,
+                "commit"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->{
+                String result=
+                    publishMakeoverRootForOwnedSession(
+                        checked
+                    );
+                checkedCommit.commit();
+                return result;
+            }
+        );
+    }
+
+    String replaceMonsterSpawnerWithCompCapeRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishCompCapeRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithBankRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishBankRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithLootingBagRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishLootingBagRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithTournamentRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishTournamentRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithDuelRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishDuelRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    String replaceMonsterSpawnerWithDonationCartRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireDonationCartUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishDonationCartRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            donationCartUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithDonorPanelRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireDonorPanelUi();
+        retireDonationCartUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishDonorPanelRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            donorPanelUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithItemEnchantmentRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishItemEnchantmentRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null){
+            itemEnchantmentUiOpen=true;
+            itemEnchantmentMainUiOpen=false;
+        }
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithLegendaryPetFusionRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishLegendaryPetFusionRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            legendaryPetFusionUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithBloodFountainRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireBloodFountainUi();
+        retireLegendaryPetFusionUi();
+        retireItemEnchantmentUi();
+        retireDonorPanelUi();
+        retireDonationCartUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishBloodFountainRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            bloodFountainUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithUnclaimedCofferRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireUnclaimedCofferUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishUnclaimedCofferRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            unclaimedCofferUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithLotteryRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireLotteryUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishLotteryRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            lotteryUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithGoodwillWellRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireGoodwillWellUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishGoodwillWellRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            goodwillWellUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithEventChestRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireEventChestUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishEventChestRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            eventChestUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithQuickPrayerRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        retireQuickPrayerUi();
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishQuickPrayerRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            quickPrayerUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithPkRatingsRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        String result=
+            bridge.replaceMonsterSpawnerRoot(
+                ()->
+                    publishCompetingRootForOwnedSession(
+                        checked
+                    )
+            );
+
+        if(result!=null)
+            pkRatingsUiOpen=true;
+
+        return result;
+    }
+
+    String replaceMonsterSpawnerRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishCompetingRootForOwnedSession(
+                    checked
+                )
+        );
+    }
+
+    private boolean retireQuickPrayerUi(){
+        boolean wasOpen=quickPrayerUiOpen;
+        quickPrayerUiOpen=false;
+
+        return bridge.retireQuickPrayerRoot()||
+            wasOpen;
+    }
+
+    private boolean retireEventChestUi(){
+        boolean wasOpen=eventChestUiOpen;
+        eventChestUiOpen=false;
+
+        return bridge.retireEventChestRoot()||
+            wasOpen;
+    }
+
+    private boolean retireGoodwillWellUi(){
+        boolean wasOpen=goodwillWellUiOpen;
+        goodwillWellUiOpen=false;
+
+        return bridge.retireGoodwillWellRoot()||
+            wasOpen;
+    }
+
+    private boolean retireLotteryUi(){
+        boolean wasOpen=lotteryUiOpen;
+        lotteryUiOpen=false;
+
+        return bridge.retireLotteryRoot()||
+            wasOpen;
+    }
+
+    private boolean retireUnclaimedCofferUi(){
+        boolean wasOpen=unclaimedCofferUiOpen;
+        unclaimedCofferUiOpen=false;
+
+        return bridge.retireUnclaimedCofferRoot()||
+            wasOpen;
+    }
+
+    private boolean retireBloodFountainUi(){
+        boolean wasOpen=bloodFountainUiOpen;
+        bloodFountainUiOpen=false;
+
+        return bridge.retireBloodFountainRoot()||
+            wasOpen;
+    }
+
+    private boolean retireLegendaryPetFusionUi(){
+        boolean wasOpen=legendaryPetFusionUiOpen;
+        legendaryPetFusionUiOpen=false;
+
+        return bridge.retireLegendaryPetFusionRoot()||
+            wasOpen;
+    }
+
+    private boolean retireItemEnchantmentUi(){
+        boolean wasOpen=itemEnchantmentUiOpen;
+        itemEnchantmentUiOpen=false;
+        itemEnchantmentMainUiOpen=false;
+
+        return bridge.retireItemEnchantmentRoot()||
+            wasOpen;
+    }
+
+    private boolean retireDonorPanelUi(){
+        boolean wasOpen=donorPanelUiOpen;
+        donorPanelUiOpen=false;
+
+        return bridge.retireDonorPanelRoot()||
+            wasOpen;
+    }
+
+    private boolean retireDonationCartUi(){
+        boolean wasOpen=donationCartUiOpen;
+        donationCartUiOpen=false;
+
+        return bridge.retireDonationCartRoot()||
+            wasOpen;
+    }
+
+    private boolean isDevPanelRootReplacementWidget(
+        int widget
+    ){
+        if(devPanel.page()!=
+                DevControlCenter.Page.ITEMS)
+            return false;
+
+        int choice=widget-2482;
+
+        return choice==1||
+            choice==2;
     }
 
     static boolean isDevPanelWidget(int widget){

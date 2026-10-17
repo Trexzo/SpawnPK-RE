@@ -18,6 +18,35 @@ import spk.content.builtin.MakeoverMageDialogueContent;
  * active dialogue is invalidated when that source disappears or leaves range.
  */
 final class LocalMakeoverMageHandler {
+    @FunctionalInterface
+    interface DesignerRootAction {
+        void open() throws IOException;
+    }
+
+    @FunctionalInterface
+    interface DesignerRootCommit {
+        void commit();
+    }
+
+    @FunctionalInterface
+    interface DesignerRootOwner {
+        void publish(
+            DesignerRootAction action
+        ) throws IOException;
+
+        default void publish(
+            DesignerRootAction action,
+            DesignerRootCommit commit
+        ) throws IOException{
+            publish(
+                ()->{
+                    action.open();
+                    commit.commit();
+                }
+            );
+        }
+    }
+
     static final int NPC_ID=599;
     static final long APPROACH_TIMEOUT_MS=10_000L;
 
@@ -45,6 +74,9 @@ final class LocalMakeoverMageHandler {
 
     private boolean designActive;
     private String pendingDialogueOutcome;
+    private DesignerRootOwner designerRootOwner=
+        action->action.open();
+    private boolean designerRootOwnerInstalled;
 
     private Integer pendingScene;
     private NpcEntity pendingNpc;
@@ -115,6 +147,24 @@ final class LocalMakeoverMageHandler {
             createDialogueSession(
                 effectiveDialogueDefinition()
             );
+    }
+
+    void installDesignerRootOwner(
+        DesignerRootOwner owner
+    ){
+        DesignerRootOwner checked=
+            java.util.Objects.requireNonNull(
+                owner,
+                "owner"
+            );
+
+        if(designerRootOwnerInstalled)
+            throw new IllegalStateException(
+                "Make-over designer root owner already installed"
+            );
+
+        designerRootOwner=checked;
+        designerRootOwnerInstalled=true;
     }
 
     boolean beginIfSupported(
@@ -218,13 +268,13 @@ final class LocalMakeoverMageHandler {
                     target.x,
                     target.y)){
                 movement.clearQueuedPath();
-                clearPending(false);
                 openIntro(
                     target,
                     packets,
                     tag,
                     "SERVER_ARRIVAL"
                 );
+                clearPending(false);
                 return null;
             }
 
@@ -272,8 +322,9 @@ final class LocalMakeoverMageHandler {
                         ?-1
                         :distanceTo(target);
 
-                StandardDialoguePresentationAdapter
-                    .close(packets);
+                publishDialogueClose(
+                    packets
+                );
                 clearActive();
 
                 return "MAKEOVER_MAGE_DIALOG_CANCEL scene="+
@@ -365,16 +416,9 @@ final class LocalMakeoverMageHandler {
 
         pendingDialogueOutcome=null;
 
-        DialogueSessionService.Snapshot after=
-            dialogue.continueDialogue(
+        DialogueSessionService.PreparedTransition prepared=
+            dialogue.prepareContinue(
                 dialoguePlayerRef
-            );
-
-        if(!after.active||
-           !OPTIONS_NODE.equals(
-                after.nodeKey))
-            throw new IllegalStateException(
-                "Make-over Continue did not enter options"
             );
 
         if(takeDialogueOutcome()!=null)
@@ -387,6 +431,18 @@ final class LocalMakeoverMageHandler {
                 ContentRuntimeAdapters
                     .presentation(packets)
                     .dialogue()
+            );
+
+        DialogueSessionService.Snapshot after=
+            dialogue.commitPrepared(
+                prepared
+            );
+
+        if(!after.active||
+           !OPTIONS_NODE.equals(
+                after.nodeKey))
+            throw new IllegalStateException(
+                "Make-over Continue did not enter options"
             );
 
         System.out.println(
@@ -449,14 +505,9 @@ final class LocalMakeoverMageHandler {
                 )){
             pendingDialogueOutcome=null;
 
-            DialogueSessionService.Snapshot ended=
-                dialogue.close(
+            DialogueSessionService.PreparedTransition prepared=
+                dialogue.prepareClose(
                     dialoguePlayerRef
-                );
-
-            if(ended.active)
-                throw new IllegalStateException(
-                    "Make-over close did not end semantic dialogue"
                 );
 
             String outcome=takeDialogueOutcome();
@@ -471,6 +522,17 @@ final class LocalMakeoverMageHandler {
 
             StandardDialoguePresentationAdapter
                 .close(packets);
+
+            DialogueSessionService.Snapshot ended=
+                dialogue.commitPrepared(
+                    prepared
+                );
+
+            if(ended.active)
+                throw new IllegalStateException(
+                    "Make-over close did not end semantic dialogue"
+                );
+
             clearActive();
 
             System.out.println(
@@ -489,15 +551,9 @@ final class LocalMakeoverMageHandler {
 
         pendingDialogueOutcome=null;
 
-        DialogueSessionService.Snapshot ended=
-            dialogue.chooseOption(
+        DialogueSessionService.PreparedTransition prepared=
+            dialogue.prepareOption(
                 dialoguePlayerRef,
-                optionIndex
-            );
-
-        if(ended.active)
-            throw new IllegalStateException(
-                "Make-over option did not end semantic dialogue option="+
                 optionIndex
             );
 
@@ -506,15 +562,43 @@ final class LocalMakeoverMageHandler {
         if(MakeoverMageDialogueContent
                 .OUTCOME_OPEN_DESIGNER
                 .equals(outcome)){
-            StandardDialoguePresentationAdapter
-                .close(packets);
-            packets.fixed(
-                97,
-                BootstrapPackets.interface97(
-                    DESIGN_ROOT
-                )
-            );
-            designActive=true;
+            try{
+                designerRootOwner.publish(
+                    ()->{
+                        StandardDialoguePresentationAdapter
+                            .close(packets);
+                        packets.fixed(
+                            97,
+                            BootstrapPackets.interface97(
+                                DESIGN_ROOT
+                            )
+                        );
+                    },
+                    ()->{
+                        DialogueSessionService.Snapshot ended=
+                            dialogue.commitPrepared(
+                                prepared
+                            );
+
+                        if(ended.active)
+                            throw new IllegalStateException(
+                                "Make-over designer transition did not end semantic dialogue option="+
+                                optionIndex
+                            );
+
+                        designActive=true;
+                    }
+                );
+            }catch(IOException failure){
+                pendingDialogueOutcome=null;
+                throw failure;
+            }catch(RuntimeException failure){
+                pendingDialogueOutcome=null;
+                throw failure;
+            }catch(Error failure){
+                pendingDialogueOutcome=null;
+                throw failure;
+            }
 
             System.out.println(
                 tag+
@@ -530,6 +614,18 @@ final class LocalMakeoverMageHandler {
                 .equals(outcome)){
             StandardDialoguePresentationAdapter
                 .close(packets);
+
+            DialogueSessionService.Snapshot ended=
+                dialogue.commitPrepared(
+                    prepared
+                );
+
+            if(ended.active)
+                throw new IllegalStateException(
+                    "Make-over option did not end semantic dialogue option="+
+                    optionIndex
+                );
+
             clearActive();
 
             System.out.println(
@@ -592,17 +688,30 @@ final class LocalMakeoverMageHandler {
 
         PlayerState player=
             worldPlayer.playerState();
+        int gender=
+            request.gender();
+        int[] kits=
+            request.kits();
+        int[] colours=
+            request.colours();
+
+        /*
+         * The exact designer remains authoritative until its close packet has
+         * committed. The request above was already validated with the same
+         * CharacterDesignProfile contract used by PlayerState, so the state
+         * mutation after successful publication is deterministic.
+         */
+        StandardDialoguePresentationAdapter
+            .close(packets);
 
         if(!player.setCharacterAppearance(
-                request.gender(),
-                request.kits(),
-                request.colours()))
+                gender,
+                kits,
+                colours))
             throw new IllegalStateException(
                 "validated character design was rejected"
             );
 
-        StandardDialoguePresentationAdapter
-            .close(packets);
         clearActive();
 
         return Result.handled(
@@ -652,6 +761,16 @@ final class LocalMakeoverMageHandler {
         return designActive;
     }
 
+    boolean retireDesignerRoot(){
+        if(!designActive)
+            return false;
+
+        designActive=false;
+        activeScene=null;
+        activeNpc=null;
+        return true;
+    }
+
     boolean pending(){
         return pendingScene!=null;
     }
@@ -664,10 +783,50 @@ final class LocalMakeoverMageHandler {
     )throws IOException{
         refreshDialogueDefinitionForNewSession();
 
-        DialogueSessionService.Snapshot begun=
-            dialogue.begin(
+        DialogueSessionService.PreparedBegin prepared=
+            dialogue.prepareBegin(
                 dialoguePlayerRef,
                 DIALOGUE_KEY
+            );
+
+        packets.beginBatch();
+        boolean ended=false;
+
+        try{
+            MakeoverMageDialogueContent
+                .presentIntro(
+                    ContentRuntimeAdapters
+                        .presentation(packets)
+                        .dialogue()
+                );
+            packets.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }
+
+        DialogueSessionService.Snapshot begun=
+            dialogue.commitPreparedBegin(
+                prepared
             );
 
         if(!begun.active||
@@ -675,13 +834,6 @@ final class LocalMakeoverMageHandler {
                 begun.nodeKey))
             throw new IllegalStateException(
                 "Make-over dialogue did not begin at intro"
-            );
-
-        MakeoverMageDialogueContent
-            .presentIntro(
-                ContentRuntimeAdapters
-                    .presentation(packets)
-                    .dialogue()
             );
 
         designActive=false;
@@ -702,6 +854,54 @@ final class LocalMakeoverMageHandler {
             " action="+reason+
             " authority=EXACT_CURRENT_CLIENT_UI+HISTORICAL_SCREENSHOT+LOCAL_LAB_INTERACTION_RANGE"
         );
+    }
+
+    private static void publishDialogueClose(
+        ServerPacketWriter packets
+    )throws IOException{
+        packets.beginBatch();
+        boolean ended=false;
+
+        try{
+            StandardDialoguePresentationAdapter
+                .close(packets);
+            packets.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                abortFailedPacketBatch(
+                    packets,
+                    failure
+                );
+            throw failure;
+        }
+    }
+
+    private static void abortFailedPacketBatch(
+        ServerPacketWriter packets,
+        Throwable primary
+    ){
+        try{
+            packets.abortBatch();
+        }catch(Throwable abortFailure){
+            primary.addSuppressed(
+                abortFailure
+            );
+        }
     }
 
     private NpcEntity exactTarget(

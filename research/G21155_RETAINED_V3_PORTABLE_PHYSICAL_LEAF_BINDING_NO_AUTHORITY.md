@@ -1,0 +1,23 @@
+# G21.155 — retained v3 portable leaf names must match retained physical v3 map (NO AUTHORITY)
+
+**Certified parent:** [G21.154 Draft PR #2488](https://github.com/Trexzo/SpawnPK-RE/pull/2488) exact commit `ec3ef3c1297c2626d8e088582788e4ea09b8eddb`, [Actions #38317783070](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38317783070) SUCCESS Java 11 focused 454/454 and full Gradle. The earlier G21.154 failed run is *not* the certified head. Issue #2489.
+
+## Cross-inventory gap grounded in the source reader
+
+The real `MailboxFourBoundResultLeavesArchiveV1.captureInside` (G21.125/G21.129) collects four physically read v3 files and produces a *portable* US-ASCII inventory: `SPK-G21125-FOUR-V3-LEAVES-V1\nACCOUNT=<account>\nCOUNT=4\n`, followed by sorted `KIND=<0..3>\nLEAF=<basename plus canonical UUID>.result\nBYTES_BASE64=<bytes>\n` records. The separate G21.129 physical report stores a `Map<String,PhysicalIdentity>` for those same v3 leaf filenames. G21.148 only re-hashes the portable string, G21.153 validates physical filename syntax and G21.154 requires four distinct physical v3 kinds. A historical report could still be consistently changed so its re-hashed portable records contain v3 filenames that are **not** in its retained physical leaf map, with all four retained captures agreeing and apparently returning MATCH.
+
+G21.155 adds a read-only, after-lease `requireV3PortableLeafBinding` to the historical comparator, after prior internal-drift and portable SHA checks. It validates the exact original bounded 16-line v3 portable inventory frame, the four ordered `KIND=0..3` lines, the known v3 kind prefix in each declared leaf, distinct names, the presence of `BYTES_BASE64=` values, and membership of all four portable names in the same retained observation's four physical v3 keys. A malformed header/shape yields checked `BAD_V3_PORTABLE_INVENTORY`; well-formed but conflicting names yield `V3_PORTABLE_LEAF_MISMATCH`. Both are strictly **negative-only**. This does **not** decode or authenticate base64 leaf contents, reproduce captured disk bytes, cross-check physical SHA with payload, or establish independent source provenance.
+
+## Regression and compatibility
+
+G21.149–154 prior *synthetic* v3 portable snapshot bodies were arbitrary test strings with an internally consistent SHA. To exercise the stronger cross-inventory shape check without rewriting any real writer/reader, their six regression fixtures now synthesize the original `KIND/LEAF/BYTES_BASE64` portable structure with the same four v3 names already in their synthetic physical evidence maps. These still originate from six real NOFOLLOW physical attribute samples, but their synthetic portable data is **not** a genuine durable capture nor authenticated file content.
+
+The inherited G21.153 canonical alternate-UUID positive control now updates the physical v3 filename **and** the same snapshot's portable LEAF name and SHA in a test-only reflective block; its original positive observational MATCH/no-authority contract remains intact.
+
+New standalone `G21155MailboxV3PortablePhysicalBindingIntegrationTest`: each of four retained captures holds an independent correctly SHA-hashed synthetic v3 Snapshot. Cases: 4 distinct v3 kinds × 2 mismatch modes (portable LEAF changed, or physical map key changed) × 4 single-capture positions = **32** individually detected internal drift, plus **8** coordinated four-capture mismatch vetos with exact `V3_PORTABLE_LEAF_MISMATCH`; 2 malformed header/entry-frame variants × 4 single positions = **8** more internal-drift vetos, plus **2** four-capture `BAD_V3_PORTABLE_INVENTORY` vetos. Total **40 single-capture and 10 coordinated** failures. Four coherent positive alternatives change portable AND physical name together with recomputed SHA and return only `MATCHED_OBSERVED_METADATA_NO_AUTHORITY` (never any authority). Every change resets original fields in `finally`, assert healthy MATCH, no JVM leases/watches and no live rewards.
+
+**Acceptance gate:** dedicated `g21155MailboxV3PortablePhysicalBindingRegression`, Java 11 bytecode major 55, focused **455/455** and full Gradle on exact GitHub head. This work is not certified until the hosted run's logs explicitly pass.
+
+## Persistent limits
+
+G21.155 does not trust the source of the v3 snapshot, authenticate the physical file's SHA against the archive's base64 bytes, prove an original signed reference, exclude uncooperative RAW/default/historical/future writers, establish an atomic multi-file power-loss epoch, or authorize archive rollover, pruning, cleanup, unlink, or grant/replay/session/release/client ACK. Frozen R25 #1847 and G21.87/88 untouched. Keep Draft/unmerged.

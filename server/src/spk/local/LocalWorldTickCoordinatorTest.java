@@ -55,6 +55,18 @@ public final class LocalWorldTickCoordinatorTest {
             return publisher;
         }
 
+        @Override public void publishPlayerAppearanceSnapshot(
+            int[] appearanceItems,
+            ServerPacketWriter writer
+        ){
+            if(appearanceItems==null||
+               appearanceItems.length!=
+                    EquipmentState.APPEARANCE_SLOTS)
+                throw new AssertionError(
+                    "invalid respawn appearance snapshot"
+                );
+        }
+
         @Override public void saveAccount(
             String tag,
             String reason
@@ -160,7 +172,10 @@ public final class LocalWorldTickCoordinatorTest {
                 new LocalRoutedNpcInteractionHandler(
                     npcs,
                     bank,
-                    movement
+                    movement,
+                    null,
+                    player,
+                    equipment
                 );
 
             groundItems=
@@ -246,6 +261,10 @@ public final class LocalWorldTickCoordinatorTest {
     }
 
     public static void main(String[] args)throws Exception{
+        boolean deathPresentationBlocksRespawn=false;
+        boolean deathPresentationRetryAllowsRespawn=false;
+        boolean allKeptDeathSkipsPresentationDebt=false;
+
         try(Fixture idle=new Fixture()){
             TickBridge bridge=new TickBridge();
             LocalWorldTickCoordinator coordinator=
@@ -473,6 +492,9 @@ public final class LocalWorldTickCoordinatorTest {
 
             respawning.movement.advance();
 
+            int deadX=respawning.movement.x();
+            int deadY=respawning.movement.y();
+
             PlayerLifecycleService lifecycle=
                 new PlayerLifecycleService(
                     respawning.player
@@ -494,22 +516,86 @@ public final class LocalWorldTickCoordinatorTest {
 
             int before=respawning.wire.size();
 
+            respawning.writer.beginBatch();
+
             coordinator.tick(
                 15L,
                 3_000L,
                 respawning.writer,
-                "[tick-test] "
+                "[tick-respawn-abort] "
             );
 
-            if(respawning.player.lifecycle().dead())
+            if(!respawning.player.lifecycle().dead()||
+               respawning.player.playerState().currentLevel(
+                    PlayerState.HITPOINTS)!=0||
+               respawning.movement.x()!=deadX||
+               respawning.movement.y()!=deadY||
+               !coordinator.deferredRespawnEligible())
                 throw new AssertionError(
-                    "world tick did not respawn player"
+                    "respawn committed inside outer world-tick batch"
                 );
 
-            if(respawning.player.playerState().currentLevel(
+            respawning.writer.abortBatch();
+            coordinator.abortRegionStreamBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredRespawnAfterWorldTick();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredMakeoverInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+            coordinator.abortDeferredPetEffectTimeoutAfterWorldTick();
+
+            if(!respawning.player.lifecycle().dead()||
+               respawning.player.playerState().currentLevel(
+                    PlayerState.HITPOINTS)!=0||
+               respawning.movement.x()!=deadX||
+               respawning.movement.y()!=deadY||
+               coordinator.deferredRespawnEligible()||
+               respawning.wire.size()!=before)
+                throw new AssertionError(
+                    "outer abort changed prepared respawn preimage"
+                );
+
+            respawning.writer.beginBatch();
+
+            coordinator.tick(
+                16L,
+                3_600L,
+                respawning.writer,
+                "[tick-respawn-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                respawning.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_600L
+            );
+
+            if(!respawning.player.lifecycle().dead()||
+               respawning.player.playerState().currentLevel(
+                    PlayerState.HITPOINTS)!=0||
+               respawning.movement.x()!=deadX||
+               respawning.movement.y()!=deadY||
+               !coordinator.deferredRespawnEligible())
+                throw new AssertionError(
+                    "respawn settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredRespawnAfterWorldTick(
+                respawning.writer,
+                "[tick-respawn-commit] "
+            );
+
+            if(!respawning.player.lifecycle().alive()||
+               !respawning.player.playerState().alive()||
+               respawning.player.playerState().currentLevel(
                     PlayerState.HITPOINTS)!=99)
                 throw new AssertionError(
-                    "world tick did not restore HP"
+                    "post-commit respawn HP/lifecycle mismatch"
                 );
 
             if(respawning.movement.x()!=
@@ -518,7 +604,7 @@ public final class LocalWorldTickCoordinatorTest {
                     MovementState.INITIAL_Y||
                !respawning.movement.inHomeWindow())
                 throw new AssertionError(
-                    "world tick did not restore HOME"
+                    "post-commit respawn did not restore HOME"
                 );
 
             if(!"PLAYER_RESPAWN".equals(
@@ -530,7 +616,1012 @@ public final class LocalWorldTickCoordinatorTest {
 
             if(respawning.wire.size()<=before)
                 throw new AssertionError(
-                    "respawn emitted no client packets"
+                    "post-commit respawn emitted no client packets"
+                );
+        }
+
+        try(Fixture fencedRespawn=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                fencedRespawn.coordinator(true,bridge);
+
+            int[] items=
+                new int[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            int[] quantities=
+                new int[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            java.util.Arrays.fill(
+                items,
+                -1
+            );
+            items[0]=24254;
+            quantities[0]=1;
+            fencedRespawn.bank
+                .replaceInventorySemantic(
+                    items,
+                    quantities
+                );
+
+            PlayerLifecycleService lifecycle=
+                new PlayerLifecycleService(
+                    fencedRespawn.player
+                );
+            PlayerLifecycleService.DamageResult lethal=
+                lifecycle.applyDamage(
+                    500,
+                    10L,
+                    "G5_PRESENTATION_RESPAWN_FENCE_TEST"
+                );
+
+            if(!lethal.died)
+                throw new AssertionError(
+                    "presentation-fence fixture did not die"
+                );
+
+            OutboundPacketQueue pressuredQueue=
+                new OutboundPacketQueue(1024);
+            pressuredQueue.offerBatch(
+                new byte[1000]
+            );
+            ServerPacketWriter pressuredWriter=
+                new ServerPacketWriter(
+                    pressuredQueue,
+                    new IsaacCipher(
+                        new int[]{9,10,11,12}
+                    )
+                );
+
+            fencedRespawn.writer.beginBatch();
+            coordinator.tick(
+                15L,
+                3_000L,
+                fencedRespawn.writer,
+                "[g5-respawn-fence-first] "
+            );
+            LocalSession.endWorldTickBatch(
+                fencedRespawn.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_000L
+            );
+
+            coordinator
+                .settleDeferredDeathSettlementAfterWorldTick(
+                    "[g5-respawn-fence-first] "
+                );
+
+            if(fencedRespawn.bank
+                    .inventoryCount(24254)!=0||
+               !coordinator
+                    .deathCarriedPresentationPending()||
+               !coordinator.deferredRespawnEligible())
+                throw new AssertionError(
+                    "loss settlement did not create exact carried-presentation debt"
+                );
+
+            int pressuredBefore=
+                pressuredQueue.queuedBytes();
+
+            coordinator
+                .settleDeferredDeathCarriedPresentationAfterWorldTick(
+                    pressuredWriter,
+                    "[g5-respawn-fence-first] "
+                );
+
+            if(!coordinator
+                    .deathCarriedPresentationPending()||
+               pressuredQueue.queuedBytes()!=
+                    pressuredBefore)
+                throw new AssertionError(
+                    "failed carried presentation did not remain retryable"
+                );
+
+            coordinator
+                .settleDeferredRespawnAfterWorldTick(
+                    fencedRespawn.writer,
+                    "[g5-respawn-fence-first] "
+                );
+
+            deathPresentationBlocksRespawn=
+                fencedRespawn.player.lifecycle().dead()&&
+                coordinator
+                    .deathCarriedPresentationPending()&&
+                !coordinator.deferredRespawnEligible();
+
+            if(!deathPresentationBlocksRespawn)
+                throw new AssertionError(
+                    "pending carried presentation did not block respawn"
+                );
+
+            ByteArrayOutputStream pressureDrain=
+                new ByteArrayOutputStream();
+            pressuredQueue.drainTo(
+                pressureDrain,
+                Integer.MAX_VALUE
+            );
+
+            fencedRespawn.writer.beginBatch();
+            coordinator.tick(
+                16L,
+                3_600L,
+                fencedRespawn.writer,
+                "[g5-respawn-fence-retry] "
+            );
+            LocalSession.endWorldTickBatch(
+                fencedRespawn.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_600L
+            );
+
+            coordinator
+                .settleDeferredDeathSettlementAfterWorldTick(
+                    "[g5-respawn-fence-retry] "
+                );
+            coordinator
+                .settleDeferredDeathCarriedPresentationAfterWorldTick(
+                    pressuredWriter,
+                    "[g5-respawn-fence-retry] "
+                );
+
+            if(coordinator
+                    .deathCarriedPresentationPending())
+                throw new AssertionError(
+                    "carried presentation retry did not commit"
+                );
+
+            coordinator
+                .settleDeferredRespawnAfterWorldTick(
+                    fencedRespawn.writer,
+                    "[g5-respawn-fence-retry] "
+                );
+
+            deathPresentationRetryAllowsRespawn=
+                fencedRespawn.player.lifecycle().alive();
+
+            if(!deathPresentationRetryAllowsRespawn)
+                throw new AssertionError(
+                    "respawn did not proceed after carried presentation commit"
+                );
+        }
+
+        try(Fixture allKeptRespawn=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                allKeptRespawn.coordinator(true,bridge);
+
+            int[] items=
+                new int[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            int[] quantities=
+                new int[
+                    BankState.INVENTORY_CAPACITY
+                ];
+            java.util.Arrays.fill(
+                items,
+                -1
+            );
+            items[0]=20466;
+            quantities[0]=1;
+            allKeptRespawn.bank
+                .replaceInventorySemantic(
+                    items,
+                    quantities
+                );
+
+            PlayerLifecycleService.DamageResult lethal=
+                new PlayerLifecycleService(
+                    allKeptRespawn.player
+                ).applyDamage(
+                    500,
+                    10L,
+                    "G5_ALL_KEPT_RESPAWN_TEST"
+                );
+
+            if(!lethal.died)
+                throw new AssertionError(
+                    "all-kept fixture did not die"
+                );
+
+            allKeptRespawn.writer.beginBatch();
+            coordinator.tick(
+                15L,
+                3_000L,
+                allKeptRespawn.writer,
+                "[g5-all-kept-respawn] "
+            );
+            LocalSession.endWorldTickBatch(
+                allKeptRespawn.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                3_000L
+            );
+
+            coordinator
+                .settleDeferredDeathSettlementAfterWorldTick(
+                    "[g5-all-kept-respawn] "
+                );
+
+            if(coordinator
+                    .deathCarriedPresentationPending()||
+               allKeptRespawn.bank
+                    .inventoryCount(20466)!=1)
+                throw new AssertionError(
+                    "all-kept death created unnecessary presentation debt"
+                );
+
+            coordinator
+                .settleDeferredRespawnAfterWorldTick(
+                    allKeptRespawn.writer,
+                    "[g5-all-kept-respawn] "
+                );
+
+            allKeptDeathSkipsPresentationDebt=
+                allKeptRespawn.player.lifecycle().alive();
+
+            if(!allKeptDeathSkipsPresentationDebt)
+                throw new AssertionError(
+                    "all-kept death did not respawn normally"
+                );
+        }
+
+        try(Fixture deferredBank=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredBank.coordinator(false,bridge);
+
+            int targetX=
+                deferredBank.movement.x()+2;
+            int targetY=
+                deferredBank.movement.y();
+
+            String spawned=
+                deferredBank.npcs.devSpawnNpc(
+                    7605,
+                    2,
+                    0,
+                    deferredBank.movement,
+                    deferredBank.writer
+                );
+
+            if(!spawned.startsWith(
+                    "DEV_NPC_SPAWN_OK"))
+                throw new AssertionError(
+                    "deferred bank coordinator banker spawn="+
+                    spawned
+                );
+
+            NpcEntity banker=null;
+
+            for(NpcEntity npc:
+                    deferredBank.npcs.snapshot())
+                if(npc.definitionId==7605&&
+                   npc.x==targetX&&
+                   npc.y==targetY){
+                    banker=npc;
+                    break;
+                }
+
+            if(banker==null)
+                throw new AssertionError(
+                    "deferred bank coordinator banker missing"
+                );
+
+            String queued=
+                deferredBank.routedNpcs.handle(
+                    new NpcAction(
+                        17,
+                        banker.sceneIndex
+                    ),
+                    banker,
+                    deferredBank.writer
+                );
+
+            if(queued==null||
+               !queued.contains(
+                   "DEFERRED_UNTIL_ADJACENT")||
+               !deferredBank.routedNpcs.hasPendingBank()||
+               deferredBank.routedNpcs.pendingBankNpc()!=banker)
+                throw new AssertionError(
+                    "deferred bank coordinator request not queued result="+
+                    queued
+                );
+
+            if(deferredBank.movement.advance()==null)
+                throw new AssertionError(
+                    "deferred bank coordinator did not approach"
+                );
+
+            deferredBank.writer.beginBatch();
+
+            coordinator.tick(
+                15L,
+                4_000L,
+                deferredBank.writer,
+                "[tick-bank-abort] "
+            );
+
+            if(deferredBank.bank.isOpen()||
+               !deferredBank.routedNpcs.hasPendingBank()||
+               deferredBank.routedNpcs.pendingBankNpc()!=banker||
+               !coordinator.deferredBankInteractionEligible())
+                throw new AssertionError(
+                    "deferred Bank opened inside outer world-tick batch"
+                );
+
+            deferredBank.writer.abortBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+
+            if(deferredBank.bank.isOpen()||
+               !deferredBank.routedNpcs.hasPendingBank()||
+               deferredBank.routedNpcs.pendingBankNpc()!=banker||
+               coordinator.deferredBankInteractionEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed deferred Bank state"
+                );
+
+            deferredBank.writer.beginBatch();
+
+            coordinator.tick(
+                16L,
+                4_600L,
+                deferredBank.writer,
+                "[tick-bank-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredBank.writer
+            );
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                4_600L
+            );
+
+            if(deferredBank.bank.isOpen()||
+               !deferredBank.routedNpcs.hasPendingBank())
+                throw new AssertionError(
+                    "deferred Bank settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredBankInteractionsAfterWorldTick(
+                4_600L,
+                deferredBank.writer,
+                "[tick-bank-commit] "
+            );
+
+            if(!deferredBank.bank.isOpen()||
+               deferredBank.routedNpcs.hasPendingBank())
+                throw new AssertionError(
+                    "post-commit deferred Bank settlement failed"
+                );
+        }
+
+        try(Fixture deferredMakeover=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredMakeover.coordinator(true,bridge);
+            LocalMakeoverMageHandler makeover=
+                deferredMakeover.routedNpcs.makeoverMage();
+
+            if(makeover==null)
+                throw new AssertionError(
+                    "deferred Make-over fixture handler missing"
+                );
+
+            String spawned=
+                deferredMakeover.npcs.devSpawnNpc(
+                    LocalMakeoverMageHandler.NPC_ID,
+                    2,
+                    0,
+                    deferredMakeover.movement,
+                    deferredMakeover.writer
+                );
+
+            if(!spawned.startsWith(
+                    "DEV_NPC_SPAWN_OK"))
+                throw new AssertionError(
+                    "deferred Make-over mage spawn failed: "+
+                    spawned
+                );
+
+            NpcEntity mage=null;
+
+            for(NpcEntity npc:
+                    deferredMakeover.npcs.snapshot())
+                if(npc.definitionId==
+                        LocalMakeoverMageHandler.NPC_ID&&
+                   npc.x==
+                        deferredMakeover.movement.x()+2&&
+                   npc.y==
+                        deferredMakeover.movement.y()){
+                    mage=npc;
+                    break;
+                }
+
+            if(mage==null)
+                throw new AssertionError(
+                    "deferred Make-over mage missing"
+                );
+
+            if(!makeover.beginIfSupported(
+                    new NpcAction(
+                        155,
+                        mage.sceneIndex
+                    ),
+                    mage,
+                    deferredMakeover.writer,
+                    "[tick-makeover-fixture] "
+                )||
+               !makeover.pending()||
+               makeover.active())
+                throw new AssertionError(
+                    "deferred Make-over request not queued"
+                );
+
+            deferredMakeover.writer.beginBatch();
+
+            coordinator.tick(
+                18L,
+                4_800L,
+                deferredMakeover.writer,
+                "[tick-makeover-abort] "
+            );
+
+            if(!makeover.pending()||
+               makeover.active()||
+               !coordinator.deferredMovementEligible()||
+               coordinator
+                    .deferredMakeoverInteractionEligible())
+                throw new AssertionError(
+                    "movement-dependent Make-over tail ran before movement commit"
+                );
+
+            deferredMakeover.writer.abortBatch();
+            coordinator.abortDeferredMovementAfterWorldTick();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredMakeoverInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+
+            if(!makeover.pending()||
+               makeover.active()||
+               coordinator.deferredMovementEligible()||
+               coordinator
+                    .deferredMakeoverInteractionEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed deferred Make-over state"
+                );
+
+            deferredMakeover.writer.beginBatch();
+
+            coordinator.tick(
+                19L,
+                5_400L,
+                deferredMakeover.writer,
+                "[tick-makeover-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredMakeover.writer
+            );
+
+            if(!coordinator.deferredMovementEligible()||
+               coordinator
+                    .deferredMakeoverInteractionEligible())
+                throw new AssertionError(
+                    "movement tail became eligible before movement settlement"
+                );
+
+            coordinator.settleDeferredMovementAfterWorldTick(
+                deferredMakeover.writer,
+                "[tick-makeover-commit] "
+            );
+
+            if(coordinator.deferredMovementEligible()||
+               !coordinator
+                    .deferredMakeoverInteractionEligible())
+                throw new AssertionError(
+                    "committed movement did not release Make-over tail"
+                );
+
+            coordinator.settleDeferredBankInteractionsAfterWorldTick(
+                5_400L,
+                deferredMakeover.writer,
+                "[tick-makeover-commit] "
+            );
+
+            if(!makeover.pending()||
+               makeover.active())
+                throw new AssertionError(
+                    "deferred Make-over settled before post-commit hook"
+                );
+
+            coordinator
+                .settleDeferredMakeoverInteractionsAfterWorldTick(
+                    5_400L,
+                    deferredMakeover.writer,
+                    "[tick-makeover-commit] "
+                );
+
+            if(makeover.pending()||
+               !makeover.active())
+                throw new AssertionError(
+                    "post-commit deferred Make-over settlement failed"
+                );
+        }
+
+        try(Fixture deferredTake=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredTake.coordinator(true,bridge);
+
+            Tile target=
+                new Tile(
+                    MovementState.INITIAL_X+1,
+                    MovementState.INITIAL_Y,
+                    0
+                );
+
+            GroundItem ground=
+                deferredTake.world.groundItems().add(
+                    995,
+                    25,
+                    target,
+                    "opensrc",
+                    30L,
+                    false
+                );
+
+            LocalGroundItemInteractionHandler.Result queued=
+                deferredTake.groundItems.handle(
+                    new GroundItemInteraction(
+                        236,
+                        3,
+                        995,
+                        target.x,
+                        target.y
+                    ),
+                    "opensrc",
+                    deferredTake.publisher,
+                    deferredTake.writer
+                );
+
+            if(queued==null||
+               !queued.logText.contains(
+                   "DEFERRED_UNTIL_EXACT_TILE")||
+               !deferredTake.groundItems.hasPendingTake())
+                throw new AssertionError(
+                    "deferred Take fixture was not retained"
+                );
+
+            String accepted=
+                deferredTake.movement.accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{target.x},
+                        new int[]{target.y},
+                        new byte[0]
+                    )
+                );
+
+            if(!accepted.startsWith("ACCEPTED"))
+                throw new AssertionError(
+                    "deferred Take movement rejected: "+
+                    accepted
+                );
+
+            deferredTake.writer.beginBatch();
+
+            coordinator.tick(
+                20L,
+                5_000L,
+                deferredTake.writer,
+                "[tick-ground-take-abort] "
+            );
+
+            if(deferredTake.bank.inventoryCount(995)!=0||
+               deferredTake.world.groundItems().byId(
+                    ground.id
+                )!=ground||
+               !deferredTake.groundItems.hasPendingTake()||
+               !coordinator.deferredMovementEligible()||
+               coordinator.deferredGroundTakeEligible())
+                throw new AssertionError(
+                    "movement-dependent Take tail ran before movement commit"
+                );
+
+            deferredTake.writer.abortBatch();
+            coordinator.abortDeferredMovementAfterWorldTick();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+
+            if(deferredTake.bank.inventoryCount(995)!=0||
+               deferredTake.world.groundItems().byId(
+                    ground.id
+                )!=ground||
+               !deferredTake.groundItems.hasPendingTake()||
+               coordinator.deferredMovementEligible()||
+               coordinator.deferredGroundTakeEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed deferred Take state"
+                );
+
+            deferredTake.writer.beginBatch();
+
+            coordinator.tick(
+                21L,
+                5_600L,
+                deferredTake.writer,
+                "[tick-ground-take-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredTake.writer
+            );
+
+            if(!coordinator.deferredMovementEligible()||
+               coordinator.deferredGroundTakeEligible())
+                throw new AssertionError(
+                    "Take tail became eligible before movement settlement"
+                );
+
+            coordinator.settleDeferredMovementAfterWorldTick(
+                deferredTake.writer,
+                "[tick-ground-take-commit] "
+            );
+
+            if(coordinator.deferredMovementEligible()||
+               !coordinator.deferredGroundTakeEligible())
+                throw new AssertionError(
+                    "committed movement did not release Take tail"
+                );
+
+            coordinator.settleDeferredBankInteractionsAfterWorldTick(
+                5_600L,
+                deferredTake.writer,
+                "[tick-ground-take-commit] "
+            );
+
+            if(deferredTake.bank.inventoryCount(995)!=0||
+               deferredTake.world.groundItems().byId(
+                    ground.id
+                )!=ground||
+               !deferredTake.groundItems.hasPendingTake())
+                throw new AssertionError(
+                    "deferred Take settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredGroundTakeAfterWorldTick(
+                5_600L,
+                deferredTake.writer,
+                "[tick-ground-take-commit] "
+            );
+
+            if(deferredTake.bank.inventoryCount(995)!=25||
+               deferredTake.world.groundItems().byId(
+                    ground.id
+                )!=null||
+               deferredTake.groundItems.hasPendingTake()||
+               !"GROUND_TAKE".equals(
+                    bridge.lastSaveReason
+               ))
+                throw new AssertionError(
+                    "post-commit deferred Take settlement failed"
+                );
+        }
+
+        try(Fixture deferredPetPickup=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                deferredPetPickup.coordinator(false,bridge);
+
+            PetDefinitionRepository.Def def=
+                PetDefinitionRepository.get(24019);
+
+            if(def==null)
+                throw new AssertionError(
+                    "deferred pet pickup fixture definition missing"
+                );
+
+            String spawn=
+                deferredPetPickup.npcs.spawnPet(
+                    def,
+                    deferredPetPickup.movement,
+                    deferredPetPickup.writer
+                );
+
+            if(!spawn.startsWith("PET_SPAWN_OK"))
+                throw new AssertionError(
+                    "deferred pet pickup spawn failed: "+
+                    spawn
+                );
+
+            deferredPetPickup.petState.activate(
+                def
+            );
+
+            String follow=
+                deferredPetPickup.npcs.tickFollow(
+                    deferredPetPickup.movement,
+                    deferredPetPickup.writer
+                );
+
+            NpcEntity pet=
+                deferredPetPickup.npcs.pet();
+
+            if(follow==null||
+               !follow.contains("movement=WALK")||
+               pet==null||
+               Math.abs(
+                   pet.x-
+                   deferredPetPickup.movement.x()
+               )+
+               Math.abs(
+                   pet.y-
+                   deferredPetPickup.movement.y()
+               )!=1)
+                throw new AssertionError(
+                    "deferred pet pickup fixture not cardinal adjacent"
+                );
+
+            if(!deferredPetPickup.petDropPickup
+                    .handlePickupNpcAction(
+                        new NpcAction(
+                            155,
+                            pet.sceneIndex
+                        ),
+                        deferredPetPickup.writer,
+                        "[tick-pet-pickup-fixture] "
+                    )||
+               !deferredPetPickup.petDropPickup
+                    .pickupPending())
+                throw new AssertionError(
+                    "deferred pet pickup was not queued"
+                );
+
+            deferredPetPickup.writer.beginBatch();
+
+            coordinator.tick(
+                30L,
+                6_000L,
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-abort] "
+            );
+
+            if(deferredPetPickup.npcs.pet()!=pet||
+               !deferredPetPickup.petState.active()||
+               deferredPetPickup.bank.inventoryCount(
+                    def.itemId
+               )!=0||
+               !deferredPetPickup.petDropPickup.pickupPending()||
+               !coordinator.deferredPetPickupEligible())
+                throw new AssertionError(
+                    "pet pickup committed inside outer world-tick batch"
+                );
+
+            deferredPetPickup.writer.abortBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+
+            if(deferredPetPickup.npcs.pet()!=pet||
+               !deferredPetPickup.petState.active()||
+               deferredPetPickup.bank.inventoryCount(
+                    def.itemId
+               )!=0||
+               !deferredPetPickup.petDropPickup.pickupPending()||
+               coordinator.deferredPetPickupEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed pet pickup state"
+                );
+
+            deferredPetPickup.writer.beginBatch();
+
+            coordinator.tick(
+                31L,
+                6_600L,
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                deferredPetPickup.writer
+            );
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                6_600L
+            );
+            coordinator.settleDeferredBankInteractionsAfterWorldTick(
+                6_600L,
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-commit] "
+            );
+
+            if(deferredPetPickup.npcs.pet()!=pet||
+               !deferredPetPickup.petState.active()||
+               deferredPetPickup.bank.inventoryCount(
+                    def.itemId
+               )!=0||
+               !deferredPetPickup.petDropPickup.pickupPending())
+                throw new AssertionError(
+                    "pet pickup settled before post-commit hook"
+                );
+
+            coordinator.settleDeferredGroundTakeAfterWorldTick(
+                6_600L,
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-commit] "
+            );
+            coordinator.settleDeferredPetPickupAfterWorldTick(
+                deferredPetPickup.writer,
+                "[tick-pet-pickup-commit] ",
+                6_600L
+            );
+
+            if(deferredPetPickup.npcs.pet()!=null||
+               deferredPetPickup.petState.active()||
+               deferredPetPickup.bank.inventoryCount(
+                    def.itemId
+               )!=1||
+               deferredPetPickup.petDropPickup.pickupPending())
+                throw new AssertionError(
+                    "post-commit pet pickup settlement failed"
+                );
+        }
+
+        try(Fixture petTimeout=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                petTimeout.coordinator(false,bridge);
+
+            PetDefinitionRepository.Def def=
+                PetDefinitionRepository.get(24019);
+
+            if(def==null)
+                throw new AssertionError(
+                    "pet timeout fixture definition missing"
+                );
+
+            String spawn=
+                petTimeout.npcs.spawnPet(
+                    def,
+                    petTimeout.movement,
+                    petTimeout.writer
+                );
+
+            if(!spawn.startsWith("PET_SPAWN_OK"))
+                throw new AssertionError(
+                    "pet timeout fixture spawn failed: "+
+                    spawn
+                );
+
+            petTimeout.petState.activate(def);
+            petTimeout.petEffects.onPetChanged(
+                def.itemId,
+                def.npcId
+            );
+            petTimeout.petEffects.forceCharge(
+                1,
+                10_000L
+            );
+
+            String charged=
+                petTimeout.npcs.setPetNativeState(
+                    1,
+                    petTimeout.writer
+                );
+
+            if(!charged.startsWith(
+                    "PET_NATIVE_STATE_OK")||
+               petTimeout.petEffects.charge()!=1||
+               petTimeout.npcs.petNativeState()!=1)
+                throw new AssertionError(
+                    "pet timeout fixture charge not armed"
+                );
+
+            long timeoutAt=
+                10_000L+
+                petTimeout.petEffects.resetMs();
+
+            petTimeout.writer.beginBatch();
+
+            coordinator.tick(
+                40L,
+                timeoutAt,
+                petTimeout.writer,
+                "[tick-pet-timeout-abort] "
+            );
+
+            if(petTimeout.petEffects.charge()!=1||
+               petTimeout.petEffects.lastDamageAtMs()!=10_000L||
+               petTimeout.npcs.petNativeState()!=1||
+               !coordinator
+                    .deferredPetEffectTimeoutEligible())
+                throw new AssertionError(
+                    "pet timeout committed inside outer world-tick batch"
+                );
+
+            petTimeout.writer.abortBatch();
+            coordinator.abortRegionStreamBatch();
+            coordinator.abortHomePresentationBatch();
+            coordinator.abortGroundPresentationBatch();
+            coordinator.abortDeferredBankInteractionsAfterWorldTick();
+            coordinator.abortDeferredMakeoverInteractionsAfterWorldTick();
+            coordinator.abortDeferredGroundTakeAfterWorldTick();
+            coordinator.abortDeferredPetPickupAfterWorldTick();
+            coordinator.abortDeferredPetEffectTimeoutAfterWorldTick();
+
+            if(petTimeout.petEffects.charge()!=1||
+               petTimeout.petEffects.lastDamageAtMs()!=10_000L||
+               petTimeout.npcs.petNativeState()!=1||
+               coordinator
+                    .deferredPetEffectTimeoutEligible())
+                throw new AssertionError(
+                    "outer world-tick abort changed pet timeout state"
+                );
+
+            petTimeout.writer.beginBatch();
+
+            coordinator.tick(
+                41L,
+                timeoutAt+600L,
+                petTimeout.writer,
+                "[tick-pet-timeout-commit] "
+            );
+
+            LocalSession.endWorldTickBatch(
+                petTimeout.writer
+            );
+            coordinator.commitRegionStreamBatch();
+            coordinator.commitHomePresentationBatch();
+            coordinator.commitGroundPresentationBatch(
+                timeoutAt+600L
+            );
+
+            if(petTimeout.petEffects.charge()!=1||
+               petTimeout.npcs.petNativeState()!=1||
+               !coordinator
+                    .deferredPetEffectTimeoutEligible())
+                throw new AssertionError(
+                    "pet timeout settled before post-commit hook"
+                );
+
+            coordinator
+                .settleDeferredPetEffectTimeoutAfterWorldTick(
+                    petTimeout.writer,
+                    "[tick-pet-timeout-commit] ",
+                    41L
+                );
+
+            if(petTimeout.petEffects.charge()!=0||
+               petTimeout.petEffects.accumulatedDamage()!=0||
+               petTimeout.petEffects.lastDamageAtMs()!=0L||
+               petTimeout.npcs.petNativeState()!=0||
+               coordinator
+                    .deferredPetEffectTimeoutEligible())
+                throw new AssertionError(
+                    "post-commit pet timeout settlement failed"
                 );
         }
 
@@ -564,8 +1655,42 @@ public final class LocalWorldTickCoordinatorTest {
             "idlePulse=true authoritativeMove=true "+
             "tickCountersOwned=true schedulerHooks=true "+
             "respawnLifecycle=true "+
+            "respawnOuterAbortPreservesDead=true "+
+            "respawnPostCommitSettles=true "+
+            "deathPresentationBlocksRespawn="+
+                deathPresentationBlocksRespawn+" "+
+            "deathPresentationRetryAllowsRespawn="+
+                deathPresentationRetryAllowsRespawn+" "+
+            "allKeptDeathSkipsPresentationDebt="+
+                allKeptDeathSkipsPresentationDebt+" "+
+            "movementTailAfterCommit=true "+
+            "movementAbortRestoresPreimage=true "+
             "transientMovementSave=false "+
+            "deferredBankOuterAbortPreservesState=true "+
+            "deferredBankPostCommitSettles=true "+
+            "deferredMakeoverOuterAbortPreservesState=true "+
+            "deferredMakeoverPostCommitSettles=true "+
+            "deferredTakeOuterAbortPreservesState=true "+
+            "deferredTakePostCommitSettles=true "+
+            "deferredPetPickupOuterAbortPreservesState=true "+
+            "deferredPetPickupPostCommitSettles=true "+
+            "petEffectTimeoutOuterAbortPreservesState=true "+
+            "petEffectTimeoutPostCommitSettles=true "+
             "sharedHomeClockReconnect=true"
+        );
+
+        System.out.println(
+            "G5_DEATH_CARRIED_RESPAWN_FENCE_PASS"+
+            " presentationBeforeRespawn=true"+
+            " failureBlocksRespawn="+
+                deathPresentationBlocksRespawn+
+            " retryAllowsRespawn="+
+                deathPresentationRetryAllowsRespawn+
+            " allKeptNoDebt="+
+                allKeptDeathSkipsPresentationDebt+
+            " sessionOwnedDebt=true"+
+            " worldGlobalEventRevived=false"+
+            " originalSpawnpkPresentationClaim=false"
         );
     }
 }

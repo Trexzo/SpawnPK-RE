@@ -37,9 +37,35 @@ final class LocalPendingRequestDispatcher {
             String tag
         )throws IOException;
 
+        default LocalDailyChallengeCommandHandler.Result
+            handleDailyChallengeRequest(
+                DailyChallengeClientRequest request
+            )throws IOException{
+            return null;
+        }
+
+        default boolean handleMailboxWidgetAction(
+            WidgetActionClientRequest request,
+            ServerPacketWriter writer,
+            String tag
+        )throws IOException{
+            return false;
+        }
+
+        default void onMailboxInterfaceClose(){}
+
         default void handleRegionLoadAck(
             String tag
         ){}
+
+        default LocalCanonicalNpcAttackHandler.Result
+            handleCanonicalNpcAttack(
+                NpcAction action,
+                NpcEntity clicked,
+                ServerPacketWriter writer
+            )throws IOException{
+            return null;
+        }
     }
 
     private final WorldPlayer worldPlayer;
@@ -55,8 +81,10 @@ final class LocalPendingRequestDispatcher {
     private final LocalBankObjectInteractionHandler bankObjectHandler;
     private final LocalGenericInteractionHandler genericInteractionHandler;
     private final LocalEquipmentItemActionHandler equipmentItemActions;
+    private final G1RocktailConsumableHandler rocktailConsumables;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalMakeoverMageHandler makeoverMage;
+    private final LocalSuppliesMerchantHandler suppliesMerchant;
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
     private final LocalItemOnItemHandler itemOnItemHandler;
     private final LocalItemOnNpcHandler itemOnNpcHandler;
@@ -69,6 +97,7 @@ final class LocalPendingRequestDispatcher {
     private final LocalMovementRequestHandler movementRequests;
     private final LocalPetRealtimeScheduler petRealtime;
     private final SessionBridge bridge;
+    private volatile LocalLootingBagBankHandler lootingBagBank;
 
     LocalPendingRequestDispatcher(
         WorldPlayer worldPlayer,
@@ -115,6 +144,11 @@ final class LocalPendingRequestDispatcher {
             genericInteractionHandler,"genericInteractionHandler");
         this.equipmentItemActions=Objects.requireNonNull(
             equipmentItemActions,"equipmentItemActions");
+        this.rocktailConsumables=
+            new G1RocktailConsumableHandler(
+                worldPlayer,
+                bank
+            );
         this.petDialogs=Objects.requireNonNull(petDialogs,"petDialogs");
 
         LocalMakeoverMageHandler sharedMakeover=
@@ -131,6 +165,38 @@ final class LocalPendingRequestDispatcher {
                     movement,
                     npcs
                 );
+        this.suppliesMerchant=
+            routedNpcHandler==null
+                ?null
+                :routedNpcHandler.suppliesMerchant();
+        this.makeoverMage.installDesignerRootOwner(
+            new LocalMakeoverMageHandler.DesignerRootOwner(){
+                @Override public void publish(
+                    LocalMakeoverMageHandler.DesignerRootAction action
+                )throws IOException{
+                    uiActions.replaceMonsterSpawnerWithMakeoverRoot(
+                        ()->{
+                            action.open();
+                            return "MAKEOVER_DESIGN_ROOT_OPENED";
+                        }
+                    );
+                }
+
+                @Override public void publish(
+                    LocalMakeoverMageHandler.DesignerRootAction action,
+                    LocalMakeoverMageHandler.DesignerRootCommit commit
+                )throws IOException{
+                    uiActions.replaceMonsterSpawnerWithMakeoverRoot(
+                        ()->{
+                            action.open();
+                            return "MAKEOVER_DESIGN_ROOT_OPENED";
+                        },
+                        commit::commit
+                    );
+                }
+            }
+        );
+
         this.compCapeCustomize=Objects.requireNonNull(
             compCapeCustomize,"compCapeCustomize");
         this.itemOnItemHandler=Objects.requireNonNull(
@@ -154,6 +220,26 @@ final class LocalPendingRequestDispatcher {
         this.petRealtime=Objects.requireNonNull(
             petRealtime,"petRealtime");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
+    }
+
+    synchronized void installLootingBagBankHandler(
+        LocalLootingBagBankHandler handler
+    ){
+        LocalLootingBagBankHandler checked=
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+        if(lootingBagBank==null){
+            lootingBagBank=checked;
+            return;
+        }
+
+        if(lootingBagBank!=checked)
+            throw new IllegalStateException(
+                "Looting Bag bank handler already installed"
+            );
     }
 
     void drain(
@@ -192,6 +278,7 @@ final class LocalPendingRequestDispatcher {
 
             if(request instanceof
                     InterfaceCloseClientRequest){
+                bridge.onMailboxInterfaceClose();
                 boolean makeoverCancelled=
                     makeoverMage.cancel();
                 if(makeoverCancelled)
@@ -199,6 +286,12 @@ final class LocalPendingRequestDispatcher {
                         tag+
                         "MAKEOVER_MAGE_DIALOG_CANCEL reason=CLIENT_INTERFACE_CLOSE"
                     );
+
+                if(suppliesMerchant!=null)
+                    suppliesMerchant
+                        .cancelForInterfaceClose(
+                            tag
+                        );
 
                 uiActions.handleInterfaceClose(
                     clientPackets.isAligned(),
@@ -271,6 +364,28 @@ final class LocalPendingRequestDispatcher {
                         widget.widgetId(),
                         serverPackets,
                         tag))
+                    continue;
+
+                if(suppliesMerchant!=null){
+                    LocalSuppliesMerchantHandler.Result
+                        merchantResult=
+                            suppliesMerchant.handleWidget(
+                                widget.widgetId(),
+                                serverPackets
+                            );
+
+                    if(merchantResult.handled){
+                        applySuppliesMerchantResult(
+                            merchantResult,
+                            serverPackets,
+                            tag
+                        );
+                        continue;
+                    }
+                }
+
+                if(bridge.handleMailboxWidgetAction(
+                        widget,serverPackets,tag))
                     continue;
 
                 uiActions.handleWidget(
@@ -554,11 +669,36 @@ final class LocalPendingRequestDispatcher {
                 DailyChallengeClientRequest dailyChallenge=
                     (DailyChallengeClientRequest)request;
 
+                LocalDailyChallengeCommandHandler.Result
+                    dailyResult=
+                        bridge.handleDailyChallengeRequest(
+                            dailyChallenge
+                        );
+
+                if(dailyResult==null){
+                    System.out.println(
+                        tag+
+                        dailyChallengeFailClosedDiagnostic(
+                            dailyChallenge
+                        )
+                    );
+                    continue;
+                }
+
+                publishDailyChallengeResult(
+                    dailyResult,
+                    serverPackets
+                );
+
                 System.out.println(
                     tag+
-                    dailyChallengeFailClosedDiagnostic(
-                        dailyChallenge
-                    )
+                    dailyResult.logText+
+                    " clientFeedback=true"+
+                    " route=EXACT_CURRENT_C2S103_TYPED"+
+                    " nativeDefinitionPublished="+
+                    (dailyResult.nativeDefinition!=null)+
+                    " nativePresentationTarget55="+
+                    (dailyResult.nativeDefinition!=null)
                 );
                 continue;
             }
@@ -575,10 +715,33 @@ final class LocalPendingRequestDispatcher {
                         );
 
                 if(dialogueOption>0){
-                    if(!makeoverMage.handleOption(
+                    boolean handled=
+                        makeoverMage.handleOption(
                             dialogueOption,
                             serverPackets,
-                            tag))
+                            tag
+                        );
+
+                    if(!handled&&
+                       suppliesMerchant!=null){
+                        LocalSuppliesMerchantHandler.Result
+                            merchantResult=
+                                suppliesMerchant.handleOption(
+                                    dialogueOption,
+                                    serverPackets
+                                );
+
+                        if(merchantResult.handled){
+                            applySuppliesMerchantResult(
+                                merchantResult,
+                                serverPackets,
+                                tag
+                            );
+                            handled=true;
+                        }
+                    }
+
+                    if(!handled)
                         System.out.println(
                             tag+
                             "DIALOGUE_OPTION_UNHANDLED index="+
@@ -607,6 +770,35 @@ final class LocalPendingRequestDispatcher {
                 request
             );
         }
+    }
+
+    static void publishDailyChallengeResult(
+        LocalDailyChallengeCommandHandler.Result result,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        LocalDailyChallengeCommandHandler.Result checked=
+            Objects.requireNonNull(
+                result,
+                "result"
+            );
+        ServerPacketWriter writer=
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            );
+
+        if(checked.nativeDefinition!=null)
+            new LocalLabDailyChallengePresentation(
+                writer
+            ).publishDefinition(
+                checked.nativeDefinition
+            );
+
+        new SocialChatPresentationPublisher(
+            writer
+        ).serverMessage(
+            checked.clientMessage
+        );
     }
 
     static String loadoutEditorSaveFailClosedDiagnostic(
@@ -759,6 +951,37 @@ final class LocalPendingRequestDispatcher {
             " authority=EXACT_CURRENT_CLIENT";
     }
 
+    private void applySuppliesMerchantResult(
+        LocalSuppliesMerchantHandler.Result result,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(result==null||!result.handled)
+            return;
+
+        if(result.saveReason!=null)
+            bridge.saveAccount(
+                tag,
+                result.saveReason
+            );
+
+        if(result.feedback!=null)
+            new SocialChatPresentationPublisher(
+                serverPackets
+            ).serverMessage(
+                result.feedback
+            );
+
+        if(result.logText!=null)
+            System.out.println(
+                tag+
+                result.logText+
+                " persistenceBeforeFeedback="+
+                (result.saveReason!=null&&
+                 result.feedback!=null)
+            );
+    }
+
     private void routeObjectInteraction(
         ObjectInteraction request,
         ServerPacketWriter serverPackets,
@@ -846,14 +1069,111 @@ final class LocalPendingRequestDispatcher {
             return;
         }
 
-        String compCapeItem=
-            compCapeCustomize.handleItemAction(
-                action,
-                serverPackets
-            );
+        String compCapeItem;
+
+        if(compCapeCustomize.willOpenRoot(
+                action
+            ))
+            compCapeItem=
+                uiActions.replaceMonsterSpawnerWithCompCapeRoot(
+                    ()->
+                        compCapeCustomize.handleItemAction(
+                            action,
+                            serverPackets
+                        )
+                );
+        else
+            compCapeItem=
+                compCapeCustomize.handleItemAction(
+                    action,
+                    serverPackets
+                );
 
         if(compCapeItem!=null){
             System.out.println(tag+compCapeItem);
+            return;
+        }
+
+        G1RocktailConsumableHandler.Result
+            rocktail=
+                rocktailConsumables.handle(
+                    action,
+                    bridge.sessionWorldTick(),
+                    serverPackets
+                );
+
+        if(rocktail!=null){
+            if(rocktail.saveReason!=null)
+                bridge.saveAccount(
+                    tag,
+                    rocktail.saveReason
+                );
+
+            System.out.println(
+                tag+
+                "G1_ROCKTAIL_CONSUMABLE "+
+                action+
+                " result="+
+                rocktail+
+                " authority="+
+                G1RocktailConsumableHandler.AUTHORITY
+            );
+            return;
+        }
+
+        LocalLootingBagBankHandler bagHandler=
+            lootingBagBank;
+
+        if(bagHandler!=null&&
+           bagHandler.owns(action)){
+            LocalLootingBagBankHandler.Result
+                bag=
+                    bagHandler.handle(
+                        action,
+                        serverPackets
+                    );
+
+            if(bag.saveReason!=null)
+                bridge.saveAccount(
+                    tag,
+                    bag.saveReason
+                );
+
+            System.out.println(
+                tag+
+                "G8_LOOTING_BAG_BANK "+
+                action+
+                " status="+
+                bag.status+
+                " item="+
+                bag.itemId+
+                " amount="+
+                bag.amount+
+                " detail=["+
+                bag.detail+
+                "] authority="+
+                LocalLootingBagBankHandler
+                    .POLICY_AUTHORITY
+            );
+            return;
+        }
+
+        boolean bankOwned=
+            action.widgetId==
+                BankState.BANK_CONTAINER||
+            action.widgetId==
+                BankState.BANK_INVENTORY_CONTAINER;
+
+        if(!bankOwned){
+            System.out.println(
+                tag+
+                "V522_ITEM_CONTAINER_UNCLAIMED "+
+                action+
+                " result=FAIL_CLOSED_NON_BANK_WIDGET"+
+                " bankOwnership=false"+
+                " shopAuthority=UNPROVEN"+
+                " decoderAligned=true"
+            );
             return;
         }
 
@@ -872,7 +1192,8 @@ final class LocalPendingRequestDispatcher {
             tag+"V522_BANK_ITEM_ACTION "+
             action+
             " result="+result+
-            " decoderAligned=true"
+            " decoderAligned=true"+
+            " bankOwnership=true"
         );
     }
 
@@ -1052,6 +1373,13 @@ final class LocalPendingRequestDispatcher {
             tag
         );
 
+        if(suppliesMerchant!=null)
+            suppliesMerchant
+                .cancelForNewNpcAction(
+                    serverPackets,
+                    tag
+                );
+
         if(petDropPickup.handlePickupNpcAction(
             action,
             serverPackets,
@@ -1128,6 +1456,27 @@ final class LocalPendingRequestDispatcher {
                 clicked+
                 " result="+result+
                 " approach="+approach
+            );
+            return;
+        }
+
+        LocalCanonicalNpcAttackHandler.Result
+            canonicalAttack=
+                bridge.handleCanonicalNpcAttack(
+                    action,
+                    clicked,
+                    serverPackets
+                );
+
+        if(canonicalAttack!=null){
+            System.out.println(
+                tag+
+                "CANONICAL_NPC_ATTACK_CLICK "+
+                action+
+                " clicked="+
+                clicked+
+                " result="+
+                canonicalAttack
             );
             return;
         }

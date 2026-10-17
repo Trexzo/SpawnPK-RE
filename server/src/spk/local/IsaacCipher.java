@@ -24,6 +24,67 @@ public final class IsaacCipher {
         return results[count];
     }
 
+    static final class Snapshot {
+        final int count;
+        final int[] results;
+        final int[] memory;
+        final int accumulator;
+        final int lastResult;
+        final int counter;
+
+        Snapshot(
+            int count,
+            int[] results,
+            int[] memory,
+            int accumulator,
+            int lastResult,
+            int counter
+        ){
+            this.count=count;
+            this.results=results;
+            this.memory=memory;
+            this.accumulator=accumulator;
+            this.lastResult=lastResult;
+            this.counter=counter;
+        }
+    }
+
+    Snapshot snapshot() {
+        return new Snapshot(
+            count,
+            results.clone(),
+            memory.clone(),
+            accumulator,
+            lastResult,
+            counter
+        );
+    }
+
+    void restore(Snapshot snapshot) {
+        if(snapshot==null)
+            throw new NullPointerException("snapshot");
+
+        count=snapshot.count;
+        System.arraycopy(
+            snapshot.results,
+            0,
+            results,
+            0,
+            results.length
+        );
+        System.arraycopy(
+            snapshot.memory,
+            0,
+            memory,
+            0,
+            memory.length
+        );
+        accumulator=snapshot.accumulator;
+        lastResult=snapshot.lastResult;
+        counter=snapshot.counter;
+    }
+
+
     private void isaac() {
         lastResult += ++counter;
         for (int i = 0; i < 256; i++) {

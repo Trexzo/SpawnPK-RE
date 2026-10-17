@@ -18,6 +18,10 @@ public final class LocalLabCoreContentModule
     public static final String MAKEOVER_MAGE_ACTION=
         "locallab.makeover-mage";
 
+    public static final int SUPPLIES_MERCHANT_NPC=410;
+    public static final String SUPPLIES_MERCHANT_ACTION=
+        "locallab.supplies-merchant";
+
     public static final int BANK_OBJECT=26972;
     public static final String BANK_OBJECT_SERVICE=
         "locallab.bank";
@@ -57,8 +61,14 @@ public final class LocalLabCoreContentModule
         "locallab.petruntime.scopesnipe";
     public static final String PET_PROC_ACTION=
         "locallab.petruntime.proc";
+    public static final String PET_EVIL_WOLPER_PROC_ACTION_PREFIX=
+        "locallab.petruntime.evil-wolper-proc";
+    public static final String PET_TEMPOROSS_PROC_ACTION_PREFIX=
+        "locallab.petruntime.tempoross-proc";
     public static final String PET_CHARGE_ACTION_PREFIX=
         "locallab.petruntime.charge";
+    public static final String PET_DAMAGE_ACTION_PREFIX=
+        "locallab.petruntime.damage";
 
     public static final String COMBAT_FIXTURE_ACTION_PREFIX=
         "locallab.combatfixture.hit";
@@ -223,6 +233,18 @@ public final class LocalLabCoreContentModule
         );
 
         registrar.command(
+            "evilwolperproc",
+            100,
+            this::evilWolperProc
+        );
+
+        registrar.command(
+            "temporossproc",
+            100,
+            this::temporossProc
+        );
+
+        registrar.command(
             "behemothcharge",
             100,
             this::petCharge
@@ -232,6 +254,18 @@ public final class LocalLabCoreContentModule
             "petcharge",
             100,
             this::petCharge
+        );
+
+        registrar.command(
+            "behemothhit",
+            100,
+            this::petDamage
+        );
+
+        registrar.command(
+            "petdamage",
+            100,
+            this::petDamage
         );
 
         registrar.command(
@@ -272,6 +306,16 @@ public final class LocalLabCoreContentModule
                 )
         );
 
+        registrar.npcOption(
+            SUPPLIES_MERCHANT_NPC,
+            3,
+            100,
+            context->
+                ContentNpcOptionResult.action(
+                    SUPPLIES_MERCHANT_ACTION
+                )
+        );
+
         MakeoverMageDialogueContent makeover=
             new MakeoverMageDialogueContent();
 
@@ -280,6 +324,16 @@ public final class LocalLabCoreContentModule
                 .DIALOGUE_KEY,
             100,
             makeover
+        );
+
+        SuppliesMerchantDialogueContent supplies=
+            new SuppliesMerchantDialogueContent();
+
+        registrar.dialogue(
+            SuppliesMerchantDialogueContent
+                .DIALOGUE_KEY,
+            100,
+            supplies
         );
 
         registrar.action(
@@ -582,6 +636,63 @@ public final class LocalLabCoreContentModule
             PET_CHARGE_ACTION_PREFIX+
             ":"+
             charge
+        );
+    }
+
+    private ContentResult evilWolperProc(
+        ContentCommandContext context
+    ){
+        int state=
+            context.arguments().isEmpty()
+                ?1
+                :parseInt(
+                    context.arguments().get(0),
+                    1
+                );
+
+        if(state<1||state>3)
+            state=1;
+
+        return ContentResult.action(
+            PET_EVIL_WOLPER_PROC_ACTION_PREFIX+
+            ":"+
+            state
+        );
+    }
+
+    private ContentResult temporossProc(
+        ContentCommandContext context
+    ){
+        int state=
+            context.arguments().isEmpty()
+                ?1
+                :parseInt(
+                    context.arguments().get(0),
+                    1
+                );
+
+        return ContentResult.action(
+            PET_TEMPOROSS_PROC_ACTION_PREFIX+
+            ":"+
+            state
+        );
+    }
+
+    private ContentResult petDamage(
+        ContentCommandContext context
+    ){
+        int damage=
+            context.arguments().isEmpty()
+                ?0
+                :parseInt(
+                    context.arguments().get(0),
+                    0
+                );
+
+        return ContentResult.action(
+            PET_DAMAGE_ACTION_PREFIX+
+            ":"+
+            damage
         );
     }
 
