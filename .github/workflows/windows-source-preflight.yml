@@ -1,0 +1,53 @@
+name: Windows source-only preflight (not original-client GUI)
+
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'scripts/Check-WindowsReleaseEvidence.ps1'
+      - '.github/workflows/windows-source-preflight.yml'
+  workflow_dispatch:
+
+jobs:
+  windows-source-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out proposed source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 for Java 11 target
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache Gradle artifacts
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Record original-client availability without fabricating GUI acceptance
+        shell: pwsh
+        run: |
+          & ./scripts/Check-WindowsReleaseEvidence.ps1 -OutputPath windows-release-evidence.json
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "Windows evidence preflight failed: $LASTEXITCODE"
+          }
+
+      - name: Compile Windows Java sources and run bounded synthetic smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./server/gradlew.bat --no-daemon clean testClasses verifyJava11Bytecode g21294FinalSaveWaitTimeoutRegression g2023AttemptFenceUncertainCompletionEvidenceRegression
+          if ($LASTEXITCODE -ne 0) {
+            throw "WINDOWS_SOURCE_ONLY_BUILD_FAILED exitCode=$LASTEXITCODE"
+          }
+          Write-Host "SPK_WINDOWS_SOURCE_SMOKE_PASS java11Bytecode=true accountWaitFixture=true npcAttemptFixture=true originalClientGui=false"
+
+      - name: Upload original-client preflight report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-source-only-evidence
+          path: windows-release-evidence.json
+          if-no-files-found: warn
+          retention-days: 14
