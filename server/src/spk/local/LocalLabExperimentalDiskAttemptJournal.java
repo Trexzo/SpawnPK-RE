@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
@@ -66,15 +67,18 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
     private final Path directory;
     private final FileChannel lockChannel;
     private final FileLock exclusiveLock;
+    private final Object originalLockKey;
+    private final Map<UUID, Object> recordKeys = new LinkedHashMap<UUID, Object>();
     private final Map<UUID, Entry> entries = new LinkedHashMap<UUID, Entry>();
     private int total;
     private boolean closed;
 
     private LocalLabExperimentalDiskAttemptJournal(
-        Path directory, FileChannel channel, FileLock lock) {
+        Path directory, FileChannel channel, FileLock lock, Object lockKey) {
         this.directory = directory;
         lockChannel = channel;
         exclusiveLock = lock;
+        originalLockKey = lockKey;
     }
 
     static LocalLabExperimentalDiskAttemptJournal open(Path input)
@@ -101,8 +105,10 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
             }
             if (lock == null)
                 throw new IOException("DISK_ATTEMPT_DIRECTORY_LOCKED");
+            requireSingleLink(lockPath);
             LocalLabExperimentalDiskAttemptJournal journal =
-                new LocalLabExperimentalDiskAttemptJournal(root, channel, lock);
+                new LocalLabExperimentalDiskAttemptJournal(
+                    root, channel, lock, requireFileKey(lockPath));
             journal.loadStrictly();
             return journal;
         } catch (IOException | RuntimeException failed) {
@@ -112,14 +118,73 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         }
     }
 
-    private void loadStrictly() throws IOException {
+    private static final class DiskScan {
+        final Map<UUID, Entry> found = new LinkedHashMap<UUID, Entry>();
+        final Map<UUID, Object> keys = new LinkedHashMap<UUID, Object>();
+        int count;
+    }
+
+    private static void requireSingleLink(Path path) throws IOException {
+        try {
+            Object value = Files.getAttribute(path, "unix:nlink",
+                LinkOption.NOFOLLOW_LINKS);
+            if (!(value instanceof Number) ||
+                ((Number)value).longValue() != 1L)
+                throw new IOException("DISK_ATTEMPT_MULTIPLE_OR_UNKNOWN_LINKS");
+        } catch (UnsupportedOperationException unsupported) {
+            // Unsupported filesystems must fail closed; this prototype
+            // is not promised to run on every Windows filesystem/provider.
+            throw new IOException("DISK_ATTEMPT_LINK_COUNT_UNAVAILABLE", unsupported);
+        }
+    }
+
+    private static Object requireFileKey(Path path) throws IOException {
+        BasicFileAttributes a = Files.readAttributes(path,
+            BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!a.isRegularFile() || a.fileKey() == null)
+            throw new IOException("DISK_ATTEMPT_FILE_IDENTITY_UNAVAILABLE");
+        return a.fileKey();
+    }
+
+    private static byte[] readBoundedRecord(Path path) throws IOException {
+        try (FileChannel ch = FileChannel.open(path,
+                StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            ByteBuffer buffer = ByteBuffer.allocate(4097);
+            while (buffer.hasRemaining()) {
+                int n = ch.read(buffer);
+                if (n < 0) break;
+                if (n == 0) throw new IOException("DISK_ATTEMPT_RECORD_READ_STALLED");
+            }
+            if (buffer.position() > 4096)
+                throw new IOException("DISK_ATTEMPT_OVERSIZE_RECORD");
+            buffer.flip();
+            byte[] bytes = new byte[buffer.remaining()];
+            buffer.get(bytes);
+            return bytes;
+        }
+    }
+
+    private DiskScan scanDirectory() throws IOException {
+        if (Files.isSymbolicLink(directory) ||
+            !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS))
+            throw new IOException("DISK_ATTEMPT_UNSAFE_DIRECTORY");
+        DiskScan scan = new DiskScan();
+        boolean foundLock = false;
         try (DirectoryStream<Path> files = Files.newDirectoryStream(directory)) {
             for (Path path : files) {
                 String name = path.getFileName().toString();
-                if (LOCK_FILE.equals(name)) continue;
                 if (Files.isSymbolicLink(path) ||
-                    !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) ||
-                    !name.endsWith(".event"))
+                    !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    throw new IOException("DISK_ATTEMPT_UNKNOWN_OR_UNSAFE_FILE");
+                requireSingleLink(path);
+                Object key = requireFileKey(path);
+                if (LOCK_FILE.equals(name)) {
+                    if (foundLock || !Objects.equals(originalLockKey, key))
+                        throw new IOException("DISK_ATTEMPT_LOCK_IDENTITY_CHANGED");
+                    foundLock = true;
+                    continue;
+                }
+                if (!name.endsWith(".event"))
                     throw new IOException("DISK_ATTEMPT_UNKNOWN_OR_UNSAFE_FILE");
                 String uuidText = name.substring(0, name.length() - 6);
                 UUID id;
@@ -127,17 +192,41 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
                 catch (IllegalArgumentException bad) {
                     throw new IOException("DISK_ATTEMPT_INVALID_EVENT_FILENAME", bad);
                 }
-                if (!id.toString().equals(uuidText) || entries.containsKey(id))
+                if (!id.toString().equals(uuidText) || scan.found.containsKey(id))
                     throw new IOException("DISK_ATTEMPT_NONCANONICAL_EVENT_FILENAME");
-                if (Files.size(path) > 4096L)
-                    throw new IOException("DISK_ATTEMPT_OVERSIZE_RECORD");
-                byte[] raw = Files.readAllBytes(path);
-                Entry entry = parse(raw, id);
-                entries.put(id, entry);
-                total += entry.reserved.size();
-                if (total > MAX_ATTEMPTS)
+                Entry entry = parse(readBoundedRecord(path), id);
+                scan.found.put(id, entry);
+                scan.keys.put(id, key);
+                scan.count += entry.reserved.size();
+                if (scan.count > MAX_ATTEMPTS)
                     throw new IOException("DISK_ATTEMPT_CAPACITY_CORRUPTION");
             }
+        }
+        if (!foundLock)
+            throw new IOException("DISK_ATTEMPT_LOCK_IDENTITY_CHANGED");
+        return scan;
+    }
+
+    private void loadStrictly() throws IOException {
+        DiskScan scan = scanDirectory();
+        entries.putAll(scan.found);
+        recordKeys.putAll(scan.keys);
+        total = scan.count;
+    }
+
+    private void requireNoExternalChanges() throws IOException {
+        DiskScan actual = scanDirectory();
+        if (actual.count != total ||
+            actual.found.size() != entries.size() ||
+            !actual.found.keySet().equals(entries.keySet()) ||
+            !actual.keys.equals(recordKeys))
+            throw new IOException("DISK_ATTEMPT_DISK_STATE_DIVERGED");
+        for (Map.Entry<UUID, Entry> expected : entries.entrySet()) {
+            Entry now = actual.found.get(expected.getKey());
+            if (now == null ||
+                !expected.getValue().observedFingerprint.equals(now.observedFingerprint) ||
+                !expected.getValue().reserved.equals(now.reserved))
+                throw new IOException("DISK_ATTEMPT_DISK_STATE_DIVERGED");
         }
     }
 
@@ -160,6 +249,10 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         LocalLabSettledDeathEnvelope death =
             LocalLabSettledDeathEnvelope.observe(world, terminal);
         String fingerprint = fingerprint(death);
+        // Revalidate every existing disk record before ANY new publication.
+        // The lock only excludes cooperative owners; an outside writer may
+        // change unrelated files while this process remains open.
+        requireNoExternalChanges();
         Entry previous = entries.get(testOnlyEventId);
         if (previous != null &&
             !previous.observedFingerprint.equals(fingerprint))
@@ -194,7 +287,13 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
                    StandardCopyOption.REPLACE_EXISTING);
         // No callback is ever invoked here, even after a successful disk move.
         // Directory fsync and hostile cross-process path swaps are NOT proven.
+        // A failure after ATOMIC_MOVE must not authorize another attempt.
+        // A subsequent operation rescans and fails closed if our in-memory
+        // state did not reach this point. This is not a durable grant ACK.
+        requireSingleLink(destination);
+        Object newFileKey = requireFileKey(destination);
         entries.put(testOnlyEventId, next);
+        recordKeys.put(testOnlyEventId, newFileKey);
         total++;
     }
 

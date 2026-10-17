@@ -2285,6 +2285,10 @@ def currentTrainFocusedTests = [
     'spk.local.G2026DiskAttemptJournalIdentityAndLockTest',
     'spk.local.G2027DiskAttemptJournalCorruptionFailClosedTest',
     'spk.local.G2028DiskAttemptJournalCapacityRetentionTest',
+    'spk.local.G2029DiskJournalLiveTamperTest',
+    'spk.local.G2030DiskJournalOrphanWhileOpenTest',
+    'spk.local.G2031DiskJournalHardlinkAliasTest',
+    'spk.local.G2032DiskJournalConcurrentAndInodeSwapTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2680,10 +2684,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 833 ||
-    currentTrainFocusedTests.toSet().size() != 833) {
+if (currentTrainFocusedTests.size() != 837 ||
+    currentTrainFocusedTests.toSet().size() != 837) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 833 unique tests, found " +
+        "Current-train focused manifest drift: expected 837 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2898,6 +2902,12 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2032-npc-disk-integrity-continuity'] = [
+    'spk.local.G2029DiskJournalLiveTamperTest',
+    'spk.local.G2030DiskJournalOrphanWhileOpenTest',
+    'spk.local.G2031DiskJournalHardlinkAliasTest',
+    'spk.local.G2032DiskJournalConcurrentAndInodeSwapTest',
 ]
 currentTrainCriticalCoverage['g2028-npc-disk-attempt-witness'] = [
     'spk.local.G2025DiskAttemptJournalRestartWitnessTest',
@@ -12340,4 +12350,40 @@ tasks.register('g2028DiskAttemptWitnessRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2028DiskAttemptJournalCapacityRetentionTest')
+}
+
+tasks.register('g2029DiskJournalIntegrityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting disk NPC reservation: live integrity and fail-closed controls'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2029DiskJournalLiveTamperTest')
+}
+
+tasks.register('g2030DiskJournalIntegrityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting disk NPC reservation: live integrity and fail-closed controls'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2030DiskJournalOrphanWhileOpenTest')
+}
+
+tasks.register('g2031DiskJournalIntegrityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting disk NPC reservation: live integrity and fail-closed controls'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2031DiskJournalHardlinkAliasTest')
+}
+
+tasks.register('g2032DiskJournalIntegrityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting disk NPC reservation: live integrity and fail-closed controls'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2032DiskJournalConcurrentAndInodeSwapTest')
 }
