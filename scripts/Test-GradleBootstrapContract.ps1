@@ -9,6 +9,11 @@ if (-not (Test-Path -LiteralPath $bootstrapPath -PathType Leaf)) {
 }
 
 $bootstrap = Get-Content -LiteralPath $bootstrapPath -Raw
+$hashHelperPath = Join-Path $repo 'server\gradle\ExactSha256.ps1'
+if (-not (Test-Path -LiteralPath $hashHelperPath -PathType Leaf)) {
+    throw "Missing Gradle SHA-256 helper: $hashHelperPath"
+}
+$hashHelper = Get-Content -LiteralPath $hashHelperPath -Raw
 
 function Assert-True(
     [bool]$Condition,
@@ -29,16 +34,18 @@ function Assert-ExactTextCount(
     Assert-True ($actual -eq $Expected) "$Message expected=$Expected actual=$actual needle=$Needle"
 }
 
-$tokens = $null
-$errors = $null
-[void][System.Management.Automation.Language.Parser]::ParseFile(
-    $bootstrapPath,
-    [ref]$tokens,
-    [ref]$errors
-)
-if ($errors.Count -gt 0) {
-    $detail = ($errors | ForEach-Object { $_.Message }) -join '; '
-    throw "PowerShell parse failed for Gradle bootstrap: $detail"
+foreach ($path in @($bootstrapPath, $hashHelperPath)) {
+    $tokens = $null
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile(
+        $path,
+        [ref]$tokens,
+        [ref]$parseErrors
+    )
+    if ($parseErrors.Count -gt 0) {
+        $detail = ($parseErrors | ForEach-Object { $_.Message }) -join '; '
+        throw "PowerShell parse failed for Gradle bootstrap/helper $path : $detail"
+    }
 }
 
 Assert-True (
@@ -47,7 +54,22 @@ Assert-True (
     )
 ) 'Gradle bootstrap lost the pinned 8.10.2 distribution SHA-256.'
 
-Assert-True ($bootstrap -match 'function\s+Get-ExactSha256') 'Gradle bootstrap lost exact SHA-256 helper.'
+# G21 Windows portability: the helper is now a separately sourced, pinned
+# .NET SHA-256 implementation. Check the actual source for function
+# declaration/byte hashing and verify loading occurs BEFORE the first
+# ZIP hash. Never accept an empty helper or bypassed SHA check.
+Assert-True ($hashHelper -match 'function\s+Get-ExactSha256') 'Gradle bootstrap lost exact SHA-256 helper.'
+Assert-True ($bootstrap -match '(?m)^\.\s*\(Join-Path\s+\$PSScriptRoot\s+''ExactSha256\.ps1''\)') 'Gradle bootstrap does not source the exact adjacent SHA-256 helper.'
+Assert-True ($hashHelper -match '\[System\.IO\.File\]::OpenRead\(\$Path\)') 'SHA-256 helper must read the actual file bytes.'
+Assert-True ($hashHelper -match '\[System\.Security\.Cryptography\.SHA256\]::Create\(\)') 'SHA-256 helper must create a real SHA-256 digest.'
+Assert-True ($hashHelper -match '\$algorithm\.ComputeHash\(\$stream\)') 'SHA-256 helper must hash the opened file stream.'
+Assert-True ($hashHelper -match '\$algorithm\.Dispose\(\)') 'SHA-256 helper must dispose algorithm.'
+Assert-True ($hashHelper -match '\$stream\.Dispose\(\)') 'SHA-256 helper must dispose input stream.'
+Assert-True ($hashHelper -notmatch 'Get-FileHash|MD5|SHA1') 'SHA-256 helper uses an unsupported cmdlet or weak digest.'
+Assert-ExactTextCount $bootstrap ". (Join-Path `$PSScriptRoot 'ExactSha256.ps1')" 1 'Exact SHA-256 helper must load once.'
+$helperLoadIndex = $bootstrap.IndexOf(". (Join-Path `$PSScriptRoot 'ExactSha256.ps1')")
+$firstHashIndex = $bootstrap.IndexOf('Get-ExactSha256 $zip')
+Assert-True ($helperLoadIndex -ge 0 -and $firstHashIndex -gt $helperLoadIndex) 'Gradle bootstrap SHA-256 helper was not loaded before use.'
 Assert-True ($bootstrap -match 'Get-ExactSha256\s+\$zip') 'Gradle bootstrap does not verify the persistent cached ZIP.'
 Assert-True ($bootstrap -match 'Get-ExactSha256\s+\$download') 'Gradle bootstrap does not verify a downloaded ZIP before cache publication.'
 Assert-True ($bootstrap -match 'Get-ExactSha256\s+\$invocationZip') 'Gradle bootstrap does not independently hash the invocation-owned ZIP.'
