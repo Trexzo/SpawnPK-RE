@@ -336,6 +336,20 @@ public final class G1884TerminalStageIsolationPropertySnapshotTest {
                             ?LocalLabTerminalFirstFailureTypeTally.Kind.ILLEGAL_STATE
                             :LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L,
                     "real G14 invalid persistence exception retained as bounded first-kind");
+                LocalLabOriginFirstFailureKindTally.Snapshot byOriginKind=
+                    trace.originFirstFailureKinds;
+                check(byOriginKind.count(
+                        LocalLabSettledDeathEnvelope.OriginStatus
+                            .CURRENT_SPAWN_RECIPIENT,
+                        malformedG14
+                            ?LocalLabTerminalFailureBoundaryTally.Boundary.G14
+                            :LocalLabTerminalFailureBoundaryTally.Boundary
+                                .NO_THROW_RECORDED,
+                        malformedG14
+                            ?LocalLabTerminalFirstFailureTypeTally.Kind.ILLEGAL_STATE
+                            :LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION
+                        )==1L,
+                    "real G14 healthy/failure origin and typed boundary retained");
                 LocalLabTerminalDeliverySummary summary=
                     LocalLabTerminalDeliverySummary.from(trace);
                 check(summary.observedTerminals==1L&&
