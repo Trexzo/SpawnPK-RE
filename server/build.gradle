@@ -2273,6 +2273,10 @@ def currentTrainFocusedTests = [
     'spk.local.G2014OriginFailureKindG1PrestageTest',
     'spk.local.G2015OriginFailureKindG14DisconnectedTest',
     'spk.local.G2016OriginFailureKindMalformedAndEpochTest',
+    'spk.local.G2017TerminalAttemptFenceRealDeathTest',
+    'spk.local.G2018TerminalAttemptFenceForeignWorldTest',
+    'spk.local.G2019TerminalAttemptFenceFailureUncertaintyTest',
+    'spk.local.G2020TerminalAttemptFenceCapacityFailClosedTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2650,10 +2654,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 803 ||
-    currentTrainFocusedTests.toSet().size() != 803) {
+if (currentTrainFocusedTests.size() != 807 ||
+    currentTrainFocusedTests.toSet().size() != 807) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 803 unique tests, found " +
+        "Current-train focused manifest drift: expected 807 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11993,4 +11997,44 @@ tasks.register('g2016OriginFailureKindMalformedEpochRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2016OriginFailureKindMalformedAndEpochTest')
+}
+
+
+tasks.register('g2017TerminalAttemptFenceRealDeathRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real settled NPC and six exact one-shot delivery attempt reservations'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2017TerminalAttemptFenceRealDeathTest')
+}
+
+
+tasks.register('g2018TerminalAttemptFenceForeignWorldRegression', JavaExec) {
+    group = 'verification'
+    description = 'Foreign World and foreign fence token fail-closed for canonical NPC'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2018TerminalAttemptFenceForeignWorldTest')
+}
+
+
+tasks.register('g2019TerminalAttemptFenceFailureUncertaintyRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exception class only, uncertain reserved stages, no callback grant or replay'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2019TerminalAttemptFenceFailureUncertaintyTest')
+}
+
+
+tasks.register('g2020TerminalAttemptFenceCapacityFailClosedRegression', JavaExec) {
+    group = 'verification'
+    description = '43 real NPC deaths and capacity 256 no eviction or duplicate-replay illusion'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2020TerminalAttemptFenceCapacityFailClosedTest')
 }
