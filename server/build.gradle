@@ -2281,6 +2281,10 @@ def currentTrainFocusedTests = [
     'spk.local.G2022AttemptFenceForeignAndCompletionRefusalsTest',
     'spk.local.G2023AttemptFenceUncertainCompletionEvidenceTest',
     'spk.local.G2024AttemptFenceCapacityRefusalRetentionTest',
+    'spk.local.G2025DiskAttemptJournalRestartWitnessTest',
+    'spk.local.G2026DiskAttemptJournalIdentityAndLockTest',
+    'spk.local.G2027DiskAttemptJournalCorruptionFailClosedTest',
+    'spk.local.G2028DiskAttemptJournalCapacityRetentionTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2676,10 +2680,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 829 ||
-    currentTrainFocusedTests.toSet().size() != 829) {
+if (currentTrainFocusedTests.size() != 833 ||
+    currentTrainFocusedTests.toSet().size() != 833) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 829 unique tests, found " +
+        "Current-train focused manifest drift: expected 833 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2894,6 +2898,12 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2028-npc-disk-attempt-witness'] = [
+    'spk.local.G2025DiskAttemptJournalRestartWitnessTest',
+    'spk.local.G2026DiskAttemptJournalIdentityAndLockTest',
+    'spk.local.G2027DiskAttemptJournalCorruptionFailClosedTest',
+    'spk.local.G2028DiskAttemptJournalCapacityRetentionTest',
 ]
 currentTrainCriticalCoverage['g2024-npc-terminal-attempt-refusal-evidence'] = [
     'spk.local.G2021AttemptFenceRefusalClassificationTest',
@@ -12294,4 +12304,40 @@ tasks.register('g21366ForcedWorldAccountHardlinkRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21366ForcedWorldForeignAccountAliasControlTest')
+}
+
+tasks.register('g2025DiskAttemptWitnessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real canonical settled NPC experimental disk attempt witness (non-granting)'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2025DiskAttemptJournalRestartWitnessTest')
+}
+
+tasks.register('g2026DiskAttemptWitnessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real canonical settled NPC experimental disk attempt witness (non-granting)'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2026DiskAttemptJournalIdentityAndLockTest')
+}
+
+tasks.register('g2027DiskAttemptWitnessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real canonical settled NPC experimental disk attempt witness (non-granting)'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2027DiskAttemptJournalCorruptionFailClosedTest')
+}
+
+tasks.register('g2028DiskAttemptWitnessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real canonical settled NPC experimental disk attempt witness (non-granting)'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2028DiskAttemptJournalCapacityRetentionTest')
 }
