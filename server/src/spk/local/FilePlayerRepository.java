@@ -1486,6 +1486,12 @@ final class FilePlayerRepository
                 LocalFinalSaveNegativeWitness.requireSingleObservedLink(
                     LocalDurableAccountReviewIntentPrimitive.markerPath(file),
                     "G21.357 WORLD_ACTIVE_REVIEW_HARDLINK_NEGATIVE");
+                // G21.364: a selected account hardlink alias can
+                // outlive replacing only its primary pathname. Refuse
+                // even when the separate G21.230 gate is default-OFF.
+                LocalFinalSaveNegativeWitness
+                    .requireSingleObservedLinkIfPresent(file,
+                        "G21.364 WORLD_ACCOUNT_EXISTING_ALIAS_NEGATIVE");
             }
             MailboxPreparedRestartAdmission.Decision admission=
                 MailboxPreparedRestartAdmission.inspect(snapshot);
@@ -1693,6 +1699,13 @@ final class FilePlayerRepository
                                     "G21.360 WORLD_ACCOUNT_PREIMAGE_CHANGED_BEFORE_MOVE",
                                     drift);
                             }
+                            // G21.365: identity, bytes and mtime
+                            // remain identical when an outsider adds
+                            // a hardlink to the same account inode.
+                            // This final negative gate is before move.
+                            LocalFinalSaveNegativeWitness
+                                .requireSingleObservedLinkIfPresent(file,
+                                    "G21.365 WORLD_ACCOUNT_LATE_ALIAS_NEGATIVE");
                         }
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);

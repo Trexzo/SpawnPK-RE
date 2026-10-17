@@ -2362,6 +2362,9 @@ def currentTrainFocusedTests = [
     'spk.local.G21361ForcedWorldLateAccountInodeSwapTest',
     'spk.local.G21362ForcedWorldForeignAccountDriftControlTest',
     'spk.local.G21363ForcedWorldFirstAbsentAccountControlTest',
+    'spk.local.G21364ForcedWorldExistingAccountAliasTest',
+    'spk.local.G21365ForcedWorldLateAccountAliasTest',
+    'spk.local.G21366ForcedWorldForeignAccountAliasControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2673,10 +2676,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 826 ||
-    currentTrainFocusedTests.toSet().size() != 826) {
+if (currentTrainFocusedTests.size() != 829 ||
+    currentTrainFocusedTests.toSet().size() != 829) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 826 unique tests, found " +
+        "Current-train focused manifest drift: expected 829 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2875,6 +2878,11 @@ currentTrainCriticalCoverage['g21353-forced-world-active-premove'] = [
 currentTrainCriticalCoverage['g21355-forced-world-active-identity-premove'] = [
     'spk.local.G21355ForcedWorldActiveInodeSwapTest',
     'spk.local.G21356ForcedWorldActiveNonceMutationTest',
+]
+currentTrainCriticalCoverage['g21366-forced-world-account-hardlink'] = [
+    'spk.local.G21364ForcedWorldExistingAccountAliasTest',
+    'spk.local.G21365ForcedWorldLateAccountAliasTest',
+    'spk.local.G21366ForcedWorldForeignAccountAliasControlTest',
 ]
 currentTrainCriticalCoverage['g21363-forced-world-account-preimage'] = [
     'spk.local.G21360ForcedWorldLateAccountByteDriftTest',
@@ -12259,4 +12267,31 @@ tasks.register('g21363ForcedWorldAccountPreimageRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21363ForcedWorldFirstAbsentAccountControlTest')
+}
+
+tasks.register('g21364ForcedWorldAccountHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.364 exact selected account pre-move physical hardlink negative or foreign control.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21364ForcedWorldExistingAccountAliasTest')
+}
+
+tasks.register('g21365ForcedWorldAccountHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.365 exact selected account pre-move physical hardlink negative or foreign control.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21365ForcedWorldLateAccountAliasTest')
+}
+
+tasks.register('g21366ForcedWorldAccountHardlinkRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.366 exact selected account pre-move physical hardlink negative or foreign control.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21366ForcedWorldForeignAccountAliasControlTest')
 }

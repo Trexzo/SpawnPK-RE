@@ -142,6 +142,24 @@ final class LocalFinalSaveNegativeWitness {
             throw new IOException(code);
     }
 
+    /**
+     * G21.364/365: first-time account absence is a valid preimage;
+     * existing account aliases are negative evidence even if no
+     * general G21.230 hardlink gate was explicitly enabled.
+     * Does not atomically exclude nonparticipating external writers.
+     */
+    static void requireSingleObservedLinkIfPresent(
+        Path selected,String code
+    )throws IOException{
+        try{
+            Files.readAttributes(selected,BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        }catch(java.nio.file.NoSuchFileException absent){
+            return;
+        }
+        requireSingleObservedLink(selected,code);
+    }
+
     static Path publishOnce(
         Path account,String username,long generation,long sequence
     )throws IOException{
