@@ -39,6 +39,15 @@ final class LocalOneShotActiveReviewOnAdmission {
                 "G21.190 ONE_SHOT_INTENT_REQUIRES_LOCKED_ACCOUNT");
         final Path exactLockedAccount=token.accountFileForReviewAdmission();
         try{
+            // G21.371: do not strand a new one-shot ACTIVE marker
+            // on a filesystem that cannot even observe unix:nlink.
+            // Only the strict negative-final-witness experiment adds
+            // this admission preflight. A successful preflight is NOT
+            // a durable owner receipt or hostile-writer atomic fence.
+            if(LocalFinalSaveNegativeWitness.enabled())
+                LocalFinalSaveNegativeWitness
+                    .requirePreAdmissionLinkCountCapability(
+                        exactLockedAccount);
             // Atomic exclusive creation; forced file+directory and
             // no automatic marker retirement even if registration
             // or final account publication later fails.

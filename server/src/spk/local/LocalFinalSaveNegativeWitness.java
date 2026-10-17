@@ -148,6 +148,47 @@ final class LocalFinalSaveNegativeWitness {
      * general G21.230 hardlink gate was explicitly enabled.
      * Does not atomically exclude nonparticipating external writers.
      */
+    /**
+     * G21.371-373: strict negative-witness opt-in must establish that
+     * the exact selected account directory can report unix:nlink
+     * BEFORE publishing an irreversible one-shot ACTIVE marker.
+     * For a first-time absent account, the directory is the only
+     * available evidence. Never treat absence as positive support.
+     * This is negative preflight only, NOT proof of atomic hardlink
+     * exclusion across JVMs or of directory crash durability.
+     */
+    static void requirePreAdmissionLinkCountCapability(
+        Path exactAccount
+    )throws IOException{
+        Path selected=Objects.requireNonNull(exactAccount,"exactAccount")
+            .toAbsolutePath().normalize();
+        Path parent=selected.getParent();
+        if(parent==null)
+            throw new IOException(
+                "G21.371 STRICT_LINK_PROVIDER_INVALID_ACCOUNT_PATH");
+        BasicFileAttributes directory=Files.readAttributes(
+            parent,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        if(!directory.isDirectory())
+            throw new IOException(
+                "G21.371 STRICT_LINK_PROVIDER_NONREGULAR_PARENT");
+        final Object count;
+        try{
+            count=Files.getAttribute(parent,"unix:nlink",
+                LinkOption.NOFOLLOW_LINKS);
+        }catch(UnsupportedOperationException|
+                IllegalArgumentException unsupported){
+            throw new IOException(
+                "G21.371 STRICT_LINK_PROVIDER_UNAVAILABLE_BEFORE_ACTIVE",
+                unsupported);
+        }
+        if(!(count instanceof Number)||
+           ((Number)count).longValue()<1L)
+            throw new IOException(
+                "G21.371 STRICT_LINK_PROVIDER_UNPROVEN_BEFORE_ACTIVE");
+        requireSingleObservedLinkIfPresent(
+            selected,"G21.372 STRICT_PRE_ADMISSION_ACCOUNT_ALIAS_NEGATIVE");
+    }
+
     static void requireSingleObservedLinkIfPresent(
         Path selected,String code
     )throws IOException{
