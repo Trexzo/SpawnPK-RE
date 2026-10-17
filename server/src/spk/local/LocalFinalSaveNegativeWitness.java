@@ -35,6 +35,12 @@ final class LocalFinalSaveNegativeWitness {
     }
     private static volatile Probe afterWriteBeforeForceForTest;
     private static volatile Probe afterDirectoryForceForTest;
+    // G21.341-344: default-inert final publication cutpoint AFTER
+    // original source marker validation, BEFORE reporting success.
+    private static volatile Probe beforeSuccessfulReturnForTest;
+    static void setBeforeSuccessfulReturnForTest(Probe p){
+        beforeSuccessfulReturnForTest=p;
+    }
     static void setAfterWriteBeforeForceForTest(Probe p){
         afterWriteBeforeForceForTest=p;
     }
@@ -300,6 +306,62 @@ final class LocalFinalSaveNegativeWitness {
                         "G21.314 FINAL_WITNESS_ACTIVE_OBJECT_DRIFT_NEGATIVE");
                 requireSingleObservedLink(active,
                     "G21.319 FINAL_WITNESS_ACTIVE_HARDLINK_NEGATIVE");
+                LocalDurableAccountReviewIntentPrimitive
+                    .requireReviewMarker(selected);
+                // G21.341-344: original selected source validation,
+                // post-force witness readback, and ACTIVE canonical
+                // check each happen before this return. An external
+                // writer can mutate the selected bytes after those
+                // reads. Repeat the exact bounded observations at
+                // the final boundary. These are NEGATIVE-only safety
+                // observations, not an atomic multi-file snapshot.
+                Probe lateProbe=beforeSuccessfulReturnForTest;
+                if(lateProbe!=null)lateProbe.run(output);
+                LocalAccountForensicEvidence.Evidence terminal=
+                    LocalAccountForensicEvidence.inspect(selected);
+                if(!before.accountSha256.equals(terminal.accountSha256)||
+                   !markerBefore.equals(terminal
+                       .negativeSidecarContentWitnesses.get("activeReview"))||
+                   !"1".equals(terminal.accountObservedLinkCount))
+                    throw new IOException(
+                        "G21.341 NEGATIVE_FINAL_WITNESS_LATE_SOURCE_DRIFT");
+                BasicFileAttributes finalAccount=requireSourceIdentity(
+                    selected,"G21.342 FINAL_WITNESS_LATE_ACCOUNT_UNSAFE");
+                BasicFileAttributes finalActive=requireSourceIdentity(
+                    active,"G21.342 FINAL_WITNESS_LATE_ACTIVE_UNSAFE");
+                if(!accountBeforeIdentity.fileKey().equals(
+                        finalAccount.fileKey())||
+                   !markerBeforeIdentity.fileKey().equals(
+                        finalActive.fileKey()))
+                    throw new IOException(
+                        "G21.342 NEGATIVE_FINAL_WITNESS_LATE_SOURCE_OBJECT_DRIFT");
+                requireSingleObservedLink(selected,
+                    "G21.342 NEGATIVE_FINAL_WITNESS_LATE_ACCOUNT_ALIAS");
+                requireSingleObservedLink(active,
+                    "G21.342 NEGATIVE_FINAL_WITNESS_LATE_ACTIVE_ALIAS");
+                ByteBuffer finalRead=ByteBuffer.allocate(bytes.length+1);
+                try(FileChannel verify=FileChannel.open(output,
+                        StandardOpenOption.READ,
+                        LinkOption.NOFOLLOW_LINKS)){
+                    while(finalRead.hasRemaining()){
+                        int n=verify.read(finalRead);
+                        if(n<0)break;
+                        if(n==0)
+                            throw new IOException(
+                                "G21.343 NEGATIVE_FINAL_WITNESS_LATE_READ_NO_PROGRESS");
+                    }
+                }
+                BasicFileAttributes finalWitness=requireSourceIdentity(
+                    output,"G21.343 NEGATIVE_FINAL_WITNESS_LATE_UNSAFE");
+                if(finalRead.position()!=bytes.length||
+                   !Arrays.equals(bytes,Arrays.copyOf(
+                       finalRead.array(),finalRead.position()))||
+                   finalWitness.size()!=bytes.length||
+                   !createdFileKey.equals(finalWitness.fileKey()))
+                    throw new IOException(
+                        "G21.343 NEGATIVE_FINAL_WITNESS_LATE_CONTENT_OR_OBJECT_DRIFT");
+                requireSingleObservedLink(output,
+                    "G21.343 NEGATIVE_FINAL_WITNESS_LATE_ALIAS");
                 LocalDurableAccountReviewIntentPrimitive
                     .requireReviewMarker(selected);
                 return output;
