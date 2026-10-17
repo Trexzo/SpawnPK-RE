@@ -6,6 +6,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path -LiteralPath $RepoRoot).Path
+# Same proven .NET SHA-256 byte-stream implementation as the pinned
+# Gradle bootstrap. The Windows CI runner need not provide Get-FileHash.
+# This informational check NEVER substitutes an arbitrary test hash
+# for the hardcoded v308 release-client SHA-256.
+. (Join-Path $PSScriptRoot '../server/gradle/ExactSha256.ps1')
 $expectedClient = "854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6"
 $historicalV307 = "6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662"
 $candidates = @(
@@ -20,7 +25,15 @@ foreach ($relative in $candidates) {
     $file = Join-Path $root ($relative.Replace("/", [IO.Path]::DirectorySeparatorChar))
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
 
-    $digest = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+    $item = Get-Item -LiteralPath $file -Force -ErrorAction Stop
+    if ($item.PSIsContainer -or
+        (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+        throw "Pinned-client evidence refuses non-ordinary/reparse file: $relative"
+    }
+    $digest = Get-ExactSha256 -Path $file
+    if ($digest -notmatch '^[0-9a-f]{64}$') {
+        throw "Pinned-client SHA256 returned a non-canonical digest: $relative"
+    }
     $observations += [pscustomobject]@{
         relativePath = $relative
         sha256 = $digest

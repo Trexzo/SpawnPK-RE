@@ -5,6 +5,7 @@ on:
     paths:
       - 'server/**'
       - 'scripts/Check-WindowsReleaseEvidence.ps1'
+      - 'scripts/Test-WindowsClientEvidenceContract.ps1'
       - 'tools/verification/FilesystemLinkCountProbe.java'
       - '.github/workflows/windows-source-preflight.yml'
   workflow_dispatch:
@@ -33,6 +34,15 @@ jobs:
           & ./scripts/Test-GradleBootstrapHash.ps1
           if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
             throw "GRADLE_SHA256_VECTOR_TEST_FAILED"
+          }
+
+      - name: Verify absent and mismatched v308 client evidence remains negative
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-WindowsClientEvidenceContract.ps1
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "WINDOWS_CLIENT_EVIDENCE_CONTRACT_FAILED"
           }
 
       - name: Record original-client availability without fabricating GUI acceptance
