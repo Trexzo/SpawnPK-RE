@@ -307,6 +307,14 @@ final class MonsterSpawnerPvmRuntime {
 
     private TerminalObserver terminalObserver;
 
+    // TEST-ONLY fault injection for post-settlement optional session cleanup.
+    // Normally null; never a callback into grants, rewards, or persistence.
+    private volatile Runnable postSettlementCleanupFaultForTest;
+
+    void installPostSettlementCleanupFaultForTest(Runnable fault){
+        postSettlementCleanupFaultForTest=fault;
+    }
+
     MonsterSpawnerPvmRuntime(
         World world,
         MonsterSpawnerNpcLifecycleBindingService lifecycleBinding,
@@ -862,19 +870,40 @@ final class MonsterSpawnerPvmRuntime {
             postTeardownSession=
                 finalized.teardown.session;
 
-        if(postTeardownSession.spawnedNpcIds.isEmpty())
-            world.runIfOpen(
-                ()->{
-                    if(world.players().byName(
-                            entry.ownerRef
-                        )==null)
-                        combat
-                            .retireSessionIfCurrentAndNoTrackedNpcs(
-                                entry.ownerRef,
-                                postTeardownSession
-                            );
-                }
-            );
+        if(postTeardownSession.spawnedNpcIds.isEmpty()){
+            try{
+                world.runIfOpen(
+                    ()->{
+                        if(world.players().byName(
+                                entry.ownerRef
+                            )==null){
+                            // Real optional cleanup operation has already
+                            // been selected. Inject only in test scenarios.
+                            Runnable testFault=postSettlementCleanupFaultForTest;
+                            if(testFault!=null)
+                                testFault.run();
+                            combat
+                                .retireSessionIfCurrentAndNoTrackedNpcs(
+                                    entry.ownerRef,
+                                    postTeardownSession
+                                );
+                        }
+                    }
+                );
+            }catch(Throwable failure){
+                // Settlement and NPC retirement are already committed.
+                // A best-effort session cleanup failure MUST NOT suppress
+                // the post-settlement terminal observer or cause retry of
+                // irreversible ground drops. Do not call Throwable.toString().
+                System.err.println(
+                    "[world] G1_PVM_POST_SETTLEMENT_CLEANUP_FAILED npc="+
+                    finalized.npcId+
+                    " deathTick="+finalized.deathTick+
+                    " failureType="+failure.getClass().getName()+
+                    " observerStillPending=true"
+                );
+            }
+        }
 
         FinalizeResult terminal=
             new FinalizeResult(

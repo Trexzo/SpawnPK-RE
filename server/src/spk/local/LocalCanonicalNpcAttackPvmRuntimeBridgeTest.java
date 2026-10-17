@@ -628,6 +628,142 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
         }
     }
 
+    /**
+     * G2082–86: real ground-settled NPC after-drop optional session cleanup.
+     * A cleanup failure occurs AFTER the irrecoverable canonical settlement,
+     * so it must not prevent the terminal observer or trigger drop replay.
+     */
+    static void runPostSettlementCleanupBoundary(int mode)throws Exception{
+        if(mode<0||mode>4)
+            throw new IllegalArgumentException("G2082_INVALID_CLEANUP_MODE");
+        World world=World.isolatedForTest(620L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        java.io.PrintStream oldErr=System.err;
+        java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();
+        java.io.PrintStream isolatedErr=new java.io.PrintStream(out,true,"UTF-8");
+        final String secret="G2082_SECRET_FROM_SYNTHETIC_CLEANUP_DO_NOT_LOG";
+        final java.util.concurrent.atomic.AtomicInteger toStringCalls=
+            new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger injectionCalls=
+            new java.util.concurrent.atomic.AtomicInteger();
+        try{
+            String recipient="g2082-real-recipient-"+mode;
+            // Mode 4 uses the SAME registered owner as the recipient,
+            // so optional owner-absent retirement must be skipped.
+            String owner=mode==4?recipient:"g2082-absent-owner-"+mode;
+            generation=world.registerPlayer(player,recipient);
+            player.movement().restoreAccountState(false,100,3087,3495,0);
+            RuntimeGraph graph=new RuntimeGraph(
+                world,attackDefinition(),owner);
+            world.installMonsterSpawnerPvmRuntime(graph.runtime);
+            final int[] observerCalls={0};
+            graph.runtime.installTerminalObserver(terminal->{
+                observerCalls[0]++;
+                if(mode==3)
+                    throw new IllegalArgumentException(
+                        "G2085_OBSERVER_EXCEPTION_ALSO_NOT_A_GRANT");
+            });
+            if(mode==0||mode==3){
+                graph.runtime.installPostSettlementCleanupFaultForTest(()->{
+                    injectionCalls.incrementAndGet();
+                    throw new IllegalStateException(secret);
+                });
+            }else if(mode==1){
+                graph.runtime.installPostSettlementCleanupFaultForTest(()->{
+                    injectionCalls.incrementAndGet();
+                    throw new AssertionError(secret){
+                        @Override public String toString(){
+                            toStringCalls.incrementAndGet();
+                            throw new IllegalStateException(
+                                "UNSAFE_THROWABLE_TOSTRING_"+secret);
+                        }
+                    };
+                });
+            }else if(mode==4){
+                graph.runtime.installPostSettlementCleanupFaultForTest(()->{
+                    injectionCalls.incrementAndGet();
+                    throw new IllegalStateException(
+                        "FAULT_MUST_NOT_RUN_WHEN_OWNER_PRESENT");
+                });
+            }
+            MonsterSpawnerPvmRuntime.SpawnResult spawn=
+                graph.runtime.spawnAndBind(
+                    owner,recipient,3088,3495,0);
+            WorldNpc npc=spawn.spawn.combat.spawn.npc;
+            NpcLifecycleService.DamageResult lethal=
+                world.npcLifecycle().applyDamageOwned(
+                    npc.id,10,world.clock().tick());
+            checkObserver(lethal.newlyDied&&lethal.hitpointsAfter==0,
+                "real canonical NPC lethal HP");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal;
+            System.setErr(isolatedErr);
+            try{
+                terminal=world.finalizeMonsterSpawnerPvmIfOwned(npc);
+            }finally{ System.setErr(oldErr); }
+            isolatedErr.flush();
+            String logged=out.toString("UTF-8");
+            boolean shouldFail=mode==0||mode==1||mode==3;
+            String type=mode==1?"spk.local.LocalCanonicalNpcAttackPvmRuntimeBridgeTest$":
+                IllegalStateException.class.getName();
+            checkObserver(
+                terminal!=null&&
+                terminal.status==MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                terminal.finalization!=null&&terminal.settlement!=null&&
+                observerCalls[0]==1&&
+                graph.dropCalls==1&&
+                graph.runtime.get(npc.id)==null&&
+                world.groundItems().findOwned(
+                    995,3088,3495,0,recipient)!=null,
+                "post-settlement cleanup failure preserves real drop and observer");
+            checkObserver(
+                toStringCalls.get()==0&&
+                injectionCalls.get()==(shouldFail?1:0)&&
+                !logged.contains(secret)&&
+                !logged.contains("UNSAFE_THROWABLE_TOSTRING")&&
+                !logged.contains("FAULT_MUST_NOT_RUN")&&
+                (shouldFail
+                    ?logged.contains("G1_PVM_POST_SETTLEMENT_CLEANUP_FAILED")&&
+                        logged.contains("failureType="+type)
+                    :!logged.contains("G1_PVM_POST_SETTLEMENT_CLEANUP_FAILED")),
+                "only sanitized failure type is logged, never secret payload");
+            MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics report=
+                graph.runtime.terminalObserverDiagnostics();
+            checkObserver(report.totalAttempts==1L&&
+                report.failedAttempts==(mode==3?1L:0L)&&
+                report.recentAttempts.size()==1&&
+                report.recentAttempts.get(0).outcome==
+                    (mode==3
+                        ?MonsterSpawnerPvmRuntime.TerminalObserverOutcome.THREW
+                        :MonsterSpawnerPvmRuntime.TerminalObserverOutcome.RETURNED),
+                "cleanup exception and observer outcome remain separate");
+            if(mode==3)
+                checkObserver(
+                    logged.contains("G1_PVM_TERMINAL_OBSERVER_FAILED")&&
+                    logged.contains("failureType=java.lang.IllegalArgumentException"),
+                    "both cleanup and observer failures recorded without replay");
+            else
+                checkObserver(
+                    !logged.contains("G1_PVM_TERMINAL_OBSERVER_FAILED"),
+                    "healthy observer did not falsely report a failure");
+            MonsterSpawnerPvmRuntime.FinalizeResult retried=
+                graph.runtime.retrySettlement(npc.id);
+            MonsterSpawnerPvmRuntime.FinalizeResult redelivered=
+                graph.runtime.finalizeIfOwned(npc);
+            checkObserver(
+                retried.status==MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                redelivered.status==MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                graph.dropCalls==1&&observerCalls[0]==1,
+                "cleanup failure does not replay drops or observer callbacks");
+        }finally{
+            System.setErr(oldErr);
+            isolatedErr.close();
+            if(generation>=0&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
+    }
+
     private static void checkObserver(boolean condition,String message){
         if(!condition)
             throw new AssertionError("G19.5.1/52 "+message);

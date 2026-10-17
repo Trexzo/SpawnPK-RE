@@ -2338,6 +2338,11 @@ def currentTrainFocusedTests = [
     'spk.local.G2079TerminalObserverCauseSuppressedRedactionTest',
     'spk.local.G2080TerminalObserverErrorRedactionTest',
     'spk.local.G2081TerminalObserverSuccessNoFailureLogTest',
+    'spk.local.G2082PostSettlementCleanupRuntimeFailureTest',
+    'spk.local.G2083PostSettlementCleanupHostileErrorTest',
+    'spk.local.G2084PostSettlementCleanupHealthyControlTest',
+    'spk.local.G2085PostSettlementCleanupAndObserverBothFailTest',
+    'spk.local.G2086PostSettlementCleanupOwnerPresentTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2743,10 +2748,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 896 ||
-    currentTrainFocusedTests.toSet().size() != 896) {
+if (currentTrainFocusedTests.size() != 901 ||
+    currentTrainFocusedTests.toSet().size() != 901) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 896 unique tests, found " +
+        "Current-train focused manifest drift: expected 901 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2977,6 +2982,13 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2086-npc-postsettlement-cleanup-observer-continuity'] = [
+    'spk.local.G2082PostSettlementCleanupRuntimeFailureTest',
+    'spk.local.G2083PostSettlementCleanupHostileErrorTest',
+    'spk.local.G2084PostSettlementCleanupHealthyControlTest',
+    'spk.local.G2085PostSettlementCleanupAndObserverBothFailTest',
+    'spk.local.G2086PostSettlementCleanupOwnerPresentTest',
 ]
 currentTrainCriticalCoverage['g2081-npc-postsettlement-observer-safe-log'] = [
     'spk.local.G2077TerminalObserverPrivateMessageRedactionTest',
@@ -13059,4 +13071,49 @@ tasks.register('g2081ObserverLogRedactionRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2081TerminalObserverSuccessNoFailureLogTest')
+}
+
+tasks.register('g2082PostSettlementCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual canonical NPC settlement: optional session cleanup cannot skip terminal observer'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2082PostSettlementCleanupRuntimeFailureTest')
+}
+
+tasks.register('g2083PostSettlementCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual canonical NPC settlement: optional session cleanup cannot skip terminal observer'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2083PostSettlementCleanupHostileErrorTest')
+}
+
+tasks.register('g2084PostSettlementCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual canonical NPC settlement: optional session cleanup cannot skip terminal observer'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2084PostSettlementCleanupHealthyControlTest')
+}
+
+tasks.register('g2085PostSettlementCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual canonical NPC settlement: optional session cleanup cannot skip terminal observer'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2085PostSettlementCleanupAndObserverBothFailTest')
+}
+
+tasks.register('g2086PostSettlementCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Actual canonical NPC settlement: optional session cleanup cannot skip terminal observer'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2086PostSettlementCleanupOwnerPresentTest')
 }
