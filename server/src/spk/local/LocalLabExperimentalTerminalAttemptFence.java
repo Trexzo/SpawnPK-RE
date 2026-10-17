@@ -2,6 +2,7 @@ package spk.local;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,15 @@ final class LocalLabExperimentalTerminalAttemptFence {
         RESERVED_UNCERTAIN,
         RETURNED_UNACKNOWLEDGED,
         THREW_MUTATION_UNCERTAIN
+    }
+
+    enum Refusal {
+        DUPLICATE_CONSUMER,
+        CONFLICTING_DEATH_EVIDENCE,
+        CAPACITY_FAIL_CLOSED,
+        FOREIGN_FENCE,
+        ALREADY_OBSERVED,
+        UNKNOWN_RESERVATION
     }
 
     private static final class EventKey {
@@ -108,12 +118,35 @@ final class LocalLabExperimentalTerminalAttemptFence {
         final int reserved;
         final List<Entry> entries;
         final boolean capacityExhausted;
+        final Map<Refusal,Long> refusals;
+        final Map<Observation,Long> observations;
 
-        private Snapshot(List<Entry> entries){
+        long refusalCount(Refusal refusal){
+            return refusals.get(Objects.requireNonNull(refusal,"refusal"));
+        }
+
+        long observationCount(Observation observation){
+            return observations.get(Objects.requireNonNull(observation,"observation"));
+        }
+
+        private Snapshot(List<Entry> entries,
+                         EnumMap<Refusal,Long> refusals){
             this.entries=Collections.unmodifiableList(
                 new ArrayList<Entry>(entries));
             reserved=entries.size();
             capacityExhausted=reserved==MAX_ATTEMPTS;
+            this.refusals=Collections.unmodifiableMap(
+                new EnumMap<Refusal,Long>(refusals));
+            EnumMap<Observation,Long> counts=
+                new EnumMap<Observation,Long>(Observation.class);
+            for(Observation observation:Observation.values())
+                counts.put(observation,0L);
+            for(Entry entry:entries){
+                long previous=counts.get(entry.observation);
+                if(previous<Long.MAX_VALUE)
+                    counts.put(entry.observation,previous+1L);
+            }
+            observations=Collections.unmodifiableMap(counts);
         }
 
         boolean hasDurableGrantAcknowledgement(){return false;}
@@ -125,9 +158,17 @@ final class LocalLabExperimentalTerminalAttemptFence {
         attempted=new LinkedHashMap<EventKey,Map<
             LocalLabTerminalDeliveryAssessment.Consumer,Attempt>>();
     private int count;
+    private final EnumMap<Refusal,Long> refusals=
+        new EnumMap<Refusal,Long>(Refusal.class);
+
+    private void refused(Refusal kind){
+        long previous=refusals.get(kind);
+        if(previous<Long.MAX_VALUE)refusals.put(kind,previous+1L);
+    }
 
     LocalLabExperimentalTerminalAttemptFence(World world){
         this.world=Objects.requireNonNull(world,"world");
+        for(Refusal refusal:Refusal.values())refusals.put(refusal,0L);
     }
 
     synchronized Attempt reserve(
@@ -148,17 +189,23 @@ final class LocalLabExperimentalTerminalAttemptFence {
                 if(token.originStatus!=death.originStatus||
                    token.definitionId!=death.definitionId||
                    !Objects.equals(token.deathTile,death.deathTile)||
-                   token.spawnRecipientGeneration!=death.spawnRecipientGeneration)
+                   token.spawnRecipientGeneration!=death.spawnRecipientGeneration){
+                    refused(Refusal.CONFLICTING_DEATH_EVIDENCE);
                     throw new IllegalStateException(
                         "TERMINAL_ATTEMPT_CONFLICTING_DEATH_EVIDENCE");
+                }
             }
-            if(existing.containsKey(checked))
+            if(existing.containsKey(checked)){
+                refused(Refusal.DUPLICATE_CONSUMER);
                 throw new IllegalStateException(
                     "TERMINAL_ATTEMPT_DUPLICATE_CONSUMER");
+            }
         }
-        if(count>=MAX_ATTEMPTS)
+        if(count>=MAX_ATTEMPTS){
+            refused(Refusal.CAPACITY_FAIL_CLOSED);
             throw new IllegalStateException(
                 "TERMINAL_ATTEMPT_CAPACITY_FAIL_CLOSED");
+        }
         Attempt token=new Attempt(this,death,checked);
         if(existing==null){
             existing=new LinkedHashMap<
@@ -186,17 +233,23 @@ final class LocalLabExperimentalTerminalAttemptFence {
         Attempt token,Observation outcome,String failureType
     ){
         Attempt checked=Objects.requireNonNull(token,"attempt");
-        if(checked.owner!=this)
+        if(checked.owner!=this){
+            refused(Refusal.FOREIGN_FENCE);
             throw new IllegalStateException(
                 "TERMINAL_ATTEMPT_FOREIGN_FENCE");
-        if(checked.observation!=Observation.RESERVED_UNCERTAIN)
+        }
+        if(checked.observation!=Observation.RESERVED_UNCERTAIN){
+            refused(Refusal.ALREADY_OBSERVED);
             throw new IllegalStateException(
                 "TERMINAL_ATTEMPT_ALREADY_OBSERVED");
+        }
         Map<LocalLabTerminalDeliveryAssessment.Consumer,Attempt> row=
             attempted.get(new EventKey(checked.npcId,checked.deathTick,checked.recipientRef));
-        if(row==null||row.get(checked.consumer)!=checked)
+        if(row==null||row.get(checked.consumer)!=checked){
+            refused(Refusal.UNKNOWN_RESERVATION);
             throw new IllegalStateException(
                 "TERMINAL_ATTEMPT_UNKNOWN_RESERVATION");
+        }
         checked.observation=outcome;
         checked.failureType=failureType;
     }
@@ -207,6 +260,6 @@ final class LocalLabExperimentalTerminalAttemptFence {
                 attempted.values())
             for(Attempt token:row.values())
                 copies.add(new Entry(token));
-        return new Snapshot(copies);
+        return new Snapshot(copies,refusals);
     }
 }
