@@ -51,6 +51,11 @@ final class G21374StrictOneShotTokenAdmissionFixture {
             Path account=LocalAccountProfiles.accountFile(user);
             Path active=LocalDurableAccountReviewIntentPrimitive
                 .markerPath(account);
+            // Named local profiles map to accounts/profiles/ under the
+            // root primary account. Real admission creates this path,
+            // but the hardlink fixture must create its parent BEFORE
+            // writing a preexisting selected account.
+            Files.createDirectories(account.getParent());
             Path alias=root.resolve("account-or-foreign-alias");
             Path other=root.resolve("foreign.properties");
             if(scenario==Scenario.SELECTED_ALIAS) {
