@@ -2297,6 +2297,11 @@ def currentTrainFocusedTests = [
     'spk.local.G2038DiskJournalLiveAncestorSymlinkTest',
     'spk.local.G2039DiskJournalReopenedEventAppendTest',
     'spk.local.G2040DiskJournalTerminalUuidAliasRaceTest',
+    'spk.local.G2041DiskJournalPreMoveTempTamperTest',
+    'spk.local.G2042DiskJournalPreMoveTempHardlinkTest',
+    'spk.local.G2043DiskJournalLateDestinationSwapTest',
+    'spk.local.G2044DiskJournalLatePendingInodeSwapTest',
+    'spk.local.G2045DiskJournalHealthyPreMoveControlTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2699,10 +2704,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 852 ||
-    currentTrainFocusedTests.toSet().size() != 852) {
+if (currentTrainFocusedTests.size() != 857 ||
+    currentTrainFocusedTests.toSet().size() != 857) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 852 unique tests, found " +
+        "Current-train focused manifest drift: expected 857 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2928,6 +2933,13 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2045-npc-journal-inpublication-integrity'] = [
+    'spk.local.G2041DiskJournalPreMoveTempTamperTest',
+    'spk.local.G2042DiskJournalPreMoveTempHardlinkTest',
+    'spk.local.G2043DiskJournalLateDestinationSwapTest',
+    'spk.local.G2044DiskJournalLatePendingInodeSwapTest',
+    'spk.local.G2045DiskJournalHealthyPreMoveControlTest',
 ]
 currentTrainCriticalCoverage['g2040-npc-journal-event-authority-boundary'] = [
     'spk.local.G2037DiskJournalAncestorSymlinkOpenTest',
@@ -12559,4 +12571,49 @@ tasks.register('g21373StrictPreActiveLinkProviderRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21373StrictPreActiveForeignHardlinkControlTest')
+}
+
+tasks.register('g2041DiskJournalPreMoveRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting NPC journal real-NIO publication cutpoint audit'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2041DiskJournalPreMoveTempTamperTest')
+}
+
+tasks.register('g2042DiskJournalPreMoveRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting NPC journal real-NIO publication cutpoint audit'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2042DiskJournalPreMoveTempHardlinkTest')
+}
+
+tasks.register('g2043DiskJournalPreMoveRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting NPC journal real-NIO publication cutpoint audit'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2043DiskJournalLateDestinationSwapTest')
+}
+
+tasks.register('g2044DiskJournalPreMoveRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting NPC journal real-NIO publication cutpoint audit'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2044DiskJournalLatePendingInodeSwapTest')
+}
+
+tasks.register('g2045DiskJournalPreMoveRegression', JavaExec) {
+    group = 'verification'
+    description = 'Experimental non-granting NPC journal real-NIO publication cutpoint audit'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2045DiskJournalHealthyPreMoveControlTest')
 }
