@@ -2331,6 +2331,10 @@ def currentTrainFocusedTests = [
     'spk.local.G21342FinalWitnessLateActivePublicationTest',
     'spk.local.G21343FinalWitnessLateWitnessPublicationTest',
     'spk.local.G21344FinalWitnessForeignLatePublicationControlTest',
+    'spk.local.G21345FinalWitnessLateAccountInodeSwapTest',
+    'spk.local.G21346FinalWitnessLateActiveInodeSwapTest',
+    'spk.local.G21347FinalWitnessLateWitnessInodeSwapTest',
+    'spk.local.G21348FinalWitnessForeignInodeSwapControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2642,10 +2646,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 795 ||
-    currentTrainFocusedTests.toSet().size() != 795) {
+if (currentTrainFocusedTests.size() != 799 ||
+    currentTrainFocusedTests.toSet().size() != 799) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 795 unique tests, found " +
+        "Current-train focused manifest drift: expected 799 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2826,6 +2830,12 @@ currentTrainCriticalCoverage['g21341-late-final-publication'] = [
     'spk.local.G21342FinalWitnessLateActivePublicationTest',
     'spk.local.G21343FinalWitnessLateWitnessPublicationTest',
     'spk.local.G21344FinalWitnessForeignLatePublicationControlTest',
+]
+currentTrainCriticalCoverage['g21345-late-final-publisher-inode'] = [
+    'spk.local.G21345FinalWitnessLateAccountInodeSwapTest',
+    'spk.local.G21346FinalWitnessLateActiveInodeSwapTest',
+    'spk.local.G21347FinalWitnessLateWitnessInodeSwapTest',
+    'spk.local.G21348FinalWitnessForeignInodeSwapControlTest',
 ]
 currentTrainCriticalCoverage['g2012-first-failure-type-integrity'] = [
     'spk.local.G2009BoundedFailureKindsEvictionTest',
@@ -11902,4 +11912,36 @@ tasks.register('g21344FinalWitnessForeignLatePublicationControlTestRegression', 
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21344FinalWitnessForeignLatePublicationControlTest')
+}
+
+tasks.register('g21345FinalWitnessLateAccountInodeSwapTestRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21345FinalWitnessLateAccountInodeSwapTest')
+}
+
+tasks.register('g21346FinalWitnessLateActiveInodeSwapTestRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21346FinalWitnessLateActiveInodeSwapTest')
+}
+
+tasks.register('g21347FinalWitnessLateWitnessInodeSwapTestRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21347FinalWitnessLateWitnessInodeSwapTest')
+}
+
+tasks.register('g21348FinalWitnessForeignInodeSwapControlTestRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21348FinalWitnessForeignInodeSwapControlTest')
 }
