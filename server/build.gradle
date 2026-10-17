@@ -2343,6 +2343,8 @@ def currentTrainFocusedTests = [
     'spk.local.G21350FinalWitnessLateActiveHardlinkTest',
     'spk.local.G21351FinalWitnessLateWitnessHardlinkTest',
     'spk.local.G21352FinalWitnessLateForeignHardlinkTest',
+    'spk.local.G21353ForcedWorldMissingActiveTest',
+    'spk.local.G21354ForcedWorldLateRemovedActiveTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2654,10 +2656,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 807 ||
-    currentTrainFocusedTests.toSet().size() != 807) {
+if (currentTrainFocusedTests.size() != 809 ||
+    currentTrainFocusedTests.toSet().size() != 809) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 807 unique tests, found " +
+        "Current-train focused manifest drift: expected 809 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2844,6 +2846,10 @@ currentTrainCriticalCoverage['g21345-late-final-publisher-inode'] = [
     'spk.local.G21346FinalWitnessLateActiveInodeSwapTest',
     'spk.local.G21347FinalWitnessLateWitnessInodeSwapTest',
     'spk.local.G21348FinalWitnessForeignInodeSwapControlTest',
+]
+currentTrainCriticalCoverage['g21353-forced-world-active-premove'] = [
+    'spk.local.G21353ForcedWorldMissingActiveTest',
+    'spk.local.G21354ForcedWorldLateRemovedActiveTest',
 ]
 currentTrainCriticalCoverage['g21349-late-final-publisher-hardlinks'] = [
     'spk.local.G21349FinalWitnessLateAccountHardlinkTest',
@@ -12035,4 +12041,20 @@ tasks.register('g21352LateFinalForeignHardlinkRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21352FinalWitnessLateForeignHardlinkTest')
+}
+
+tasks.register('g21353ForcedWorldMissingActiveRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21353ForcedWorldMissingActiveTest')
+}
+
+tasks.register('g21354ForcedWorldLateRemovedActiveRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21354ForcedWorldLateRemovedActiveTest')
 }

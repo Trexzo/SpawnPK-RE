@@ -1473,6 +1473,13 @@ final class FilePlayerRepository
             // Never allocate a new World temp for a quarantined leaf.
             LocalFinalSaveNegativeWitness
                 .requireNoNegativeWitness(file);
+            // G21.353: require original forced ACTIVE before temp
+            // allocation. Without it a later failed witness could
+            // follow an already-published account replacement.
+            if(forceRealWorldPostimage&&
+               LocalFinalSaveNegativeWitness.enabled())
+                LocalDurableAccountReviewIntentPrimitive
+                    .requireReviewMarker(file);
             MailboxPreparedRestartAdmission.Decision admission=
                 MailboxPreparedRestartAdmission.inspect(snapshot);
             if(!admission.admissionAllowed)
@@ -1577,6 +1584,10 @@ final class FilePlayerRepository
                         // cooperating writer publication lock.
                         LocalFinalSaveNegativeWitness
                             .requireNoNegativeWitness(file);
+                        if(forceRealWorldPostimage&&
+                           LocalFinalSaveNegativeWitness.enabled())
+                            LocalDurableAccountReviewIntentPrimitive
+                                .requireReviewMarker(file);
                         requireUnfencedWorldSave(
                 snapshot.username(),guardedMarkerPaths
             );
@@ -1590,6 +1601,13 @@ final class FilePlayerRepository
                             forceRealWorldPostimage
                                 ?observeWorldActiveReview(file):null;
                         insideWorldPublication.run(snapshot.username());
+                        // G21.354: this is still before ATOMIC_MOVE,
+                        // even if a foreign writer removes ACTIVE
+                        // during the real publication cutpoint.
+                        if(forceRealWorldPostimage&&
+                           LocalFinalSaveNegativeWitness.enabled())
+                            LocalDurableAccountReviewIntentPrimitive
+                                .requireReviewMarker(file);
                         // G21.310: an uncooperative actor may publish
                         // a negative witness after initial admission
                         // and while this World temp was serialized.
