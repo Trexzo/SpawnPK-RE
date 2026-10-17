@@ -326,6 +326,23 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
                               LocalLabTerminalDeliveryAssessment.Consumer consumer,
                               PublicationTestCutpoint afterTempForced)
         throws IOException {
+        reserveWithTestCutpoints(world, terminal, testOnlyEventId, consumer,
+            afterTempForced, null);
+    }
+
+    /**
+     * Test-only second publication cutpoint. A JVM killed here has already
+     * moved a reservation file, but has NO live grant and NO durable ACK.
+     * Reopening may inspect historical evidence, never replay consumers.
+     */
+    synchronized void reserveWithTestCutpoints(
+                              World world,
+                              MonsterSpawnerPvmRuntime.FinalizeResult terminal,
+                              UUID testOnlyEventId,
+                              LocalLabTerminalDeliveryAssessment.Consumer consumer,
+                              PublicationTestCutpoint afterTempForced,
+                              PublicationTestCutpoint afterMoveBeforeEvidence)
+        throws IOException {
         ensureOpen();
         Objects.requireNonNull(testOnlyEventId, "testOnlyEventId");
         Objects.requireNonNull(consumer, "consumer");
@@ -426,6 +443,8 @@ final class LocalLabExperimentalDiskAttemptJournal implements AutoCloseable {
         Files.move(pending, destination,
                    StandardCopyOption.ATOMIC_MOVE,
                    StandardCopyOption.REPLACE_EXISTING);
+        if (afterMoveBeforeEvidence != null)
+            afterMoveBeforeEvidence.afterTempForced(pending, destination);
         // No callback is ever invoked here, even after a successful disk move.
         // Directory fsync and hostile cross-process path swaps are NOT proven.
         // A failure after ATOMIC_MOVE must not authorize another attempt.
