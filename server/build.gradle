@@ -2358,6 +2358,10 @@ def currentTrainFocusedTests = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+    'spk.local.G21360ForcedWorldLateAccountByteDriftTest',
+    'spk.local.G21361ForcedWorldLateAccountInodeSwapTest',
+    'spk.local.G21362ForcedWorldForeignAccountDriftControlTest',
+    'spk.local.G21363ForcedWorldFirstAbsentAccountControlTest',
     'spk.local.G21258ForcedRawAccountPreimageDriftTest',
     'spk.local.G21259ForeignJvmSameInodeAccountPreimageVetoTest',
     'spk.local.G21260LateRawAccountHardlinkCountVetoTest',
@@ -2669,10 +2673,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 822 ||
-    currentTrainFocusedTests.toSet().size() != 822) {
+if (currentTrainFocusedTests.size() != 826 ||
+    currentTrainFocusedTests.toSet().size() != 826) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 822 unique tests, found " +
+        "Current-train focused manifest drift: expected 826 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2871,6 +2875,12 @@ currentTrainCriticalCoverage['g21353-forced-world-active-premove'] = [
 currentTrainCriticalCoverage['g21355-forced-world-active-identity-premove'] = [
     'spk.local.G21355ForcedWorldActiveInodeSwapTest',
     'spk.local.G21356ForcedWorldActiveNonceMutationTest',
+]
+currentTrainCriticalCoverage['g21363-forced-world-account-preimage'] = [
+    'spk.local.G21360ForcedWorldLateAccountByteDriftTest',
+    'spk.local.G21361ForcedWorldLateAccountInodeSwapTest',
+    'spk.local.G21362ForcedWorldForeignAccountDriftControlTest',
+    'spk.local.G21363ForcedWorldFirstAbsentAccountControlTest',
 ]
 currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
@@ -12213,4 +12223,40 @@ tasks.register('g21359ForcedWorldForeignActiveAliasControlRegression', JavaExec)
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21359ForcedWorldForeignActiveAliasControlTest')
+}
+
+tasks.register('g21360ForcedWorldAccountPreimageRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.360: real guarded forced World save verifies exact selected-account preimage or isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21360ForcedWorldLateAccountByteDriftTest')
+}
+
+tasks.register('g21361ForcedWorldAccountPreimageRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.361: real guarded forced World save verifies exact selected-account preimage or isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21361ForcedWorldLateAccountInodeSwapTest')
+}
+
+tasks.register('g21362ForcedWorldAccountPreimageRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.362: real guarded forced World save verifies exact selected-account preimage or isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21362ForcedWorldForeignAccountDriftControlTest')
+}
+
+tasks.register('g21363ForcedWorldAccountPreimageRegression', JavaExec) {
+    group = 'verification'
+    description = 'G21.363: real guarded forced World save verifies exact selected-account preimage or isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21363ForcedWorldFirstAbsentAccountControlTest')
 }

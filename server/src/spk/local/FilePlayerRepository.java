@@ -1500,6 +1500,15 @@ final class FilePlayerRepository
             );
         }
 
+        // G21.360-363: pin the existing account's exact bounded
+        // physical preimage before serializing a new forced World temp.
+        // Uncooperative RAW edits during serialization must not be
+        // silently overwritten as a successful forced final save.
+        // Absent first-time accounts remain a distinct valid preimage.
+        final LocalOptInRawTemp.AccountPreimage worldAccountPreimage=
+            forceRealWorldPostimage&&LocalFinalSaveNegativeWitness.enabled()
+                ?LocalOptInRawTemp.captureAccountPreimage(file):null;
+
         Path parent=file.getParent();
         if(parent!=null)
             Files.createDirectories(parent);
@@ -1670,6 +1679,21 @@ final class FilePlayerRepository
                                     LocalDurableAccountReviewIntentPrimitive
                                         .markerPath(file),
                                     "G21.358 WORLD_ACTIVE_REVIEW_LATE_ALIAS_NEGATIVE");
+                        // Exact-account preimage must still match just
+                        // before the World ATOMIC_MOVE. This is a
+                        // cooperative publication observation, NOT an
+                        // atomic fence against later uncooperative writes.
+                        if(worldAccountPreimage!=null){
+                            try{
+                                LocalOptInRawTemp
+                                    .requireAccountPreimageUnchanged(
+                                        file,worldAccountPreimage);
+                            }catch(IOException drift){
+                                throw new IOException(
+                                    "G21.360 WORLD_ACCOUNT_PREIMAGE_CHANGED_BEFORE_MOVE",
+                                    drift);
+                            }
+                        }
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);
                         if(forceRealWorldPostimage){
