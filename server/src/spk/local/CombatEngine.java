@@ -51,6 +51,34 @@ final class CombatEngine {
     // click-time target. The first authoritative movement packet owns facing.
     private boolean approachFacingPending;
 
+    static final class MovementFacingSnapshot {
+        final boolean approachFacingPending;
+
+        private MovementFacingSnapshot(
+            boolean approachFacingPending
+        ){
+            this.approachFacingPending=
+                approachFacingPending;
+        }
+    }
+
+    MovementFacingSnapshot snapshotMovementFacing(){
+        return new MovementFacingSnapshot(
+            approachFacingPending
+        );
+    }
+
+    void restoreMovementFacing(
+        MovementFacingSnapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "movement facing snapshot"
+            );
+        approachFacingPending=
+            snapshot.approachFacingPending;
+    }
+
     CombatEngine(){
         this(
             new CombatState(),

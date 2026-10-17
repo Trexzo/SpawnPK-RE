@@ -1,0 +1,93 @@
+name: Windows source-only preflight (not original-client GUI)
+
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'scripts/Check-WindowsReleaseEvidence.ps1'
+      - 'scripts/Test-WindowsClientEvidenceContract.ps1'
+      - 'tools/verification/FilesystemLinkCountProbe.java'
+      - '.github/workflows/windows-source-preflight.yml'
+  workflow_dispatch:
+
+jobs:
+  windows-source-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out proposed source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 for Java 11 target
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache Gradle artifacts
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify pinned Gradle SHA256 implementation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-GradleBootstrapHash.ps1
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "GRADLE_SHA256_VECTOR_TEST_FAILED"
+          }
+
+      - name: Verify absent and mismatched v308 client evidence remains negative
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-WindowsClientEvidenceContract.ps1
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "WINDOWS_CLIENT_EVIDENCE_CONTRACT_FAILED"
+          }
+
+      - name: Record original-client availability without fabricating GUI acceptance
+        shell: pwsh
+        run: |
+          & ./scripts/Check-WindowsReleaseEvidence.ps1 -OutputPath windows-release-evidence.json
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "Windows evidence preflight failed: $LASTEXITCODE"
+          }
+
+      - name: Compile Windows Java sources and run bounded synthetic smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./server/gradlew.bat --no-daemon clean testClasses verifyJava11Bytecode g21294FinalSaveWaitTimeoutRegression g2023AttemptFenceUncertainCompletionEvidenceRegression g21371StrictPreActiveLinkProviderRegression g21372StrictPreActiveLinkProviderRegression g21373StrictPreActiveLinkProviderRegression g21374StrictOneShotTokenAdmissionRegression g21375StrictOneShotTokenAdmissionRegression g21376StrictOneShotTokenAdmissionRegression
+          if ($LASTEXITCODE -ne 0) {
+            throw "WINDOWS_SOURCE_ONLY_BUILD_FAILED exitCode=$LASTEXITCODE"
+          }
+          Write-Host "SPK_WINDOWS_SOURCE_SMOKE_PASS java11Bytecode=true accountWaitFixture=true npcAttemptFixture=true strictNlinkAdmissionFailClosedFixtures=3 strictRealWorldTokenFixtures=3 originalClientGui=false"
+
+      - name: Probe strict Java unix:nlink capability (not a pass assertion)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path ./.spk-windows-probe | Out-Null
+          & javac --release 11 -d ./.spk-windows-probe ./tools/verification/FilesystemLinkCountProbe.java
+          if ($LASTEXITCODE -ne 0) { throw "Windows nlink probe compilation failed" }
+          & java -cp ./.spk-windows-probe FilesystemLinkCountProbe | Tee-Object -FilePath windows-linkcount-evidence.txt
+          if ($LASTEXITCODE -ne 0) { throw "Windows nlink probe execution failed" }
+          Write-Host "SPK_NLINK_PROBE_EXECUTED not_a_strict_gate_success_claim=true"
+
+      - name: Upload link-count provider capability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-linkcount-capability
+          path: windows-linkcount-evidence.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload original-client preflight report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-source-only-evidence
+          path: windows-release-evidence.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -12,16 +12,22 @@ final class LocalSessionPlayerInitializer {
     static final class Result {
         final String username;
         final boolean persistentAccount;
+        final boolean newAccount;
         final long worldPlayerGeneration;
+        final LocalJvmAccountSessionLease.Token sessionLease;
 
         Result(
             String username,
             boolean persistentAccount,
-            long worldPlayerGeneration
+            boolean newAccount,
+            long worldPlayerGeneration,
+            LocalJvmAccountSessionLease.Token sessionLease
         ){
             this.username=username;
             this.persistentAccount=persistentAccount;
+            this.newAccount=newAccount;
             this.worldPlayerGeneration=worldPlayerGeneration;
+            this.sessionLease=sessionLease;
         }
     }
 
@@ -35,6 +41,9 @@ final class LocalSessionPlayerInitializer {
     private final PlayerState playerState;
     private final PetEffectState petEffects;
     private final PetAccessoryState petAccessoryState;
+    // Test-only deterministic injection; production default is a no-op.
+    // The actual admission policy is always enforced after this boundary.
+    private final Runnable beforeRegistration;
 
     LocalSessionPlayerInitializer(
         World world,
@@ -47,6 +56,26 @@ final class LocalSessionPlayerInitializer {
         PetEffectState petEffects,
         PetAccessoryState petAccessoryState
     ){
+        this(world,worldPlayer,bank,equipment,movement,petState,
+            playerState,petEffects,petAccessoryState,()->{});
+    }
+
+    /** Allows deterministic tests to arm a review fence after load. */
+    LocalSessionPlayerInitializer(
+        World world,
+        WorldPlayer worldPlayer,
+        BankState bank,
+        EquipmentState equipment,
+        MovementState movement,
+        PetState petState,
+        PlayerState playerState,
+        PetEffectState petEffects,
+        PetAccessoryState petAccessoryState,
+        Runnable beforeRegistration
+    ){
+        this.beforeRegistration=Objects.requireNonNull(
+            beforeRegistration,"beforeRegistration"
+        );
         this.world=Objects.requireNonNull(world,"world");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.persistence=world.persistence();
@@ -74,6 +103,37 @@ final class LocalSessionPlayerInitializer {
 
         String username=account.username;
         boolean persistentAccount=account.persistent;
+        // G21.189: capture opt-in once before a session is admitted.
+        // Dynamic flag changes after login are explicitly unsupported.
+        final boolean reviewVeto=Boolean.getBoolean(
+            LocalReviewIntentAdmissionVeto.PROPERTY);
+        final boolean oneShotReview=Boolean.getBoolean(
+            LocalOneShotActiveReviewOnAdmission.PROPERTY);
+        LocalReviewIntentAdmissionVeto.requireConfiguration(
+            reviewVeto,persistentAccount);
+        LocalOneShotActiveReviewOnAdmission.requireConfiguration(
+            oneShotReview,persistentAccount,reviewVeto);
+        // G21.298: reject inconsistent opt-in durable NEGATIVE
+        // final-review evidence before any account hydration/admission.
+        LocalFinalSaveNegativeWitness.requireAdmissionConfiguration(
+            persistentAccount);
+
+        // G21.181 opt-in: acquire before loading or creating any account
+        // state. A competing World with the same concrete account path
+        // cannot concurrently become an admitted owner in this JVM.
+        LocalJvmAccountSessionLease.Token sessionLease=
+            persistentAccount
+                ?LocalJvmAccountSessionLease.acquire(persistence,username)
+                :null;
+        // If registration succeeds but a subsequent post-register step
+        // throws, do NOT release an opt-in ownership token while a World
+        // member may still exist. Preserve fail-closed manual review.
+        boolean worldMembershipCommitted=false;
+        try{
+        // Reject a preexisting ACTIVE/review leaf before any account
+        // snapshot hydration, defaults or World registration.
+        LocalReviewIntentAdmissionVeto.requireAdmissible(
+            reviewVeto,persistentAccount,sessionLease);
 
         LocalAccountLifecycle.LoadResult accountLoad=
             LocalAccountLifecycle.load(
@@ -83,6 +143,29 @@ final class LocalSessionPlayerInitializer {
                 PetAccessoryAuthority::isAccessory,
                 tag
             );
+
+        if(accountLoad.failed)
+            throw new IllegalStateException(
+                "ACCOUNT_LOAD_FAILED profile="+
+                username+
+                " repository="+
+                persistence.repositoryName()
+            );
+
+        if(accountLoad.missing&&
+           PlayabilityStarterAccountPolicy.enabled()){
+            PlayabilityStarterAccountPolicy.Result starter=
+                PlayabilityStarterAccountPolicy.apply(
+                    worldPlayer
+                );
+
+            System.out.println(
+                tag+
+                "PLAYABILITY_STARTER_ACCOUNT_APPLIED "+
+                "profile="+username+
+                " "+starter
+            );
+        }
 
         petAccessoryState.setActiveItem(
             accountLoad.accessoryItem
@@ -147,11 +230,69 @@ final class LocalSessionPlayerInitializer {
             scopesightActive()
         );
 
+        DefaultLoadoutService.Snapshot g1Default=
+            G1DefaultLoadoutRegearService
+                .ensureStarterDefault(
+                    world,
+                    username
+                );
+
+        System.out.println(
+            tag+
+            "G1_DEFAULT_LOADOUT_READY owner="+
+            username+
+            " id="+
+            g1Default.defaultLoadoutId+
+            " revision="+
+            g1Default.selectionRevision+
+            " authority="+
+            g1Default.policyAuthority
+        );
+
+        // G21.35: a review fence or account mutation may have appeared
+        // while starter/pet/default-loadout initialization was running.
+        // Recheck on the SAME normal persistence FIFO immediately before
+        // publishing World membership; never hydrate from forensic reads.
+        beforeRegistration.run();
+        MailboxLateSessionAdmission.requireStillAdmissible(
+            account,accountLoad,persistence
+        );
+        // Fail closed if the review sidecar appeared while setup ran.
+        // This remains an observation, NOT an atomic RAW-writer fence.
+        LocalReviewIntentAdmissionVeto.requireAdmissible(
+            reviewVeto,persistentAccount,sessionLease);
+        // G21.190 ONE-SHOT crash-negative: force ACTIVE intent before
+        // membership, but NEVER retire it on healthy final save.
+        // A later login must be manually reviewed and denied by G21.189.
+        LocalOneShotActiveReviewOnAdmission.forceBeforeWorldRegistration(
+            oneShotReview,persistentAccount,sessionLease);
+
         long generation=
             world.registerPlayerAndStart(
                 worldPlayer,
                 username
             );
+        worldMembershipCommitted=true;
+
+        // G21.200: record the exact in-memory World owner identity and
+        // generation in the already-held optional account lease. This
+        // is not an on-disk epoch, a save fence, or ACTIVE retirement.
+        if(sessionLease!=null)
+            sessionLease.bindAdmittedWorldOwner(
+                worldPlayer,generation);
+        else if(persistentAccount){
+            // G21.201 late-enable compatibility: record that THIS
+            // actual World membership predates any optional account
+            // lease. A later opt-in owner is not its retroactive token.
+            // This deliberately retains the G21.184 unsafe legacy
+            // overlapping-save behavior rather than disguising it.
+            java.nio.file.Path file=
+                persistence.fileBackedAccountPathForJvmSessionLease(
+                    username);
+            if(file!=null)
+                LocalJvmAccountSessionLease.noteUnleasedWorldAdmission(
+                    file,username,worldPlayer,generation);
+        }
 
         System.out.println(
             tag+"V512_WORLD_REGISTER playerId="+
@@ -165,8 +306,19 @@ final class LocalSessionPlayerInitializer {
         return new Result(
             username,
             persistentAccount,
-            generation
+            accountLoad.missing,
+            generation,
+            sessionLease
         );
+        }catch(RuntimeException|Error failure){
+            // Before World registration, no session state was admitted:
+            // release the unused lease. AFTER registration, even if this
+            // initializer did not return a Result, retention is safer
+            // than enabling overlapping same-account admission.
+            if(sessionLease!=null&&!worldMembershipCommitted)
+                sessionLease.releaseAfterInitializationFailure();
+            throw failure;
+        }
         }
     }
 

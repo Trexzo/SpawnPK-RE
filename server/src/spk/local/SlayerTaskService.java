@@ -169,6 +169,8 @@ final class SlayerTaskService {
 
         State state=State.ACTIVE;
         boolean externalOperationInFlight;
+        ObjectiveProgressService.Snapshot
+            terminalObjective;
         long transitionTick=-1L;
         long lastObservedTick;
 
@@ -196,6 +198,8 @@ final class SlayerTaskService {
                     assignedTick
                 );
             copy.state=state;
+            copy.terminalObjective=
+                terminalObjective;
             copy.transitionTick=
                 transitionTick;
             copy.lastObservedTick=
@@ -455,13 +459,17 @@ final class SlayerTaskService {
                     worldTick;
 
                 if(matched&&
-                   objective.complete)
+                   objective.complete){
                     completedNow=
                         transition(
                             current,
                             State.COMPLETED,
                             worldTick
                         );
+                    if(completedNow)
+                        current.terminalObjective=
+                            objective;
+                }
             }
 
             current.externalOperationInFlight=
@@ -545,12 +553,14 @@ final class SlayerTaskService {
 
                 if(current.state==
                         State.ACTIVE&&
-                   objective.complete)
-                    transition(
+                   objective.complete&&
+                   transition(
                         current,
                         State.COMPLETED,
                         worldTick
-                    );
+                   ))
+                    current.terminalObjective=
+                        objective;
             }
 
             current.externalOperationInFlight=
@@ -767,6 +777,12 @@ final class SlayerTaskService {
     private Snapshot resolveSnapshot(
         Task task
     ){
+        if(task.terminalObjective!=null)
+            return snapshotOf(
+                task,
+                task.terminalObjective
+            );
+
         ObjectiveProgressService ledger=
             requireLedger(
                 task.playerRef

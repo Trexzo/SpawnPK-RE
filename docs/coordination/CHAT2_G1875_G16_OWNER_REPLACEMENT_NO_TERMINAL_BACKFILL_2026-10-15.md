@@ -1,0 +1,30 @@
+# Chat 2 G18.7.5 — valid replacement owner receives future NPC, not missed historical events
+
+Date: 2026-10-15.
+
+**Exact hosted-certified cumulative parent:** [G21.210 + G18.7.4 #2670](https://github.com/Trexzo/SpawnPK-RE/pull/2670), head `4933ff656e6d7274b2ca9539cdda32b3178a10b4`, [Actions #38746226237](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38746226237) SUCCESS, **526 unique focused**, Java11 major55/full Gradle. G21.210's optional same-JVM legacy named profile RAW gate and the historical G21.209 bypass regression are left unchanged. All work draft/unmerged.
+
+## Separate boundary from G18.7.4
+
+G18.7.4 confirms **TEST-OWNED invalid G16 Adventure** persistence aborts real installed terminal progression after G1/G4/G14/G15, so World-owned and legitimately activated G18 EASY misses two genuine NPC events. G18.7.5 tests the crucial subsequent lifetime boundary, without any replay or recovery implementation. A DIFFERENT valid WorldPlayer replacing the invalid owner can legitimately receive a **future THIRD independent NPC death**, but the prior two already-FINALIZED events should NOT be backfilled automatically.
+
+1. WorldPlayer A genuinely starts G4 ACTIVE0, G14 Daily Challenge0, G15 Task Scroll0 and G18 EASY0. A's G16 snapshot is deliberately malformed by **test-only in-memory extension injection** before first G16 hydration. Two **different genuine canonical NPCs** spawn via installed Monster Spawner/actual G1 respawn, die and finalize. G1 receipts2, one-coin settlements2, G4 completes once, G14 progress2, G15 progress2. G16 owner-local decoder error remains sticky and G18 stays0. The first two NPCs are no longer held by the runtime and MUST NOT be replayed.
+2. Unregister corrupted A. Register clean new WorldPlayer B **with the same name, empty G16 persistence and a new generation in the SAME World**. Legally activate valid G16 Adventure for B. G14 remains World/name-scoped at progress2 instead of restarting for B; its status is not a new assignment. Inspect B's valid G16 objective0 and World G18 STILL progress0, G1 receipts STILL2, settled coin quantity STILL2: replacement alone never recredits historical finalized events. World-owned G15 Task Scroll remains active at progress2.
+3. Deliver the actual next G1 due-time respawn, prove its NPC ID differs from BOTH earlier NPCs and its immutable recipient-origin matches EXACT B WorldPlayer+generation. Genuine lethal transition and installed terminal finalization for this **third** NPC advance B G16 Adventure progress1, World G18 EASY progress1, World/name G14 progress3, shared G15 progress3 and G1 new receipt3; one additional ground coin settles. A retains its separate G1 kills2, B G1 kills1. Assert all THREE old NPC runtime handles removed.
+
+Expected hosted marker `G1875_G16_OWNER_REPLACEMENT_NO_TERMINAL_BACKFILL_PASS`.
+
+## Unambiguous limits
+
+All behavior is **CUSTOM_LOCALLAB** in-memory World ownership. No original SpawnPK policy, client parity, remote corruption route, durable consumer outbox, event-log replay, cross-JVM account lease, JWT/authenticated TCP login, file-account roundtrip, physical crash or external reward grant proven. This test's intended PASS does **not** establish that missing G18 credit was repaired; on purpose the original two G18 opportunities remain LOST. It tests that safe forward progress does not spontaneously replay already-finalized NPC events. A proper recovery solution, if later desired, needs canonical immutable event identity, per-consumer idempotent ACK, owner-generation fencing and explicit policy; see [outbox #2587](https://github.com/Trexzo/SpawnPK-RE/issues/2587) and original credit rule [#2558](https://github.com/Trexzo/SpawnPK-RE/issues/2558).
+
+**Exactly three additive files:** NEW independent `G1875G16OwnerReplacementNoTerminalBackfillTest.java`, one `server/build.gradle` focused manifest entry with BOTH fixed count guards **526→527 unique**, and this source note. **ZERO production Java, G21.210/G21.209 account flags/RAW writer, existing G1847/G1874 tests, main/client/default changes.**
+
+**Fresh exact-head hosted CI REQUIRED:** G1875/G1874/G1873/G21210/G21209, **527/527 unique focused**, Java11 major55/full Gradle. Parent success does not certify this new head. Keep DRAFT/unmerged, no ACTIVE review retirement, account recovery, replay or main merge.
+## CI repair note (2026-10-15)
+
+Initial exact-head [Actions #38748616729](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38748616729) **FAILED** at the new G1875 pre-third-terminal assertion. The source-backed mistake was in the test: G14 challenges are owned by World/name, so after replacing A with clean B, `g14.status(USER)` returns `assignedNow=false`, `challenge.current=2` (not a fresh assigned challenge0). A third genuine terminal should advance that existing G14 objective to3. The assertion and expected marker have been corrected in the Java test only; **fresh successor CI is required**. This correction does not modify production G14 semantics or introduce backfill.
+
+### Second hosted CI failure and targeted diagnostic guard
+
+Corrected [Actions #38751518344](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38751518344) also FAILED at the combined pre-third-death assertion; Java compilation was successful, and the failure remains isolated to this new test. The earlier G14 name-scoped expectation correction remains, but the prior guard also incorrectly required **two separate ground-item entries**. Real settlement can stack coins; the existing G1874 test proves **sum of amount for item 995, named owner**, not list entry count. The next commit replaces the preimage `groundItems().size()==2` with exact sum2 and prints a `G1875_PRE_THIRD_DIAGNOSTIC` line including G14 assigned/current, G15 progress, G18 progress, G1 receipt count, ground entry count and owner coin quantity. This is a **test-only** correction, not a fix of gameplay logic. Fresh exact-head hosted CI is mandatory before certification; if still red, use that diagnostic instead of guessing.

@@ -1,0 +1,15 @@
+# G21.68 — one-use World-owned terminal transition candidate (NO GRANT)
+
+**Parent:** exact certified G21.67 `5b7d16b89eac6a06d77c88478019f14a354db486`; [Actions #37953907387](https://github.com/Trexzo/SpawnPK-RE/actions/runs/37953907387) SUCCESS, 367 focused Java11. [Issue #2312](https://github.com/Trexzo/SpawnPK-RE/issues/2312).
+
+G21.66 writes a single-account hypothetical terminal inventory+Mailbox CLAIMED image, while the registered WorldPlayer remains PREPARED/UNCLAIMED. G21.67 verifies exact disk and bounded strict file receipt but **does not** authorize live mutation or restart hydration. G21.68 connects this to actual World command ownership **only as a non-mutating candidate**, not a positive COMMIT.
+
+`MailboxTerminalLiveTransitionCandidate.stageDetached` pre-decodes the canonical G21.64 terminal image into a fresh, nonregistered WorldPlayer and checks exact 28-slot proposed inventory, selected Mailbox CLAIMED state, idempotency journal identity, and lossless full snapshot roundtrip. No registered player is changed. `WorldPlayerPersistence.stageReservedTerminalWorldCandidate` accepts only an actual *same-object* G21.67 exact terminal+strict receipt observation saved on the held G21.27 token. A later nonexact/fenced reconciliation invalidates that observation. Foreign or fabricated observations cannot qualify.
+
+The gate submits a command via `World.submit(owner,generation,...)` to the real WorldPulse command inbox. On execution, it rechecks the World-owned player generation, reservation and full PREPARED account snapshot. Issuing the resulting immutable candidate is *single-use* for the lifetime of that reservation: duplicate pending or repeated issuance is vetoed; even explicit PREPARED reservation cancellation is blocked after a candidate is issued. The queued command also rejects changed account or retired World generation.
+
+The candidate has `liveApplied=false`, `grantAuthorized=false`, `replayAuthorized=false`, `rollbackAuthorized=false`, `releaseAuthorized=false`, and `clientAckAuthorized=false`. This does NOT perform a live PREPARED→CLAIMED mutation or release or clear any persistent fence. The G21.64 terminal disk remains non-admittable on restart, even when the detached projection and original G21.67 file receipt match. The proof is a point-in-time in-memory authority check; it does not prove current disk bytes on the later World tick (no file I/O on tick).
+
+Real FilePlayerRepository integration tests: strict terminal file publication, exact G21.67 FIFO evidence, detached identical terminal projection, actual World-tick candidate, single-use/replay rejection, original live owner unmodified, unchanged terminal file, no receipt/fabricated/foreign evidence denial, later negative fence observation invalidation, stale live gameplay preimage, retired generation, independent account saves, restart quarantine and temp/lease hygiene. Focused count 367→368 and exact-head hosted full Java11 CI required.
+
+**DRAFT/unmerged**. NO native widget32181 grant, no actual live settlement or restart replay. Frozen R25 PR #1847 untouched.

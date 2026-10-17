@@ -1,0 +1,7 @@
+# G21.256 — real two-process marker lock acquisition deadline and independent account progress
+
+Based on G21.255 [#2765](https://github.com/Trexzo/SpawnPK-RE/pull/2765) exact `6654227340e278748f37df1d3820ce8f427281fc`, own CI pending. The G21.255 production modification uses the existing G21.73 bounded G21.39 account-local publication lock helper for forced RAW account writes, with a validated 1–60000ms wait (default 5000ms). The in-process G21.255 regression exercises the JVM lock. G21.256 adds a **real second JVM** to ensure the OS file lock path is bounded as well, not merely same-process contention.
+
+Parent seeds named accounts A/B through the REAL forced `FilePlayerRepository.save`. Child JVM holds G21.39 publication OS lock on A and signals ready. Parent attempts second forced A write, fails closed within 4 seconds under 150ms test deadline, and verifies old A bytes. Parent writes different account B while A is held, proving unrelated account progress. Parent releases child and verifies exact forced A write succeeds, no temp or reservation/registry leaks. No production Java modifications beyond G21.255; focused manifest **607→608** with own JavaExec task. Requires own hosted Java11 major55/full Gradle **608/608**.
+
+This is a cooperation/availability boundary, NOT durable account owner epoch, genuine final disconnect ACK, recovered original server rule, hostile lock-leaf atomic defense or emergency automatic ACTIVE marker retirement. All branches DRAFT, main untouched.

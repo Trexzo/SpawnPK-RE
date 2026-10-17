@@ -1,0 +1,21 @@
+# G21.159 — deny all production signer trust without independent root enrollment (NO AUTHORITY)
+
+**Certified parent:** [G21.158 Draft PR #2496](https://github.com/Trexzo/SpawnPK-RE/pull/2496), exact `1095dcb48bcca7137f4fb526da8038233e23d535`, [Actions #38368941635](https://github.com/Trexzo/SpawnPK-RE/actions/runs/38368941635) SUCCESS, Java 11 focused **458/458**, full Gradle. Issue #2497.
+
+## Source-supported threat model
+
+The G21.157 detached P-256 signature verifier and G21.158 account-scoped precommitment comparator verify mathematical claims but cannot prove an independent trust root. Both the candidate key and the proposed expected pin may be controlled by the same adversary. There is no operator-authenticated key enrollment, capture-time custody evidence, revocation procedure, historic signer census, RAW/default/future writer fence, or crash-safe multi-file epoch.
+
+**G21.159 is a fail-closed production trust admission boundary**, not a new provisioning scheme. `MailboxProductionSignerTrustAdmissionV1` contains an **immutable empty production account-to-signer-root registry** (zero enrolled keys), no method to add keys at runtime, and no filesystem/config lookup or caller-provided `trusted` key input. Its `requireProductionSignerRoot(account,key)` rejects malformed accounts and candidate public-key shape and **always rejects** canonical requests with `NO_INDEPENDENTLY_ENROLLED_PRODUCTION_ROOT`. A defensive terminal rejection `PRODUCTION_ROOT_AUTHORITY_NOT_IMPLEMENTED` remains even if future code accidentally populates the map, so that a map match could never grant authority without a separately reviewed change to the actual trust and epoch design.
+
+For diagnostics only, `reviewUntrustedCandidate` delegates full historical preflight, signer fingerprint, account-scoped proposed expected pin and P-256 ECDSA signature math to the previously certified G21.158 verifier. Any passing result is **`REVIEWED_UNTRUSTED_SIGNATURE_AND_PIN_NO_AUTHORITY`** with explicit `productionSignerRootEnrolled=false`, `independentlyAuthenticatedTrustAnchor=false`, and all source-authentication, writer-exclusion, epoch, cleanup, rollover, unlink, pruning, grant, replay, session, release and ACK fields false. Its successful review is NOT a token accepted by production trust admission.
+
+## Java 11 regression
+
+The new `G21159MailboxProductionSignerTrustAdmissionIntegrationTest` constructs four retained snapshots from six real test-only NOFOLLOW filesystem sources and valid v1/v2/v3 in-memory archive fixtures. Two ephemeral P-256 test keypairs represent a candidate and a malicious self-signing replacement. Test **eight checked production trust admission rejections** covering both signer candidates, an unrelated canonical account, invalid account syntax, absent/too-short/overlong public key, and attacker-signed coherently modified history. Test **five review-only rejections** for wrong proposed expected pin, wrong detached signature, malformed account, changed history invalidating old signature and missing fileKey uncertainty. Three positive mathematical *review-only* controls: owner self-signature, attacker self-signature and attacker resigning modified historical bytes with its own matching proposed expected pin. These are explicitly NOT root enrollment. Restore every reflective test mutation in `finally`, reconfirm healthy MATCH and original candidate signature, zero active JVM leases/watches and zero registered production roots.
+
+**Acceptance:** dedicated `g21159MailboxProductionSignerTrustAdmissionRegression`, Java 11 bytecode major 55, **459/459** focused tests, and full hosted Gradle on exact PR commit. No certification without logged PASS.
+
+## Remaining prerequisites before any genuine historical trust
+
+Independent root provisioning would require an out-of-band operator-authenticated public key, protected storage, source identity and capture-time custody, bounded key rotation/revocation and an audited enrollment ceremony. Even that cannot by itself fence uncooperative RAW/default/legacy/future writers or establish a durable atomic recovery epoch. No such system is implemented or implied in G21.159. No production private key, public key, placeholder signer, cleanup, rollover, reward, recovery or authorization code was changed. Frozen R25 #1847 and G21.87/88 untouched. Keep PR Draft/unmerged.

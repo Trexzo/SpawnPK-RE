@@ -142,6 +142,71 @@ final class WorldNpcRegistry {
         return next;
     }
 
+    interface OwnedNpcAction {
+        void run() throws Exception;
+    }
+
+    interface SpawnedNpcAction {
+        void run(WorldNpc npc) throws Exception;
+    }
+
+    synchronized boolean withCurrentMutationOwnershipIfCurrent(
+        WorldNpc expectedCurrent,
+        OwnedNpcAction action
+    )throws Exception{
+        if(expectedCurrent==null||action==null)
+            throw new NullPointerException();
+
+        WorldNpc registered=
+            byId.get(expectedCurrent.id);
+
+        if(registered!=expectedCurrent)
+            return false;
+
+        action.run();
+        return true;
+    }
+
+    synchronized WorldNpc spawnWithMutationOwnership(
+        int definitionId,
+        int x,
+        int y,
+        int plane,
+        SpawnedNpcAction action
+    )throws Exception{
+        if(action==null)
+            throw new NullPointerException(
+                "action"
+            );
+
+        WorldNpc npc=
+            spawn(
+                definitionId,
+                x,
+                y,
+                plane,
+                null,
+                -1
+            );
+
+        try{
+            action.run(npc);
+            return npc;
+        }catch(Exception failure){
+            byId.remove(
+                npc.id,
+                npc
+            );
+            throw failure;
+        }catch(Error failure){
+            byId.remove(
+                npc.id,
+                npc
+            );
+            throw failure;
+        }
+    }
+
     synchronized WorldNpc byId(EntityId id){
         return byId.get(id);
     }

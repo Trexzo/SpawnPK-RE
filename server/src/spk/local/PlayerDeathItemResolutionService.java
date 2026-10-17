@@ -54,6 +54,7 @@ final class PlayerDeathItemResolutionService {
         final long deathTick;
         final long deathSequence;
         final String deathCause;
+        final Tile deathTile;
         final List<CarriedLine> carried;
 
         private DeathPreview(
@@ -61,12 +62,17 @@ final class PlayerDeathItemResolutionService {
             long deathTick,
             long deathSequence,
             String deathCause,
+            Tile deathTile,
             List<CarriedLine> carried
         ){
             this.playerId=playerId;
             this.deathTick=deathTick;
             this.deathSequence=deathSequence;
             this.deathCause=deathCause;
+            this.deathTile=Objects.requireNonNull(
+                deathTile,
+                "deathTile"
+            );
             this.carried=
                 Collections.unmodifiableList(
                     new ArrayList<>(
@@ -119,6 +125,7 @@ final class PlayerDeathItemResolutionService {
         final long deathTick;
         final long deathSequence;
         final String deathCause;
+        final Tile deathTile;
         final List<Disposition> dispositions;
         final String policyAuthority;
 
@@ -131,6 +138,7 @@ final class PlayerDeathItemResolutionService {
             this.deathTick=preview.deathTick;
             this.deathSequence=preview.deathSequence;
             this.deathCause=preview.deathCause;
+            this.deathTile=preview.deathTile;
             this.dispositions=
                 Collections.unmodifiableList(
                     new ArrayList<>(
@@ -325,6 +333,11 @@ final class PlayerDeathItemResolutionService {
             deathSequence,
             safeCause(
                 lifecycle.cause()
+            ),
+            new Tile(
+                player.movement().x(),
+                player.movement().y(),
+                player.movement().plane()
             ),
             snapshotCarriedLocked()
         );

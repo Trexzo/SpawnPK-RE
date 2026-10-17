@@ -1,0 +1,9 @@
+# G21.345-348 late byte-identical selected inode substitution
+
+Parent [#2902](https://github.com/Trexzo/SpawnPK-RE/pull/2902) exact `caff6eb671d928be43de48df8c11652d1deda9bc`, 795 focused candidate. Latest certified independent cumulative [#2901](https://github.com/Trexzo/SpawnPK-RE/pull/2901) exact 703365e12dff567a2d0860abe4dae9c835bd4c41, hosted 791/791 Java11/full Gradle.
+
+Production G21.341–344 added selected account/ACTIVE digest checks and witness bounded byte integrity at the publisher's last-return boundary, plus EXACT FILEKEY comparisons. Byte SHA alone cannot distinguish another inode holding **identical contents**. New G21345 account, G21346 ACTIVE, G21347 witness, and G21348 unrelated foreign controls verify these exact fileKey checks using **actual Files.move** of the original inode followed by CREATE_NEW replacement writing byte-identical contents. The old inode remains physically linked at a distinct name during testing, preventing inode reuse. Original and replacement lengths/digests match, different fileKey preconditions verified.
+
+Selected byte-identical inode swaps fail closed at G21.342 (account/ACTIVE) or G21.343 (witness) and leave a permanent negative untrusted witness; unrelated file swap does not affect the successful selected negative-only publication. No path cleanup, marker retirement or positive login/replay authority. Only test/Gradle changes; four dedicated JavaExec tasks; **795→799 unique** focused cases and 111→115 mandatory retention anchors.
+
+**Gate:** exact-head hosted 799/799, G21345–48 PASS, parent G21341–44, Java11 major55, full Gradle. No claimed atomic multi-file snapshot, authenticated crash-safe final-save receipt, durable owner epoch, safe automatic ACTIVE retirement or persisted reward consumer ACK. Keep draft/unmerged; main unchanged. Issue #2540/#2559/#2587 remain open.
