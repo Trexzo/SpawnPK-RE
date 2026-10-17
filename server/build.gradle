@@ -2269,6 +2269,10 @@ def currentTrainFocusedTests = [
     'spk.local.G2010BoundedFailureKindsG1PrestageTest',
     'spk.local.G2011BoundedFailureKindsG14DisconnectedTest',
     'spk.local.G2012BoundedFailureKindsForeignAndOtherTest',
+    'spk.local.G2013OriginFailureKindEvictionRetentionTest',
+    'spk.local.G2014OriginFailureKindG1PrestageTest',
+    'spk.local.G2015OriginFailureKindG14DisconnectedTest',
+    'spk.local.G2016OriginFailureKindMalformedAndEpochTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2638,10 +2642,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 791 ||
-    currentTrainFocusedTests.toSet().size() != 791) {
+if (currentTrainFocusedTests.size() != 795 ||
+    currentTrainFocusedTests.toSet().size() != 795) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 791 unique tests, found " +
+        "Current-train focused manifest drift: expected 795 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -11860,4 +11864,44 @@ tasks.register('g2012BoundedFailureKindsForeignOtherRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2012BoundedFailureKindsForeignAndOtherTest')
+}
+
+
+tasks.register('g2013OriginFailureKindEvictionRetentionRegression', JavaExec) {
+    group = 'verification'
+    description = 'G20.1.3: 131 actual NPC deaths retain triple evidence after report eviction'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2013OriginFailureKindEvictionRetentionTest')
+}
+
+
+tasks.register('g2014OriginFailureKindG1PrestageRegression', JavaExec) {
+    group = 'verification'
+    description = 'G20.1.4: actual post-settlement G1 IllegalState and healthy origin controls'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2014OriginFailureKindG1PrestageTest')
+}
+
+
+tasks.register('g2015OriginFailureKindG14DisconnectedRegression', JavaExec) {
+    group = 'verification'
+    description = 'G20.1.5: real G14 failure and disconnected origin/no-throw'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2015OriginFailureKindG14DisconnectedTest')
+}
+
+
+tasks.register('g2016OriginFailureKindMalformedEpochRegression', JavaExec) {
+    group = 'verification'
+    description = 'G20.1.6: test-only exception kinds, impossible triples and wrong-origin consistency detection'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2016OriginFailureKindMalformedAndEpochTest')
 }

@@ -134,8 +134,36 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
             Objects.requireNonNull(summary,"summary");
         LocalLabOriginConsumerOutcomeTally.Snapshot matrix=
             Objects.requireNonNull(joint,"joint");
+        return inspectComponents(
+            s,derived,matrix,crossedOrThrow(originBoundaries),
+            s.originFirstFailureKinds
+        );
+    }
+
+    private static LocalLabOriginFirstFailureBoundaryTally.Snapshot crossedOrThrow(
+        LocalLabOriginFirstFailureBoundaryTally.Snapshot crossed
+    ){
+        return Objects.requireNonNull(crossed,"originBoundaries");
+    }
+
+    /** Read-only five-component consistency witness for mixed-epoch tests. */
+    static Result inspectComponents(
+        LocalLabSequentialTerminalStageTrace.Snapshot source,
+        LocalLabTerminalDeliverySummary summary,
+        LocalLabOriginConsumerOutcomeTally.Snapshot joint,
+        LocalLabOriginFirstFailureBoundaryTally.Snapshot originBoundaries,
+        LocalLabOriginFirstFailureKindTally.Snapshot originKinds
+    ){
+        LocalLabSequentialTerminalStageTrace.Snapshot s=
+            Objects.requireNonNull(source,"source");
+        LocalLabTerminalDeliverySummary derived=
+            Objects.requireNonNull(summary,"summary");
+        LocalLabOriginConsumerOutcomeTally.Snapshot matrix=
+            Objects.requireNonNull(joint,"joint");
         LocalLabOriginFirstFailureBoundaryTally.Snapshot crossed=
             Objects.requireNonNull(originBoundaries,"originBoundaries");
+        LocalLabOriginFirstFailureKindTally.Snapshot types=
+            Objects.requireNonNull(originKinds,"originKinds");
         Checker c=new Checker();
         long observed=s.observed;
 
@@ -182,7 +210,41 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                     "ORIGIN_FIRST_COLUMN_"+boundary);
             c.equal(sum,s.failureBoundaries.count(boundary),
                 "ORIGIN_FIRST_VS_BOUNDARY_"+boundary);
+            for(LocalLabTerminalFirstFailureTypeTally.Kind kind:
+                    LocalLabTerminalFirstFailureTypeTally.Kind.values()){
+                long typedOriginSum=0L;
+                for(LocalLabSettledDeathEnvelope.OriginStatus origin:
+                        LocalLabSettledDeathEnvelope.OriginStatus.values()){
+                    long value=types.count(origin,boundary,kind);
+                    typedOriginSum=c.add(typedOriginSum,value,
+                        "ORIGIN_FIRST_KIND_COLUMN_"+boundary+"_"+kind);
+                    boolean noThrow=boundary==
+                        LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_THROW_RECORDED||
+                        boundary==LocalLabTerminalFailureBoundaryTally.Boundary
+                            .NO_CURRENT_RECIPIENT;
+                    if(noThrow!=(kind==LocalLabTerminalFirstFailureTypeTally
+                            .Kind.NO_EXCEPTION)&&value>0L)
+                        c.issue("ORIGIN_FIRST_KIND_IMPOSSIBLE_"+
+                            origin+"_"+boundary+"_"+kind);
+                }
+                c.equal(typedOriginSum,
+                    s.firstFailureTypes.count(boundary,kind),
+                    "ORIGIN_FIRST_KIND_VS_TYPE_"+boundary+"_"+kind);
+            }
         }
+        for(LocalLabSettledDeathEnvelope.OriginStatus origin:
+                LocalLabSettledDeathEnvelope.OriginStatus.values())
+            for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
+                    LocalLabTerminalFailureBoundaryTally.Boundary.values()){
+                long typedSum=0L;
+                for(LocalLabTerminalFirstFailureTypeTally.Kind kind:
+                        LocalLabTerminalFirstFailureTypeTally.Kind.values())
+                    typedSum=c.add(typedSum,types.count(origin,boundary,kind),
+                        "ORIGIN_FIRST_KIND_ROW_"+origin+"_"+boundary);
+                c.equal(typedSum,crossed.count(origin,boundary),
+                    "ORIGIN_FIRST_KIND_VS_ORIGIN_BOUNDARY_"+origin+"_"+boundary);
+            }
 
         for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
                 LocalLabTerminalDeliveryAssessment.Consumer.values()){
@@ -255,7 +317,7 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                     .SKIPPED_NO_CURRENT_RECIPIENT),
             "FIRST_NO_CURRENT_VS_G4_SKIP"
         );
-        inspectRetainedDetails(s,derived,matrix,crossed,c);
+        inspectRetainedDetails(s,derived,matrix,crossed,types,c);
         return c.finish(observed);
     }
 
@@ -270,6 +332,7 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
         LocalLabTerminalDeliverySummary summary,
         LocalLabOriginConsumerOutcomeTally.Snapshot matrix,
         LocalLabOriginFirstFailureBoundaryTally.Snapshot cross,
+        LocalLabOriginFirstFailureKindTally.Snapshot typed,
         Checker c
     ){
         LocalLabSettledDeathEnvelope.OriginStatus[] origins=
@@ -285,6 +348,8 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
         long[][] originBoundaryCount=
             new long[origins.length][boundaries.length];
         long[][] kindCount=new long[boundaries.length][
+            LocalLabTerminalFirstFailureTypeTally.Kind.values().length];
+        long[][][] originKindCount=new long[origins.length][boundaries.length][
             LocalLabTerminalFirstFailureTypeTally.Kind.values().length];
         long[][] consumerCount=new long[consumers.length][evidences.length];
         long[][][] jointCount=
@@ -342,6 +407,8 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                         report,boundary
                     );
                 kindCount[boundary.ordinal()][kind.ordinal()]++;
+                originKindCount[report.originStatus.ordinal()]
+                    [boundary.ordinal()][kind.ordinal()]++;
                 originBoundaryCount[report.originStatus.ordinal()]
                     [boundary.ordinal()]++;
                 for(LocalLabTerminalDeliveryAssessment.Consumer consumer:
@@ -380,11 +447,19 @@ final class LocalLabTerminalEvidenceConsistencyAudit {
                     "FIRST_TYPE_"+boundary+"_"+kind);
         for(LocalLabSettledDeathEnvelope.OriginStatus origin:origins)
             for(LocalLabTerminalFailureBoundaryTally.Boundary boundary:
-                    boundaries)
+                    boundaries){
                 c.retained(
                     originBoundaryCount[origin.ordinal()][boundary.ordinal()],
                     cross.count(origin,boundary),exact,
                     "ORIGIN_FIRST_"+origin+"_"+boundary);
+                for(LocalLabTerminalFirstFailureTypeTally.Kind kind:
+                        LocalLabTerminalFirstFailureTypeTally.Kind.values())
+                    c.retained(
+                        originKindCount[origin.ordinal()][boundary.ordinal()]
+                            [kind.ordinal()],
+                        typed.count(origin,boundary,kind),exact,
+                        "ORIGIN_FIRST_KIND_"+origin+"_"+boundary+"_"+kind);
+            }
         for(LocalLabTerminalDeliveryAssessment.Consumer consumer:consumers)
             for(LocalLabTerminalDeliveryAssessment.Evidence evidence:evidences){
                 c.retained(consumerCount[consumer.ordinal()][evidence.ordinal()],

@@ -158,6 +158,38 @@ public final class G1966SequentialStageOutcomeEvictionTotalsTest {
                 if(origin!=current)
                     check(after.originCount(origin)==0L,
                         "no invented stale or disconnected origins "+origin);
+            LocalLabOriginFirstFailureKindTally.Snapshot byOriginKind=
+                after.originFirstFailureKinds;
+            LocalLabOriginFirstFailureKindTally.Snapshot initialOriginKind=
+                early.originFirstFailureKinds;
+            check(byOriginKind.count(
+                    LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==cycles&&
+                initialOriginKind.count(
+                    LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT,
+                    LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED,
+                    LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION)==1L,
+                "131 actual settled deaths retain typed origin+boundary after eviction");
+            boolean originKindImmutable=false;
+            boolean originKindNestedImmutable=false;
+            try{
+                byOriginKind.counts.clear();
+            }catch(UnsupportedOperationException expected){
+                originKindImmutable=true;
+            }
+            try{
+                byOriginKind.counts.get(
+                    LocalLabSettledDeathEnvelope.OriginStatus.CURRENT_SPAWN_RECIPIENT)
+                    .get(LocalLabTerminalFailureBoundaryTally.Boundary.NO_THROW_RECORDED)
+                    .put(LocalLabTerminalFirstFailureTypeTally.Kind.NO_EXCEPTION,0L);
+            }catch(UnsupportedOperationException expected){
+                originKindNestedImmutable=true;
+            }
+            check(originKindImmutable&&originKindNestedImmutable&&
+                    !byOriginKind.hasDurableGrantAcknowledgement()&&
+                    !byOriginKind.safeToAutomaticallyReplay(),
+                "three-level origin failure kind snapshots deeply immutable");
             LocalLabTerminalFirstFailureTypeTally.Snapshot types=
                 after.firstFailureTypes;
             check(types.count(
