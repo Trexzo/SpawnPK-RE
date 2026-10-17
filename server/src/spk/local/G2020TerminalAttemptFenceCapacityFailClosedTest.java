@@ -42,6 +42,14 @@ public final class G2020TerminalAttemptFenceCapacityFailClosedTest {
                 !after.hasDurableGrantAcknowledgement()&&
                 !after.safeToAutomaticallyReplay(),
                 "in-memory claim capacity strictly fail closed without evicting");
+            G2017TerminalAttemptFenceRealDeathTest.check(
+                after.refusalCount(
+                    LocalLabExperimentalTerminalAttemptFence.Refusal
+                        .CAPACITY_FAIL_CLOSED)==2L&&
+                after.observationCount(
+                    LocalLabExperimentalTerminalAttemptFence.Observation
+                        .RESERVED_UNCERTAIN)==256L,
+                "two refused reservations have no tokens or overwritten history");
             String rejected=null;
             try{
                 fence.reserve(
