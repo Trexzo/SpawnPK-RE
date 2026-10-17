@@ -105,6 +105,19 @@ public final class G2017TerminalAttemptFenceRealDeathTest {
                 !before.hasDurableGrantAcknowledgement()&&
                 !before.safeToAutomaticallyReplay(),
                 "one reserved/uncertain G1 and actual all-stage dry-run tokens");
+            check(before.refusalCount(
+                    LocalLabExperimentalTerminalAttemptFence.Refusal.DUPLICATE_CONSUMER)
+                    ==6L&&
+                before.observationCount(
+                    LocalLabExperimentalTerminalAttemptFence.Observation
+                        .RESERVED_UNCERTAIN)==1L&&
+                before.observationCount(
+                    LocalLabExperimentalTerminalAttemptFence.Observation
+                        .RETURNED_UNACKNOWLEDGED)==4L&&
+                before.observationCount(
+                    LocalLabExperimentalTerminalAttemptFence.Observation
+                        .THREW_MUTATION_UNCERTAIN)==1L,
+                "all real consumer outcomes and duplicate refusals observable");
             fence.returned(first);
             check(before.entries.get(0).observation==
                 LocalLabExperimentalTerminalAttemptFence.Observation
