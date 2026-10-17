@@ -2333,6 +2333,11 @@ def currentTrainFocusedTests = [
     'spk.local.G2074ForensicsWithinPassDirectorySwapTest',
     'spk.local.G2075ForensicsOversizeOrphanClassificationTest',
     'spk.local.G2076ForensicsWithinPassHardlinkTest',
+    'spk.local.G2077TerminalObserverPrivateMessageRedactionTest',
+    'spk.local.G2078TerminalObserverHostileToStringIsolationTest',
+    'spk.local.G2079TerminalObserverCauseSuppressedRedactionTest',
+    'spk.local.G2080TerminalObserverErrorRedactionTest',
+    'spk.local.G2081TerminalObserverSuccessNoFailureLogTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2738,10 +2743,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 891 ||
-    currentTrainFocusedTests.toSet().size() != 891) {
+if (currentTrainFocusedTests.size() != 896 ||
+    currentTrainFocusedTests.toSet().size() != 896) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 891 unique tests, found " +
+        "Current-train focused manifest drift: expected 896 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2972,6 +2977,13 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2081-npc-postsettlement-observer-safe-log'] = [
+    'spk.local.G2077TerminalObserverPrivateMessageRedactionTest',
+    'spk.local.G2078TerminalObserverHostileToStringIsolationTest',
+    'spk.local.G2079TerminalObserverCauseSuppressedRedactionTest',
+    'spk.local.G2080TerminalObserverErrorRedactionTest',
+    'spk.local.G2081TerminalObserverSuccessNoFailureLogTest',
 ]
 currentTrainCriticalCoverage['g2076-npc-journal-intrapass-integrity'] = [
     'spk.local.G2070ForensicsWithinPassPositiveTest',
@@ -13002,4 +13014,49 @@ tasks.register('g2076ForensicsWithinPassRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2076ForensicsWithinPassHardlinkTest')
+}
+
+tasks.register('g2077ObserverLogRedactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real settled NPC observer failure: safe exception diagnostic'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2077TerminalObserverPrivateMessageRedactionTest')
+}
+
+tasks.register('g2078ObserverLogRedactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real settled NPC observer failure: safe exception diagnostic'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2078TerminalObserverHostileToStringIsolationTest')
+}
+
+tasks.register('g2079ObserverLogRedactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real settled NPC observer failure: safe exception diagnostic'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2079TerminalObserverCauseSuppressedRedactionTest')
+}
+
+tasks.register('g2080ObserverLogRedactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real settled NPC observer failure: safe exception diagnostic'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2080TerminalObserverErrorRedactionTest')
+}
+
+tasks.register('g2081ObserverLogRedactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real settled NPC observer failure: safe exception diagnostic'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2081TerminalObserverSuccessNoFailureLogTest')
 }

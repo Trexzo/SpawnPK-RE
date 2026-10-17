@@ -902,13 +902,18 @@ final class MonsterSpawnerPvmRuntime {
                 // Preserve the existing nonfatal observer boundary. Ground
                 // drops are already settled and NPC identity retired.
                 observerFailure=failure;
+                // A Throwable.toString() may include player/account
+                // secrets from its message and may itself throw. Never
+                // invoke it while handling a post-settlement failure.
+                // The existing bounded diagnostic ring stores only
+                // the immutable class name, not a Throwable or message.
                 System.err.println(
                     "[world] G1_PVM_TERMINAL_OBSERVER_FAILED npc="+
                     finalized.npcId+
                     " deathTick="+
                     finalized.deathTick+
-                    " error="+
-                    failure
+                    " failureType="+
+                    failure.getClass().getName()
                 );
             }finally{
                 // Record after the callback without holding the runtime

@@ -496,6 +496,138 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
         }
     }
 
+    /**
+     * G2077–81: genuine canonical settled NPC observer failure boundary.
+     * Injects deliberately hostile Throwable messages/toString while capturing
+     * stderr, proving that no error-message content or Throwable.toString()
+     * escapes through the post-settlement diagnostic log.
+     */
+    static void runObserverSafeLogCapture(int mode)throws Exception{
+        if(mode<0||mode>4)
+            throw new IllegalArgumentException("G2077_INVALID_LOG_MODE");
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        java.io.PrintStream oldErr=System.err;
+        java.io.ByteArrayOutputStream buffer=
+            new java.io.ByteArrayOutputStream();
+        java.io.PrintStream localErr=
+            new java.io.PrintStream(buffer,true,"UTF-8");
+        final String secret="G2077_REDACT_PRIVATE_ACCOUNT_TOKEN_DO_NOT_LOG";
+        final java.util.concurrent.atomic.AtomicInteger toStringCalls=
+            new java.util.concurrent.atomic.AtomicInteger();
+        final Throwable injected;
+        switch(mode){
+            case 0:
+                injected=new IllegalStateException(secret);
+                break;
+            case 1:
+                injected=new AssertionError(secret){
+                    @Override public String toString(){
+                        toStringCalls.incrementAndGet();
+                        throw new IllegalStateException(
+                            "TOSTRING_MUST_NEVER_BE_CALLED_"+secret);
+                    }
+                };
+                break;
+            case 2:
+                RuntimeException chained=new RuntimeException(
+                    secret,new IllegalArgumentException(secret));
+                chained.addSuppressed(new IllegalArgumentException(secret));
+                injected=chained;
+                break;
+            case 3:
+                injected=new Error(secret);
+                break;
+            default:
+                injected=null;
+        }
+        try{
+            String recipient="g2077-real-lethal-recipient-"+mode;
+            generation=world.registerPlayer(player,recipient);
+            player.movement().restoreAccountState(
+                false,100,3087,3495,0);
+            RuntimeGraph graph=new RuntimeGraph(
+                world,attackDefinition(),"g2077-real-owner-"+mode);
+            world.installMonsterSpawnerPvmRuntime(graph.runtime);
+            final int[] calls={0};
+            graph.runtime.installTerminalObserver(terminal->{
+                calls[0]++;
+                if(injected instanceof Error)
+                    throw (Error)injected;
+                if(injected!=null)
+                    throw (RuntimeException)injected;
+            });
+            MonsterSpawnerPvmRuntime.SpawnResult spawn=
+                graph.runtime.spawnAndBind(
+                    "g2077-real-owner-"+mode,recipient,3088,3495,0);
+            WorldNpc npc=spawn.spawn.combat.spawn.npc;
+            NpcLifecycleService.DamageResult lethal=
+                world.npcLifecycle().applyDamageOwned(
+                    npc.id,10,world.clock().tick());
+            checkObserver(lethal.newlyDied&&lethal.hitpointsAfter==0,
+                "real canonical NPC reaches lethal HP");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal;
+            System.setErr(localErr);
+            try{
+                terminal=world.finalizeMonsterSpawnerPvmIfOwned(npc);
+            }finally{
+                System.setErr(oldErr);
+            }
+            String stderr=buffer.toString("UTF-8");
+            localErr.flush();
+            MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics report=
+                graph.runtime.terminalObserverDiagnostics();
+            MonsterSpawnerPvmRuntime.TerminalObserverAttempt attempt=
+                report.recentAttempts.size()==1
+                    ?report.recentAttempts.get(0):null;
+            checkObserver(terminal!=null&&
+                terminal.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                terminal.settlement!=null&&terminal.finalization!=null&&
+                graph.runtime.get(npc.id)==null&&calls[0]==1&&
+                graph.dropCalls==1&&
+                report.totalAttempts==1L&&
+                report.failedAttempts==(injected==null?0L:1L)&&
+                attempt!=null&&
+                attempt.outcome==(injected==null
+                    ?MonsterSpawnerPvmRuntime.TerminalObserverOutcome.RETURNED
+                    :MonsterSpawnerPvmRuntime.TerminalObserverOutcome.THREW)&&
+                (injected==null?attempt.failureType==null
+                    :injected.getClass().getName().equals(
+                        attempt.failureType))&&
+                world.groundItems().findOwned(
+                    995,3088,3495,0,recipient)!=null,
+                "observer log protection preserves one settled death and ring");
+            checkObserver(toStringCalls.get()==0&&
+                !stderr.contains(secret)&&
+                !stderr.contains("TOSTRING_MUST_NEVER_BE_CALLED")&&
+                !stderr.contains("error="+secret)&&
+                (injected==null
+                    ?!stderr.contains("G1_PVM_TERMINAL_OBSERVER_FAILED")
+                    :(stderr.contains("G1_PVM_TERMINAL_OBSERVER_FAILED")&&
+                      stderr.contains("failureType="+
+                          injected.getClass().getName()))),
+                "logs contain only throwable type, never sensitive message");
+            MonsterSpawnerPvmRuntime.FinalizeResult retry=
+                graph.runtime.retrySettlement(npc.id);
+            MonsterSpawnerPvmRuntime.FinalizeResult second=
+                graph.runtime.finalizeIfOwned(npc);
+            checkObserver(retry.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                second.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                graph.dropCalls==1,
+                "ground settlement never replayed");
+        }finally{
+            System.setErr(oldErr);
+            localErr.close();
+            if(generation>=0&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
+    }
+
     private static void checkObserver(boolean condition,String message){
         if(!condition)
             throw new AssertionError("G19.5.1/52 "+message);
