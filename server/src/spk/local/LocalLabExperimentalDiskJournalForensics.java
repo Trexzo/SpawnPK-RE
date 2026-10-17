@@ -84,7 +84,12 @@ final class LocalLabExperimentalDiskJournalForensics {
     }
 
     static Report inspectExisting(Path input) {
-        return inspectExistingWithTestCutpoint(input, null);
+        return inspectExistingWithTestCutpoints(input, null, null);
+    }
+
+    @FunctionalInterface
+    interface FileReadTestCutpoint {
+        void afterFirstRead(Path observedFile) throws IOException;
     }
 
     /**
@@ -93,6 +98,16 @@ final class LocalLabExperimentalDiskJournalForensics {
      */
     static Report inspectExistingWithTestCutpoint(
             Path input, ObservationTestCutpoint afterFirstPass) {
+        return inspectExistingWithTestCutpoints(input, afterFirstPass, null);
+    }
+
+    /**
+     * Test-only cutpoint simulates real NIO modifications after a file was
+     * first read and BEFORE its same-pass inode/byte identity recheck.
+     */
+    static Report inspectExistingWithTestCutpoints(
+            Path input, ObservationTestCutpoint afterFirstPass,
+            FileReadTestCutpoint afterFirstFileRead) {
         final Path root;
         try {
             root = Objects.requireNonNull(input, "journalDirectory")
@@ -101,7 +116,7 @@ final class LocalLabExperimentalDiskJournalForensics {
             return new Report(State.BLOCKED_UNCERTAIN_IO,
                 "DISK_FORENSICS_INVALID_INPUT", 0, 0);
         }
-        Pass first = scanOnce(root);
+        Pass first = scanOnce(root, afterFirstFileRead);
         if (first.report.state != State.READABLE_UNAUTHENTICATED_HISTORY)
             return first.report;
         try {
@@ -111,7 +126,7 @@ final class LocalLabExperimentalDiskJournalForensics {
                 "DISK_FORENSICS_SCAN_INTERRUPTED", first.report.observedEvents,
                 first.report.observedReservations);
         }
-        Pass second = scanOnce(root);
+        Pass second = scanOnce(root, null);
         if (second.report.state != State.READABLE_UNAUTHENTICATED_HISTORY ||
             !Objects.equals(first.directoryKey, second.directoryKey) ||
             !first.files.equals(second.files) ||
@@ -133,7 +148,8 @@ final class LocalLabExperimentalDiskJournalForensics {
                         rootKey, evidence);
     }
 
-    private static Pass scanOnce(Path root) {
+    private static Pass scanOnce(Path root,
+                                 FileReadTestCutpoint afterFirstFileRead) {
         int count = 0, stages = 0;
         Object rootKey = null;
         Map<String, Witness> evidence = new LinkedHashMap<String, Witness>();
@@ -156,10 +172,44 @@ final class LocalLabExperimentalDiskJournalForensics {
                         return result(State.BLOCKED_UNSAFE_PATH,
                             "DISK_FORENSICS_UNSAFE_ENTRY", count, stages, rootKey, evidence);
                     LocalLabExperimentalDiskAttemptJournal.requireSingleLink(entry);
+                    // Classification of an orphan or unknown filename must
+                    // not depend on its arbitrarily large payload. Do not
+                    // even read attacker-owned .tmp/unknown file contents.
+                    if (name.endsWith(".tmp"))
+                        return result(State.BLOCKED_ORPHAN_PENDING,
+                            "DISK_FORENSICS_UNRESOLVED_PENDING", count, stages,
+                            rootKey, evidence);
+                    if (!".journal.lock".equals(name) &&
+                        !name.endsWith(".event"))
+                        return result(State.BLOCKED_UNSAFE_PATH,
+                            "DISK_FORENSICS_UNKNOWN_ENTRY", count, stages,
+                            rootKey, evidence);
                     Object key = LocalLabExperimentalDiskAttemptJournal.requireFileKey(entry);
                     byte[] raw = LocalLabExperimentalDiskAttemptJournal.readBoundedRecord(entry);
-                    // Track exact bounded bytes and inode identity, including
-                    // lock file identity, without serializing them to output.
+                    try {
+                        if (afterFirstFileRead != null)
+                            afterFirstFileRead.afterFirstRead(entry);
+                        // A first read alone is not a pinned observation:
+                        // re-read while requiring original inode, nlink and
+                        // directory/ancestor continuity within this pass.
+                        LocalLabExperimentalDiskAttemptJournal.requireSafeAncestorChain(root);
+                        if (!Objects.equals(rootKey,
+                                LocalLabExperimentalDiskAttemptJournal.requireDirectoryKey(root)) ||
+                            Files.isSymbolicLink(entry))
+                            throw new IOException("DISK_FORENSICS_IDENTITY_CHANGED");
+                        LocalLabExperimentalDiskAttemptJournal.requireSingleLink(entry);
+                        if (!Objects.equals(key,
+                                LocalLabExperimentalDiskAttemptJournal.requireFileKey(entry)) ||
+                            !Arrays.equals(raw,
+                                LocalLabExperimentalDiskAttemptJournal.readBoundedRecord(entry)))
+                            throw new IOException("DISK_FORENSICS_BYTES_OR_INODE_CHANGED");
+                    } catch (IOException | RuntimeException drift) {
+                        return result(State.BLOCKED_UNSTABLE_OBSERVATION,
+                            "DISK_FORENSICS_FILE_CHANGED_DURING_SCAN",
+                            count, stages, rootKey, evidence);
+                    }
+                    // Track private exact bounded bytes + identity without
+                    // ever printing or returning journal record contents.
                     if (evidence.put(name, new Witness(key, raw)) != null)
                         return result(State.BLOCKED_UNCERTAIN_IO,
                             "DISK_FORENSICS_DUPLICATE_FILENAME", count, stages,
@@ -168,14 +218,6 @@ final class LocalLabExperimentalDiskJournalForensics {
                         sawLock = true;
                         continue;
                     }
-                    if (name.endsWith(".tmp"))
-                        return result(State.BLOCKED_ORPHAN_PENDING,
-                            "DISK_FORENSICS_UNRESOLVED_PENDING", count, stages,
-                            rootKey, evidence);
-                    if (!name.endsWith(".event"))
-                        return result(State.BLOCKED_UNSAFE_PATH,
-                            "DISK_FORENSICS_UNKNOWN_ENTRY", count, stages,
-                            rootKey, evidence);
                     String idText = name.substring(0, name.length() - 6);
                     UUID id;
                     try { id = UUID.fromString(idText); }
@@ -197,6 +239,18 @@ final class LocalLabExperimentalDiskJournalForensics {
                             "DISK_FORENSICS_CAPACITY_OVERFLOW", count, stages,
                             rootKey, evidence);
                 }
+            }
+            // End-of-pass pathname/key checks catch a directory swap after
+            // the last file was inspected. They are NOT a hostile lease.
+            try {
+                LocalLabExperimentalDiskAttemptJournal.requireSafeAncestorChain(root);
+                if (!Objects.equals(rootKey,
+                        LocalLabExperimentalDiskAttemptJournal.requireDirectoryKey(root)))
+                    throw new IOException("DISK_FORENSICS_ROOT_CHANGED");
+            } catch (IOException | RuntimeException changed) {
+                return result(State.BLOCKED_UNSTABLE_OBSERVATION,
+                    "DISK_FORENSICS_DIRECTORY_CHANGED_DURING_SCAN",
+                    count, stages, rootKey, evidence);
             }
             if (!sawLock)
                 return result(State.BLOCKED_UNSAFE_PATH,

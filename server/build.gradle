@@ -2326,6 +2326,13 @@ def currentTrainFocusedTests = [
     'spk.local.G2067ForensicsLateOrphanTest',
     'spk.local.G2068ForensicsLockInodeSwapTest',
     'spk.local.G2069ForensicsAncestorRedirectTest',
+    'spk.local.G2070ForensicsWithinPassPositiveTest',
+    'spk.local.G2071ForensicsWithinPassByteMutationTest',
+    'spk.local.G2072ForensicsWithinPassInodeSwapTest',
+    'spk.local.G2073ForensicsWithinPassLockSwapTest',
+    'spk.local.G2074ForensicsWithinPassDirectorySwapTest',
+    'spk.local.G2075ForensicsOversizeOrphanClassificationTest',
+    'spk.local.G2076ForensicsWithinPassHardlinkTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2731,10 +2738,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 884 ||
-    currentTrainFocusedTests.toSet().size() != 884) {
+if (currentTrainFocusedTests.size() != 891 ||
+    currentTrainFocusedTests.toSet().size() != 891) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 884 unique tests, found " +
+        "Current-train focused manifest drift: expected 891 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2965,6 +2972,15 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2076-npc-journal-intrapass-integrity'] = [
+    'spk.local.G2070ForensicsWithinPassPositiveTest',
+    'spk.local.G2071ForensicsWithinPassByteMutationTest',
+    'spk.local.G2072ForensicsWithinPassInodeSwapTest',
+    'spk.local.G2073ForensicsWithinPassLockSwapTest',
+    'spk.local.G2074ForensicsWithinPassDirectorySwapTest',
+    'spk.local.G2075ForensicsOversizeOrphanClassificationTest',
+    'spk.local.G2076ForensicsWithinPassHardlinkTest',
 ]
 currentTrainCriticalCoverage['g2069-npc-journal-two-pass-observation'] = [
     'spk.local.G2064ForensicsTwoPassStableTest',
@@ -12923,4 +12939,67 @@ tasks.register('g2069ForensicsTwoPassRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2069ForensicsAncestorRedirectTest')
+}
+
+tasks.register('g2070ForensicsWithinPassRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real NIO within-file-read forensic integrity and classification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2070ForensicsWithinPassPositiveTest')
+}
+
+tasks.register('g2071ForensicsWithinPassRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real NIO within-file-read forensic integrity and classification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2071ForensicsWithinPassByteMutationTest')
+}
+
+tasks.register('g2072ForensicsWithinPassRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real NIO within-file-read forensic integrity and classification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2072ForensicsWithinPassInodeSwapTest')
+}
+
+tasks.register('g2073ForensicsWithinPassRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real NIO within-file-read forensic integrity and classification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2073ForensicsWithinPassLockSwapTest')
+}
+
+tasks.register('g2074ForensicsWithinPassRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real NIO within-file-read forensic integrity and classification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2074ForensicsWithinPassDirectorySwapTest')
+}
+
+tasks.register('g2075ForensicsWithinPassRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real NIO within-file-read forensic integrity and classification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2075ForensicsOversizeOrphanClassificationTest')
+}
+
+tasks.register('g2076ForensicsWithinPassRegression', JavaExec) {
+    group = 'verification'
+    description = 'Real NIO within-file-read forensic integrity and classification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2076ForensicsWithinPassHardlinkTest')
 }
