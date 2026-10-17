@@ -764,6 +764,160 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
         }
     }
 
+
+    /** G2087–91: genuine terminal NPC with post-receipt live presentation. */
+    static void runGroundPresentationPostCommit(int mode)throws Exception{
+        if(mode<0||mode>4)throw new IllegalArgumentException("G2087_MODE");
+        World world=World.isolatedForTest(640L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=-1L;
+        java.io.PrintStream originalErr=System.err;
+        java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
+        java.io.PrintStream capture=new java.io.PrintStream(bytes,true,"UTF-8");
+        final String secret="G2087_PRIVATE_PRESENTATION_PAYLOAD";
+        final java.util.concurrent.atomic.AtomicInteger faults=
+            new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger toStringCalls=
+            new java.util.concurrent.atomic.AtomicInteger();
+        try{
+            String recipient="g2087-ground-recipient-"+mode;
+            String owner=mode==4?"g2087-absent-owner":recipient;
+            if(mode!=4){
+                generation=world.registerPlayer(player,recipient);
+                player.movement().restoreAccountState(false,100,3087,3495,0);
+            }
+            RuntimeGraph graph=new RuntimeGraph(
+                world,attackDefinition(),owner);
+            world.installMonsterSpawnerPvmRuntime(graph.runtime);
+            final int[] observers={0};
+            graph.runtime.installTerminalObserver(terminal->{
+                checkObserver(terminal.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    terminal.settlement!=null,"observer sees ground receipt");
+                observers[0]++;
+            });
+            if(mode==0||mode==3){
+                graph.settlement.installPresentationFaultForTest(()->{
+                    faults.incrementAndGet();
+                    throw new IllegalStateException(secret);
+                });
+            }else if(mode==1){
+                graph.settlement.installPresentationFaultForTest(()->{
+                    faults.incrementAndGet();
+                    throw new AssertionError(secret){
+                        @Override public String toString(){
+                            toStringCalls.incrementAndGet();
+                            throw new IllegalStateException(
+                                "FORBIDDEN_TOSTRING_"+secret);
+                        }
+                    };
+                });
+            }else if(mode==4){
+                graph.settlement.installPresentationFaultForTest(()->{
+                    faults.incrementAndGet();
+                    throw new AssertionError(
+                        "ABSENT_RECIPIENT_MUST_NOT_PRESENT");
+                });
+            }
+            MonsterSpawnerPvmRuntime.SpawnResult spawn=
+                graph.runtime.spawnAndBind(
+                    owner,recipient,3088,3495,0);
+            WorldNpc npc=spawn.spawn.combat.spawn.npc;
+            NpcLifecycleService.DamageResult lethal=
+                world.npcLifecycle().applyDamageOwned(
+                    npc.id,10,world.clock().tick());
+            checkObserver(lethal.newlyDied&&lethal.hitpointsAfter==0,
+                "real canonical lethal World NPC");
+            MonsterSpawnerPvmRuntime.FinalizeResult terminal;
+            System.setErr(capture);
+            try{
+                terminal=world.finalizeMonsterSpawnerPvmIfOwned(npc);
+            }finally{System.setErr(originalErr);}
+            capture.flush();
+            String log=bytes.toString("UTF-8");
+            GroundItem ground=world.groundItems().findOwned(
+                995,3088,3495,0,recipient);
+            NpcDropGroundSettlementService.Receipt receipt=
+                graph.settlement.get(npc.id);
+            checkObserver(terminal!=null&&
+                terminal.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                terminal.settlement==receipt&&receipt!=null&&
+                ground!=null&&ground.amount==5&&
+                graph.dropCalls==1&&observers[0]==1&&
+                graph.runtime.get(npc.id)==null&&
+                world.npcs().byId(npc.id)==null,
+                "ground committed; no false SETTLEMENT_PENDING");
+            boolean bad=mode==0||mode==1||mode==3;
+            checkObserver(faults.get()==(bad?1:0)&&
+                toStringCalls.get()==0&&!log.contains(secret)&&
+                !log.contains("FORBIDDEN_TOSTRING")&&
+                !log.contains("ABSENT_RECIPIENT_MUST_NOT_PRESENT")&&
+                (bad
+                    ?log.contains("G1_NPC_GROUND_PRESENTATION_FAILED")&&
+                     log.contains("settledReceiptPreserved=true")&&
+                     log.contains("failureType="+(mode==1
+                         ?"spk.local.LocalCanonicalNpcAttackPvmRuntimeBridgeTest$"
+                         :IllegalStateException.class.getName()))
+                    :!log.contains("G1_NPC_GROUND_PRESENTATION_FAILED")),
+                "type-only diagnostic, never secret payload");
+            MonsterSpawnerPvmRuntime.TerminalObserverDiagnostics diag=
+                graph.runtime.terminalObserverDiagnostics();
+            checkObserver(diag.totalAttempts==1L&&
+                diag.failedAttempts==0L&&
+                diag.recentAttempts.size()==1&&
+                diag.recentAttempts.get(0).outcome==
+                    MonsterSpawnerPvmRuntime.TerminalObserverOutcome.RETURNED,
+                "presentation does not alter observer classification");
+            if(mode!=4){
+                java.util.List<WorldGroundItemPresentationEvents.Event>
+                    pending=world.groundItemPresentationEvents().pendingFor(
+                        player.id(),generation,System.currentTimeMillis());
+                checkObserver(pending.size()==(bad?0:1),
+                    "live presentation healthy or explicitly unknown");
+            }
+            checkObserver(graph.runtime.retrySettlement(npc.id).status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                graph.runtime.finalizeIfOwned(npc).status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                graph.dropCalls==1&&observers[0]==1,
+                "no observer/drop replay");
+            if(mode==3){
+                graph.settlement.installPresentationFaultForTest(null);
+                graph.spawner.activate(owner,1);
+                MonsterSpawnerPvmRuntime.SpawnResult nextSpawn=
+                    graph.runtime.spawnAndBind(
+                        owner,recipient,3088,3495,0);
+                WorldNpc next=nextSpawn.spawn.combat.spawn.npc;
+                NpcLifecycleService.DamageResult lethal2=
+                    world.npcLifecycle().applyDamageOwned(
+                        next.id,10,world.clock().tick());
+                checkObserver(lethal2.newlyDied,"independent second death");
+                MonsterSpawnerPvmRuntime.FinalizeResult other=
+                    world.finalizeMonsterSpawnerPvmIfOwned(next);
+                GroundItem total=world.groundItems().findOwned(
+                    995,3088,3495,0,recipient);
+                java.util.List<WorldGroundItemPresentationEvents.Event>
+                    presented=world.groundItemPresentationEvents().pendingFor(
+                        player.id(),generation,System.currentTimeMillis());
+                checkObserver(other.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                    total!=null&&total.amount==10&&
+                    graph.dropCalls==2&&observers[0]==2&&
+                    presented.size()==1&&presented.get(0).newAmount==10&&
+                    graph.runtime.retrySettlement(next.id).status==
+                        MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED,
+                    "second genuine death publishes one stack update");
+            }
+        }finally{
+            System.setErr(originalErr);
+            capture.close();
+            if(generation>=0L&&world.players().owns(player,generation))
+                world.unregisterPlayer(player,generation);
+            world.close();
+        }
+    }
+
     private static void checkObserver(boolean condition,String message){
         if(!condition)
             throw new AssertionError("G19.5.1/52 "+message);

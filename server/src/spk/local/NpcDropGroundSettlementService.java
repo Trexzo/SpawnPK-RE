@@ -142,6 +142,13 @@ final class NpcDropGroundSettlementService {
         }
     }
 
+    // TEST ONLY: after receipt commit, before optional live scene events.
+    // Null in ordinary gameplay; never an award or replay hook.
+    private volatile Runnable presentationFaultForTest;
+    void installPresentationFaultForTest(Runnable fault){
+        presentationFaultForTest=fault;
+    }
+
     private final World world;
     private final GroundItemRegistry groundItems;
     private final String settlementAuthority;
@@ -303,10 +310,21 @@ final class NpcDropGroundSettlementService {
             receipt
         );
 
-        publishLiveOwnerScene(
-            checked,
-            mutations
-        );
+        // Ground registry and NPC receipt are already committed. A failure
+        // in nonauthoritative live scene presentation must not turn the NPC
+        // into SETTLEMENT_PENDING or invite settlement/observer replay.
+        try{
+            publishLiveOwnerScene(checked,mutations);
+        }catch(Throwable failure){
+            // The live event may be PARTIAL: never automatically resend it.
+            // Only immutable class identity; no message/cause/toString/PII.
+            System.err.println(
+                "[world] G1_NPC_GROUND_PRESENTATION_FAILED npc="+
+                npcId+" deathTick="+checked.context.deathTick+
+                " failureType="+failure.getClass().getName()+
+                " settledReceiptPreserved=true presentationUnknown=true"
+            );
+        }
 
         return receipt;
     }
@@ -331,6 +349,10 @@ final class NpcDropGroundSettlementService {
                 generation
             ))
             return;
+
+        Runnable testFault=presentationFaultForTest;
+        if(testFault!=null)
+            testFault.run();
 
         long now=
             System.currentTimeMillis();

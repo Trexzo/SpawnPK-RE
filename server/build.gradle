@@ -2343,6 +2343,11 @@ def currentTrainFocusedTests = [
     'spk.local.G2084PostSettlementCleanupHealthyControlTest',
     'spk.local.G2085PostSettlementCleanupAndObserverBothFailTest',
     'spk.local.G2086PostSettlementCleanupOwnerPresentTest',
+    'spk.local.G2087GroundPresentationRuntimeFailureTest',
+    'spk.local.G2088GroundPresentationHostileErrorTest',
+    'spk.local.G2089GroundPresentationHealthyControlTest',
+    'spk.local.G2090GroundPresentationSecondDeathControlTest',
+    'spk.local.G2091GroundPresentationAbsentRecipientTest',
     'spk.local.G21279ReadOnlyAccountForensicEvidenceTest',
     'spk.local.G21280AccountForensicIsolationAndUnsafeLeafTest',
     'spk.local.G21281ForensicSameInodeRestoredMtimeDriftTest',
@@ -2748,10 +2753,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 901 ||
-    currentTrainFocusedTests.toSet().size() != 901) {
+if (currentTrainFocusedTests.size() != 906 ||
+    currentTrainFocusedTests.toSet().size() != 906) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 901 unique tests, found " +
+        "Current-train focused manifest drift: expected 906 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2982,6 +2987,13 @@ currentTrainCriticalCoverage['g21359-forced-world-active-alias'] = [
     'spk.local.G21357ForcedWorldPreexistingActiveAliasTest',
     'spk.local.G21358ForcedWorldLateActiveAliasTest',
     'spk.local.G21359ForcedWorldForeignActiveAliasControlTest',
+]
+currentTrainCriticalCoverage['g2091-npc-presentation-postcommit'] = [
+    'spk.local.G2087GroundPresentationRuntimeFailureTest',
+    'spk.local.G2088GroundPresentationHostileErrorTest',
+    'spk.local.G2089GroundPresentationHealthyControlTest',
+    'spk.local.G2090GroundPresentationSecondDeathControlTest',
+    'spk.local.G2091GroundPresentationAbsentRecipientTest',
 ]
 currentTrainCriticalCoverage['g2086-npc-postsettlement-cleanup-observer-continuity'] = [
     'spk.local.G2082PostSettlementCleanupRuntimeFailureTest',
@@ -13116,4 +13128,49 @@ tasks.register('g2086PostSettlementCleanupRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2086PostSettlementCleanupOwnerPresentTest')
+}
+
+tasks.register('g2087GroundPresentationPostCommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical ground receipt stays authoritative if optional live presentation fails.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2087GroundPresentationRuntimeFailureTest')
+}
+
+tasks.register('g2088GroundPresentationPostCommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical ground receipt stays authoritative if optional live presentation fails.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2088GroundPresentationHostileErrorTest')
+}
+
+tasks.register('g2089GroundPresentationPostCommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical ground receipt stays authoritative if optional live presentation fails.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2089GroundPresentationHealthyControlTest')
+}
+
+tasks.register('g2090GroundPresentationPostCommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical ground receipt stays authoritative if optional live presentation fails.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2090GroundPresentationSecondDeathControlTest')
+}
+
+tasks.register('g2091GroundPresentationPostCommitRegression', JavaExec) {
+    group = 'verification'
+    description = 'Canonical ground receipt stays authoritative if optional live presentation fails.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G2091GroundPresentationAbsentRecipientTest')
 }
