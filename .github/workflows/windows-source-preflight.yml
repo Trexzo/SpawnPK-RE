@@ -47,11 +47,11 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & ./server/gradlew.bat --no-daemon clean testClasses verifyJava11Bytecode g21294FinalSaveWaitTimeoutRegression g2023AttemptFenceUncertainCompletionEvidenceRegression g21371StrictPreActiveLinkProviderRegression g21372StrictPreActiveLinkProviderRegression g21373StrictPreActiveLinkProviderRegression
+          & ./server/gradlew.bat --no-daemon clean testClasses verifyJava11Bytecode g21294FinalSaveWaitTimeoutRegression g2023AttemptFenceUncertainCompletionEvidenceRegression g21371StrictPreActiveLinkProviderRegression g21372StrictPreActiveLinkProviderRegression g21373StrictPreActiveLinkProviderRegression g21374StrictOneShotTokenAdmissionRegression g21375StrictOneShotTokenAdmissionRegression g21376StrictOneShotTokenAdmissionRegression
           if ($LASTEXITCODE -ne 0) {
             throw "WINDOWS_SOURCE_ONLY_BUILD_FAILED exitCode=$LASTEXITCODE"
           }
-          Write-Host "SPK_WINDOWS_SOURCE_SMOKE_PASS java11Bytecode=true accountWaitFixture=true npcAttemptFixture=true strictNlinkAdmissionFailClosedFixtures=3 originalClientGui=false"
+          Write-Host "SPK_WINDOWS_SOURCE_SMOKE_PASS java11Bytecode=true accountWaitFixture=true npcAttemptFixture=true strictNlinkAdmissionFailClosedFixtures=3 strictRealWorldTokenFixtures=3 originalClientGui=false"
 
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
