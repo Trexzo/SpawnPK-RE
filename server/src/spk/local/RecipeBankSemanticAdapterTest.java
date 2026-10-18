@@ -498,6 +498,7 @@ public final class RecipeBankSemanticAdapterTest {
         regressInventoryAba(ids,qty,known);
         regressFailedInventoryPublicationGeneration(ids,qty);
         regressMutableAliasIsolation(ids,qty,known);
+        regressConcurrentAdmission(ids,qty,known);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -522,6 +523,7 @@ public final class RecipeBankSemanticAdapterTest {
             " failedInventoryMutationRevisionStable=true"+
             " mutableSlotAliasIsolated=true"+
             " hydratedSnapshotAliasIsolated=true"+
+            " concurrentSingleAdmissionTrials=128"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
@@ -925,6 +927,77 @@ public final class RecipeBankSemanticAdapterTest {
             ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
             bank.inventoryAt(0).qty==1&&bank.inventoryAt(2).qty==6,
             "defensive getter prevented normal sealed recipe admission");
+    }
+
+    private static void regressConcurrentAdmission(
+        int[] ids,int[] quantities,Set<Integer> verified
+    )throws Exception{
+        // Two concurrently submitted actions can both prepare against the
+        // same inventory snapshot. At most one queue admission and one
+        // semantic commit may succeed on the shared BankState authority.
+        java.util.concurrent.ExecutorService workers=
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<128;trial++){
+                BankState bank=new BankState();
+                bank.replaceInventorySemantic(ids,quantities);
+                RecipeBankSemanticAdapter.Prepared first=
+                    RecipeBankSemanticAdapter.prepare(
+                        bank,Collections.singletonMap(100,2),
+                        300,3,2,verified);
+                RecipeBankSemanticAdapter.Prepared second=
+                    RecipeBankSemanticAdapter.prepare(
+                        bank,Collections.singletonMap(100,2),
+                        300,3,2,verified);
+                OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+                ServerPacketWriter writer=new ServerPacketWriter(
+                    queue,new IsaacCipher(new int[]{0,0,0,0}));
+                java.util.concurrent.CountDownLatch ready=
+                    new java.util.concurrent.CountDownLatch(2);
+                java.util.concurrent.CountDownLatch release=
+                    new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.Callable<String> a=()->{
+                    ready.countDown();release.await();
+                    try{
+                        return String.valueOf(
+                            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                                bank,first,writer));
+                    }catch(IllegalStateException expected){
+                        return expected.getMessage();
+                    }
+                };
+                java.util.concurrent.Callable<String> b=()->{
+                    ready.countDown();release.await();
+                    try{
+                        return String.valueOf(
+                            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                                bank,second,writer));
+                    }catch(IllegalStateException expected){
+                        return expected.getMessage();
+                    }
+                };
+                java.util.concurrent.Future<String> ra=workers.submit(a);
+                java.util.concurrent.Future<String> rb=workers.submit(b);
+                ok(ready.await(5,java.util.concurrent.TimeUnit.SECONDS),
+                    "concurrent recipe workers did not reach start gate");
+                release.countDown();
+                String resultA=ra.get(5,java.util.concurrent.TimeUnit.SECONDS);
+                String resultB=rb.get(5,java.util.concurrent.TimeUnit.SECONDS);
+                int committed=("COMMITTED".equals(resultA)?1:0)+
+                    ("COMMITTED".equals(resultB)?1:0);
+                ok(committed==1&&
+                    (resultA.contains("STALE_INVENTORY")||
+                     resultB.contains("STALE_INVENTORY"))&&
+                    queue.queuedPackets()==1&&
+                    bank.inventoryAt(0).qty==1&&
+                    bank.inventoryAt(2)!=null&&
+                    bank.inventoryAt(2).qty==6,
+                    "simultaneous prepared requests committed twice trial="+
+                    trial+" a="+resultA+" b="+resultB);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
     }
 
     private RecipeBankSemanticAdapterTest(){}
