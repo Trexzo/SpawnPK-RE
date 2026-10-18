@@ -562,6 +562,24 @@ final class BankState {
         return containerPayload(NORMAL_INVENTORY_CONTAINER,staged);
     }
 
+    /**
+     * Pre-encode every inventory view affected by a recipe. Each element is a
+     * complete opcode-53 body; caller must queue them in a single batch.
+     * Bank-open clients require both 3214 and 5064 views. The bank contents
+     * themselves are unchanged, so a 5382 refresh is unnecessary.
+     */
+    byte[][] previewRecipeInventoryViews(int[] ids,int[] quantities)
+        throws IOException{
+        byte[] normal=previewRecipeInventoryPacket(ids,quantities);
+        if(!open)return new byte[][]{normal};
+        Stack[] staged=new Stack[INVENTORY_CAPACITY];
+        for(int i=0;i<staged.length;i++)
+            if(ids[i]>=0)staged[i]=new Stack(ids[i],quantities[i]);
+        return new byte[][]{
+            normal,containerPayload(BANK_INVENTORY_CONTAINER,staged)
+        };
+    }
+
     void sendNormalInventory(ServerPacketWriter w) throws IOException {
         w.varShort(53, containerPayload(NORMAL_INVENTORY_CONTAINER, inventory));
     }
