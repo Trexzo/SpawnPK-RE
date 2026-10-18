@@ -209,6 +209,82 @@ public final class RecipeBankSemanticAdapterTest {
         }
         ok(retryReplayDenied,"successful retry could be replayed");
 
+        // A staging writer is not an idle publication boundary. The
+        // prepared request remains retryable only after that batch aborts.
+        BankState busyBank=new BankState();
+        busyBank.replaceInventorySemantic(ids,qty);
+        OutboundPacketQueue busyQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter busyWriter=new ServerPacketWriter(
+            busyQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        RecipeBankSemanticAdapter.Prepared busyReady=
+            RecipeBankSemanticAdapter.prepare(
+                busyBank,Collections.singletonMap(100,2),300,3,2,known);
+        busyWriter.beginBatch();
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            busyBank,busyReady,busyWriter)==
+            ServerPacketWriter.RecoverablePacketResult.RETRACTED_RETRYABLE,
+            "active packet batch unexpectedly admitted a recipe");
+        ok(busyBank.inventoryAt(0).qty==5&&
+            busyQueue.queuedBytes()==0,
+            "busy writer mutated inventory or emitted bytes");
+        busyWriter.abortBatch();
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            busyBank,busyReady,busyWriter)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED,
+            "busy-writer retraction consumed retry authority");
+        ok(busyBank.inventoryAt(0).qty==1&&
+            busyBank.inventoryAt(2).qty==6,
+            "busy-writer retry failed to commit exactly once");
+
+        // A terminal writer cannot admit a recipe, even with a valid
+        // prepared postimage and otherwise empty output queue.
+        BankState terminalBank=new BankState();
+        terminalBank.replaceInventorySemantic(ids,qty);
+        OutboundPacketQueue terminalQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter terminalWriter=new ServerPacketWriter(
+            terminalQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        RecipeBankSemanticAdapter.Prepared terminalReady=
+            RecipeBankSemanticAdapter.prepare(
+                terminalBank,Collections.singletonMap(100,2),300,3,2,known);
+        terminalWriter.markTerminal();
+        boolean terminalDenied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                terminalBank,terminalReady,terminalWriter);
+        }catch(java.io.IOException expected){
+            terminalDenied=String.valueOf(expected.getMessage()).contains(
+                "terminal");
+        }
+        ok(terminalDenied&&terminalQueue.queuedBytes()==0&&
+            terminalBank.inventoryAt(0).qty==5&&
+            terminalBank.inventoryAt(2)==null,
+            "terminal writer unexpectedly published a recipe");
+
+        // External alteration of the mutable fixture-facing postimage must
+        // also fail closed at queue admission, not just at direct commit.
+        BankState queueTamperBank=new BankState();
+        queueTamperBank.replaceInventorySemantic(ids,qty);
+        OutboundPacketQueue queueTamperOutput=new OutboundPacketQueue(4096);
+        ServerPacketWriter queueTamperWriter=new ServerPacketWriter(
+            queueTamperOutput,new IsaacCipher(new int[]{0,0,0,0}));
+        RecipeBankSemanticAdapter.Prepared queueTamper=
+            RecipeBankSemanticAdapter.prepare(
+                queueTamperBank,Collections.singletonMap(100,2),
+                300,3,2,known);
+        queueTamper.proposed.ids[2]=999;
+        boolean tamperedQueueDenied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                queueTamperBank,queueTamper,queueTamperWriter);
+        }catch(IllegalStateException expected){
+            tamperedQueueDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_PREPARED_POSTIMAGE_CHANGED");
+        }
+        ok(tamperedQueueDenied&&queueTamperOutput.queuedBytes()==0&&
+            queueTamperBank.inventoryAt(0).qty==5&&
+            queueTamperBank.inventoryAt(2)==null,
+            "tampered prepared request affected queue or inventory");
+
         BankState openBank=new BankState();
         openBank.replaceInventorySemantic(ids,qty);
         OutboundPacketQueue openQueue=new OutboundPacketQueue(4096);
@@ -332,6 +408,8 @@ public final class RecipeBankSemanticAdapterTest {
             " directReplayDenied=true privatePreparedConstructor=true"+
             " directWriterDeniedWithoutMutation=true"+
             " queueCommitted=true queueRefusalRetracted=true"+
+            " busyWriterRejected=true terminalWriterDenied=true"+
+            " tamperedQueueDenied=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
