@@ -12,7 +12,16 @@ public final class G21380ReviewVetoLateMarkerTest {
         if(!yes)throw new AssertionError("G21.380 "+why);
     }
     public static void main(String[] args)throws Exception{
-        Path dir=Files.createTempDirectory("g21380-late-marker-");
+        runScenario(false);
+        runScenario(true);
+        System.out.println("G21380_REVIEW_VETO_LATE_MARKER_PASS"+
+            " lateActiveDenied=true lateWitnessDenied=true"+
+            " markersPreserved=true noWorldAdmission=true"+
+            " durableEpoch=false");
+    }
+    private static void runScenario(boolean finalWitness)throws Exception{
+        Path dir=Files.createTempDirectory(
+            finalWitness?"g21380-late-final-witness-":"g21380-late-active-");
         String[] keys={
             LocalJvmAccountSessionLease.PROPERTY,
             LocalCrossJvmAccountSessionLock.PROPERTY
@@ -32,8 +41,9 @@ public final class G21380ReviewVetoLateMarkerTest {
                 world.persistence(),"late-review");
             check(token!=null,"missing cooperating lease");
             final Path account=dir.resolve("late-review.properties");
-            final Path marker=LocalDurableAccountReviewIntentPrimitive
-                .markerPath(account);
+            final Path marker=finalWitness
+                ?LocalFinalSaveNegativeWitness.witnessPath(account)
+                :LocalDurableAccountReviewIntentPrimitive.markerPath(account);
             final boolean[] injected={false};
             LocalReviewIntentAdmissionVeto.setAfterNegativeChecksForTest(
                 selected->{
@@ -62,9 +72,9 @@ public final class G21380ReviewVetoLateMarkerTest {
             check(Files.size(marker)==4L&&world.players().size()==0&&
                 !Files.exists(account,LinkOption.NOFOLLOW_LINKS),
                 "negative denial changed account/member/marker");
-            System.out.println("G21380_REVIEW_VETO_LATE_MARKER_PASS"+
-                " lateIntentDenied=true markerPreserved=true"+
-                " noWorldAdmission=true durableEpoch=false");
+            check(injected[0],"late sidecar probe did not run");
+            check(Files.exists(marker,LinkOption.NOFOLLOW_LINKS),
+                "negative sidecar was unexpectedly removed");
         }finally{
             LocalReviewIntentAdmissionVeto.setAfterNegativeChecksForTest(null);
             if(token!=null)token.releaseAfterInitializationFailure();
