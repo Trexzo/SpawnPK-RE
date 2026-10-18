@@ -79,3 +79,13 @@ The Gradle build now includes mandatory `recipeMixedPostimageRegression` and `re
 All source-only planner tests use intentionally synthetic IDs. Successful packet framing verifies only the locally reconstructed packet writer, not original v308 client-side acceptance or persisted account safety.
 
 **Exact-head rule:** the Java/Gradle and Windows workflows for this new head must both conclude successfully before these changes are called verified. Earlier green commits do not certify later code.
+
+## Source-local inventory ABA and publication bypass hardening
+
+A slot-for-slot comparison is insufficient if inventory A is mutated to B and then restored to A before a prepared request is published. The existing BankState now tracks a **source-local monotonic inventory mutation revision**, advanced by normal inventory postimage replacement (`replaceStacks(inventory, ...)`), semantic full replacement, exact-slot semantic consume and account snapshot restore. A prepared recipe seals this revision along with the existing bank-overlay view revision. Ordinary changed-slot denial retains `RECIPE_STALE_INVENTORY_POSTIMAGE`; only restored-value ABA is reported as `RECIPE_STALE_INVENTORY_GENERATION`.
+
+The source-only regressions exercise semantic replace-and-restore, exact-slot consume-and-restore, account snapshot restore, and structural add-and-restore. Rejected inventory packet publication and invalid semantic postimages must leave the mutation revision unchanged; new accepted structural inventory publication advances it. A newly prepared request after a local mutation remains valid.
+
+A prepared request that has begun a queue-backed publication attempt is permanently pinned to its outbound writer. It **may not subsequently invoke the direct source-only semantic-commit seam** to bypass backpressure or a failed publication. The successful queue-admission branch uses a separate internal commit path and the retry path remains available only through the original writer. The direct path is still intended solely for isolated source tests, not live gameplay authority. The read-only prepared preview now synchronizes on the same BankState monitor as preparation and queue publication.
+
+**Boundary:** These revisions only fence calls participating in the same BankState instance and its tracked mutation APIs. This PR does not seal external mutable Stack aliases, implement a globally exclusive World/account lease, persist a revision over restart, provide crash-durable intent records, or prove original-client network acknowledgement. Do not claim an account-durability fix or enable donor recipes based on these local guards. Exact-head CI is mandatory.
