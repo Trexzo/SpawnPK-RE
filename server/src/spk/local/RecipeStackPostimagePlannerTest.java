@@ -112,11 +112,30 @@ public final class RecipeStackPostimagePlannerTest {
         check(distinctTool.ids[1]==200&&
             distinctTool.quantities[1]==1,
             "retained unrelated tool changed by conversion");
+        denied(()->RecipeStackPostimagePlanner.prepareWithTool(
+            new int[]{100,555,-1},new int[]{5,1,0},
+            Collections.singletonMap(100,2),300,1,1,stackable,
+            555,false),"unverified retained tool accepted");
+        denied(()->RecipeStackPostimagePlanner.prepare(
+            new int[]{100,-1},new int[]{5,0},
+            Collections.singletonMap(100,1),65535,1,1,
+            new HashSet<>(Arrays.asList(100,65535))),
+            "nonencodable output item accepted");
+        denied(()->RecipeStackPostimagePlanner.prepare(
+            new int[]{100,-1},new int[]{5,0},
+            Collections.singletonMap(65535,1),300,1,1,
+            new HashSet<>(Arrays.asList(100,300,65535))),
+            "nonencodable input item accepted");
+        denied(()->RecipeStackPostimagePlanner.prepare(
+            new int[]{100,65535},new int[]{5,1},
+            Collections.singletonMap(100,1),300,1,1,stackable),
+            "nonencodable inventory item accepted");
         deterministicLedgerCases();
         System.out.println("RECIPE_STACK_POSTIMAGE_PASS"+
             " conservation=true rollbackByPrevalidation=true"+
             " overflowRejected=true canonicalSlots=true"+
             " maxStackSpill=true toolAwarePostimage=true"+
+            " verifiedRetainedTool=true encodableItemIds=true"+
             " deterministicLedgerCases=1024"+
             " noMutation=true"+
             " liveClientAuthority=false");
