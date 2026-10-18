@@ -28,16 +28,32 @@ final class RecipeBankSemanticAdapter {
         BankState bank,Map<Integer,Integer> ingredients,
         int product,int perBatch,int batches,Set<Integer> stackable
     ){
+        return prepareWithTool(bank,ingredients,product,perBatch,batches,
+            stackable,null,false);
+    }
+
+    /** Pure recipe snapshot preparation. The World still owns real state;
+     * this monitor only serializes competing source-only recipe operations.
+     */
+    static Prepared prepareWithTool(
+        BankState bank,Map<Integer,Integer> ingredients,
+        int product,int perBatch,int batches,Set<Integer> stackable,
+        Integer toolId,boolean consumeTool
+    ){
         Objects.requireNonNull(bank,"bank");
-        int n=bank.inventoryCapacity();
-        int[] ids=new int[n],qty=new int[n];
-        for(int i=0;i<n;i++){
-            BankState.Stack stack=bank.inventoryAt(i);
-            ids[i]=stack==null?-1:stack.itemId;
-            qty[i]=stack==null?0:stack.qty;
+        synchronized(bank){
+            int n=bank.inventoryCapacity();
+            int[] ids=new int[n],qty=new int[n];
+            for(int i=0;i<n;i++){
+                BankState.Stack stack=bank.inventoryAt(i);
+                ids[i]=stack==null?-1:stack.itemId;
+                qty[i]=stack==null?0:stack.qty;
+            }
+            return new Prepared(bank,ids,qty,
+                RecipeStackPostimagePlanner.prepareWithTool(
+                    ids,qty,ingredients,product,perBatch,batches,
+                    stackable,toolId,consumeTool));
         }
-        return new Prepared(bank,ids,qty,RecipeStackPostimagePlanner.prepare(
-            ids,qty,ingredients,product,perBatch,batches,stackable));
     }
     /** Encode the sealed prospective client inventory before semantic commit.
      * The returned bytes are evidence, not a publication or ACK.
@@ -105,16 +121,18 @@ final class RecipeBankSemanticAdapter {
     ){
         Objects.requireNonNull(bank,"bank");
         Objects.requireNonNull(prepared,"prepared");
-        // The source-only direct commit must obey the same one-shot and
-        // ownership rules as the queue-backed publication path.
-        requireCurrentPreimage(bank,prepared);
-        // Refuse mutation of the package-visible prepared postimage between
-        // preparation and commit. Apply the privately copied sealed result.
-        if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
-           !Arrays.equals(prepared.sealedQuantities,prepared.proposed.quantities))
-            throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
-        bank.replaceInventorySemantic(prepared.sealedIds.clone(),
-            prepared.sealedQuantities.clone());
-        prepared.committed=true;
+        synchronized(bank){
+            // The direct semantic path is source-only, not public gameplay.
+            // Serialize it with recipe preparation and queue publication.
+            requireCurrentPreimage(bank,prepared);
+            if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
+               !Arrays.equals(prepared.sealedQuantities,
+                   prepared.proposed.quantities))
+                throw new IllegalStateException(
+                    "RECIPE_PREPARED_POSTIMAGE_CHANGED");
+            bank.replaceInventorySemantic(prepared.sealedIds.clone(),
+                prepared.sealedQuantities.clone());
+            prepared.committed=true;
+        }
     }
 }
