@@ -232,9 +232,9 @@ public final class RecipeBankSemanticAdapterTest {
             openWire.size()>0,
             "bank-open mirror batch produced no bytes");
 
-        // Inject failure AFTER the first of two bank-open inventory views
-        // was framed, but BEFORE queue admission. The writer must abort its
-        // batch and restore its opcode cipher; semantic items must not move.
+        // Fault-inject the recipe's underlying recoverable queue publisher
+        // AFTER one of two bank-open views was framed but BEFORE admission.
+        // This checks batch/cipher rollback; it is not a live recipe handler.
         BankState injectedBank=new BankState();
         injectedBank.replaceInventorySemantic(ids,qty);
         OutboundPacketQueue injectedQueue=new OutboundPacketQueue(4096);
@@ -243,24 +243,26 @@ public final class RecipeBankSemanticAdapterTest {
         injectedBank.open(opener);
         injectedQueue.drainTo(new java.io.ByteArrayOutputStream(),4096);
         ServerPacketWriter injectingWriter=new ServerPacketWriter(
-            injectedQueue,new IsaacCipher(new int[]{0,0,0,0})){
-            private int stagedViews;
-            @Override void varShort(int opcode,byte[] body)
-                throws java.io.IOException{
-                if(++stagedViews==2)
-                    throw new java.io.IOException(
-                        "INJECTED_RECIPE_SECOND_VIEW_FAILURE");
-                super.varShort(opcode,body);
-            }
-        };
+            injectedQueue,new IsaacCipher(new int[]{0,0,0,0}));
         RecipeBankSemanticAdapter.Prepared injectedReady=
             RecipeBankSemanticAdapter.prepare(
                 injectedBank,Collections.singletonMap(100,2),
                 300,3,2,known);
+        // Exercise the SAME recoverable publisher used by recipes. Inject
+        // between the two prepared inventory views, without subclassing the
+        // final writer or manufacturing gameplay registration.
+        byte[][] interruptedViews=injectedBank.previewRecipeInventoryViews(
+            injectedReady.proposed.ids,injectedReady.proposed.quantities);
+        ok(interruptedViews.length==2,
+            "fault fixture did not have two bank-open views");
         boolean injectedFailureObserved=false;
         try{
-            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
-                injectedBank,injectedReady,injectingWriter);
+            injectingWriter.publishQueueOnlyRecoverablePacketIfIdle(
+                ()->{
+                    injectingWriter.varShort(53,interruptedViews[0]);
+                    throw new java.io.IOException(
+                        "INJECTED_RECIPE_SECOND_VIEW_FAILURE");
+                });
         }catch(java.io.IOException expected){
             injectedFailureObserved=String.valueOf(expected.getMessage())
                 .contains("INJECTED_RECIPE_SECOND_VIEW_FAILURE");
@@ -270,7 +272,7 @@ public final class RecipeBankSemanticAdapterTest {
                 new java.io.ByteArrayOutputStream(),4096)==0&&
             injectedBank.inventoryAt(0).qty==5&&
             injectedBank.inventoryAt(2)==null,
-            "second-view publish fault leaked bytes or mutated inventory");
+            "recoverable writer fault leaked bytes or mutated inventory");
         // The same prepared request remains retryable, and the writer's
         // aborted cipher checkpoint must not prevent a subsequent commit.
         ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
