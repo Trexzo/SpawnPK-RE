@@ -12,8 +12,11 @@ final class RecipeBankSemanticAdapter {
     static final class Prepared {
         final int[] expectedIds,expectedQuantities;
         final RecipeStackPostimagePlanner.Postimage proposed;
+        final int[] sealedIds,sealedQuantities;
         Prepared(int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
-            expectedIds=ids.clone();expectedQuantities=quantities.clone();proposed=image;
+            expectedIds=ids.clone();expectedQuantities=quantities.clone();
+            proposed=image;
+            sealedIds=image.ids.clone();sealedQuantities=image.quantities.clone();
         }
     }
     static Prepared prepare(
@@ -45,6 +48,12 @@ final class RecipeBankSemanticAdapter {
             if(id!=prepared.expectedIds[i]||qty!=prepared.expectedQuantities[i])
                 throw new IllegalStateException("RECIPE_STALE_INVENTORY_POSTIMAGE");
         }
-        bank.replaceInventorySemantic(prepared.proposed.ids,prepared.proposed.quantities);
+        // Refuse mutation of the package-visible prepared postimage between
+        // preparation and commit. Apply the privately copied sealed result.
+        if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
+           !Arrays.equals(prepared.sealedQuantities,prepared.proposed.quantities))
+            throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
+        bank.replaceInventorySemantic(prepared.sealedIds.clone(),
+            prepared.sealedQuantities.clone());
     }
 }
