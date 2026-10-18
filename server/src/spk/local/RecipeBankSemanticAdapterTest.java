@@ -213,6 +213,24 @@ public final class RecipeBankSemanticAdapterTest {
             "rejected queue mutated server inventory");
         ok(fullQueue.drainTo(new java.io.ByteArrayOutputStream(),2048)==1024,
             "rejected queue appended recipe bytes");
+        // A backpressured request is retryable only on its first writer;
+        // moving that prepared authority to a second session-like writer
+        // could publish another player's inventory postimage.
+        OutboundPacketQueue foreignQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter foreignWriter=new ServerPacketWriter(
+            foreignQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        boolean changedWriterDenied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                crowdedBank,refused,foreignWriter);
+        }catch(IllegalStateException expected){
+            changedWriterDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_PUBLICATION_WRITER_CHANGED");
+        }
+        ok(changedWriterDenied&&foreignQueue.queuedBytes()==0&&
+            crowdedBank.inventoryAt(0).qty==5&&
+            crowdedBank.inventoryAt(2)==null,
+            "backpressure request migrated to unrelated writer");
         // Rejected queue admission does not consume one-shot authority.
         fullQueue.drainTo(new java.io.ByteArrayOutputStream(),2048);
         ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
@@ -474,6 +492,7 @@ public final class RecipeBankSemanticAdapterTest {
             " directWriterDeniedWithoutMutation=true"+
             " queueCommitted=true queueRefusalRetracted=true"+
             " busyWriterRejected=true terminalWriterDenied=true"+
+            " crossWriterRetryDenied=true"+
             " tamperedQueueDenied=true"+
             " retainedToolQueued=true insufficientToolDenied=true"+
             " closedToOpenDenied=true openToClosedDenied=true"+
