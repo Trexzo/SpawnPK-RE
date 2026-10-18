@@ -233,7 +233,10 @@ final class LocalSession implements Runnable {
     private OutboundPacketQueue outboundPackets;
     // Source-only future recipe witness: exact login writer and World
     // generation. No live recipe dispatch exists. Revoke before teardown.
-    private RecipeSessionWriterGuard recipeSessionWriterGuard;
+    // Read on the World callback path (requestLogout) and written by the
+    // socket/login thread; volatile makes the exact guard publication
+    // visible before teardown/revocation callbacks inspect it.
+    private volatile RecipeSessionWriterGuard recipeSessionWriterGuard;
     private long sessionWorldTick;
     private boolean worldRegistered;
     private long worldPlayerGeneration;
