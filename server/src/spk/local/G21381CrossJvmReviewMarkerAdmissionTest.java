@@ -53,10 +53,10 @@ public final class G21381CrossJvmReviewMarkerAdmissionTest {
             byte[] evidence=new byte[]{71,21,3,81};
             Files.write(marker,evidence,StandardOpenOption.CREATE_NEW);
             Path transcript=root.resolve("child.log");
-            String java=Path.of(System.getProperty("java.home"),"bin",
+            String javaExecutable=Path.of(System.getProperty("java.home"),"bin",
                 System.getProperty("os.name").toLowerCase().contains("win")
                     ?"java.exe":"java").toString();
-            Process process=new ProcessBuilder(java,"-cp",
+            Process process=new ProcessBuilder(javaExecutable,"-cp",
                 System.getProperty("java.class.path"),
                 G21381CrossJvmReviewMarkerAdmissionTest.class.getName(),
                 "--child",root.toString()).redirectErrorStream(true)
