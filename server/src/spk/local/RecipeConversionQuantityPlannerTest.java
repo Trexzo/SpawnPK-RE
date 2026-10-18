@@ -58,11 +58,104 @@ public final class RecipeConversionQuantityPlannerTest {
         Map<Integer,Integer> snapshot=new HashMap<>(inventory);
         RecipeConversionQuantityPlanner.affordable(inventory,ingredients,100,true,10,2);
         if(!snapshot.equals(inventory))throw new AssertionError("preflight mutated inventory");
+        regressPostimageParity();
         System.out.println("RECIPE_CONVERSION_QUANTITY_PLANNER_PASS"+
             " toolOverlap=true retainedToolReservation=true"+
             " nullCountsRejected=true toolOnlyConversion=true"+
             " overflowSafe=true noMutation=true"+
+            " toolPlannerParityTrials=512"+
             " noLiveGameplayAuthority=true");
     }
+    /**
+     * The arithmetic preflight must agree with the actual atomic postimage
+     * planner for synthetic inventories with guaranteed output capacity.
+     * No real item IDs, recipes, client packets or account state are used.
+     */
+    private static void regressPostimageParity(){
+        Random random=new Random(0x5EED2026L);
+        Set<Integer> verified=new HashSet<>(
+            Arrays.asList(100,200,300,400));
+        Integer[] tools={null,100,200,300,999};
+        int accepted=0,rejected=0,retainedOverlap=0,
+            consumedOverlap=0,toolOnly=0;
+        for(int trial=0;trial<512;trial++){
+            int[] ids={100,200,300,-1,-1};
+            int[] counts={
+                1+random.nextInt(12),1+random.nextInt(12),
+                1+random.nextInt(12),0,0
+            };
+            int[] beforeIds=ids.clone(),beforeCounts=counts.clone();
+            Map<Integer,Integer> owned=new HashMap<>();
+            for(int i=0;i<3;i++)owned.put(ids[i],counts[i]);
+
+            Map<Integer,Integer> ingredients=new HashMap<>();
+            if(random.nextInt(4)!=0)
+                ingredients.put(ids[random.nextInt(3)],
+                    1+random.nextInt(4));
+            if(random.nextBoolean())
+                ingredients.put(ids[random.nextInt(3)],
+                    1+random.nextInt(3));
+            Integer toolId=tools[random.nextInt(tools.length)];
+            boolean consumeTool=toolId!=null&&random.nextBoolean();
+            int requested=1+random.nextInt(7),perOutput=1+random.nextInt(3);
+            int possible=RecipeConversionQuantityPlanner.affordable(
+                owned,ingredients,toolId,consumeTool,requested,perOutput);
+            if(possible>0){
+                RecipeStackPostimagePlanner.Postimage post=
+                    RecipeStackPostimagePlanner.prepareWithTool(
+                        ids,counts,ingredients,400,perOutput,
+                        possible,verified,toolId,consumeTool);
+                long output=0;
+                for(int slot=0;slot<post.ids.length;slot++)
+                    if(post.ids[slot]==400)output+=post.quantities[slot];
+                eq(possible*perOutput,(int)output,
+                    "planner parity output trial="+trial);
+                if(toolId!=null&&!consumeTool&&
+                   ingredients.containsKey(toolId)){
+                    long toolLeft=0;
+                    for(int slot=0;slot<post.ids.length;slot++)
+                        if(post.ids[slot]==toolId)
+                            toolLeft+=post.quantities[slot];
+                    if(toolLeft<1)
+                        throw new AssertionError(
+                            "retained overlapping tool lost trial="+trial);
+                    retainedOverlap++;
+                }
+                if(toolId!=null&&consumeTool&&
+                   ingredients.containsKey(toolId))
+                    consumedOverlap++;
+                if(ingredients.isEmpty()&&consumeTool)toolOnly++;
+                accepted++;
+            }
+            if(possible<requested){
+                boolean failed=false;
+                try{
+                    RecipeStackPostimagePlanner.prepareWithTool(
+                        ids,counts,ingredients,400,perOutput,
+                        possible+1,verified,toolId,consumeTool);
+                }catch(IllegalArgumentException|IllegalStateException expected){
+                    failed=true;
+                }
+                if(!failed)
+                    throw new AssertionError(
+                        "quantity planner rejected viable postimage trial="+
+                        trial+" allowed="+possible);
+                rejected++;
+            }
+            if(!Arrays.equals(ids,beforeIds)||
+               !Arrays.equals(counts,beforeCounts))
+                throw new AssertionError(
+                    "postimage parity modified source trial="+trial);
+        }
+        if(accepted<100||rejected<100||retainedOverlap==0||
+           consumedOverlap==0||toolOnly==0)
+            throw new AssertionError(
+                "parity fixture undercovered accepted="+accepted+
+                " rejected="+rejected+
+                " retainedOverlap="+retainedOverlap+
+                " consumedOverlap="+consumedOverlap+
+                " toolOnly="+toolOnly);
+    }
+
     private RecipeConversionQuantityPlannerTest(){}
 }
