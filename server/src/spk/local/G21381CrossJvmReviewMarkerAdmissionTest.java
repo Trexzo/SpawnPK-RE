@@ -49,10 +49,29 @@ public final class G21381CrossJvmReviewMarkerAdmissionTest {
         Path root=Files.createTempDirectory("g21381-crossjvm-review-");
         try{
             Path account=root.resolve("same-user.properties");
-            Path marker=LocalDurableAccountReviewIntentPrimitive.markerPath(account);
-            byte[] evidence=new byte[]{71,21,3,81};
-            Files.write(marker,evidence,StandardOpenOption.CREATE_NEW);
-            Path transcript=root.resolve("child.log");
+            for(int scenario=0;scenario<2;scenario++){
+                Path marker=scenario==0
+                    ?LocalDurableAccountReviewIntentPrimitive.markerPath(account)
+                    :LocalFinalSaveNegativeWitness.witnessPath(account);
+                byte[] evidence=new byte[]{71,21,3,(byte)(81+scenario)};
+                Files.write(marker,evidence,StandardOpenOption.CREATE_NEW);
+                Path transcript=root.resolve("child-"+scenario+".log");
+                runChild(root,transcript,account,marker,evidence);
+                Files.delete(marker);
+            }
+            System.out.println("G21381_CROSS_JVM_REVIEW_NEGATIVE_PASS"+
+                " independentJvm=true activeAndWitnessDenied=true"+
+                " sidecarsRetained=true noAccountPublication=true"+
+                " durableCrashCreationProven=false");
+        }finally{
+            try(Stream<Path> tree=Files.walk(root)){
+                for(Path p:tree.sorted(Comparator.reverseOrder())
+                    .toArray(Path[]::new))Files.deleteIfExists(p);
+            }
+        }
+    }
+    private static void runChild(Path root,Path transcript,Path account,
+                                 Path marker,byte[] evidence)throws Exception{
             String javaExecutable=Path.of(System.getProperty("java.home"),"bin",
                 System.getProperty("os.name").toLowerCase().contains("win")
                     ?"java.exe":"java").toString();
@@ -74,15 +93,6 @@ public final class G21381CrossJvmReviewMarkerAdmissionTest {
                 "cross-JVM review changed original negative evidence");
             check(!Files.exists(account,LinkOption.NOFOLLOW_LINKS),
                 "independent JVM published account file");
-            System.out.println("G21381_CROSS_JVM_REVIEW_NEGATIVE_PASS"+
-                " independentJvm=true sidecarRetained=true"+
-                " noAccountPublication=true durableCrashCreationProven=false");
-        }finally{
-            try(Stream<Path> tree=Files.walk(root)){
-                for(Path p:tree.sorted(Comparator.reverseOrder())
-                    .toArray(Path[]::new))Files.deleteIfExists(p);
-            }
-        }
     }
     private G21381CrossJvmReviewMarkerAdmissionTest(){}
 }
