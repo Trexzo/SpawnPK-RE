@@ -96,12 +96,111 @@ public final class RecipeMixedPostimagePlannerTest {
            "stackable output did not spill past capped stack");
 
         seededConservation();
+        seededToolConservation();
         legacyStackableParity();
         System.out.println("RECIPE_MIXED_POSTIMAGE_PASS"+
             " nonstackableOutputs=true retainedAndConsumedTools=true"+
             " malformedClassificationDenied=true maxStackSpill=true"+
-            " seededLedgerCases=1024 legacyParityCases=512"+
+            " seededLedgerCases=1024 toolLedgerCases=1024"+
+            " legacyParityCases=512"+
             " noMutation=true liveRecipeRegistered=false");
+    }
+
+    /**
+     * Independently verify per-item ledger conservation when a verified
+     * nonstackable or stackable tool is consumed per batch or retained.
+     * Leave room for every possible output so only tool/input ownership
+     * influences acceptance. No real client asset authority.
+     */
+    private static void seededToolConservation(){
+        Random random=new Random(0xBADC0FFEE1L);
+        int[] types={100,200,300,400};
+        Integer[] choices={null,100,200,300,400};
+        int passed=0,denied=0,retainedOverlap=0,consumedOverlap=0;
+        for(int trial=0;trial<1024;trial++){
+            int[] ids=new int[20],counts=new int[20];
+            Arrays.fill(ids,-1);
+            Map<Integer,Long> original=new HashMap<>();
+            for(int slot=0;slot<6;slot++){
+                int choice=random.nextInt(5);
+                ids[slot]=choice==4?-1:types[choice];
+                counts[slot]=ids[slot]==-1?0:
+                    NONSTACKABLE.contains(ids[slot])?1:
+                    1+random.nextInt(8);
+                if(ids[slot]>=0)
+                    original.merge(ids[slot],(long)counts[slot],Long::sum);
+            }
+            int[] savedIds=ids.clone(),savedCounts=counts.clone();
+            Map<Integer,Integer> input=new HashMap<>();
+            input.put(types[random.nextInt(4)],
+                1+random.nextInt(3));
+            if(random.nextBoolean())
+                input.put(types[random.nextInt(4)],
+                    1+random.nextInt(3));
+            Integer tool=choices[random.nextInt(choices.length)];
+            boolean consumed=tool!=null&&random.nextBoolean();
+            int output=types[random.nextInt(4)];
+            int batches=1+random.nextInt(3),perBatch=1+random.nextInt(3);
+            Map<Integer,Long> expected=new HashMap<>(original);
+            Map<Integer,Long> perInput=new HashMap<>();
+            for(Map.Entry<Integer,Integer> e:input.entrySet())
+                perInput.put(e.getKey(),(long)e.getValue());
+            if(consumed)
+                perInput.merge(tool,1L,Long::sum);
+            boolean sufficient=tool==null||
+                original.getOrDefault(tool,0L)>0;
+            for(Map.Entry<Integer,Long> e:perInput.entrySet()){
+                long next=expected.getOrDefault(e.getKey(),0L)-
+                    e.getValue()*batches;
+                if(next<0)sufficient=false;
+                expected.put(e.getKey(),next);
+            }
+            if(tool!=null&&!consumed&&perInput.containsKey(tool)&&
+                expected.getOrDefault(tool,0L)<1)
+                sufficient=false;
+            expected.merge(output,(long)perBatch*batches,Long::sum);
+            try{
+                RecipeMixedPostimagePlanner.Postimage post=
+                    RecipeMixedPostimagePlanner.prepare(
+                        ids,counts,input,output,perBatch,batches,
+                        STACKABLE,NONSTACKABLE,tool,consumed);
+                ok(sufficient,
+                    "tool request admitted without inputs trial="+trial);
+                Map<Integer,Long> actual=new HashMap<>();
+                for(int slot=0;slot<post.ids.length;slot++){
+                    int id=post.ids[slot],count=post.quantities[slot];
+                    ok(id==-1?count==0:
+                       STACKABLE.contains(id)?count>0:
+                       NONSTACKABLE.contains(id)&&count==1,
+                       "tool trial emitted malformed slot="+trial);
+                    if(id>=0)
+                        actual.merge(id,(long)count,Long::sum);
+                }
+                for(int id:types)
+                    ok(actual.getOrDefault(id,0L).equals(
+                        expected.getOrDefault(id,0L)),
+                        "tool ledger mismatch trial="+trial+" id="+id);
+                if(tool!=null&&input.containsKey(tool)){
+                    if(consumed)consumedOverlap++;
+                    else retainedOverlap++;
+                }
+                passed++;
+            }catch(IllegalStateException rejected){
+                ok(!sufficient,
+                    "viable tool request wrongly denied trial="+trial+
+                    " error="+rejected.getMessage());
+                denied++;
+            }
+            ok(Arrays.equals(ids,savedIds)&&
+               Arrays.equals(counts,savedCounts),
+               "tool trial mutated source="+trial);
+        }
+        ok(passed>100&&denied>100&&retainedOverlap>0&&
+           consumedOverlap>0,
+           "tool fixture undercovered passed="+passed+
+           " denied="+denied+
+           " retained="+retainedOverlap+
+           " consumed="+consumedOverlap);
     }
 
     private static void legacyStackableParity(){
