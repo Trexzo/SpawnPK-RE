@@ -70,11 +70,54 @@ public final class RecipeStackPostimagePlannerTest {
         check(freed.ids[0]==300&&freed.quantities[0]==1&&
             freed.quantities[1]==Integer.MAX_VALUE,
             "consumed ingredient slot not reused for maxed output");
+        // The postimage itself must enforce tool reservations: checking
+        // "affordable" separately is insufficient if a caller skips it.
+        denied(()->RecipeStackPostimagePlanner.prepareWithTool(
+            new int[]{100,-1},new int[]{4,0},
+            Collections.singletonMap(100,2),300,3,2,stackable,
+            100,false),"last retained tool consumed by ingredients");
+        RecipeStackPostimagePlanner.Postimage retained=
+            RecipeStackPostimagePlanner.prepareWithTool(
+                new int[]{100,-1},new int[]{5,0},
+                Collections.singletonMap(100,2),300,3,2,stackable,
+                100,false);
+        check(retained.ids[0]==100&&retained.quantities[0]==1&&
+            retained.ids[1]==300&&retained.quantities[1]==6,
+            "retained overlapping tool not preserved in postimage");
+        denied(()->RecipeStackPostimagePlanner.prepareWithTool(
+            new int[]{100,-1},new int[]{5,0},
+            Collections.singletonMap(100,2),300,3,2,stackable,
+            100,true),"consumed overlapping tool not added per batch");
+        RecipeStackPostimagePlanner.Postimage consumed=
+            RecipeStackPostimagePlanner.prepareWithTool(
+                new int[]{100,-1},new int[]{7,0},
+                Collections.singletonMap(100,2),300,3,2,stackable,
+                100,true);
+        check(consumed.ids[0]==100&&consumed.quantities[0]==1&&
+            consumed.ids[1]==300&&consumed.quantities[1]==6,
+            "consumed overlapping tool not charged once per batch");
+        denied(()->RecipeStackPostimagePlanner.prepareWithTool(
+            new int[]{100,200,-1},new int[]{5,1,0},
+            Collections.singletonMap(100,2),300,3,2,stackable,
+            999,false),"missing retained tool not denied");
+        denied(()->RecipeStackPostimagePlanner.prepareWithTool(
+            new int[]{100,200,-1},new int[]{5,1,0},
+            Collections.singletonMap(100,2),300,3,2,stackable,
+            null,true),"consumed null tool unexpectedly allowed");
+        RecipeStackPostimagePlanner.Postimage distinctTool=
+            RecipeStackPostimagePlanner.prepareWithTool(
+                new int[]{100,200,-1},new int[]{5,1,0},
+                Collections.singletonMap(100,2),300,3,2,stackable,
+                200,false);
+        check(distinctTool.ids[1]==200&&
+            distinctTool.quantities[1]==1,
+            "retained unrelated tool changed by conversion");
         deterministicLedgerCases();
         System.out.println("RECIPE_STACK_POSTIMAGE_PASS"+
             " conservation=true rollbackByPrevalidation=true"+
             " overflowRejected=true canonicalSlots=true"+
-            " maxStackSpill=true deterministicLedgerCases=1024"+
+            " maxStackSpill=true toolAwarePostimage=true"+
+            " deterministicLedgerCases=1024"+
             " noMutation=true"+
             " liveClientAuthority=false");
     }
