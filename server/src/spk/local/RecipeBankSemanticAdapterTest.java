@@ -482,6 +482,7 @@ public final class RecipeBankSemanticAdapterTest {
             "bank-open retraction appended a partial mirror batch");
         regressBankOverlayTransitions(ids,qty,known);
         regressBankOverlayAba(ids,qty,known);
+        regressFailedBankPublicationGeneration(ids,qty);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -498,6 +499,7 @@ public final class RecipeBankSemanticAdapterTest {
             " closedToOpenDenied=true openToClosedDenied=true"+
             " bankViewAbaDenied=true clientCloseAbaDenied=true"+
             " repeatedOpenViewDenied=true"+
+            " failedBankPublicationGenerationStable=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
@@ -649,6 +651,51 @@ public final class RecipeBankSemanticAdapterTest {
                 bank.inventoryAt(2).qty==6,
                 "fresh action blocked after overlay ABA mode="+mode);
         }
+    }
+
+    private static void regressFailedBankPublicationGeneration(
+        int[] ids,int[] quantities
+    )throws Exception{
+        BankState bank=new BankState();
+        bank.replaceInventorySemantic(ids,quantities);
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{0,0,0,0}));
+        queue.offerBatch(new byte[4096]);
+        long before=bank.bankViewRevision();
+        boolean failedOpen=false;
+        try{
+            bank.open(writer);
+        }catch(java.io.IOException expected){
+            failedOpen=true;
+        }
+        ok(failedOpen&&!bank.isOpen()&&
+            bank.bankViewRevision()==before&&
+            queue.queuedBytes()==4096,
+            "rejected bank-open publication changed view generation");
+        queue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+        bank.open(writer);
+        ok(bank.isOpen()&&bank.bankViewRevision()==before+1,
+            "successful bank-open did not advance one revision");
+        queue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+
+        long openGeneration=bank.bankViewRevision();
+        queue.offerBatch(new byte[4096]);
+        boolean failedClose=false;
+        try{
+            bank.close(writer);
+        }catch(java.io.IOException expected){
+            failedClose=true;
+        }
+        ok(failedClose&&bank.isOpen()&&
+            bank.bankViewRevision()==openGeneration&&
+            queue.queuedBytes()==4096,
+            "rejected bank-close publication changed view generation");
+        queue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+        bank.close(writer);
+        ok(!bank.isOpen()&&
+            bank.bankViewRevision()==openGeneration+1,
+            "successful bank close did not advance exactly one revision");
     }
 
     private RecipeBankSemanticAdapterTest(){}
