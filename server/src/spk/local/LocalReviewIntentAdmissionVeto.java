@@ -66,6 +66,14 @@ final class LocalReviewIntentAdmissionVeto {
             if(!lockedPath.equals(sessionLease.accountFileForReviewAdmission()))
                 throw new IllegalStateException(
                     "G21.378 REVIEW_VETO_ACCOUNT_PATH_CHANGED");
+            // G21.380: a negative intent appearing during earlier
+            // sidecar reads must not be missed by this final boundary.
+            // These are repeated negative observations, NOT an atomic
+            // cross-process admission transaction or safe recovery.
+            LocalDurableAccountReviewIntentPrimitive
+                .requireNoReviewMarker(lockedPath);
+            LocalFinalSaveNegativeWitness
+                .requireNoNegativeWitness(lockedPath);
         }catch(IOException negative){
             throw new IllegalStateException(
                 "G21.189 REVIEW_INTENT_LOGIN_DENIED_NO_AUTO_RECOVERY",
