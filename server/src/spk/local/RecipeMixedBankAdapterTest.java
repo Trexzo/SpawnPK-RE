@@ -135,11 +135,49 @@ public final class RecipeMixedBankAdapterTest {
             openBank.inventoryAt(1).itemId==400&&
             openBank.inventoryAt(2).itemId==400,
             "open-bank mixed recipe did not publish both views");
+        ByteArrayOutputStream actualOpenWire=new ByteArrayOutputStream();
+        ok(openQueue.drainTo(actualOpenWire,8192)>0,
+            "open-bank mixed recipe packets were not available");
+        // Independently reproduce the same bank-open ISAAC prefix and
+        // encode both expected widget 3214/5064 inventory views. This
+        // guards mirror ordering, packet contents and writer cipher state.
+        BankState referenceBank=new BankState();
+        referenceBank.replaceInventorySemantic(ids(),qty());
+        OutboundPacketQueue referenceQueue=new OutboundPacketQueue(8192);
+        ServerPacketWriter referenceWriter=new ServerPacketWriter(
+            referenceQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        referenceBank.open(referenceWriter);
+        referenceQueue.drainTo(new ByteArrayOutputStream(),8192);
+        int[] expectedIds=new int[BankState.INVENTORY_CAPACITY];
+        int[] expectedQty=new int[BankState.INVENTORY_CAPACITY];
+        Arrays.fill(expectedIds,-1);
+        for(int slot=0;slot<expectedIds.length;slot++){
+            BankState.Stack stack=openBank.inventoryAt(slot);
+            if(stack!=null){
+                expectedIds[slot]=stack.itemId;
+                expectedQty[slot]=stack.qty;
+            }
+        }
+        byte[][] expectedViews=referenceBank.previewRecipeInventoryViews(
+            expectedIds,expectedQty);
+        ok(expectedViews.length==2,
+            "reference bank-open recipe omitted inventory mirror");
+        ok(referenceWriter.publishQueueOnlyRecoverablePacketIfIdle(
+            ()->{for(byte[] view:expectedViews)
+                referenceWriter.varShort(53,view);})==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED,
+            "reference two-view publication failed");
+        ByteArrayOutputStream expectedOpenWire=new ByteArrayOutputStream();
+        referenceQueue.drainTo(expectedOpenWire,8192);
+        ok(Arrays.equals(actualOpenWire.toByteArray(),
+            expectedOpenWire.toByteArray()),
+            "mixed bank-open wire bytes did not match two-view reference");
 
         System.out.println("RECIPE_MIXED_BANK_PASS"+
             " nonstackableSlotConservation=true queueAtomic=true"+
             " backpressureRetry=true replayDenied=true"+
             " capacityDenied=true bankOpenMirror=true"+
+            " bankOpenWireParity=true"+
             " liveRecipeRegistered=false");
     }
 }
