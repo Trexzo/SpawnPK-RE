@@ -13332,3 +13332,19 @@ tasks.register('recipeWorldOwnedRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('recipeWorldOwnedRegression')
 }
+
+
+// Future recipe session witness, source-only. Existing LocalSession binds it
+// at login and revokes it before teardown; no recipe opcode is registered.
+tasks.register('recipeSessionWriterGuardRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify exact session writer identity and revocation across recipe publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeSessionWriterGuardTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('recipeSessionWriterGuardRegression')
+}
