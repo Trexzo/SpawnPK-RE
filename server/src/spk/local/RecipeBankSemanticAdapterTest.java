@@ -499,6 +499,7 @@ public final class RecipeBankSemanticAdapterTest {
         regressFailedInventoryPublicationGeneration(ids,qty);
         regressMutableAliasIsolation(ids,qty,known);
         regressConcurrentAdmission(ids,qty,known);
+        regressCrossWriterContention(ids,qty,known);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -525,6 +526,7 @@ public final class RecipeBankSemanticAdapterTest {
             " mutableSlotAliasIsolated=true"+
             " hydratedSnapshotAliasIsolated=true"+
             " concurrentSingleAdmissionTrials=128"+
+            " crossWriterContentionTrials=64"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
@@ -1013,6 +1015,77 @@ public final class RecipeBankSemanticAdapterTest {
                     bank.inventoryAt(2).qty==6,
                     "simultaneous prepared requests committed twice trial="+
                     trial+" a="+resultA+" b="+resultB);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
+    }
+
+    private static void regressCrossWriterContention(
+        int[] ids,int[] quantities,Set<Integer> verified
+    )throws Exception{
+        // Even when two publication writers are attached to one local
+        // inventory (an invalid live ownership scenario), the semantic
+        // boundary must reject one before enqueueing a second postimage.
+        java.util.concurrent.ExecutorService workers=
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                BankState bank=new BankState();
+                bank.replaceInventorySemantic(ids,quantities);
+                RecipeBankSemanticAdapter.Prepared first=
+                    RecipeBankSemanticAdapter.prepare(
+                        bank,Collections.singletonMap(100,2),
+                        300,3,2,verified);
+                RecipeBankSemanticAdapter.Prepared second=
+                    RecipeBankSemanticAdapter.prepare(
+                        bank,Collections.singletonMap(100,2),
+                        300,3,2,verified);
+                OutboundPacketQueue leftQueue=new OutboundPacketQueue(4096),
+                    rightQueue=new OutboundPacketQueue(4096);
+                ServerPacketWriter leftWriter=new ServerPacketWriter(
+                    leftQueue,new IsaacCipher(new int[]{0,0,0,0}));
+                ServerPacketWriter rightWriter=new ServerPacketWriter(
+                    rightQueue,new IsaacCipher(new int[]{0,0,0,0}));
+                java.util.concurrent.CountDownLatch ready=
+                    new java.util.concurrent.CountDownLatch(2);
+                java.util.concurrent.CountDownLatch start=
+                    new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.Future<String> left=workers.submit(()->{
+                    ready.countDown();start.await();
+                    try{
+                        return String.valueOf(
+                            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                                bank,first,leftWriter));
+                    }catch(IllegalStateException expected){
+                        return expected.getMessage();
+                    }
+                });
+                java.util.concurrent.Future<String> right=workers.submit(()->{
+                    ready.countDown();start.await();
+                    try{
+                        return String.valueOf(
+                            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                                bank,second,rightWriter));
+                    }catch(IllegalStateException expected){
+                        return expected.getMessage();
+                    }
+                });
+                ok(ready.await(5,java.util.concurrent.TimeUnit.SECONDS),
+                    "cross-writer contenders did not start trial="+trial);
+                start.countDown();
+                String a=left.get(5,java.util.concurrent.TimeUnit.SECONDS);
+                String b=right.get(5,java.util.concurrent.TimeUnit.SECONDS);
+                int committed=("COMMITTED".equals(a)?1:0)+
+                    ("COMMITTED".equals(b)?1:0);
+                ok(committed==1&&
+                    leftQueue.queuedPackets()+rightQueue.queuedPackets()==1&&
+                    bank.inventoryAt(0).qty==1&&
+                    bank.inventoryAt(2).qty==6&&
+                    (a.contains("STALE_INVENTORY")||
+                     b.contains("STALE_INVENTORY")),
+                    "cross-writer contention admitted twice trial="+trial+
+                    " left="+a+" right="+b);
             }
         }finally{
             workers.shutdownNow();
