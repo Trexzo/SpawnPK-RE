@@ -46,12 +46,22 @@ public final class RecipeConversionQuantityPlannerTest {
             inventory,ingredients,null,false,0,1),"nonpositive count");
         eq(0,RecipeConversionQuantityPlanner.affordable(
             inventory,ingredients,null,false,2,0),"nonpositive output");
+        eq(3,RecipeConversionQuantityPlanner.affordable(
+            inventory,Collections.emptyMap(),100,true,10,1),
+            "consumed tool as only conversion input");
+        eq(0,RecipeConversionQuantityPlanner.affordable(
+            inventory,Collections.emptyMap(),100,false,10,1),
+            "empty recipe without consumed tool refused");
+        eq(0,RecipeConversionQuantityPlanner.affordable(
+            inventory,Collections.emptyMap(),null,true,10,1),
+            "consumed tool-only recipe must name a tool");
         Map<Integer,Integer> snapshot=new HashMap<>(inventory);
         RecipeConversionQuantityPlanner.affordable(inventory,ingredients,100,true,10,2);
         if(!snapshot.equals(inventory))throw new AssertionError("preflight mutated inventory");
         System.out.println("RECIPE_CONVERSION_QUANTITY_PLANNER_PASS"+
             " toolOverlap=true retainedToolReservation=true"+
-            " nullCountsRejected=true overflowSafe=true noMutation=true"+
+            " nullCountsRejected=true toolOnlyConversion=true"+
+            " overflowSafe=true noMutation=true"+
             " noLiveGameplayAuthority=true");
     }
     private RecipeConversionQuantityPlannerTest(){}
