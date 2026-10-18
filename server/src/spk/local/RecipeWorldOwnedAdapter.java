@@ -98,6 +98,115 @@ final class RecipeWorldOwnedAdapter {
         return Objects.requireNonNull(result.get(),"owned recipe publication result");
     }
 
+    /**
+     * Unlike the existing unbound source-only Prepared, this additional
+     * token carries the exact session writer witness. It is still NOT an
+     * installed gameplay handler or named-account durability authority.
+     */
+    static final class SessionPrepared {
+        private final Prepared prepared;
+        private final RecipeSessionWriterGuard session;
+        private SessionPrepared(
+            Prepared prepared,RecipeSessionWriterGuard session
+        ){
+            this.prepared=prepared;
+            this.session=session;
+        }
+    }
+
+    static SessionPrepared prepareSessionStackable(
+        RecipeSessionWriterGuard session,
+        Map<Integer,Integer> ingredients,
+        int product,int perBatch,int batches,Set<Integer> stackable,
+        Integer toolId,boolean consumeTool
+    )throws Exception{
+        Objects.requireNonNull(session,"session");
+        World world=session.world();
+        WorldPlayer player=session.player();
+        long generation=session.generation();
+        ServerPacketWriter writer=session.writer();
+        AtomicReference<RecipeBankSemanticAdapter.Prepared> planned=
+            new AtomicReference<>();
+        boolean owned=world.withOpenPlayerMutationOwnershipIfCurrent(
+            player,generation,
+            ()->session.runBound(
+                world,player,generation,writer,()->{
+                    planned.set(RecipeBankSemanticAdapter.prepareWithTool(
+                        player.bank(),ingredients,product,perBatch,batches,
+                        stackable,toolId,consumeTool));
+                    return null;
+                })
+        );
+        if(!owned)
+            throw new IllegalStateException(
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+        return new SessionPrepared(
+            new Prepared(world,player,generation,writer,
+                Objects.requireNonNull(planned.get(),
+                    "session recipe postimage")),
+            session);
+    }
+
+    static SessionPrepared prepareSessionMixed(
+        RecipeSessionWriterGuard session,
+        Map<Integer,Integer> ingredients,
+        int product,int perBatch,int batches,
+        Set<Integer> stackable,Set<Integer> nonstackable,
+        Integer toolId,boolean consumeTool
+    )throws Exception{
+        Objects.requireNonNull(session,"session");
+        World world=session.world();
+        WorldPlayer player=session.player();
+        long generation=session.generation();
+        ServerPacketWriter writer=session.writer();
+        AtomicReference<RecipeBankSemanticAdapter.Prepared> planned=
+            new AtomicReference<>();
+        boolean owned=world.withOpenPlayerMutationOwnershipIfCurrent(
+            player,generation,
+            ()->session.runBound(
+                world,player,generation,writer,()->{
+                    planned.set(RecipeBankSemanticAdapter.prepareMixedWithTool(
+                        player.bank(),ingredients,product,perBatch,batches,
+                        stackable,nonstackable,toolId,consumeTool));
+                    return null;
+                })
+        );
+        if(!owned)
+            throw new IllegalStateException(
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+        return new SessionPrepared(
+            new Prepared(world,player,generation,writer,
+                Objects.requireNonNull(planned.get(),
+                    "session mixed recipe postimage")),
+            session);
+    }
+
+    static ServerPacketWriter.RecoverablePacketResult publishSession(
+        SessionPrepared sessionPrepared
+    )throws Exception{
+        Objects.requireNonNull(sessionPrepared,"sessionPrepared");
+        Prepared prepared=sessionPrepared.prepared;
+        AtomicReference<ServerPacketWriter.RecoverablePacketResult> result=
+            new AtomicReference<>();
+        boolean owned=prepared.world.withOpenPlayerMutationOwnershipIfCurrent(
+            prepared.player,prepared.generation,
+            ()->sessionPrepared.session.runBound(
+                prepared.world,prepared.player,prepared.generation,
+                prepared.writer,()->{
+                    result.set(
+                        RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                            prepared.player.bank(),prepared.inventory,
+                            prepared.writer));
+                    return null;
+                })
+        );
+        if(!owned)
+            throw new IllegalStateException(
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+        return Objects.requireNonNull(result.get(),
+            "owned session recipe publication result");
+    }
+
     private static void checkInputs(
         World world,WorldPlayer player,long generation,ServerPacketWriter writer
     ){
