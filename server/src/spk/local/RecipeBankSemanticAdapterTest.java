@@ -74,11 +74,46 @@ public final class RecipeBankSemanticAdapterTest {
         ok(directDenied&&directBytes.size()==0&&
             directBank.inventoryAt(0).qty==5&&directBank.inventoryAt(2)==null,
             "non-retractable direct publication mutated server or emitted bytes");
+        BankState queuedBank=new BankState();
+        queuedBank.replaceInventorySemantic(ids,qty);
+        OutboundPacketQueue queue=new OutboundPacketQueue(1024);
+        ServerPacketWriter queuedWriter=new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{0,0,0,0}));
+        RecipeBankSemanticAdapter.Prepared accepted=RecipeBankSemanticAdapter.prepare(
+            queuedBank,Collections.singletonMap(100,2),300,3,2,known);
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            queuedBank,accepted,queuedWriter)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED,
+            "queue-backed recipe admission not committed");
+        ok(queuedBank.inventoryAt(0).qty==1&&
+            queuedBank.inventoryAt(2).qty==6,
+            "queue admission did not apply semantic inventory");
+        java.io.ByteArrayOutputStream acceptedWire=new java.io.ByteArrayOutputStream();
+        ok(queue.drainTo(acceptedWire,2048)>0&&acceptedWire.size()>0,
+            "accepted queue published no bytes");
+
+        BankState crowdedBank=new BankState();
+        crowdedBank.replaceInventorySemantic(ids,qty);
+        OutboundPacketQueue fullQueue=new OutboundPacketQueue(1024);
+        fullQueue.offerBatch(new byte[1024]);
+        ServerPacketWriter fullWriter=new ServerPacketWriter(
+            fullQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        RecipeBankSemanticAdapter.Prepared refused=RecipeBankSemanticAdapter.prepare(
+            crowdedBank,Collections.singletonMap(100,2),300,3,2,known);
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            crowdedBank,refused,fullWriter)==
+            ServerPacketWriter.RecoverablePacketResult.RETRACTED_RETRYABLE,
+            "full queue recipe was not retractably rejected");
+        ok(crowdedBank.inventoryAt(0).qty==5&&crowdedBank.inventoryAt(2)==null,
+            "rejected queue mutated server inventory");
+        ok(fullQueue.drainTo(new java.io.ByteArrayOutputStream(),2048)==1024,
+            "rejected queue appended recipe bytes");
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
             " precommitPacketEncoded=true tamperedEncodeDenied=true"+
             " directWriterDeniedWithoutMutation=true"+
+            " queueCommitted=true queueRefusalRetracted=true"+
             " liveRecipeRegistered=false");
     }
     private RecipeBankSemanticAdapterTest(){}
