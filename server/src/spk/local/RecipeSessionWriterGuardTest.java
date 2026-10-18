@@ -71,6 +71,14 @@ public final class RecipeSessionWriterGuardTest {
     }
 
     public static void main(String[] args)throws Exception{
+        // Login installs the guard on the socket thread; logout can be
+        // requested from a World callback. Protect this publication edge
+        // against accidental removal of the volatile field contract.
+        java.lang.reflect.Field sessionField=
+            LocalSession.class.getDeclaredField("recipeSessionWriterGuard");
+        ok(java.lang.reflect.Modifier.isVolatile(
+                sessionField.getModifiers()),
+            "LocalSession recipe witness publication is not volatile");
         World world=world();
         try{
             WorldPlayer player=new WorldPlayer();
@@ -232,6 +240,7 @@ public final class RecipeSessionWriterGuardTest {
         System.out.println("RECIPE_SESSION_WRITER_GUARD_PASS"+
             " exactWriterDenied=true foreignPlayerDenied=true"+
             " sameGenerationRebindDenied=true"+
+            " loginLogoutVolatileWitness=true"+
             " foreignWorldWitnessClaimDenied=true"+
             " revokedPrepareDenied=true revokedPublicationDenied=true"+
             " backpressureRevocationDenied=true terminalWriterDenied=true"+
