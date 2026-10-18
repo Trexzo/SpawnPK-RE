@@ -83,6 +83,72 @@ public final class RecipeWorldOwnedAdapterTest {
     @FunctionalInterface
     private interface CheckedAction { void run()throws Exception; }
 
+    private static void concurrentOwnerExit(World world)
+        throws Exception{
+        // The real World lifecycle/player mutation locks must linearize
+        // publication against exact-generation unregister. Unlike a
+        // BankState-only lock this directly exercises World membership.
+        java.util.concurrent.ExecutorService workers=
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<32;trial++){
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_race_"+trial);
+                OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+                ServerPacketWriter writer=writer(queue);
+                RecipeWorldOwnedAdapter.Prepared prepared=
+                    stackable(world,player,generation,writer);
+                java.util.concurrent.CountDownLatch ready=
+                    new java.util.concurrent.CountDownLatch(2);
+                java.util.concurrent.CountDownLatch start=
+                    new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.Future<String> publication=
+                    workers.submit(()->{
+                        ready.countDown();start.await();
+                        try{
+                            return String.valueOf(
+                                RecipeWorldOwnedAdapter.publish(prepared));
+                        }catch(IllegalStateException expected){
+                            return String.valueOf(expected.getMessage());
+                        }
+                    });
+                java.util.concurrent.Future<Boolean> unregistration=
+                    workers.submit(()->{
+                        ready.countDown();start.await();
+                        return world.unregisterPlayer(
+                            player,generation);
+                    });
+                ok(ready.await(5,java.util.concurrent.TimeUnit.SECONDS),
+                    "ownership contenders missed start gate "+trial);
+                start.countDown();
+                String result=publication.get(
+                    5,java.util.concurrent.TimeUnit.SECONDS);
+                ok(unregistration.get(
+                    5,java.util.concurrent.TimeUnit.SECONDS),
+                    "World unregister lost generation "+trial);
+                boolean published="COMMITTED".equals(result);
+                ok(published||result.contains(
+                        "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT"),
+                    "ownership race unexpected result trial="+trial+
+                    " result="+result);
+                ok(queue.queuedPackets()==(published?1:0)&&
+                    player.bank().inventoryAt(0).qty==
+                        (published?1:5)&&
+                    ((player.bank().inventoryAt(3)==null)==!published),
+                    "publish/unregister race leaked stale state trial="+
+                    trial+" result="+result);
+                // Regardless of which operation won, old owner is now
+                // unregistered and cannot replay the prepared request.
+                ownerDenied(()->RecipeWorldOwnedAdapter.publish(prepared),
+                    "unregister race allowed post-exit replay "+trial);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         // No fake World ownership from a prepared BankState alone.
         World world=isolatedWorld();
@@ -228,6 +294,7 @@ public final class RecipeWorldOwnedAdapterTest {
                 foreignWorld.close();
             }
 
+            concurrentOwnerExit(world);
             ok(world.unregisterPlayer(player,firstGeneration),
                 "World primary owner cleanup failed");
         }finally{
@@ -239,6 +306,7 @@ public final class RecipeWorldOwnedAdapterTest {
             " sourceOnlyReplayDenied=true"+
             " unregisterRejoinGenerationFenced=true"+
             " backpressureGenerationFenced=true"+
+            " unregisterPublicationRaces=32"+
             " unrelatedWorldDenied=true"+
             " noLiveRecipes=true noCrossWorldAccountLease=true");
     }
