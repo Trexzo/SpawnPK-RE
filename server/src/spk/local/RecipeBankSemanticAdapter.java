@@ -159,10 +159,6 @@ final class RecipeBankSemanticAdapter {
             throw new IllegalStateException("RECIPE_STALE_BANK_VIEW");
         if(bank.inventoryCapacity()!=prepared.expectedIds.length)
             throw new IllegalStateException("RECIPE_INVENTORY_CAPACITY_CHANGED");
-        if(bank.inventoryMutationRevision()!=
-           prepared.expectedInventoryMutationRevision)
-            throw new IllegalStateException(
-                "RECIPE_STALE_INVENTORY_GENERATION");
         for(int i=0;i<prepared.expectedIds.length;i++){
             BankState.Stack current=bank.inventoryAt(i);
             int id=current==null?-1:current.itemId;
@@ -170,6 +166,12 @@ final class RecipeBankSemanticAdapter {
             if(id!=prepared.expectedIds[i]||qty!=prepared.expectedQuantities[i])
                 throw new IllegalStateException("RECIPE_STALE_INVENTORY_POSTIMAGE");
         }
+        // Distinguish ordinary stale slots above from the harder ABA case:
+        // a source-local mutation occurred but the slots were restored.
+        if(bank.inventoryMutationRevision()!=
+           prepared.expectedInventoryMutationRevision)
+            throw new IllegalStateException(
+                "RECIPE_STALE_INVENTORY_GENERATION");
     }
     static void commit(BankState bank,
         Prepared prepared
