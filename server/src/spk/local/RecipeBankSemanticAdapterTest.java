@@ -484,6 +484,7 @@ public final class RecipeBankSemanticAdapterTest {
         regressBankOverlayAba(ids,qty,known);
         regressFailedBankPublicationGeneration(ids,qty);
         regressInventoryAba(ids,qty,known);
+        regressFailedInventoryPublicationGeneration(ids,qty);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -504,6 +505,7 @@ public final class RecipeBankSemanticAdapterTest {
             " semanticInventoryAbaDenied=true"+
             " structuralInventoryAbaDenied=true"+
             " restoreAccountAbaDenied=true"+
+            " failedInventoryMutationRevisionStable=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
@@ -794,6 +796,50 @@ public final class RecipeBankSemanticAdapterTest {
         ok(denied&&queue.queuedBytes()==0&&
             bank.inventoryAt(0).qty==5&&bank.inventoryAt(2)==null,
             "structural ABA allowed stale recipe queue publication");
+    }
+
+    private static void regressFailedInventoryPublicationGeneration(
+        int[] originalIds,int[] originalQty
+    )throws Exception{
+        BankState bank=new BankState();
+        bank.replaceInventorySemantic(originalIds,originalQty);
+        long baseline=bank.inventoryMutationRevision();
+        OutboundPacketQueue queue=new OutboundPacketQueue(1024);
+        ServerPacketWriter writer=new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{0,0,0,0}));
+        queue.offerBatch(new byte[1024]);
+        boolean refused=false;
+        try{
+            bank.addInventoryOne(300,writer);
+        }catch(java.io.IOException expected){
+            refused=true;
+        }
+        ok(refused&&bank.inventoryMutationRevision()==baseline&&
+           bank.inventoryAt(2)==null&&queue.queuedBytes()==1024,
+           "failed inventory packet publication mutated revision or items");
+        queue.drainTo(new java.io.ByteArrayOutputStream(),1024);
+        int slot=bank.addInventoryOne(300,writer);
+        ok(slot>=0&&bank.inventoryMutationRevision()==baseline+1&&
+           bank.inventoryAt(slot).itemId==300&&
+           bank.inventoryAt(slot).qty==1,
+           "successful structural add did not advance generation once");
+
+        // Prevalidation failure must never partially apply a semantic
+        // postimage or advance a World-local mutation revision.
+        long acceptedRevision=bank.inventoryMutationRevision();
+        int[] malformed=originalQty.clone();
+        malformed[0]=0;
+        boolean invalidDenied=false;
+        try{
+            bank.replaceInventorySemantic(originalIds,malformed);
+        }catch(IllegalArgumentException expected){
+            invalidDenied=true;
+        }
+        ok(invalidDenied&&
+           bank.inventoryMutationRevision()==acceptedRevision&&
+           bank.inventoryAt(0).qty==5&&
+           bank.inventoryAt(slot).qty==1,
+           "invalid semantic replacement partially mutated inventory");
     }
 
     private RecipeBankSemanticAdapterTest(){}
