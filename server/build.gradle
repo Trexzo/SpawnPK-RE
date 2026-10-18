@@ -13231,3 +13231,14 @@ tasks.register('g2096GroundBatchPrecommitRegression', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2096GroundBatchMixedStackControlTest')
 }
+
+// G21.377: regression for existing opt-in same-JVM admission across two isolated Worlds.
+// This is NOT a durable cross-process account epoch or final-save ACK.
+tasks.register('g21377TwoWorldAccountAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Second World cannot acquire the same named-account JVM lease before release.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21377TwoWorldAccountAdmissionTest')
+}
