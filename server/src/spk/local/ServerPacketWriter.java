@@ -501,6 +501,21 @@ final class ServerPacketWriter {
         RETRACTED_RETRYABLE
     }
 
+    /**
+     * Recipe semantic commit may follow only successful queue admission.
+     * Direct socket writes cannot retract partially emitted bytes, and are
+     * rejected BEFORE invoking the publication callback.
+     */
+    synchronized RecoverablePacketResult
+        publishQueueOnlyRecoverablePacketIfIdle(
+            RecoverablePacketPublication publication
+        )throws IOException{
+        if(queue==null)
+            throw new IOException(
+                "RECIPE_DIRECT_WRITER_NONATOMIC_PUBLICATION_DENIED");
+        return publishRecoverablePacketIfIdle(publication);
+    }
+
     synchronized RecoverablePacketResult
         publishRecoverablePacketIfIdle(
             RecoverablePacketPublication publication
