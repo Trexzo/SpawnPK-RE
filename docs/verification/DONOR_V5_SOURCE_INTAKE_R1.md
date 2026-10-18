@@ -68,3 +68,14 @@ The Gradle build now includes mandatory `recipeMixedPostimageRegression` and `re
 - No source-only recipe planner supplies a live account generation, final-save journal, or client acknowledgement. Coordinate those separately with issues #2540/#2559 and PR #2963.
 
 **Release gate:** treat every newly committed test as pending until both Linux Gradle and Windows source-only CI pass at the exact PR head. Neither source-only tests nor synthetic opcode-53 packets certify player-visible crafting.
+
+## Subsequent mixed-item correctness hardening
+
+- The stackable-only recipe planner now requires a retained tool ID to belong to its explicitly verified stackable set, rather than accepting any observed inventory ID. Nonstackable tools belong to the mixed-item planner, which demands mutually exclusive classification evidence.
+- The stackable-only planner rejects unencodable opcode-53 input, output and occupied-slot item IDs during preparation, not merely when later generating the packet body.
+- Mixed-item property regressions now include another 1,024 seeded retained/consumed-tool ledger cases, including overlapping ingredient/tool IDs, preserved tool quantities, affordability denial and input immutability.
+- The mixed BankState bank-open regression now compares actual queued bytes to an independently constructed reference publication, matching both inventory views and the outbound ISAAC stream, rather than only asserting a non-empty queue.
+
+All source-only planner tests use intentionally synthetic IDs. Successful packet framing verifies only the locally reconstructed packet writer, not original v308 client-side acceptance or persisted account safety.
+
+**Exact-head rule:** the Java/Gradle and Windows workflows for this new head must both conclude successfully before these changes are called verified. Earlier green commits do not certify later code.
