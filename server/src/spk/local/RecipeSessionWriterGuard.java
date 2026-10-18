@@ -33,10 +33,25 @@ final class RecipeSessionWriterGuard {
         this.writer=Objects.requireNonNull(writer,"writer");
         if(generation<=0)
             throw new IllegalArgumentException("invalid writer owner generation");
-        // Claim before exposing a usable guard. A logout/revocation must
-        // never be bypassed by creating a second witness with the same
-        // WorldPlayer generation and writer (or a substituted writer).
-        player.claimRecipeWriterGeneration(generation);
+        // Claim only under the existing World lifecycle and exact-player
+        // mutation authority. A foreign World must not preempt the real
+        // owner's one-time witness or create an unowned token.
+        final boolean owned;
+        try{
+            owned=world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->player.claimRecipeWriterGeneration(generation));
+        }catch(RuntimeException|Error failure){
+            throw failure;
+        }catch(Exception unexpected){
+            throw new IllegalStateException(
+                "RECIPE_SESSION_WRITER_BINDING_FAILED",unexpected);
+        }
+        if(!owned)
+            throw new IllegalStateException(
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+        // Same generation can never be re-minted after revocation, even
+        // with the exact same writer or a substituted writer.
         this.generation=generation;
     }
 
