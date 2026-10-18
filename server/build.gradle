@@ -13258,3 +13258,11 @@ tasks.register('recipeBankSemanticAdapterRegression', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.RecipeBankSemanticAdapterTest')
 }
+
+// Donor recipe source regressions are mandatory for ordinary Gradle build.
+// Standalone tasks remain available for targeted diagnosis.
+tasks.named('build') {
+    dependsOn tasks.named('recipeConversionQuantityPlannerRegression')
+    dependsOn tasks.named('recipeStackPostimageRegression')
+    dependsOn tasks.named('recipeBankSemanticAdapterRegression')
+}
