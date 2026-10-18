@@ -1848,6 +1848,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21377TwoWorldAccountAdmissionTest',
     'spk.local.G21378ReviewVetoLateLockContinuityTest',
     'spk.local.G21379ReviewMarkerRestartAdmissionTest',
+    'spk.local.G21380ReviewVetoLateMarkerTest',
     'spk.local.ClientCommandRequestQueueTest',
     'spk.local.ClientUiRequestQueueTest',
     'spk.local.ClientBankControlRequestQueueTest',
@@ -2761,10 +2762,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 914 ||
-    currentTrainFocusedTests.toSet().size() != 914) {
+if (currentTrainFocusedTests.size() != 915 ||
+    currentTrainFocusedTests.toSet().size() != 915) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 914 unique tests, found " +
+        "Current-train focused manifest drift: expected 915 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2963,6 +2964,9 @@ currentTrainCriticalCoverage['g21353-forced-world-active-premove'] = [
 currentTrainCriticalCoverage['g21355-forced-world-active-identity-premove'] = [
     'spk.local.G21355ForcedWorldActiveInodeSwapTest',
     'spk.local.G21356ForcedWorldActiveNonceMutationTest',
+]
+currentTrainCriticalCoverage['g21380-review-late-marker'] = [
+    'spk.local.G21380ReviewVetoLateMarkerTest',
 ]
 currentTrainCriticalCoverage['g21379-review-restart-negative'] = [
     'spk.local.G21379ReviewMarkerRestartAdmissionTest',
@@ -13271,4 +13275,13 @@ tasks.register('g21379ReviewMarkerRestartRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21379ReviewMarkerRestartAdmissionTest')
+}
+
+// G21.380 post-first-scan negative marker admission denial.
+tasks.register('g21380ReviewVetoLateMarkerRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21380ReviewVetoLateMarkerTest')
 }
