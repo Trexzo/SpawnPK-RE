@@ -47,7 +47,8 @@ final class RecipeStackPostimagePlanner {
 
         int[] ids=originalIds.clone(),counts=originalQuantities.clone();
         for(int i=0;i<ids.length;i++){
-            if(ids[i]<0&&counts[i]!=0 ||
+            if(ids[i]<-1 ||
+               ids[i]==-1&&counts[i]!=0 ||
                ids[i]>=0&&counts[i]<=0)
                 throw new IllegalArgumentException("malformed inventory");
         }
