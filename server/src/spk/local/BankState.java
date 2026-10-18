@@ -188,6 +188,9 @@ final class BankState {
     // Monotonic presentation generation: a close/reopen ABA must not revive
     // an obsolete prepared recipe with an otherwise identical inventory.
     private long bankViewRevision;
+    // Local mutation lineage fences a prepared recipe even after an ABA
+    // restoration of the same slots. Not a durable account/session epoch.
+    private long inventoryMutationRevision;
     private boolean placeholdersEnabled;
     private ItemContainerAction pendingX;
 
@@ -204,6 +207,7 @@ final class BankState {
 
     boolean isOpen() { return open; }
     long bankViewRevision() { return bankViewRevision; }
+    long inventoryMutationRevision() { return inventoryMutationRevision; }
     boolean placeholdersEnabled() { return placeholdersEnabled; }
     int bankSlots() { return occupied(bank); }
     int inventorySlots() { return occupied(inventory); }
@@ -819,6 +823,7 @@ final class BankState {
                     quantity
                 );
         }
+        inventoryMutationRevision++;
     }
 
     /**
@@ -1026,6 +1031,7 @@ final class BankState {
             inventory[slot]=null;
         else
             st.qty=after;
+        inventoryMutationRevision++;
 
         return new InventoryConsumeResult(
             slot,
@@ -1976,8 +1982,10 @@ final class BankState {
         );
 
         placeholdersEnabled=placeholders;
+        if(open)bankViewRevision++;
         open=false;
         pendingX=null;
+        inventoryMutationRevision++;
     }
 
 
@@ -2919,7 +2927,7 @@ final class BankState {
         return copy;
     }
 
-    private static void replaceStacks(
+    private void replaceStacks(
         Stack[] target,
         Stack[] source
     ){
@@ -2939,6 +2947,7 @@ final class BankState {
                         stack.tab
                     );
         }
+        if(target==inventory)inventoryMutationRevision++;
     }
 
     private static void publishContainerPostimage(
