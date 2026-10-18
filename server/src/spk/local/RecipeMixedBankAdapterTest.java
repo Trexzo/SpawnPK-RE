@@ -117,6 +117,46 @@ public final class RecipeMixedBankAdapterTest {
             crowdedBank.inventoryAt(2).itemId==400,
             "mixed retry lost nonstackable products");
 
+        // Backpressure followed by a restored identical inventory cannot
+        // silently revive the original prepared request. A new request must
+        // be prepared, even though every slot equals its old preimage.
+        BankState abaBank=new BankState();
+        abaBank.replaceInventorySemantic(ids(),qty());
+        OutboundPacketQueue abaQueue=new OutboundPacketQueue(4096);
+        abaQueue.offerBatch(new byte[4096]);
+        ServerPacketWriter abaWriter=new ServerPacketWriter(
+            abaQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        RecipeBankSemanticAdapter.Prepared abaOld=prepare(abaBank);
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            abaBank,abaOld,abaWriter)==
+            ServerPacketWriter.RecoverablePacketResult.RETRACTED_RETRYABLE,
+            "mixed ABA setup did not retract full queue");
+        abaQueue.drainTo(new ByteArrayOutputStream(),4096);
+        long oldRevision=abaBank.inventoryMutationRevision();
+        abaBank.replaceInventorySemantic(ids(),qty());
+        ok(abaBank.inventoryMutationRevision()>oldRevision,
+            "mixed ABA inventory replacement not tracked");
+        boolean abaDenied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                abaBank,abaOld,abaWriter);
+        }catch(IllegalStateException expected){
+            abaDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_STALE_INVENTORY_GENERATION");
+        }
+        ok(abaDenied&&abaQueue.queuedBytes()==0&&
+            abaBank.inventoryAt(0).qty==5&&
+            abaBank.inventoryAt(1).itemId==200,
+            "mixed restored-snapshot request leaked publication or items");
+        RecipeBankSemanticAdapter.Prepared abaFresh=prepare(abaBank);
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            abaBank,abaFresh,abaWriter)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            abaBank.inventoryAt(0).qty==3&&
+            abaBank.inventoryAt(1).itemId==400&&
+            abaQueue.queuedBytes()>0,
+            "fresh mixed recipe not admitted after old ABA denial");
+
         // An already-open bank needs both normal and bank inventory views
         // in one queued publication. No bank contents should be altered.
         BankState openBank=new BankState();
@@ -178,6 +218,7 @@ public final class RecipeMixedBankAdapterTest {
             " backpressureRetry=true replayDenied=true"+
             " capacityDenied=true bankOpenMirror=true"+
             " bankOpenWireParity=true"+
+            " mixedBackpressureInventoryAbaDenied=true"+
             " liveRecipeRegistered=false");
     }
 }
