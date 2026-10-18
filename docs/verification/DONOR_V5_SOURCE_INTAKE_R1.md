@@ -89,3 +89,16 @@ The source-only regressions exercise semantic replace-and-restore, exact-slot co
 A prepared request that has begun a queue-backed publication attempt is permanently pinned to its outbound writer. It **may not subsequently invoke the direct source-only semantic-commit seam** to bypass backpressure or a failed publication. The successful queue-admission branch uses a separate internal commit path and the retry path remains available only through the original writer. The direct path is still intended solely for isolated source tests, not live gameplay authority. The read-only prepared preview now synchronizes on the same BankState monitor as preparation and queue publication.
 
 **Boundary:** These revisions only fence calls participating in the same BankState instance and its tracked mutation APIs. This PR does not seal external mutable Stack aliases, implement a globally exclusive World/account lease, persist a revision over restart, provide crash-durable intent records, or prove original-client network acknowledgement. Do not claim an account-durability fix or enable donor recipes based on these local guards. Exact-head CI is mandatory.
+
+## Mutable-alias and concurrent-admission isolation
+
+Two additional `BankState` boundaries have been hardened for source-local inventory revision integrity:
+
+1. `inventoryAt(slot)` and `bankAt(slot)` now return defensive `Stack` copies. A caller mutating the returned quantity or tab cannot silently modify canonical `BankState` contents without incrementing its inventory mutation lineage.
+2. `restoreAccountState` now deep-copies the supplied bank and inventory `Stack[]` snapshots before admission. Mutations to caller-owned arrays or contained mutable stacks after restore no longer affect hydrated account data. This does **not** turn account hydration into a durable save or add a cross-World lease.
+
+`replaceInventorySemantic` also rejects noncanonical empty sentinels below -1 and client-unencodable item IDs (65,535 and higher) before modifying any slot; invalid postimages must not advance the mutation revision.
+
+The source-only recipe regression suite adds an accessor/restoration alias test and **128 two-thread admission trials** on a single `BankState` and packet writer. In each trial, two separately prepared requests race at a start gate against the same initial inventory. Exactly one may publish/commit; the other must report a stale preimage and no second packet batch may be queued. These are local deterministic scheduler tests, not production session or network admission tests.
+
+**Outstanding:** arbitrary callers may still mutate state through *other* APIs that do not participate in the recipe monitor; this PR does not establish exclusive World-thread lifecycle ownership, account epochs or crash durability. A successful source-only build must not be described as original v308 GUI gameplay verification.
