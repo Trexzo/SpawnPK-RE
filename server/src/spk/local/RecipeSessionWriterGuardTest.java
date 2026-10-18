@@ -182,6 +182,7 @@ public final class RecipeSessionWriterGuardTest {
                 "terminal owner cleanup failed");
 
             revocationWaitsForGuardedAction(world);
+            revocationPublicationRaces(world);
         }finally{
             world.close();
         }
@@ -190,7 +191,63 @@ public final class RecipeSessionWriterGuardTest {
             " revokedPrepareDenied=true revokedPublicationDenied=true"+
             " backpressureRevocationDenied=true terminalWriterDenied=true"+
             " inFlightRevocationBarrier=true"+
+            " revocationPublicationRaces=64"+
             " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void revocationPublicationRaces(World world)
+        throws Exception{
+        ExecutorService workers=Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_guard_revoke_race_"+trial);
+                OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+                ServerPacketWriter writer=writer(queue);
+                RecipeSessionWriterGuard guard=
+                    new RecipeSessionWriterGuard(
+                        world,player,generation,writer);
+                RecipeWorldOwnedAdapter.SessionPrepared prepared=
+                    prepare(guard);
+                CountDownLatch ready=new CountDownLatch(2);
+                CountDownLatch start=new CountDownLatch(1);
+                Future<String> publication=workers.submit(()->{
+                    ready.countDown();start.await();
+                    try{
+                        return String.valueOf(
+                            RecipeWorldOwnedAdapter.publishSession(prepared));
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                });
+                Future<?> revocation=workers.submit(()->{
+                    ready.countDown();start.await();
+                    guard.revokeAndAwait();
+                });
+                ok(ready.await(5,TimeUnit.SECONDS),
+                    "publication and revoke did not reach start gate "+trial);
+                start.countDown();
+                String outcome=publication.get(5,TimeUnit.SECONDS);
+                revocation.get(5,TimeUnit.SECONDS);
+                boolean admitted="COMMITTED".equals(outcome);
+                ok(admitted||outcome.contains("RECIPE_SESSION_WRITER_REVOKED"),
+                    "unexpected revoke/publish outcome "+trial+
+                    " result="+outcome);
+                ok(queue.queuedPackets()==(admitted?1:0)&&
+                    player.bank().inventoryAt(0).qty==
+                        (admitted?1:5)&&
+                    ((player.bank().inventoryAt(3)==null)==!admitted),
+                    "revocation race packet/inventory mismatch "+trial);
+                denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
+                    "RECIPE_SESSION_WRITER_REVOKED");
+                ok(world.unregisterPlayer(player,generation),
+                    "revocation race owner cleanup failed "+trial);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
     }
 
     private static void revocationWaitsForGuardedAction(World world)
