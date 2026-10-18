@@ -33,13 +33,25 @@ public final class RecipeBankSemanticAdapterTest {
             "stale rejection modified bank");
         RecipeBankSemanticAdapter.Prepared tampered=RecipeBankSemanticAdapter.prepare(
             bank,Collections.singletonMap(100,1),300,1,1,known);
+        BankState otherOwner=new BankState();
+        int[] otherIds=new int[bank.inventoryCapacity()];
+        int[] otherQty=new int[bank.inventoryCapacity()];
+        for(int i=0;i<otherIds.length;i++){
+            BankState.Stack value=bank.inventoryAt(i);
+            otherIds[i]=value==null?-1:value.itemId;
+            otherQty[i]=value==null?0:value.qty;
+        }
+        otherOwner.replaceInventorySemantic(otherIds,otherQty);
+        reject(()->RecipeBankSemanticAdapter.commit(otherOwner,tampered));
+        ok(otherOwner.inventoryAt(0).qty==1,
+            "foreign owner mutated by prepared result");
         tampered.proposed.quantities[0]=Integer.MAX_VALUE;
         reject(()->RecipeBankSemanticAdapter.commit(bank,tampered));
         ok(bank.inventoryAt(0).qty==1&&bank.inventoryAt(1).qty==6,
             "mutated prepared postimage changed bank");
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
-            " tamperedResultDenied=true"+
+            " tamperedResultDenied=true foreignOwnerDenied=true"+
             " liveRecipeRegistered=false");
     }
     private RecipeBankSemanticAdapterTest(){}
