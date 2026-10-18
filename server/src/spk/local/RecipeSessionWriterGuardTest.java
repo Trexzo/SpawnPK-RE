@@ -223,7 +223,14 @@ public final class RecipeSessionWriterGuardTest {
                     }
                 });
                 Future<?> revocation=workers.submit(()->{
-                    ready.countDown();start.await();
+                    ready.countDown();
+                    try{
+                        start.await();
+                    }catch(InterruptedException interrupted){
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(
+                            "RECIPE_GUARD_RACE_INTERRUPTED",interrupted);
+                    }
                     guard.revokeAndAwait();
                 });
                 ok(ready.await(5,TimeUnit.SECONDS),
