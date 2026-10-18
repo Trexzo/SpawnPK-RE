@@ -270,6 +270,73 @@ public final class RecipeWorldOwnedAdapterTest {
             ok(world.unregisterPlayer(delayedPlayer,freshGen),
                 "backpressured player final cleanup failed");
 
+            // Valid World membership alone cannot revive a prepared
+            // request after a source-local inventory ABA. Both guards
+            // apply, with zero queued packets on the stale preimage.
+            WorldPlayer changedPlayer=new WorldPlayer();
+            seed(changedPlayer);
+            long changedGen=world.registerPlayer(
+                changedPlayer,"recipe_owner_aba_fixture");
+            OutboundPacketQueue changedQueue=new OutboundPacketQueue(4096);
+            ServerPacketWriter changedWriter=writer(changedQueue);
+            RecipeWorldOwnedAdapter.Prepared oldInventory=
+                stackable(world,changedPlayer,changedGen,changedWriter);
+            ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+                changedPlayer,changedGen,
+                ()->{
+                    int[] restoredIds=new int[
+                        changedPlayer.bank().inventoryCapacity()];
+                    int[] restoredQty=new int[restoredIds.length];
+                    Arrays.fill(restoredIds,-1);
+                    restoredIds[0]=100;restoredQty[0]=5;
+                    restoredIds[1]=200;restoredQty[1]=1;
+                    restoredIds[2]=200;restoredQty[2]=1;
+                    changedPlayer.bank().replaceInventorySemantic(
+                        restoredIds,restoredQty);
+                }),
+                "World owner did not admit identical-value ABA fixture");
+            boolean generationStale=false;
+            try{
+                RecipeWorldOwnedAdapter.publish(oldInventory);
+            }catch(IllegalStateException expected){
+                generationStale=String.valueOf(expected.getMessage()).contains(
+                    "RECIPE_STALE_INVENTORY_GENERATION");
+            }
+            ok(generationStale&&changedQueue.queuedBytes()==0&&
+                changedPlayer.bank().inventoryAt(0).qty==5,
+                "World-authorized inventory ABA emitted stale recipe");
+            RecipeWorldOwnedAdapter.Prepared newInventory=
+                stackable(world,changedPlayer,changedGen,changedWriter);
+            ok(RecipeWorldOwnedAdapter.publish(newInventory)==
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+                changedPlayer.bank().inventoryAt(0).qty==1&&
+                changedQueue.queuedPackets()==1,
+                "fresh World-owned recipe failed after inventory ABA");
+            ok(world.unregisterPlayer(changedPlayer,changedGen),
+                "ABA owner cleanup failed");
+
+            WorldPlayer terminalPlayer=new WorldPlayer();
+            seed(terminalPlayer);
+            long terminalGen=world.registerPlayer(
+                terminalPlayer,"recipe_terminal_fixture");
+            OutboundPacketQueue terminalQueue=new OutboundPacketQueue(4096);
+            ServerPacketWriter terminalWriter=writer(terminalQueue);
+            RecipeWorldOwnedAdapter.Prepared terminalPrepared=
+                stackable(world,terminalPlayer,terminalGen,terminalWriter);
+            terminalWriter.markTerminal();
+            boolean terminalDenied=false;
+            try{
+                RecipeWorldOwnedAdapter.publish(terminalPrepared);
+            }catch(IOException expected){
+                terminalDenied=String.valueOf(expected.getMessage())
+                    .toLowerCase(Locale.ROOT).contains("terminal");
+            }
+            ok(terminalDenied&&terminalQueue.queuedBytes()==0&&
+                terminalPlayer.bank().inventoryAt(0).qty==5,
+                "terminal session writer published World-owned recipe");
+            ok(world.unregisterPlayer(terminalPlayer,terminalGen),
+                "terminal owner cleanup failed");
+
             // A different World's player with its own registration may
             // not masquerade as the owner in this World's registry.
             World foreignWorld=isolatedWorld();
@@ -306,6 +373,7 @@ public final class RecipeWorldOwnedAdapterTest {
             " sourceOnlyReplayDenied=true"+
             " unregisterRejoinGenerationFenced=true"+
             " backpressureGenerationFenced=true"+
+            " ownedInventoryAbaDenied=true terminalWriterDenied=true"+
             " unregisterPublicationRaces=32"+
             " unrelatedWorldDenied=true"+
             " noLiveRecipes=true noCrossWorldAccountLease=true");
