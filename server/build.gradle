@@ -13278,3 +13278,16 @@ tasks.register('recipeItemOnItemDispatchBoundaryRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('recipeItemOnItemDispatchBoundaryRegression')
 }
+
+// Preserve verified Doppelganger dye round-trip compatibility while
+// introducing opt-in source-only recipe conversion infrastructure.
+tasks.register('doppelDyeRoundTripRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.DoppelRemoveDyeTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('doppelDyeRoundTripRegression')
+}
