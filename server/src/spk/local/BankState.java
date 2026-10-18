@@ -369,7 +369,9 @@ final class BankState {
             throw failure;
         }
 
-        if(!open)bankViewRevision++;
+        // Every successful overlay publication is a new presentation
+        // generation, even if the bank was already open before re-opening.
+        bankViewRevision++;
         open = true;
         pendingX = null;
     }
