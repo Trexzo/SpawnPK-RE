@@ -830,11 +830,16 @@ public final class RecipeBankSemanticAdapterTest {
         ok(refused&&bank.inventoryMutationRevision()==baseline&&
            bank.inventoryAt(2)==null&&queue.queuedBytes()==1024,
            "failed inventory packet publication mutated revision or items");
-        queue.drainTo(new java.io.ByteArrayOutputStream(),1024);
-        int slot=bank.addInventoryOne(300,writer);
+        // A normal direct queue overflow may poison the connection, so
+        // subsequent success uses a new writer instead of silently treating
+        // draining a terminal queue as recovery.
+        OutboundPacketQueue freshQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter freshWriter=new ServerPacketWriter(
+            freshQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        int slot=bank.addInventoryOne(300,freshWriter);
         ok(slot>=0&&bank.inventoryMutationRevision()==baseline+1&&
            bank.inventoryAt(slot).itemId==300&&
-           bank.inventoryAt(slot).qty==1,
+           bank.inventoryAt(slot).qty==1&&freshQueue.queuedBytes()>0,
            "successful structural add did not advance generation once");
 
         // Prevalidation failure must never partially apply a semantic
