@@ -14,6 +14,7 @@ final class RecipeBankSemanticAdapter {
         final int[] expectedIds,expectedQuantities;
         final RecipeStackPostimagePlanner.Postimage proposed;
         final int[] sealedIds,sealedQuantities;
+        boolean committed;
         Prepared(BankState owner,int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
             this.owner=Objects.requireNonNull(owner,"owner");
             expectedIds=ids.clone();expectedQuantities=quantities.clone();
@@ -45,6 +46,8 @@ final class RecipeBankSemanticAdapter {
         Objects.requireNonNull(prepared,"prepared");
         if(bank!=prepared.owner)
             throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
+        if(prepared.committed)
+            throw new IllegalStateException("RECIPE_PREPARED_ALREADY_COMMITTED");
         if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
            !Arrays.equals(prepared.sealedQuantities,prepared.proposed.quantities))
             throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
@@ -117,5 +120,6 @@ final class RecipeBankSemanticAdapter {
             throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
         bank.replaceInventorySemantic(prepared.sealedIds.clone(),
             prepared.sealedQuantities.clone());
+        prepared.committed=true;
     }
 }
