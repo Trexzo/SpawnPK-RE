@@ -1849,6 +1849,7 @@ def currentTrainFocusedTests = [
     'spk.local.G21378ReviewVetoLateLockContinuityTest',
     'spk.local.G21379ReviewMarkerRestartAdmissionTest',
     'spk.local.G21380ReviewVetoLateMarkerTest',
+    'spk.local.G21381CrossJvmReviewMarkerAdmissionTest',
     'spk.local.ClientCommandRequestQueueTest',
     'spk.local.ClientUiRequestQueueTest',
     'spk.local.ClientBankControlRequestQueueTest',
@@ -2762,10 +2763,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 915 ||
-    currentTrainFocusedTests.toSet().size() != 915) {
+if (currentTrainFocusedTests.size() != 916 ||
+    currentTrainFocusedTests.toSet().size() != 916) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 915 unique tests, found " +
+        "Current-train focused manifest drift: expected 916 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2964,6 +2965,9 @@ currentTrainCriticalCoverage['g21353-forced-world-active-premove'] = [
 currentTrainCriticalCoverage['g21355-forced-world-active-identity-premove'] = [
     'spk.local.G21355ForcedWorldActiveInodeSwapTest',
     'spk.local.G21356ForcedWorldActiveNonceMutationTest',
+]
+currentTrainCriticalCoverage['g21381-crossjvm-review-marker'] = [
+    'spk.local.G21381CrossJvmReviewMarkerAdmissionTest',
 ]
 currentTrainCriticalCoverage['g21380-review-late-marker'] = [
     'spk.local.G21380ReviewVetoLateMarkerTest',
@@ -13284,4 +13288,13 @@ tasks.register('g21380ReviewVetoLateMarkerRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G21380ReviewVetoLateMarkerTest')
+}
+
+// G21.381 independent-JVM negative account review admission.
+tasks.register('g21381CrossJvmReviewMarkerRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21381CrossJvmReviewMarkerAdmissionTest')
 }
