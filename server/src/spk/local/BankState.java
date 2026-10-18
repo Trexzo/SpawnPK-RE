@@ -550,10 +550,15 @@ final class BankState {
         Stack[] staged=new Stack[INVENTORY_CAPACITY];
         for(int i=0;i<staged.length;i++){
             int item=proposedIds[i],qty=proposedQty[i];
-            if(item<0){
+            if(item==-1){
                 if(qty!=0)throw new IllegalArgumentException(
                     "recipe empty-slot quantity");
             }else{
+                // Do not silently normalize -2/-3 or other invalid client
+                // item IDs into a valid empty container slot.
+                if(item<0||item>=0xffff)
+                    throw new IllegalArgumentException(
+                        "recipe invalid client item ID");
                 if(qty<=0)throw new IllegalArgumentException(
                     "recipe nonpositive quantity");
                 staged[i]=new Stack(item,qty);
