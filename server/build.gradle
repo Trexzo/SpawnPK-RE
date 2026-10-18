@@ -13249,3 +13249,12 @@ tasks.register('recipeStackPostimageRegression', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.RecipeStackPostimagePlannerTest')
 }
+
+// Source-only BankState recipe transaction adapter regression.
+tasks.register('recipeBankSemanticAdapterRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeBankSemanticAdapterTest')
+}
