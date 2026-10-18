@@ -33,6 +33,10 @@ final class RecipeSessionWriterGuard {
         this.writer=Objects.requireNonNull(writer,"writer");
         if(generation<=0)
             throw new IllegalArgumentException("invalid writer owner generation");
+        // Claim before exposing a usable guard. A logout/revocation must
+        // never be bypassed by creating a second witness with the same
+        // WorldPlayer generation and writer (or a substituted writer).
+        player.claimRecipeWriterGeneration(generation);
         this.generation=generation;
     }
 
