@@ -40,9 +40,29 @@ public final class RecipeItemOnItemDispatchBoundaryTest {
             "unsupported widget unexpectedly admitted");
         require(wire.size()==0&&bank.inventoryAt(0).qty==5,
             "unsupported widget side effect");
+        // Recognized dye pair with mismatched/stale slots must stop before
+        // the pre-existing dye publisher, with no save intent or bytes.
+        ItemOnItemAction staleDye=new ItemOnItemAction(
+            1,0,3241,BankState.NORMAL_INVENTORY_CONTAINER,
+            28824,BankState.NORMAL_INVENTORY_CONTAINER);
+        result=handler.handle(staleDye,writer);
+        require(result!=null&&result.saveReason==null&&
+            result.logText.contains("REJECTED_COMBINE_STALE_ITEM"),
+            "recognized but stale dye pair not denied");
+        require(wire.size()==0&&bank.inventoryAt(0).qty==5,
+            "stale dye pair emitted packet or mutated inventory");
+        ItemOnItemAction sameSlotDye=new ItemOnItemAction(
+            0,0,3241,BankState.NORMAL_INVENTORY_CONTAINER,
+            28824,BankState.NORMAL_INVENTORY_CONTAINER);
+        result=handler.handle(sameSlotDye,writer);
+        require(result!=null&&result.saveReason==null&&
+            result.logText.contains("REJECTED_COMBINE_SLOT"),
+            "same slot dye pair not denied");
+        require(wire.size()==0,"same-slot dye emitted a packet");
         System.out.println("RECIPE_ITEM_ON_ITEM_DISPATCH_BOUNDARY_PASS"+
             " unverifiedPairDenied=true wrongWidgetDenied=true"+
-            " noInventoryMutation=true zeroPackets=true");
+            " noInventoryMutation=true zeroPackets=true"+
+            " staleDyeDenied=true sameSlotDyeDenied=true");
     }
     private RecipeItemOnItemDispatchBoundaryTest(){}
 }
