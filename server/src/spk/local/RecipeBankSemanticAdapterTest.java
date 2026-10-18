@@ -483,6 +483,7 @@ public final class RecipeBankSemanticAdapterTest {
         regressBankOverlayTransitions(ids,qty,known);
         regressBankOverlayAba(ids,qty,known);
         regressFailedBankPublicationGeneration(ids,qty);
+        regressInventoryAba(ids,qty,known);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -500,6 +501,9 @@ public final class RecipeBankSemanticAdapterTest {
             " bankViewAbaDenied=true clientCloseAbaDenied=true"+
             " repeatedOpenViewDenied=true"+
             " failedBankPublicationGenerationStable=true"+
+            " semanticInventoryAbaDenied=true"+
+            " structuralInventoryAbaDenied=true"+
+            " restoreAccountAbaDenied=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
@@ -696,6 +700,100 @@ public final class RecipeBankSemanticAdapterTest {
         ok(!bank.isOpen()&&
             bank.bankViewRevision()==openGeneration+1,
             "successful bank close did not advance exactly one revision");
+    }
+
+    private static void regressInventoryAba(
+        int[] originalIds,int[] originalQty,Set<Integer> known
+    )throws Exception{
+        // The visible inventory can be restored byte-for-byte while the
+        // prepared request has become obsolete in the intervening World.
+        for(int variant=0;variant<3;variant++){
+            BankState bank=new BankState();
+            bank.replaceInventorySemantic(originalIds,originalQty);
+            RecipeBankSemanticAdapter.Prepared ready=
+                RecipeBankSemanticAdapter.prepare(
+                    bank,Collections.singletonMap(100,2),
+                    300,3,2,known);
+            long initial=bank.inventoryMutationRevision();
+            if(variant==0){
+                int[] modified=originalQty.clone();
+                modified[1]--;
+                bank.replaceInventorySemantic(originalIds,modified);
+                bank.replaceInventorySemantic(originalIds,originalQty);
+            }else if(variant==1){
+                bank.consumeInventoryAmountSemantic(0,100,1);
+                bank.replaceInventorySemantic(originalIds,originalQty);
+            }else{
+                BankState.Stack[] bankSnapshot=
+                    new BankState.Stack[bank.bankCapacity()];
+                BankState.Stack[] inventorySnapshot=
+                    new BankState.Stack[bank.inventoryCapacity()];
+                for(int i=0;i<inventorySnapshot.length;i++)
+                    if(originalIds[i]>=0)
+                        inventorySnapshot[i]=new BankState.Stack(
+                            originalIds[i],originalQty[i]);
+                bank.restoreAccountState(
+                    bankSnapshot,inventorySnapshot,false);
+            }
+            ok(bank.inventoryMutationRevision()>initial&&
+                bank.inventoryAt(0).qty==5&&
+                bank.inventoryAt(1).qty==7&&
+                bank.inventoryAt(2)==null,
+                "inventory ABA fixture failed to restore slots "+variant);
+            OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+            ServerPacketWriter writer=new ServerPacketWriter(
+                queue,new IsaacCipher(new int[]{0,0,0,0}));
+            boolean denied=false;
+            try{
+                RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                    bank,ready,writer);
+            }catch(IllegalStateException expected){
+                denied=String.valueOf(expected.getMessage()).contains(
+                    "RECIPE_STALE_INVENTORY_GENERATION");
+            }
+            ok(denied&&queue.queuedBytes()==0&&
+                bank.inventoryAt(0).qty==5&&bank.inventoryAt(2)==null,
+                "stale inventory ABA recipe published "+variant);
+            RecipeBankSemanticAdapter.Prepared fresh=
+                RecipeBankSemanticAdapter.prepare(
+                    bank,Collections.singletonMap(100,2),
+                    300,3,2,known);
+            ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                bank,fresh,writer)==
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+                bank.inventoryAt(0).qty==1&&bank.inventoryAt(2)!=null&&
+                bank.inventoryAt(2).qty==6,
+                "fresh recipe failed after inventory ABA "+variant);
+        }
+
+        // A structural publication also advances mutation lineage. Revert
+        // to an identical snapshot and reject the earlier prepared action.
+        BankState bank=new BankState();
+        bank.replaceInventorySemantic(originalIds,originalQty);
+        RecipeBankSemanticAdapter.Prepared old=
+            RecipeBankSemanticAdapter.prepare(
+                bank,Collections.singletonMap(100,2),
+                300,3,2,known);
+        long before=bank.inventoryMutationRevision();
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{0,0,0,0}));
+        ok(bank.addInventoryOne(300,writer)>=0&&
+            bank.inventoryMutationRevision()>before,
+            "structural add did not advance inventory generation");
+        queue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+        bank.replaceInventorySemantic(originalIds,originalQty);
+        boolean denied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                bank,old,writer);
+        }catch(IllegalStateException expected){
+            denied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_STALE_INVENTORY_GENERATION");
+        }
+        ok(denied&&queue.queuedBytes()==0&&
+            bank.inventoryAt(0).qty==5&&bank.inventoryAt(2)==null,
+            "structural ABA allowed stale recipe queue publication");
     }
 
     private RecipeBankSemanticAdapterTest(){}
