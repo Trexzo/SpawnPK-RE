@@ -13231,3 +13231,12 @@ tasks.register('g2096GroundBatchPrecommitRegression', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2096GroundBatchMixedStackControlTest')
 }
+
+// Source-only donor-derived recipe arithmetic; NOT a live v308 gameplay gate.
+tasks.register('recipeConversionQuantityPlannerRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeConversionQuantityPlannerTest')
+}
