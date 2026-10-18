@@ -3169,6 +3169,10 @@ final class LocalSession implements Runnable {
             sessionPackets=serverPackets;
             recipeSessionWriterGuard=new RecipeSessionWriterGuard(
                 world,worldPlayer,worldPlayerGeneration,serverPackets);
+            // A logout request arriving during initial login must not
+            // acquire a newly active writer witness after it was requested.
+            if(logoutRequested)
+                recipeSessionWriterGuard.revokeAndAwait();
             scenePublisher = new SceneUpdatePublisher(serverPackets,new SceneCoordinateContext(MovementState.REGION_BASE_X,MovementState.REGION_BASE_Y,0));
             ClientPacketProbe clientPackets =
                 new ClientPacketProbe(
