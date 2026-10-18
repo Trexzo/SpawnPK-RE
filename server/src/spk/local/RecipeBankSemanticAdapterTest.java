@@ -153,16 +153,38 @@ public final class RecipeBankSemanticAdapterTest {
         openQueue.drainTo(openInitial,4096);
         RecipeBankSemanticAdapter.Prepared openReady=RecipeBankSemanticAdapter.prepare(
             openBank,Collections.singletonMap(100,2),300,3,2,known);
-        reject(()->{
-            try{
-                RecipeBankSemanticAdapter.publishAndCommitIfIdle(
-                    openBank,openReady,openWriter);
-            }catch(java.io.IOException e){throw new AssertionError(e);}
-        });
-        ok(openBank.inventoryAt(0).qty==5&&openBank.inventoryAt(2)==null,
-            "open-bank rejection mutated inventory");
-        ok(openQueue.drainTo(new java.io.ByteArrayOutputStream(),4096)==0,
-            "open-bank rejection enqueued inventory packets");
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                openBank,openReady,openWriter)==
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED,
+            "bank-open queue recipe not admitted");
+        ok(openBank.inventoryAt(0).qty==1&&
+            openBank.inventoryAt(2).qty==6,
+            "bank-open queue commit failed");
+        java.io.ByteArrayOutputStream openWire=
+            new java.io.ByteArrayOutputStream();
+        ok(openQueue.drainTo(openWire,4096)>0&&
+            openWire.size()>0,
+            "bank-open mirror batch produced no bytes");
+
+        BankState openRefused=new BankState();
+        openRefused.replaceInventorySemantic(ids,qty);
+        OutboundPacketQueue refusedQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter refusedWriter=new ServerPacketWriter(
+            refusedQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        openRefused.open(refusedWriter);
+        refusedQueue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+        refusedQueue.offerBatch(new byte[4096]);
+        RecipeBankSemanticAdapter.Prepared denied=RecipeBankSemanticAdapter.prepare(
+            openRefused,Collections.singletonMap(100,2),300,3,2,known);
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            openRefused,denied,refusedWriter)==
+            ServerPacketWriter.RecoverablePacketResult.RETRACTED_RETRYABLE,
+            "bank-open full queue was not retracted");
+        ok(openRefused.inventoryAt(0).qty==5&&
+            openRefused.inventoryAt(2)==null,
+            "bank-open full-queue mutated inventory");
+        ok(refusedQueue.drainTo(new java.io.ByteArrayOutputStream(),8192)==4096,
+            "bank-open retraction appended a partial mirror batch");
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -170,7 +192,7 @@ public final class RecipeBankSemanticAdapterTest {
             " directWriterDeniedWithoutMutation=true"+
             " queueCommitted=true queueRefusalRetracted=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
-            " bankOpenMirrorDenied=true"+
+            " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " liveRecipeRegistered=false");
     }
     private RecipeBankSemanticAdapterTest(){}
