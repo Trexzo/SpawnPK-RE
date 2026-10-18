@@ -10,12 +10,14 @@ import java.util.*;
 final class RecipeBankSemanticAdapter {
     private RecipeBankSemanticAdapter(){}
     static final class Prepared {
-        final BankState owner;
-        final int[] expectedIds,expectedQuantities;
+        private final BankState owner;
+        private final int[] expectedIds,expectedQuantities;
+        // Tests may deliberately mutate this view; semantic/publication paths
+        // use only privately sealed arrays and reject any changed proposal.
         final RecipeStackPostimagePlanner.Postimage proposed;
-        final int[] sealedIds,sealedQuantities;
-        boolean committed;
-        Prepared(BankState owner,int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
+        private final int[] sealedIds,sealedQuantities;
+        private boolean committed;
+        private Prepared(BankState owner,int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
             this.owner=Objects.requireNonNull(owner,"owner");
             expectedIds=ids.clone();expectedQuantities=quantities.clone();
             proposed=image;
@@ -51,6 +53,9 @@ final class RecipeBankSemanticAdapter {
         if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
            !Arrays.equals(prepared.sealedQuantities,prepared.proposed.quantities))
             throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
+        // Do not even generate a preview of an obsolete snapshot. This is
+        // read-only and does not claim a client ACK or reserve a transaction.
+        requireCurrentPreimage(bank,prepared);
         return bank.previewRecipeInventoryPacket(
             prepared.sealedIds,prepared.sealedQuantities);
     }
@@ -81,6 +86,8 @@ final class RecipeBankSemanticAdapter {
     }
 
     private static void requireCurrentPreimage(BankState bank,Prepared prepared){
+        if(prepared.committed)
+            throw new IllegalStateException("RECIPE_PREPARED_ALREADY_COMMITTED");
         if(bank!=prepared.owner)
             throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
         if(bank.inventoryCapacity()!=prepared.expectedIds.length)
@@ -98,17 +105,9 @@ final class RecipeBankSemanticAdapter {
     ){
         Objects.requireNonNull(bank,"bank");
         Objects.requireNonNull(prepared,"prepared");
-        if(bank!=prepared.owner)
-            throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
-        if(bank.inventoryCapacity()!=prepared.expectedIds.length)
-            throw new IllegalStateException("RECIPE_INVENTORY_CAPACITY_CHANGED");
-        for(int i=0;i<prepared.expectedIds.length;i++){
-            BankState.Stack current=bank.inventoryAt(i);
-            int id=current==null?-1:current.itemId;
-            int qty=current==null?0:current.qty;
-            if(id!=prepared.expectedIds[i]||qty!=prepared.expectedQuantities[i])
-                throw new IllegalStateException("RECIPE_STALE_INVENTORY_POSTIMAGE");
-        }
+        // The source-only direct commit must obey the same one-shot and
+        // ownership rules as the queue-backed publication path.
+        requireCurrentPreimage(bank,prepared);
         // Refuse mutation of the package-visible prepared postimage between
         // preparation and commit. Apply the privately copied sealed result.
         if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
