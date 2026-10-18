@@ -53,7 +53,7 @@ public final class G21377TwoWorldAccountAdmissionTest {
             System.out.println(
                 "G21377_TWO_WORLD_ACCOUNT_ADMISSION_PASS"+
                 " firstOwner=true secondWorldDenied=true"+
-                " noHydration=true noAccountWrite=true"+
+                " noWorldRegistration=true noAccountWrite=true"+
                 " cleanReadmission=true durableEpoch=false");
         } finally {
             if(successor != null) successor.releaseAfterInitializationFailure();
