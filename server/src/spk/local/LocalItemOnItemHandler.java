@@ -32,6 +32,23 @@ final class LocalItemOnItemHandler {
             (action.selectedItemId==3241&&action.targetItemId==28824);
 
         if(doppelPair){
+            // Before invoking the existing non-transactional dye path, ensure
+            // neither slot can be spoofed or stale. This must emit zero bytes.
+            if(action.selectedSlot==action.targetSlot||
+               action.selectedSlot<0||action.targetSlot<0||
+               action.selectedSlot>=bank.inventoryCapacity()||
+               action.targetSlot>=bank.inventoryCapacity()){
+                return new Result("V57_DOPPELGANGER_APPLY_DYE "+
+                    action+" result=REJECTED_COMBINE_SLOT",null);
+            }
+            BankState.Stack selected=bank.inventoryAt(action.selectedSlot);
+            BankState.Stack target=bank.inventoryAt(action.targetSlot);
+            if(selected==null||target==null||
+               selected.itemId!=action.selectedItemId||
+               target.itemId!=action.targetItemId){
+                return new Result("V57_DOPPELGANGER_APPLY_DYE "+
+                    action+" result=REJECTED_COMBINE_STALE_ITEM",null);
+            }
             String result=bank.combineInventoryOne(
                 action.selectedSlot,
                 action.selectedItemId,
