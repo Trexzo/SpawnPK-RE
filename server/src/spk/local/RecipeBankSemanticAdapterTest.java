@@ -15,6 +15,29 @@ public final class RecipeBankSemanticAdapterTest {
             bank,Collections.singletonMap(100,2),300,3,2,known);
         byte[] encoded=RecipeBankSemanticAdapter.encodePreparedInventory(bank,ready);
         ok(encoded.length>0,"precommit inventory packet encoding empty");
+        // The standalone container preview must refuse malformed inventory
+        // sentinels instead of silently turning them into empty slots.
+        int[] malformedIds=ids.clone(),malformedQty=qty.clone();
+        malformedIds[3]=-2;
+        boolean invalidNegativeDenied=false;
+        try{
+            bank.previewRecipeInventoryPacket(
+                malformedIds,malformedQty);
+        }catch(IllegalArgumentException expected){
+            invalidNegativeDenied=true;
+        }
+        ok(invalidNegativeDenied,
+            "invalid negative preview item was silently normalized");
+        malformedIds[3]=0xffff;
+        boolean invalidWireIdDenied=false;
+        try{
+            bank.previewRecipeInventoryPacket(
+                malformedIds,malformedQty);
+        }catch(IllegalArgumentException expected){
+            invalidWireIdDenied=true;
+        }
+        ok(invalidWireIdDenied,
+            "non-encodable preview item ID accepted");
         ok(bank.inventoryAt(0).qty==5&&bank.inventoryAt(2)==null,
             "prepare mutated bank");
         RecipeBankSemanticAdapter.commit(bank,ready);
@@ -444,6 +467,7 @@ public final class RecipeBankSemanticAdapterTest {
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
             " precommitPacketEncoded=true tamperedEncodeDenied=true"+
+            " malformedPacketSentinelDenied=true"+
             " stalePreviewDenied=true staleQueueZeroPacket=true"+
             " directReplayDenied=true privatePreparedConstructor=true"+
             " directWriterDeniedWithoutMutation=true"+
