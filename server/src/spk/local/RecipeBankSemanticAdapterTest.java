@@ -439,6 +439,7 @@ public final class RecipeBankSemanticAdapterTest {
             "bank-open full-queue mutated inventory");
         ok(refusedQueue.drainTo(new java.io.ByteArrayOutputStream(),8192)==4096,
             "bank-open retraction appended a partial mirror batch");
+        regressBankOverlayTransitions(ids,qty,known);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -450,11 +451,92 @@ public final class RecipeBankSemanticAdapterTest {
             " busyWriterRejected=true terminalWriterDenied=true"+
             " tamperedQueueDenied=true"+
             " retainedToolQueued=true insufficientToolDenied=true"+
+            " closedToOpenDenied=true openToClosedDenied=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
             " retryCipherByteParity=true"+
             " liveRecipeRegistered=false");
     }
+    private static void regressBankOverlayTransitions(
+        int[] ids,int[] quantities,Set<Integer> known
+    )throws Exception{
+        // Closed -> open: an old one-view recipe request must not be
+        // allowed to silently publish into a bank-open two-view layout.
+        BankState closed=new BankState();
+        closed.replaceInventorySemantic(ids,quantities);
+        OutboundPacketQueue closedQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter closedWriter=new ServerPacketWriter(
+            closedQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        RecipeBankSemanticAdapter.Prepared preparedClosed=
+            RecipeBankSemanticAdapter.prepare(
+                closed,Collections.singletonMap(100,2),
+                300,3,2,known);
+        closed.open(closedWriter);
+        closedQueue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+        boolean denied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                closed,preparedClosed,closedWriter);
+        }catch(IllegalStateException expected){
+            denied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_STALE_BANK_VIEW");
+        }
+        ok(denied&&closedQueue.queuedBytes()==0&&
+            closed.inventoryAt(0).qty==5&&
+            closed.inventoryAt(2)==null,
+            "closed-prepared bank-open request emitted recipe or items");
+
+        // Open -> closed: a stale two-view request cannot publish a
+        // postimage after the bank overlay is no longer active.
+        BankState open=new BankState();
+        open.replaceInventorySemantic(ids,quantities);
+        OutboundPacketQueue openQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter openWriter=new ServerPacketWriter(
+            openQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        open.open(openWriter);
+        openQueue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+        RecipeBankSemanticAdapter.Prepared preparedOpen=
+            RecipeBankSemanticAdapter.prepare(
+                open,Collections.singletonMap(100,2),
+                300,3,2,known);
+        open.close(openWriter);
+        openQueue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+        denied=false;
+        try{
+            RecipeBankSemanticAdapter.encodePreparedInventory(
+                open,preparedOpen);
+        }catch(IllegalStateException expected){
+            denied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_STALE_BANK_VIEW");
+        }
+        ok(denied,"open-prepared bank-closed preview accepted");
+        denied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                open,preparedOpen,openWriter);
+        }catch(IllegalStateException expected){
+            denied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_STALE_BANK_VIEW");
+        }
+        ok(denied&&openQueue.queuedBytes()==0&&
+            open.inventoryAt(0).qty==5&&open.inventoryAt(2)==null,
+            "open-prepared bank-closed request emitted recipe or items");
+
+        // A fresh request made after the transition can still commit;
+        // the denial fences only the stale prepared authority.
+        RecipeBankSemanticAdapter.Prepared refreshed=
+            RecipeBankSemanticAdapter.prepare(
+                open,Collections.singletonMap(100,2),
+                300,3,2,known);
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            open,refreshed,openWriter)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            open.inventoryAt(0).qty==1&&
+            open.inventoryAt(2).qty==6&&
+            openQueue.queuedBytes()>0,
+            "fresh post-transition recipe could not publish");
+    }
+
     private RecipeBankSemanticAdapterTest(){}
 }
