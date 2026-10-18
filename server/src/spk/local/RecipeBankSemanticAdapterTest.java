@@ -124,6 +124,25 @@ public final class RecipeBankSemanticAdapterTest {
             "rejected queue mutated server inventory");
         ok(fullQueue.drainTo(new java.io.ByteArrayOutputStream(),2048)==1024,
             "rejected queue appended recipe bytes");
+        // Rejected queue admission does not consume one-shot authority.
+        fullQueue.drainTo(new java.io.ByteArrayOutputStream(),2048);
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            crowdedBank,refused,fullWriter)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED,
+            "retry after queue drain did not commit");
+        ok(crowdedBank.inventoryAt(0).qty==1&&
+            crowdedBank.inventoryAt(2).qty==6,
+            "retry did not apply inventory exactly once");
+        boolean retryReplayDenied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                crowdedBank,refused,fullWriter);
+        }catch(IllegalStateException expected){
+            retryReplayDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_PREPARED_ALREADY_COMMITTED");
+        }
+        ok(retryReplayDenied,"successful retry could be replayed");
+
         BankState openBank=new BankState();
         openBank.replaceInventorySemantic(ids,qty);
         OutboundPacketQueue openQueue=new OutboundPacketQueue(4096);
@@ -150,7 +169,7 @@ public final class RecipeBankSemanticAdapterTest {
             " precommitPacketEncoded=true tamperedEncodeDenied=true"+
             " directWriterDeniedWithoutMutation=true"+
             " queueCommitted=true queueRefusalRetracted=true"+
-            " restoredPreimageReplayDenied=true"+
+            " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorDenied=true"+
             " liveRecipeRegistered=false");
     }
