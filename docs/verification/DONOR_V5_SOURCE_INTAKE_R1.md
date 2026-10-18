@@ -1,0 +1,23 @@
+# SpawnPk-Decompiled-main (5) donor intake — verified R1
+
+Archive SHA-256: `897a668bb7279b360c268a5bcdb8cfbe83a73a4a077d537256c164bca6c02da9`.
+File count: **7,636 ZIP entries**. Audited **without extracting or executing archive code**.
+
+## Important authority boundary
+This is a community reconstruction. The archive's `docs/HANDOFF_TREXNO_SYSTEMS.md` calls the `spk/local` server a reconstructed reference. In `server/plugins/trade/.../TradeServiceImpl.kt`, the author explicitly states that it was re-expressed from `spk/local/TradeService.java`. Therefore the Kotlin implementation is **not independent original SpawnPK protocol evidence**, and porting it back wholesale would add little value and risk losing RE's established concurrency defenses.
+
+## Sources worth reviewing first
+1. `server/plugins/recipes/`: 9 Java/Kotlin sources. Compare its conversion/rollback invariants against actual RE inventory and skilling constraints; do **not** copy unverified IDs or XP rules.
+2. `server/plugins/party/`: 10 Java/Kotlin sources. Compare participant identity/disconnect ownership before adapting any multiplayer party model.
+3. `server/plugins/global-events/`: 13 sources; candidate modular scheduling/lifecycle concepts, not original timed-event authority.
+4. `server/plugins/collection-log/`: 9 sources; investigate durable per-account item evidence and presentation separately from item grants.
+5. `server/plugins/usage-quotas/`: 9 sources; evaluate only after account durability ownership and persisted timestamps can be trusted.
+6. `server/plugins/trade/`: 6 sources. **Reference/backport relationship confirmed**; use only to contrast behavior and discover missing regressions, never as a replacement for RE's trade transaction layer.
+
+**Caveat:** The server `gear` plugin alone contains more than 3,000 source files, primarily item-specific definitions. A high file count does not imply 3,000 implemented gameplay features.
+
+## Reproducible intake
+Run `python scripts/audit_spawnpk_donor.py "<archive.zip>" --output donor-manifest.json` to produce a read-only SHA-pinned inventory. Optional `--compare-zip "<old.zip>"` compares Java/Kotlin source bytes only when both archives contain the same normalized path under `server/`. This is a file-level comparison, not semantics or common authorship. Use `python -m unittest discover -s scripts -p 'test_audit_spawnpk_donor.py'` for scanner safety tests.
+
+## Next development gate
+Select one donor recipe/party implementation **after** confirming the corresponding RE runtime integration path and original v308 packet acceptance. Write one deterministic RE regression before porting functionality. Do not merge or close an issue based on donor source alone.
