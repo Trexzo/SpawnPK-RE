@@ -9,7 +9,14 @@ import java.util.*;
  */
 final class RecipeBankSemanticAdapter {
     private RecipeBankSemanticAdapter(){}
-    static RecipeStackPostimagePlanner.Postimage prepare(
+    static final class Prepared {
+        final int[] expectedIds,expectedQuantities;
+        final RecipeStackPostimagePlanner.Postimage proposed;
+        Prepared(int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
+            expectedIds=ids.clone();expectedQuantities=quantities.clone();proposed=image;
+        }
+    }
+    static Prepared prepare(
         BankState bank,Map<Integer,Integer> ingredients,
         int product,int perBatch,int batches,Set<Integer> stackable
     ){
@@ -21,14 +28,23 @@ final class RecipeBankSemanticAdapter {
             ids[i]=stack==null?-1:stack.itemId;
             qty[i]=stack==null?0:stack.qty;
         }
-        return RecipeStackPostimagePlanner.prepare(
-            ids,qty,ingredients,product,perBatch,batches,stackable);
+        return new Prepared(ids,qty,RecipeStackPostimagePlanner.prepare(
+            ids,qty,ingredients,product,perBatch,batches,stackable));
     }
     static void commit(BankState bank,
-        RecipeStackPostimagePlanner.Postimage image
+        Prepared prepared
     ){
         Objects.requireNonNull(bank,"bank");
-        Objects.requireNonNull(image,"image");
-        bank.replaceInventorySemantic(image.ids,image.quantities);
+        Objects.requireNonNull(prepared,"prepared");
+        if(bank.inventoryCapacity()!=prepared.expectedIds.length)
+            throw new IllegalStateException("RECIPE_INVENTORY_CAPACITY_CHANGED");
+        for(int i=0;i<prepared.expectedIds.length;i++){
+            BankState.Stack current=bank.inventoryAt(i);
+            int id=current==null?-1:current.itemId;
+            int qty=current==null?0:current.qty;
+            if(id!=prepared.expectedIds[i]||qty!=prepared.expectedQuantities[i])
+                throw new IllegalStateException("RECIPE_STALE_INVENTORY_POSTIMAGE");
+        }
+        bank.replaceInventorySemantic(prepared.proposed.ids,prepared.proposed.quantities);
     }
 }
