@@ -225,6 +225,7 @@ public final class RecipeSessionWriterGuardTest {
 
             revocationWaitsForGuardedAction(world);
             revocationPublicationRaces(world);
+            concurrentWitnessClaims(world);
         }finally{
             world.close();
         }
@@ -236,7 +237,85 @@ public final class RecipeSessionWriterGuardTest {
             " backpressureRevocationDenied=true terminalWriterDenied=true"+
             " inFlightRevocationBarrier=true"+
             " revocationPublicationRaces=64"+
+            " concurrentOneTimeWitnessClaims=64"+
             " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void concurrentWitnessClaims(World world)
+        throws Exception{
+        ExecutorService workers=Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_unique_claim_"+trial);
+                ServerPacketWriter firstWriter=writer(
+                    new OutboundPacketQueue(4096));
+                ServerPacketWriter secondWriter=writer(
+                    new OutboundPacketQueue(4096));
+                CountDownLatch ready=new CountDownLatch(2);
+                CountDownLatch begin=new CountDownLatch(1);
+                java.util.concurrent.atomic.AtomicReference<
+                    RecipeSessionWriterGuard> winner=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                java.util.concurrent.Callable<String> a=()->{
+                    ready.countDown();begin.await();
+                    try{
+                        RecipeSessionWriterGuard guard=
+                            new RecipeSessionWriterGuard(
+                                world,player,generation,firstWriter);
+                        winner.set(guard);
+                        return "CLAIMED";
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                };
+                java.util.concurrent.Callable<String> b=()->{
+                    ready.countDown();begin.await();
+                    try{
+                        RecipeSessionWriterGuard guard=
+                            new RecipeSessionWriterGuard(
+                                world,player,generation,secondWriter);
+                        winner.set(guard);
+                        return "CLAIMED";
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                };
+                Future<String> first=workers.submit(a);
+                Future<String> second=workers.submit(b);
+                ok(ready.await(5,TimeUnit.SECONDS),
+                    "concurrent claim contenders not ready "+trial);
+                begin.countDown();
+                String left=first.get(5,TimeUnit.SECONDS),
+                    right=second.get(5,TimeUnit.SECONDS);
+                ok(("CLAIMED".equals(left)^"CLAIMED".equals(right))&&
+                    (left.contains("GENERATION_ALREADY_CLAIMED")||
+                     right.contains("GENERATION_ALREADY_CLAIMED"))&&
+                    winner.get()!=null,
+                    "simultaneous witness claims both acquired "+trial+
+                    " a="+left+" b="+right);
+                winner.get().revokeAndAwait();
+                denied(()->new RecipeSessionWriterGuard(
+                        world,player,generation,firstWriter),
+                    "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+                ok(world.unregisterPlayer(player,generation),
+                    "claimed generation cleanup failed "+trial);
+                long renewed=world.registerPlayer(
+                    player,"recipe_unique_claim_"+trial);
+                ok(renewed>generation,
+                    "new World generation did not advance "+trial);
+                RecipeSessionWriterGuard fresh=
+                    new RecipeSessionWriterGuard(
+                        world,player,renewed,firstWriter);
+                fresh.revokeAndAwait();
+                ok(world.unregisterPlayer(player,renewed),
+                    "renewed witness owner cleanup failed "+trial);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
     }
 
     private static void revocationPublicationRaces(World world)
