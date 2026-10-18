@@ -164,6 +164,46 @@ public final class RecipeWorldOwnedAdapterTest {
             ok(world.unregisterPlayer(secondPlayer,rejoined),
                 "World second owner cleanup failed");
 
+            // A backpressured publication is retryable ONLY while the
+            // identical World owner generation remains active. Unregister
+            // followed by rejoin must not resurrect the old pending action.
+            WorldPlayer delayedPlayer=new WorldPlayer();
+            seed(delayedPlayer);
+            long delayedGen=world.registerPlayer(
+                delayedPlayer,"recipe_owner_backpressure_fixture");
+            OutboundPacketQueue delayedQueue=new OutboundPacketQueue(4096);
+            delayedQueue.offerBatch(new byte[4096]);
+            ServerPacketWriter delayedWriter=writer(delayedQueue);
+            RecipeWorldOwnedAdapter.Prepared waiting=
+                stackable(world,delayedPlayer,delayedGen,delayedWriter);
+            ok(RecipeWorldOwnedAdapter.publish(waiting)==
+                ServerPacketWriter.RecoverablePacketResult.RETRACTED_RETRYABLE&&
+                delayedQueue.queuedBytes()==4096&&
+                delayedPlayer.bank().inventoryAt(0).qty==5,
+                "World-owned backpressure mutated or admitted source");
+            delayedQueue.drainTo(new ByteArrayOutputStream(),4096);
+            ok(world.unregisterPlayer(delayedPlayer,delayedGen),
+                "backpressured player unregister failed");
+            ownerDenied(()->RecipeWorldOwnedAdapter.publish(waiting),
+                "backpressured recipe committed after unregister");
+            long freshGen=world.registerPlayer(
+                delayedPlayer,"recipe_owner_backpressure_fixture");
+            ownerDenied(()->RecipeWorldOwnedAdapter.publish(waiting),
+                "backpressured recipe committed after generation changed");
+            ok(delayedQueue.queuedBytes()==0&&
+                delayedPlayer.bank().inventoryAt(0).qty==5,
+                "stale retry leaked queued bytes or changed inventory");
+            RecipeWorldOwnedAdapter.Prepared updated=
+                stackable(world,delayedPlayer,freshGen,delayedWriter);
+            ok(RecipeWorldOwnedAdapter.publish(updated)==
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+                delayedPlayer.bank().inventoryAt(0).qty==1&&
+                delayedPlayer.bank().inventoryAt(3).qty==6&&
+                delayedQueue.queuedPackets()==1,
+                "fresh generation could not retry after stale denial");
+            ok(world.unregisterPlayer(delayedPlayer,freshGen),
+                "backpressured player final cleanup failed");
+
             // A different World's player with its own registration may
             // not masquerade as the owner in this World's registry.
             World foreignWorld=isolatedWorld();
@@ -198,6 +238,7 @@ public final class RecipeWorldOwnedAdapterTest {
             " registeredWorldMixedCommit=true"+
             " sourceOnlyReplayDenied=true"+
             " unregisterRejoinGenerationFenced=true"+
+            " backpressureGenerationFenced=true"+
             " unrelatedWorldDenied=true"+
             " noLiveRecipes=true noCrossWorldAccountLease=true");
     }
