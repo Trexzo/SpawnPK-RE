@@ -19,7 +19,11 @@ final class RecipeConversionQuantityPlanner {
     ){
         Objects.requireNonNull(inventory,"inventory");
         Objects.requireNonNull(perRecipeInputs,"perRecipeInputs");
-        if(requested<=0||outputPerRecipe<=0||perRecipeInputs.isEmpty())
+        // A verified conversion may consume a tool as its only input.
+        // Keep this arithmetic consistent with prepareWithTool(), whose
+        // effective ingredient map includes consumed tool quantities.
+        if(requested<=0||outputPerRecipe<=0||
+           perRecipeInputs.isEmpty()&&!consumeTool)
             return 0;
         Map<Integer,Long> required=new HashMap<>();
         for(Map.Entry<Integer,Integer> e:perRecipeInputs.entrySet()){
