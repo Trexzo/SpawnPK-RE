@@ -211,6 +211,18 @@ public final class RecipeBankSemanticAdapterTest {
             "full queue recipe was not retractably rejected");
         ok(crowdedBank.inventoryAt(0).qty==5&&crowdedBank.inventoryAt(2)==null,
             "rejected queue mutated server inventory");
+        // A failed queue attempt does not authorize an unannounced direct
+        // semantic commit. Only a retry on the pinned writer may commit.
+        boolean bypassDenied=false;
+        try{
+            RecipeBankSemanticAdapter.commit(crowdedBank,refused);
+        }catch(IllegalStateException expected){
+            bypassDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_DIRECT_COMMIT_AFTER_PUBLICATION_ATTEMPT_DENIED");
+        }
+        ok(bypassDenied&&crowdedBank.inventoryAt(0).qty==5&&
+            crowdedBank.inventoryAt(2)==null,
+            "direct semantic commit bypassed failed packet publication");
         ok(fullQueue.drainTo(new java.io.ByteArrayOutputStream(),2048)==1024,
             "rejected queue appended recipe bytes");
         // A backpressured request is retryable only on its first writer;
@@ -496,6 +508,7 @@ public final class RecipeBankSemanticAdapterTest {
             " queueCommitted=true queueRefusalRetracted=true"+
             " busyWriterRejected=true terminalWriterDenied=true"+
             " crossWriterRetryDenied=true"+
+            " directCommitAfterQueueAttemptDenied=true"+
             " tamperedQueueDenied=true"+
             " retainedToolQueued=true insufficientToolDenied=true"+
             " closedToOpenDenied=true openToClosedDenied=true"+
