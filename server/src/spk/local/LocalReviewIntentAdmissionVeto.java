@@ -15,6 +15,14 @@ final class LocalReviewIntentAdmissionVeto {
     static final String PROPERTY=
         "spk.local.experimentalReviewIntentAdmissionVeto";
 
+    // Test-only, default-inert seam inside the marker-to-second-lock-check gap.
+    @FunctionalInterface interface AfterNegativeChecksProbe {
+        void run(Path account);
+    }
+    private static volatile AfterNegativeChecksProbe afterNegativeChecksForTest;
+    static void setAfterNegativeChecksForTest(AfterNegativeChecksProbe probe) {
+        afterNegativeChecksForTest=probe;
+    }
     private LocalReviewIntentAdmissionVeto(){}
 
     static void requireConfiguration(
@@ -53,6 +61,8 @@ final class LocalReviewIntentAdmissionVeto {
             // the negative-marker I/O, not only before it. A hostile
             // rename remains a TOCTOU risk, not a durable owner epoch.
             // This denies an observed changed lock before hydration.
+            AfterNegativeChecksProbe probe=afterNegativeChecksForTest;
+            if(probe!=null)probe.run(lockedPath);
             if(!lockedPath.equals(sessionLease.accountFileForReviewAdmission()))
                 throw new IllegalStateException(
                     "G21.378 REVIEW_VETO_ACCOUNT_PATH_CHANGED");
