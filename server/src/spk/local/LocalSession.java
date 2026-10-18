@@ -1852,6 +1852,13 @@ final class LocalSession implements Runnable {
 
                 @Override public void requestLogout(){
                     LocalSession.this.logoutRequested=true;
+                    // A requested logout closes future recipe publication
+                    // immediately; the finally block repeats revocation as
+                    // a fail-closed teardown barrier.
+                    RecipeSessionWriterGuard witness=
+                        LocalSession.this.recipeSessionWriterGuard;
+                    if(witness!=null)
+                        witness.revokeAndAwait();
                 }
             });
 
