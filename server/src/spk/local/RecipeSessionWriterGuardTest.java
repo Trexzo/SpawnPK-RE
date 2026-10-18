@@ -78,7 +78,7 @@ public final class RecipeSessionWriterGuardTest {
             OutboundPacketQueue queue=new OutboundPacketQueue(4096);
             ServerPacketWriter writer=writer(queue);
             denied(()->new RecipeSessionWriterGuard(world,player,1,writer),
-                "RECIPE_SESSION_WRITER_OWNER_NOT_REGISTERED");
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
 
             long generation=world.registerPlayer(
                 player,"recipe_session_guard");
@@ -168,6 +168,34 @@ public final class RecipeSessionWriterGuardTest {
             ok(world.unregisterPlayer(delayed,rejoined),
                 "rejoined backpressure owner cleanup failed");
 
+            // Foreign-World construction must reject without consuming a
+            // registered player's one allowed generation claim.
+            World foreignWorld=world();
+            try{
+                WorldPlayer foreignPlayer=new WorldPlayer();
+                seed(foreignPlayer);
+                long foreignGeneration=foreignWorld.registerPlayer(
+                    foreignPlayer,"recipe_session_foreign_world");
+                ServerPacketWriter foreignOwnedWriter=writer(
+                    new OutboundPacketQueue(4096));
+                denied(()->new RecipeSessionWriterGuard(
+                        world,foreignPlayer,foreignGeneration,
+                        foreignOwnedWriter),
+                    "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+                RecipeSessionWriterGuard rightful=
+                    new RecipeSessionWriterGuard(
+                        foreignWorld,foreignPlayer,foreignGeneration,
+                        foreignOwnedWriter);
+                ok(rightful.activeForTest(),
+                    "foreign-world denial consumed rightful witness");
+                rightful.revokeAndAwait();
+                ok(foreignWorld.unregisterPlayer(
+                    foreignPlayer,foreignGeneration),
+                    "foreign-owner cleanup failed");
+            }finally{
+                foreignWorld.close();
+            }
+
             WorldPlayer terminalPlayer=new WorldPlayer();
             seed(terminalPlayer);
             long terminalGen=world.registerPlayer(
@@ -203,6 +231,7 @@ public final class RecipeSessionWriterGuardTest {
         System.out.println("RECIPE_SESSION_WRITER_GUARD_PASS"+
             " exactWriterDenied=true foreignPlayerDenied=true"+
             " sameGenerationRebindDenied=true"+
+            " foreignWorldWitnessClaimDenied=true"+
             " revokedPrepareDenied=true revokedPublicationDenied=true"+
             " backpressureRevocationDenied=true terminalWriterDenied=true"+
             " inFlightRevocationBarrier=true"+
