@@ -40,8 +40,11 @@ final class RecipeStackPostimagePlanner {
             return prepare(originalIds,originalQuantities,inputs,
                 outputId,outputPerRecipe,batches,verifiedStackableIds);
         }
-        if(toolId<=0||originalIds.length!=originalQuantities.length)
-            throw new IllegalArgumentException("invalid recipe tool");
+        if(toolId<=0||toolId>=0xffff||
+           !verifiedStackableIds.contains(toolId)||
+           originalIds.length!=originalQuantities.length)
+            throw new IllegalArgumentException(
+                "unverified stackable recipe tool");
         long owned=0;
         for(int i=0;i<originalIds.length;i++){
             if(originalIds[i]==toolId){
@@ -93,14 +96,15 @@ final class RecipeStackPostimagePlanner {
         if(originalIds.length==0||
            originalIds.length!=originalQuantities.length||
            inputs.isEmpty()||batches<=0||
-           outputId<=0||outputPerRecipe<=0||
+           outputId<=0||outputId>=0xffff||outputPerRecipe<=0||
            !verifiedStackableIds.contains(outputId))
             throw new IllegalArgumentException("invalid recipe request");
 
         Map<Integer,Long> consume=new HashMap<>();
         for(Map.Entry<Integer,Integer> ingredient:inputs.entrySet()){
             Integer id=ingredient.getKey(),quantity=ingredient.getValue();
-            if(id==null||id<=0||quantity==null||quantity<=0||
+            if(id==null||id<=0||id>=0xffff||
+               quantity==null||quantity<=0||
                !verifiedStackableIds.contains(id))
                 throw new IllegalArgumentException("unverified ingredient");
             consume.put(id,Math.multiplyExact(
@@ -112,7 +116,7 @@ final class RecipeStackPostimagePlanner {
 
         int[] ids=originalIds.clone(),counts=originalQuantities.clone();
         for(int i=0;i<ids.length;i++){
-            if(ids[i]<-1 ||
+            if(ids[i]<-1 || ids[i]>=0xffff ||
                ids[i]==-1&&counts[i]!=0 ||
                ids[i]>=0&&counts[i]<=0)
                 throw new IllegalArgumentException("malformed inventory");
