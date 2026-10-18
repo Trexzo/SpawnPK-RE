@@ -65,19 +65,15 @@ final class RecipeBankSemanticAdapter {
         throws java.io.IOException{
         Objects.requireNonNull(writer,"writer");
         synchronized(bank){
-            // A bank-open session needs both normal inventory and bank-side
-            // mirror packets. Until a multi-container publication transaction
-            // exists, fail closed before queue admission.
-            if(bank.isOpen())
-                throw new IllegalStateException(
-                    "RECIPE_BANK_OPEN_MIRROR_NOT_ATOMIC");
-            // Revalidate and encode before any potentially irreversible
-            // packet queue admission. No inventory mutation yet.
-            byte[] payload=encodePreparedInventory(bank,prepared);
+            // Both inventory views are encoded before queue admission.
+            // The recoverable publication call enqueues both or neither.
+            encodePreparedInventory(bank,prepared);
+            byte[][] views=bank.previewRecipeInventoryViews(
+                prepared.sealedIds,prepared.sealedQuantities);
             requireCurrentPreimage(bank,prepared);
             ServerPacketWriter.RecoverablePacketResult result=
                 writer.publishQueueOnlyRecoverablePacketIfIdle(
-                    ()->writer.varShort(53,payload));
+                    ()->{for(byte[] view:views)writer.varShort(53,view);});
             if(result==ServerPacketWriter.RecoverablePacketResult.COMMITTED)
                 commit(bank,prepared);
             return result;
