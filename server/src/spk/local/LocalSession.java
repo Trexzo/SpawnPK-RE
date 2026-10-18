@@ -4368,20 +4368,9 @@ final class LocalSession implements Runnable {
             // present before entering the final-save reservation path.
             // Missing/replaced intent must not silently proceed to an
             // account publication. This is not an atomic crash epoch.
-            if(LocalFinalSaveNegativeWitness.enabled()){
-                if(accountSessionLease==null)
-                    throw new IllegalStateException(
-                        "G21.382 FINAL_SAVE_MISSING_LOCKED_SESSION_OWNER");
-                try{
-                    LocalDurableAccountReviewIntentPrimitive
-                        .requireReviewMarker(
-                            accountSessionLease.accountFileForReviewAdmission());
-                }catch(IOException unsafeIntent){
-                    throw new IllegalStateException(
-                        "G21.382 FINAL_SAVE_ACTIVE_INTENT_NOT_VERIFIED",
-                        unsafeIntent);
-                }
-            }
+            LocalStrictFinalSaveIntentGate.requireBeforeReservation(
+                LocalFinalSaveNegativeWitness.enabled(),accountSessionLease
+            );
             /*
              * Reserve persistence FIFO position before final capture. Queue
              * saturation may wait here, off the World thread, while the player
