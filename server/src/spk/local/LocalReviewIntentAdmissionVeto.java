@@ -49,6 +49,13 @@ final class LocalReviewIntentAdmissionVeto {
             // one-shot final-review witness remains NEGATIVE.
             LocalFinalSaveNegativeWitness
                 .requireNoNegativeWitness(lockedPath);
+            // G21.378: reobserve the selected lock pathname AFTER
+            // the negative-marker I/O, not only before it. A hostile
+            // rename remains a TOCTOU risk, not a durable owner epoch.
+            // This denies an observed changed lock before hydration.
+            if(!lockedPath.equals(sessionLease.accountFileForReviewAdmission()))
+                throw new IllegalStateException(
+                    "G21.378 REVIEW_VETO_ACCOUNT_PATH_CHANGED");
         }catch(IOException negative){
             throw new IllegalStateException(
                 "G21.189 REVIEW_INTENT_LOGIN_DENIED_NO_AUTO_RECOVERY",
