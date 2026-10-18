@@ -285,6 +285,45 @@ public final class RecipeBankSemanticAdapterTest {
             queueTamperBank.inventoryAt(2)==null,
             "tampered prepared request affected queue or inventory");
 
+        // End-to-end source-only planner -> BankState -> recoverable queue
+        // for an overlapping RETAINED tool, not just a pure arithmetic test.
+        BankState retainedToolBank=new BankState();
+        retainedToolBank.replaceInventorySemantic(ids,qty);
+        RecipeBankSemanticAdapter.Prepared retainedToolReady=
+            RecipeBankSemanticAdapter.prepareWithTool(
+                retainedToolBank,Collections.singletonMap(100,2),
+                300,3,2,known,100,false);
+        OutboundPacketQueue retainedToolQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter retainedToolWriter=new ServerPacketWriter(
+            retainedToolQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            retainedToolBank,retainedToolReady,retainedToolWriter)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED,
+            "retained tool postimage was not admitted");
+        ok(retainedToolBank.inventoryAt(0).itemId==100&&
+            retainedToolBank.inventoryAt(0).qty==1&&
+            retainedToolBank.inventoryAt(2).itemId==300&&
+            retainedToolBank.inventoryAt(2).qty==6&&
+            retainedToolQueue.queuedBytes()>0,
+            "retained tool lost or output missing after semantic commit");
+        BankState insufficientToolBank=new BankState();
+        int[] insufficientIds=ids.clone(),insufficientQty=qty.clone();
+        insufficientQty[0]=4;
+        insufficientToolBank.replaceInventorySemantic(
+            insufficientIds,insufficientQty);
+        boolean retentionDenied=false;
+        try{
+            RecipeBankSemanticAdapter.prepareWithTool(
+                insufficientToolBank,Collections.singletonMap(100,2),
+                300,3,2,known,100,false);
+        }catch(IllegalStateException expected){
+            retentionDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_RETAINED_TOOL_REQUIRED");
+        }
+        ok(retentionDenied&&insufficientToolBank.inventoryAt(0).qty==4&&
+            insufficientToolBank.inventoryAt(2)==null,
+            "insufficient retained tool request was admitted or mutated");
+
         BankState openBank=new BankState();
         openBank.replaceInventorySemantic(ids,qty);
         OutboundPacketQueue openQueue=new OutboundPacketQueue(4096);
@@ -410,6 +449,7 @@ public final class RecipeBankSemanticAdapterTest {
             " queueCommitted=true queueRefusalRetracted=true"+
             " busyWriterRejected=true terminalWriterDenied=true"+
             " tamperedQueueDenied=true"+
+            " retainedToolQueued=true insufficientToolDenied=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
