@@ -12,6 +12,7 @@ final class RecipeBankSemanticAdapter {
     static final class Prepared {
         private final BankState owner;
         private final int[] expectedIds,expectedQuantities;
+        private final boolean expectedBankOpen;
         // Tests may deliberately mutate this view; semantic/publication paths
         // use only privately sealed arrays and reject any changed proposal.
         final RecipeStackPostimagePlanner.Postimage proposed;
@@ -20,6 +21,7 @@ final class RecipeBankSemanticAdapter {
         private Prepared(BankState owner,int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
             this.owner=Objects.requireNonNull(owner,"owner");
             expectedIds=ids.clone();expectedQuantities=quantities.clone();
+            expectedBankOpen=owner.isOpen();
             proposed=image;
             sealedIds=image.ids.clone();sealedQuantities=image.quantities.clone();
         }
@@ -106,6 +108,8 @@ final class RecipeBankSemanticAdapter {
             throw new IllegalStateException("RECIPE_PREPARED_ALREADY_COMMITTED");
         if(bank!=prepared.owner)
             throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
+        if(bank.isOpen()!=prepared.expectedBankOpen)
+            throw new IllegalStateException("RECIPE_STALE_BANK_VIEW");
         if(bank.inventoryCapacity()!=prepared.expectedIds.length)
             throw new IllegalStateException("RECIPE_INVENTORY_CAPACITY_CHANGED");
         for(int i=0;i<prepared.expectedIds.length;i++){
