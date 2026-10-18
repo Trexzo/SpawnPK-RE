@@ -57,6 +57,15 @@ public final class G21382StrictFinalSaveIntentGateTest {
                 "strict mode accepted malformed ACTIVE");
             check(Files.size(marker)==3L,
                 "negative evidence changed during validation");
+            // Test-only reset of an intentionally malformed fixture,
+            // never a production account recovery/marker retirement.
+            Files.delete(marker);
+            LocalDurableAccountReviewIntentPrimitive.writeActiveReview(
+                account);
+            LocalStrictFinalSaveIntentGate.requireBeforeReservation(
+                true,owned);
+            check(Files.exists(marker,LinkOption.NOFOLLOW_LINKS),
+                "validated ACTIVE was cleared by pre-reservation gate");
             LocalStrictFinalSaveIntentGate.requireBeforeReservation(
                 false,owned);
             LocalStrictFinalSaveIntentGate.requireBeforeReservation(
@@ -66,7 +75,7 @@ public final class G21382StrictFinalSaveIntentGateTest {
                 "pre-reservation test published state");
             System.out.println("G21382_STRICT_FINAL_SAVE_PRE_RESERVATION_PASS"+
                 " absentOwnerDenied=true absentMarkerDenied=true"+
-                " malformedMarkerDenied=true defaultModeUnchanged=true"+
+                " malformedMarkerDenied=true validForcedMarkerAccepted=true defaultModeUnchanged=true"+
                 " noAccountPublication=true crashDurabilityProven=false");
         }finally{
             if(token!=null)token.releaseAfterInitializationFailure();
