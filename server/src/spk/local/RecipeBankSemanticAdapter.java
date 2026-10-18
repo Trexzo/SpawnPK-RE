@@ -62,6 +62,12 @@ final class RecipeBankSemanticAdapter {
         throws java.io.IOException{
         Objects.requireNonNull(writer,"writer");
         synchronized(bank){
+            // A bank-open session needs both normal inventory and bank-side
+            // mirror packets. Until a multi-container publication transaction
+            // exists, fail closed before queue admission.
+            if(bank.isOpen())
+                throw new IllegalStateException(
+                    "RECIPE_BANK_OPEN_MIRROR_NOT_ATOMIC");
             // Revalidate and encode before any potentially irreversible
             // packet queue admission. No inventory mutation yet.
             byte[] payload=encodePreparedInventory(bank,prepared);
