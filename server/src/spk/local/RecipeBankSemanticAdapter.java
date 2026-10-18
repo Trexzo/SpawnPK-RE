@@ -10,10 +10,12 @@ import java.util.*;
 final class RecipeBankSemanticAdapter {
     private RecipeBankSemanticAdapter(){}
     static final class Prepared {
+        final BankState owner;
         final int[] expectedIds,expectedQuantities;
         final RecipeStackPostimagePlanner.Postimage proposed;
         final int[] sealedIds,sealedQuantities;
-        Prepared(int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
+        Prepared(BankState owner,int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
+            this.owner=Objects.requireNonNull(owner,"owner");
             expectedIds=ids.clone();expectedQuantities=quantities.clone();
             proposed=image;
             sealedIds=image.ids.clone();sealedQuantities=image.quantities.clone();
@@ -31,7 +33,7 @@ final class RecipeBankSemanticAdapter {
             ids[i]=stack==null?-1:stack.itemId;
             qty[i]=stack==null?0:stack.qty;
         }
-        return new Prepared(ids,qty,RecipeStackPostimagePlanner.prepare(
+        return new Prepared(bank,ids,qty,RecipeStackPostimagePlanner.prepare(
             ids,qty,ingredients,product,perBatch,batches,stackable));
     }
     static void commit(BankState bank,
@@ -39,6 +41,8 @@ final class RecipeBankSemanticAdapter {
     ){
         Objects.requireNonNull(bank,"bank");
         Objects.requireNonNull(prepared,"prepared");
+        if(bank!=prepared.owner)
+            throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
         if(bank.inventoryCapacity()!=prepared.expectedIds.length)
             throw new IllegalStateException("RECIPE_INVENTORY_CAPACITY_CHANGED");
         for(int i=0;i<prepared.expectedIds.length;i++){
