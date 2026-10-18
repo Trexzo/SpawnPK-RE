@@ -101,18 +101,20 @@ final class RecipeBankSemanticAdapter {
         throws java.io.IOException{
         Objects.requireNonNull(bank,"bank");
         Objects.requireNonNull(prepared,"prepared");
-        if(bank!=prepared.owner)
-            throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
-        if(prepared.committed)
-            throw new IllegalStateException("RECIPE_PREPARED_ALREADY_COMMITTED");
-        if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
-           !Arrays.equals(prepared.sealedQuantities,prepared.proposed.quantities))
-            throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
-        // Do not even generate a preview of an obsolete snapshot. This is
-        // read-only and does not claim a client ACK or reserve a transaction.
-        requireCurrentPreimage(bank,prepared);
-        return bank.previewRecipeInventoryPacket(
-            prepared.sealedIds,prepared.sealedQuantities);
+        synchronized(bank){
+            if(bank!=prepared.owner)
+                throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
+            if(prepared.committed)
+                throw new IllegalStateException("RECIPE_PREPARED_ALREADY_COMMITTED");
+            if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
+               !Arrays.equals(prepared.sealedQuantities,prepared.proposed.quantities))
+                throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
+            // A read-only preview must observe the same generation as
+            // preparation, including a restored-snapshot ABA.
+            requireCurrentPreimage(bank,prepared);
+            return bank.previewRecipeInventoryPacket(
+                prepared.sealedIds,prepared.sealedQuantities);
+        }
     }
     /**
      * Source-only queue-backed publication and semantic commit. Caller must
