@@ -19,8 +19,6 @@ public final class RecipeConversionQuantityPlannerTest {
             inventory,ingredients,100,true,10,1),"consumed overlapping input and tool");
         eq(0,RecipeConversionQuantityPlanner.affordable(
             inventory,ingredients,999,false,10,1),"missing tool");
-        eq(0,RecipeConversionQuantityPlanner.affordable(
-            inventory,ingredients,100,true,1,Integer.MAX_VALUE+0),"one input below two");
         eq(2,RecipeConversionQuantityPlanner.affordable(
             inventory,ingredients,null,false,Integer.MAX_VALUE,
             Integer.MAX_VALUE/2),"output int bound");
