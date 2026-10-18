@@ -13316,3 +13316,19 @@ tasks.named('build') {
     dependsOn tasks.named('recipeMixedPostimageRegression')
     dependsOn tasks.named('recipeMixedBankAdapterRegression')
 }
+
+
+// Source-only recipe preparation/publication guarded by current World
+// registration generation. Not a live v308 recipe or account lease.
+tasks.register('recipeWorldOwnedRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify World-owned recipe generation, unregister/rejoin fencing and no foreign-World publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeWorldOwnedAdapterTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('recipeWorldOwnedRegression')
+}
