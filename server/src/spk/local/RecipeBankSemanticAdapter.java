@@ -36,6 +36,21 @@ final class RecipeBankSemanticAdapter {
         return new Prepared(bank,ids,qty,RecipeStackPostimagePlanner.prepare(
             ids,qty,ingredients,product,perBatch,batches,stackable));
     }
+    /** Encode the sealed prospective client inventory before semantic commit.
+     * The returned bytes are evidence, not a publication or ACK.
+     */
+    static byte[] encodePreparedInventory(BankState bank,Prepared prepared)
+        throws java.io.IOException{
+        Objects.requireNonNull(bank,"bank");
+        Objects.requireNonNull(prepared,"prepared");
+        if(bank!=prepared.owner)
+            throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
+        if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
+           !Arrays.equals(prepared.sealedQuantities,prepared.proposed.quantities))
+            throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
+        return bank.previewRecipeInventoryPacket(
+            prepared.sealedIds,prepared.sealedQuantities);
+    }
     static void commit(BankState bank,
         Prepared prepared
     ){
