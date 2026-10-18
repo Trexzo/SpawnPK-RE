@@ -77,11 +77,8 @@ public final class RecipeSessionWriterGuardTest {
             seed(player);
             OutboundPacketQueue queue=new OutboundPacketQueue(4096);
             ServerPacketWriter writer=writer(queue);
-            RecipeSessionWriterGuard unregistered=
-                new RecipeSessionWriterGuard(world,player,1,writer);
-            denied(()->prepare(unregistered),
-                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
-            unregistered.revokeAndAwait();
+            denied(()->new RecipeSessionWriterGuard(world,player,1,writer),
+                "RECIPE_SESSION_WRITER_OWNER_NOT_REGISTERED");
 
             long generation=world.registerPlayer(
                 player,"recipe_session_guard");
@@ -112,6 +109,12 @@ public final class RecipeSessionWriterGuardTest {
             denied(()->prepare(witness),"RECIPE_SESSION_WRITER_REVOKED");
             denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
                 "RECIPE_SESSION_WRITER_REVOKED");
+            denied(()->new RecipeSessionWriterGuard(
+                    world,player,generation,writer),
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+            denied(()->new RecipeSessionWriterGuard(
+                    world,player,generation,foreign),
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
             ok(world.unregisterPlayer(player,generation),
                 "first owner cleanup failed");
 
@@ -139,20 +142,31 @@ public final class RecipeSessionWriterGuardTest {
             ok(delayedQueue.queuedBytes()==0&&
                 delayed.bank().inventoryAt(0).qty==5,
                 "revocation retried a formerly backpressured request");
-            // Even with the same registered owner, only a new guard and
-            // newly prepared transaction can publish after revocation.
+            // A revoked writer cannot be re-minted for this same owner
+            // generation; only a fresh World registration can claim again.
+            denied(()->new RecipeSessionWriterGuard(
+                    world,delayed,delayedGeneration,delayedWriter),
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+            ok(world.unregisterPlayer(delayed,delayedGeneration),
+                "backpressure owner cleanup failed");
+            long rejoined=world.registerPlayer(
+                delayed,"recipe_session_backpressure");
+            ok(rejoined>delayedGeneration,
+                "re-registration did not advance World generation");
+            denied(()->RecipeWorldOwnedAdapter.publishSession(waiting),
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
             RecipeSessionWriterGuard renewed=
                 new RecipeSessionWriterGuard(
-                    world,delayed,delayedGeneration,delayedWriter);
+                    world,delayed,rejoined,delayedWriter);
             RecipeWorldOwnedAdapter.SessionPrepared fresh=prepare(renewed);
             ok(RecipeWorldOwnedAdapter.publishSession(fresh)==
                     ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
                 delayed.bank().inventoryAt(0).qty==1&&
                 delayedQueue.queuedPackets()==1,
-                "fresh guard could not commit after revoked request");
+                "fresh generation could not commit after revoked request");
             renewed.revokeAndAwait();
-            ok(world.unregisterPlayer(delayed,delayedGeneration),
-                "backpressure owner cleanup failed");
+            ok(world.unregisterPlayer(delayed,rejoined),
+                "rejoined backpressure owner cleanup failed");
 
             WorldPlayer terminalPlayer=new WorldPlayer();
             seed(terminalPlayer);
@@ -188,6 +202,7 @@ public final class RecipeSessionWriterGuardTest {
         }
         System.out.println("RECIPE_SESSION_WRITER_GUARD_PASS"+
             " exactWriterDenied=true foreignPlayerDenied=true"+
+            " sameGenerationRebindDenied=true"+
             " revokedPrepareDenied=true revokedPublicationDenied=true"+
             " backpressureRevocationDenied=true terminalWriterDenied=true"+
             " inFlightRevocationBarrier=true"+
