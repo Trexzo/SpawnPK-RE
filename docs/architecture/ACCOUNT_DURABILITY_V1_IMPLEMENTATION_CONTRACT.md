@@ -41,3 +41,12 @@ A test that reproduces stale login or simultaneous ownership is a **RED characte
 - No inference of exact original SpawnPK server persistence semantics.
 - No authenticated external service, crash-durable grant ACK, cross-domain ACID transaction or automatic reward recovery claimed.
 - No promotion of negative final-review witness or forensic record into permission to retire ACTIVE.
+
+## Existing proof inventory (checked 2026-10-18)
+
+- `G21185CoreCrossJvmSessionFileLockTest` already verifies cooperating OS-lock exclusion across independent Java processes and subsequent release. Do **not** recreate that as novel coverage.
+- `G21186CoreCrossJvmRealSocketAccountSessionTest` already exercises competing cross-process synthetic TCP logins and successful later hydration/final save. This is a **cooperating-process positive case only**, not crash-durable epoch proof.
+- `G21377TwoWorldAccountAdmissionTest` is a small negative test of an existing opt-in lease, with no WorldPlayer registration attempted. It verifies no accidental registration during rejection; its marker deliberately says `noWorldRegistration`, **not** `noHydration`.
+- Distinct missing end-to-end coverage is a failed/uncertain final World save followed by actual reconnect while a durable negative state survives process restart, plus stale competing writers that bypass or outlive cooperating lease authority. These must be designed as fail-closed policy, not implicit replay.
+
+**Next implementation choice:** target a durable *negative admission intent* under a strict opt-in protocol and verify the write ordering with real crash cutpoints, while leaving the existing default behavior and frozen release path unchanged.
