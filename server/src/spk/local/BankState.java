@@ -185,6 +185,9 @@ final class BankState {
     private final Stack[] bank = new Stack[BANK_CAPACITY];
     private final Stack[] inventory = new Stack[INVENTORY_CAPACITY];
     private boolean open;
+    // Monotonic presentation generation: a close/reopen ABA must not revive
+    // an obsolete prepared recipe with an otherwise identical inventory.
+    private long bankViewRevision;
     private boolean placeholdersEnabled;
     private ItemContainerAction pendingX;
 
@@ -200,6 +203,7 @@ final class BankState {
     }
 
     boolean isOpen() { return open; }
+    long bankViewRevision() { return bankViewRevision; }
     boolean placeholdersEnabled() { return placeholdersEnabled; }
     int bankSlots() { return occupied(bank); }
     int inventorySlots() { return occupied(inventory); }
@@ -365,6 +369,7 @@ final class BankState {
             throw failure;
         }
 
+        if(!open)bankViewRevision++;
         open = true;
         pendingX = null;
     }
@@ -414,12 +419,14 @@ final class BankState {
             throw failure;
         }
 
+        bankViewRevision++;
         open = false;
         pendingX = null;
     }
 
     boolean clientClosed() {
         boolean wasOpen = open;
+        if(wasOpen)bankViewRevision++;
         open = false;
         pendingX = null;
         return wasOpen;
