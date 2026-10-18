@@ -21,3 +21,34 @@ Run `python scripts/audit_spawnpk_donor.py "<archive.zip>" --output donor-manife
 
 ## Next development gate
 Select one donor recipe/party implementation **after** confirming the corresponding RE runtime integration path and original v308 packet acceptance. Write one deterministic RE regression before porting functionality. Do not merge or close an issue based on donor source alone.
+
+## Source-only recipe integration checkpoint (PR #2965)
+
+The donor's recipe implementation is treated as a **testable design reference**, not client/server authority. The following implementation now exists on the draft branch:
+
+- `RecipeConversionQuantityPlanner`: bounded batch arithmetic, retained/consumed tool overlap, null count rejection and consumed-tool-only conversion parity.
+- `RecipeStackPostimagePlanner`: read-only stackable inventory postimages, quantity conservation, capacity/overflow rejection, canonical empty-slot validation and tool-aware preparation.
+- `RecipeBankSemanticAdapter`: snapshot-sealed one-shot prepared authority for one `BankState`; stale inventory and bank-overlay transitions reject before queue publication. Preparation/direct commit synchronize on the BankState monitor, but this is **not** a cross-World account lock.
+- `ServerPacketWriter` + `OutboundPacketQueue`: queue-only recoverable atomic presentation admission of opcode-53 inventory views; direct non-retractable writer paths are denied. A failed queue admission preserves the semantic preimage and permits a safe retry.
+- `BankState.previewRecipeInventoryPacket`: malformed negative and non-encodable client item IDs are denied rather than normalized to empty slots. Open banks use both normal and bank inventory views in a single queued batch.
+- `LocalItemOnItemHandler`: no new donor recipe actions are registered; unverified item-on-item pairs remain denied. The existing narrow Doppelganger dye route remains separate.
+
+### Deterministic verification
+
+Mandatory Gradle build tasks include `recipeConversionQuantityPlannerRegression`, `recipeStackPostimageRegression`, `recipeBankSemanticAdapterRegression` and `recipeItemOnItemDispatchBoundaryRegression`. The recipe test classes now cover:
+
+1. Overlapping retained and consumed tools, tool-only conversions and 512 seeded quantity/postimage parity trials.
+2. Max-stack spillover, missing inputs, malformed inventory slots and 1,024 seeded item-ledger conservation trials.
+3. Stale and tampered prepared requests, one-shot replay rejection, terminal/busy writers and zero-byte queue retractions.
+4. Fault injection between bank-open views at the recoverable publication callback, followed by byte-exact outbound ISAAC retry comparison.
+5. Closed-to-open and open-to-closed bank overlay transitions, rejecting obsolete prepared requests before publication.
+
+These are **synthetic/source-only tests**. Any successful GitHub Linux Gradle or Windows preflight verifies the exact tested commit only; it is not a real v308 GUI, TCP reconnect, remote acknowledgement or power-loss result. Check the current PR head's Actions before claiming an exact-head green status.
+
+### Explicitly unresolved — do not enable recipes yet
+
+- No exact v308 client recipe UI, widget action, item/stackability evidence or XP grant has been established by the donor.
+- Queue admission is not socket delivery, remote client acknowledgement, durable profile write or reconnect consistency.
+- Account generation, session writer lease, cross-World/cross-JVM exclusivity, and final-save crash durability are not implemented by this PR. Follow account-safety PR #2963 and issues #2540 and #2559 rather than inventing a separate recipe-specific recovery authority.
+- Prepared requests must not cross live session/account boundaries. There is no active gameplay entry point; no recipe registration, implicit donor item grant, auto-rollback or account marker cleanup is permitted.
+- Merge and issue closure require the latest exact-head CI results and review of runtime authority boundaries, not simply a growing synthetic regression count.
