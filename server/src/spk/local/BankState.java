@@ -213,8 +213,20 @@ final class BankState {
     int inventorySlots() { return occupied(inventory); }
     int bankCapacity() { return BANK_CAPACITY; }
     int inventoryCapacity() { return INVENTORY_CAPACITY; }
-    Stack bankAt(int slot) { return slot>=0 && slot<bank.length ? bank[slot] : null; }
-    Stack inventoryAt(int slot) { return slot>=0 && slot<inventory.length ? inventory[slot] : null; }
+    // Read-only-by-copy access: do not give a caller a mutable Stack alias
+    // that bypasses semantic publication and inventory mutation revision.
+    Stack bankAt(int slot) {
+        return slot>=0&&slot<bank.length
+            ?copyStack(bank[slot]):null;
+    }
+    Stack inventoryAt(int slot) {
+        return slot>=0&&slot<inventory.length
+            ?copyStack(inventory[slot]):null;
+    }
+    private static Stack copyStack(Stack source){
+        return source==null?null:
+            new Stack(source.itemId,source.qty,source.tab);
+    }
     int inventoryCount(int itemId) {
         long total=0;
         for(Stack st:inventory) if(st!=null && st.itemId==itemId) total+=st.qty;
@@ -1966,15 +1978,20 @@ final class BankState {
                 "inventory snapshot length"
             );
 
+        // Account hydration cannot retain mutable aliases into caller-owned
+        // arrays. Later edits to a snapshot must not bypass live inventory
+        // mutation lineage or rewrite the canonical bank contents.
+        Stack[] sealedBank=copyStacks(nextBank);
+        Stack[] sealedInventory=copyStacks(nextInventory);
         System.arraycopy(
-            nextBank,
+            sealedBank,
             0,
             bank,
             0,
             bank.length
         );
         System.arraycopy(
-            nextInventory,
+            sealedInventory,
             0,
             inventory,
             0,
