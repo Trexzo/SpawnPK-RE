@@ -2404,11 +2404,25 @@ final class BankState {
                 1
             );
 
-        publishNormalInventoryStructuralPostimage(
-            w,
-            nextInventory,
-            open
-        );
+        // This conversion changes scarce assets. Direct socket publication
+        // can partially emit and cannot be retracted. Only queue admission
+        // may precede semantic commit, including when the bank mirror is open.
+        byte[] normal=containerPayload(
+            NORMAL_INVENTORY_CONTAINER,nextInventory);
+        byte[] bankMirror=open?containerPayload(
+            BANK_INVENTORY_CONTAINER,nextInventory):null;
+        byte[] bankContainer=open?containerPayload(
+            BANK_CONTAINER,bank):null;
+        ServerPacketWriter.RecoverablePacketResult admitted=
+            w.publishQueueOnlyRecoverablePacketIfIdle(()->{
+                w.varShort(53,normal);
+                if(open){
+                    w.varShort(53,bankContainer);
+                    w.varShort(53,bankMirror);
+                }
+            });
+        if(admitted!=ServerPacketWriter.RecoverablePacketResult.COMMITTED)
+            return "REJECTED_COMBINE_OUTBOUND_BACKPRESSURE";
         replaceStacks(
             inventory,
             nextInventory
