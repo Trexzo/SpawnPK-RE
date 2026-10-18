@@ -5,7 +5,7 @@ import java.util.*;
 public final class RecipeBankSemanticAdapterTest {
     static void ok(boolean v,String msg){if(!v)throw new AssertionError(msg);}
     static void reject(Runnable run){boolean rejected=false;try{run.run();}catch(IllegalStateException expected){rejected=true;}ok(rejected,"stale snapshot committed");}
-    public static void main(String[] args){
+    public static void main(String[] args)throws Exception{
         BankState bank=new BankState();
         int[] ids=new int[bank.inventoryCapacity()],qty=new int[ids.length];
         Arrays.fill(ids,-1);ids[0]=100;qty[0]=5;ids[1]=200;qty[1]=7;
@@ -13,6 +13,8 @@ public final class RecipeBankSemanticAdapterTest {
         Set<Integer> known=new HashSet<>(Arrays.asList(100,200,300));
         RecipeBankSemanticAdapter.Prepared ready=RecipeBankSemanticAdapter.prepare(
             bank,Collections.singletonMap(100,2),300,3,2,known);
+        byte[] encoded=RecipeBankSemanticAdapter.encodePreparedInventory(bank,ready);
+        ok(encoded.length>0,"precommit inventory packet encoding empty");
         ok(bank.inventoryAt(0).qty==5&&bank.inventoryAt(2)==null,
             "prepare mutated bank");
         RecipeBankSemanticAdapter.commit(bank,ready);
@@ -46,12 +48,18 @@ public final class RecipeBankSemanticAdapterTest {
         ok(otherOwner.inventoryAt(0).qty==1,
             "foreign owner mutated by prepared result");
         tampered.proposed.quantities[0]=Integer.MAX_VALUE;
+        boolean refusedEncode=false;
+        try{
+            RecipeBankSemanticAdapter.encodePreparedInventory(bank,tampered);
+        }catch(IllegalStateException expected){refusedEncode=true;}
+        ok(refusedEncode,"tampered postimage packet encoding accepted");
         reject(()->RecipeBankSemanticAdapter.commit(bank,tampered));
         ok(bank.inventoryAt(0).qty==1&&bank.inventoryAt(1).qty==6,
             "mutated prepared postimage changed bank");
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
+            " precommitPacketEncoded=true tamperedEncodeDenied=true"+
             " liveRecipeRegistered=false");
     }
     private RecipeBankSemanticAdapterTest(){}
