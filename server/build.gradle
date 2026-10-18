@@ -13291,3 +13291,28 @@ tasks.register('doppelDyeRoundTripRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('doppelDyeRoundTripRegression')
 }
+
+
+// Source-only mixed stackable/nonstackable recipe safety. No gameplay grant.
+tasks.register('recipeMixedPostimageRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify mixed recipe per-slot capacity, tool rules and seeded item conservation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeMixedPostimagePlannerTest')
+}
+
+tasks.register('recipeMixedBankAdapterRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify nonstackable recipe postimages via queue-only BankState publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeMixedBankAdapterTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('recipeMixedPostimageRegression')
+    dependsOn tasks.named('recipeMixedBankAdapterRegression')
+}
