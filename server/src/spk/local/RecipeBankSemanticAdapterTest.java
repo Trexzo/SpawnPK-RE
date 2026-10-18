@@ -497,6 +497,7 @@ public final class RecipeBankSemanticAdapterTest {
             " retainedToolQueued=true insufficientToolDenied=true"+
             " closedToOpenDenied=true openToClosedDenied=true"+
             " bankViewAbaDenied=true clientCloseAbaDenied=true"+
+            " repeatedOpenViewDenied=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
@@ -589,14 +590,14 @@ public final class RecipeBankSemanticAdapterTest {
         // Even identical final open/closed state is stale if the overlay
         // passed through intervening transitions. Simulates both browser-
         // originated client close and server-published close.
-        for(int mode=0;mode<3;mode++){
+        for(int mode=0;mode<4;mode++){
             BankState bank=new BankState();
             bank.replaceInventorySemantic(ids,quantities);
             OutboundPacketQueue queue=new OutboundPacketQueue(8192);
             ServerPacketWriter writer=new ServerPacketWriter(
                 queue,new IsaacCipher(new int[]{0,0,0,0}));
             // 0: open -> close -> open, 1: closed -> open -> close,
-            // 2: open -> client-close -> open.
+            // 2: open -> client-close -> open, 3: open -> re-open.
             boolean startsOpen=mode!=1;
             if(startsOpen)bank.open(writer);
             queue.drainTo(new java.io.ByteArrayOutputStream(),8192);
@@ -605,15 +606,22 @@ public final class RecipeBankSemanticAdapterTest {
                     bank,Collections.singletonMap(100,2),
                     300,3,2,known);
             long before=bank.bankViewRevision();
-            if(mode==2){
-                ok(bank.clientClosed(),"client close did not close open bank");
-            }else if(mode==0){
-                bank.close(writer);
-            }else{
+            if(mode==3){
+                // Reissuing the already-open overlay refreshes the client's
+                // presentation and invalidates the old prepared request.
                 bank.open(writer);
+            }else{
+                if(mode==2){
+                    ok(bank.clientClosed(),
+                        "client close did not close open bank");
+                }else if(mode==0){
+                    bank.close(writer);
+                }else{
+                    bank.open(writer);
+                }
+                if(mode==1)bank.close(writer);
+                else bank.open(writer);
             }
-            if(mode==1)bank.close(writer);
-            else bank.open(writer);
             queue.drainTo(new java.io.ByteArrayOutputStream(),8192);
             ok(bank.isOpen()==startsOpen &&
                bank.bankViewRevision()>before,
