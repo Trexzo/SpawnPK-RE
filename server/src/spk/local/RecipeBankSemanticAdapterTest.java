@@ -521,6 +521,7 @@ public final class RecipeBankSemanticAdapterTest {
             " structuralInventoryAbaDenied=true"+
             " restoreAccountAbaDenied=true"+
             " failedInventoryMutationRevisionStable=true"+
+            " invalidSemanticItemIdRejected=true"+
             " mutableSlotAliasIsolated=true"+
             " hydratedSnapshotAliasIsolated=true"+
             " concurrentSingleAdmissionTrials=128"+
@@ -863,6 +864,24 @@ public final class RecipeBankSemanticAdapterTest {
            bank.inventoryAt(0).qty==5&&
            bank.inventoryAt(slot).qty==1,
            "invalid semantic replacement partially mutated inventory");
+        for(int malformedId:new int[]{-2,Integer.MAX_VALUE,0xffff}){
+            int[] badIds=originalIds.clone();
+            int[] badQty=originalQty.clone();
+            badIds[2]=malformedId;
+            badQty[2]=malformedId<0?0:1;
+            long prior=bank.inventoryMutationRevision();
+            boolean rejected=false;
+            try{
+                bank.replaceInventorySemantic(badIds,badQty);
+            }catch(IllegalArgumentException expected){
+                rejected=true;
+            }
+            ok(rejected&&bank.inventoryMutationRevision()==prior&&
+                bank.inventoryAt(slot).itemId==300&&
+                bank.inventoryAt(0).qty==5,
+                "noncanonical semantic item ID mutated inventory id="+
+                malformedId);
+        }
     }
 
     private static void regressMutableAliasIsolation(
