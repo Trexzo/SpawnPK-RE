@@ -19,6 +19,9 @@ final class RecipeBankSemanticAdapter {
         final RecipeStackPostimagePlanner.Postimage proposed;
         private final int[] sealedIds,sealedQuantities;
         private boolean committed;
+        // Pin retries to the same outbound authority, including backpressure
+        // or publication failures. This is NOT a cross-World session lease.
+        private ServerPacketWriter publicationWriter;
         private Prepared(BankState owner,int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
             this.owner=Objects.requireNonNull(owner,"owner");
             expectedIds=ids.clone();expectedQuantities=quantities.clone();
@@ -96,6 +99,15 @@ final class RecipeBankSemanticAdapter {
             byte[][] views=bank.previewRecipeInventoryViews(
                 prepared.sealedIds,prepared.sealedQuantities);
             requireCurrentPreimage(bank,prepared);
+            if(prepared.publicationWriter!=null&&
+               prepared.publicationWriter!=writer)
+                throw new IllegalStateException(
+                    "RECIPE_PUBLICATION_WRITER_CHANGED");
+            // Bind only after the preimage and both client views validate.
+            // Even a queue-full or terminal attempt cannot move authority
+            // to an unrelated writer: reprepare for a new session.
+            if(prepared.publicationWriter==null)
+                prepared.publicationWriter=writer;
             ServerPacketWriter.RecoverablePacketResult result=
                 writer.publishQueueOnlyRecoverablePacketIfIdle(
                     ()->{for(byte[] view:views)writer.varShort(53,view);});
