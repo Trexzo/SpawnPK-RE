@@ -791,7 +791,10 @@ final class BankState {
             int itemId=itemIds[slot];
             int quantity=quantities[slot];
 
-            if(itemId<0){
+            // Canonical empty inventory is -1; arbitrary negative values
+            // and unencodable client container IDs must not be normalized
+            // to empty or admitted through the semantic postimage seam.
+            if(itemId==-1){
                 if(quantity!=0)
                     throw new IllegalArgumentException(
                         "empty inventory postimage quantity slot="+
@@ -799,6 +802,10 @@ final class BankState {
                     );
                 continue;
             }
+            if(itemId<0||itemId>=0xffff)
+                throw new IllegalArgumentException(
+                    "invalid inventory postimage item ID slot="+slot+
+                    " item="+itemId);
 
             if(quantity<=0)
                 throw new IllegalArgumentException(
