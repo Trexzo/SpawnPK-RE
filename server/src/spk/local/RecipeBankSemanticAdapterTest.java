@@ -90,14 +90,20 @@ public final class RecipeBankSemanticAdapterTest {
             "queue admission did not apply semantic inventory");
         // A committed prepared request cannot be replayed even when its
         // resulting inventory happens to equal the original preimage.
+        // Restore the *identical* original preimage: snapshot-based guards
+        // alone are insufficient to prevent reusing a consumed request.
+        queuedBank.replaceInventorySemantic(ids,qty);
         boolean duplicateDenied=false;
         try{
             RecipeBankSemanticAdapter.publishAndCommitIfIdle(
                 queuedBank,accepted,queuedWriter);
         }catch(IllegalStateException expected){
-            duplicateDenied=true;
+            duplicateDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_PREPARED_ALREADY_COMMITTED");
         }
-        ok(duplicateDenied,"accepted conversion replay was not rejected");
+        ok(duplicateDenied,"committed request replayed with restored preimage");
+        ok(queuedBank.inventoryAt(0).qty==5&&queuedBank.inventoryAt(2)==null,
+            "replay changed bank after restoring original items");
         java.io.ByteArrayOutputStream acceptedWire=new java.io.ByteArrayOutputStream();
         ok(queue.drainTo(acceptedWire,2048)>0&&acceptedWire.size()>0,
             "accepted queue published no bytes");
@@ -144,6 +150,7 @@ public final class RecipeBankSemanticAdapterTest {
             " precommitPacketEncoded=true tamperedEncodeDenied=true"+
             " directWriterDeniedWithoutMutation=true"+
             " queueCommitted=true queueRefusalRetracted=true"+
+            " restoredPreimageReplayDenied=true"+
             " bankOpenMirrorDenied=true"+
             " liveRecipeRegistered=false");
     }
