@@ -15,6 +15,14 @@ final class LocalReviewIntentAdmissionVeto {
     static final String PROPERTY=
         "spk.local.experimentalReviewIntentAdmissionVeto";
 
+    // Test-only, default-inert seam inside the marker-to-second-lock-check gap.
+    @FunctionalInterface interface AfterNegativeChecksProbe {
+        void run(Path account);
+    }
+    private static volatile AfterNegativeChecksProbe afterNegativeChecksForTest;
+    static void setAfterNegativeChecksForTest(AfterNegativeChecksProbe probe) {
+        afterNegativeChecksForTest=probe;
+    }
     private LocalReviewIntentAdmissionVeto(){}
 
     static void requireConfiguration(
@@ -47,6 +55,23 @@ final class LocalReviewIntentAdmissionVeto {
                 .requireNoReviewMarker(lockedPath);
             // G21.302: even if ACTIVE was removed, an existing
             // one-shot final-review witness remains NEGATIVE.
+            LocalFinalSaveNegativeWitness
+                .requireNoNegativeWitness(lockedPath);
+            // G21.378: reobserve the selected lock pathname AFTER
+            // the negative-marker I/O, not only before it. A hostile
+            // rename remains a TOCTOU risk, not a durable owner epoch.
+            // This denies an observed changed lock before hydration.
+            AfterNegativeChecksProbe probe=afterNegativeChecksForTest;
+            if(probe!=null)probe.run(lockedPath);
+            if(!lockedPath.equals(sessionLease.accountFileForReviewAdmission()))
+                throw new IllegalStateException(
+                    "G21.378 REVIEW_VETO_ACCOUNT_PATH_CHANGED");
+            // G21.380: a negative intent appearing during earlier
+            // sidecar reads must not be missed by this final boundary.
+            // These are repeated negative observations, NOT an atomic
+            // cross-process admission transaction or safe recovery.
+            LocalDurableAccountReviewIntentPrimitive
+                .requireNoReviewMarker(lockedPath);
             LocalFinalSaveNegativeWitness
                 .requireNoNegativeWitness(lockedPath);
         }catch(IOException negative){

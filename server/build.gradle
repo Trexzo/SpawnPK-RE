@@ -1845,6 +1845,12 @@ tasks.register('r85V308Acceptance') {
 }
 
 def currentTrainFocusedTests = [
+    'spk.local.G21377TwoWorldAccountAdmissionTest',
+    'spk.local.G21378ReviewVetoLateLockContinuityTest',
+    'spk.local.G21379ReviewMarkerRestartAdmissionTest',
+    'spk.local.G21380ReviewVetoLateMarkerTest',
+    'spk.local.G21381CrossJvmReviewMarkerAdmissionTest',
+    'spk.local.G21382StrictFinalSaveIntentGateTest',
     'spk.local.ClientCommandRequestQueueTest',
     'spk.local.ClientUiRequestQueueTest',
     'spk.local.ClientBankControlRequestQueueTest',
@@ -2758,10 +2764,10 @@ def currentTrainFocusedTests = [
     'spk.local.SharedNpcRemoteRegionIsolationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 911 ||
-    currentTrainFocusedTests.toSet().size() != 911) {
+if (currentTrainFocusedTests.size() != 917 ||
+    currentTrainFocusedTests.toSet().size() != 917) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 911 unique tests, found " +
+        "Current-train focused manifest drift: expected 917 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
@@ -2960,6 +2966,24 @@ currentTrainCriticalCoverage['g21353-forced-world-active-premove'] = [
 currentTrainCriticalCoverage['g21355-forced-world-active-identity-premove'] = [
     'spk.local.G21355ForcedWorldActiveInodeSwapTest',
     'spk.local.G21356ForcedWorldActiveNonceMutationTest',
+]
+currentTrainCriticalCoverage['g21382-strict-final-save-intent'] = [
+    'spk.local.G21382StrictFinalSaveIntentGateTest',
+]
+currentTrainCriticalCoverage['g21381-crossjvm-review-marker'] = [
+    'spk.local.G21381CrossJvmReviewMarkerAdmissionTest',
+]
+currentTrainCriticalCoverage['g21380-review-late-marker'] = [
+    'spk.local.G21380ReviewVetoLateMarkerTest',
+]
+currentTrainCriticalCoverage['g21379-review-restart-negative'] = [
+    'spk.local.G21379ReviewMarkerRestartAdmissionTest',
+]
+currentTrainCriticalCoverage['g21378-review-veto-lock-continuity'] = [
+    'spk.local.G21378ReviewVetoLateLockContinuityTest',
+]
+currentTrainCriticalCoverage['g21377-two-world-account-admission'] = [
+    'spk.local.G21377TwoWorldAccountAdmissionTest',
 ]
 currentTrainCriticalCoverage['g21376-real-token-pre-active-link-provider'] = [
     'spk.local.G21374StrictOneShotTokenAbsentProviderTest',
@@ -13230,4 +13254,60 @@ tasks.register('g2096GroundBatchPrecommitRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2096GroundBatchMixedStackControlTest')
+}
+
+// G21.377: regression for existing opt-in same-JVM admission across two isolated Worlds.
+// This is NOT a durable cross-process account epoch or final-save ACK.
+tasks.register('g21377TwoWorldAccountAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Second World cannot acquire the same named-account JVM lease before release.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21377TwoWorldAccountAdmissionTest')
+}
+
+// G21.378 late lock-name change after negative marker reads.
+tasks.register('g21378ReviewVetoLateLockRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21378ReviewVetoLateLockContinuityTest')
+}
+
+// G21.379 existing corrupt negative marker refuses recreated-World admission.
+tasks.register('g21379ReviewMarkerRestartRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21379ReviewMarkerRestartAdmissionTest')
+}
+
+// G21.380 post-first-scan negative marker admission denial.
+tasks.register('g21380ReviewVetoLateMarkerRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21380ReviewVetoLateMarkerTest')
+}
+
+// G21.381 independent-JVM negative account review admission.
+tasks.register('g21381CrossJvmReviewMarkerRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21381CrossJvmReviewMarkerAdmissionTest')
+}
+
+// G21.382 strict experimental final-save pre-reservation negative tests.
+tasks.register('g21382StrictFinalSaveIntentGateRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21382StrictFinalSaveIntentGateTest')
 }
