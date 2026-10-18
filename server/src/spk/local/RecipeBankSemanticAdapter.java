@@ -51,6 +51,43 @@ final class RecipeBankSemanticAdapter {
         return bank.previewRecipeInventoryPacket(
             prepared.sealedIds,prepared.sealedQuantities);
     }
+    /**
+     * Source-only queue-backed publication and semantic commit. Caller must
+     * hold owning World authority; do not cross-session share a BankState.
+     * A queue admission is NOT a remote client acknowledgement.
+     */
+    static ServerPacketWriter.RecoverablePacketResult
+        publishAndCommitIfIdle(BankState bank,Prepared prepared,
+                              ServerPacketWriter writer)
+        throws java.io.IOException{
+        Objects.requireNonNull(writer,"writer");
+        synchronized(bank){
+            // Revalidate and encode before any potentially irreversible
+            // packet queue admission. No inventory mutation yet.
+            byte[] payload=encodePreparedInventory(bank,prepared);
+            requireCurrentPreimage(bank,prepared);
+            ServerPacketWriter.RecoverablePacketResult result=
+                writer.publishQueueOnlyRecoverablePacketIfIdle(
+                    ()->writer.varShort(53,payload));
+            if(result==ServerPacketWriter.RecoverablePacketResult.COMMITTED)
+                commit(bank,prepared);
+            return result;
+        }
+    }
+
+    private static void requireCurrentPreimage(BankState bank,Prepared prepared){
+        if(bank!=prepared.owner)
+            throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
+        if(bank.inventoryCapacity()!=prepared.expectedIds.length)
+            throw new IllegalStateException("RECIPE_INVENTORY_CAPACITY_CHANGED");
+        for(int i=0;i<prepared.expectedIds.length;i++){
+            BankState.Stack current=bank.inventoryAt(i);
+            int id=current==null?-1:current.itemId;
+            int qty=current==null?0:current.qty;
+            if(id!=prepared.expectedIds[i]||qty!=prepared.expectedQuantities[i])
+                throw new IllegalStateException("RECIPE_STALE_INVENTORY_POSTIMAGE");
+        }
+    }
     static void commit(BankState bank,
         Prepared prepared
     ){
