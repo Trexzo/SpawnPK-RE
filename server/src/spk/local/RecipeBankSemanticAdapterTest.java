@@ -497,6 +497,7 @@ public final class RecipeBankSemanticAdapterTest {
         regressFailedBankPublicationGeneration(ids,qty);
         regressInventoryAba(ids,qty,known);
         regressFailedInventoryPublicationGeneration(ids,qty);
+        regressMutableAliasIsolation(ids,qty,known);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -519,6 +520,8 @@ public final class RecipeBankSemanticAdapterTest {
             " structuralInventoryAbaDenied=true"+
             " restoreAccountAbaDenied=true"+
             " failedInventoryMutationRevisionStable=true"+
+            " mutableSlotAliasIsolated=true"+
+            " hydratedSnapshotAliasIsolated=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
@@ -858,6 +861,70 @@ public final class RecipeBankSemanticAdapterTest {
            bank.inventoryAt(0).qty==5&&
            bank.inventoryAt(slot).qty==1,
            "invalid semantic replacement partially mutated inventory");
+    }
+
+    private static void regressMutableAliasIsolation(
+        int[] ids,int[] quantities,Set<Integer> known
+    )throws Exception{
+        // A getter must not let an unrelated package-local module mutate
+        // the actual inventory without incrementing its local revision.
+        BankState bank=new BankState();
+        bank.replaceInventorySemantic(ids,quantities);
+        RecipeBankSemanticAdapter.Prepared original=
+            RecipeBankSemanticAdapter.prepare(
+                bank,Collections.singletonMap(100,2),
+                300,3,2,known);
+        long revision=bank.inventoryMutationRevision();
+        BankState.Stack exposed=bank.inventoryAt(0);
+        ok(exposed!=null,"alias regression missing occupied inventory");
+        exposed.qty=Integer.MAX_VALUE;
+        exposed.tab=999;
+        ok(bank.inventoryAt(0).qty==5&&
+            bank.inventoryAt(0).tab!=999&&
+            bank.inventoryMutationRevision()==revision,
+            "inventoryAt returned a mutable canonical inventory alias");
+        BankState.Stack existingBank=bank.bankAt(0);
+        if(existingBank!=null){
+            int bankQuantity=existingBank.qty;
+            existingBank.qty=Integer.MAX_VALUE;
+            ok(bank.bankAt(0).qty==bankQuantity,
+                "bankAt returned mutable canonical bank alias");
+        }
+
+        // Save/hydration APIs must never retain references to arrays or
+        // nested mutable Stack objects supplied by an external repository.
+        BankState hydrated=new BankState();
+        BankState.Stack[] bankSnapshot=
+            new BankState.Stack[hydrated.bankCapacity()];
+        BankState.Stack[] inventorySnapshot=
+            new BankState.Stack[hydrated.inventoryCapacity()];
+        bankSnapshot[0]=new BankState.Stack(200,7,4);
+        inventorySnapshot[0]=new BankState.Stack(100,5,3);
+        inventorySnapshot[1]=new BankState.Stack(200,7);
+        hydrated.restoreAccountState(bankSnapshot,inventorySnapshot,false);
+        long restoreRevision=hydrated.inventoryMutationRevision();
+        inventorySnapshot[0].qty=12345;
+        inventorySnapshot[0].tab=500;
+        inventorySnapshot[1]=null;
+        bankSnapshot[0].qty=12345;
+        bankSnapshot[0]=null;
+        ok(hydrated.inventoryAt(0).qty==5&&
+            hydrated.inventoryAt(0).tab==3&&
+            hydrated.inventoryAt(1).qty==7&&
+            hydrated.bankAt(0).qty==7&&
+            hydrated.bankAt(0).tab==4&&
+            hydrated.inventoryMutationRevision()==restoreRevision,
+            "restoreAccountState retained externally mutable snapshots");
+        // A valid prepared source-only request remains consistent after an
+        // unsuccessful attempt to mutate only detached accessor objects.
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{0,0,0,0}));
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            bank,original,writer)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            bank.inventoryAt(0).qty==1&&bank.inventoryAt(2).qty==6,
+            "defensive getter prevented normal sealed recipe admission");
     }
 
     private RecipeBankSemanticAdapterTest(){}
