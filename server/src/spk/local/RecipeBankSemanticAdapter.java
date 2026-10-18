@@ -62,6 +62,36 @@ final class RecipeBankSemanticAdapter {
                     stackable,toolId,consumeTool));
         }
     }
+    /**
+     * Separate source-only path for verified mixed stackability. Nonstackable
+     * outputs require one inventory slot per unit; the returned postimage
+     * still uses the same sealed BankState publication boundary.
+     */
+    static Prepared prepareMixedWithTool(
+        BankState bank,Map<Integer,Integer> ingredients,
+        int product,int perBatch,int batches,
+        Set<Integer> stackable,Set<Integer> nonstackable,
+        Integer toolId,boolean consumeTool
+    ){
+        Objects.requireNonNull(bank,"bank");
+        synchronized(bank){
+            int n=bank.inventoryCapacity();
+            int[] ids=new int[n],qty=new int[n];
+            for(int slot=0;slot<n;slot++){
+                BankState.Stack stack=bank.inventoryAt(slot);
+                ids[slot]=stack==null?-1:stack.itemId;
+                qty[slot]=stack==null?0:stack.qty;
+            }
+            RecipeMixedPostimagePlanner.Postimage image=
+                RecipeMixedPostimagePlanner.prepare(
+                    ids,qty,ingredients,product,perBatch,batches,
+                    stackable,nonstackable,toolId,consumeTool);
+            return new Prepared(bank,ids,qty,
+                new RecipeStackPostimagePlanner.Postimage(
+                    image.ids,image.quantities));
+        }
+    }
+
     /** Encode the sealed prospective client inventory before semantic commit.
      * The returned bytes are evidence, not a publication or ACK.
      */
