@@ -31,6 +31,15 @@ public final class RecipeBankSemanticAdapterTest {
         changedQty[1]=6;
         bank.replaceInventorySemantic(changedIds,changedQty);
         reject(()->RecipeBankSemanticAdapter.commit(bank,stale));
+        boolean stalePreviewDenied=false;
+        try{
+            RecipeBankSemanticAdapter.encodePreparedInventory(bank,stale);
+        }catch(IllegalStateException expected){
+            stalePreviewDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_STALE_INVENTORY_POSTIMAGE");
+        }
+        ok(stalePreviewDenied,
+            "stale preimage was allowed to produce a client preview");
         ok(bank.inventoryAt(0).qty==1&&bank.inventoryAt(1).qty==6,
             "stale rejection modified bank");
         RecipeBankSemanticAdapter.Prepared tampered=RecipeBankSemanticAdapter.prepare(
@@ -56,6 +65,33 @@ public final class RecipeBankSemanticAdapterTest {
         reject(()->RecipeBankSemanticAdapter.commit(bank,tampered));
         ok(bank.inventoryAt(0).qty==1&&bank.inventoryAt(1).qty==6,
             "mutated prepared postimage changed bank");
+        // A direct source-only semantic commit cannot reuse an already
+        // consumed request, even if the preimage is later restored verbatim.
+        BankState directReplayBank=new BankState();
+        directReplayBank.replaceInventorySemantic(ids,qty);
+        RecipeBankSemanticAdapter.Prepared directReplay=
+            RecipeBankSemanticAdapter.prepare(
+                directReplayBank,Collections.singletonMap(100,2),
+                300,3,2,known);
+        RecipeBankSemanticAdapter.commit(directReplayBank,directReplay);
+        directReplayBank.replaceInventorySemantic(ids,qty);
+        boolean directReplayDenied=false;
+        try{
+            RecipeBankSemanticAdapter.commit(directReplayBank,directReplay);
+        }catch(IllegalStateException expected){
+            directReplayDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_PREPARED_ALREADY_COMMITTED");
+        }
+        ok(directReplayDenied&&directReplayBank.inventoryAt(0).qty==5&&
+            directReplayBank.inventoryAt(2)==null,
+            "source-only direct commit replayed restored preimage");
+        // Privately constructed Prepared objects are mandatory: unrelated
+        // source modules must not mint arbitrary postimages as recipe grants.
+        for(java.lang.reflect.Constructor<?> ctor:
+            RecipeBankSemanticAdapter.Prepared.class.getDeclaredConstructors()){
+            ok(java.lang.reflect.Modifier.isPrivate(ctor.getModifiers()),
+                "untrusted module can directly construct recipe authority");
+        }
         BankState directBank=new BankState();
         directBank.replaceInventorySemantic(ids,qty);
         RecipeBankSemanticAdapter.Prepared directReady=RecipeBankSemanticAdapter.prepare(
@@ -74,6 +110,36 @@ public final class RecipeBankSemanticAdapterTest {
         ok(directDenied&&directBytes.size()==0&&
             directBank.inventoryAt(0).qty==5&&directBank.inventoryAt(2)==null,
             "non-retractable direct publication mutated server or emitted bytes");
+        // A stale postimage is rejected before queue admission: the
+        // live server inventory and output queue must remain untouched.
+        BankState staleQueuedBank=new BankState();
+        staleQueuedBank.replaceInventorySemantic(ids,qty);
+        RecipeBankSemanticAdapter.Prepared staleQueueRequest=
+            RecipeBankSemanticAdapter.prepare(
+                staleQueuedBank,Collections.singletonMap(100,2),
+                300,3,2,known);
+        int[] freshIds=ids.clone(),freshQuantities=qty.clone();
+        freshQuantities[1]=6;
+        staleQueuedBank.replaceInventorySemantic(
+            freshIds,freshQuantities);
+        OutboundPacketQueue staleOutput=new OutboundPacketQueue(1024);
+        ServerPacketWriter staleWriter=new ServerPacketWriter(
+            staleOutput,new IsaacCipher(new int[]{0,0,0,0}));
+        boolean staleQueueDenied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                staleQueuedBank,staleQueueRequest,staleWriter);
+        }catch(IllegalStateException expected){
+            staleQueueDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_STALE_INVENTORY_POSTIMAGE");
+        }
+        ok(staleQueueDenied&&
+            staleOutput.drainTo(new java.io.ByteArrayOutputStream(),1024)==0&&
+            staleQueuedBank.inventoryAt(0).qty==5&&
+            staleQueuedBank.inventoryAt(1).qty==6&&
+            staleQueuedBank.inventoryAt(2)==null,
+            "stale queue request leaked packets or changed inventory");
+
         BankState queuedBank=new BankState();
         queuedBank.replaceInventorySemantic(ids,qty);
         OutboundPacketQueue queue=new OutboundPacketQueue(1024);
@@ -189,6 +255,8 @@ public final class RecipeBankSemanticAdapterTest {
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
             " precommitPacketEncoded=true tamperedEncodeDenied=true"+
+            " stalePreviewDenied=true staleQueueZeroPacket=true"+
+            " directReplayDenied=true privatePreparedConstructor=true"+
             " directWriterDeniedWithoutMutation=true"+
             " queueCommitted=true queueRefusalRetracted=true"+
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
