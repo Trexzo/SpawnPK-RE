@@ -96,10 +96,64 @@ public final class RecipeMixedPostimagePlannerTest {
            "stackable output did not spill past capped stack");
 
         seededConservation();
+        legacyStackableParity();
         System.out.println("RECIPE_MIXED_POSTIMAGE_PASS"+
             " nonstackableOutputs=true retainedAndConsumedTools=true"+
             " malformedClassificationDenied=true maxStackSpill=true"+
-            " seededLedgerCases=1024 noMutation=true liveRecipeRegistered=false");
+            " seededLedgerCases=1024 legacyParityCases=512"+
+            " noMutation=true liveRecipeRegistered=false");
+    }
+
+    private static void legacyStackableParity(){
+        Random random=new Random(0x7A5CA11EL);
+        Set<Integer> allStackable=new HashSet<>(
+            Arrays.asList(100,200,300));
+        for(int trial=0;trial<512;trial++){
+            int[] ids=new int[6],quantities=new int[6];
+            for(int slot=0;slot<ids.length;slot++){
+                int choice=random.nextInt(4);
+                ids[slot]=choice==3?-1:
+                    choice==0?100:choice==1?200:300;
+                quantities[slot]=ids[slot]==-1?0:
+                    1+random.nextInt(9);
+            }
+            int[] originalIds=ids.clone(),
+                originalQty=quantities.clone();
+            Map<Integer,Integer> inputs=new HashMap<>();
+            inputs.put(100,1+random.nextInt(3));
+            if(random.nextBoolean())
+                inputs.put(200,1+random.nextInt(3));
+            int output=100+100*random.nextInt(3);
+            int batches=1+random.nextInt(4),
+                outputPerBatch=1+random.nextInt(3);
+            RecipeStackPostimagePlanner.Postimage legacy=null;
+            RecipeMixedPostimagePlanner.Postimage mixed=null;
+            boolean legacyRejected=false,mixedRejected=false;
+            try{
+                legacy=RecipeStackPostimagePlanner.prepare(
+                    ids,quantities,inputs,output,outputPerBatch,
+                    batches,allStackable);
+            }catch(IllegalStateException expected){
+                legacyRejected=true;
+            }
+            try{
+                mixed=RecipeMixedPostimagePlanner.prepare(
+                    ids,quantities,inputs,output,outputPerBatch,
+                    batches,allStackable,Collections.emptySet(),
+                    null,false);
+            }catch(IllegalStateException expected){
+                mixedRejected=true;
+            }
+            ok(legacyRejected==mixedRejected,
+                "legacy/mixed rejection parity trial="+trial);
+            if(!legacyRejected)
+                ok(Arrays.equals(legacy.ids,mixed.ids)&&
+                   Arrays.equals(legacy.quantities,mixed.quantities),
+                   "legacy/mixed slot postimage differs trial="+trial);
+            ok(Arrays.equals(ids,originalIds)&&
+               Arrays.equals(quantities,originalQty),
+               "legacy parity modified source trial="+trial);
+        }
     }
 
     private static void seededConservation(){
