@@ -277,11 +277,31 @@ public final class RecipeBankSemanticAdapterTest {
             injectedBank,injectedReady,injectingWriter)==
             ServerPacketWriter.RecoverablePacketResult.COMMITTED,
             "injected publish failure consumed recipe request");
+        java.io.ByteArrayOutputStream retriedWire=
+            new java.io.ByteArrayOutputStream();
+        int retriedBytes=injectedQueue.drainTo(retriedWire,4096);
         ok(injectedBank.inventoryAt(0).qty==1&&
-            injectedBank.inventoryAt(2).qty==6&&
-            injectedQueue.drainTo(
-                new java.io.ByteArrayOutputStream(),4096)>0,
+            injectedBank.inventoryAt(2).qty==6&&retriedBytes>0,
             "retry after injected second-view failure did not publish once");
+        // Verify the first failed attempt did not consume outbound ISAAC
+        // state: a fresh writer framing the SAME two postimage views must
+        // produce byte-for-byte identical opcode 53 packets.
+        byte[][] expectedViews=injectedBank.previewRecipeInventoryViews(
+            injectedReady.proposed.ids,injectedReady.proposed.quantities);
+        OutboundPacketQueue expectedQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter expectedWriter=new ServerPacketWriter(
+            expectedQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        ok(expectedWriter.publishQueueOnlyRecoverablePacketIfIdle(
+            ()->{for(byte[] view:expectedViews)
+                expectedWriter.varShort(53,view);})==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED,
+            "fresh reference queue could not admit recipe views");
+        java.io.ByteArrayOutputStream expectedWire=
+            new java.io.ByteArrayOutputStream();
+        expectedQueue.drainTo(expectedWire,4096);
+        ok(Arrays.equals(retriedWire.toByteArray(),
+            expectedWire.toByteArray()),
+            "failed recipe batch advanced ISAAC or changed retry packets");
 
         BankState openRefused=new BankState();
         openRefused.replaceInventorySemantic(ids,qty);
@@ -313,6 +333,7 @@ public final class RecipeBankSemanticAdapterTest {
             " restoredPreimageReplayDenied=true retryAfterRefusalOnce=true"+
             " bankOpenMirrorsAtomic=true bankOpenBackpressureAtomic=true"+
             " secondViewFaultRetracted=true faultRetryOnce=true"+
+            " retryCipherByteParity=true"+
             " liveRecipeRegistered=false");
     }
     private RecipeBankSemanticAdapterTest(){}
