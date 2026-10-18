@@ -52,3 +52,19 @@ These are **synthetic/source-only tests**. Any successful GitHub Linux Gradle or
 - Account generation, session writer lease, cross-World/cross-JVM exclusivity, and final-save crash durability are not implemented by this PR. Follow account-safety PR #2963 and issues #2540 and #2559 rather than inventing a separate recipe-specific recovery authority.
 - Prepared requests must not cross live session/account boundaries. There is no active gameplay entry point; no recipe registration, implicit donor item grant, auto-rollback or account marker cleanup is permitted.
 - Merge and issue closure require the latest exact-head CI results and review of runtime authority boundaries, not simply a growing synthetic regression count.
+
+## Mixed-item recipe milestone — source-only implementation
+
+`RecipeMixedPostimagePlanner` supplements (does not replace) the verified-stackable-only planner. It accepts explicitly supplied and mutually exclusive verified stackable/nonstackable item ID sets; both the recipe items and every occupied inventory slot must have a known classification. Nonstackable inputs consume exactly one item per slot; nonstackable outputs require a distinct empty slot for every unit. Stackable outputs still merge safely and split at `Integer.MAX_VALUE`. Retained/consumed tool overlap remains quantity-checked. A planned result is computed against copied arrays and rejects capacity shortfall before mutating any `BankState`.
+
+`RecipeBankSemanticAdapter.prepareMixedWithTool` passes the mixed postimage to the existing sealed, one-shot, queue-only inventory publication boundary. This is **not a registered crafting feature**; synthetic test IDs and classification sets do not establish real v308 asset semantics.
+
+The Gradle build now includes mandatory `recipeMixedPostimageRegression` and `recipeMixedBankAdapterRegression` tasks. Together they cover nonstackable slot reuse/capacity, retained and consumed nonstackable tool handling, 1,024 seeded per-item conservation checks, 512 differential cases against the original all-stackable planner, queue admission, one-shot replay, queue-full retry, and bank-open mirrored inventory publication.
+
+### Additional publication authority defenses
+
+- Bank overlays now carry a monotonic presentation revision. Every successful open/refresh and close transition invalidates previously prepared recipe views; failed publications leave that revision unchanged. ABA transitions (open-close-open, closed-open-closed, and client-close-reopen) have regression coverage.
+- A prepared recipe pins the outbound writer on its first attempted publication. Queue backpressure remains retryable only through that same writer, and a second writer is denied before queue admission. **This is not a persistent session lease or cross-World account ownership protocol.**
+- No source-only recipe planner supplies a live account generation, final-save journal, or client acknowledgement. Coordinate those separately with issues #2540/#2559 and PR #2963.
+
+**Release gate:** treat every newly committed test as pending until both Linux Gradle and Windows source-only CI pass at the exact PR head. Neither source-only tests nor synthetic opcode-53 packets certify player-visible crafting.
