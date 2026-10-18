@@ -539,6 +539,29 @@ final class BankState {
             " inventoryOccupied="+occupied(inventory);
     }
 
+    /** Source-only conversion preflight: fully encode the proposed inventory
+     * packet before any semantic inventory mutation. No send, no grant.
+     */
+    byte[] previewRecipeInventoryPacket(int[] proposedIds,int[] proposedQty){
+        if(proposedIds==null||proposedQty==null||
+           proposedIds.length!=INVENTORY_CAPACITY||
+           proposedQty.length!=INVENTORY_CAPACITY)
+            throw new IllegalArgumentException("recipe postimage length");
+        Stack[] staged=new Stack[INVENTORY_CAPACITY];
+        for(int i=0;i<staged.length;i++){
+            int item=proposedIds[i],qty=proposedQty[i];
+            if(item<0){
+                if(qty!=0)throw new IllegalArgumentException(
+                    "recipe empty-slot quantity");
+            }else{
+                if(qty<=0)throw new IllegalArgumentException(
+                    "recipe nonpositive quantity");
+                staged[i]=new Stack(item,qty);
+            }
+        }
+        return containerPayload(NORMAL_INVENTORY_CONTAINER,staged);
+    }
+
     void sendNormalInventory(ServerPacketWriter w) throws IOException {
         w.varShort(53, containerPayload(NORMAL_INVENTORY_CONTAINER, inventory));
     }
