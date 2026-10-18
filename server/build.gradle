@@ -13266,3 +13266,15 @@ tasks.named('build') {
     dependsOn tasks.named('recipeStackPostimageRegression')
     dependsOn tasks.named('recipeBankSemanticAdapterRegression')
 }
+
+// Exact opcode-53 LocalItemOnItemHandler deny-by-default evidence.
+tasks.register('recipeItemOnItemDispatchBoundaryRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeItemOnItemDispatchBoundaryTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('recipeItemOnItemDispatchBoundaryRegression')
+}
