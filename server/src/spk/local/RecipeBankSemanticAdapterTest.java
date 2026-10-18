@@ -88,6 +88,16 @@ public final class RecipeBankSemanticAdapterTest {
         ok(queuedBank.inventoryAt(0).qty==1&&
             queuedBank.inventoryAt(2).qty==6,
             "queue admission did not apply semantic inventory");
+        // A committed prepared request cannot be replayed even when its
+        // resulting inventory happens to equal the original preimage.
+        boolean duplicateDenied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                queuedBank,accepted,queuedWriter);
+        }catch(IllegalStateException expected){
+            duplicateDenied=true;
+        }
+        ok(duplicateDenied,"accepted conversion replay was not rejected");
         java.io.ByteArrayOutputStream acceptedWire=new java.io.ByteArrayOutputStream();
         ok(queue.drainTo(acceptedWire,2048)>0&&acceptedWire.size()>0,
             "accepted queue published no bytes");
