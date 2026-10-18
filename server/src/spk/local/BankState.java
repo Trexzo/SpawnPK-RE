@@ -542,7 +542,7 @@ final class BankState {
     /** Source-only conversion preflight: fully encode the proposed inventory
      * packet before any semantic inventory mutation. No send, no grant.
      */
-    byte[] previewRecipeInventoryPacket(int[] proposedIds,int[] proposedQty){
+    byte[] previewRecipeInventoryPacket(int[] proposedIds,int[] proposedQty)throws IOException{
         if(proposedIds==null||proposedQty==null||
            proposedIds.length!=INVENTORY_CAPACITY||
            proposedQty.length!=INVENTORY_CAPACITY)
