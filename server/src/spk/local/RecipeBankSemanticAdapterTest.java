@@ -56,10 +56,29 @@ public final class RecipeBankSemanticAdapterTest {
         reject(()->RecipeBankSemanticAdapter.commit(bank,tampered));
         ok(bank.inventoryAt(0).qty==1&&bank.inventoryAt(1).qty==6,
             "mutated prepared postimage changed bank");
+        BankState directBank=new BankState();
+        directBank.replaceInventorySemantic(ids,qty);
+        RecipeBankSemanticAdapter.Prepared directReady=RecipeBankSemanticAdapter.prepare(
+            directBank,Collections.singletonMap(100,2),300,3,2,known);
+        java.io.ByteArrayOutputStream directBytes=new java.io.ByteArrayOutputStream();
+        ServerPacketWriter directWriter=new ServerPacketWriter(
+            directBytes,new IsaacCipher(new int[]{0,0,0,0}));
+        boolean directDenied=false;
+        try{
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                directBank,directReady,directWriter);
+        }catch(java.io.IOException expected){
+            directDenied=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_DIRECT_WRITER_NONATOMIC_PUBLICATION_DENIED");
+        }
+        ok(directDenied&&directBytes.size()==0&&
+            directBank.inventoryAt(0).qty==5&&directBank.inventoryAt(2)==null,
+            "non-retractable direct publication mutated server or emitted bytes");
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
             " precommitPacketEncoded=true tamperedEncodeDenied=true"+
+            " directWriterDeniedWithoutMutation=true"+
             " liveRecipeRegistered=false");
     }
     private RecipeBankSemanticAdapterTest(){}
