@@ -31,8 +31,15 @@ public final class RecipeBankSemanticAdapterTest {
         reject(()->RecipeBankSemanticAdapter.commit(bank,stale));
         ok(bank.inventoryAt(0).qty==1&&bank.inventoryAt(1).qty==6,
             "stale rejection modified bank");
+        RecipeBankSemanticAdapter.Prepared tampered=RecipeBankSemanticAdapter.prepare(
+            bank,Collections.singletonMap(100,1),300,1,1,known);
+        tampered.proposed.quantities[0]=Integer.MAX_VALUE;
+        reject(()->RecipeBankSemanticAdapter.commit(bank,tampered));
+        ok(bank.inventoryAt(0).qty==1&&bank.inventoryAt(1).qty==6,
+            "mutated prepared postimage changed bank");
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
+            " tamperedResultDenied=true"+
             " liveRecipeRegistered=false");
     }
     private RecipeBankSemanticAdapterTest(){}
