@@ -13240,3 +13240,12 @@ tasks.register('recipeConversionQuantityPlannerRegression', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.RecipeConversionQuantityPlannerTest')
 }
+
+// Source-only donor-derived atomic stackable recipe postimage regression.
+tasks.register('recipeStackPostimageRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeStackPostimagePlannerTest')
+}
