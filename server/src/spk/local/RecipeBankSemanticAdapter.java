@@ -144,7 +144,7 @@ final class RecipeBankSemanticAdapter {
                 writer.publishQueueOnlyRecoverablePacketIfIdle(
                     ()->{for(byte[] view:views)writer.varShort(53,view);});
             if(result==ServerPacketWriter.RecoverablePacketResult.COMMITTED)
-                commit(bank,prepared);
+                commitAfterAdmittedPublication(bank,prepared);
             return result;
         }
     }
@@ -173,23 +173,37 @@ final class RecipeBankSemanticAdapter {
             throw new IllegalStateException(
                 "RECIPE_STALE_INVENTORY_GENERATION");
     }
-    static void commit(BankState bank,
-        Prepared prepared
-    ){
+    static void commit(BankState bank,Prepared prepared){
         Objects.requireNonNull(bank,"bank");
         Objects.requireNonNull(prepared,"prepared");
         synchronized(bank){
-            // The direct semantic path is source-only, not public gameplay.
-            // Serialize it with recipe preparation and queue publication.
-            requireCurrentPreimage(bank,prepared);
-            if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
-               !Arrays.equals(prepared.sealedQuantities,
-                   prepared.proposed.quantities))
+            // Source-only direct semantic commit may never bypass a
+            // previously attempted queue publication. Once bound to a
+            // writer, publication/retry is the only valid commit channel.
+            if(prepared.publicationWriter!=null)
                 throw new IllegalStateException(
-                    "RECIPE_PREPARED_POSTIMAGE_CHANGED");
-            bank.replaceInventorySemantic(prepared.sealedIds.clone(),
-                prepared.sealedQuantities.clone());
-            prepared.committed=true;
+                    "RECIPE_DIRECT_COMMIT_AFTER_PUBLICATION_ATTEMPT_DENIED");
+            applyPrepared(bank,prepared);
         }
+    }
+
+    private static void commitAfterAdmittedPublication(
+        BankState bank,Prepared prepared
+    ){
+        // Only call from inside the BankState monitor after a successful
+        // recoverable queue admission. No public direct bypass exists.
+        applyPrepared(bank,prepared);
+    }
+
+    private static void applyPrepared(BankState bank,Prepared prepared){
+        requireCurrentPreimage(bank,prepared);
+        if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
+           !Arrays.equals(prepared.sealedQuantities,
+               prepared.proposed.quantities))
+            throw new IllegalStateException(
+                "RECIPE_PREPARED_POSTIMAGE_CHANGED");
+        bank.replaceInventorySemantic(prepared.sealedIds.clone(),
+            prepared.sealedQuantities.clone());
+        prepared.committed=true;
     }
 }
