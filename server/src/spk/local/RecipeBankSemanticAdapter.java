@@ -14,6 +14,7 @@ final class RecipeBankSemanticAdapter {
         private final int[] expectedIds,expectedQuantities;
         private final boolean expectedBankOpen;
         private final long expectedBankViewRevision;
+        private final long expectedInventoryMutationRevision;
         // Tests may deliberately mutate this view; semantic/publication paths
         // use only privately sealed arrays and reject any changed proposal.
         final RecipeStackPostimagePlanner.Postimage proposed;
@@ -27,6 +28,7 @@ final class RecipeBankSemanticAdapter {
             expectedIds=ids.clone();expectedQuantities=quantities.clone();
             expectedBankOpen=owner.isOpen();
             expectedBankViewRevision=owner.bankViewRevision();
+            expectedInventoryMutationRevision=owner.inventoryMutationRevision();
             proposed=image;
             sealedIds=image.ids.clone();sealedQuantities=image.quantities.clone();
         }
@@ -157,6 +159,10 @@ final class RecipeBankSemanticAdapter {
             throw new IllegalStateException("RECIPE_STALE_BANK_VIEW");
         if(bank.inventoryCapacity()!=prepared.expectedIds.length)
             throw new IllegalStateException("RECIPE_INVENTORY_CAPACITY_CHANGED");
+        if(bank.inventoryMutationRevision()!=
+           prepared.expectedInventoryMutationRevision)
+            throw new IllegalStateException(
+                "RECIPE_STALE_INVENTORY_GENERATION");
         for(int i=0;i<prepared.expectedIds.length;i++){
             BankState.Stack current=bank.inventoryAt(i);
             int id=current==null?-1:current.itemId;
