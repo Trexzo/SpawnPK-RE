@@ -17,6 +17,71 @@ final class RecipeStackPostimagePlanner {
     }
     private RecipeStackPostimagePlanner(){}
 
+    /**
+     * Source-only tool-aware adapter: a retained tool is reserved even when
+     * its item ID is also consumed as an ingredient. A consumed tool is
+     * charged once per batch and may only be a verified stackable item.
+     * This does not establish item ID, skill XP or client recipe authority.
+     */
+    static Postimage prepareWithTool(
+        int[] originalIds,int[] originalQuantities,
+        Map<Integer,Integer> inputs,int outputId,int outputPerRecipe,
+        int batches,Set<Integer> verifiedStackableIds,
+        Integer toolId,boolean consumeTool
+    ){
+        Objects.requireNonNull(originalIds,"originalIds");
+        Objects.requireNonNull(originalQuantities,"originalQuantities");
+        Objects.requireNonNull(inputs,"inputs");
+        Objects.requireNonNull(verifiedStackableIds,"verifiedStackableIds");
+        if(toolId==null){
+            if(consumeTool)
+                throw new IllegalArgumentException(
+                    "consumed recipe tool without an item ID");
+            return prepare(originalIds,originalQuantities,inputs,
+                outputId,outputPerRecipe,batches,verifiedStackableIds);
+        }
+        if(toolId<=0||originalIds.length!=originalQuantities.length)
+            throw new IllegalArgumentException("invalid recipe tool");
+        long owned=0;
+        for(int i=0;i<originalIds.length;i++){
+            if(originalIds[i]==toolId){
+                if(originalQuantities[i]<=0)
+                    throw new IllegalArgumentException(
+                        "malformed recipe tool inventory");
+                owned+=originalQuantities[i];
+            }
+        }
+        if(owned==0)
+            throw new IllegalStateException("RECIPE_REQUIRED_TOOL_MISSING");
+        Map<Integer,Integer> effective=new HashMap<>(inputs);
+        if(consumeTool){
+            if(!verifiedStackableIds.contains(toolId))
+                throw new IllegalArgumentException(
+                    "unverified consumed recipe tool");
+            Integer ingredient=effective.get(toolId);
+            if(ingredient!=null&&
+               (ingredient<=0||ingredient==Integer.MAX_VALUE))
+                throw new IllegalArgumentException(
+                    "recipe tool quantity overflow");
+            effective.put(toolId,ingredient==null?1:ingredient+1);
+        }else{
+            Integer overlappingIngredient=inputs.get(toolId);
+            if(overlappingIngredient!=null){
+                if(overlappingIngredient<=0||batches<=0)
+                    throw new IllegalArgumentException(
+                        "invalid retained recipe tool request");
+                long required=Math.addExact(
+                    Math.multiplyExact((long)overlappingIngredient,
+                        (long)batches),1L);
+                if(owned<required)
+                    throw new IllegalStateException(
+                        "RECIPE_RETAINED_TOOL_REQUIRED");
+            }
+        }
+        return prepare(originalIds,originalQuantities,effective,
+            outputId,outputPerRecipe,batches,verifiedStackableIds);
+    }
+
     static Postimage prepare(int[] originalIds,int[] originalQuantities,
         Map<Integer,Integer> inputs,int outputId,int outputPerRecipe,
         int batches,Set<Integer> verifiedStackableIds
