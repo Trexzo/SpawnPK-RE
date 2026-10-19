@@ -265,6 +265,83 @@ public final class DoppelgangerDyeTransactionRegression {
         }
     }
 
+    private static void directWriterFailsClosed(
+        boolean bankOpen
+    )throws Exception{
+        BankState bank=withItems(3,1,9,2);
+        ByteArrayOutputStream directWire=new ByteArrayOutputStream();
+        ServerPacketWriter writer=new ServerPacketWriter(
+            directWire,new IsaacCipher(new int[]{0,0,0,0}));
+        // A direct writer cannot guarantee item/packet atomicity.
+        // Opening a bank on a direct writer is not needed for the fixture:
+        // test closed-bank rejection with the actual direct transport.
+        if(bankOpen){
+            // Set the overlay using a separate queue-backed writer. The
+            // packet transport being tested remains the direct writer.
+            OutboundPacketQueue bootstrap=new OutboundPacketQueue(8192);
+            ServerPacketWriter initializer=writer(bootstrap);
+            bank.open(initializer);
+            bootstrap.drainTo(new ByteArrayOutputStream(),8192);
+        }
+        long before=bank.inventoryMutationRevision();
+        boolean refused=false;
+        try{
+            new LocalItemOnItemHandler(bank).handle(
+                action(3,9,REGULAR,DYE),writer);
+        }catch(IOException expected){
+            refused=String.valueOf(expected.getMessage()).contains(
+                "RECIPE_DIRECT_WRITER_NONATOMIC_PUBLICATION_DENIED");
+        }
+        ok(refused&&directWire.size()==0&&
+            bank.inventoryMutationRevision()==before&&
+            bank.inventoryAt(3).itemId==REGULAR&&
+            bank.inventoryAt(9).qty==2,
+            "direct writer granted dye without atomic queue authority");
+    }
+
+    private static void fullQueueRetryPreservesWire(
+        boolean bankOpen
+    )throws Exception{
+        BankState bank=withItems(3,1,9,2);
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+        ServerPacketWriter writer=writer(queue);
+        if(bankOpen){
+            bank.open(writer);
+            queue.drainTo(new ByteArrayOutputStream(),8192);
+        }
+        long before=bank.inventoryMutationRevision();
+        queue.offerBatch(new byte[8192]);
+        boolean retractable=false;
+        try{
+            new LocalItemOnItemHandler(bank).handle(
+                action(3,9,REGULAR,DYE),writer);
+        }catch(IOException expected){
+            retractable=String.valueOf(expected.getMessage()).contains(
+                "DOPPELGANGER_DYE_PACKET_ADMISSION_RETRYABLE");
+        }
+        ok(retractable&&bank.inventoryMutationRevision()==before&&
+            bank.inventoryAt(3).itemId==REGULAR&&
+            bank.inventoryAt(9).qty==2&&
+            queue.queuedBytes()==8192,
+            "full-queue dye attempt was not retried atomically");
+        queue.drainTo(new ByteArrayOutputStream(),8192);
+        LocalItemOnItemHandler.Result retried=
+            new LocalItemOnItemHandler(bank).handle(
+                action(3,9,REGULAR,DYE),writer);
+        ok(retried!=null&&
+            "DOPPELGANGER_APPLY_DYE".equals(retried.saveReason)&&
+            queue.queuedPackets()==1&&
+            bank.inventoryMutationRevision()==before+1&&
+            bank.inventoryAt(3).itemId==DYED&&
+            bank.inventoryAt(9).qty==1,
+            "recoverable queue refusal poisoned later dye transaction");
+        ByteArrayOutputStream actual=new ByteArrayOutputStream();
+        queue.drainTo(actual,8192);
+        byte[] expected=encodedDyeOutcome(false,bankOpen,2);
+        ok(Arrays.equals(actual.toByteArray(),expected),
+            "retracted dye changed outbound ISAAC or bank mirrors");
+    }
+
     private static void competingDistinctWriters()throws Exception{
         java.util.concurrent.ExecutorService workers=
             java.util.concurrent.Executors.newFixedThreadPool(2);
@@ -428,6 +505,8 @@ public final class DoppelgangerDyeTransactionRegression {
             queueFailure(bankOpen);
             writerAdmissionGuard(bankOpen,false);
             writerAdmissionGuard(bankOpen,true);
+            directWriterFailsClosed(bankOpen);
+            fullQueueRetryPreservesWire(bankOpen);
         }
         rejectRegularStack();
         verifyDirectionWireParity();
@@ -447,6 +526,8 @@ public final class DoppelgangerDyeTransactionRegression {
             " distinctWriterSingleGrantTrials=64"+
             " competingFullQueueNoGrantTrials=32"+
             " directionWireParityBankOpenClosed=true"+
+            " directWriterDenied=true"+
+            " fullQueueRetryIsaacParity=true"+
             " noNewDonorRecipeRegistered=true");
     }
 }
