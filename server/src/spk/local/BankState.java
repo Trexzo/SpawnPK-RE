@@ -108,14 +108,22 @@ final class BankState {
     }
 
     static final class PreparedPetInventoryMutation {
+        // Drop/Pick-up item grants are source-local, one-use capabilities
+        // belonging to their exact BankState and preparation generation.
+        final BankState owner;
+        final long inventoryGeneration;
+        final long bankViewGeneration;
         final Stack[] expectedInventory;
         final Stack[] postimage;
+        private final Stack[] sealedExpectedInventory;
+        private final Stack[] sealedPostimage;
         final boolean expectedOpen;
         final int newPetSlot;
         final int oldPetReturnedSlot;
         final String rejection;
 
-        PreparedPetInventoryMutation(
+        private PreparedPetInventoryMutation(
+            BankState owner,long inventoryGeneration,long bankViewGeneration,
             Stack[] expectedInventory,
             Stack[] postimage,
             boolean expectedOpen,
@@ -123,8 +131,13 @@ final class BankState {
             int oldPetReturnedSlot,
             String rejection
         ){
-            this.expectedInventory=expectedInventory;
-            this.postimage=postimage;
+            this.owner=java.util.Objects.requireNonNull(owner,"owner");
+            this.inventoryGeneration=inventoryGeneration;
+            this.bankViewGeneration=bankViewGeneration;
+            this.expectedInventory=copyStacks(expectedInventory);
+            this.postimage=postimage==null?null:copyStacks(postimage);
+            this.sealedExpectedInventory=copyStacks(expectedInventory);
+            this.sealedPostimage=postimage==null?null:copyStacks(postimage);
             this.expectedOpen=expectedOpen;
             this.newPetSlot=newPetSlot;
             this.oldPetReturnedSlot=oldPetReturnedSlot;
@@ -1126,7 +1139,7 @@ final class BankState {
         );
     }
 
-    PreparedPetInventoryMutation preparePetDropInventory(
+    synchronized PreparedPetInventoryMutation preparePetDropInventory(
         int slot,
         int newItemId,
         Integer oldItemId
@@ -1137,6 +1150,7 @@ final class BankState {
         if(!validSlot(expected,slot)||
            expected[slot]==null)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1149,6 +1163,7 @@ final class BankState {
 
         if(clicked.itemId!=newItemId)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1160,6 +1175,7 @@ final class BankState {
 
         if(clicked.qty<=0)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1198,6 +1214,7 @@ final class BankState {
 
             if(dst<0)
                 return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                     expected,
                     null,
                     open,
@@ -1210,6 +1227,7 @@ final class BankState {
                (next[dst].itemId!=old||
                 next[dst].qty==Integer.MAX_VALUE))
                 return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                     expected,
                     null,
                     open,
@@ -1230,6 +1248,7 @@ final class BankState {
         }
 
         return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
             expected,
             next,
             open,
@@ -1239,7 +1258,7 @@ final class BankState {
         );
     }
 
-    PreparedPetInventoryMutation preparePetPickupInventory(
+    synchronized PreparedPetInventoryMutation preparePetPickupInventory(
         int itemId
     ){
         Stack[] expected=
@@ -1257,6 +1276,7 @@ final class BankState {
 
         if(dst<0)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1268,6 +1288,7 @@ final class BankState {
         if(next[dst]!=null&&
            next[dst].qty==Integer.MAX_VALUE)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1286,6 +1307,7 @@ final class BankState {
         next[dst].qty++;
 
         return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
             expected,
             next,
             open,
@@ -1295,45 +1317,57 @@ final class BankState {
         );
     }
 
-    void publishPreparedPetInventory(
-        PreparedPetInventoryMutation prepared,
-        ServerPacketWriter w
-    )throws IOException{
-        if(prepared==null||
-           !prepared.accepted())
+    /**
+     * Validate both sides of a prepared pet item mutation before publishing
+     * inventory presentation or committing a semantic change.
+     *
+     * This is deliberately an independent local item-state fence: the
+     * caller's World/actor ownership and multi-domain batch remain external.
+     */
+    private void verifyPreparedPetInventory(
+        PreparedPetInventoryMutation prepared
+    ){
+        if(prepared==null||!prepared.accepted())
             throw new IllegalArgumentException(
                 "accepted prepared pet inventory required"
             );
+        if(prepared.owner!=this)
+            throw new IllegalStateException(
+                "prepared pet inventory belongs to another BankState"
+            );
+        if(prepared.inventoryGeneration!=inventoryMutationRevision||
+           prepared.bankViewGeneration!=bankViewRevision||
+           open!=prepared.expectedOpen||
+           !sameStacks(inventory,prepared.sealedExpectedInventory))
+            throw new IllegalStateException(
+                "prepared pet inventory ownership/view/preimage changed"
+            );
+        if(!sameStacks(prepared.expectedInventory,
+                       prepared.sealedExpectedInventory)||
+           !sameStacks(prepared.postimage,
+                       prepared.sealedPostimage))
+            throw new IllegalStateException(
+                "prepared pet inventory arrays modified after preflight"
+            );
+    }
 
+    synchronized void publishPreparedPetInventory(
+        PreparedPetInventoryMutation prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        verifyPreparedPetInventory(prepared);
         publishNormalInventoryStructuralPostimage(
             w,
-            prepared.postimage,
+            prepared.sealedPostimage,
             prepared.expectedOpen
         );
     }
 
-    void commitPreparedPetInventory(
+    synchronized void commitPreparedPetInventory(
         PreparedPetInventoryMutation prepared
     ){
-        if(prepared==null||
-           !prepared.accepted())
-            throw new IllegalArgumentException(
-                "accepted prepared pet inventory required"
-            );
-
-        if(open!=prepared.expectedOpen||
-           !sameStacks(
-                inventory,
-                prepared.expectedInventory
-           ))
-            throw new IllegalStateException(
-                "pet inventory preimage changed before commit"
-            );
-
-        replaceStacks(
-            inventory,
-            prepared.postimage
-        );
+        verifyPreparedPetInventory(prepared);
+        replaceStacks(inventory,prepared.sealedPostimage);
     }
 
     /** Remove exactly one item from a concrete inventory slot (pet Drop path). */

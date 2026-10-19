@@ -13507,3 +13507,17 @@ tasks.register('preparedInventoryMutationOwnershipRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('preparedInventoryMutationOwnershipRegression')
 }
+
+// R25: prepared pet Drop/Pick-up inventory postimages belong only to their
+// exact BankState/inventory/view generation and may not be altered.
+tasks.register('preparedPetInventoryOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fence pet Drop/Pick-up inventory preflight by owner and generation, and reject mutable prepared-item publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedPetInventoryOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedPetInventoryOwnershipRegression')
+}
