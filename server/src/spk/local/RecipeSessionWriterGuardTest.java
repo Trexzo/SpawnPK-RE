@@ -12,6 +12,10 @@ public final class RecipeSessionWriterGuardTest {
     private RecipeSessionWriterGuardTest(){}
     private static final Set<Integer> STACKABLE=
         new HashSet<>(Arrays.asList(100,300));
+    // Synthetic all-stackable fixture is independent of the mixed-item
+    // test's explicit nonstackable=200 classification.
+    private static final Set<Integer> ALL_STACKABLE_FIXTURE=
+        new HashSet<>(Arrays.asList(100,200,300));
     private static final Set<Integer> NONSTACKABLE=
         new HashSet<>(Arrays.asList(200,400));
 
@@ -58,7 +62,7 @@ public final class RecipeSessionWriterGuardTest {
         RecipeSessionWriterGuard witness)throws Exception{
         return RecipeWorldOwnedAdapter.prepareSessionStackable(
             witness,Collections.singletonMap(100,2),300,3,2,
-            STACKABLE,null,false);
+            ALL_STACKABLE_FIXTURE,null,false);
     }
     private static RecipeWorldOwnedAdapter.SessionPrepared prepareMixed(
         RecipeSessionWriterGuard witness)throws Exception{
