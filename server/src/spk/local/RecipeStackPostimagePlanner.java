@@ -120,6 +120,14 @@ final class RecipeStackPostimagePlanner {
                ids[i]==-1&&counts[i]!=0 ||
                ids[i]>=0&&counts[i]<=0)
                 throw new IllegalArgumentException("malformed inventory");
+            // The stackable-only planner has no nonstackable semantic
+            // authority. Preserve unrelated items only if the caller has
+            // explicitly verified their stackability, too. Otherwise use
+            // the mixed-item planner with both evidence classifications.
+            if(ids[i]>=0&&(ids[i]==0||
+                !verifiedStackableIds.contains(ids[i])))
+                throw new IllegalArgumentException(
+                    "unverified occupied stackable inventory item");
         }
         for(Map.Entry<Integer,Long> ingredient:consume.entrySet()){
             long required=ingredient.getValue();
