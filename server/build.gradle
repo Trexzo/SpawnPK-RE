@@ -13348,3 +13348,19 @@ tasks.register('recipeSessionWriterGuardRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('recipeSessionWriterGuardRegression')
 }
+
+
+// Synthetic exact-writer parity: request none/1/5/64 read-only previews
+// before queue publication and require identical outbound ISAAC wire bytes.
+tasks.register('recipeSessionPreviewWireParityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Compare source-only bank-closed/open session recipe queued bytes with/without read-only previews.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeSessionPreviewWireParityTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('recipeSessionPreviewWireParityRegression')
+}
