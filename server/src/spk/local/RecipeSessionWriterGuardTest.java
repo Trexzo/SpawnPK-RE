@@ -338,6 +338,7 @@ public final class RecipeSessionWriterGuardTest {
             legacyWorldOnlyCannotBypassSessionWitness(world);
             sessionPreviewIsReadOnly(world);
             concurrentLegacyToSessionBinding(world);
+            sessionBankOpenViewPreview(world);
         }finally{
             world.close();
         }
@@ -358,9 +359,74 @@ public final class RecipeSessionWriterGuardTest {
             " worldOnlyBypassAfterSessionClaimDenied=true"+
             " sessionPreviewReadOnlyAndStaleDenied=true"+
             " legacyVsWriterClaimRaces=128"+
+            " bankOpenPreviewMirrorAndAbaDenied=true"+
             " revocationPublicationRaces=64"+
             " concurrentOneTimeWitnessClaims=64"+
             " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void sessionBankOpenViewPreview(World world)
+        throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_bank_open_view_preview");
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+        ServerPacketWriter writer=writer(queue);
+        player.bank().open(writer);
+        queue.drainTo(new java.io.ByteArrayOutputStream(),8192);
+        ok(queue.queuedBytes()==0&&player.bank().isOpen(),
+            "bank-open preview fixture not initialized");
+        RecipeSessionWriterGuard guard=new RecipeSessionWriterGuard(
+            world,player,generation,writer);
+        RecipeWorldOwnedAdapter.SessionPrepared prepared=
+            prepareMixed(guard);
+        long revision=player.bank().inventoryMutationRevision();
+        long viewRevision=player.bank().bankViewRevision();
+        byte[][] views=RecipeWorldOwnedAdapter.previewSessionViews(prepared);
+        byte[][] copy=RecipeWorldOwnedAdapter.previewSessionViews(prepared);
+        byte[] primary=RecipeWorldOwnedAdapter.previewSession(prepared);
+        ok(views.length==2&&copy.length==2&&
+            Arrays.deepEquals(views,copy)&&
+            Arrays.equals(views[0],primary)&&
+            views[0].length>=4&&views[1].length>=4&&
+            ((views[0][0]&255)<<8|(views[0][1]&255))==3214&&
+            ((views[1][0]&255)<<8|(views[1][1]&255))==5064&&
+            queue.queuedBytes()==0&&
+            player.bank().inventoryMutationRevision()==revision&&
+            player.bank().bankViewRevision()==viewRevision&&
+            player.bank().inventoryAt(0).qty==5,
+            "bank-open view preview did not return pure mirror bodies");
+        views[0][0]^=0x1;
+        views[1][0]^=0x1;
+        ok(Arrays.deepEquals(copy,
+                RecipeWorldOwnedAdapter.previewSessionViews(prepared)),
+            "returned bank mirror alias modified subsequent previews");
+
+        player.bank().close(writer);
+        player.bank().open(writer);
+        queue.drainTo(new java.io.ByteArrayOutputStream(),8192);
+        denied(()->RecipeWorldOwnedAdapter.previewSessionViews(prepared),
+            "RECIPE_STALE_BANK_VIEW");
+        ok(queue.queuedBytes()==0&&
+            player.bank().inventoryAt(0).qty==5,
+            "bank-view ABA preview queued or granted an item");
+        RecipeWorldOwnedAdapter.SessionPrepared refreshed=
+            prepareMixed(guard);
+        byte[][] expected=
+            RecipeWorldOwnedAdapter.previewSessionViews(refreshed);
+        ok(expected.length==2&&
+            RecipeWorldOwnedAdapter.publishSession(refreshed)==
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            queue.queuedPackets()==1&&
+            player.bank().inventoryAt(0).qty==3&&
+            player.bank().inventoryAt(1).itemId==400,
+            "fresh bank-open preview altered mirrored publication");
+        denied(()->RecipeWorldOwnedAdapter.previewSessionViews(refreshed),
+            "RECIPE_PREPARED_ALREADY_COMMITTED");
+        guard.revokeAndAwait();
+        ok(world.unregisterPlayer(player,generation),
+            "bank-open preview owner cleanup failed");
     }
 
     private static void concurrentLegacyToSessionBinding(World world)
