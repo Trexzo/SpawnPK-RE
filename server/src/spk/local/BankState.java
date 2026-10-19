@@ -2489,8 +2489,20 @@ final class BankState {
                 return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
 
             nextInventory[regularSlot]=new Stack(resultItem,1);
-            publishNormalInventoryStructuralPostimage(
-                w,nextInventory,open);
+            // Live dye conversion is an item grant. Unlike ordinary
+            // structural UI publications, its semantic inventory commit
+            // requires a COMPLETE, retractable queue admission first.
+            // A direct socket writer may partially emit bytes and cannot
+            // provide the same rollback guarantee, so it fails closed.
+            final boolean expectedBankOpen=open;
+            ServerPacketWriter.RecoverablePacketResult published=
+                w.publishQueueOnlyRecoverablePacketIfIdle(
+                    ()->writeNormalInventoryStructuralPostimage(
+                        w,nextInventory,expectedBankOpen));
+            if(published!=
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED)
+                throw new IOException(
+                    "DOPPELGANGER_DYE_PACKET_ADMISSION_RETRYABLE");
             replaceStacks(inventory,nextInventory);
             return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+
                 " consumed="+itemA+"+"+itemB+" result="+resultItem;
