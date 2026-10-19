@@ -44,10 +44,12 @@ final class RecipeWorldOwnedAdapter {
             new AtomicReference<>();
         boolean owned=world.withOpenPlayerMutationOwnershipIfCurrent(
             player,generation,
-            ()->planned.set(
-                RecipeBankSemanticAdapter.prepareWithTool(
+            ()->{
+                player.requireUnclaimedRecipeGeneration(generation);
+                planned.set(RecipeBankSemanticAdapter.prepareWithTool(
                     player.bank(),ingredients,product,perBatch,batches,
-                    stackable,toolId,consumeTool))
+                    stackable,toolId,consumeTool));
+            }
         );
         if(!owned)
             throw new IllegalStateException(
@@ -68,10 +70,12 @@ final class RecipeWorldOwnedAdapter {
             new AtomicReference<>();
         boolean owned=world.withOpenPlayerMutationOwnershipIfCurrent(
             player,generation,
-            ()->planned.set(
-                RecipeBankSemanticAdapter.prepareMixedWithTool(
+            ()->{
+                player.requireUnclaimedRecipeGeneration(generation);
+                planned.set(RecipeBankSemanticAdapter.prepareMixedWithTool(
                     player.bank(),ingredients,product,perBatch,batches,
-                    stackable,nonstackable,toolId,consumeTool))
+                    stackable,nonstackable,toolId,consumeTool));
+            }
         );
         if(!owned)
             throw new IllegalStateException(
@@ -88,9 +92,13 @@ final class RecipeWorldOwnedAdapter {
             new AtomicReference<>();
         boolean owned=prepared.world.withOpenPlayerMutationOwnershipIfCurrent(
             prepared.player,prepared.generation,
-            ()->result.set(
-                RecipeBankSemanticAdapter.publishAndCommitIfIdle(
-                    prepared.player.bank(),prepared.inventory,prepared.writer))
+            ()->{
+                prepared.player.requireUnclaimedRecipeGeneration(
+                    prepared.generation);
+                result.set(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                    prepared.player.bank(),prepared.inventory,
+                    prepared.writer));
+            }
         );
         if(!owned)
             throw new IllegalStateException(
