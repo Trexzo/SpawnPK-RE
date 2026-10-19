@@ -1183,17 +1183,33 @@ final class LocalPendingRequestDispatcher {
                 serverPackets
             );
 
-        bridge.saveAccount(
-            tag,
-            "BANK_ITEM_ACTION"
-        );
+        // Bank widget ownership does not itself imply a mutation.
+        // Unsupported opcodes, stale item IDs, closed-bank actions and
+        // X-amount prompts must not schedule an account save.
+        if(bankItemActionMutated(result))
+            bridge.saveAccount(tag,"BANK_ITEM_ACTION");
 
         System.out.println(
             tag+"V522_BANK_ITEM_ACTION "+
             action+
             " result="+result+
             " decoderAligned=true"+
-            " bankOwnership=true"
+            " bankOwnership=true"+
+            " saveIntent="+bankItemActionMutated(result)
+        );
+    }
+
+    /**
+     * Only the existing completed bank-store/withdraw result labels imply
+     * an account mutation. UI prompts and fail-closed bank events do not.
+     * This check is intentionally narrower than widget membership.
+     */
+    private static boolean bankItemActionMutated(String result){
+        return result!=null&&(
+            result.startsWith("WITHDRAW_OK amount=")||
+            result.startsWith("WITHDRAW_ALL_BUT_ONE_OK amount=")||
+            result.startsWith("WITHDRAW_CONFIGURED_OK amount=")||
+            result.startsWith("STORE_OK amount=")
         );
     }
 
