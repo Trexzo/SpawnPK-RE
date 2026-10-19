@@ -579,6 +579,64 @@ public final class DoppelgangerDyeTransactionRegression {
         }
     }
 
+    private static void independentContainerWireReference()
+        throws Exception{
+        for(boolean bankOpen:new boolean[]{false,true}){
+            for(int dyeQuantity:new int[]{2,3,256}){
+                // Expected client inventory is constructed independently
+                // of the live handler's mutated BankState. This also
+                // exercises the 255+ extended item-quantity wire format.
+                BankState reference=withItems(3,1,9,dyeQuantity);
+                OutboundPacketQueue referenceQueue=
+                    new OutboundPacketQueue(8192);
+                ServerPacketWriter referenceWriter=writer(referenceQueue);
+                if(bankOpen){
+                    reference.open(referenceWriter);
+                    referenceQueue.drainTo(
+                        new ByteArrayOutputStream(),8192);
+                }
+                int n=reference.inventoryCapacity();
+                int[] expectedIds=new int[n],expectedQty=new int[n];
+                Arrays.fill(expectedIds,-1);
+                expectedIds[3]=DYED;expectedQty[3]=1;
+                expectedIds[9]=DYE;expectedQty[9]=dyeQuantity-1;
+                referenceWriter.beginBatch();
+                boolean ended=false;
+                try{
+                    referenceWriter.varShort(53,
+                        BootstrapPackets.itemContainer53(
+                            INVENTORY,expectedIds,expectedQty));
+                    if(bankOpen){
+                        int[] bankIds=new int[reference.bankCapacity()];
+                        int[] bankQty=new int[bankIds.length];
+                        Arrays.fill(bankIds,-1);
+                        referenceWriter.varShort(53,
+                            BootstrapPackets.itemContainer53(
+                                BankState.BANK_CONTAINER,
+                                bankIds,bankQty));
+                        referenceWriter.varShort(53,
+                            BootstrapPackets.itemContainer53(
+                                BankState.BANK_INVENTORY_CONTAINER,
+                                expectedIds,expectedQty));
+                    }
+                    referenceWriter.endBatch();
+                    ended=true;
+                }finally{
+                    if(!ended)referenceWriter.abortBatch();
+                }
+                ByteArrayOutputStream golden=new ByteArrayOutputStream();
+                ok(referenceQueue.drainTo(golden,8192)>0,
+                    "independent dye reference emitted no packets");
+                byte[] actual=encodedDyeOutcome(
+                    false,bankOpen,dyeQuantity);
+                ok(Arrays.equals(actual,golden.toByteArray()),
+                    "live dye did not match independent container-53 "+
+                    "reference bankOpen="+bankOpen+
+                    " dyeCount="+dyeQuantity);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         ok(ItemDefinitionRepository.exists(DYED),
             "verified current dye result missing from item definitions");
@@ -595,6 +653,7 @@ public final class DoppelgangerDyeTransactionRegression {
         }
         rejectRegularStack();
         verifyDirectionWireParity();
+        independentContainerWireReference();
         liveQueueAdmissionContention();
         unverifiedCombinationDenied();
         competingDistinctWriters();
@@ -616,6 +675,7 @@ public final class DoppelgangerDyeTransactionRegression {
             " fullQueueRetryIsaacParity=true"+
             " nonfatalBackpressureNoSave=true"+
             " blockedQueueNoDoubleGrantTrials=32"+
+            " independentContainer53Reference=true extendedQtyBoundary=true"+
             " noNewDonorRecipeRegistered=true");
     }
 }
