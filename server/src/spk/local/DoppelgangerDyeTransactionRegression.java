@@ -178,6 +178,29 @@ public final class DoppelgangerDyeTransactionRegression {
         }
     }
 
+    private static void unverifiedCombinationDenied()throws Exception{
+        BankState bank=withItems(3,1,9,2);
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+        ServerPacketWriter writer=writer(queue);
+        long originalRevision=bank.inventoryMutationRevision();
+        String wrongResult=bank.combineInventoryOne(
+            3,REGULAR,9,DYE,400,writer);
+        String wrongPair=bank.combineInventoryOne(
+            3,REGULAR,9,100,DYED,writer);
+        String reversedInvented=bank.combineInventoryOne(
+            9,DYE,3,REGULAR,999,writer);
+        ok("REJECTED_COMBINE_UNVERIFIED_PAIR".equals(wrongResult)&&
+            "REJECTED_COMBINE_UNVERIFIED_PAIR".equals(wrongPair)&&
+            "REJECTED_COMBINE_UNVERIFIED_PAIR".equals(reversedInvented)&&
+            queue.queuedBytes()==0&&
+            bank.inventoryMutationRevision()==originalRevision&&
+            bank.inventoryAt(3).itemId==REGULAR&&
+            bank.inventoryAt(3).qty==1&&
+            bank.inventoryAt(9).itemId==DYE&&
+            bank.inventoryAt(9).qty==2,
+            "unverified direct combination granted or consumed items");
+    }
+
     private static void simultaneousDyeRequests(
         boolean reversed,boolean bankOpen
     )throws Exception{
@@ -255,6 +278,7 @@ public final class DoppelgangerDyeTransactionRegression {
             writerAdmissionGuard(bankOpen,true);
         }
         rejectRegularStack();
+        unverifiedCombinationDenied();
         for(boolean bankOpen:new boolean[]{false,true})
             for(boolean reverse:new boolean[]{false,true})
                 simultaneousDyeRequests(reverse,bankOpen);
@@ -264,6 +288,7 @@ public final class DoppelgangerDyeTransactionRegression {
             " stackedRegularDenied=true failedQueueAtomic=true"+
             " busyAndTerminalWriterDenied=true cleanRetryAfterBusy=true"+
             " concurrentSingleDyeCommitTrials=256"+
+            " arbitraryDirectCombinationsDenied=true"+
             " noNewDonorRecipeRegistered=true");
     }
 }
