@@ -362,6 +362,7 @@ public final class RecipeSessionWriterGuardTest {
             " inFlightRevocationBarrier=true"+
             " closedWorldSessionDenied=true"+
             " worldOnlyBypassAfterSessionClaimDenied=true"+
+            " missingOccupiedStackEvidenceDenied=true"+
             " sessionPreviewReadOnlyAndStaleDenied=true"+
             " legacyVsWriterClaimRaces=128"+
             " bankOpenPreviewMirrorAndAbaDenied=true"+
@@ -731,6 +732,26 @@ public final class RecipeSessionWriterGuardTest {
             player,"recipe_legacy_bypass_fixture");
         OutboundPacketQueue legacyQueue=new OutboundPacketQueue(4096);
         ServerPacketWriter legacyWriter=writer(legacyQueue);
+        // This inventory includes synthetic item 200. Without a verified
+        // stackable classification, the stricter stackable-only path must
+        // deny it before creating a prepared request or emitting bytes.
+        long initialRevision=player.bank().inventoryMutationRevision();
+        boolean unknownOccupiedDenied=false;
+        try{
+            RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                STACKABLE,null,false);
+        }catch(IllegalArgumentException expected){
+            unknownOccupiedDenied=String.valueOf(expected.getMessage())
+                .contains("unverified occupied stackable inventory item");
+        }
+        ok(unknownOccupiedDenied&&legacyQueue.queuedBytes()==0&&
+            player.bank().inventoryMutationRevision()==initialRevision&&
+            player.bank().inventoryAt(0).qty==5,
+            "unverified occupied item bypassed stackable-only planner");
+        // This is a distinct synthetic all-stackable fixture. Item 200 is
+        // NOT being claimed stackable in any actual v308 game inventory.
         // An unbound request can exist before the session writer is claimed.
         // Claiming the session must invalidate its PUBLICATION authority,
         // even if the preimage and World generation never changed.
