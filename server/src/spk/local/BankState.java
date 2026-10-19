@@ -2447,6 +2447,13 @@ final class BankState {
      */
     String combineInventoryOne(int slotA,int itemA,int slotB,int itemB,int resultItem,ServerPacketWriter w)throws IOException{
         java.util.Objects.requireNonNull(w,"dye packet writer");
+        // This live semantic seam is ONLY the recovered Doppelganger dye
+        // transformation. Reject arbitrary caller-invented combinations
+        // even when the requested result happens to exist in the catalogue.
+        if(resultItem!=28807||
+           !((itemA==3241&&itemB==28824)||
+             (itemA==28824&&itemB==3241)))
+            return "REJECTED_COMBINE_UNVERIFIED_PAIR";
         synchronized(w){
             // Hold the writer monitor through preflight, packet publication
             // and mutation, preventing another thread opening a batch in
