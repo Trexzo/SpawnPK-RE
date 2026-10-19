@@ -101,6 +101,10 @@ final class RecipeSessionWriterGuard {
         try{
             return task.run();
         }finally{
+            // The transport can die INSIDE a previously admitted action.
+            // Revoke when it leaves as well as on the pre-entry check.
+            // A terminal writer may never regain this generation claim.
+            if(writer.terminal())active=false;
             inFlight=false;
         }
     }
