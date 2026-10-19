@@ -178,7 +178,9 @@ public final class DoppelgangerDyeTransactionRegression {
         }
     }
 
-    private static void simultaneousDyeRequests()throws Exception{
+    private static void simultaneousDyeRequests(
+        boolean reversed,boolean bankOpen
+    )throws Exception{
         java.util.concurrent.ExecutorService workers=
             java.util.concurrent.Executors.newFixedThreadPool(2);
         try{
@@ -186,9 +188,16 @@ public final class DoppelgangerDyeTransactionRegression {
                 BankState bank=withItems(3,1,9,1);
                 OutboundPacketQueue queue=new OutboundPacketQueue(8192);
                 ServerPacketWriter writer=writer(queue);
+                if(bankOpen){
+                    bank.open(writer);
+                    queue.drainTo(new ByteArrayOutputStream(),8192);
+                }
+                long initialRevision=bank.inventoryMutationRevision();
                 LocalItemOnItemHandler handler=
                     new LocalItemOnItemHandler(bank);
-                ItemOnItemAction a=action(3,9,REGULAR,DYE);
+                ItemOnItemAction a=reversed
+                    ?action(9,3,DYE,REGULAR)
+                    :action(3,9,REGULAR,DYE);
                 java.util.concurrent.CountDownLatch ready=
                     new java.util.concurrent.CountDownLatch(2),
                     start=new java.util.concurrent.CountDownLatch(1);
@@ -215,12 +224,13 @@ public final class DoppelgangerDyeTransactionRegression {
                 ok(grants==1&&queue.queuedPackets()==1&&
                     bank.inventoryAt(3).itemId==DYED&&
                     bank.inventoryAt(9)==null&&
-                    bank.inventoryMutationRevision()==2&&
+                    bank.inventoryMutationRevision()==initialRevision+1&&
                     (l.logText.contains("REJECTED_COMBINE_STALE_ITEM")||
                      r.logText.contains("REJECTED_COMBINE_STALE_ITEM")||
                      l.logText.contains("REJECTED_COMBINE_ITEM_MISMATCH")||
                      r.logText.contains("REJECTED_COMBINE_ITEM_MISMATCH")),
                     "unexpected concurrent dye transaction trial="+trial+
+                    " reversed="+reversed+" bankOpen="+bankOpen+
                     " grants="+grants+" packets="+queue.queuedPackets()+
                     " revision="+bank.inventoryMutationRevision()+
                     " regularId="+bank.inventoryAt(3).itemId+
@@ -245,13 +255,15 @@ public final class DoppelgangerDyeTransactionRegression {
             writerAdmissionGuard(bankOpen,true);
         }
         rejectRegularStack();
-        simultaneousDyeRequests();
+        for(boolean bankOpen:new boolean[]{false,true})
+            for(boolean reverse:new boolean[]{false,true})
+                simultaneousDyeRequests(reverse,bankOpen);
         System.out.println("DOPPELGANGER_DYE_TRANSACTION_PASS"+
             " realHandlerSuccess=8 bothDirections=true"+
             " bankOpenAndClosed=true dyeConservation=true"+
             " stackedRegularDenied=true failedQueueAtomic=true"+
             " busyAndTerminalWriterDenied=true cleanRetryAfterBusy=true"+
-            " concurrentSingleDyeCommitTrials=64"+
+            " concurrentSingleDyeCommitTrials=256"+
             " noNewDonorRecipeRegistered=true");
     }
 }
