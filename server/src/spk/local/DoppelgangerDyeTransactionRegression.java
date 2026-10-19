@@ -40,8 +40,130 @@ public final class DoppelgangerDyeTransactionRegression {
     private static ItemOnItemAction action(
         int selectedSlot,int targetSlot,int selectedId,int targetId
     ){
+        // Match exact opcode-53 decode: target slot, selected slot,
+        // target item, selected widget, selected item, target widget.
         return new ItemOnItemAction(
-            selectedSlot,targetSlot,selectedId,INVENTORY,targetId,INVENTORY);
+            targetSlot,selectedSlot,targetId,INVENTORY,selectedId,INVENTORY);
+    }
+
+    private static void verifyActionFieldOrder(){
+        ItemOnItemAction petSelected=action(3,9,REGULAR,DYE);
+        ItemOnItemAction dyeSelected=action(9,3,DYE,REGULAR);
+        ok(petSelected.selectedSlot==3&&
+            petSelected.targetSlot==9&&
+            petSelected.selectedItemId==REGULAR&&
+            petSelected.targetItemId==DYE&&
+            petSelected.selectedWidget==INVENTORY&&
+            petSelected.targetWidget==INVENTORY&&
+            dyeSelected.selectedSlot==9&&
+            dyeSelected.targetSlot==3&&
+            dyeSelected.selectedItemId==DYE&&
+            dyeSelected.targetItemId==REGULAR,
+            "item-on-item fixture swapped decoder-selected and target fields");
+    }
+
+    private static void assertOriginalBankUnchanged(BankState bank){
+        BankState fresh=new BankState();
+        ok(bank.bankSlots()==fresh.bankSlots(),
+            "dye changed bank slot count");
+        for(int i=0;i<bank.bankCapacity();i++){
+            BankState.Stack actual=bank.bankAt(i);
+            BankState.Stack seeded=fresh.bankAt(i);
+            ok(actual==null?seeded==null:
+                seeded!=null&&
+                actual.itemId==seeded.itemId&&
+                actual.qty==seeded.qty&&
+                actual.tab==seeded.tab,
+                "dye changed unrelated bank slot="+i);
+        }
+    }
+
+    /**
+     * Authentic item-on-item decode fields are adversarial input. A refused
+     * packet must not grant, enqueue, advance ISAAC or poison a later valid
+     * action on the exact same writer.
+     */
+    private static void rejectSpoofedDyeWithoutPoisoningRetry()
+        throws Exception{
+        ItemOnItemAction[] invalid={
+            // Keep a recognized pair while spoofing concrete slots.
+            new ItemOnItemAction(3,3,DYE,INVENTORY,REGULAR,INVENTORY),
+            new ItemOnItemAction(-1,3,DYE,INVENTORY,REGULAR,INVENTORY),
+            new ItemOnItemAction(28,3,DYE,INVENTORY,REGULAR,INVENTORY),
+            new ItemOnItemAction(9,-1,DYE,INVENTORY,REGULAR,INVENTORY),
+            new ItemOnItemAction(9,28,DYE,INVENTORY,REGULAR,INVENTORY),
+            new ItemOnItemAction(10,3,DYE,INVENTORY,REGULAR,INVENTORY),
+            new ItemOnItemAction(9,10,DYE,INVENTORY,REGULAR,INVENTORY),
+            // Real slots, but their declared client IDs are reversed.
+            new ItemOnItemAction(9,3,REGULAR,INVENTORY,DYE,INVENTORY),
+            new ItemOnItemAction(3,9,DYE,INVENTORY,REGULAR,INVENTORY),
+            // Either widget must be the precise normal inventory container.
+            new ItemOnItemAction(9,3,DYE,INVENTORY+1,REGULAR,INVENTORY),
+            new ItemOnItemAction(9,3,DYE,INVENTORY,REGULAR,INVENTORY+1),
+            new ItemOnItemAction(9,3,DYE,INVENTORY+1,REGULAR,
+                INVENTORY+1),
+            new ItemOnItemAction(9,3,DYE,BankState.BANK_INVENTORY_CONTAINER,
+                REGULAR,INVENTORY),
+            new ItemOnItemAction(9,3,DYE,INVENTORY,REGULAR,
+                BankState.BANK_INVENTORY_CONTAINER)
+        };
+        int trials=0;
+        for(boolean bankOpen:new boolean[]{false,true}){
+            for(boolean reversed:new boolean[]{false,true}){
+                byte[] golden=encodedDyeOutcome(reversed,bankOpen,2);
+                for(ItemOnItemAction malformed:invalid){
+                    BankState bank=withItems(3,1,9,2);
+                    OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+                    ServerPacketWriter writer=writer(queue);
+                    if(bankOpen){
+                        bank.open(writer);
+                        ok(queue.drainTo(new ByteArrayOutputStream(),8192)>0,
+                            "spoof fixture bank overlay did not initialize");
+                    }
+                    long beforeMutation=bank.inventoryMutationRevision();
+                    long beforePresentation=bank.bankViewRevision();
+                    LocalItemOnItemHandler handler=
+                        new LocalItemOnItemHandler(bank);
+                    LocalItemOnItemHandler.Result denied=
+                        handler.handle(malformed,writer);
+                    ok(denied!=null&&denied.saveReason==null&&
+                        !denied.logText.contains("INVENTORY_COMBINE_OK")&&
+                        bank.inventoryMutationRevision()==beforeMutation&&
+                        bank.bankViewRevision()==beforePresentation&&
+                        bank.inventoryAt(3).itemId==REGULAR&&
+                        bank.inventoryAt(3).qty==1&&
+                        bank.inventoryAt(9).itemId==DYE&&
+                        bank.inventoryAt(9).qty==2&&
+                        queue.queuedBytes()==0&&
+                        queue.queuedPackets()==0,
+                        "malformed opcode-53 item action changed state or "+
+                        "enqueued bytes trial="+trials);
+                    assertOriginalBankUnchanged(bank);
+                    LocalItemOnItemHandler.Result committed=
+                        handler.handle(reversed
+                            ?action(9,3,DYE,REGULAR)
+                            :action(3,9,REGULAR,DYE),writer);
+                    ok(committed!=null&&
+                        "DOPPELGANGER_APPLY_DYE".equals(
+                            committed.saveReason)&&
+                        bank.inventoryMutationRevision()==beforeMutation+1&&
+                        bank.inventoryAt(3).itemId==DYED&&
+                        bank.inventoryAt(9).itemId==DYE&&
+                        bank.inventoryAt(9).qty==1&&
+                        queue.queuedPackets()==1,
+                        "valid retry after spoof did not grant once trial="+
+                        trials);
+                    ByteArrayOutputStream actual=new ByteArrayOutputStream();
+                    ok(queue.drainTo(actual,8192)>0&&
+                        Arrays.equals(actual.toByteArray(),golden),
+                        "spoofed opcode-53 denial changed later ISAAC/packet "+
+                        "bytes trial="+trials);
+                    assertOriginalBankUnchanged(bank);
+                    trials++;
+                }
+            }
+        }
+        ok(trials==56,"incorrect malformed action coverage="+trials);
     }
 
     private static void success(
@@ -656,6 +778,7 @@ public final class DoppelgangerDyeTransactionRegression {
     }
 
     public static void main(String[] args)throws Exception{
+        verifyActionFieldOrder();
         ok(ItemDefinitionRepository.exists(DYED),
             "verified current dye result missing from item definitions");
         for(boolean bankOpen:new boolean[]{false,true}){
@@ -672,6 +795,7 @@ public final class DoppelgangerDyeTransactionRegression {
         rejectRegularStack();
         verifyDirectionWireParity();
         independentContainerWireReference();
+        rejectSpoofedDyeWithoutPoisoningRetry();
         liveQueueAdmissionContention();
         unverifiedCombinationDenied();
         competingDistinctWriters();
@@ -694,6 +818,8 @@ public final class DoppelgangerDyeTransactionRegression {
             " nonfatalBackpressureNoSave=true"+
             " blockedQueueNoDoubleGrantTrials=32"+
             " independentContainer53Reference=true extendedQtyBoundary=true"+
+            " exactDecoderSelectedTargetFixture=true"+
+            " malformedActionCleanRetryTrials=56"+
             " noNewDonorRecipeRegistered=true");
     }
 }
