@@ -103,14 +103,16 @@ public final class DoppelgangerDyeTransactionRegression {
 
     private static void queueFailure(boolean bankOpen)throws Exception{
         BankState bank=withItems(3,1,9,2);
-        OutboundPacketQueue queue=new OutboundPacketQueue(1024);
+        // Give bank-open interface packets enough room to initialize.
+        // Saturate only AFTER draining that legitimate initialization.
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
         ServerPacketWriter writer=writer(queue);
         if(bankOpen){
             bank.open(writer);
-            queue.drainTo(new ByteArrayOutputStream(),1024);
+            queue.drainTo(new ByteArrayOutputStream(),8192);
         }
         // Occupy all admission capacity with an earlier unrelated packet.
-        queue.offerBatch(new byte[1024]);
+        queue.offerBatch(new byte[8192]);
         long revision=bank.inventoryMutationRevision();
         long viewRevision=bank.bankViewRevision();
         boolean failed=false;
@@ -127,7 +129,7 @@ public final class DoppelgangerDyeTransactionRegression {
             bank.inventoryAt(3).qty==1&&
             bank.inventoryAt(9).itemId==DYE&&
             bank.inventoryAt(9).qty==2&&
-            queue.queuedBytes()==1024,
+            queue.queuedBytes()==8192,
             "failed outbound admission consumed an item or emitted dye batch");
     }
 
