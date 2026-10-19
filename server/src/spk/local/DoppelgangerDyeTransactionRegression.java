@@ -265,6 +265,64 @@ public final class DoppelgangerDyeTransactionRegression {
         }
     }
 
+    private static void competingDistinctWriters()throws Exception{
+        java.util.concurrent.ExecutorService workers=
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                BankState bank=withItems(3,1,9,1);
+                OutboundPacketQueue leftQueue=new OutboundPacketQueue(8192);
+                OutboundPacketQueue rightQueue=new OutboundPacketQueue(8192);
+                ServerPacketWriter leftWriter=writer(leftQueue);
+                ServerPacketWriter rightWriter=writer(rightQueue);
+                LocalItemOnItemHandler handler=
+                    new LocalItemOnItemHandler(bank);
+                long before=bank.inventoryMutationRevision();
+                java.util.concurrent.CountDownLatch ready=
+                    new java.util.concurrent.CountDownLatch(2),
+                    start=new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.Future<LocalItemOnItemHandler.Result> left=
+                    workers.submit(()->{
+                        ready.countDown();start.await();
+                        return handler.handle(
+                            action(3,9,REGULAR,DYE),leftWriter);
+                    });
+                java.util.concurrent.Future<LocalItemOnItemHandler.Result> right=
+                    workers.submit(()->{
+                        ready.countDown();start.await();
+                        return handler.handle(
+                            action(9,3,DYE,REGULAR),rightWriter);
+                    });
+                ok(ready.await(5,
+                    java.util.concurrent.TimeUnit.SECONDS),
+                    "distinct writers not ready trial="+trial);
+                start.countDown();
+                LocalItemOnItemHandler.Result first=left.get(
+                    5,java.util.concurrent.TimeUnit.SECONDS);
+                LocalItemOnItemHandler.Result second=right.get(
+                    5,java.util.concurrent.TimeUnit.SECONDS);
+                int grants=("DOPPELGANGER_APPLY_DYE".equals(
+                    first.saveReason)?1:0)+
+                    ("DOPPELGANGER_APPLY_DYE".equals(
+                    second.saveReason)?1:0);
+                ok(grants==1&&
+                    leftQueue.queuedPackets()+rightQueue.queuedPackets()==1&&
+                    bank.inventoryMutationRevision()==before+1&&
+                    bank.inventoryAt(3)!=null&&
+                    bank.inventoryAt(3).itemId==DYED&&
+                    bank.inventoryAt(9)==null,
+                    "competing writers double-granted trial="+trial+
+                    " grants="+grants+
+                    " leftPackets="+leftQueue.queuedPackets()+
+                    " rightPackets="+rightQueue.queuedPackets()+
+                    " left="+first.logText+
+                    " right="+second.logText);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         ok(ItemDefinitionRepository.exists(DYED),
             "verified current dye result missing from item definitions");
@@ -279,6 +337,7 @@ public final class DoppelgangerDyeTransactionRegression {
         }
         rejectRegularStack();
         unverifiedCombinationDenied();
+        competingDistinctWriters();
         for(boolean bankOpen:new boolean[]{false,true})
             for(boolean reverse:new boolean[]{false,true})
                 simultaneousDyeRequests(reverse,bankOpen);
@@ -289,6 +348,7 @@ public final class DoppelgangerDyeTransactionRegression {
             " busyAndTerminalWriterDenied=true cleanRetryAfterBusy=true"+
             " concurrentSingleDyeCommitTrials=256"+
             " arbitraryDirectCombinationsDenied=true"+
+            " distinctWriterSingleGrantTrials=64"+
             " noNewDonorRecipeRegistered=true");
     }
 }
