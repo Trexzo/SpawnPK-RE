@@ -338,6 +338,31 @@ public final class RecipeBankSemanticAdapterTest {
             queueTamperBank.inventoryAt(2)==null,
             "tampered prepared request affected queue or inventory");
 
+        // The fixture-facing proposed view is not the authority after
+        // atomic queue admission: mutating it after commit must never alter
+        // already published canonical inventory or the queued wire batch.
+        BankState sealedBank=new BankState();
+        sealedBank.replaceInventorySemantic(ids,qty);
+        RecipeBankSemanticAdapter.Prepared sealedReady=
+            RecipeBankSemanticAdapter.prepare(
+                sealedBank,Collections.singletonMap(100,2),
+                300,3,2,known);
+        OutboundPacketQueue sealedQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter sealedWriter=new ServerPacketWriter(
+            sealedQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+            sealedBank,sealedReady,sealedWriter)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED,
+            "sealed queued recipe was not admitted");
+        int queuedSealedBytes=sealedQueue.queuedBytes();
+        sealedReady.proposed.ids[2]=999;
+        sealedReady.proposed.quantities[0]=Integer.MAX_VALUE;
+        ok(sealedBank.inventoryAt(0).qty==1&&
+            sealedBank.inventoryAt(2).itemId==300&&
+            sealedBank.inventoryAt(2).qty==6&&
+            sealedQueue.queuedBytes()==queuedSealedBytes,
+            "mutable fixture view affected sealed committed inventory");
+
         // End-to-end source-only planner -> BankState -> recoverable queue
         // for an overlapping RETAINED tool, not just a pure arithmetic test.
         BankState retainedToolBank=new BankState();
@@ -512,6 +537,7 @@ public final class RecipeBankSemanticAdapterTest {
             " busyWriterRejected=true terminalWriterDenied=true"+
             " crossWriterRetryDenied=true"+
             " directCommitAfterQueueAttemptDenied=true"+
+            " sealedPostAdmissionAuthority=true"+
             " tamperedQueueDenied=true"+
             " retainedToolQueued=true insufficientToolDenied=true"+
             " closedToOpenDenied=true openToClosedDenied=true"+
