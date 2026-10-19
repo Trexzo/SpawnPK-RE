@@ -13364,3 +13364,19 @@ tasks.register('recipeSessionPreviewWireParityRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('recipeSessionPreviewWireParityRegression')
 }
+
+
+// Existing narrow, real item-on-item dye interaction. This is NOT a
+// registration or authorization for any speculative donor recipe.
+tasks.register('doppelgangerDyeTransactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify established Doppelganger dye handler conserves items and rolls back outbound queue failures.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.DoppelgangerDyeTransactionRegression')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('doppelgangerDyeTransactionRegression')
+}
