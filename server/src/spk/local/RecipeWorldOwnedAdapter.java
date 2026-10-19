@@ -219,6 +219,35 @@ final class RecipeWorldOwnedAdapter {
             "session recipe preview").clone();
     }
 
+    /**
+     * Read-only preview of every inventory view affected by a session
+     * recipe, including both normal and bank-inventory mirrors if open.
+     * No packet admission, mutation, persistence or ISAAC advancement.
+     */
+    static byte[][] previewSessionViews(
+        SessionPrepared sessionPrepared
+    )throws Exception{
+        Objects.requireNonNull(sessionPrepared,"sessionPrepared");
+        Prepared prepared=sessionPrepared.prepared;
+        AtomicReference<byte[][]> output=new AtomicReference<>();
+        boolean owned=prepared.world.withOpenPlayerMutationOwnershipIfCurrent(
+            prepared.player,prepared.generation,
+            ()->sessionPrepared.session.runBound(
+                prepared.world,prepared.player,prepared.generation,
+                prepared.writer,()->{
+                    output.set(
+                        RecipeBankSemanticAdapter.encodePreparedInventoryViews(
+                            prepared.player.bank(),prepared.inventory));
+                    return null;
+                })
+        );
+        if(!owned)
+            throw new IllegalStateException(
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+        return Objects.requireNonNull(output.get(),
+            "session recipe view preview");
+    }
+
     static ServerPacketWriter.RecoverablePacketResult publishSession(
         SessionPrepared sessionPrepared
     )throws Exception{
