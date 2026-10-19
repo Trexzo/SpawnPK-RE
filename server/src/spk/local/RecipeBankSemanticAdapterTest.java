@@ -526,6 +526,7 @@ public final class RecipeBankSemanticAdapterTest {
         regressConcurrentAdmission(ids,qty,known);
         regressCrossWriterContention(ids,qty,known);
         regressPostAdmissionTestViewRace(ids,qty,known);
+        regressMutableRecipeDefinitionIsolation(ids,qty);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -540,6 +541,7 @@ public final class RecipeBankSemanticAdapterTest {
             " directCommitAfterQueueAttemptDenied=true"+
             " sealedPostAdmissionAuthority=true"+
             " sealedPreflightQueueBlockRace=true"+
+            " mutableRecipeDefinitionIsolated=true"+
             " tamperedQueueDenied=true"+
             " retainedToolQueued=true insufficientToolDenied=true"+
             " closedToOpenDenied=true openToClosedDenied=true"+
@@ -1187,6 +1189,43 @@ public final class RecipeBankSemanticAdapterTest {
             bank.inventoryAt(2).qty==6,
             "proposed mutation between preflight and queue admit "+
             "broke sealed transaction: "+error.get());
+    }
+
+    private static void regressMutableRecipeDefinitionIsolation(
+        int[] originalIds,int[] originalQuantities
+    )throws Exception{
+        BankState bank=new BankState();
+        bank.replaceInventorySemantic(originalIds,originalQuantities);
+        Map<Integer,Integer> sourceIngredients=new HashMap<>();
+        sourceIngredients.put(100,2);
+        Set<Integer> sourceStackable=new HashSet<>(
+            Arrays.asList(100,200,300));
+        RecipeBankSemanticAdapter.Prepared request=
+            RecipeBankSemanticAdapter.prepare(
+                bank,sourceIngredients,300,3,2,sourceStackable);
+        // No original recipe policy remains referenced after preparation.
+        // Caller may reuse or clear the input collections without changing
+        // a previously sealed request's postimage.
+        sourceIngredients.clear();
+        sourceIngredients.put(200,Integer.MAX_VALUE);
+        sourceStackable.clear();
+        sourceStackable.add(999);
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{0,0,0,0}));
+        byte[] preview=RecipeBankSemanticAdapter.encodePreparedInventory(
+            bank,request);
+        ok(preview.length>0&&queue.queuedBytes()==0,
+            "modified recipe source corrupted prepared preview");
+        ok(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                bank,request,writer)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            bank.inventoryAt(0).qty==1&&
+            bank.inventoryAt(1).qty==7&&
+            bank.inventoryAt(2).itemId==300&&
+            bank.inventoryAt(2).qty==6&&
+            queue.queuedPackets()==1,
+            "modified recipe Map/Set changed sealed conversion");
     }
 
     private RecipeBankSemanticAdapterTest(){}
