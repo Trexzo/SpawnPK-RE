@@ -166,6 +166,164 @@ public final class DoppelgangerDyeTransactionRegression {
         ok(trials==56,"incorrect malformed action coverage="+trials);
     }
 
+    /**
+     * Controlled fault injection for malformed canonical account slots.
+     * Ordinary BankState accessors intentionally provide defensive copies.
+     * Reflection is used ONLY inside this regression to reach a wire-encoder
+     * fault after an otherwise valid bank overlay has been published.
+     */
+    private static void setFaultInjectedSlot(
+        BankState state,String container,int slot,BankState.Stack value
+    )throws Exception{
+        if(!"inventory".equals(container)&&!"bank".equals(container))
+            throw new IllegalArgumentException("unknown injected container");
+        java.lang.reflect.Field storage=
+            BankState.class.getDeclaredField(container);
+        storage.setAccessible(true);
+        BankState.Stack[] slots=(BankState.Stack[])storage.get(state);
+        ok(slot>=0&&slot<slots.length,"injection slot out of bounds");
+        slots[slot]=value;
+    }
+
+    private static void assertFailedWirePreflight(
+        BankState bank,OutboundPacketQueue queue,ServerPacketWriter writer,
+        boolean reversed,boolean bankOpen,
+        int expectedBankSlots,long oldRevision,long oldView,
+        String scenario
+    )throws Exception{
+        boolean refused=false;
+        try{
+            new LocalItemOnItemHandler(bank).handle(
+                reversed?action(9,3,DYE,REGULAR):
+                         action(3,9,REGULAR,DYE),writer);
+        }catch(IllegalArgumentException expected){
+            // itemContainer53 rejects malformed IDs and quantities.
+            refused=true;
+        }
+        ok(refused&&writer.terminal()==false&&
+            !writer.batchActive()&&
+            bank.isOpen()==bankOpen&&
+            bank.bankSlots()==expectedBankSlots&&
+            bank.inventoryMutationRevision()==oldRevision&&
+            bank.bankViewRevision()==oldView&&
+            bank.inventoryAt(3).itemId==REGULAR&&
+            bank.inventoryAt(3).qty==1&&
+            bank.inventoryAt(9).itemId==DYE&&
+            bank.inventoryAt(9).qty==2&&
+            queue.queuedBytes()==0&&queue.queuedPackets()==0,
+            "faulted dye encoder leaked grant, batch or bytes: "+scenario);
+    }
+
+    /**
+     * Force actual body-encoding failures inside recoverable publication.
+     * The bank-open mirror failure occurs AFTER opcode 53 / widget 3214
+     * has consumed outbound ISAAC inside an uncommitted packet batch.
+     */
+    private static void malformedCanonicalWireRecovery()
+        throws Exception{
+        int trials=0,firstView=0,secondView=0;
+        for(boolean bankOpen:new boolean[]{false,true}){
+            for(boolean reversed:new boolean[]{false,true}){
+                for(int kind=0;kind<3;kind++){
+                    BankState bank=withItems(3,1,9,2);
+                    OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+                    ServerPacketWriter writer=writer(queue);
+                    if(bankOpen){
+                        bank.open(writer);
+                        ok(queue.drainTo(new ByteArrayOutputStream(),8192)>0,
+                            "fault injection failed to open bank overlay");
+                    }
+                    long original=bank.inventoryMutationRevision();
+                    long view=bank.bankViewRevision();
+                    int bankSlots=bank.bankSlots();
+                    BankState.Stack bad=kind==0
+                        ?new BankState.Stack(-2,1)
+                        :kind==1
+                            ?new BankState.Stack(0xffff,1)
+                            :new BankState.Stack(123,-1);
+                    setFaultInjectedSlot(bank,"inventory",17,bad);
+                    String scenario="first-view bankOpen="+bankOpen+
+                        " reverse="+reversed+" kind="+kind;
+                    assertFailedWirePreflight(
+                        bank,queue,writer,reversed,bankOpen,
+                        bankSlots,original,view,scenario);
+                    setFaultInjectedSlot(bank,"inventory",17,null);
+                    LocalItemOnItemHandler.Result success=
+                        new LocalItemOnItemHandler(bank).handle(
+                            reversed?action(9,3,DYE,REGULAR):
+                                     action(3,9,REGULAR,DYE),writer);
+                    ok(success!=null&&
+                        "DOPPELGANGER_APPLY_DYE".equals(success.saveReason)&&
+                        bank.inventoryMutationRevision()==original+1&&
+                        bank.bankViewRevision()==view&&
+                        bank.inventoryAt(3).itemId==DYED&&
+                        bank.inventoryAt(9).qty==1&&
+                        queue.queuedPackets()==1,
+                        "first-view fault blocked valid retry: "+scenario);
+                    ByteArrayOutputStream actual=new ByteArrayOutputStream();
+                    ok(queue.drainTo(actual,8192)>0&&
+                        Arrays.equals(
+                            actual.toByteArray(),
+                            encodedDyeOutcome(reversed,bankOpen,2)),
+                        "first-view failure advanced ISAAC or wire: "+scenario);
+                    assertOriginalBankUnchanged(bank);
+                    trials++;firstView++;
+                }
+                if(!bankOpen)continue;
+                for(int kind=0;kind<3;kind++){
+                    BankState bank=withItems(3,1,9,2);
+                    OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+                    ServerPacketWriter writer=writer(queue);
+                    bank.open(writer);
+                    ok(queue.drainTo(new ByteArrayOutputStream(),8192)>0,
+                        "second-view fault setup did not publish overlay");
+                    BankState.Stack original=bank.bankAt(0);
+                    long revision=bank.inventoryMutationRevision();
+                    long view=bank.bankViewRevision();
+                    int bankSlots=bank.bankSlots();
+                    BankState.Stack malformed=kind==0
+                        ?new BankState.Stack(-2,1)
+                        :kind==1
+                            ?new BankState.Stack(0xffff,1)
+                            :new BankState.Stack(995,-1);
+                    setFaultInjectedSlot(bank,"bank",0,malformed);
+                    String scenario="second-view reversed="+reversed+
+                        " kind="+kind;
+                    assertFailedWirePreflight(
+                        bank,queue,writer,reversed,true,
+                        bankSlots,revision,view,scenario);
+                    // Even though the normal inventory widget was framed
+                    // first, no queue admission or ISAAC advance survived.
+                    setFaultInjectedSlot(bank,"bank",0,original);
+                    assertOriginalBankUnchanged(bank);
+                    LocalItemOnItemHandler.Result retried=
+                        new LocalItemOnItemHandler(bank).handle(
+                            reversed?action(9,3,DYE,REGULAR):
+                                     action(3,9,REGULAR,DYE),writer);
+                    ok(retried!=null&&
+                        "DOPPELGANGER_APPLY_DYE".equals(retried.saveReason)&&
+                        bank.inventoryMutationRevision()==revision+1&&
+                        bank.bankViewRevision()==view&&
+                        bank.inventoryAt(3).itemId==DYED&&
+                        bank.inventoryAt(9).qty==1&&
+                        queue.queuedPackets()==1,
+                        "second-view fault blocked valid retry: "+scenario);
+                    ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+                    ok(queue.drainTo(bytes,8192)>0&&
+                        Arrays.equals(
+                            bytes.toByteArray(),
+                            encodedDyeOutcome(reversed,true,2)),
+                        "second-view abort did not rewind outbound ISAAC: "+
+                        scenario);
+                    assertOriginalBankUnchanged(bank);
+                    trials++;secondView++;
+                }
+            }
+        }
+        ok(trials==18&&firstView==12&&secondView==6,
+            "insufficient live encoding fault coverage="+trials);
+    }
+
     private static void success(
         boolean reverse,boolean bankOpen,int dyeCount
     )throws Exception{
@@ -796,6 +954,7 @@ public final class DoppelgangerDyeTransactionRegression {
         verifyDirectionWireParity();
         independentContainerWireReference();
         rejectSpoofedDyeWithoutPoisoningRetry();
+        malformedCanonicalWireRecovery();
         liveQueueAdmissionContention();
         unverifiedCombinationDenied();
         competingDistinctWriters();
@@ -820,6 +979,8 @@ public final class DoppelgangerDyeTransactionRegression {
             " independentContainer53Reference=true extendedQtyBoundary=true"+
             " exactDecoderSelectedTargetFixture=true"+
             " malformedActionCleanRetryTrials=56"+
+            " malformedWireFaultTrials=18"+
+            " secondViewFailureIsaacRollback=true"+
             " noNewDonorRecipeRegistered=true");
     }
 }
