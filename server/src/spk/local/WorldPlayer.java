@@ -151,6 +151,18 @@ final class WorldPlayer {
         return registered && generation==expectedGeneration;
     }
 
+    /**
+     * Source-only legacy recipe adapters may run only before a session has
+     * claimed the current player generation. Once a live session writer is
+     * installed, weaker World-only publication authority is permanently
+     * disabled for this generation, including after witness revocation.
+     */
+    synchronized void requireUnclaimedRecipeGeneration(long expectedGeneration){
+        if(recipeWriterClaimedGeneration==expectedGeneration)
+            throw new IllegalStateException(
+                "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+    }
+
     /** One recipe writer witness per registered player generation, ever. */
     synchronized void claimRecipeWriterGeneration(long expectedGeneration){
         if(!accepts(expectedGeneration))
