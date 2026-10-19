@@ -10,7 +10,8 @@ import java.util.Objects;
  *
  * Locking rule: invoke runBound ONLY inside existing World
  * withOpenPlayerMutationOwnershipIfCurrent, so World -> witness is the
- * lock order. revokeAndAwait runs without holding World lifecycle locks.
+ * lock order. Teardown may revoke without World locks; World-owned
+ * logout also takes the same World -> witness order.
  */
 final class RecipeSessionWriterGuard {
     @FunctionalInterface
@@ -33,6 +34,11 @@ final class RecipeSessionWriterGuard {
         this.writer=Objects.requireNonNull(writer,"writer");
         if(generation<=0)
             throw new IllegalArgumentException("invalid writer owner generation");
+        // A terminal writer has no valid recipe publication authority and
+        // must not consume the player's irreversible generation claim.
+        if(writer.terminal())
+            throw new IllegalStateException(
+                "RECIPE_TERMINAL_WRITER_CANNOT_CLAIM");
         // Claim only under the existing World lifecycle and exact-player
         // mutation authority. A foreign World must not preempt the real
         // owner's one-time witness or create an unowned token.
@@ -72,8 +78,19 @@ final class RecipeSessionWriterGuard {
            generation!=expectedGeneration||writer!=expectedWriter)
             throw new IllegalStateException(
                 "RECIPE_SESSION_WRITER_IDENTITY_MISMATCH");
-        if(writer.terminal())
+        // Do not trust package-local callers to follow the World ownership
+        // protocol: requiring its player-mutation monitor rules out direct
+        // unowned runBound use. Registry/generation is still checked by the
+        // outer World.withOpenPlayerMutationOwnershipIfCurrent call.
+        if(!Thread.holdsLock(player.mutationLock()))
+            throw new IllegalStateException(
+                "RECIPE_WORLD_MUTATION_LOCK_REQUIRED");
+        if(writer.terminal()){
+            // Terminal transport is never a recoverable retry. Revoke even
+            // if no recipe packet was queued and prohibit same-gen remint.
+            active=false;
             throw new IOException("terminal recipe session writer");
+        }
         return task.run();
     }
 
