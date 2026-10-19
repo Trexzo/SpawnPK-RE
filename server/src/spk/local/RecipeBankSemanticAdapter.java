@@ -50,6 +50,13 @@ final class RecipeBankSemanticAdapter {
         Integer toolId,boolean consumeTool
     ){
         Objects.requireNonNull(bank,"bank");
+        // Copy caller-supplied recipe definitions and item authority once.
+        // No external mutable Map/Set can change classification between
+        // validation and arithmetic inside this preparation.
+        Map<Integer,Integer> sealedIngredients=
+            new HashMap<>(Objects.requireNonNull(ingredients,"ingredients"));
+        Set<Integer> sealedStackable=
+            new HashSet<>(Objects.requireNonNull(stackable,"stackable"));
         synchronized(bank){
             int n=bank.inventoryCapacity();
             int[] ids=new int[n],qty=new int[n];
@@ -60,8 +67,8 @@ final class RecipeBankSemanticAdapter {
             }
             return new Prepared(bank,ids,qty,
                 RecipeStackPostimagePlanner.prepareWithTool(
-                    ids,qty,ingredients,product,perBatch,batches,
-                    stackable,toolId,consumeTool));
+                    ids,qty,sealedIngredients,product,perBatch,batches,
+                    sealedStackable,toolId,consumeTool));
         }
     }
     /**
@@ -76,6 +83,12 @@ final class RecipeBankSemanticAdapter {
         Integer toolId,boolean consumeTool
     ){
         Objects.requireNonNull(bank,"bank");
+        Map<Integer,Integer> sealedIngredients=
+            new HashMap<>(Objects.requireNonNull(ingredients,"ingredients"));
+        Set<Integer> sealedStackable=
+            new HashSet<>(Objects.requireNonNull(stackable,"stackable"));
+        Set<Integer> sealedNonstackable=
+            new HashSet<>(Objects.requireNonNull(nonstackable,"nonstackable"));
         synchronized(bank){
             int n=bank.inventoryCapacity();
             int[] ids=new int[n],qty=new int[n];
@@ -86,8 +99,8 @@ final class RecipeBankSemanticAdapter {
             }
             RecipeMixedPostimagePlanner.Postimage image=
                 RecipeMixedPostimagePlanner.prepare(
-                    ids,qty,ingredients,product,perBatch,batches,
-                    stackable,nonstackable,toolId,consumeTool);
+                    ids,qty,sealedIngredients,product,perBatch,batches,
+                    sealedStackable,sealedNonstackable,toolId,consumeTool);
             return new Prepared(bank,ids,qty,
                 new RecipeStackPostimagePlanner.Postimage(
                     image.ids,image.quantities));
