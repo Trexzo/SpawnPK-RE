@@ -13380,3 +13380,32 @@ tasks.register('doppelgangerDyeTransactionRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('doppelgangerDyeTransactionRegression')
 }
+
+// R15: C2S original-v308 static opcode-53 framing through typed
+// ClientPacketProbe requests into the existing narrow live dye handler.
+// This is synthetic wire evidence, not original-client login/ACK.
+tasks.register('liveDyeOpcode53IngressRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validate exact ISAAC-encoded opcode53 -> typed decode -> dye transaction and byte-for-byte S2C bank mirrors.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LiveDyeOpcode53IngressRegression')
+}
+
+// The old handler test used a direct socket writer to grant dye after R13
+// made recoverable queue admission mandatory. Keep the test, but update its
+// fixture and make it part of the mandatory Gradle verification graph.
+tasks.register('localItemOnItemHandlerRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify legacy live dye handler fixture under queue-only grants.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalItemOnItemHandlerTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('liveDyeOpcode53IngressRegression')
+    dependsOn tasks.named('localItemOnItemHandlerRegression')
+}
