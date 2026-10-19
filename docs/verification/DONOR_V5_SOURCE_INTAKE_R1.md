@@ -182,3 +182,9 @@ A further deterministic concurrency regression now holds the outbound queue moni
 `RecipeBankSemanticAdapter.prepareWithTool` and `prepareMixedWithTool` now copy ingredient maps and verified stackability/nonstackability sets before planning. The planner therefore evaluates one stable, local snapshot of caller-supplied recipe information instead of repeatedly consulting a map/set whose owner may later reuse or modify it. Preparing a request still does **not** register that recipe as verified client behavior. Added stackable and mixed-item regressions mutate the original maps and classification sets after preparation, then assert the prepared preview and exactly-one queued inventory conversion remain unchanged.
 
 The copy is an in-memory, one-operation source boundary, not a persistent recipe registry or provenance ledger. Concurrent mutation *during* the copy may still cause a fail-closed collection exception; it does not authorize output inventory changes.
+
+### Stackable-only occupied item classification gate
+
+`RecipeStackPostimagePlanner.prepare` now requires each **occupied source inventory slot** to have a verified stackable classification, even if its item ID is not an ingredient or output. An unknown occupied item must not be silently encoded/reconciled under an all-stackable planner. A valid, unrelated, verified stackable item remains unchanged. A mixed/unknown collection should use the separate explicitly classified mixed-item planner or reject; no live item IDs are inferred from synthetic fixtures.
+
+New stack-only regression cases assert rejection of an unrelated unverified item and item ID zero even if zero is supplied in the classification set, and preservation of a verified unrelated stack. This is a **source-only scope guard**, not evidence that a real player's inventory is fully classified.
