@@ -336,6 +336,7 @@ public final class RecipeSessionWriterGuardTest {
             concurrentWitnessClaims(world);
             closedWorldDeniesSessionPublication();
             legacyWorldOnlyCannotBypassSessionWitness(world);
+            sessionPreviewIsReadOnly(world);
         }finally{
             world.close();
         }
@@ -354,9 +355,102 @@ public final class RecipeSessionWriterGuardTest {
             " inFlightRevocationBarrier=true"+
             " closedWorldSessionDenied=true"+
             " worldOnlyBypassAfterSessionClaimDenied=true"+
+            " sessionPreviewReadOnlyAndStaleDenied=true"+
             " revocationPublicationRaces=64"+
             " concurrentOneTimeWitnessClaims=64"+
             " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void sessionPreviewIsReadOnly(World world)
+        throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_session_preview_fixture");
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=writer(queue);
+        RecipeSessionWriterGuard guard=new RecipeSessionWriterGuard(
+            world,player,generation,writer);
+        RecipeWorldOwnedAdapter.SessionPrepared prepared=
+            prepareMixed(guard);
+        long revision=player.bank().inventoryMutationRevision();
+        byte[] first=RecipeWorldOwnedAdapter.previewSession(prepared);
+        byte[] second=RecipeWorldOwnedAdapter.previewSession(prepared);
+        ok(first.length>0&&Arrays.equals(first,second)&&
+            queue.queuedBytes()==0&&
+            player.bank().inventoryMutationRevision()==revision&&
+            player.bank().inventoryAt(0).qty==5&&
+            player.bank().inventoryAt(1).itemId==200,
+            "session preview queued bytes or changed inventory");
+        first[0]=(byte)(first[0]^0x7f);
+        ok(Arrays.equals(second,
+                RecipeWorldOwnedAdapter.previewSession(prepared)),
+            "caller mutated subsequent preview bytes");
+        ok(RecipeWorldOwnedAdapter.publishSession(prepared)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            queue.queuedPackets()==1&&
+            player.bank().inventoryAt(0).qty==3&&
+            player.bank().inventoryAt(1).itemId==400,
+            "preview changed later queue-backed publication semantics");
+        denied(()->RecipeWorldOwnedAdapter.previewSession(prepared),
+            "RECIPE_PREPARED_ALREADY_COMMITTED");
+        guard.revokeAndAwait();
+        ok(world.unregisterPlayer(player,generation),
+            "preview owner cleanup failed");
+
+        WorldPlayer stalePlayer=new WorldPlayer();
+        seed(stalePlayer);
+        long staleGen=world.registerPlayer(
+            stalePlayer,"recipe_session_preview_stale");
+        OutboundPacketQueue staleQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter staleWriter=writer(staleQueue);
+        RecipeSessionWriterGuard staleGuard=new RecipeSessionWriterGuard(
+            world,stalePlayer,staleGen,staleWriter);
+        RecipeWorldOwnedAdapter.SessionPrepared stale=prepare(staleGuard);
+        // Identical contents restored under the canonical World ownership:
+        // mutation revision still invalidates a previously prepared preview.
+        ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+            stalePlayer,staleGen,()->{
+                int[] ids=new int[stalePlayer.bank().inventoryCapacity()];
+                int[] qty=new int[ids.length];
+                Arrays.fill(ids,-1);
+                ids[0]=100;qty[0]=5;
+                ids[1]=200;qty[1]=1;
+                ids[2]=200;qty[2]=1;
+                stalePlayer.bank().replaceInventorySemantic(ids,qty);
+            }),"stale preview fixture lost World ownership");
+        denied(()->RecipeWorldOwnedAdapter.previewSession(stale),
+            "RECIPE_STALE_INVENTORY_GENERATION");
+        ok(staleQueue.queuedBytes()==0&&
+            stalePlayer.bank().inventoryAt(0).qty==5,
+            "stale session preview leaked bytes or items");
+        RecipeWorldOwnedAdapter.SessionPrepared revoked=
+            prepare(staleGuard);
+        staleGuard.revokeAndAwait();
+        denied(()->RecipeWorldOwnedAdapter.previewSession(revoked),
+            "RECIPE_SESSION_WRITER_REVOKED");
+        ok(world.unregisterPlayer(stalePlayer,staleGen),
+            "stale preview owner cleanup failed");
+
+        WorldPlayer expiredPlayer=new WorldPlayer();
+        seed(expiredPlayer);
+        long expiredGen=world.registerPlayer(
+            expiredPlayer,"recipe_session_preview_expired");
+        OutboundPacketQueue expiredQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter expiredWriter=writer(expiredQueue);
+        RecipeSessionWriterGuard expiredGuard=
+            new RecipeSessionWriterGuard(
+                world,expiredPlayer,expiredGen,expiredWriter);
+        RecipeWorldOwnedAdapter.SessionPrepared expired=
+            prepare(expiredGuard);
+        ok(world.unregisterPlayer(expiredPlayer,expiredGen),
+            "expired preview fixture could not unregister");
+        denied(()->RecipeWorldOwnedAdapter.previewSession(expired),
+            "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+        ok(expiredQueue.queuedBytes()==0&&
+            expiredPlayer.bank().inventoryAt(0).qty==5,
+            "expired preview affected owner state");
+        expiredGuard.revokeAndAwait();
     }
 
     private static void legacyWorldOnlyCannotBypassSessionWitness(
