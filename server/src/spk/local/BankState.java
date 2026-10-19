@@ -2439,46 +2439,47 @@ final class BankState {
         return "INVENTORY_SPLIT_OK slot="+slot+" item="+expectedItemId+"->"+primaryReplacement+" extra="+extraItem+" extraSlot="+extraDst;
     }
 
-    /** Consume one dye and one regular pet and place the dyed pet in the regular-pet slot. */
+    /**
+     * Existing live Doppelganger dye combination. Publish first, then commit
+     * semantic inventory. A caller's pre-existing packet batch must never
+     * absorb this item grant: nested batches can be aborted after this method
+     * returns, causing an invisible server-only conversion.
+     */
     String combineInventoryOne(int slotA,int itemA,int slotB,int itemB,int resultItem,ServerPacketWriter w)throws IOException{
-        if(slotA==slotB)return "REJECTED_COMBINE_SAME_SLOT";
-        if(!validSlot(inventory,slotA)||!validSlot(inventory,slotB)||inventory[slotA]==null||inventory[slotB]==null)return "REJECTED_INVENTORY_SLOT";
-        if(inventory[slotA].itemId!=itemA||inventory[slotB].itemId!=itemB)return "REJECTED_COMBINE_ITEM_MISMATCH";
-        if(ItemDefinitionRepository.get(resultItem)==null)return "REJECTED_UNKNOWN_RESULT";
+        java.util.Objects.requireNonNull(w,"dye packet writer");
+        synchronized(w){
+            // Hold the writer monitor through preflight, packet publication
+            // and mutation, preventing another thread opening a batch in
+            // between. This is local World authority, not account durability.
+            if(w.terminal())return "REJECTED_COMBINE_WRITER_TERMINAL";
+            if(w.batchActive())return "REJECTED_COMBINE_WRITER_BUSY";
+            if(slotA==slotB)return "REJECTED_COMBINE_SAME_SLOT";
+            if(!validSlot(inventory,slotA)||!validSlot(inventory,slotB)||inventory[slotA]==null||inventory[slotB]==null)return "REJECTED_INVENTORY_SLOT";
+            if(inventory[slotA].itemId!=itemA||inventory[slotB].itemId!=itemB)return "REJECTED_COMBINE_ITEM_MISMATCH";
+            if(ItemDefinitionRepository.get(resultItem)==null)return "REJECTED_UNKNOWN_RESULT";
 
-        Stack[] nextInventory=
-            copyStacks(inventory);
-        int regularSlot=itemA==3241?slotA:itemB==3241?slotB:slotB;
-        int other=regularSlot==slotA?slotB:slotA;
-        Stack rs=nextInventory[regularSlot], os=nextInventory[other];
+            Stack[] nextInventory=copyStacks(inventory);
+            int regularSlot=itemA==3241?slotA:itemB==3241?slotB:slotB;
+            int other=regularSlot==slotA?slotB:slotA;
+            Stack rs=nextInventory[regularSlot], os=nextInventory[other];
 
-        if(rs.qty<=0||os.qty<=0)return "REJECTED_COMBINE_QTY";
-        rs.qty--;
-        os.qty--;
-        if(rs.qty==0)nextInventory[regularSlot]=null;
-        if(os.qty==0)nextInventory[other]=null;
+            if(rs.qty<=0||os.qty<=0)return "REJECTED_COMBINE_QTY";
+            rs.qty--;
+            os.qty--;
+            if(rs.qty==0)nextInventory[regularSlot]=null;
+            if(os.qty==0)nextInventory[other]=null;
 
-        // Exact mechanic here uses one regular pet + one dye -> one dyed pet.
-        if(nextInventory[regularSlot]!=null)
-            return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
+            // Exactly one regular pet plus one dye yields one dyed pet.
+            if(nextInventory[regularSlot]!=null)
+                return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
 
-        nextInventory[regularSlot]=
-            new Stack(
-                resultItem,
-                1
-            );
-
-        publishNormalInventoryStructuralPostimage(
-            w,
-            nextInventory,
-            open
-        );
-        replaceStacks(
-            inventory,
-            nextInventory
-        );
-
-        return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+" consumed="+itemA+"+"+itemB+" result="+resultItem;
+            nextInventory[regularSlot]=new Stack(resultItem,1);
+            publishNormalInventoryStructuralPostimage(
+                w,nextInventory,open);
+            replaceStacks(inventory,nextInventory);
+            return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+
+                " consumed="+itemA+"+"+itemB+" result="+resultItem;
+        }
     }
 
     String apply(ItemContainerAction a, ServerPacketWriter w) throws IOException {
