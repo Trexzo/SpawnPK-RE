@@ -335,6 +335,7 @@ public final class RecipeSessionWriterGuardTest {
             revocationPublicationRaces(world);
             concurrentWitnessClaims(world);
             closedWorldDeniesSessionPublication();
+            legacyWorldOnlyCannotBypassSessionWitness(world);
         }finally{
             world.close();
         }
@@ -352,9 +353,79 @@ public final class RecipeSessionWriterGuardTest {
             " backpressureRevocationDenied=true terminalWriterDenied=true"+
             " inFlightRevocationBarrier=true"+
             " closedWorldSessionDenied=true"+
+            " worldOnlyBypassAfterSessionClaimDenied=true"+
             " revocationPublicationRaces=64"+
             " concurrentOneTimeWitnessClaims=64"+
             " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void legacyWorldOnlyCannotBypassSessionWitness(
+        World world
+    )throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_legacy_bypass_fixture");
+        OutboundPacketQueue legacyQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter legacyWriter=writer(legacyQueue);
+        // An unbound request can exist before the session writer is claimed.
+        // Claiming the session must invalidate its PUBLICATION authority,
+        // even if the preimage and World generation never changed.
+        RecipeWorldOwnedAdapter.Prepared staleUnbound=
+            RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                STACKABLE,null,false);
+        OutboundPacketQueue canonicalQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter canonicalWriter=writer(canonicalQueue);
+        RecipeSessionWriterGuard canonical=
+            new RecipeSessionWriterGuard(
+                world,player,generation,canonicalWriter);
+        denied(()->RecipeWorldOwnedAdapter.publish(staleUnbound),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        denied(()->RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                STACKABLE,null,false),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        denied(()->RecipeWorldOwnedAdapter.prepareMixed(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),400,1,1,
+                STACKABLE,NONSTACKABLE,null,false),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        ok(legacyQueue.queuedPackets()==0&&
+            canonicalQueue.queuedPackets()==0&&
+            player.bank().inventoryAt(0).qty==5,
+            "unbound legacy path leaked item or packet after binding");
+        canonical.revokeAndAwait();
+        denied(()->RecipeWorldOwnedAdapter.publish(staleUnbound),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        denied(()->RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                STACKABLE,null,false),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        ok(world.unregisterPlayer(player,generation),
+            "legacy bypass session unregister failed");
+
+        // A brand new registered World generation (still source-only) can
+        // create an unbound synthetic request if no session claimed it.
+        long next=world.registerPlayer(
+            player,"recipe_legacy_bypass_fixture");
+        ok(next>generation,"legacy fixture generation did not advance");
+        RecipeWorldOwnedAdapter.Prepared unboundFresh=
+            RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,next,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                STACKABLE,null,false);
+        ok(RecipeWorldOwnedAdapter.publish(unboundFresh)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            legacyQueue.queuedPackets()==1&&
+            player.bank().inventoryAt(0).qty==1&&
+            player.bank().inventoryAt(3).qty==6,
+            "fresh unclaimed source-only generation was rejected");
+        ok(world.unregisterPlayer(player,next),
+            "legacy bypass fresh owner cleanup failed");
     }
 
     private static void closedWorldDeniesSessionPublication()
