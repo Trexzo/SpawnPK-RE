@@ -154,6 +154,10 @@ final class BankState {
     }
 
     static final class PreparedExternalBankCredit {
+        // Exact source-local bank owner and semantic mutation lineage.
+        // Equal bank arrays are insufficient after ABA or across players.
+        final BankState owner;
+        final long bankGeneration;
         final Stack[] expectedBank;
         final Stack[] postimage;
         final int itemId;
@@ -162,6 +166,7 @@ final class BankState {
         final String rejection;
 
         PreparedExternalBankCredit(
+            BankState owner,long bankGeneration,
             Stack[] expectedBank,
             Stack[] postimage,
             int itemId,
@@ -169,6 +174,8 @@ final class BankState {
             int destinationSlot,
             String rejection
         ){
+            this.owner=java.util.Objects.requireNonNull(owner,"owner");
+            this.bankGeneration=bankGeneration;
             this.expectedBank=expectedBank;
             this.postimage=postimage;
             this.itemId=itemId;
@@ -258,7 +265,7 @@ final class BankState {
         return total>Integer.MAX_VALUE?Integer.MAX_VALUE:(int)total;
     }
 
-    PreparedExternalBankCredit prepareExternalBankCredit(
+    synchronized PreparedExternalBankCredit prepareExternalBankCredit(
         int itemId,
         int amount
     ){
@@ -285,6 +292,7 @@ final class BankState {
 
         if(dst<0)
             return new PreparedExternalBankCredit(
+                this,bankMutationRevision,
                 expected,
                 expected,
                 itemId,
@@ -306,6 +314,7 @@ final class BankState {
 
         if(merged>Integer.MAX_VALUE)
             return new PreparedExternalBankCredit(
+                this,bankMutationRevision,
                 expected,
                 expected,
                 itemId,
@@ -321,6 +330,7 @@ final class BankState {
         next[dst].qty=(int)merged;
 
         return new PreparedExternalBankCredit(
+            this,bankMutationRevision,
             expected,
             next,
             itemId,
@@ -330,7 +340,7 @@ final class BankState {
         );
     }
 
-    int commitPreparedExternalBankCredit(
+    synchronized int commitPreparedExternalBankCredit(
         PreparedExternalBankCredit prepared
     ){
         if(prepared==null||
@@ -339,12 +349,14 @@ final class BankState {
                 "accepted external bank credit required"
             );
 
-        if(!sameStacks(
-                bank,
-                prepared.expectedBank
-            ))
+        if(prepared.owner!=this)
             throw new IllegalStateException(
-                "bank preimage changed before external credit commit"
+                "external bank credit belongs to a different BankState"
+            );
+        if(prepared.bankGeneration!=bankMutationRevision||
+           !sameStacks(bank,prepared.expectedBank))
+            throw new IllegalStateException(
+                "bank lineage/preimage changed before external credit commit"
             );
 
         replaceStacks(

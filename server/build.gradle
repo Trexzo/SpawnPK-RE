@@ -13465,3 +13465,17 @@ tasks.register('bankAmountPromptOwnershipRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('bankAmountPromptOwnershipRegression')
 }
+
+// R22: a prepared external bank grant is not transferable to a different
+// BankState or valid after bank mutation (including equal-state ABA).
+tasks.register('preparedExternalBankCreditOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fence deferred external bank credits by exact owner and bank lineage, including ABA and concurrent duplicate grant.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedExternalBankCreditOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedExternalBankCreditOwnershipRegression')
+}
