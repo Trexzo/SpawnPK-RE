@@ -59,10 +59,53 @@ public final class RecipeItemOnItemDispatchBoundaryTest {
             result.logText.contains("REJECTED_COMBINE_SLOT"),
             "same slot dye pair not denied");
         require(wire.size()==0,"same-slot dye emitted a packet");
+        // Source-only donor dispatch guard: a broad deterministic corpus
+        // of unknown item pairs must not turn into an accidental live
+        // conversion when recipe infrastructure is refactored. The one
+        // observed Doppelganger dye pair stays outside this corpus.
+        java.util.Random random=new java.util.Random(0x53D0A2026L);
+        int[] candidateIds={100,200,300,3241,28824,400,500,999};
+        int[] candidateSlots={-1,0,1,2,3,27,28};
+        long priorInventoryRevision=bank.inventoryMutationRevision();
+        long priorViewRevision=bank.bankViewRevision();
+        for(int trial=0;trial<1024;trial++){
+            int selectedId=candidateIds[random.nextInt(candidateIds.length)];
+            int targetId=candidateIds[random.nextInt(candidateIds.length)];
+            if(selectedId==3241&&targetId==28824||
+               selectedId==28824&&targetId==3241){
+                // Existing narrow verified item pair is tested separately.
+                trial--;
+                continue;
+            }
+            int selectedSlot=candidateSlots[
+                random.nextInt(candidateSlots.length)];
+            int targetSlot=candidateSlots[
+                random.nextInt(candidateSlots.length)];
+            int selectedWidget=random.nextBoolean()
+                ?BankState.NORMAL_INVENTORY_CONTAINER:9999;
+            int targetWidget=random.nextBoolean()
+                ?BankState.NORMAL_INVENTORY_CONTAINER:9999;
+            ItemOnItemAction unverified=new ItemOnItemAction(
+                selectedSlot,targetSlot,selectedId,selectedWidget,
+                targetId,targetWidget);
+            LocalItemOnItemHandler.Result rejection=
+                handler.handle(unverified,writer);
+            require(rejection!=null&&rejection.saveReason==null&&
+                (rejection.logText.contains("DECODED_NO_SEMANTIC_HANDLER")||
+                 rejection.logText.contains("DECODED_UNSUPPORTED_WIDGET")),
+                "unverified item pair acquired a semantic handler trial="+
+                trial);
+            require(wire.size()==0&&
+                bank.inventoryMutationRevision()==priorInventoryRevision&&
+                bank.bankViewRevision()==priorViewRevision&&
+                bank.inventoryAt(0).qty==5&&bank.inventoryAt(1).qty==7,
+                "unverified item pair emitted or mutated trial="+trial);
+        }
         System.out.println("RECIPE_ITEM_ON_ITEM_DISPATCH_BOUNDARY_PASS"+
             " unverifiedPairDenied=true wrongWidgetDenied=true"+
             " noInventoryMutation=true zeroPackets=true"+
-            " staleDyeDenied=true sameSlotDyeDenied=true");
+            " staleDyeDenied=true sameSlotDyeDenied=true"+
+            " unsupportedDispatchCorpus=1024 noUnverifiedRecipe=true");
     }
     private RecipeItemOnItemDispatchBoundaryTest(){}
 }
