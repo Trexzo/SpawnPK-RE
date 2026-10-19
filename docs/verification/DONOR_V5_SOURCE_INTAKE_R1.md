@@ -210,3 +210,11 @@ The tests exercise **256 same-writer racing actions** across selected-item order
 The existing live `BankState.combineInventoryOne` is now explicitly restricted to `3241 + 28824 -> 28807` (either input order). An arbitrary caller-provided output ID or alternative pair is rejected before packet publication or inventory mutation, even if the result item exists in the catalog. This does **not** authorize additional donor recipes, grant XP, attest a v308 UI, or replace the separate cross-World/JVM account lease.
 
 These changes require new **exact-head Linux and Windows** successes. The failed earlier head remains recorded and must never be claimed as verified. The PR stays draft.
+
+## R12 follow-up — classification regression correction and live dye wire parity
+
+Exact-head Linux Gradle run at `a1aa5ba3` failed in `recipeSessionWriterGuardRegression` with `unverified occupied stackable inventory item`. The stricter stackable-only planner was correctly rejecting synthetic occupied item 200, which the session test simultaneously used as nonstackable in mixed-item fixtures. The test already declared a separate `ALL_STACKABLE_FIXTURE` for explicitly classifying its hypothetical all-stackable scenario, but six direct legacy `RecipeWorldOwnedAdapter.prepareStackable` test calls still passed only `STACKABLE`. Commit `790e7d8b` aligns those six synthetic calls with the all-stackable fixture; it **does not weaken** the planner's unknown-occupied-item fail-closed behavior, and it does not establish real item 200 stackability.
+
+The existing **live** Doppelganger dye interaction has a new deterministic byte-level direction-parity check: for the same pet, dye stack and writer seed, both client selection orders (pet->dye and dye->pet) must queue identical canonical outbound packets. This runs for bank-open and bank-closed inventory presentation, and multiple remaining dye quantities. It asserts one dye/save semantic action and one queued postimage, without adding donor recipes.
+
+**Exact-head status remains contingent on Linux Gradle and Windows source-only results.** Source-only packet byte parity cannot prove original client GUI acceptance, cross-World account exclusion or save durability.
