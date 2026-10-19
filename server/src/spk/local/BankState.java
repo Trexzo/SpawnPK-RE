@@ -330,7 +330,11 @@ final class BankState {
         return prepared.destinationSlot;
     }
 
-    void open(ServerPacketWriter w) throws IOException {
+    // The BankState monitor also guards source-only recipe prepare/commit.
+    // Overlay transitions must serialize with it, preserving bank-view
+    // generation and the encoded normal/bank inventory mirror as one state.
+    // Lock ordering remains BankState -> ServerPacketWriter.
+    synchronized void open(ServerPacketWriter w) throws IOException {
         byte[] root=
             BootstrapPackets.interfaceOverlay248(
                 BANK_ROOT,
@@ -392,7 +396,7 @@ final class BankState {
         pendingX = null;
     }
 
-    void close(ServerPacketWriter w) throws IOException {
+    synchronized void close(ServerPacketWriter w) throws IOException {
         if (!open) return;
 
         byte[] normalInventory=
@@ -442,7 +446,7 @@ final class BankState {
         pendingX = null;
     }
 
-    boolean clientClosed() {
+    synchronized boolean clientClosed() {
         boolean wasOpen = open;
         if(wasOpen)bankViewRevision++;
         open = false;
