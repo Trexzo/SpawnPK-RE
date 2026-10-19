@@ -234,3 +234,9 @@ Mandatory `doppelgangerDyeTransactionRegression` now additionally checks (for bo
 A caller can retry after the outbound queue drains without disconnecting the session merely for transient backpressure; the full-queue regression asserts the result is a normal rejection rather than a thrown exception, and that the retried bytes remain byte-for-byte ISAAC-equivalent to a clean conversion.
 
 This increases local packet/item failure-atomicity evidence for the existing dye interaction. It does **not** establish client ACK, socket delivery, crash durability, global account exclusion or permission to enable speculative donor recipes. CI PASS applies only when both workflows finish on the exact PR head.
+
+### Independent dye widget and quantity reference
+
+The live dye regression now constructs an **independent expected opcode-53 batch** using `BootstrapPackets.itemContainer53` and a separate equally seeded `ServerPacketWriter`, without querying the mutated live `BankState` to obtain expected slots. A closed bank must publish widget 3214; an opened bank must publish widget 3214, the bank container and its inventory mirror in the original order. It compares the entire queued ISAAC-obfuscated wire for dye quantities 2, 3 and 256 (testing the extended 255+ quantity encoding). This is locally reconstructed packet proof, not proof of client ACK.
+
+The live dye handler returns `REJECTED_COMBINE_QUEUE_RETRYABLE` and **no save reason** when a recoverable queue admission is full, rather than propagating a fatal IOException. The client can try its already-known dye action again after the outbound queue drains. The same-writer retry is byte-exact against the clean conversion and leaves the pre-retry inventory unchanged. Terminal or direct socket writers remain separate fail-closed conditions; no new donor item semantics were admitted.
