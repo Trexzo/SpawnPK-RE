@@ -339,6 +339,7 @@ public final class RecipeSessionWriterGuardTest {
             sessionPreviewIsReadOnly(world);
             concurrentLegacyToSessionBinding(world);
             sessionBankOpenViewPreview(world);
+            terminalDuringGuardedActionRevokes(world);
         }finally{
             world.close();
         }
@@ -360,9 +361,79 @@ public final class RecipeSessionWriterGuardTest {
             " sessionPreviewReadOnlyAndStaleDenied=true"+
             " legacyVsWriterClaimRaces=128"+
             " bankOpenPreviewMirrorAndAbaDenied=true"+
+            " terminalDuringGuardedActionRevokes=true"+
             " revocationPublicationRaces=64"+
             " concurrentOneTimeWitnessClaims=64"+
             " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void terminalDuringGuardedActionRevokes(World world)
+        throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_terminal_during_action_fixture");
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=writer(queue);
+        RecipeSessionWriterGuard guard=
+            new RecipeSessionWriterGuard(
+                world,player,generation,writer);
+        RecipeWorldOwnedAdapter.SessionPrepared prepared=prepare(guard);
+        ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->{
+                    guard.runBound(
+                        world,player,generation,writer,()->{
+                            writer.markTerminal();
+                            return null;
+                        });
+                }),
+            "terminal-during-callback fixture lost World ownership");
+        ok(!guard.activeForTest()&&queue.queuedBytes()==0&&
+            player.bank().inventoryAt(0).qty==5,
+            "terminal during callback left active recipe authority");
+        denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
+            "RECIPE_SESSION_WRITER_REVOKED");
+        denied(()->new RecipeSessionWriterGuard(
+                world,player,generation,
+                writer(new OutboundPacketQueue(4096))),
+            "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+        ok(world.unregisterPlayer(player,generation),
+            "terminal-in-action owner cleanup failed");
+
+        // Checked callback exceptions must also revoke after a terminal
+        // transport transition, not just after normal callback return.
+        WorldPlayer exceptional=new WorldPlayer();
+        seed(exceptional);
+        long nextGeneration=world.registerPlayer(
+            exceptional,"recipe_terminal_exception_fixture");
+        ServerPacketWriter failingWriter=writer(
+            new OutboundPacketQueue(4096));
+        RecipeSessionWriterGuard failing=
+            new RecipeSessionWriterGuard(
+                world,exceptional,nextGeneration,failingWriter);
+        boolean checkedFailure=false;
+        try{
+            world.withOpenPlayerMutationOwnershipIfCurrent(
+                exceptional,nextGeneration,
+                ()->{
+                    failing.runBound(
+                        world,exceptional,nextGeneration,
+                        failingWriter,()->{
+                            failingWriter.markTerminal();
+                            throw new java.io.IOException(
+                                "synthetic terminal callback failure");
+                        });
+                });
+        }catch(java.io.IOException expected){
+            checkedFailure="synthetic terminal callback failure".equals(
+                expected.getMessage());
+        }
+        ok(checkedFailure&&!failing.activeForTest(),
+            "terminal callback exception did not revoke session writer");
+        denied(()->prepare(failing),"RECIPE_SESSION_WRITER_REVOKED");
+        ok(world.unregisterPlayer(exceptional,nextGeneration),
+            "terminal callback exception cleanup failed");
     }
 
     private static void sessionBankOpenViewPreview(World world)
