@@ -130,12 +130,33 @@ public final class RecipeStackPostimagePlannerTest {
             new int[]{100,65535},new int[]{5,1},
             Collections.singletonMap(100,1),300,1,1,stackable),
             "nonencodable inventory item accepted");
+        denied(()->RecipeStackPostimagePlanner.prepare(
+            new int[]{100,555,-1},new int[]{5,1,0},
+            Collections.singletonMap(100,1),300,1,1,
+            stackable),
+            "unverified unrelated occupied item accepted");
+        denied(()->RecipeStackPostimagePlanner.prepare(
+            new int[]{100,0,-1},new int[]{5,1,0},
+            Collections.singletonMap(100,1),300,1,1,
+            new HashSet<>(Arrays.asList(0,100,300))),
+            "zero-ID occupied item accepted despite classification");
+        RecipeStackPostimagePlanner.Postimage knownUnrelated=
+            RecipeStackPostimagePlanner.prepare(
+                new int[]{100,555,-1},new int[]{5,1,0},
+                Collections.singletonMap(100,1),300,1,1,
+                new HashSet<>(Arrays.asList(100,300,555)));
+        check(knownUnrelated.ids[1]==555&&
+            knownUnrelated.quantities[1]==1&&
+            knownUnrelated.ids[2]==300&&
+            knownUnrelated.quantities[2]==1,
+            "verified unrelated stackable item not preserved");
         deterministicLedgerCases();
         System.out.println("RECIPE_STACK_POSTIMAGE_PASS"+
             " conservation=true rollbackByPrevalidation=true"+
             " overflowRejected=true canonicalSlots=true"+
             " maxStackSpill=true toolAwarePostimage=true"+
             " verifiedRetainedTool=true encodableItemIds=true"+
+            " occupiedStackabilityEvidenceRequired=true"+
             " deterministicLedgerCases=1024"+
             " noMutation=true"+
             " liveClientAuthority=false");
