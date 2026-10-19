@@ -130,13 +130,15 @@ public final class RecipeSessionWriterGuardTest {
                 "RECIPE_SESSION_WRITER_IDENTITY_MISMATCH");
             ok(world.withOpenPlayerMutationOwnershipIfCurrent(
                 player,generation,
-                ()->witness.runBound(
-                    world,player,generation,writer,()->{
-                        denied(()->witness.runBound(
-                            world,player,generation,writer,()->null),
-                            "RECIPE_REENTRANT_WRITER_ACTION_DENIED");
-                        return null;
-                    })==null),
+                ()->{
+                    witness.runBound(
+                        world,player,generation,writer,()->{
+                            denied(()->witness.runBound(
+                                world,player,generation,writer,()->null),
+                                "RECIPE_REENTRANT_WRITER_ACTION_DENIED");
+                            return null;
+                        });
+                }),
                 "nested writer action was not rejected");
             boolean callbackFailed=false;
             try{
