@@ -342,6 +342,96 @@ public final class DoppelgangerDyeTransactionRegression {
             "retracted dye changed outbound ISAAC or bank mirrors");
     }
 
+    private static void liveQueueAdmissionContention()throws Exception{
+        // Force the live dye publisher to block precisely at queue admission.
+        // A competing recognized item-on-item request must not validate or
+        // grant against its stale preimage while the first is in flight.
+        java.util.concurrent.ExecutorService workers=
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<32;trial++){
+                boolean bankOpen=(trial&1)!=0;
+                boolean reverse=(trial&2)!=0;
+                BankState bank=withItems(3,1,9,1);
+                OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+                ServerPacketWriter writer=writer(queue);
+                if(bankOpen){
+                    bank.open(writer);
+                    queue.drainTo(new ByteArrayOutputStream(),8192);
+                }
+                long before=bank.inventoryMutationRevision();
+                LocalItemOnItemHandler handler=
+                    new LocalItemOnItemHandler(bank);
+                ItemOnItemAction a=reverse
+                    ?action(9,3,DYE,REGULAR)
+                    :action(3,9,REGULAR,DYE);
+                java.util.concurrent.atomic.AtomicReference<Thread>
+                    publishingThread=new java.util.concurrent.atomic.AtomicReference<>();
+                java.util.concurrent.Future<LocalItemOnItemHandler.Result>
+                    primary,contender;
+                synchronized(queue){
+                    primary=workers.submit(()->{
+                        publishingThread.set(Thread.currentThread());
+                        return handler.handle(a,writer);
+                    });
+                    boolean queuedAtGate=false;
+                    long deadline=System.nanoTime()+
+                        java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+                    while(System.nanoTime()<deadline){
+                        Thread owner=publishingThread.get();
+                        if(owner!=null&&owner.getState()==Thread.State.BLOCKED){
+                            for(StackTraceElement frame:owner.getStackTrace()){
+                                if(frame.getClassName().equals(
+                                        OutboundPacketQueue.class.getName())&&
+                                    frame.getMethodName().equals("tryOfferBatch")){
+                                    queuedAtGate=true;
+                                    break;
+                                }
+                            }
+                        }
+                        if(queuedAtGate||primary.isDone())break;
+                        Thread.yield();
+                    }
+                    ok(queuedAtGate,
+                        "live dye never reached queue admission trial="+trial);
+                    ok(bank.inventoryAt(3).itemId==REGULAR&&
+                        bank.inventoryAt(9).itemId==DYE&&
+                        bank.inventoryMutationRevision()==before,
+                        "live dye changed inventory before packet admission");
+                    java.util.concurrent.CountDownLatch started=
+                        new java.util.concurrent.CountDownLatch(1);
+                    contender=workers.submit(()->{
+                        started.countDown();
+                        return handler.handle(a,writer);
+                    });
+                    ok(started.await(5,
+                        java.util.concurrent.TimeUnit.SECONDS),
+                        "competing dye did not start trial="+trial);
+                    ok(!contender.isDone(),
+                        "second dye escaped canonical bank monitor");
+                }
+                LocalItemOnItemHandler.Result first=primary.get(
+                    5,java.util.concurrent.TimeUnit.SECONDS);
+                LocalItemOnItemHandler.Result second=contender.get(
+                    5,java.util.concurrent.TimeUnit.SECONDS);
+                int grants=("DOPPELGANGER_APPLY_DYE".equals(
+                    first.saveReason)?1:0)+
+                    ("DOPPELGANGER_APPLY_DYE".equals(
+                    second.saveReason)?1:0);
+                ok(grants==1&&queue.queuedPackets()==1&&
+                    bank.inventoryMutationRevision()==before+1&&
+                    bank.inventoryAt(3).itemId==DYED&&
+                    bank.inventoryAt(9)==null&&
+                    (first.logText.contains("REJECTED_COMBINE_STALE_ITEM")||
+                     second.logText.contains("REJECTED_COMBINE_STALE_ITEM")),
+                    "admission/contender emitted duplicate dye trial="+trial+
+                    " first="+first.logText+" second="+second.logText);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
+    }
+
     private static void competingDistinctWriters()throws Exception{
         java.util.concurrent.ExecutorService workers=
             java.util.concurrent.Executors.newFixedThreadPool(2);
@@ -510,6 +600,7 @@ public final class DoppelgangerDyeTransactionRegression {
         }
         rejectRegularStack();
         verifyDirectionWireParity();
+        liveQueueAdmissionContention();
         unverifiedCombinationDenied();
         competingDistinctWriters();
         competingDyeWithFullQueue();
@@ -528,6 +619,7 @@ public final class DoppelgangerDyeTransactionRegression {
             " directionWireParityBankOpenClosed=true"+
             " directWriterDenied=true"+
             " fullQueueRetryIsaacParity=true"+
+            " blockedQueueNoDoubleGrantTrials=32"+
             " noNewDonorRecipeRegistered=true");
     }
 }
