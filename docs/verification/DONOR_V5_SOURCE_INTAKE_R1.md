@@ -218,3 +218,9 @@ Exact-head Linux Gradle run at `a1aa5ba3` failed in `recipeSessionWriterGuardReg
 The existing **live** Doppelganger dye interaction has a new deterministic byte-level direction-parity check: for the same pet, dye stack and writer seed, both client selection orders (pet->dye and dye->pet) must queue identical canonical outbound packets. This runs for bank-open and bank-closed inventory presentation, and multiple remaining dye quantities. It asserts one dye/save semantic action and one queued postimage, without adding donor recipes.
 
 **Exact-head status remains contingent on Linux Gradle and Windows source-only results.** Source-only packet byte parity cannot prove original client GUI acceptance, cross-World account exclusion or save durability.
+
+### Bank overlay transition / prepared recipe linearization
+
+Bank UI `open`, `close` and `clientClosed` now synchronize on the same canonical `BankState` monitor as source-only recipe preparation, sealed validation and inventory publication. The lock order remains `BankState -> ServerPacketWriter`; an overlay can no longer change bank-open status and bank-view revision mid-transaction without participating in that monitor. A mandatory `recipeBankSemanticAdapterRegression` extension races **128** open/close transitions against already prepared recipe publication (64 initially closed, 64 initially open). Every run requires exactly one of two outcomes: publication commits first and then the bank overlay changes, or the overlay changes first and the obsolete request is denied with no recipe packet. The test checks bank-view revision, mutation revision, final inventory, queued packet batches and stale replay denial.
+
+This is **per-BankState JVM locking**, not a global named-account lease, persistent epoch or original-client network verification; it does not automatically serialize unrelated non-World accesses to other account objects.
