@@ -519,6 +519,7 @@ public final class RecipeBankSemanticAdapterTest {
             "bank-open retraction appended a partial mirror batch");
         regressBankOverlayTransitions(ids,qty,known);
         regressBankOverlayAba(ids,qty,known);
+        regressConcurrentBankViewTransition(ids,qty,known);
         regressFailedBankPublicationGeneration(ids,qty);
         regressInventoryAba(ids,qty,known);
         regressFailedInventoryPublicationGeneration(ids,qty);
@@ -546,6 +547,7 @@ public final class RecipeBankSemanticAdapterTest {
             " retainedToolQueued=true insufficientToolDenied=true"+
             " closedToOpenDenied=true openToClosedDenied=true"+
             " bankViewAbaDenied=true clientCloseAbaDenied=true"+
+            " concurrentBankViewTransitionTrials=128"+
             " repeatedOpenViewDenied=true"+
             " failedBankPublicationGenerationStable=true"+
             " semanticInventoryAbaDenied=true"+
@@ -1226,6 +1228,97 @@ public final class RecipeBankSemanticAdapterTest {
             bank.inventoryAt(2).qty==6&&
             queue.queuedPackets()==1,
             "modified recipe Map/Set changed sealed conversion");
+    }
+
+    private static void regressConcurrentBankViewTransition(
+        int[] ids,int[] quantities,Set<Integer> verified
+    )throws Exception{
+        // The BankState overlay publication (open/close) and a prepared
+        // recipe must have one linearizable order. Both now share the same
+        // canonical BankState monitor and writer queue.
+        java.util.concurrent.ExecutorService workers=
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+        try{
+            for(boolean startOpen:new boolean[]{false,true}){
+                for(int trial=0;trial<64;trial++){
+                    BankState bank=new BankState();
+                    bank.replaceInventorySemantic(ids,quantities);
+                    OutboundPacketQueue queue=new OutboundPacketQueue(16384);
+                    ServerPacketWriter writer=new ServerPacketWriter(
+                        queue,new IsaacCipher(new int[]{0,0,0,0}));
+                    if(startOpen){
+                        bank.open(writer);
+                        queue.drainTo(new java.io.ByteArrayOutputStream(),
+                            16384);
+                    }
+                    RecipeBankSemanticAdapter.Prepared prepared=
+                        RecipeBankSemanticAdapter.prepare(
+                            bank,Collections.singletonMap(100,2),
+                            300,3,2,verified);
+                    long priorView=bank.bankViewRevision();
+                    long priorMutation=bank.inventoryMutationRevision();
+                    java.util.concurrent.CountDownLatch ready=
+                        new java.util.concurrent.CountDownLatch(2);
+                    java.util.concurrent.CountDownLatch begin=
+                        new java.util.concurrent.CountDownLatch(1);
+                    java.util.concurrent.Future<String> publisher=
+                        workers.submit(()->{
+                            ready.countDown();begin.await();
+                            try{
+                                return String.valueOf(
+                                    RecipeBankSemanticAdapter
+                                        .publishAndCommitIfIdle(
+                                            bank,prepared,writer));
+                            }catch(IllegalStateException expected){
+                                return String.valueOf(expected.getMessage());
+                            }
+                        });
+                    java.util.concurrent.Future<?> overlay=
+                        workers.submit(()->{
+                            ready.countDown();begin.await();
+                            if(startOpen)bank.close(writer);
+                            else bank.open(writer);
+                            return null;
+                        });
+                    ok(ready.await(5,
+                        java.util.concurrent.TimeUnit.SECONDS),
+                        "bank/recipe contenders did not start "+trial);
+                    begin.countDown();
+                    String outcome=publisher.get(
+                        5,java.util.concurrent.TimeUnit.SECONDS);
+                    overlay.get(5,java.util.concurrent.TimeUnit.SECONDS);
+                    boolean committed="COMMITTED".equals(outcome);
+                    ok(committed||
+                        outcome.contains("RECIPE_STALE_BANK_VIEW"),
+                        "unexpected overlay concurrency result "+outcome);
+                    ok(bank.isOpen()!=startOpen&&
+                        bank.bankViewRevision()==priorView+1&&
+                        bank.inventoryMutationRevision()==
+                            priorMutation+(committed?1:0)&&
+                        bank.inventoryAt(0).qty==(committed?1:5)&&
+                        ((bank.inventoryAt(2)==null)==!committed)&&
+                        queue.queuedPackets()==(committed?2:1),
+                        "bank overlay and recipe were not serialized "+
+                        "startOpen="+startOpen+" trial="+trial+
+                        " result="+outcome+" queue="+
+                        queue.queuedPackets());
+                    // After a transition, stale prepared views must not
+                    // replay, even if the recipe itself won the initial race.
+                    boolean replayDenied=false;
+                    try{
+                        RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                            bank,prepared,writer);
+                    }catch(IllegalStateException expected){
+                        replayDenied=true;
+                    }
+                    ok(replayDenied&&
+                        queue.queuedPackets()==(committed?2:1),
+                        "transition permitted stale recipe replay "+trial);
+                }
+            }
+        }finally{
+            workers.shutdownNow();
+        }
     }
 
     private RecipeBankSemanticAdapterTest(){}
