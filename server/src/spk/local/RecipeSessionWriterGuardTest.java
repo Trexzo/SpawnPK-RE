@@ -334,6 +334,7 @@ public final class RecipeSessionWriterGuardTest {
             revocationWaitsForGuardedAction(world);
             revocationPublicationRaces(world);
             concurrentWitnessClaims(world);
+            closedWorldDeniesSessionPublication();
         }finally{
             world.close();
         }
@@ -350,9 +351,42 @@ public final class RecipeSessionWriterGuardTest {
             " revokedPrepareDenied=true revokedPublicationDenied=true"+
             " backpressureRevocationDenied=true terminalWriterDenied=true"+
             " inFlightRevocationBarrier=true"+
+            " closedWorldSessionDenied=true"+
             " revocationPublicationRaces=64"+
             " concurrentOneTimeWitnessClaims=64"+
             " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void closedWorldDeniesSessionPublication()
+        throws Exception{
+        World closing=world();
+        try{
+            WorldPlayer player=new WorldPlayer();
+            seed(player);
+            long generation=closing.registerPlayer(
+                player,"recipe_guard_closed_world");
+            OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+            ServerPacketWriter writer=writer(queue);
+            RecipeSessionWriterGuard witness=
+                new RecipeSessionWriterGuard(
+                    closing,player,generation,writer);
+            RecipeWorldOwnedAdapter.SessionPrepared prepared=
+                prepare(witness);
+            closing.close();
+            denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+            denied(()->new RecipeSessionWriterGuard(
+                    closing,player,generation,
+                    writer(new OutboundPacketQueue(4096))),
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+            ok(queue.queuedBytes()==0&&
+                player.bank().inventoryAt(0).qty==5&&
+                player.bank().inventoryAt(3)==null,
+                "closed World permitted recipe queue or inventory grant");
+            witness.revokeAndAwait();
+        }finally{
+            closing.close();
+        }
     }
 
     private static void concurrentWitnessClaims(World world)
