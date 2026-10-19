@@ -115,14 +115,12 @@ public final class DoppelgangerDyeTransactionRegression {
         queue.offerBatch(new byte[8192]);
         long revision=bank.inventoryMutationRevision();
         long viewRevision=bank.bankViewRevision();
-        boolean failed=false;
-        try{
+        LocalItemOnItemHandler.Result refusal=
             new LocalItemOnItemHandler(bank).handle(
                 action(3,9,REGULAR,DYE),writer);
-        }catch(IOException expected){
-            failed=true;
-        }
-        ok(failed&&
+        ok(refusal!=null&&refusal.saveReason==null&&
+            refusal.logText.contains(
+                "REJECTED_COMBINE_QUEUE_RETRYABLE")&&
             bank.inventoryMutationRevision()==revision&&
             bank.bankViewRevision()==viewRevision&&
             bank.inventoryAt(3).itemId==REGULAR&&
@@ -311,15 +309,12 @@ public final class DoppelgangerDyeTransactionRegression {
         }
         long before=bank.inventoryMutationRevision();
         queue.offerBatch(new byte[8192]);
-        boolean retractable=false;
-        try{
+        LocalItemOnItemHandler.Result refused=
             new LocalItemOnItemHandler(bank).handle(
                 action(3,9,REGULAR,DYE),writer);
-        }catch(IOException expected){
-            retractable=String.valueOf(expected.getMessage()).contains(
-                "DOPPELGANGER_DYE_PACKET_ADMISSION_RETRYABLE");
-        }
-        ok(retractable&&bank.inventoryMutationRevision()==before&&
+        ok(refused!=null&&refused.saveReason==null&&
+            refused.logText.contains("REJECTED_COMBINE_QUEUE_RETRYABLE")&&
+            bank.inventoryMutationRevision()==before&&
             bank.inventoryAt(3).itemId==REGULAR&&
             bank.inventoryAt(9).qty==2&&
             queue.queuedBytes()==8192,
@@ -619,6 +614,7 @@ public final class DoppelgangerDyeTransactionRegression {
             " directionWireParityBankOpenClosed=true"+
             " directWriterDenied=true"+
             " fullQueueRetryIsaacParity=true"+
+            " nonfatalBackpressureNoSave=true"+
             " blockedQueueNoDoubleGrantTrials=32"+
             " noNewDonorRecipeRegistered=true");
     }
