@@ -220,7 +220,12 @@ public final class DoppelgangerDyeTransactionRegression {
                      r.logText.contains("REJECTED_COMBINE_STALE_ITEM")||
                      l.logText.contains("REJECTED_COMBINE_ITEM_MISMATCH")||
                      r.logText.contains("REJECTED_COMBINE_ITEM_MISMATCH")),
-                    "duplicate live dye published trial="+trial);
+                    "unexpected concurrent dye transaction trial="+trial+
+                    " grants="+grants+" packets="+queue.queuedPackets()+
+                    " revision="+bank.inventoryMutationRevision()+
+                    " regularId="+bank.inventoryAt(3).itemId+
+                    " dyePresent="+(bank.inventoryAt(9)!=null)+
+                    " left="+l.logText+" right="+r.logText);
             }
         }finally{
             workers.shutdownNow();
