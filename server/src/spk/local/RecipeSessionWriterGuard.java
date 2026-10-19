@@ -78,13 +78,13 @@ final class RecipeSessionWriterGuard {
            generation!=expectedGeneration||writer!=expectedWriter)
             throw new IllegalStateException(
                 "RECIPE_SESSION_WRITER_IDENTITY_MISMATCH");
-        // Do not trust package-local callers to follow the World ownership
-        // protocol: requiring its player-mutation monitor rules out direct
-        // unowned runBound use. Registry/generation is still checked by the
-        // outer World.withOpenPlayerMutationOwnershipIfCurrent call.
-        if(!Thread.holdsLock(player.mutationLock()))
+        // A player monitor alone is not an ownership lease. Verify
+        // current-thread World lifecycle lock, exact player's mutation
+        // lock, registry membership AND current generation together.
+        if(!world.currentThreadHoldsOpenPlayerMutationOwnership(
+                player,generation))
             throw new IllegalStateException(
-                "RECIPE_WORLD_MUTATION_LOCK_REQUIRED");
+                "RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
         if(writer.terminal()){
             // Terminal transport is never a recoverable retry. Revoke even
             // if no recipe packet was queued and prohibit same-gen remint.
