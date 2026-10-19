@@ -534,7 +534,7 @@ public final class RecipeSessionWriterGuardTest {
                             RecipeWorldOwnedAdapter.prepareStackable(
                                 world,player,generation,legacyWriter,
                                 Collections.singletonMap(100,2),
-                                300,3,2,STACKABLE,null,false));
+                                300,3,2,ALL_STACKABLE_FIXTURE,null,false));
                         return "PREPARED";
                     }catch(IllegalStateException expected){
                         return String.valueOf(expected.getMessage());
@@ -581,7 +581,7 @@ public final class RecipeSessionWriterGuardTest {
                     RecipeWorldOwnedAdapter.prepareStackable(
                         world,player,generation,legacyWriter,
                         Collections.singletonMap(100,2),
-                        300,3,2,STACKABLE,null,false);
+                        300,3,2,ALL_STACKABLE_FIXTURE,null,false);
                 ServerPacketWriter sessionWriter=writer(
                     new OutboundPacketQueue(4096));
                 java.util.concurrent.atomic.AtomicReference<
@@ -738,7 +738,7 @@ public final class RecipeSessionWriterGuardTest {
             RecipeWorldOwnedAdapter.prepareStackable(
                 world,player,generation,legacyWriter,
                 Collections.singletonMap(100,2),300,3,2,
-                STACKABLE,null,false);
+                ALL_STACKABLE_FIXTURE,null,false);
         OutboundPacketQueue canonicalQueue=new OutboundPacketQueue(4096);
         ServerPacketWriter canonicalWriter=writer(canonicalQueue);
         RecipeSessionWriterGuard canonical=
@@ -749,7 +749,7 @@ public final class RecipeSessionWriterGuardTest {
         denied(()->RecipeWorldOwnedAdapter.prepareStackable(
                 world,player,generation,legacyWriter,
                 Collections.singletonMap(100,2),300,3,2,
-                STACKABLE,null,false),
+                ALL_STACKABLE_FIXTURE,null,false),
             "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
         denied(()->RecipeWorldOwnedAdapter.prepareMixed(
                 world,player,generation,legacyWriter,
@@ -766,7 +766,7 @@ public final class RecipeSessionWriterGuardTest {
         denied(()->RecipeWorldOwnedAdapter.prepareStackable(
                 world,player,generation,legacyWriter,
                 Collections.singletonMap(100,2),300,3,2,
-                STACKABLE,null,false),
+                ALL_STACKABLE_FIXTURE,null,false),
             "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
         ok(world.unregisterPlayer(player,generation),
             "legacy bypass session unregister failed");
@@ -780,7 +780,7 @@ public final class RecipeSessionWriterGuardTest {
             RecipeWorldOwnedAdapter.prepareStackable(
                 world,player,next,legacyWriter,
                 Collections.singletonMap(100,2),300,3,2,
-                STACKABLE,null,false);
+                ALL_STACKABLE_FIXTURE,null,false);
         ok(RecipeWorldOwnedAdapter.publish(unboundFresh)==
             ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
             legacyQueue.queuedPackets()==1&&
