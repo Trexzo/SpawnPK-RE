@@ -94,9 +94,28 @@ public final class RecipeSessionWriterGuardTest {
                 new RecipeSessionWriterGuard(world,player,generation,writer);
             denied(()->witness.runBound(
                     world,player,generation,writer,()->null),
-                "RECIPE_WORLD_MUTATION_LOCK_REQUIRED");
+                "RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
+            // Merely acquiring the player's mutation monitor must not
+            // fake this World's lifecycle + registry ownership.
+            denied(()->{
+                synchronized(player.mutationLock()){
+                    witness.runBound(
+                        world,player,generation,writer,()->null);
+                }
+            },"RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
             ok(witness.activeForTest(),
                 "rejected unowned call revoked rightful session writer");
+            ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->{
+                    if(!world.currentThreadHoldsOpenPlayerMutationOwnership(
+                            player,generation))
+                        throw new AssertionError(
+                            "World did not expose actual owned callback");
+                    witness.runBound(
+                        world,player,generation,writer,()->null);
+                }),
+                "valid World-owned witness operation rejected");
             ServerPacketWriter foreign=writer(
                 new OutboundPacketQueue(4096));
             denied(()->world.withOpenPlayerMutationOwnershipIfCurrent(
@@ -259,7 +278,8 @@ public final class RecipeSessionWriterGuardTest {
         }
         System.out.println("RECIPE_SESSION_WRITER_GUARD_PASS"+
             " exactWriterDenied=true foreignPlayerDenied=true"+
-            " directUnownedCallDenied=true terminalBindDenied=true"+
+            " directUnownedCallDenied=true playerLockAloneDenied=true"+
+            " fullWorldOwnershipAsserted=true terminalBindDenied=true"+
             " terminalRevokesWitness=true"+
             " sameGenerationRebindDenied=true"+
             " loginLogoutVolatileWitness=true"+
