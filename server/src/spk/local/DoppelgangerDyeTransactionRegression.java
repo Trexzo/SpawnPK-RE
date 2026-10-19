@@ -373,6 +373,50 @@ public final class DoppelgangerDyeTransactionRegression {
         }
     }
 
+    private static byte[] encodedDyeOutcome(
+        boolean reversed,boolean bankOpen,int dyeQuantity
+    )throws Exception{
+        BankState bank=withItems(3,1,9,dyeQuantity);
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+        ServerPacketWriter writer=writer(queue);
+        if(bankOpen){
+            bank.open(writer);
+            ok(queue.drainTo(new ByteArrayOutputStream(),8192)>0,
+                "bank-open byte-parity initialization failed");
+        }
+        long initialRevision=bank.inventoryMutationRevision();
+        LocalItemOnItemHandler.Result result=
+            new LocalItemOnItemHandler(bank).handle(
+                reversed?action(9,3,DYE,REGULAR):
+                         action(3,9,REGULAR,DYE),writer);
+        ok(result!=null&&
+            "DOPPELGANGER_APPLY_DYE".equals(result.saveReason)&&
+            bank.inventoryMutationRevision()==initialRevision+1&&
+            bank.inventoryAt(3).itemId==DYED&&
+            bank.inventoryAt(3).qty==1&&
+            bank.inventoryAt(9).qty==dyeQuantity-1&&
+            queue.queuedPackets()==1,
+            "byte-parity fixture did not make one real dye conversion");
+        ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+        ok(queue.drainTo(bytes,8192)>0&&bytes.size()>0,
+            "byte-parity fixture produced no packet");
+        return bytes.toByteArray();
+    }
+
+    private static void verifyDirectionWireParity()throws Exception{
+        for(boolean bankOpen:new boolean[]{false,true}){
+            for(int dyeQuantity:new int[]{2,3}){
+                byte[] regularSelected=encodedDyeOutcome(
+                    false,bankOpen,dyeQuantity);
+                byte[] dyeSelected=encodedDyeOutcome(
+                    true,bankOpen,dyeQuantity);
+                ok(Arrays.equals(regularSelected,dyeSelected),
+                    "reversed source item changed canonical queued dye "+
+                    "packet bankOpen="+bankOpen+" count="+dyeQuantity);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         ok(ItemDefinitionRepository.exists(DYED),
             "verified current dye result missing from item definitions");
@@ -386,6 +430,7 @@ public final class DoppelgangerDyeTransactionRegression {
             writerAdmissionGuard(bankOpen,true);
         }
         rejectRegularStack();
+        verifyDirectionWireParity();
         unverifiedCombinationDenied();
         competingDistinctWriters();
         competingDyeWithFullQueue();
@@ -401,6 +446,7 @@ public final class DoppelgangerDyeTransactionRegression {
             " arbitraryDirectCombinationsDenied=true"+
             " distinctWriterSingleGrantTrials=64"+
             " competingFullQueueNoGrantTrials=32"+
+            " directionWireParityBankOpenClosed=true"+
             " noNewDonorRecipeRegistered=true");
     }
 }
