@@ -16,6 +16,11 @@ public final class RecipeWorldOwnedAdapterTest {
 
     private static final Set<Integer> STACKABLE=
         new HashSet<>(Arrays.asList(100,300));
+    // The legacy stackable-only scenario deliberately classifies every
+    // occupied synthetic inventory item as stackable. The separate mixed
+    // scenario treats 200 as nonstackable and uses its own evidence sets.
+    private static final Set<Integer> ALL_STACKABLE_FIXTURE=
+        new HashSet<>(Arrays.asList(100,200,300));
     private static final Set<Integer> NONSTACKABLE=
         new HashSet<>(Arrays.asList(200,400));
 
@@ -65,7 +70,7 @@ public final class RecipeWorldOwnedAdapterTest {
         return RecipeWorldOwnedAdapter.prepareStackable(
             world,player,generation,writer,
             Collections.singletonMap(100,2),300,3,2,
-            STACKABLE,null,false);
+            ALL_STACKABLE_FIXTURE,null,false);
     }
 
     private static void ownerDenied(CheckedAction action,String why)
