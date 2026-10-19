@@ -133,6 +133,51 @@ public final class DoppelgangerDyeTransactionRegression {
             "failed outbound admission consumed an item or emitted dye batch");
     }
 
+    private static void writerAdmissionGuard(
+        boolean bankOpen,boolean terminal
+    )throws Exception{
+        BankState bank=withItems(3,1,9,2);
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+        ServerPacketWriter writer=writer(queue);
+        if(bankOpen){
+            bank.open(writer);
+            queue.drainTo(new ByteArrayOutputStream(),8192);
+        }
+        long oldInventory=bank.inventoryMutationRevision();
+        long oldView=bank.bankViewRevision();
+        if(terminal)writer.markTerminal();
+        else writer.beginBatch();
+        LocalItemOnItemHandler.Result result=
+            new LocalItemOnItemHandler(bank).handle(
+                action(3,9,REGULAR,DYE),writer);
+        String token=terminal
+            ?"REJECTED_COMBINE_WRITER_TERMINAL"
+            :"REJECTED_COMBINE_WRITER_BUSY";
+        ok(result!=null&&result.saveReason==null&&
+            result.logText.contains(token)&&
+            bank.inventoryAt(3).itemId==REGULAR&&
+            bank.inventoryAt(3).qty==1&&
+            bank.inventoryAt(9).itemId==DYE&&
+            bank.inventoryAt(9).qty==2&&
+            bank.inventoryMutationRevision()==oldInventory&&
+            bank.bankViewRevision()==oldView&&
+            queue.queuedBytes()==0,
+            "busy/terminal writer admitted dye while unpublished");
+        if(!terminal){
+            writer.abortBatch();
+            // Once the unrelated batch is aborted, a fresh legitimate
+            // action may proceed and queue exactly one conversion.
+            result=new LocalItemOnItemHandler(bank).handle(
+                action(3,9,REGULAR,DYE),writer);
+            ok(result!=null&&
+                "DOPPELGANGER_APPLY_DYE".equals(result.saveReason)&&
+                queue.queuedPackets()==1&&
+                bank.inventoryAt(3).itemId==DYED&&
+                bank.inventoryAt(9).qty==1,
+                "busy writer rejection did not permit later clean dye");
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         ok(ItemDefinitionRepository.exists(DYED),
             "verified current dye result missing from item definitions");
@@ -142,12 +187,15 @@ public final class DoppelgangerDyeTransactionRegression {
                     success(reverse,bankOpen,dyes);
             }
             queueFailure(bankOpen);
+            writerAdmissionGuard(bankOpen,false);
+            writerAdmissionGuard(bankOpen,true);
         }
         rejectRegularStack();
         System.out.println("DOPPELGANGER_DYE_TRANSACTION_PASS"+
             " realHandlerSuccess=8 bothDirections=true"+
             " bankOpenAndClosed=true dyeConservation=true"+
             " stackedRegularDenied=true failedQueueAtomic=true"+
+            " busyAndTerminalWriterDenied=true cleanRetryAfterBusy=true"+
             " noNewDonorRecipeRegistered=true");
     }
 }
