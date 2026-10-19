@@ -525,6 +525,7 @@ public final class RecipeBankSemanticAdapterTest {
         regressMutableAliasIsolation(ids,qty,known);
         regressConcurrentAdmission(ids,qty,known);
         regressCrossWriterContention(ids,qty,known);
+        regressPostAdmissionTestViewRace(ids,qty,known);
         System.out.println("RECIPE_BANK_SEMANTIC_ADAPTER_PASS"+
             " preparedReadOnly=true validCommit=true staleDenied=true"+
             " tamperedResultDenied=true foreignOwnerDenied=true"+
@@ -538,6 +539,7 @@ public final class RecipeBankSemanticAdapterTest {
             " crossWriterRetryDenied=true"+
             " directCommitAfterQueueAttemptDenied=true"+
             " sealedPostAdmissionAuthority=true"+
+            " sealedPreflightQueueBlockRace=true"+
             " tamperedQueueDenied=true"+
             " retainedToolQueued=true insufficientToolDenied=true"+
             " closedToOpenDenied=true openToClosedDenied=true"+
@@ -1116,6 +1118,75 @@ public final class RecipeBankSemanticAdapterTest {
         }finally{
             workers.shutdownNow();
         }
+    }
+
+    private static void regressPostAdmissionTestViewRace(
+        int[] originalIds,int[] originalQuantities,Set<Integer> verified
+    )throws Exception{
+        // Hold the outbound queue monitor to suspend publication precisely
+        // AFTER the sealed inventory views have been constructed and BEFORE
+        // atomic queue admission. Mutate only the test-facing proposal then.
+        // The already validated privately sealed snapshot must commit in
+        // lockstep with the queued bytes rather than throwing after admission.
+        BankState bank=new BankState();
+        bank.replaceInventorySemantic(originalIds,originalQuantities);
+        RecipeBankSemanticAdapter.Prepared prepared=
+            RecipeBankSemanticAdapter.prepare(
+                bank,Collections.singletonMap(100,2),
+                300,3,2,verified);
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{0,0,0,0}));
+        java.util.concurrent.atomic.AtomicReference<
+            ServerPacketWriter.RecoverablePacketResult> result=
+            new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<Throwable> error=
+            new java.util.concurrent.atomic.AtomicReference<>();
+        Thread publisher=new Thread(()->{
+            try{
+                result.set(RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                    bank,prepared,writer));
+            }catch(Throwable failure){
+                error.set(failure);
+            }
+        },"recipe-sealed-postimage-race");
+        boolean reachedQueue=false;
+        synchronized(queue){
+            publisher.start();
+            long deadline=System.nanoTime()+
+                java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while(System.nanoTime()<deadline){
+                if(publisher.getState()==Thread.State.BLOCKED){
+                    for(StackTraceElement frame:publisher.getStackTrace()){
+                        if(frame.getClassName().equals(
+                                OutboundPacketQueue.class.getName())&&
+                            frame.getMethodName().equals("tryOfferBatch")){
+                            reachedQueue=true;
+                            break;
+                        }
+                    }
+                }
+                if(reachedQueue||error.get()!=null)break;
+                Thread.yield();
+            }
+            ok(reachedQueue,
+                "publisher did not reach blocked queue admission: "+
+                error.get());
+            // Test-only proposed arrays are intentionally mutable. This
+            // happens after the publisher has validated the original view.
+            prepared.proposed.ids[2]=999;
+            prepared.proposed.quantities[0]=Integer.MAX_VALUE;
+        }
+        publisher.join(5000);
+        ok(!publisher.isAlive()&&error.get()==null&&
+            result.get()==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            queue.queuedPackets()==1&&queue.queuedBytes()>0&&
+            bank.inventoryAt(0).qty==1&&
+            bank.inventoryAt(2).itemId==300&&
+            bank.inventoryAt(2).qty==6,
+            "proposed mutation between preflight and queue admit "+
+            "broke sealed transaction: "+error.get());
     }
 
     private RecipeBankSemanticAdapterTest(){}
