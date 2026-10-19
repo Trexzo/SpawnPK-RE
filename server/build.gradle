@@ -13423,3 +13423,17 @@ tasks.register('doppelRemoveDyeAtomicTransactionRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('doppelRemoveDyeAtomicTransactionRegression')
 }
+
+// R18: exact pinned client opcode75 -> typed FIFO -> established pet-dialog
+// option -> queue-atomic removal. No original-client socket/ACK claim.
+tasks.register('doppelRemoveDyeOpcode75IngressRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validate exact opcode75 client byte transforms, save-intent fencing and queue-atomic live remove-dye.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.DoppelRemoveDyeOpcode75IngressRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('doppelRemoveDyeOpcode75IngressRegression')
+}
