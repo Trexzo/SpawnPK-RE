@@ -191,8 +191,32 @@ final class BankState {
     // Local mutation lineage fences a prepared recipe even after an ABA
     // restoration of the same slots. Not a durable account/session epoch.
     private long inventoryMutationRevision;
+    // Bank-side lineage for pending X responses, including same-slot ABA
+    // and tab moves. The BankState revision is source-only and not a
+    // cross-session durable account generation.
+    private long bankMutationRevision;
     private boolean placeholdersEnabled;
-    private ItemContainerAction pendingX;
+    private PendingBankAmount pendingX;
+
+    private static final class PendingBankAmount {
+        final ItemContainerAction action;
+        final ServerPacketWriter writer;
+        final long bankViewGeneration;
+        final long inventoryGeneration;
+        final long bankGeneration;
+
+        PendingBankAmount(
+            ItemContainerAction action,ServerPacketWriter writer,
+            long bankViewGeneration,long inventoryGeneration,
+            long bankGeneration
+        ){
+            this.action=java.util.Objects.requireNonNull(action,"action");
+            this.writer=java.util.Objects.requireNonNull(writer,"writer");
+            this.bankViewGeneration=bankViewGeneration;
+            this.inventoryGeneration=inventoryGeneration;
+            this.bankGeneration=bankGeneration;
+        }
+    }
 
     BankState() {
         // Synthetic LOCAL bank state only. Inventory intentionally starts empty.
@@ -208,6 +232,7 @@ final class BankState {
     boolean isOpen() { return open; }
     long bankViewRevision() { return bankViewRevision; }
     long inventoryMutationRevision() { return inventoryMutationRevision; }
+    long bankMutationRevision() { return bankMutationRevision; }
     boolean placeholdersEnabled() { return placeholdersEnabled; }
     int bankSlots() { return occupied(bank); }
     int inventorySlots() { return occupied(inventory); }
@@ -2014,6 +2039,7 @@ final class BankState {
         open=false;
         pendingX=null;
         inventoryMutationRevision++;
+        bankMutationRevision++;
     }
 
 
@@ -2524,58 +2550,58 @@ final class BankState {
         }
     }
 
-    String apply(ItemContainerAction a, ServerPacketWriter w) throws IOException {
+    synchronized String apply(ItemContainerAction a, ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
         if (a.widgetId == BANK_CONTAINER) return withdraw(a, w);
         if (a.widgetId == BANK_INVENTORY_CONTAINER) return deposit(a, w);
         return "OBSERVED_NON_BANK_WIDGET widget="+a.widgetId;
     }
 
-    String applyAmount(int amount, ServerPacketWriter w) throws IOException {
-        if (!open) {
+    synchronized String applyAmount(int amount, ServerPacketWriter w)
+        throws IOException{
+        if(!open){
             pendingX=null;
             return "IGNORED_BANK_CLOSED";
         }
-
-        ItemContainerAction a=pendingX;
-        if (a==null)
+        PendingBankAmount pending=pendingX;
+        if(pending==null)
             return "IGNORED_NO_PENDING_X amount="+amount;
-
-        if (amount<=0) {
+        if(amount<=0){
             pendingX=null;
             return "X_NO_ITEMS_MOVED amount="+amount;
         }
-
-        String result;
-
-        if (a.widgetId==BANK_CONTAINER)
-            result=
-                withdrawAmount(
-                    a,
-                    amount,
-                    w,
-                    "WITHDRAW_X_OK"
-                );
-        else if (a.widgetId==
-                    BANK_INVENTORY_CONTAINER)
-            result=
-                depositAmount(
-                    a,
-                    amount,
-                    w,
-                    "STORE_X_OK"
-                );
-        else {
+        if(pending.writer!=w){
             pendingX=null;
-            return "X_PENDING_WIDGET_UNSUPPORTED widget="+
-                a.widgetId;
+            return "REJECTED_X_SESSION_WRITER_MISMATCH";
+        }
+        if(w.terminal()){
+            pendingX=null;
+            return "REJECTED_X_SESSION_WRITER_TERMINAL";
+        }
+        if(pending.bankViewGeneration!=bankViewRevision||
+           pending.inventoryGeneration!=inventoryMutationRevision||
+           pending.bankGeneration!=bankMutationRevision){
+            pendingX=null;
+            return "REJECTED_X_STALE_BANK_OR_INVENTORY_GENERATION";
         }
 
+        ItemContainerAction a=pending.action;
+        String result;
+        if(a.widgetId==BANK_CONTAINER)
+            result=withdrawAmount(a,amount,w,"WITHDRAW_X_OK");
+        else if(a.widgetId==BANK_INVENTORY_CONTAINER)
+            result=depositAmount(a,amount,w,"STORE_X_OK");
+        else{
+            pendingX=null;
+            return "X_PENDING_WIDGET_UNSUPPORTED widget="+a.widgetId;
+        }
+        // A writer IOException retains the same one-use, pinned prompt for
+        // an exact-writer retry; any mutation or writer rotation will veto.
         pendingX=null;
         return result;
     }
 
-    String applyDrag(ContainerDrag d, ServerPacketWriter w) throws IOException {
+    synchronized String applyDrag(ContainerDrag d, ServerPacketWriter w) throws IOException {
         // Opcode 214 is shared by the ordinary inventory (3214) and bank containers.
         // The old handler incorrectly required the bank to be open before even looking
         // at the widget id. That made a normal inventory drag look correct client-side
@@ -2671,7 +2697,7 @@ final class BankState {
     }
 
     /** Handle exact SpawnPK bank-tab command strings emitted through opcode 103. */
-    String applyCommand(String command, ServerPacketWriter w) throws IOException {
+    synchronized String applyCommand(String command, ServerPacketWriter w) throws IOException {
         if (command==null) return "IGNORED_NULL_COMMAND";
         String s=command.trim();
         if (s.startsWith("::")) s=s.substring(2);
@@ -2767,7 +2793,9 @@ final class BankState {
                 return withdrawAmount(a,a.extra,w,"WITHDRAW_CONFIGURED_OK");
             case 135:
                 w.fixed(27,new byte[0]);
-                pendingX=a;
+                pendingX=new PendingBankAmount(
+                    a,w,bankViewRevision,inventoryMutationRevision,
+                    bankMutationRevision);
                 return "WITHDRAW_X_PROMPT_SENT opcode=27 pendingSlot="+a.slot+" itemId="+a.itemId;
             default: return "UNSUPPORTED_BANK_WITHDRAW_OPCODE";
         }
@@ -2784,7 +2812,9 @@ final class BankState {
             case 129: return depositAmount(a,s.qty,w,"STORE_OK");
             case 135:
                 w.fixed(27,new byte[0]);
-                pendingX=a;
+                pendingX=new PendingBankAmount(
+                    a,w,bankViewRevision,inventoryMutationRevision,
+                    bankMutationRevision);
                 return "STORE_X_PROMPT_SENT opcode=27 pendingSlot="+a.slot+" itemId="+a.itemId;
             default: return "UNSUPPORTED_BANK_STORE_OPCODE";
         }
@@ -3015,6 +3045,7 @@ final class BankState {
                     );
         }
         if(target==inventory)inventoryMutationRevision++;
+        if(target==bank)bankMutationRevision++;
     }
 
     private static void publishContainerPostimage(

@@ -13451,3 +13451,17 @@ tasks.register('bankSaveIntentGateRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('bankSaveIntentGateRegression')
 }
+
+// R21: a bank X prompt may not be reused with a substituted writer, an
+// inventory/bank ABA generation, or a reopened bank presentation.
+tasks.register('bankAmountPromptOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Check X amount prompt writer identity, bank/inventory generation, view revocation and exactly-once semantic transfer.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.BankAmountPromptOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('bankAmountPromptOwnershipRegression')
+}
