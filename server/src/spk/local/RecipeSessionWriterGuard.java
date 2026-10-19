@@ -24,6 +24,9 @@ final class RecipeSessionWriterGuard {
     private final long generation;
     private final ServerPacketWriter writer;
     private boolean active=true;
+    // Java monitors are reentrant; do not allow a callback on this same
+    // session writer to recursively start a second recipe authority action.
+    private boolean inFlight;
 
     RecipeSessionWriterGuard(
         World world,WorldPlayer player,long generation,
@@ -91,7 +94,15 @@ final class RecipeSessionWriterGuard {
             active=false;
             throw new IOException("terminal recipe session writer");
         }
-        return task.run();
+        if(inFlight)
+            throw new IllegalStateException(
+                "RECIPE_REENTRANT_WRITER_ACTION_DENIED");
+        inFlight=true;
+        try{
+            return task.run();
+        }finally{
+            inFlight=false;
+        }
     }
 
     /** Waits for any in-flight guarded recipe action, then rejects all new work. */
