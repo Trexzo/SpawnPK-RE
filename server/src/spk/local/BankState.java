@@ -158,14 +158,19 @@ final class BankState {
         // Equal bank arrays are insufficient after ABA or across players.
         final BankState owner;
         final long bankGeneration;
+        // Existing callers may inspect the prepared arrays. They are not
+        // authoritative commit instructions: retain private independent
+        // snapshots to detect even same-package accidental mutation.
         final Stack[] expectedBank;
         final Stack[] postimage;
+        private final Stack[] sealedExpectedBank;
+        private final Stack[] sealedPostimage;
         final int itemId;
         final int amount;
         final int destinationSlot;
         final String rejection;
 
-        PreparedExternalBankCredit(
+        private PreparedExternalBankCredit(
             BankState owner,long bankGeneration,
             Stack[] expectedBank,
             Stack[] postimage,
@@ -176,8 +181,10 @@ final class BankState {
         ){
             this.owner=java.util.Objects.requireNonNull(owner,"owner");
             this.bankGeneration=bankGeneration;
-            this.expectedBank=expectedBank;
-            this.postimage=postimage;
+            this.expectedBank=copyStacks(expectedBank);
+            this.postimage=copyStacks(postimage);
+            this.sealedExpectedBank=copyStacks(expectedBank);
+            this.sealedPostimage=copyStacks(postimage);
             this.itemId=itemId;
             this.amount=amount;
             this.destinationSlot=destinationSlot;
@@ -354,14 +361,22 @@ final class BankState {
                 "external bank credit belongs to a different BankState"
             );
         if(prepared.bankGeneration!=bankMutationRevision||
-           !sameStacks(bank,prepared.expectedBank))
+           !sameStacks(bank,prepared.sealedExpectedBank))
             throw new IllegalStateException(
                 "bank lineage/preimage changed before external credit commit"
+            );
+        // Prepared arrays are observable within spk.local. Never let
+        // modified copies turn an approved finite grant into arbitrary
+        // coins/items or silently diverge from what was published.
+        if(!sameStacks(prepared.expectedBank,prepared.sealedExpectedBank)||
+           !sameStacks(prepared.postimage,prepared.sealedPostimage))
+            throw new IllegalStateException(
+                "external bank credit prepared snapshot was modified"
             );
 
         replaceStacks(
             bank,
-            prepared.postimage
+            prepared.sealedPostimage
         );
 
         return prepared.destinationSlot;
@@ -491,12 +506,12 @@ final class BankState {
         return wasOpen;
     }
 
-    void sendContainers(ServerPacketWriter w) throws IOException {
+    synchronized void sendContainers(ServerPacketWriter w) throws IOException {
         w.varShort(53, containerPayload(BANK_CONTAINER, bank));
         w.varShort(53, containerPayload(BANK_INVENTORY_CONTAINER, inventory));
     }
 
-    String togglePlaceholders(ServerPacketWriter w) throws IOException {
+    synchronized String togglePlaceholders(ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
 
         boolean nextEnabled=
@@ -531,7 +546,7 @@ final class BankState {
             bankSlots();
     }
 
-    String depositInventory(ServerPacketWriter w) throws IOException {
+    synchronized String depositInventory(ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
 
         Stack[] nextBank=
@@ -2010,7 +2025,7 @@ final class BankState {
     }
 
 
-    void restoreAccountState(
+    synchronized void restoreAccountState(
         Stack[] nextBank,
         Stack[] nextInventory,
         boolean placeholders

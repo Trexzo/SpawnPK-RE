@@ -13479,3 +13479,17 @@ tasks.register('preparedExternalBankCreditOwnershipRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('preparedExternalBankCreditOwnershipRegression')
 }
+
+// R23: the prepared bank-credit postimage is an immutable-in-effect
+// source-local grant, not a mutable arbitrary commit payload.
+tasks.register('preparedExternalBankCreditSealingRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject in-place tampering of prepared external bank grant snapshots; preserve valid credits and bank lineage.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedExternalBankCreditSealingRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedExternalBankCreditSealingRegression')
+}
