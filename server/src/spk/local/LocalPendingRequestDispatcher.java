@@ -1205,12 +1205,7 @@ final class LocalPendingRequestDispatcher {
      * This check is intentionally narrower than widget membership.
      */
     private static boolean bankItemActionMutated(String result){
-        return result!=null&&(
-            result.startsWith("WITHDRAW_OK amount=")||
-            result.startsWith("WITHDRAW_ALL_BUT_ONE_OK amount=")||
-            result.startsWith("WITHDRAW_CONFIGURED_OK amount=")||
-            result.startsWith("STORE_OK amount=")
-        );
+        return BankMutationSaveClassifier.itemAction(result);
     }
 
     private void routeItemOnItem(

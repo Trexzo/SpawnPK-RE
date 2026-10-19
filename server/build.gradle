@@ -13437,3 +13437,17 @@ tasks.register('doppelRemoveDyeOpcode75IngressRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('doppelRemoveDyeOpcode75IngressRegression')
 }
+
+// R20: saving an account is caused only by an acknowledged BankState
+// semantic mutation, never merely by decoded input or UI widget ownership.
+tasks.register('bankSaveIntentGateRegression', JavaExec) {
+    group = 'verification'
+    description = 'Gate bank search/noops/rejections/amount prompts from save intent while preserving completed withdrawal, store, drag and tab changes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.BankSaveIntentGateRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('bankSaveIntentGateRegression')
+}
