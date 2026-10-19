@@ -210,9 +210,18 @@ final class RecipeBankSemanticAdapter {
     private static void commitAfterAdmittedPublication(
         BankState bank,Prepared prepared
     ){
-        // Only call from inside the BankState monitor after a successful
-        // recoverable queue admission. No public direct bypass exists.
-        applyPrepared(bank,prepared);
+        // The caller holds the BankState monitor and reached this point
+        // ONLY after the complete sealed postimage was validated/encoded,
+        // followed by successful atomic queue admission. Do not read the
+        // intentionally mutable test-only proposed view again AFTER bytes
+        // have been admitted: a concurrent test-view edit at that moment
+        // must not turn one successfully queued client postimage into an
+        // uncommitted server inventory. The privately cloned arrays remain
+        // the sole post-admission semantic authority.
+        bank.replaceInventorySemantic(
+            prepared.sealedIds.clone(),
+            prepared.sealedQuantities.clone());
+        prepared.committed=true;
     }
 
     private static void applyPrepared(BankState bank,Prepared prepared){
