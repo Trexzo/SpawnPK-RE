@@ -99,22 +99,10 @@ final class RecipeBankSemanticAdapter {
      */
     static byte[] encodePreparedInventory(BankState bank,Prepared prepared)
         throws java.io.IOException{
-        Objects.requireNonNull(bank,"bank");
-        Objects.requireNonNull(prepared,"prepared");
-        synchronized(bank){
-            if(bank!=prepared.owner)
-                throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
-            if(prepared.committed)
-                throw new IllegalStateException("RECIPE_PREPARED_ALREADY_COMMITTED");
-            if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
-               !Arrays.equals(prepared.sealedQuantities,prepared.proposed.quantities))
-                throw new IllegalStateException("RECIPE_PREPARED_POSTIMAGE_CHANGED");
-            // A read-only preview must observe the same generation as
-            // preparation, including a restored-snapshot ABA.
-            requireCurrentPreimage(bank,prepared);
-            return bank.previewRecipeInventoryPacket(
-                prepared.sealedIds,prepared.sealedQuantities);
-        }
+        // The primary view and the all-view mirror preflight must use
+        // identical sealed validation. Always validate the bank-open mirror
+        // before returning an apparently valid normal inventory preview.
+        return encodePreparedInventoryViews(bank,prepared)[0];
     }
     /**
      * Read-only copy of ALL inventory views a future queued publication
@@ -159,12 +147,10 @@ final class RecipeBankSemanticAdapter {
         throws java.io.IOException{
         Objects.requireNonNull(writer,"writer");
         synchronized(bank){
-            // Both inventory views are encoded before queue admission.
-            // The recoverable publication call enqueues both or neither.
-            encodePreparedInventory(bank,prepared);
-            byte[][] views=bank.previewRecipeInventoryViews(
-                prepared.sealedIds,prepared.sealedQuantities);
-            requireCurrentPreimage(bank,prepared);
+            // One sealed preflight supplies the same complete, detached
+            // inventory views used by read-only preview. Queue admission
+            // enqueues them together or retracts the entire batch.
+            byte[][] views=encodePreparedInventoryViews(bank,prepared);
             if(prepared.publicationWriter!=null&&
                prepared.publicationWriter!=writer)
                 throw new IllegalStateException(
