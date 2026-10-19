@@ -92,6 +92,11 @@ public final class RecipeSessionWriterGuardTest {
                 player,"recipe_session_guard");
             RecipeSessionWriterGuard witness=
                 new RecipeSessionWriterGuard(world,player,generation,writer);
+            denied(()->witness.runBound(
+                    world,player,generation,writer,()->null),
+                "RECIPE_WORLD_MUTATION_LOCK_REQUIRED");
+            ok(witness.activeForTest(),
+                "rejected unowned call revoked rightful session writer");
             ServerPacketWriter foreign=writer(
                 new OutboundPacketQueue(4096));
             denied(()->world.withOpenPlayerMutationOwnershipIfCurrent(
@@ -210,6 +215,14 @@ public final class RecipeSessionWriterGuardTest {
                 terminalPlayer,"recipe_session_terminal");
             OutboundPacketQueue terminalQueue=new OutboundPacketQueue(4096);
             ServerPacketWriter terminalWriter=writer(terminalQueue);
+            // A writer already dead before binding may not consume the
+            // only session writer claim of this registered generation.
+            ServerPacketWriter initiallyDead=writer(
+                new OutboundPacketQueue(4096));
+            initiallyDead.markTerminal();
+            denied(()->new RecipeSessionWriterGuard(
+                    world,terminalPlayer,terminalGen,initiallyDead),
+                "RECIPE_TERMINAL_WRITER_CANNOT_CLAIM");
             RecipeSessionWriterGuard terminal=
                 new RecipeSessionWriterGuard(
                     world,terminalPlayer,terminalGen,terminalWriter);
@@ -225,8 +238,15 @@ public final class RecipeSessionWriterGuardTest {
             }
             ok(terminalDenied&&terminalQueue.queuedBytes()==0&&
                 terminalPlayer.bank().inventoryAt(0).qty==5&&
-                terminalPlayer.bank().inventoryAt(1).itemId==200,
-                "terminal writer leaked mixed products");
+                terminalPlayer.bank().inventoryAt(1).itemId==200&&
+                !terminal.activeForTest(),
+                "terminal writer leaked products or left active authority");
+            denied(()->prepareMixed(terminal),
+                "RECIPE_SESSION_WRITER_REVOKED");
+            denied(()->new RecipeSessionWriterGuard(
+                    world,terminalPlayer,terminalGen,
+                    writer(new OutboundPacketQueue(4096))),
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
             terminal.revokeAndAwait();
             ok(world.unregisterPlayer(terminalPlayer,terminalGen),
                 "terminal owner cleanup failed");
@@ -239,6 +259,8 @@ public final class RecipeSessionWriterGuardTest {
         }
         System.out.println("RECIPE_SESSION_WRITER_GUARD_PASS"+
             " exactWriterDenied=true foreignPlayerDenied=true"+
+            " directUnownedCallDenied=true terminalBindDenied=true"+
+            " terminalRevokesWitness=true"+
             " sameGenerationRebindDenied=true"+
             " loginLogoutVolatileWitness=true"+
             " foreignWorldWitnessClaimDenied=true"+
