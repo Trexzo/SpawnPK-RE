@@ -189,6 +189,36 @@ final class RecipeWorldOwnedAdapter {
             session);
     }
 
+    /**
+     * Pure client-inventory PREVIEW under the exact same session and World
+     * ownership authority. No writer opcode, queue admission, commit, XP or
+     * account save is performed. The returned copy is only source evidence;
+     * it is NOT a verified v308-client packet acceptance signal.
+     */
+    static byte[] previewSession(
+        SessionPrepared sessionPrepared
+    )throws Exception{
+        Objects.requireNonNull(sessionPrepared,"sessionPrepared");
+        Prepared prepared=sessionPrepared.prepared;
+        AtomicReference<byte[]> output=new AtomicReference<>();
+        boolean owned=prepared.world.withOpenPlayerMutationOwnershipIfCurrent(
+            prepared.player,prepared.generation,
+            ()->sessionPrepared.session.runBound(
+                prepared.world,prepared.player,prepared.generation,
+                prepared.writer,()->{
+                    output.set(
+                        RecipeBankSemanticAdapter.encodePreparedInventory(
+                            prepared.player.bank(),prepared.inventory));
+                    return null;
+                })
+        );
+        if(!owned)
+            throw new IllegalStateException(
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+        return Objects.requireNonNull(output.get(),
+            "session recipe preview").clone();
+    }
+
     static ServerPacketWriter.RecoverablePacketResult publishSession(
         SessionPrepared sessionPrepared
     )throws Exception{
