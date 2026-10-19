@@ -2454,7 +2454,11 @@ final class BankState {
            !((itemA==3241&&itemB==28824)||
              (itemA==28824&&itemB==3241)))
             return "REJECTED_COMBINE_UNVERIFIED_PAIR";
+        synchronized(this){
         synchronized(w){
+            // Canonical inventory lock precedes the writer lock, matching
+            // the recipe adapter's BankState -> ServerPacketWriter order.
+            // Enforce it even for direct package-local callers.
             // Hold the writer monitor through preflight, packet publication
             // and mutation, preventing another thread opening a batch in
             // between. This is local World authority, not account durability.
@@ -2486,6 +2490,7 @@ final class BankState {
             replaceStacks(inventory,nextInventory);
             return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+
                 " consumed="+itemA+"+"+itemB+" result="+resultItem;
+        }
         }
     }
 
