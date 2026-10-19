@@ -73,21 +73,30 @@ final class BankState {
     }
 
     static final class PreparedInventoryMutation {
+        final BankState owner;
+        final long inventoryGeneration;
         final Stack[] expectedInventory;
         final Stack[] postimage;
+        private final Stack[] sealedExpectedInventory;
+        private final Stack[] sealedPostimage;
         final boolean expectedOpen;
         final int result;
         final String rejection;
 
-        PreparedInventoryMutation(
+        private PreparedInventoryMutation(
+            BankState owner,long inventoryGeneration,
             Stack[] expectedInventory,
             Stack[] postimage,
             boolean expectedOpen,
             int result,
             String rejection
         ){
-            this.expectedInventory=expectedInventory;
-            this.postimage=postimage;
+            this.owner=java.util.Objects.requireNonNull(owner,"owner");
+            this.inventoryGeneration=inventoryGeneration;
+            this.expectedInventory=copyStacks(expectedInventory);
+            this.postimage=postimage==null?null:copyStacks(postimage);
+            this.sealedExpectedInventory=copyStacks(expectedInventory);
+            this.sealedPostimage=postimage==null?null:copyStacks(postimage);
             this.expectedOpen=expectedOpen;
             this.result=result;
             this.rejection=rejection;
@@ -1424,7 +1433,7 @@ final class BankState {
         return dst;
     }
 
-    PreparedInventoryMutation prepareConsumeInventoryAll(
+    synchronized PreparedInventoryMutation prepareConsumeInventoryAll(
         int slot,
         int itemId
     ){
@@ -1434,6 +1443,7 @@ final class BankState {
         if(!validSlot(expected,slot)||
            expected[slot]==null)
             return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                 expected,
                 null,
                 open,
@@ -1446,6 +1456,7 @@ final class BankState {
         if(st.itemId!=itemId||
            st.qty<=0)
             return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                 expected,
                 null,
                 open,
@@ -1459,6 +1470,7 @@ final class BankState {
         next[slot]=null;
 
         return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
             expected,
             next,
             open,
@@ -1467,7 +1479,7 @@ final class BankState {
         );
     }
 
-    PreparedInventoryMutation prepareAddInventoryAmount(
+    synchronized PreparedInventoryMutation prepareAddInventoryAmount(
         int itemId,
         int amount
     ){
@@ -1476,6 +1488,7 @@ final class BankState {
 
         if(amount<=0)
             return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                 expected,
                 null,
                 open,
@@ -1497,6 +1510,7 @@ final class BankState {
 
             if(dst<0)
                 return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                     expected,
                     null,
                     open,
@@ -1517,6 +1531,7 @@ final class BankState {
 
             if(merged>Integer.MAX_VALUE)
                 return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                     expected,
                     null,
                     open,
@@ -1535,6 +1550,7 @@ final class BankState {
 
             if(free<amount)
                 return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                     expected,
                     null,
                     open,
@@ -1555,6 +1571,7 @@ final class BankState {
         }
 
         return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
             expected,
             next,
             open,
@@ -1563,62 +1580,54 @@ final class BankState {
         );
     }
 
-    void writePreparedInventoryMutation(
-        PreparedInventoryMutation prepared,
-        ServerPacketWriter w
-    )throws IOException{
-        if(prepared==null||
-           !prepared.accepted())
-            throw new IllegalArgumentException(
-                "accepted prepared inventory mutation required"
-            );
-
-        writeNormalInventoryStructuralPostimage(
-            w,
-            prepared.postimage,
-            prepared.expectedOpen
-        );
-    }
-
-    void publishPreparedInventoryMutation(
-        PreparedInventoryMutation prepared,
-        ServerPacketWriter w
-    )throws IOException{
-        if(prepared==null||
-           !prepared.accepted())
-            throw new IllegalArgumentException(
-                "accepted prepared inventory mutation required"
-            );
-
-        publishNormalInventoryStructuralPostimage(
-            w,
-            prepared.postimage,
-            prepared.expectedOpen
-        );
-    }
-
-    int commitPreparedInventoryMutation(
+    /**
+     * A deferred inventory preflight can only be used by its original BankState
+     * while that exact inventory generation and presentation remain current.
+     * Observed arrays cannot add unauthorized items or change the packet.
+     */
+    private void verifyPreparedInventoryMutation(
         PreparedInventoryMutation prepared
     ){
-        if(prepared==null||
-           !prepared.accepted())
+        if(prepared==null||!prepared.accepted())
             throw new IllegalArgumentException(
-                "accepted prepared inventory mutation required"
-            );
-
-        if(open!=prepared.expectedOpen||
-           !sameStacks(
-                inventory,
-                prepared.expectedInventory
-           ))
+                "accepted prepared inventory mutation required");
+        if(prepared.owner!=this)
             throw new IllegalStateException(
-                "inventory preimage changed before prepared commit"
-            );
+                "foreign prepared inventory mutation");
+        if(prepared.inventoryGeneration!=inventoryMutationRevision||
+           open!=prepared.expectedOpen||
+           !sameStacks(inventory,prepared.sealedExpectedInventory))
+            throw new IllegalStateException(
+                "prepared inventory lineage/preimage changed");
+        if(!sameStacks(prepared.expectedInventory,
+                       prepared.sealedExpectedInventory)||
+           !sameStacks(prepared.postimage,
+                       prepared.sealedPostimage))
+            throw new IllegalStateException(
+                "prepared inventory snapshot modified after preflight");
+    }
 
-        replaceStacks(
-            inventory,
-            prepared.postimage
-        );
+    synchronized void writePreparedInventoryMutation(
+        PreparedInventoryMutation prepared,ServerPacketWriter w
+    )throws IOException{
+        verifyPreparedInventoryMutation(prepared);
+        writeNormalInventoryStructuralPostimage(
+            w,prepared.sealedPostimage,prepared.expectedOpen);
+    }
+
+    synchronized void publishPreparedInventoryMutation(
+        PreparedInventoryMutation prepared,ServerPacketWriter w
+    )throws IOException{
+        verifyPreparedInventoryMutation(prepared);
+        publishNormalInventoryStructuralPostimage(
+            w,prepared.sealedPostimage,prepared.expectedOpen);
+    }
+
+    synchronized int commitPreparedInventoryMutation(
+        PreparedInventoryMutation prepared
+    ){
+        verifyPreparedInventoryMutation(prepared);
+        replaceStacks(inventory,prepared.sealedPostimage);
         return prepared.result;
     }
 

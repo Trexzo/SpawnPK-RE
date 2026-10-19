@@ -13493,3 +13493,17 @@ tasks.register('preparedExternalBankCreditSealingRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('preparedExternalBankCreditSealingRegression')
 }
+
+// R24: deferred inventory add/consume may not be forged from a different
+// local BankState, stale ABA snapshot, or manipulated packet postimage.
+tasks.register('preparedInventoryMutationOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fence general prepared inventory grants by exact owner, generation and sealed prepublication snapshots.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedInventoryMutationOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedInventoryMutationOwnershipRegression')
+}
