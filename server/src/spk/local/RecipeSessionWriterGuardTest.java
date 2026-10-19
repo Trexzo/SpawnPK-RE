@@ -337,6 +337,7 @@ public final class RecipeSessionWriterGuardTest {
             closedWorldDeniesSessionPublication();
             legacyWorldOnlyCannotBypassSessionWitness(world);
             sessionPreviewIsReadOnly(world);
+            concurrentLegacyToSessionBinding(world);
         }finally{
             world.close();
         }
@@ -356,9 +357,136 @@ public final class RecipeSessionWriterGuardTest {
             " closedWorldSessionDenied=true"+
             " worldOnlyBypassAfterSessionClaimDenied=true"+
             " sessionPreviewReadOnlyAndStaleDenied=true"+
+            " legacyVsWriterClaimRaces=128"+
             " revocationPublicationRaces=64"+
             " concurrentOneTimeWitnessClaims=64"+
             " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void concurrentLegacyToSessionBinding(World world)
+        throws Exception{
+        ExecutorService workers=Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                final int sample=trial;
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_legacy_prepare_race_"+trial);
+                OutboundPacketQueue legacyQueue=
+                    new OutboundPacketQueue(4096);
+                ServerPacketWriter legacyWriter=writer(legacyQueue);
+                ServerPacketWriter sessionWriter=writer(
+                    new OutboundPacketQueue(4096));
+                java.util.concurrent.atomic.AtomicReference<
+                    RecipeWorldOwnedAdapter.Prepared> staged=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                java.util.concurrent.atomic.AtomicReference<
+                    RecipeSessionWriterGuard> witness=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                CountDownLatch ready=new CountDownLatch(2),
+                    start=new CountDownLatch(1);
+                Future<String> preparation=workers.submit(()->{
+                    ready.countDown();start.await();
+                    try{
+                        staged.set(
+                            RecipeWorldOwnedAdapter.prepareStackable(
+                                world,player,generation,legacyWriter,
+                                Collections.singletonMap(100,2),
+                                300,3,2,STACKABLE,null,false));
+                        return "PREPARED";
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                });
+                Future<String> claim=workers.submit(()->{
+                    ready.countDown();start.await();
+                    witness.set(new RecipeSessionWriterGuard(
+                        world,player,generation,sessionWriter));
+                    return "CLAIMED";
+                });
+                ok(ready.await(5,TimeUnit.SECONDS),
+                    "prepare/claim did not reach gate "+sample);
+                start.countDown();
+                String prep=preparation.get(5,TimeUnit.SECONDS),
+                    bound=claim.get(5,TimeUnit.SECONDS);
+                ok("CLAIMED".equals(bound)&&
+                    ("PREPARED".equals(prep)||
+                     prep.contains("RECIPE_WORLD_ONLY_PATH_BLOCKED"))&&
+                    witness.get()!=null,
+                    "concurrent prepare/claim unexpected result "+sample+
+                    " prep="+prep+" claim="+bound);
+                if(staged.get()!=null)
+                    denied(()->RecipeWorldOwnedAdapter.publish(staged.get()),
+                        "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+                ok(legacyQueue.queuedBytes()==0&&
+                    player.bank().inventoryAt(0).qty==5,
+                    "legacy preparation claimed-session packet leak "+sample);
+                witness.get().revokeAndAwait();
+                ok(world.unregisterPlayer(player,generation),
+                    "prepare/claim unregister failed "+sample);
+            }
+
+            for(int trial=0;trial<64;trial++){
+                final int sample=trial;
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_legacy_publish_race_"+trial);
+                OutboundPacketQueue legacyQueue=
+                    new OutboundPacketQueue(4096);
+                ServerPacketWriter legacyWriter=writer(legacyQueue);
+                RecipeWorldOwnedAdapter.Prepared prepared=
+                    RecipeWorldOwnedAdapter.prepareStackable(
+                        world,player,generation,legacyWriter,
+                        Collections.singletonMap(100,2),
+                        300,3,2,STACKABLE,null,false);
+                ServerPacketWriter sessionWriter=writer(
+                    new OutboundPacketQueue(4096));
+                java.util.concurrent.atomic.AtomicReference<
+                    RecipeSessionWriterGuard> witness=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                CountDownLatch ready=new CountDownLatch(2),
+                    start=new CountDownLatch(1);
+                Future<String> publication=workers.submit(()->{
+                    ready.countDown();start.await();
+                    try{
+                        return String.valueOf(
+                            RecipeWorldOwnedAdapter.publish(prepared));
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                });
+                Future<String> claim=workers.submit(()->{
+                    ready.countDown();start.await();
+                    witness.set(new RecipeSessionWriterGuard(
+                        world,player,generation,sessionWriter));
+                    return "CLAIMED";
+                });
+                ok(ready.await(5,TimeUnit.SECONDS),
+                    "publish/claim did not reach gate "+sample);
+                start.countDown();
+                String published=publication.get(5,TimeUnit.SECONDS),
+                    bound=claim.get(5,TimeUnit.SECONDS);
+                boolean completed="COMMITTED".equals(published);
+                ok("CLAIMED".equals(bound)&&
+                    (completed||published.contains(
+                        "RECIPE_WORLD_ONLY_PATH_BLOCKED"))&&
+                    witness.get()!=null&&
+                    legacyQueue.queuedPackets()==(completed?1:0)&&
+                    player.bank().inventoryAt(0).qty==(completed?1:5)&&
+                    ((player.bank().inventoryAt(3)==null)==!completed),
+                    "legacy publication/claim not linearized "+sample+
+                    " published="+published+" bound="+bound);
+                denied(()->RecipeWorldOwnedAdapter.publish(prepared),
+                    "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+                witness.get().revokeAndAwait();
+                ok(world.unregisterPlayer(player,generation),
+                    "publish/claim unregister failed "+sample);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
     }
 
     private static void sessionPreviewIsReadOnly(World world)
