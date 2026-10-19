@@ -213,12 +213,46 @@ public final class RecipeMixedBankAdapterTest {
             expectedOpenWire.toByteArray()),
             "mixed bank-open wire bytes did not match two-view reference");
 
+        // Freeze caller-owned ingredients and both classification
+        // authorities before mixed planning; later caller-side mutation
+        // cannot rewrite a prepared nonstackable output allocation.
+        BankState mutableDefinitionBank=new BankState();
+        mutableDefinitionBank.replaceInventorySemantic(ids(),qty());
+        Map<Integer,Integer> mutableIngredients=ingredients();
+        Set<Integer> mutableStackable=new HashSet<>(STACKABLE),
+            mutableNonstackable=new HashSet<>(NONSTACKABLE);
+        RecipeBankSemanticAdapter.Prepared frozenDefinition=
+            RecipeBankSemanticAdapter.prepareMixedWithTool(
+                mutableDefinitionBank,mutableIngredients,
+                400,1,2,mutableStackable,mutableNonstackable,null,false);
+        mutableIngredients.clear();
+        mutableIngredients.put(300,Integer.MAX_VALUE);
+        mutableStackable.clear();
+        mutableStackable.add(999);
+        mutableNonstackable.clear();
+        mutableNonstackable.add(999);
+        OutboundPacketQueue frozenQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter frozenWriter=new ServerPacketWriter(
+            frozenQueue,new IsaacCipher(new int[]{0,0,0,0}));
+        ok(RecipeBankSemanticAdapter.encodePreparedInventory(
+                mutableDefinitionBank,frozenDefinition).length>0&&
+            frozenQueue.queuedBytes()==0&&
+            RecipeBankSemanticAdapter.publishAndCommitIfIdle(
+                mutableDefinitionBank,frozenDefinition,frozenWriter)==
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            frozenQueue.queuedPackets()==1&&
+            mutableDefinitionBank.inventoryAt(0).qty==3&&
+            mutableDefinitionBank.inventoryAt(1).itemId==400&&
+            mutableDefinitionBank.inventoryAt(2).itemId==400,
+            "caller mutation affected sealed mixed recipe definition");
+
         System.out.println("RECIPE_MIXED_BANK_PASS"+
             " nonstackableSlotConservation=true queueAtomic=true"+
             " backpressureRetry=true replayDenied=true"+
             " capacityDenied=true bankOpenMirror=true"+
             " bankOpenWireParity=true"+
             " mixedBackpressureInventoryAbaDenied=true"+
+            " mutableMixedDefinitionsIsolated=true"+
             " liveRecipeRegistered=false");
     }
 }
