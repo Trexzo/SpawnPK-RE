@@ -221,6 +221,113 @@ public final class LiveDyeOpcode53IngressRegression {
             "final decoded dye inventory mismatch");
     }
 
+    /**
+     * A REAL decoded opcode-53 request must remain retryable if the complete
+     * outbound dye postimage cannot fit in the session queue. The rejected
+     * request and accepted retry share both original inbound ISAAC and exact
+     * outbound writer; the subsequent replay must not double-grant.
+     */
+    private static void decodedBackpressureRecovery(
+        boolean reverse,boolean bankOpen,int dyeQuantity
+    )throws Exception{
+        BankState bank=bankWithDyes(dyeQuantity);
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+        ServerPacketWriter outbound=writer(queue);
+        if(bankOpen){
+            bank.open(outbound);
+            ok(queue.drainTo(new ByteArrayOutputStream(),8192)>0,
+                "queue retry setup did not publish bank overlay");
+        }
+        long original=bank.inventoryMutationRevision();
+        long oldView=bank.bankViewRevision();
+        ByteArrayOutputStream encoded=new ByteArrayOutputStream();
+        IsaacCipher inCipher=new IsaacCipher(C2S_SEED.clone());
+        int selectedSlot=reverse?9:3,targetSlot=reverse?3:9;
+        int selectedId=reverse?DYE:REGULAR,targetId=reverse?REGULAR:DYE;
+        for(int i=0;i<3;i++)
+            action(encoded,inCipher,selectedSlot,targetSlot,
+                selectedId,targetId,INV,INV);
+        ClientPacketProbe probe=new ClientPacketProbe(
+            new ByteArrayInputStream(encoded.toByteArray()),
+            new IsaacCipher(C2S_SEED.clone()),
+            "[dye-queue-ingress] ");
+        LocalItemOnItemHandler handler=new LocalItemOnItemHandler(bank);
+        queue.offerBatch(new byte[8192]);
+        ok(queue.queuedBytes()==8192&&queue.queuedPackets()==1,
+            "queue retry fixture failed to saturate admission");
+        for(int i=0;i<3;i++){
+            ok(probe.readNextKnownPacket()&&probe.isAligned()&&
+                probe.typedRequestCount()==1,
+                "queue retry C2S framing failed index="+i);
+            ClientRequest request=probe.takeTypedRequest();
+            ok(request instanceof ItemOnItemClientRequest,
+                "queue retry lost typed opcode53 index="+i);
+            ItemOnItemClientRequest typed=(ItemOnItemClientRequest)request;
+            ok(typed.metadata().opcode==53&&
+                typed.metadata().provenance==
+                    ClientRequestProvenance.EXACT_CURRENT_CLIENT,
+                "queue retry lost client provenance index="+i);
+            ItemOnItemAction decoded=typed.action();
+            ok(decoded.selectedSlot==selectedSlot&&
+                decoded.targetSlot==targetSlot&&
+                decoded.selectedItemId==selectedId&&
+                decoded.targetItemId==targetId,
+                "queue retry swapped decoder fields index="+i);
+            LocalItemOnItemHandler.Result result=
+                handler.handle(decoded,outbound);
+            if(i==0){
+                ok(result!=null&&result.saveReason==null&&
+                    result.logText.contains(
+                        "REJECTED_COMBINE_QUEUE_RETRYABLE")&&
+                    queue.queuedBytes()==8192&&
+                    queue.queuedPackets()==1&&
+                    bank.inventoryMutationRevision()==original&&
+                    bank.bankViewRevision()==oldView&&
+                    bank.inventoryAt(3).itemId==REGULAR&&
+                    bank.inventoryAt(9).itemId==DYE&&
+                    bank.inventoryAt(9).qty==dyeQuantity,
+                    "failed decoded admission leaked mutation or save");
+                ok(queue.drainTo(new ByteArrayOutputStream(),8192)>0&&
+                    queue.queuedBytes()==0&&
+                    queue.queuedPackets()==0,
+                    "queue backpressure not cleared before valid retry");
+            }else if(i==1){
+                ok(result!=null&&
+                    "DOPPELGANGER_APPLY_DYE".equals(result.saveReason)&&
+                    bank.inventoryMutationRevision()==original+1&&
+                    queue.queuedPackets()==1&&
+                    bank.inventoryAt(3).itemId==DYED&&
+                    (dyeQuantity==1?
+                        bank.inventoryAt(9)==null:
+                        bank.inventoryAt(9)!=null&&
+                            bank.inventoryAt(9).itemId==DYE&&
+                            bank.inventoryAt(9).qty==dyeQuantity-1),
+                    "decoded retry failed to grant once");
+            }else{
+                ok(result!=null&&result.saveReason==null&&
+                    (result.logText.contains("REJECTED_COMBINE_STALE_ITEM")||
+                     result.logText.contains("REJECTED_COMBINE_ITEM_MISMATCH"))&&
+                    bank.inventoryMutationRevision()==original+1&&
+                    queue.queuedPackets()==1&&
+                    bank.inventoryAt(3).itemId==DYED,
+                    "decoded replay after retry double-granted");
+            }
+            ok(bank.bankViewRevision()==oldView,
+                "decoded retry unexpectedly changed bank presentation");
+        }
+        ok(probe.typedRequestCount()==0&&
+            probe.decodedCount()==3&&
+            probe.isAligned()&&!probe.readNextKnownPacket(),
+            "decoded retry stream did not terminate cleanly");
+        ByteArrayOutputStream actual=new ByteArrayOutputStream();
+        ok(queue.drainTo(actual,8192)>0&&
+            Arrays.equals(
+                actual.toByteArray(),
+                independentExpectedWire(dyeQuantity,bankOpen))&&
+            queue.queuedPackets()==0,
+            "decoded retry poisoned outbound ISAAC or bank mirrors");
+    }
+
     public static void main(String[] args)throws Exception{
         int fixtures=0;
         for(boolean reverse:new boolean[]{false,true})
@@ -230,6 +337,14 @@ public final class LiveDyeOpcode53IngressRegression {
                     fixtures++;
                 }
         ok(fixtures==20,"expected 20 C2S fixtures");
+        int retryFixtures=0;
+        for(boolean reverse:new boolean[]{false,true})
+            for(boolean bankOpen:new boolean[]{false,true})
+                for(int qty:new int[]{1,2,255,256,257}){
+                    decodedBackpressureRecovery(reverse,bankOpen,qty);
+                    retryFixtures++;
+                }
+        ok(retryFixtures==20,"expected 20 decoded retry fixtures");
         System.out.println(
             "LIVE_DYE_OPCODE53_INGRESS_PASS"+
             " decoderToExistingHandler=true c2sFrames=100"+
@@ -237,6 +352,10 @@ public final class LiveDyeOpcode53IngressRegression {
             " bankViews=2 quantityBoundary=1_2_255_256_257"+
             " malformedDenied=60 duplicateReplayDenied=20"+
             " validGrants=20 byteExactS2C=true"+
+            " retryEncodedFrames=60 retryFixtures=20"+
+            " saturatedQueueNoGrant=20"+
+            " recoveredRetries=20 staleReplayDenied=20"+
+            " retryIsaacParityBankOpenClosed=true"+
             " donorRecipesEnabled=false"
         );
     }
