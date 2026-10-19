@@ -93,9 +93,14 @@ public final class RecipeSessionPreviewWireParityTest {
                         prepared);
                     ok(Arrays.equals(views[0],primary),
                         "single preview and all-view body diverged");
-                    if(initial==null)
-                        initial=views;
-                    else
+                    if(initial==null){
+                        // Preserve an independent baseline: this regression
+                        // intentionally corrupts the caller's returned view
+                        // later in the loop to test defensive ownership.
+                        initial=new byte[views.length][];
+                        for(int view=0;view<views.length;view++)
+                            initial[view]=views[view].clone();
+                    }else
                         ok(Arrays.deepEquals(initial,views),
                             "repeated preview mutated next body");
                     // Deliberately corrupt the returned copy. Subsequent
