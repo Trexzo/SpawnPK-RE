@@ -128,6 +128,33 @@ public final class RecipeSessionWriterGuardTest {
                 ()->witness.runBound(
                     world,new WorldPlayer(),generation,writer,()->null)),
                 "RECIPE_SESSION_WRITER_IDENTITY_MISMATCH");
+            ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->witness.runBound(
+                    world,player,generation,writer,()->{
+                        denied(()->witness.runBound(
+                            world,player,generation,writer,()->null),
+                            "RECIPE_REENTRANT_WRITER_ACTION_DENIED");
+                        return null;
+                    })==null),
+                "nested writer action was not rejected");
+            boolean callbackFailed=false;
+            try{
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    player,generation,
+                    ()->witness.runBound(
+                        world,player,generation,writer,()->{
+                            throw new IOException("synthetic before-publication");
+                        }));
+            }catch(IOException expected){
+                callbackFailed="synthetic before-publication".equals(
+                    expected.getMessage());
+            }
+            ok(callbackFailed&&world.withOpenPlayerMutationOwnershipIfCurrent(
+                    player,generation,
+                    ()->witness.runBound(
+                        world,player,generation,writer,()->null)),
+                "failed guarded action did not release in-flight flag");
             RecipeWorldOwnedAdapter.SessionPrepared prepared=prepare(witness);
             ok(RecipeWorldOwnedAdapter.publishSession(prepared)==
                     ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
@@ -228,6 +255,38 @@ public final class RecipeSessionWriterGuardTest {
                 foreignWorld.close();
             }
 
+            WorldPlayer stalePlayer=new WorldPlayer();
+            seed(stalePlayer);
+            long staleGeneration=world.registerPlayer(
+                stalePlayer,"recipe_guard_stale_monitor");
+            ServerPacketWriter staleWriter=writer(
+                new OutboundPacketQueue(4096));
+            RecipeSessionWriterGuard staleGuard=
+                new RecipeSessionWriterGuard(
+                    world,stalePlayer,staleGeneration,staleWriter);
+            ok(world.unregisterPlayer(stalePlayer,staleGeneration),
+                "stale-monitor owner could not unregister");
+            denied(()->{
+                synchronized(stalePlayer.mutationLock()){
+                    staleGuard.runBound(
+                        world,stalePlayer,staleGeneration,
+                        staleWriter,()->null);
+                }
+            },"RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
+            long reinstated=world.registerPlayer(
+                stalePlayer,"recipe_guard_stale_monitor");
+            denied(()->staleGuard.runBound(
+                world,stalePlayer,staleGeneration,
+                staleWriter,()->null),
+                "RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
+            staleGuard.revokeAndAwait();
+            RecipeSessionWriterGuard restoredGuard=
+                new RecipeSessionWriterGuard(
+                    world,stalePlayer,reinstated,staleWriter);
+            restoredGuard.revokeAndAwait();
+            ok(world.unregisterPlayer(stalePlayer,reinstated),
+                "restored-monitor owner could not unregister");
+
             WorldPlayer terminalPlayer=new WorldPlayer();
             seed(terminalPlayer);
             long terminalGen=world.registerPlayer(
@@ -279,7 +338,9 @@ public final class RecipeSessionWriterGuardTest {
         System.out.println("RECIPE_SESSION_WRITER_GUARD_PASS"+
             " exactWriterDenied=true foreignPlayerDenied=true"+
             " directUnownedCallDenied=true playerLockAloneDenied=true"+
-            " fullWorldOwnershipAsserted=true terminalBindDenied=true"+
+            " fullWorldOwnershipAsserted=true staleMonitorDenied=true"+
+            " reentrantWriterDenied=true inFlightExceptionCleared=true"+
+            " terminalBindDenied=true"+
             " terminalRevokesWitness=true"+
             " sameGenerationRebindDenied=true"+
             " loginLogoutVolatileWitness=true"+
