@@ -2397,50 +2397,65 @@ final class BankState {
         return "UNEQUIP_OK item="+itemId+" slot="+slot+" equipmentIndex="+equipmentIndex+" amount="+amount+" inventorySlot="+dst;
     }
 
-    /** Dyed Doppel -> regular Doppel in-place plus a returned dye in another slot. */
-    String splitInventoryOne(int slot,int expectedItemId,int primaryReplacement,int extraItem,ServerPacketWriter w) throws IOException {
-        if(!validSlot(inventory,slot)||inventory[slot]==null)return "REJECTED_INVENTORY_SLOT";
-        Stack st=inventory[slot];
-        if(st.itemId!=expectedItemId)return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
-        if(st.qty!=1)return "REJECTED_TRANSFORM_QTY qty="+st.qty;
-        if(ItemDefinitionRepository.get(primaryReplacement)==null||ItemDefinitionRepository.get(extraItem)==null)return "REJECTED_UNKNOWN_REPLACEMENT";
+    /**
+     * Live Doppelganger REMOVE-dye: a dyed pet becomes one regular pet
+     * and one returned dye. This too is an ITEM GRANT and must obey the
+     * same queue-first, all-container atomicity as combineInventoryOne.
+     *
+     * World/BankState -> writer is the required lock order; never permit a
+     * caller's active packet batch to absorb this transaction.
+     */
+    String splitInventoryOne(
+        int slot,int expectedItemId,int primaryReplacement,
+        int extraItem,ServerPacketWriter w
+    )throws IOException{
+        java.util.Objects.requireNonNull(w,"remove-dye packet writer");
+        if(expectedItemId!=28807||primaryReplacement!=3241||
+           extraItem!=28824)
+            return "REJECTED_SPLIT_UNVERIFIED_PAIR";
+        synchronized(this){
+        synchronized(w){
+            if(w.terminal())return "REJECTED_SPLIT_WRITER_TERMINAL";
+            if(w.batchActive())return "REJECTED_SPLIT_WRITER_BUSY";
+            if(!validSlot(inventory,slot)||inventory[slot]==null)
+                return "REJECTED_INVENTORY_SLOT";
+            Stack st=inventory[slot];
+            if(st.itemId!=expectedItemId)
+                return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
+            if(st.qty!=1)
+                return "REJECTED_TRANSFORM_QTY qty="+st.qty;
+            if(ItemDefinitionRepository.get(primaryReplacement)==null||
+               ItemDefinitionRepository.get(extraItem)==null)
+                return "REJECTED_UNKNOWN_REPLACEMENT";
 
-        Stack[] nextInventory=
-            copyStacks(inventory);
-        int extraDst=isStackable(extraItem)?findItem(nextInventory,extraItem):-1;
-        if(extraDst<0)
-            extraDst=firstEmptyExcept(nextInventory,slot);
-        if(extraDst<0)return "REJECTED_INVENTORY_FULL_FOR_SPLIT";
+            Stack[] nextInventory=copyStacks(inventory);
+            int extraDst=isStackable(extraItem)
+                ?findItem(nextInventory,extraItem):-1;
+            if(extraDst<0)
+                extraDst=firstEmptyExcept(nextInventory,slot);
+            if(extraDst<0)return "REJECTED_INVENTORY_FULL_FOR_SPLIT";
+            nextInventory[slot]=new Stack(primaryReplacement,1);
+            if(nextInventory[extraDst]==null)
+                nextInventory[extraDst]=new Stack(extraItem,0);
+            if(nextInventory[extraDst].itemId!=extraItem||
+               nextInventory[extraDst].qty==Integer.MAX_VALUE)
+                throw new IllegalStateException("split preflight mismatch");
+            nextInventory[extraDst].qty++;
 
-        nextInventory[slot]=
-            new Stack(
-                primaryReplacement,
-                1
-            );
-        if(nextInventory[extraDst]==null)
-            nextInventory[extraDst]=
-                new Stack(
-                    extraItem,
-                    0
-                );
-        if(nextInventory[extraDst].itemId!=extraItem||
-           nextInventory[extraDst].qty==Integer.MAX_VALUE)
-            throw new IllegalStateException(
-                "split preflight mismatch"
-            );
-        nextInventory[extraDst].qty++;
+            final boolean expectedBankOpen=open;
+            ServerPacketWriter.RecoverablePacketResult admitted=
+                w.publishQueueOnlyRecoverablePacketIfIdle(
+                    ()->writeNormalInventoryStructuralPostimage(
+                        w,nextInventory,expectedBankOpen));
+            if(admitted!=ServerPacketWriter.RecoverablePacketResult.COMMITTED)
+                return "REJECTED_SPLIT_QUEUE_RETRYABLE";
 
-        publishNormalInventoryStructuralPostimage(
-            w,
-            nextInventory,
-            open
-        );
-        replaceStacks(
-            inventory,
-            nextInventory
-        );
-
-        return "INVENTORY_SPLIT_OK slot="+slot+" item="+expectedItemId+"->"+primaryReplacement+" extra="+extraItem+" extraSlot="+extraDst;
+            replaceStacks(inventory,nextInventory);
+            return "INVENTORY_SPLIT_OK slot="+slot+" item="+
+                expectedItemId+"->"+primaryReplacement+" extra="+
+                extraItem+" extraSlot="+extraDst;
+        }
+        }
     }
 
     /**

@@ -198,22 +198,11 @@ public final class DoppelRemoveDyeTest {
         int dyedSlot=find(bank,28807);
         req(dyedSlot>=0,"dyed slot");
 
-        boolean splitFailed=false;
-        try{
-            bank.splitInventoryOne(
-                dyedSlot,
-                28807,
-                3241,
-                28824,
-                failingWriter(81)
-            );
-        }catch(java.io.IOException expected){
-            splitFailed=true;
-        }
-
+        String splitRefused=bank.splitInventoryOne(
+            dyedSlot,28807,3241,28824,failingWriter(81));
         req(
-            splitFailed,
-            "split publication did not fail"
+            "REJECTED_SPLIT_QUEUE_RETRYABLE".equals(splitRefused),
+            "split full-queue publication did not retract: "+splitRefused
         );
         req(
             bank.inventoryAt(dyedSlot)!=null&&

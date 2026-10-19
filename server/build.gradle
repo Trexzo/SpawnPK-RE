@@ -13409,3 +13409,17 @@ tasks.named('build') {
     dependsOn tasks.named('liveDyeOpcode53IngressRegression')
     dependsOn tasks.named('localItemOnItemHandlerRegression')
 }
+
+// R17: the live REMOVE-dye option-75 is an item grant just like ADD-dye.
+// The whole normal/bank mirror must queue atomically before semantic commit.
+tasks.register('doppelRemoveDyeAtomicTransactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify established Doppel remove-dye queue-only atomic grant, retry ISAAC parity and concurrent exactly-once removal.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.DoppelRemoveDyeAtomicTransactionRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('doppelRemoveDyeAtomicTransactionRegression')
+}
