@@ -32,7 +32,12 @@ final class LocalItemOnItemHandler {
             (action.selectedItemId==3241&&action.targetItemId==28824);
 
         if(doppelPair){
-            // Before invoking the existing non-transactional dye path, ensure
+            // Pair-validation and the subsequent BankState commit must share
+            // one canonical inventory monitor. Competing packet handlers can
+            // otherwise observe different slot generations even though the
+            // writer itself serializes outbound packet encoding.
+            synchronized(bank){
+            // Before invoking the existing dye path, ensure
             // neither slot can be spoofed or stale. This must emit zero bytes.
             if(action.selectedSlot==action.targetSlot||
                action.selectedSlot<0||action.targetSlot<0||
@@ -66,6 +71,7 @@ final class LocalItemOnItemHandler {
                 " result="+result+" resultItem=28807",
                 saveReason
             );
+            }
         }
 
         return new Result(
