@@ -567,7 +567,7 @@ public final class DoppelgangerDyeTransactionRegression {
 
     private static void verifyDirectionWireParity()throws Exception{
         for(boolean bankOpen:new boolean[]{false,true}){
-            for(int dyeQuantity:new int[]{2,3}){
+            for(int dyeQuantity:new int[]{2,3,255,256,257}){
                 byte[] regularSelected=encodedDyeOutcome(
                     false,bankOpen,dyeQuantity);
                 byte[] dyeSelected=encodedDyeOutcome(
@@ -582,7 +582,7 @@ public final class DoppelgangerDyeTransactionRegression {
     private static void independentContainerWireReference()
         throws Exception{
         for(boolean bankOpen:new boolean[]{false,true}){
-            for(int dyeQuantity:new int[]{2,3,256}){
+            for(int dyeQuantity:new int[]{2,3,255,256,257}){
                 // Expected client inventory is constructed independently
                 // of the live handler's mutated BankState. This also
                 // exercises the 255+ extended item-quantity wire format.
@@ -607,9 +607,27 @@ public final class DoppelgangerDyeTransactionRegression {
                         BootstrapPackets.itemContainer53(
                             INVENTORY,expectedIds,expectedQty));
                     if(bankOpen){
+                        // The synthetic BankState constructor seeds nonempty
+                        // bank contents. The independent packet reference must
+                        // preserve those original bank slots, not invent an
+                        // empty bank mirror. Read only the untouched reference
+                        // fixture, never the live handler's mutated state.
                         int[] bankIds=new int[reference.bankCapacity()];
                         int[] bankQty=new int[bankIds.length];
                         Arrays.fill(bankIds,-1);
+                        int occupiedBank=0;
+                        for(int slot=0;slot<bankIds.length;slot++){
+                            BankState.Stack stack=reference.bankAt(slot);
+                            if(stack==null)continue;
+                            ok(stack.itemId>=0&&stack.qty>0,
+                                "invalid source bank reference slot="+slot);
+                            bankIds[slot]=stack.itemId;
+                            bankQty[slot]=stack.qty;
+                            occupiedBank++;
+                        }
+                        ok(occupiedBank>0&&
+                            occupiedBank==reference.bankSlots(),
+                            "bank-open reference unexpectedly empty");
                         referenceWriter.varShort(53,
                             BootstrapPackets.itemContainer53(
                                 BankState.BANK_CONTAINER,
