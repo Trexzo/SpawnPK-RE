@@ -178,6 +178,55 @@ public final class DoppelgangerDyeTransactionRegression {
         }
     }
 
+    private static void simultaneousDyeRequests()throws Exception{
+        java.util.concurrent.ExecutorService workers=
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                BankState bank=withItems(3,1,9,1);
+                OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+                ServerPacketWriter writer=writer(queue);
+                LocalItemOnItemHandler handler=
+                    new LocalItemOnItemHandler(bank);
+                ItemOnItemAction a=action(3,9,REGULAR,DYE);
+                java.util.concurrent.CountDownLatch ready=
+                    new java.util.concurrent.CountDownLatch(2),
+                    start=new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.Callable<
+                    LocalItemOnItemHandler.Result> attempt=()->{
+                    ready.countDown();start.await();
+                    return handler.handle(a,writer);
+                };
+                java.util.concurrent.Future<
+                    LocalItemOnItemHandler.Result> left=
+                    workers.submit(attempt),right=workers.submit(attempt);
+                ok(ready.await(5,
+                    java.util.concurrent.TimeUnit.SECONDS),
+                    "dye contenders not ready trial="+trial);
+                start.countDown();
+                LocalItemOnItemHandler.Result l=left.get(5,
+                    java.util.concurrent.TimeUnit.SECONDS);
+                LocalItemOnItemHandler.Result r=right.get(5,
+                    java.util.concurrent.TimeUnit.SECONDS);
+                int grants=("DOPPELGANGER_APPLY_DYE".equals(
+                    l.saveReason)?1:0)+
+                    ("DOPPELGANGER_APPLY_DYE".equals(
+                    r.saveReason)?1:0);
+                ok(grants==1&&queue.queuedPackets()==1&&
+                    bank.inventoryAt(3).itemId==DYED&&
+                    bank.inventoryAt(9)==null&&
+                    bank.inventoryMutationRevision()==2&&
+                    (l.logText.contains("REJECTED_COMBINE_STALE_ITEM")||
+                     r.logText.contains("REJECTED_COMBINE_STALE_ITEM")||
+                     l.logText.contains("REJECTED_COMBINE_ITEM_MISMATCH")||
+                     r.logText.contains("REJECTED_COMBINE_ITEM_MISMATCH")),
+                    "duplicate live dye published trial="+trial);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         ok(ItemDefinitionRepository.exists(DYED),
             "verified current dye result missing from item definitions");
@@ -191,11 +240,13 @@ public final class DoppelgangerDyeTransactionRegression {
             writerAdmissionGuard(bankOpen,true);
         }
         rejectRegularStack();
+        simultaneousDyeRequests();
         System.out.println("DOPPELGANGER_DYE_TRANSACTION_PASS"+
             " realHandlerSuccess=8 bothDirections=true"+
             " bankOpenAndClosed=true dyeConservation=true"+
             " stackedRegularDenied=true failedQueueAtomic=true"+
             " busyAndTerminalWriterDenied=true cleanRetryAfterBusy=true"+
+            " concurrentSingleDyeCommitTrials=64"+
             " noNewDonorRecipeRegistered=true");
     }
 }
