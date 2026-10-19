@@ -2501,8 +2501,7 @@ final class BankState {
                         w,nextInventory,expectedBankOpen));
             if(published!=
                 ServerPacketWriter.RecoverablePacketResult.COMMITTED)
-                throw new IOException(
-                    "DOPPELGANGER_DYE_PACKET_ADMISSION_RETRYABLE");
+                return "REJECTED_COMBINE_QUEUE_RETRYABLE";
             replaceStacks(inventory,nextInventory);
             return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+
                 " consumed="+itemA+"+"+itemB+" result="+resultItem;
