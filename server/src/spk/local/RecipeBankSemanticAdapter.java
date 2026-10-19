@@ -117,6 +117,38 @@ final class RecipeBankSemanticAdapter {
         }
     }
     /**
+     * Read-only copy of ALL inventory views a future queued publication
+     * would need (normally widget 3214, plus widget 5064 when bank-open).
+     * Never enqueue; do not advance the writer's ISAAC or mutate inventory.
+     */
+    static byte[][] encodePreparedInventoryViews(
+        BankState bank,Prepared prepared
+    )throws java.io.IOException{
+        Objects.requireNonNull(bank,"bank");
+        Objects.requireNonNull(prepared,"prepared");
+        synchronized(bank){
+            if(bank!=prepared.owner)
+                throw new IllegalStateException(
+                    "RECIPE_DIFFERENT_INVENTORY_OWNER");
+            if(prepared.committed)
+                throw new IllegalStateException(
+                    "RECIPE_PREPARED_ALREADY_COMMITTED");
+            if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
+               !Arrays.equals(prepared.sealedQuantities,
+                   prepared.proposed.quantities))
+                throw new IllegalStateException(
+                    "RECIPE_PREPARED_POSTIMAGE_CHANGED");
+            requireCurrentPreimage(bank,prepared);
+            byte[][] raw=bank.previewRecipeInventoryViews(
+                prepared.sealedIds,prepared.sealedQuantities);
+            byte[][] detached=new byte[raw.length][];
+            for(int i=0;i<raw.length;i++)
+                detached[i]=raw[i].clone();
+            return detached;
+        }
+    }
+
+    /**
      * Source-only queue-backed publication and semantic commit. Caller must
      * hold owning World authority; do not cross-session share a BankState.
      * A queue admission is NOT a remote client acknowledgement.
