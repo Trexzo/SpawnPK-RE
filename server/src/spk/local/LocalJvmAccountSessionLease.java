@@ -93,14 +93,14 @@ final class LocalJvmAccountSessionLease {
             if(!path.equals(other.path)&&
                fileKey.equals(other.initialAccountFileKey))
                 throw new java.io.IOException(
-                    "G21.232 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
+                    "R32 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
         }
         for(Map.Entry<Path,Object> pending:
                 pendingAccountFileKeys.entrySet()){
             if(!path.equals(pending.getKey())&&
                fileKey.equals(pending.getValue()))
                 throw new java.io.IOException(
-                    "G21.232 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
+                    "R32 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
         }
     }
 
@@ -114,7 +114,7 @@ final class LocalJvmAccountSessionLease {
             if(!path.equals(other.getKey())&&
                fileKey.equals(other.getValue()))
                 throw new java.io.IOException(
-                    "G21.232 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
+                    "R32 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
         }
     }
 
@@ -128,7 +128,7 @@ final class LocalJvmAccountSessionLease {
             if(!path.equals(other.getKey())&&
                fileKey.equals(other.getValue()))
                 throw new IllegalStateException(
-                    "G21.232 SAME_FILE_OBJECT_ALIAS_SESSION_DENIED_RAW_WRITER");
+                    "R32 SAME_FILE_OBJECT_ALIAS_SESSION_DENIED_RAW_WRITER");
         }
     }
 
@@ -197,7 +197,7 @@ final class LocalJvmAccountSessionLease {
                 initialAccountFileKey=existingAccountFileKey(file);
             }catch(java.io.IOException unsafe){
                 throw new java.io.IOException(
-                    "G21.232 RAW_ACCOUNT_INODE_PRECHECK_FAILED",unsafe);
+                    "R32 RAW_ACCOUNT_INODE_PRECHECK_FAILED",unsafe);
             }
         }else initialAccountFileKey=null;
         final boolean crossJvm=Boolean.getBoolean(
@@ -247,7 +247,7 @@ final class LocalJvmAccountSessionLease {
                 Object currentKey=existingAccountFileKey(file);
                 if(!Objects.equals(initialAccountFileKey,currentKey))
                     throw new java.io.IOException(
-                        "G21.232 RAW_ACCOUNT_INODE_CHANGED_DURING_ADMISSION");
+                        "R32 RAW_ACCOUNT_INODE_CHANGED_DURING_ADMISSION");
                 synchronized(active){
                     requireNoRawAliasAgainstSessions(
                         file,initialAccountFileKey);
@@ -266,7 +266,7 @@ final class LocalJvmAccountSessionLease {
                 }catch(java.io.IOException uncertain){
                     failure.addSuppressed(uncertain);
                     throw new IllegalStateException(
-                        "G21.232 RAW_ALIAS_OS_LOCK_RELEASE_UNCERTAIN",
+                        "R32 RAW_ALIAS_OS_LOCK_RELEASE_UNCERTAIN",
                         failure);
                 }
             }
