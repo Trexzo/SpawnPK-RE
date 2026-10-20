@@ -13889,3 +13889,18 @@ tasks.register('accountEpochTransitionMatrixRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochTransitionMatrixRegression')
 }
+
+// R52: the R50 permanent, nonadmitting HEAD can opt in to the existing
+// stable G21.185 cross-process lock. Two actual JVMs must not publish
+// concurrently; kill/release can never authorize HEAD reuse.
+tasks.register('crossJvmNegativeHeadPublicationGateRegression', JavaExec) {
+    group = 'verification'
+    description = 'Require stable cooperating cross-JVM owner lock for irreversible nonadmitting HEAD creation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21380CrossJvmNegativeHeadPublicationGateRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('crossJvmNegativeHeadPublicationGateRegression')
+}
