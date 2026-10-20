@@ -285,7 +285,24 @@ final class LocalJvmAccountSessionLease {
         Path exactAccountPath,String account
     )throws java.io.IOException{
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
-        if(!Boolean.getBoolean(RAW_WRITE_GATE_PROPERTY))return null;
+        // R40: disabling RAW participation while a same-JVM World
+        // token, pending session or RAW writer is ALREADY reserved
+        // cannot retroactively erase that reservation. Preserve the
+        // original fully unleased/default-off path unchanged; reject
+        // a late flag toggle for the exact held account BEFORE temp
+        // or parent-directory mutation. A hostile external process
+        // is not excluded by this JVM-only negative admission.
+        if(!Boolean.getBoolean(RAW_WRITE_GATE_PROPERTY)){
+            Path unchecked=exactAccountPath.toAbsolutePath().normalize();
+            synchronized(active){
+                if(active.containsKey(unchecked)||
+                   pendingSessionAdmissions.contains(unchecked)||
+                   rawWriters.containsKey(unchecked))
+                    throw new java.io.IOException(
+                        "R40_RAW_OPT_OUT_DURING_ACCOUNT_OWNERSHIP_DENIED");
+            }
+            return null;
+        }
         Path file=exactAccountPath.toAbsolutePath().normalize();
         requireNonHardlinkedAccount(file);
         // R39: do not allocate even a legacy fixed .tmp or register
