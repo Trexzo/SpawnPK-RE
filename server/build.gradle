@@ -13932,3 +13932,17 @@ tasks.register('lateNegativeHeadRawPublicationRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('lateNegativeHeadRawPublicationRegression')
 }
+
+// R55: immutable negative transition prepare/object/commit chain,
+// same G21.185 OS lock, three real killed-JVM cutpoints. UNWIRED.
+tasks.register('negativeHeadMonotonicTransitionProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove incomplete account-head transitions stay negative across real process death.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21383NegativeHeadTransitionProcessKillRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('negativeHeadMonotonicTransitionProcessKillRegression')
+}
