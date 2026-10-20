@@ -30,6 +30,9 @@ public final class G21362JvmRawWorldInodeAncestorNofollowRegression {
         }catch(IOException expected){
             return expected.getMessage()!=null&&
                 expected.getMessage().contains(
+                    "RAW_ACCOUNT_INODE_PRECHECK_FAILED")&&
+                expected.getCause()!=null&&
+                String.valueOf(expected.getCause().getMessage()).contains(
                     "ACCOUNT_LOCK_SYMLINK_ANCESTOR_NOFOLLOW");
         }
     }
