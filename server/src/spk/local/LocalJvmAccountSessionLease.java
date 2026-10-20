@@ -204,6 +204,28 @@ final class LocalJvmAccountSessionLease {
                     "R33_RAW_ACCOUNT_OBJECT_CHANGED_BEFORE_PUBLICATION");
         }
 
+        // R39: the FINAL negative World-save witness is a separate,
+        // persistent veto from ACTIVE. A cooperating, opted-in RAW
+        // writer must not publish over it, including when the current
+        // witness-creation feature flag has been turned OFF.
+        void requireNoFinalNegativeWitnessBeforePublication()
+            throws java.io.IOException{
+            LocalFinalSaveNegativeWitness.requireNoNegativeWitness(path);
+        }
+
+        void requireNoFinalNegativeWitnessAfterPublication()
+            throws java.io.IOException{
+            try{
+                requireNoFinalNegativeWitnessBeforePublication();
+            }catch(java.io.IOException uncertain){
+                // The filesystem move MAY already have committed new
+                // bytes. Do not claim a rollback or normal RAW ACK.
+                throw new java.io.IOException(
+                    "R39_RAW_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
+                    uncertain);
+            }
+        }
+
         // G21.244: best-effort opt-in last-chance RAW lock object check.
         void requireLockObjectContinuity()throws java.io.IOException{
             if(processLock!=null)
@@ -250,6 +272,10 @@ final class LocalJvmAccountSessionLease {
         if(!Boolean.getBoolean(RAW_WRITE_GATE_PROPERTY))return null;
         Path file=exactAccountPath.toAbsolutePath().normalize();
         requireNonHardlinkedAccount(file);
+        // R39: do not allocate even a legacy fixed .tmp or register
+        // an opt-in RAW reservation for a quarantined exact account.
+        // Presence is negative regardless of producer opt-in status.
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
         final boolean aliasGuard=Boolean.getBoolean(
             INODE_ALIAS_GATE_PROPERTY);
         final Object initialAccountFileKey;
@@ -316,6 +342,9 @@ final class LocalJvmAccountSessionLease {
                         file,initialAccountFileKey);
                 }
             }
+            // Recheck after potentially blocking for a cross-process
+            // OS lock, while our same-JVM RAW reservation remains held.
+            LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
             return new RawWriteReservation(
                 file,processLock,aliasGuard,initialAccountFileKey);
         }catch(java.io.IOException|RuntimeException failure){
