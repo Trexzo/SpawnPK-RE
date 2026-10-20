@@ -13974,3 +13974,17 @@ tasks.register('reusableEpochLedgerLabRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('reusableEpochLedgerLabRegression')
 }
+
+// R58: no R57 CLOSED/OWNED HEAD is a valid observed state without a
+// forced immutable write-ahead intent and matching forced receipt.
+tasks.register('reusableEpochIntentReceiptCrashRegression', JavaExec) {
+    group = 'verification'
+    description = 'Refuse replayed CLOSED heads, orphan claims and corrupt immutable receipt history.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21386ReusableEpochIntentReceiptCrashRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('reusableEpochIntentReceiptCrashRegression')
+}

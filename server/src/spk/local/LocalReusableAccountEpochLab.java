@@ -42,8 +42,8 @@ final class LocalReusableAccountEpochLab {
     private static final int MAX_SEQUENCE=32;
     private static final String ZERO="0000000000000000000000000000000000000000000000000000000000000000";
     enum Phase { CLOSED, OWNED, FINAL_PENDING }
-    enum Stage { SNAPSHOT_FORCED, HEAD_TEMP_FORCED, HEAD_MOVED_BEFORE_DIR_FORCE,
-                 HEAD_DIR_FORCED }
+    enum Stage { SNAPSHOT_FORCED, INTENT_FORCED, HEAD_TEMP_FORCED,
+                 HEAD_MOVED_BEFORE_DIR_FORCE, HEAD_DIR_FORCED, RECEIPT_FORCED }
     @FunctionalInterface interface Cutpoint {
         void reached(Stage stage)throws IOException;
     }
@@ -196,6 +196,117 @@ final class LocalReusableAccountEpochLab {
         if(headRequired&&imageCount!=1)
             throw new IOException("R57_CURRENT_IMAGE_UNCERTAIN");
     }
+
+    // R58: forced immutable write-ahead intent is a PERMANENT negative
+    // barrier until a matching post-dir-force receipt exists. Do not
+    // remove or reinterpret a stranded intent as a safe retry.
+    private static final String INTENT_MAGIC="G21386_LAB_INTENT_V1";
+    private static final String RECEIPT_MAGIC="G21386_LAB_RECEIPT_V1";
+    private static final String JOURNAL_PREFIX=".g21386-";
+    private static final String JOURNAL_STATE=
+        "state=LAB_ONLY_NO_ADMISSION_OR_RELEASE";
+    private static Path journalLeaf(Path a,int sequence,boolean receipt)
+        throws IOException{
+        if(sequence<0||sequence>MAX_SEQUENCE)
+            throw new IOException("R58_SEQUENCE_OUT_OF_BOUNDS");
+        return a.resolveSibling(prefix(a)+JOURNAL_PREFIX+
+            (receipt?"receipt-":"intent-")+
+            String.format(java.util.Locale.ROOT,"%04d",sequence));
+    }
+    private static byte[] journalRecord(
+        int sequence,String headSha,String previousHeadSha,
+        String previousReceiptSha,boolean receipt
+    )throws IOException{
+        if(sequence<0||sequence>MAX_SEQUENCE||
+           !headSha.matches("[0-9a-f]{64}")||
+           !previousHeadSha.matches("[0-9a-f]{64}")||
+           !previousReceiptSha.matches("[0-9a-f]{64}"))
+            throw new IOException("R58_JOURNAL_ARGUMENTS_INVALID");
+        String data=(receipt?RECEIPT_MAGIC:INTENT_MAGIC)+"\n"+
+            "sequence="+sequence+"\n"+
+            "headSha256="+headSha+"\n"+
+            "previousHeadSha256="+previousHeadSha+"\n"+
+            "previousReceiptSha256="+previousReceiptSha+"\n"+
+            JOURNAL_STATE+"\n";
+        return data.getBytes(StandardCharsets.US_ASCII);
+    }
+    private static java.util.SortedSet<String> journalLeaves(Path a)
+        throws IOException{
+        java.util.SortedSet<String> result=
+            new java.util.TreeSet<String>();
+        String prefix=prefix(a)+JOURNAL_PREFIX;
+        try(java.nio.file.DirectoryStream<Path> files=
+                Files.newDirectoryStream(a.getParent())){
+            for(Path child:files){
+                String leaf=child.getFileName().toString();
+                if(!leaf.startsWith(prefix))continue;
+                String tail=leaf.substring(prefix.length());
+                if(!tail.matches("(?:intent|receipt)-[0-9]{4}"))
+                    throw new IOException(
+                        "R58_MALFORMED_JOURNAL_LEAF_MANUAL_REVIEW");
+                result.add(leaf);
+                if(result.size()>2*(MAX_SEQUENCE+1))
+                    throw new IOException(
+                        "R58_JOURNAL_SET_UNBOUNDED_MANUAL_REVIEW");
+            }
+        }
+        return result;
+    }
+    private static void requireFreshJournal(Path a)throws IOException{
+        if(!journalLeaves(a).isEmpty())
+            throw new IOException(
+                "R58_EXISTING_JOURNAL_NO_INITIALIZE_OR_REPAIR");
+    }
+    private static void inspectJournal(
+        Path a,Observation current,byte[] currentHeadBytes
+    )throws IOException{
+        java.util.SortedSet<String> expected=
+            new java.util.TreeSet<String>();
+        for(int i=0;i<=current.sequence;i++){
+            expected.add(journalLeaf(a,i,false).getFileName().toString());
+            expected.add(journalLeaf(a,i,true).getFileName().toString());
+        }
+        if(!expected.equals(journalLeaves(a)))
+            throw new IOException(
+                "R58_ORPHAN_OR_MISSING_JOURNAL_MANUAL_REVIEW");
+        String prevHead=ZERO;
+        String prevReceipt=ZERO;
+        String lastPreviousHead=ZERO;
+        for(int i=0;i<=current.sequence;i++){
+            final byte[] receipt=read(journalLeaf(a,i,true),MAX_HEAD);
+            String[] fields=new String(receipt,StandardCharsets.US_ASCII)
+                .split("\n",-1);
+            if(fields.length!=7||
+               !RECEIPT_MAGIC.equals(fields[0])||
+               !fields[1].equals("sequence="+i)||
+               !fields[2].startsWith("headSha256=")||
+               !fields[3].equals("previousHeadSha256="+prevHead)||
+               !fields[4].equals("previousReceiptSha256="+prevReceipt)||
+               !fields[5].equals(JOURNAL_STATE)||
+               !fields[6].isEmpty())
+                throw new IOException(
+                    "R58_NONCANONICAL_RECEIPT_MANUAL_REVIEW");
+            String stepHead=fields[2].substring("headSha256=".length());
+            if(!stepHead.matches("[0-9a-f]{64}")||
+               !Arrays.equals(receipt,
+                   journalRecord(i,stepHead,prevHead,prevReceipt,true))||
+               !Arrays.equals(
+                   read(journalLeaf(a,i,false),MAX_HEAD),
+                   journalRecord(i,stepHead,prevHead,prevReceipt,false)))
+                throw new IOException(
+                    "R58_INTENT_RECEIPT_MISMATCH_MANUAL_REVIEW");
+            lastPreviousHead=prevHead;
+            prevHead=stepHead;
+            prevReceipt=sha(receipt);
+        }
+        if(!sha(currentHeadBytes).equals(prevHead)||
+           !current.previousHeadSha.equals(lastPreviousHead))
+            throw new IOException(
+                "R58_HEAD_ROLLBACK_OR_HISTORY_MISMATCH_MANUAL_REVIEW");
+        if(!expected.equals(journalLeaves(a)))
+            throw new IOException(
+                "R58_JOURNAL_SET_CHANGED_DURING_AUDIT_NEGATIVE");
+    }
     private static byte[] encode(Observation h)throws IOException{
         String canonical=MAGIC+"\n"+
             "accountSha256="+sha(h.account.toString().getBytes(
@@ -281,11 +392,42 @@ final class LocalReusableAccountEpochLab {
                current.imageSha),MAX_IMAGE)))
             throw new IOException("R57_POSTREAD_HEAD_IMAGE_CHANGED");
         scan(a,current.imageSequence,current.imageSha,true);
+        inspectJournal(a,current,first);
         return current;
     }
     private static void publish(Path a,Observation next,
                                 Cutpoint cuts)throws IOException{
         byte[] exact=encode(next);
+        // Before ANY HEAD rename, persist permanent evidence that the
+        // attempted sequence exists. An orphan intent must veto even
+        // when the old HEAD survived a process/host crash.
+        final String newHeadSha=sha(exact);
+        final String previousReceiptSha;
+        if(next.sequence==0){
+            if(exists(head(a)))
+                throw new IOException("R58_GENESIS_HEAD_ALREADY_PRESENT");
+            requireFreshJournal(a);
+            if(!ZERO.equals(next.previousHeadSha))
+                throw new IOException("R58_GENESIS_PREVIOUS_HEAD_INVALID");
+            previousReceiptSha=ZERO;
+        }else{
+            if(!exists(head(a))||
+               !sha(read(head(a),MAX_HEAD))
+                    .equals(next.previousHeadSha))
+                throw new IOException("R58_OLD_HEAD_CHANGED_BEFORE_INTENT");
+            previousReceiptSha=sha(read(
+                journalLeaf(a,next.sequence-1,true),MAX_HEAD));
+        }
+        Path intent=journalLeaf(a,next.sequence,false);
+        Path receipt=journalLeaf(a,next.sequence,true);
+        if(exists(intent)||exists(receipt))
+            throw new IOException("R58_JOURNAL_STEP_ALREADY_PRESENT");
+        byte[] intentBytes=journalRecord(next.sequence,newHeadSha,
+            next.previousHeadSha,previousReceiptSha,false);
+        byte[] receiptBytes=journalRecord(next.sequence,newHeadSha,
+            next.previousHeadSha,previousReceiptSha,true);
+        forcedCreate(intent,intentBytes,MAX_HEAD);
+        cuts.reached(Stage.INTENT_FORCED);
         Path temp=Files.createTempFile(
             a.getParent(),prefix(a)+TEMP_PREFIX,".tmp");
         BasicFileAttributes inode=Files.readAttributes(temp,
@@ -312,6 +454,15 @@ final class LocalReusableAccountEpochLab {
         cuts.reached(Stage.HEAD_MOVED_BEFORE_DIR_FORCE);
         forceDir(a);
         cuts.reached(Stage.HEAD_DIR_FORCED);
+        if(!Arrays.equals(exact,read(head(a),MAX_HEAD))||
+           !Arrays.equals(intentBytes,read(intent,MAX_HEAD)))
+            throw new IOException(
+                "R58_HEAD_OR_INTENT_POSTMOVE_UNCONFIRMED");
+        // Only after HEAD directory force + exact readback may the
+        // independent forced receipt be created. No auto-completion
+        // of an orphan INTENT occurs on restart.
+        forcedCreate(receipt,receiptBytes,MAX_HEAD);
+        cuts.reached(Stage.RECEIPT_FORCED);
         if(!Arrays.equals(exact,read(head(a),MAX_HEAD)))
             throw new IOException("R57_HEAD_POSTMOVE_UNCONFIRMED");
         Observation inspected=inspect(a);
@@ -397,6 +548,7 @@ final class LocalReusableAccountEpochLab {
             if(exists(head(a)))
                 throw new IOException("R57_LEDGER_ALREADY_INITIALIZED");
             scan(a,0,ZERO,false);
+            requireFreshJournal(a);
             String digest=sha(bytes);
             Path snapshot=image(a,0,digest);
             forcedCreate(snapshot,bytes,MAX_IMAGE);
@@ -410,8 +562,12 @@ final class LocalReusableAccountEpochLab {
     }
     static Observation claim(Path a,int expected,long generation,
                              String nonce)throws IOException{
+        return claim(a,expected,generation,nonce,stage->{});
+    }
+    static Observation claim(Path a,int expected,long generation,
+                             String nonce,Cutpoint cuts)throws IOException{
         return transition(a,expected,Phase.CLOSED,Phase.OWNED,
-            generation,nonce,null,stage->{});
+            generation,nonce,null,cuts);
     }
     static Observation prepareFinal(Path a,int expected,long generation,
                                      String nonce)throws IOException{
