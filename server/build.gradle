@@ -13833,3 +13833,17 @@ tasks.register('standaloneStrictPostMoveObjectRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('standaloneStrictPostMoveObjectRegression')
 }
+
+// R47: all cooperating ordinary RAW writers must re-observe the exact
+// published staged inode after the testable postmove witness boundary.
+tasks.register('ordinaryRawPostMoveObjectContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject positive RAW save results for same-byte inode swap and postmove removal.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21375RawPostMoveObjectContinuityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('ordinaryRawPostMoveObjectContinuityRegression')
+}

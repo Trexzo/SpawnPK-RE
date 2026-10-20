@@ -242,6 +242,54 @@ final class LocalJvmAccountSessionLease {
             }
         }
 
+        // R47: the three ordinary RAW writers share the same optional
+        // staged-inode continuity contract as the standalone strict
+        // writer. Pin the staged inode before moving it and refuse a
+        // normal RAW save result if an outsider changes that inode's
+        // account pathname after publication. This is observational,
+        // not a durable ownership epoch or external atomic CAS.
+        java.nio.file.attribute.BasicFileAttributes
+            captureStagedRawAccountObject(Path temp)
+            throws java.io.IOException{
+            if(!inodeAliasGuardEnabled)return null;
+            final java.nio.file.attribute.BasicFileAttributes staged=
+                java.nio.file.Files.readAttributes(
+                    temp,java.nio.file.attribute.BasicFileAttributes.class,
+                    java.nio.file.LinkOption.NOFOLLOW_LINKS);
+            if(!staged.isRegularFile()||staged.isSymbolicLink()||
+                    staged.fileKey()==null)
+                throw new java.io.IOException(
+                    "R47_RAW_STAGED_ACCOUNT_OBJECT_UNPROVEN_NO_MOVE");
+            return staged;
+        }
+
+        void requirePublishedRawAccountObjectStillCurrent(
+            java.nio.file.attribute.BasicFileAttributes staged
+        )throws java.io.IOException{
+            if(staged==null)return;
+            try{
+                LocalCrossJvmAccountSessionLock.requireNoSymlinkAncestors(
+                    path.getParent());
+                final java.nio.file.attribute.BasicFileAttributes current=
+                    java.nio.file.Files.readAttributes(
+                        path,java.nio.file.attribute.BasicFileAttributes.class,
+                        java.nio.file.LinkOption.NOFOLLOW_LINKS);
+                if(!current.isRegularFile()||current.isSymbolicLink()||
+                        current.fileKey()==null||
+                        !Objects.equals(staged.fileKey(),current.fileKey())||
+                        !Objects.equals(staged.creationTime(),
+                            current.creationTime()))
+                    throw new java.io.IOException(
+                        "R47_RAW_POST_MOVE_ACCOUNT_OBJECT_CHANGED");
+            }catch(java.io.IOException uncertain){
+                // Move might already be committed. Never claim
+                // rollback, successful save, or positive final ACK.
+                throw new java.io.IOException(
+                    "R47_RAW_POST_MOVE_ACCOUNT_OBJECT_UNCONFIRMED_MANUAL_REVIEW",
+                    uncertain);
+            }
+        }
+
         // G21.244: best-effort opt-in last-chance RAW lock object check.
         void requireLockObjectContinuity()throws java.io.IOException{
             if(processLock!=null)

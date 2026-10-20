@@ -168,6 +168,10 @@ final class AccountStore {
                 reservation.requireOriginalAccountObjectBeforePublication();
                 reservation.requireNoFinalNegativeWitnessBeforePublication();
             }
+            // R47: retain the exact new inode chosen for publication.
+            final java.nio.file.attribute.BasicFileAttributes
+                stagedRawObject=reservation==null?null:
+                    reservation.captureStagedRawAccountObject(tmp);
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
                     tmp,file,tempIdentity,sealedTemp,reservation,
@@ -185,8 +189,11 @@ final class AccountStore {
                 }
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
-            if(reservation!=null)
+            if(reservation!=null){
                 reservation.requireNoFinalNegativeWitnessAfterPublication();
+                reservation.requirePublishedRawAccountObjectStillCurrent(
+                    stagedRawObject);
+            }
             completed = true;
         } finally {
             if (!completed &&

@@ -1824,6 +1824,11 @@ final class FilePlayerRepository
                     raw.requireOriginalAccountObjectBeforePublication();
                     raw.requireNoFinalNegativeWitnessBeforePublication();
                 }
+                // R47: bind the raw publication's staged file object
+                // before the move. The postmove test is deliberately
+                // after the existing R39 retained-witness probe.
+                final BasicFileAttributes stagedRawObject=raw==null
+                    ?null:raw.captureStagedRawAccountObject(tmp);
                 if(LocalOptInRawTemp.forcePostimageEnabled()){
                     LocalOptInRawTemp.forcePublish(
                         tmp,file,originalRawTemp,sealedRawTemp,raw,
@@ -1831,8 +1836,11 @@ final class FilePlayerRepository
                 }else{
                     replaceSnapshotTemp(tmp,file,raw);
                 }
-                if(raw!=null)
+                if(raw!=null){
                     raw.requireNoFinalNegativeWitnessAfterPublication();
+                    raw.requirePublishedRawAccountObjectStillCurrent(
+                        stagedRawObject);
+                }
             }
 
             completed=true;
