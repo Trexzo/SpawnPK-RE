@@ -175,6 +175,17 @@ final class LocalJvmAccountSessionLease {
         }
     }
 
+    // R39: deterministic package-only seam after a cooperating RAW
+    // filesystem move. No production caller configures this hook.
+    @FunctionalInterface interface AfterRawPublicationProbe {
+        void afterMove(Path account)throws java.io.IOException;
+    }
+    private static volatile AfterRawPublicationProbe
+        afterRawPublicationProbeForTest;
+    static void setAfterRawPublicationProbeForTest(
+        AfterRawPublicationProbe probe
+    ){ afterRawPublicationProbeForTest=probe; }
+
     static final class RawWriteReservation implements AutoCloseable {
         private final Path path;
         private final LocalCrossJvmAccountSessionLock.Handle processLock;
@@ -216,6 +227,11 @@ final class LocalJvmAccountSessionLease {
         void requireNoFinalNegativeWitnessAfterPublication()
             throws java.io.IOException{
             try{
+                // The deterministic hook is useful for proving that
+                // a newly arrived post-move witness produces UNKNOWN,
+                // rather than a successful RAW writer receipt.
+                AfterRawPublicationProbe probe=afterRawPublicationProbeForTest;
+                if(probe!=null)probe.afterMove(path);
                 requireNoFinalNegativeWitnessBeforePublication();
             }catch(java.io.IOException uncertain){
                 // The filesystem move MAY already have committed new
