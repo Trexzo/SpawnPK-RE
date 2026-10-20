@@ -13696,3 +13696,18 @@ tasks.register('forcedRawExistingProfileOwnershipRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('forcedRawExistingProfileOwnershipRegression')
 }
+
+
+// R38: strictly forced RAW must observe final World NEGATIVE witness
+// independently of ACTIVE review marker, even when witness opt-in is OFF.
+tasks.register('forcedRawFinalNegativeWitnessFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Veto surviving final-save negative witnesses before forced RAW move and return unknown after move.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21366ForcedRawFinalNegativeWitnessFenceRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('forcedRawFinalNegativeWitnessFenceRegression')
+}
