@@ -83,7 +83,10 @@ final class LocalCrossJvmAccountSessionLock {
         Path fileForTest(){return file;}
     }
 
-    private static void requireNoSymlinkAncestors(Path parent)
+    // R34 reuse: opt-in same-JVM inode guard also needs NOFOLLOW
+    // ancestor checks when the separate cross-JVM OS lock is disabled.
+    // The scan is observational, not an atomic path-component pin.
+    static void requireNoSymlinkAncestors(Path parent)
         throws IOException{
         Path walk=parent;
         while(walk!=null){
