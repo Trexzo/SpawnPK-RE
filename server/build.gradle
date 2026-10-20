@@ -13591,3 +13591,17 @@ tasks.register('accountSnapshotLoadIdentityRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountSnapshotLoadIdentityRegression')
 }
+
+// R31: direct WorldPlayerPersistence.load admission is independent
+// of the LocalAccountLifecycle hydration-side cross-profile guard.
+tasks.register('worldPersistenceLoadOwnerIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fail closed on wrong-account FIFO snapshots while preserving read-only untrusted forensic observations.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.WorldPersistenceLoadOwnerIdentityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('worldPersistenceLoadOwnerIdentityRegression')
+}

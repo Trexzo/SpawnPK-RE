@@ -291,5 +291,9 @@ final class LocalAccountProfiles {
             " runEnabled="+movement.persistentRun()+" runEnergy="+movement.runEnergy()+petText+playerText;
     }
 
-    private static String clean(String s){return s==null?"":s.trim().toLowerCase(Locale.ROOT);}
+    // Shared canonical identity for account routing, snapshots and worker admission.
+    static String canonicalProfile(String username){
+        return username==null?"":username.trim().toLowerCase(Locale.ROOT);
+    }
+    private static String clean(String s){return canonicalProfile(s);}
 }

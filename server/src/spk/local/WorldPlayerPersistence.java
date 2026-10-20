@@ -569,13 +569,10 @@ final class WorldPlayerPersistence
     private static void requireCaptureAccountMatchesOwner(
         String requestedAccount,WorldPlayer registeredOwner
     ){
-        String current=registeredOwner.username();
-        String canonicalCurrent=current==null
-            ?""
-            :current.trim().toLowerCase(java.util.Locale.ROOT);
-        String canonicalRequested=requestedAccount==null
-            ?""
-            :requestedAccount.trim().toLowerCase(java.util.Locale.ROOT);
+        String canonicalCurrent=LocalAccountProfiles.canonicalProfile(
+            registeredOwner.username());
+        String canonicalRequested=LocalAccountProfiles.canonicalProfile(
+            requestedAccount);
         // Preserve the pre-existing snapshot codec's argument error for
         // empty/null usernames. Existing final-capture rollback consumers
         // distinguish malformed input from a foreign registered profile.
@@ -1662,6 +1659,16 @@ final class WorldPlayerPersistence
                             .loadForWorldSession(username)
                         :repository.load(username);
                 if(enforceAdmission&&loaded.isPresent()){
+                    // Custom PlayerRepository adapters need the same
+                    // fail-closed profile check as FilePlayerRepository.
+                    // Forensic observations are intentionally untrusted and
+                    // must remain readable with enforceAdmission=false.
+                    if(!LocalAccountProfiles.canonicalProfile(
+                            username).equals(
+                            LocalAccountProfiles.canonicalProfile(
+                                loaded.get().username())))
+                        throw new IOException(
+                            "ACCOUNT_LOAD_WORKER_PROFILE_MISMATCH");
                     MailboxPreparedRestartAdmission.Decision admission=
                         MailboxPreparedRestartAdmission.inspect(
                             loaded.get()
