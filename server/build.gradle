@@ -13549,3 +13549,17 @@ tasks.register('bankNoopSaveAndLineageRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('bankNoopSaveAndLineageRegression')
 }
+
+// R28: direct widget-to-session save callback, not just BankState result
+// labels. No-op and closed bank input cannot request an account save.
+tasks.register('bankUiMutationSaveBridgeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify real bank widgets only signal account saves after canonical inventory or placeholder metadata mutations.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.BankUiMutationSaveBridgeRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('bankUiMutationSaveBridgeRegression')
+}
