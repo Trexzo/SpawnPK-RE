@@ -164,19 +164,29 @@ final class AccountStore {
             if(safeTemp)
                 LocalOptInRawTemp.requireSealed(
                     tmp,tempIdentity,sealedTemp);
-            if(reservation!=null)
+            if(reservation!=null){
                 reservation.requireOriginalAccountObjectBeforePublication();
+                reservation.requireNoFinalNegativeWitnessBeforePublication();
+            }
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
                     tmp,file,tempIdentity,sealedTemp,reservation,
                     CANONICAL_USERNAME,accountPreimage);
             }else try {
-                if(reservation!=null)reservation.requireLockObjectContinuity();
+                if(reservation!=null){
+                    reservation.requireLockObjectContinuity();
+                    reservation.requireNoFinalNegativeWitnessBeforePublication();
+                }
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
-                if(reservation!=null)reservation.requireLockObjectContinuity();
+                if(reservation!=null){
+                    reservation.requireLockObjectContinuity();
+                    reservation.requireNoFinalNegativeWitnessBeforePublication();
+                }
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
+            if(reservation!=null)
+                reservation.requireNoFinalNegativeWitnessAfterPublication();
             completed = true;
         } finally {
             if (!completed &&
