@@ -13946,3 +13946,17 @@ tasks.register('negativeHeadMonotonicTransitionProcessKillRegression', JavaExec)
 tasks.named('build') {
     dependsOn tasks.named('negativeHeadMonotonicTransitionProcessKillRegression')
 }
+
+// R56: an orphan transition image without its PREPARE, or an extra
+// competing/malformed image leaf, remains permanent negative evidence.
+tasks.register('negativeTransitionOrphanImageRegression', JavaExec) {
+    group = 'verification'
+    description = 'Detect orphan and foreign R55 sidecar images before trusting any negative chain observation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21384NegativeTransitionOrphanImageRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('negativeTransitionOrphanImageRegression')
+}

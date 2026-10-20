@@ -182,6 +182,55 @@ final class LocalNegativeAccountTransitionLog {
     private static IOException incomplete(String reason){
         return new IOException("R55_INCOMPLETE_TRANSITION_MANUAL_REVIEW "+reason);
     }
+
+    /**
+     * R56: an orphan immutable image is negative evidence even when no
+     * corresponding PREPARE survived. A bare PREPARE/COMMIT scan would
+     * otherwise silently omit this artifact from the forensic chain.
+     *
+     * Enumerating names is OBSERVATIONAL; it does not pin directory
+     * inodes or fence a hostile writer between checks.
+     */
+    private static java.util.SortedSet<String> auditedStepLeaves(Path a)
+        throws IOException{
+        String prefix=a.getFileName().toString()+".g21383-step-";
+        java.util.SortedSet<String> observed=
+            new java.util.TreeSet<String>();
+        try(java.nio.file.DirectoryStream<Path> children=
+                Files.newDirectoryStream(a.getParent())){
+            for(Path child:children){
+                String name=child.getFileName().toString();
+                if(!name.startsWith(prefix))continue;
+                String suffix=name.substring(prefix.length());
+                if(!suffix.matches(
+                        "0[1-9]-(?:prepare|commit|image-[0-9a-f]{64}\\.snapshot)"))
+                    throw new IOException(
+                        "R56_MALFORMED_STEP_LEAF_NEGATIVE");
+                observed.add(name);
+                if(observed.size()>3*(MAX_STEPS+1))
+                    throw new IOException(
+                        "R56_UNBOUNDED_STEP_LEAVES_NEGATIVE");
+            }
+        }
+        return observed;
+    }
+
+    private static String observedImageLeaf(
+        java.util.SortedSet<String> leaves,Path account,int sequence
+    )throws IOException{
+        String prefix=record(account,sequence,"image-")
+            .getFileName().toString();
+        String only=null;
+        for(String name:leaves){
+            if(!name.startsWith(prefix))continue;
+            if(only!=null)
+                throw new IOException(
+                    "R56_MULTIPLE_STEP_IMAGES_NEGATIVE");
+            only=name;
+        }
+        return only;
+    }
+
     /**
      * Read-only forensic inspection. No caller may interpret a valid
      * chain as account admission or successful final-save release.
@@ -192,6 +241,10 @@ final class LocalNegativeAccountTransitionLog {
             LocalNegativeAccountHeadPrototype.inspectNegative(a);
         String prev=sha(read(
             LocalNegativeAccountHeadPrototype.headPath(a),MAX_RECORD));
+        // Capture every R55 step leaf, not only known prepare/commit
+        // names. An orphan image remains permanent negative evidence.
+        final java.util.SortedSet<String> stepLeaves=
+            auditedStepLeaves(a);
         int last=0;
         Phase phase=Phase.ACTIVE;
         String digest=genesis.snapshotSha256;
@@ -200,7 +253,22 @@ final class LocalNegativeAccountTransitionLog {
             Path preparePath=record(a,seq,"prepare");
             Path commitPath=record(a,seq,"commit");
             boolean pre=present(preparePath),com=present(commitPath);
-            if(!pre&&!com){gap=true;continue;}
+            // Fail on directory enumeration drift, not just on an
+            // incomplete PREPARE/COMMIT pair.
+            if(pre!=stepLeaves.contains(
+                    preparePath.getFileName().toString())||
+               com!=stepLeaves.contains(
+                    commitPath.getFileName().toString()))
+                throw new IOException(
+                    "R56_TRANSITION_LEAF_RACE_NEGATIVE");
+            String observedImage=observedImageLeaf(stepLeaves,a,seq);
+            if(!pre&&!com){
+                if(observedImage!=null)
+                    throw new IOException(
+                        "R56_ORPHAN_STEP_IMAGE_NEGATIVE");
+                gap=true;
+                continue;
+            }
             if(seq>MAX_STEPS||gap||!pre||!com)
                 throw incomplete("gap_or_unpaired_step="+seq);
             byte[] prepareBytes=read(preparePath,MAX_RECORD);
@@ -244,9 +312,16 @@ final class LocalNegativeAccountTransitionLog {
                    next!=Phase.FINAL_PENDING&&next!=Phase.REVIEW)
                 throw incomplete("invalid_phase_transition_step="+seq);
             if(next==Phase.REVIEW){
+                if(observedImage!=null)
+                    throw new IOException(
+                        "R56_REVIEW_IMAGE_NOT_ALLOWED_NEGATIVE");
                 if(!nextSha.equals(digest))
                     throw incomplete("review_digest_changed_step="+seq);
             }else{
+                if(!image(a,seq,nextSha).getFileName().toString()
+                        .equals(observedImage))
+                    throw new IOException(
+                        "R56_UNREFERENCED_STEP_IMAGE_NEGATIVE");
                 byte[] bytes;
                 try{
                     bytes=read(image(a,seq,nextSha),
@@ -268,6 +343,12 @@ final class LocalNegativeAccountTransitionLog {
             prev=sha(commitBytes);
             last=seq;
         }
+        // A second directory observation catches newly published
+        // sidecar names seen while reading earlier PREPARE/COMMIT
+        // objects. This is not an atomic directory snapshot.
+        if(!stepLeaves.equals(auditedStepLeaves(a)))
+            throw new IOException(
+                "R56_STEP_DIRECTORY_CHANGED_DURING_AUDIT_NEGATIVE");
         // Observe R50 original HEAD again after all independent reads:
         // a changing genesis must never be classified as healthy.
         if(!prev.isEmpty()){
