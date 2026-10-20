@@ -13742,3 +13742,18 @@ tasks.register('rawLiveOptOutOwnershipRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('rawLiveOptOutOwnershipRegression')
 }
+
+
+// R41: disabling World JVM lease opt-in does not erase a RAW writer
+// reservation previously acquired in the same process.
+tasks.register('worldLeaseOptOutRawOwnerRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny unleased World admission while same-account RAW owner remains held.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21369WorldLeaseOptOutRawOwnerRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('worldLeaseOptOutRawOwnerRegression')
+}
