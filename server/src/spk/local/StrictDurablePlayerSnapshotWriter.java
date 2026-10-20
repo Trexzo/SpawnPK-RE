@@ -541,6 +541,15 @@ final class StrictDurablePlayerSnapshotWriter {
                         // A late witness means UNKNOWN, never a
                         // confirmed standalone strict Receipt.
                         raw.requireNoFinalNegativeWitnessAfterPublication();
+                    }catch(IOException uncertain){
+                        // R43: preserve the specific witness failure
+                        // classification for existing audited callers.
+                        throw new UnconfirmedCommitException(
+                            "R43 STRICT_RAW_POST_MOVE_FINAL_WITNESS_UNCONFIRMED_MANUAL_REVIEW",
+                            uncertain
+                        );
+                    }
+                    try{
                         // R45: after ATOMIC_MOVE an external alias
                         // may instead name the newly published inode.
                         // A late observation is UNKNOWN, not rollback
@@ -549,7 +558,7 @@ final class StrictDurablePlayerSnapshotWriter {
                             .requireNonHardlinkedAccount(file);
                     }catch(IOException uncertain){
                         throw new UnconfirmedCommitException(
-                            "R45 STRICT_RAW_POST_MOVE_OWNERSHIP_UNCONFIRMED_MANUAL_REVIEW",
+                            "R45 STRICT_RAW_POST_MOVE_HARDLINK_UNCONFIRMED_MANUAL_REVIEW",
                             uncertain
                         );
                     }
