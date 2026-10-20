@@ -99,8 +99,9 @@ final class LocalNegativeAccountHeadPrototype {
      */
     static void requireNoPublishedHead(Path account)throws IOException{
         Path exact=canonical(account);
-        LocalCrossJvmAccountSessionLock.requireNoSymlinkAncestors(
-            exact.getParent());
+        // Read-only negative leaf presence does NOT supersede the
+        // existing writer-specific ancestry/error classification.
+        // Those opt-in checks remain responsible for preflight.
         Path head=headPath(exact);
         try{
             Files.readAttributes(head,BasicFileAttributes.class,
