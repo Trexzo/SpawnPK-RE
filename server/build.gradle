@@ -13788,3 +13788,18 @@ tasks.register('standaloneStrictFinalWitnessPublicationRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('standaloneStrictFinalWitnessPublicationRegression')
 }
+
+
+// R44: standalone strict RAW must not overwrite a successor account
+// inode substituted after the reservation, including a new bootstrap.
+tasks.register('standaloneStrictAccountObjectContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject same-byte changed account inode and late bootstrap leaf in strict RAW.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21372StandaloneStrictAccountObjectContinuityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneStrictAccountObjectContinuityRegression')
+}
