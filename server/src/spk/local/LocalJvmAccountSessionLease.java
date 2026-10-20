@@ -135,12 +135,30 @@ final class LocalJvmAccountSessionLease {
     static final class RawWriteReservation implements AutoCloseable {
         private final Path path;
         private final LocalCrossJvmAccountSessionLock.Handle processLock;
+        private final boolean inodeAliasGuardEnabled;
+        private final Object originalAccountFileKey;
         private boolean closed;
         private RawWriteReservation(
-            Path path,LocalCrossJvmAccountSessionLock.Handle processLock
+            Path path,LocalCrossJvmAccountSessionLock.Handle processLock,
+            boolean inodeAliasGuardEnabled,Object originalAccountFileKey
         ){
             this.path=path;
             this.processLock=processLock;
+            this.inodeAliasGuardEnabled=inodeAliasGuardEnabled;
+            this.originalAccountFileKey=originalAccountFileKey;
+        }
+
+        // R33: a RAW reservation is for the observed account object,
+        // not permission to overwrite a successor inode at the same
+        // pathname. Compare before the final move. No external CAS or
+        // stable cross-JVM file object ownership is implied.
+        void requireOriginalAccountObjectBeforePublication()
+            throws java.io.IOException{
+            if(!inodeAliasGuardEnabled)return;
+            final Object current=existingAccountFileKey(path);
+            if(!Objects.equals(originalAccountFileKey,current))
+                throw new java.io.IOException(
+                    "R33_RAW_ACCOUNT_OBJECT_CHANGED_BEFORE_PUBLICATION");
         }
 
         // G21.244: best-effort opt-in last-chance RAW lock object check.
@@ -255,7 +273,8 @@ final class LocalJvmAccountSessionLease {
                         file,initialAccountFileKey);
                 }
             }
-            return new RawWriteReservation(file,processLock);
+            return new RawWriteReservation(
+                file,processLock,aliasGuard,initialAccountFileKey);
         }catch(java.io.IOException|RuntimeException failure){
             // A failed post-lock inode check must close the OS handle
             // BEFORE clearing the JVM reservation. Uncertain close
