@@ -13650,3 +13650,18 @@ tasks.register('jvmRawWorldInodeAncestorNofollowRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('jvmRawWorldInodeAncestorNofollowRegression')
 }
+
+
+// R35: separately selectable NOFOLLOW hardlink-count mode rejects
+// redirected parent/grandparent components even without inode/OS lock.
+tasks.register('standaloneAccountNlinkAncestorNofollowRegression', JavaExec) {
+    group = 'verification'
+    description = 'Enforce NOFOLLOW ancestors for standalone account link-count gate and real RAW writes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21363HardlinkCountStandaloneAncestorNofollowRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneAccountNlinkAncestorNofollowRegression')
+}
