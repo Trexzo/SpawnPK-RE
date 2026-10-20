@@ -1787,6 +1787,8 @@ final class FilePlayerRepository
                 // hardlink operation after the last check.
                 LocalJvmAccountSessionLease
                     .requireNonHardlinkedAccount(file);
+                if(raw!=null)
+                    raw.requireOriginalAccountObjectBeforePublication();
                 if(LocalOptInRawTemp.forcePostimageEnabled()){
                     LocalOptInRawTemp.forcePublish(
                         tmp,file,originalRawTemp,sealedRawTemp,raw,
