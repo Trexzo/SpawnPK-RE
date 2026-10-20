@@ -52,6 +52,9 @@ public final class WorldAccountCaptureProfileOwnershipRegression {
         }catch(IllegalStateException expected){
             refused="ACCOUNT_CAPTURE_PROFILE_OWNER_MISMATCH".equals(
                 expected.getMessage());
+        }catch(IllegalArgumentException expected){
+            refused=(requested==null||requested.trim().isEmpty())&&
+                "username".equals(expected.getMessage());
         }
         check(refused,
             "foreign profile capture admitted "+label);

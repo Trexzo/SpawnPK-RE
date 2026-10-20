@@ -576,6 +576,11 @@ final class WorldPlayerPersistence
         String canonicalRequested=requestedAccount==null
             ?""
             :requestedAccount.trim().toLowerCase(java.util.Locale.ROOT);
+        // Preserve the pre-existing snapshot codec's argument error for
+        // empty/null usernames. Existing final-capture rollback consumers
+        // distinguish malformed input from a foreign registered profile.
+        if(canonicalRequested.isEmpty())
+            throw new IllegalArgumentException("username");
         if(canonicalCurrent.isEmpty()||
            !canonicalCurrent.equals(canonicalRequested))
             throw new IllegalStateException(
