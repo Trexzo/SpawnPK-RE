@@ -105,6 +105,17 @@ public final class G21360RawWorldAccountInodeAliasReservationRegression {
             token.bindAdmittedWorldOwner(owner,generation);
             original.start();
             check(rawDenied(alias),"raw alias bypassed live World owner");
+            boolean realRawDenied=false;
+            try{
+                aliasRepo.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+            }catch(IOException expected){
+                realRawDenied=expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
+            }
+            check(realRawDenied,
+                "actual FilePlayerRepository.save bypassed World owner");
             check(!Files.exists(alias.resolveSibling(
                     alias.getFileName().toString()+".tmp"),
                     LinkOption.NOFOLLOW_LINKS),
@@ -214,6 +225,7 @@ public final class G21360RawWorldAccountInodeAliasReservationRegression {
                 "R32_RAW_WORLD_INODE_ALIAS_RESERVATION_PASS"+
                 " realHardlinks=true"+
                 " liveWorldBlocksRawAlias=true"+
+                " actualRawRepositoryWriteDenied=true"+
                 " pendingWorldBlocksRawAlias=true"+
                 " rawBlocksSecondRawAlias=true"+
                 " rawBlocksWorldAlias=true"+
