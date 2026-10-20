@@ -78,6 +78,59 @@ final class LocalJvmAccountSessionLease {
     // when cross-JVM opt-in enabled; still no durable epoch or raw
     // writer-completeness/OS-lock-path-substitution guarantee.
     private static final Map<Path,Integer> rawWriters=new HashMap<>();
+    // R32 opt-in, observed existing-inode identity retained for the
+    // reservation's full lifetime, including cross-JVM OS lock latency.
+    // Absent bootstrap files have no fileKey and remain path-guarded.
+    private static final Map<Path,Object>
+        rawWriterAccountFileKeys=new HashMap<>();
+
+    /** Caller holds active monitor. Raw versus pending/live World owners. */
+    private static void requireNoRawAliasAgainstSessions(
+        Path path,Object fileKey
+    )throws java.io.IOException{
+        if(fileKey==null)return;
+        for(Token other:active.values()){
+            if(!path.equals(other.path)&&
+               fileKey.equals(other.initialAccountFileKey))
+                throw new java.io.IOException(
+                    "G21.232 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
+        }
+        for(Map.Entry<Path,Object> pending:
+                pendingAccountFileKeys.entrySet()){
+            if(!path.equals(pending.getKey())&&
+               fileKey.equals(pending.getValue()))
+                throw new java.io.IOException(
+                    "G21.232 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
+        }
+    }
+
+    /** Caller holds active monitor. Raw writer versus other raw writers. */
+    private static void requireNoRawAliasAgainstRaw(
+        Path path,Object fileKey
+    )throws java.io.IOException{
+        if(fileKey==null)return;
+        for(Map.Entry<Path,Object> other:
+                rawWriterAccountFileKeys.entrySet()){
+            if(!path.equals(other.getKey())&&
+               fileKey.equals(other.getValue()))
+                throw new java.io.IOException(
+                    "G21.232 SAME_FILE_OBJECT_ALIAS_RAW_WRITE_DENIED");
+        }
+    }
+
+    /** Caller holds active monitor. World admission versus raw writers. */
+    private static void requireNoSessionAliasAgainstRaw(
+        Path path,Object fileKey
+    ){
+        if(fileKey==null)return;
+        for(Map.Entry<Path,Object> other:
+                rawWriterAccountFileKeys.entrySet()){
+            if(!path.equals(other.getKey())&&
+               fileKey.equals(other.getValue()))
+                throw new IllegalStateException(
+                    "G21.232 SAME_FILE_OBJECT_ALIAS_SESSION_DENIED_RAW_WRITER");
+        }
+    }
 
     static final class RawWriteReservation implements AutoCloseable {
         private final Path path;
@@ -116,6 +169,7 @@ final class LocalJvmAccountSessionLease {
                     throw new IllegalStateException(
                         "G21.216 RAW_RESERVATION_CHANGED_DURING_RELEASE");
                 rawWriters.remove(path);
+                rawWriterAccountFileKeys.remove(path);
                 closed=true;
             }
         }
@@ -135,6 +189,17 @@ final class LocalJvmAccountSessionLease {
         if(!Boolean.getBoolean(RAW_WRITE_GATE_PROPERTY))return null;
         Path file=exactAccountPath.toAbsolutePath().normalize();
         requireNonHardlinkedAccount(file);
+        final boolean aliasGuard=Boolean.getBoolean(
+            INODE_ALIAS_GATE_PROPERTY);
+        final Object initialAccountFileKey;
+        if(aliasGuard){
+            try{
+                initialAccountFileKey=existingAccountFileKey(file);
+            }catch(java.io.IOException unsafe){
+                throw new java.io.IOException(
+                    "G21.232 RAW_ACCOUNT_INODE_PRECHECK_FAILED",unsafe);
+            }
+        }else initialAccountFileKey=null;
         final boolean crossJvm=Boolean.getBoolean(
             LocalCrossJvmAccountSessionLock.PROPERTY);
         if(crossJvm&&!Boolean.getBoolean(PROPERTY))
@@ -150,9 +215,18 @@ final class LocalJvmAccountSessionLease {
                 throw new java.io.IOException(
                     "G21.208 RAW_WRITE_DENIED_ANOTHER_RAW_WRITER"+
                     " account="+account);
+            if(aliasGuard){
+                requireNoRawAliasAgainstSessions(
+                    file,initialAccountFileKey);
+                requireNoRawAliasAgainstRaw(
+                    file,initialAccountFileKey);
+            }
             // Local competing sessions/raw writers are now excluded
             // BEFORE any cross-process filesystem lock work begins.
             rawWriters.put(file,1);
+            if(aliasGuard&&initialAccountFileKey!=null)
+                rawWriterAccountFileKeys.put(
+                    file,initialAccountFileKey);
         }
         try{
             LocalCrossJvmAccountSessionLock.Handle processLock=null;
@@ -166,12 +240,28 @@ final class LocalJvmAccountSessionLease {
                         " account="+account,conflict);
                 }
             }
+            if(aliasGuard){
+                // Revalidate after potentially blocking cross-JVM I/O.
+                // Keep the RAW reservation published until all checks
+                // have passed or the OS lock has been safely closed.
+                Object currentKey=existingAccountFileKey(file);
+                if(!Objects.equals(initialAccountFileKey,currentKey))
+                    throw new java.io.IOException(
+                        "G21.232 RAW_ACCOUNT_INODE_CHANGED_DURING_ADMISSION");
+                synchronized(active){
+                    requireNoRawAliasAgainstSessions(
+                        file,initialAccountFileKey);
+                    requireNoRawAliasAgainstRaw(
+                        file,initialAccountFileKey);
+                }
+            }
             return new RawWriteReservation(file,processLock);
         }catch(java.io.IOException|RuntimeException failure){
             // No published RAW reservation can remain after failure
             // to acquire the OS lock. No RAW file temp was created.
             synchronized(active){
                 rawWriters.remove(file);
+                rawWriterAccountFileKeys.remove(file);
             }
             throw failure;
         }
@@ -490,9 +580,12 @@ final class LocalJvmAccountSessionLease {
                     "G21.181 JVM_ACCOUNT_SESSION_OWNED_NO_RECOVERY"+
                     " account="+username+" path="+key);
             if(!optIn)return null;
-            if(aliasGuard)
+            if(aliasGuard){
                 requireNoActiveAccountInodeAlias(
                     key,initialAccountFileKey);
+                requireNoSessionAliasAgainstRaw(
+                    key,initialAccountFileKey);
+            }
             // Reserve same-file alias identity before OS I/O.
             pendingSessionAdmissions.add(key);
             if(aliasGuard&&initialAccountFileKey!=null)
@@ -531,9 +624,12 @@ final class LocalJvmAccountSessionLease {
                 }
             }
             synchronized(active){
-                if(aliasGuard)
+                if(aliasGuard){
                     requireNoActiveAccountInodeAlias(
                         key,initialAccountFileKey);
+                    requireNoSessionAliasAgainstRaw(
+                        key,initialAccountFileKey);
+                }
                 if(!pendingSessionAdmissions.contains(key)||
                    active.containsKey(key)||rawWriters.containsKey(key))
                     throw new IllegalStateException(
