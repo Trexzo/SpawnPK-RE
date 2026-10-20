@@ -24,6 +24,18 @@ final class LocalJvmAccountSessionLease {
     static final String HARDLINK_COUNT_GATE_PROPERTY=
         "spk.local.experimentalAccountHardlinkCountGate";
 
+    // R36: deterministic test-only cutpoint between observations of
+    // the same opted-in account leaf. No production caller installs
+    // this probe; it cannot authorize a write or remove a sidecar.
+    @FunctionalInterface interface HardlinkObservationProbe {
+        void afterFirstAttributes(Path file)throws java.io.IOException;
+    }
+    private static volatile HardlinkObservationProbe
+        hardlinkObservationProbeForTest;
+    static void hardlinkObservationProbeForTest(
+        HardlinkObservationProbe probe
+    ){ hardlinkObservationProbeForTest=probe; }
+
     /**
      * G21.230: cooperative opt-in admission policy. A named account
      * leaf with >1 hard links is never an exclusive account inode.
@@ -43,25 +55,48 @@ final class LocalJvmAccountSessionLease {
         // the named account leaf does not exist yet.
         LocalCrossJvmAccountSessionLock.requireNoSymlinkAncestors(
             file.getParent());
-        if(!java.nio.file.Files.exists(
-                file,java.nio.file.LinkOption.NOFOLLOW_LINKS))return;
-        java.nio.file.attribute.BasicFileAttributes attributes=
-            java.nio.file.Files.readAttributes(
+        // R36: Files.exists swallows I/O errors and returns false
+        // both for true absence AND when existence cannot be proven.
+        // Only NoSuchFileException permits a missing bootstrap leaf.
+        final java.nio.file.attribute.BasicFileAttributes before;
+        try{
+            before=java.nio.file.Files.readAttributes(
                 file,java.nio.file.attribute.BasicFileAttributes.class,
                 java.nio.file.LinkOption.NOFOLLOW_LINKS);
-        if(!attributes.isRegularFile())
+        }catch(java.nio.file.NoSuchFileException absent){
+            return;
+        }
+        if(!before.isRegularFile()||before.isSymbolicLink()||
+           before.fileKey()==null)
             throw new java.io.IOException(
-                "G21.230 ACCOUNT_LEAF_NOT_REGULAR");
+                "G21.230 ACCOUNT_LEAF_NOT_REGULAR_OR_UNPROVEN");
+        HardlinkObservationProbe probe=hardlinkObservationProbeForTest;
+        if(probe!=null)probe.afterFirstAttributes(file);
         final Object count;
         try{
             count=java.nio.file.Files.getAttribute(
                 file,"unix:nlink",
                 java.nio.file.LinkOption.NOFOLLOW_LINKS);
-        }catch(UnsupportedOperationException unavailable){
+        }catch(UnsupportedOperationException|
+                IllegalArgumentException unavailable){
             throw new java.io.IOException(
                 "G21.230 HARDLINK_COUNT_UNSUPPORTED_FAIL_CLOSED",
                 unavailable);
         }
+        // A pathname can now resolve to a different (even identical-
+        // byte) inode than the one whose existence was verified.
+        // Observe again: an uncooperative after-check race remains,
+        // but an observed substitution never becomes admission.
+        final java.nio.file.attribute.BasicFileAttributes after=
+            java.nio.file.Files.readAttributes(
+                file,java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        if(!after.isRegularFile()||after.isSymbolicLink()||
+           after.fileKey()==null||
+           !before.fileKey().equals(after.fileKey())||
+           !before.creationTime().equals(after.creationTime()))
+            throw new java.io.IOException(
+                "R36_HARDLINK_ACCOUNT_FILE_OBJECT_CHANGED_DURING_READ");
         if(!(count instanceof Number))
             throw new java.io.IOException(
                 "G21.230 HARDLINK_COUNT_INVALID");
