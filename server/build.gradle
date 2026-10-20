@@ -13711,3 +13711,19 @@ tasks.register('forcedRawFinalNegativeWitnessFenceRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('forcedRawFinalNegativeWitnessFenceRegression')
 }
+
+
+// R39: independent JVMs must observe retained real final World
+// negative witnesses before ANY cooperating opt-in RAW save, including
+// legacy non-forced primary/named/repository writers.
+tasks.register('crossJvmRetainedFinalWitnessRawWriterRegression', JavaExec) {
+    group = 'verification'
+    description = 'Keep retained negative final World witnesses effective across cooperating RAW writer JVMs.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21367CrossJvmRetainedFinalWitnessRawWriterRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('crossJvmRetainedFinalWitnessRawWriterRegression')
+}
