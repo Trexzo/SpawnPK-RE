@@ -91,6 +91,27 @@ final class LocalNegativeAccountHeadPrototype {
         return exact;
     }
 
+    /**
+     * R53: read-only denial for ANY negative HEAD leaf, whether
+     * canonical, malformed, symlinked or partially written. A
+     * missing leaf retains existing legacy behavior; it is not a
+     * positive account-epoch receipt.
+     */
+    static void requireNoPublishedHead(Path account)throws IOException{
+        Path exact=canonical(account);
+        LocalCrossJvmAccountSessionLock.requireNoSymlinkAncestors(
+            exact.getParent());
+        Path head=headPath(exact);
+        try{
+            Files.readAttributes(head,BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        }catch(NoSuchFileException absent){
+            return;
+        }
+        throw new IOException(
+            "R53_NEGATIVE_ACCOUNT_HEAD_PRESENT_NO_AUTO_RECOVERY");
+    }
+
     private static void safeParent(Path exact)throws IOException{
         LocalCrossJvmAccountSessionLock
             .requireNoSymlinkAncestors(exact.getParent());

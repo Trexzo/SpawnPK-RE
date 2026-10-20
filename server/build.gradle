@@ -13904,3 +13904,17 @@ tasks.register('crossJvmNegativeHeadPublicationGateRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('crossJvmNegativeHeadPublicationGateRegression')
 }
+
+// R53: read-only permanent negative HEAD veto at actual World load,
+// World save and four RAW writer admissions, flags default-off.
+tasks.register('negativeHeadLegacyAdmissionVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject World/RAW access to permanent or malformed negative account HEADs.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21381NegativeHeadLegacyAdmissionVetoRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('negativeHeadLegacyAdmissionVetoRegression')
+}

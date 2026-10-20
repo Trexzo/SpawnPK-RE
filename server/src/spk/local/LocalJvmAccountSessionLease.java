@@ -373,6 +373,10 @@ final class LocalJvmAccountSessionLease {
         Path exactAccountPath,String account
     )throws java.io.IOException{
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
+        // R53: default-off legacy RAW also refuses a retained negative
+        // HEAD before creating temp, lock or opt-in reservation.
+        LocalNegativeAccountHeadPrototype.requireNoPublishedHead(
+            exactAccountPath);
         // R40: disabling RAW participation while a same-JVM World
         // token, pending session or RAW writer is ALREADY reserved
         // cannot retroactively erase that reservation. Preserve the
