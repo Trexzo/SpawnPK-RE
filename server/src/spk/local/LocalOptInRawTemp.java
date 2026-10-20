@@ -259,6 +259,14 @@ final class LocalOptInRawTemp {
                     "G21.251 FORCED_RAW_MAILBOX_REVIEW_FENCE_PRESENT");
             requirePublicationLockName(account,publicationLockIdentity);
             requireAccountPreimageUnchanged(account,expectedPreimage);
+            // R37: the strictly forced RAW postimage must not replace
+            // an EXISTING account file for a different username just
+            // because the same resolver path and bytes were pinned.
+            // Revalidate the preimage AFTER the bounded NOFOLLOW
+            // profile read, before the existing final nlink check.
+            FilePlayerRepository.requireForcedRawSelectedProfile(
+                account,accountUsername);
+            requireAccountPreimageUnchanged(account,expectedPreimage);
             // G21.260: with the existing DEFAULT-OFF G21.230 nlink
             // gate, recheck after the before-move race seam. A new
             // hardlink alias can arise after the prior early preflight
