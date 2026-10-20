@@ -13960,3 +13960,17 @@ tasks.register('negativeTransitionOrphanImageRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('negativeTransitionOrphanImageRegression')
 }
+
+// R57: intentionally UNWIRED reusable epoch ledger LAB, not login
+// authority. Genuine child JVM contention, forced final image crash.
+tasks.register('reusableEpochLedgerLabRegression', JavaExec) {
+    group = 'verification'
+    description = 'Rehearse claim/final/settled/reclaim under a cooperating cross-JVM ledger lock.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21385ReusableEpochLedgerLabRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('reusableEpochLedgerLabRegression')
+}
