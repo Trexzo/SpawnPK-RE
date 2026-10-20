@@ -270,10 +270,18 @@ final class LocalJvmAccountSessionLease {
             try{
                 LocalCrossJvmAccountSessionLock.requireNoSymlinkAncestors(
                     path.getParent());
-                final java.nio.file.attribute.BasicFileAttributes current=
-                    java.nio.file.Files.readAttributes(
+                final java.nio.file.attribute.BasicFileAttributes current;
+                try{
+                    current=java.nio.file.Files.readAttributes(
                         path,java.nio.file.attribute.BasicFileAttributes.class,
                         java.nio.file.LinkOption.NOFOLLOW_LINKS);
+                }catch(java.nio.file.NoSuchFileException removed){
+                    // R47.1: an ABSENT postmove leaf is also a changed
+                    // published account object, not a different class
+                    // of save outcome. Retain the underlying IO cause.
+                    throw new java.io.IOException(
+                        "R47_RAW_POST_MOVE_ACCOUNT_OBJECT_CHANGED",removed);
+                }
                 if(!current.isRegularFile()||current.isSymbolicLink()||
                         current.fileKey()==null||
                         !Objects.equals(staged.fileKey(),current.fileKey())||
