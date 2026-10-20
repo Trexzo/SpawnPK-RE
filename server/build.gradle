@@ -13635,3 +13635,18 @@ tasks.register('rawReservedAccountObjectPublicationRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('rawReservedAccountObjectPublicationRegression')
 }
+
+
+// R34: opt-in same-JVM inode ownership refuses symbolic-link ancestors
+// for RAW and World without depending on cross-JVM lock opt-in.
+tasks.register('jvmRawWorldInodeAncestorNofollowRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject RAW and World account path parent/grandparent symlink redirects.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21362JvmRawWorldInodeAncestorNofollowRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('jvmRawWorldInodeAncestorNofollowRegression')
+}
