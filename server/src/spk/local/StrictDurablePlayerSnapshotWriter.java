@@ -513,6 +513,13 @@ final class StrictDurablePlayerSnapshotWriter {
                 // publisher too. A witness arriving after RAW admission
                 // must block the final move, not merely the reservation.
                 if(raw!=null){
+                    // R44: a RAW reservation refers to the account
+                    // inode observed at admission. Replacing that
+                    // pathname during strict serialization must not
+                    // grant permission to overwrite a successor file.
+                    // Covers both existing accounts and an absent
+                    // bootstrap leaf that appeared before this move.
+                    raw.requireOriginalAccountObjectBeforePublication();
                     raw.requireLockObjectContinuity();
                     raw.requireNoFinalNegativeWitnessBeforePublication();
                 }
