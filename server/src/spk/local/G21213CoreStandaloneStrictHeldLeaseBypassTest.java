@@ -13,10 +13,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * G21.213 after G21.214: default-OFF compatibility negative.
- * Parent #2674 retains the historical gate-ON standalone strict
- * bypass evidence. This explicitly test-only flag flip is not safe
- * for a live session.
+ * G21.213 was historical standalone strict writer live opt-out evidence. R40 now requires live RAW opt-out refusal; preserve a test-only legacy strict save after the World owner was explicitly released.
+ * This is a regression of the new fail-closed boundary, not a
+ * positive grant, crash recovery, or authorization to toggle live flags.
  */
 public final class G21213CoreStandaloneStrictHeldLeaseBypassTest {
     private static final String USER=AccountStore.CANONICAL_USERNAME;
@@ -141,42 +140,55 @@ public final class G21213CoreStandaloneStrictHeldLeaseBypassTest {
             // G21.213 on parent #2674 retains the exact gate-ON
             // strict bypass evidence; with G21.214 this descendant
             // preserves only test-only default-OFF compatibility.
+            // R40 correction: G21.213 was historical standalone strict writer live opt-out evidence. R40 now requires live RAW opt-out refusal; preserve a test-only legacy strict save after the World owner was explicitly released.
             System.setProperty(keys[2],"false");
-            StrictDurablePlayerSnapshotWriter.Receipt receipt;
+            StrictDurablePlayerSnapshotWriter.Receipt receipt=null;
+            boolean refused=false;
+            try{
+                receipt=strict.saveStrict(rawAttempt.get());
+            }catch(IOException expected){
+                refused=String.valueOf(expected.getMessage()).contains(
+                    "R40_RAW_OPT_OUT_DURING_ACCOUNT_OWNERSHIP_DENIED");
+            }finally{
+                System.setProperty(keys[2],"true");
+            }
+            check(refused&&receipt==null,
+                "late standalone strict opt-out bypassed World token");
+            check(Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
+                "denied standalone strict writer replaced World bytes");
+            check("LATEST_WORLD_EXTENSION".equals(onDisk(repository)),
+                "denied strict RAW erased newer World extension");
+            check(LocalJvmAccountSessionLease.activeCountForTest()==1&&
+                LocalJvmAccountSessionLease.rawWriteReservationsForTest()==0,
+                "denied strict writer changed rightful owner accounting");
+            LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
+                account,owner,ownerGeneration);
+            check(world.unregisterPlayer(player,generation),
+                "fixture-only World unregister failed");
+            token.releaseAfterInitializationFailure();
+            token=null;
+            System.setProperty(keys[2],"false");
             try{
                 receipt=strict.saveStrict(rawAttempt.get());
             }finally{
                 System.setProperty(keys[2],"true");
             }
             check(receipt!=null&&
-                    receipt.matchesSnapshot(rawAttempt.get()),
-                "standalone STRICT default-OFF receipt missing");
-            check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
-                "strict file writer did not replace account postimage");
+                  receipt.matchesSnapshot(rawAttempt.get()),
+                "historical default-off strict receipt after owner release missing");
             check("OLDER_STRICT_CAPTURE".equals(onDisk(repository)),
-                "strict standalone postimage did not restore older captured state");
-            check(LocalJvmAccountSessionLease
-                    .rawWriteReservationsForTest()==0,
-                "strict writer unexpectedly participated in RAW reservations");
-            check(LocalJvmAccountSessionLease.activeCountForTest()==1,
-                "strict writer changed held JVM session Token");
-            LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
-                account,owner,ownerGeneration);
+                "strict standalone post-release stale capture semantics changed");
+            check(LocalJvmAccountSessionLease.activeCountForTest()==0,
+                "standalone strict fixture retained World token");
 
             System.out.println(
-                "G21213_STANDALONE_STRICT_HELD_JVM_LEASE_BYPASS_PASS"+
-                " actualWorldSaveFirst=true"+
-                " originalWorldCaptureLeaseChecked=true"+
-                " participatingRepositoryRawDenied=true"+
-                " standaloneStrictWriteSucceededWithGateOff=true"+
-                " newerWorldExtensionLostFromDisk=true"+
-                " originalWorldSessionLeaseStillHeld=true"+
-                " defaultOffFlagsUntouched=true"+
-                " standaloneStrictOptOutStillUnsafe=true"+
-                " globalWriterExclusion=false"+
-                " authenticatedDurableEpoch=false"+
-                " crossJvmOrCrashRecovery=false"+
-                " positiveGrantOrReviewRetirement=false");
+                "G21213_STANDALONE_STRICT_LIVE_OPT_OUT_DENIED_PASS"+
+                " realWorldGuardedPostimageBeforeAttempt=true"+
+                " lateStrictFlagOffRejectedWhileOwned=true"+
+                " newerWorldBytesPreservedWhileOwned=true"+
+                " historicalStrictReceiptAfterTestRelease=true"+
+                " crossJvmEpoch=false durableFinalAck=false");
+
         }finally{
             try{
                 if(world!=null&&player!=null&&generation>0L)
