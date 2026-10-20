@@ -115,6 +115,16 @@ final class LocalAccountLifecycle {
             PlayerSnapshot sourceSnapshot=
                 loaded.get();
 
+            // FilePlayerRepository performs its own named-file identity
+            // check, but custom/in-memory PlayerRepository adapters can
+            // return a valid snapshot belonging to a DIFFERENT account.
+            // Reject it here, before applying a single item/skill/mailbox
+            // field to the selected live login identity.
+            if(!canonicalProfile(selection.username).equals(
+                    canonicalProfile(sourceSnapshot.username())))
+                throw new IllegalStateException(
+                    "ACCOUNT_LOAD_SNAPSHOT_PROFILE_MISMATCH");
+
             PlayerSnapshot normalized=
                 PlayerSnapshotCodec.applyValidated(
                     sourceSnapshot,
@@ -172,6 +182,12 @@ final class LocalAccountLifecycle {
                 LoadStatus.FAILED
             );
         }
+    }
+
+    private static String canonicalProfile(String username){
+        return username==null
+            ?""
+            :username.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     static LoadResult load(

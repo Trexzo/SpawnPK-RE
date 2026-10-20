@@ -13577,3 +13577,17 @@ tasks.register('worldAccountCaptureProfileOwnershipRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('worldAccountCaptureProfileOwnershipRegression')
 }
+
+// R30: the selected account and loaded snapshot must match before a
+// repository adapter's bytes may hydrate a WorldPlayer.
+tasks.register('accountSnapshotLoadIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject foreign-account repository snapshots before player hydration, via direct and World FIFO sources.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.AccountSnapshotLoadIdentityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountSnapshotLoadIdentityRegression')
+}
