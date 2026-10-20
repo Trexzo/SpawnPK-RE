@@ -1824,6 +1824,10 @@ final class FilePlayerRepository
                     raw.requireOriginalAccountObjectBeforePublication();
                     raw.requireNoFinalNegativeWitnessBeforePublication();
                 }
+                // R54: late negative HEAD during a default-off RAW
+                // serialization must block the account move.
+                LocalNegativeAccountHeadPrototype
+                    .requireNoHeadBeforeRawMove(file);
                 // R47: bind the raw publication's staged file object
                 // before the move. The postmove test is deliberately
                 // after the existing R39 retained-witness probe.
@@ -1844,6 +1848,10 @@ final class FilePlayerRepository
                     raw.requirePublishedRawAccountBytesStillCurrent(
                         stagedRawObject);
                 }
+                // R54: a HEAD appearing after the actual account
+                // move is an UNKNOWN outcome, never a normal ACK.
+                LocalNegativeAccountHeadPrototype
+                    .requireNoHeadAfterRawMove(file);
             }
 
             completed=true;

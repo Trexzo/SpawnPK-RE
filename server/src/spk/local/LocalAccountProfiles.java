@@ -231,6 +231,8 @@ final class LocalAccountProfiles {
                 reservation.requireOriginalAccountObjectBeforePublication();
                 reservation.requireNoFinalNegativeWitnessBeforePublication();
             }
+            LocalNegativeAccountHeadPrototype
+                .requireNoHeadBeforeRawMove(file);
             // R47: pin the staged named-account inode for postmove
             // positive-receipt exclusion if the optional gate is on.
             final LocalJvmAccountSessionLease.RawWriteReservation
@@ -260,6 +262,8 @@ final class LocalAccountProfiles {
                 reservation.requirePublishedRawAccountBytesStillCurrent(
                     stagedRawObject);
             }
+            LocalNegativeAccountHeadPrototype
+                .requireNoHeadAfterRawMove(file);
             completed=true;
         }finally{
             if(!completed&&

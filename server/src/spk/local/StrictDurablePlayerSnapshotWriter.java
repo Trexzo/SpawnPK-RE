@@ -552,6 +552,8 @@ final class StrictDurablePlayerSnapshotWriter {
                         .requireNonHardlinkedAccount(file);
                     raw.requireNoFinalNegativeWitnessBeforePublication();
                 }
+                LocalNegativeAccountHeadPrototype
+                    .requireNoHeadBeforeRawMove(file);
                 // Preserve the historical default-off RAW primitive.
                 publishStrictReplacement(
                     temp,file,parent,replaced
@@ -621,6 +623,14 @@ final class StrictDurablePlayerSnapshotWriter {
                                 uncertain);
                         }
                     }
+                }
+                try{
+                    LocalNegativeAccountHeadPrototype
+                        .requireNoHeadAfterRawMove(file);
+                }catch(IOException uncertainty){
+                    throw new UnconfirmedCommitException(
+                        "R54_STRICT_RAW_HEAD_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
+                        uncertainty);
                 }
             }else{
                 // The marker publisher uses this SAME per-account lock.

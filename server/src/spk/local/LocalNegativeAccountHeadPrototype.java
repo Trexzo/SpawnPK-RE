@@ -113,6 +113,43 @@ final class LocalNegativeAccountHeadPrototype {
             "R53_NEGATIVE_ACCOUNT_HEAD_PRESENT_NO_AUTO_RECOVERY");
     }
 
+    // R54: narrow package-only deterministic fault seams. In
+    // production these callbacks are null; they confer no authority,
+    // and can only precede a negative check. Test data are disposable.
+    @FunctionalInterface interface RawPublicationProbe {
+        void run(Path account)throws IOException;
+    }
+    private static volatile RawPublicationProbe beforeRawMoveForTest;
+    private static volatile RawPublicationProbe afterRawMoveForTest;
+    static void setBeforeRawMoveForTest(RawPublicationProbe probe){
+        beforeRawMoveForTest=probe;
+    }
+    static void setAfterRawMoveForTest(RawPublicationProbe probe){
+        afterRawMoveForTest=probe;
+    }
+
+    static void requireNoHeadBeforeRawMove(Path account)
+        throws IOException{
+        RawPublicationProbe callback=beforeRawMoveForTest;
+        if(callback!=null)callback.run(account);
+        requireNoPublishedHead(account);
+    }
+
+    static void requireNoHeadAfterRawMove(Path account)
+        throws IOException{
+        try{
+            RawPublicationProbe callback=afterRawMoveForTest;
+            if(callback!=null)callback.run(account);
+            requireNoPublishedHead(account);
+        }catch(IOException uncertainty){
+            // The move may already have changed the account.
+            // Do not claim rollback, a successful save or Receipt.
+            throw new IOException(
+                "R54_NEGATIVE_HEAD_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
+                uncertainty);
+        }
+    }
+
     private static void safeParent(Path exact)throws IOException{
         LocalCrossJvmAccountSessionLock
             .requireNoSymlinkAncestors(exact.getParent());

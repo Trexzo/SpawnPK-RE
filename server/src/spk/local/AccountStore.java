@@ -168,6 +168,8 @@ final class AccountStore {
                 reservation.requireOriginalAccountObjectBeforePublication();
                 reservation.requireNoFinalNegativeWitnessBeforePublication();
             }
+            LocalNegativeAccountHeadPrototype
+                .requireNoHeadBeforeRawMove(file);
             // R47: retain the exact new inode chosen for publication.
             final LocalJvmAccountSessionLease.RawWriteReservation
                 .StagedRawAccountObject stagedRawObject=reservation==null
@@ -196,6 +198,8 @@ final class AccountStore {
                 reservation.requirePublishedRawAccountBytesStillCurrent(
                     stagedRawObject);
             }
+            LocalNegativeAccountHeadPrototype
+                .requireNoHeadAfterRawMove(file);
             completed = true;
         } finally {
             if (!completed &&

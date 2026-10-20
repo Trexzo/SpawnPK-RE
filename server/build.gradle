@@ -13918,3 +13918,17 @@ tasks.register('negativeHeadLegacyAdmissionVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('negativeHeadLegacyAdmissionVetoRegression')
 }
+
+// R54: late negative HEAD created during RAW serialization or after
+// the account move must never earn a normal RAW/strict success result.
+tasks.register('lateNegativeHeadRawPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject late HEAD before move and withhold receipts after move across all four default-off RAW writers.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21382LateNegativeHeadRawPublicationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('lateNegativeHeadRawPublicationRegression')
+}
