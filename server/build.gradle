@@ -13605,3 +13605,18 @@ tasks.register('worldPersistenceLoadOwnerIdentityRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('worldPersistenceLoadOwnerIdentityRegression')
 }
+
+
+// R32: real hardlink RAW versus pending/live World owner reservations.
+// Guard is opt-in and best-effort JVM fileKey matching, not a durable epoch.
+tasks.register('rawWorldInodeAliasReservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exercise hardlinked RAW/World reservation exclusion and real repository write refusal.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21360RawWorldAccountInodeAliasReservationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('rawWorldInodeAliasReservationRegression')
+}
