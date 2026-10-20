@@ -13757,3 +13757,18 @@ tasks.register('worldLeaseOptOutRawOwnerRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('worldLeaseOptOutRawOwnerRegression')
 }
+
+
+// R42: original inode owners must remain exclusive through a second
+// hardlink pathname even after disabling RAW / World lease participation.
+tasks.register('liveFlagOptOutHardlinkAliasRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject late opt-out hardlink aliases to already-held JVM account inodes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21370LiveFlagOptOutHardlinkAliasRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('liveFlagOptOutHardlinkAliasRegression')
+}
