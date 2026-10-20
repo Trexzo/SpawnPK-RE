@@ -24,6 +24,7 @@ public final class G21367CrossJvmRetainedFinalWitnessRawWriterRegression {
     private static final String NAMED="r39-legacy-named";
     private static final String REPO="r39-file-repo";
     private static final String LATE="r39-late-raw";
+    private static final String POST="r39-postmove-raw";
     private static final String OTHER="r39-unrelated";
     private G21367CrossJvmRetainedFinalWitnessRawWriterRegression(){}
     private static void check(boolean yes,String reason){
@@ -53,6 +54,15 @@ public final class G21367CrossJvmRetainedFinalWitnessRawWriterRegression {
     private static PlayerSnapshot snapshot(String username){
         return PlayerSnapshotCodec.capture(
             username,new WorldPlayer());
+    }
+
+    private static PlayerSnapshot stagedSnapshot(String username,
+        String phase){
+        WorldPlayer state=new WorldPlayer();
+        state.snapshotExtensions().replaceNamespace(
+            "r39_post_move",java.util.Collections.singletonMap(
+                "phase",phase));
+        return PlayerSnapshotCodec.capture(username,state);
     }
 
     private static FilePlayerRepository repository(){
@@ -236,6 +246,52 @@ public final class G21367CrossJvmRetainedFinalWitnessRawWriterRegression {
             "late negative RAW kept reservation");
     }
 
+    private static void postMoveWitnessMustBeUncertain(Path account)
+        throws Exception{
+        FilePlayerRepository repo=repository();
+        repo.save(stagedSnapshot(POST,"BEFORE"));
+        byte[] old=Files.readAllBytes(account);
+        AtomicBoolean injected=new AtomicBoolean();
+        LocalJvmAccountSessionLease.setAfterRawPublicationProbeForTest(
+            actual->{
+                check(account.equals(actual),
+                    "postmove negative witness targeted other account");
+                Files.write(LocalFinalSaveNegativeWitness
+                    .witnessPath(account),
+                    "test-only postmove negative".getBytes(
+                        StandardCharsets.US_ASCII));
+                injected.set(true);
+            });
+        boolean uncertain=false;
+        try{
+            repo.save(stagedSnapshot(POST,"AFTER"));
+        }catch(IOException expected){
+            uncertain=String.valueOf(expected.getMessage()).contains(
+                "R39_RAW_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW")&&
+                expected.getCause()!=null&&
+                String.valueOf(expected.getCause().getMessage()).contains(
+                    "NEGATIVE_FINAL_WITNESS_PRESENT_NO_AUTO_RECOVERY");
+        }finally{
+            LocalJvmAccountSessionLease
+                .setAfterRawPublicationProbeForTest(null);
+        }
+        check(injected.get()&&uncertain,
+            "new negative witness after nonforced RAW move was ACKed");
+        check(!Arrays.equals(old,Files.readAllBytes(account)),
+            "postmove injection did not observe a changed account");
+        check("AFTER".equals(repo.load(POST).orElseThrow(
+            ()->new AssertionError("postmove image missing"))
+            .values().get("extension.r39_post_move.phase")),
+            "uncertain postmove image was incorrectly rolled back");
+        check(Files.isRegularFile(
+                LocalFinalSaveNegativeWitness.witnessPath(account),
+                LinkOption.NOFOLLOW_LINKS),
+            "postmove negative witness did not survive");
+        assertNoTemps(account,false);
+        check(LocalJvmAccountSessionLease.rawWriteReservationsForTest()==0,
+            "postmove uncertain RAW reservation leaked");
+    }
+
     private static void parent()throws Exception{
         Path root=Files.createTempDirectory("r39-cross-jvm-final-");
         String[] keys={
@@ -278,6 +334,8 @@ public final class G21367CrossJvmRetainedFinalWitnessRawWriterRegression {
                 "witness became a global block on other accounts");
             Path late=LocalAccountProfiles.accountFile(LATE);
             lateNonForcedWitness(late);
+            Path post=LocalAccountProfiles.accountFile(POST);
+            postMoveWitnessMustBeUncertain(post);
 
             // Test fixture ONLY: simulate verified operator manual
             // correction and preserve normal healthy retry semantics.
@@ -304,6 +362,8 @@ public final class G21367CrossJvmRetainedFinalWitnessRawWriterRegression {
                 " freshJvmNonforcedRawDeniedAllThree=true"+
                 " freshJvmForcedRawDeniedAllThree=true"+
                 " lateNonforcedRawWitnessDenied=true"+
+                " latePostmoveRawWitnessUncertainNotAck=true"+
+                " postmoveBytesNotRolledBack=true"+
                 " accountsAndNegativeWitnessBytesPreserved=true"+
                 " unrelatedAccountRawStillAllowed=true"+
                 " manualFixtureOnlyWitnessRemoval=true"+
@@ -314,6 +374,8 @@ public final class G21367CrossJvmRetainedFinalWitnessRawWriterRegression {
                 " crossProcessOwnerEpoch=false"+
                 " automaticRecovery=false");
         }finally{
+            LocalJvmAccountSessionLease
+                .setAfterRawPublicationProbeForTest(null);
             for(int i=0;i<keys.length;i++){
                 if(old[i]==null)System.clearProperty(keys[i]);
                 else System.setProperty(keys[i],old[i]);
