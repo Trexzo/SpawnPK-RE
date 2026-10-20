@@ -35,6 +35,14 @@ final class LocalJvmAccountSessionLease {
     )throws java.io.IOException{
         if(!Boolean.getBoolean(HARDLINK_COUNT_GATE_PROPERTY))return;
         Path file=account.toAbsolutePath().normalize();
+        // R35: this separately selectable NOFOLLOW hardlink-count
+        // admission gate cannot trust just the final filename:
+        // Files.exists(NOFOLLOW_LINKS) still traverses symlinked
+        // parent and grandparent directories. Share the same opt-in
+        // ancestry veto as the JVM inode-alias gate, including when
+        // the named account leaf does not exist yet.
+        LocalCrossJvmAccountSessionLock.requireNoSymlinkAncestors(
+            file.getParent());
         if(!java.nio.file.Files.exists(
                 file,java.nio.file.LinkOption.NOFOLLOW_LINKS))return;
         java.nio.file.attribute.BasicFileAttributes attributes=
