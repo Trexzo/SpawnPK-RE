@@ -13875,3 +13875,17 @@ tasks.register('negativeAccountHeadProcessKillRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('negativeAccountHeadProcessKillRegression')
 }
+
+// R51: pure nonadmitting owner epoch / checkpoint / final / review
+// transition contract; no filesystem authority or LocalSession wiring.
+tasks.register('accountEpochTransitionMatrixRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject stale/foreign World account head transitions with only untrusted fixture tokens.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21379AccountEpochTransitionMatrixRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochTransitionMatrixRegression')
+}
