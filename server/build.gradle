@@ -13819,3 +13819,17 @@ tasks.register('standaloneStrictLateHardlinkPublicationRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('standaloneStrictLateHardlinkPublicationRegression')
 }
+
+// R46: verify that standalone strict opt-in RAW still publishes its
+// exact staged inode after a same-byte postmove substitution or unlink.
+tasks.register('standaloneStrictPostMoveObjectRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny strict RAW Receipt if the published postmove inode is replaced.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21374StandaloneStrictPostMoveObjectRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneStrictPostMoveObjectRegression')
+}

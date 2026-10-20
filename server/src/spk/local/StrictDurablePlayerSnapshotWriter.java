@@ -9,6 +9,8 @@ import java.util.Map;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -508,6 +510,20 @@ final class StrictDurablePlayerSnapshotWriter {
             }
 
             faults.check(Phase.BEFORE_ATOMIC_REPLACE);
+            // R46: original-account continuity (R44) does not prove
+            // the new strict temp inode survives after ATOMIC_MOVE.
+            // Keep this independent check behind the opt-in RAW inode
+            // alias guard; it is an observation, not an external CAS.
+            final Object strictRawStagedKey;
+            if(worldFile==null&&raw!=null&&Boolean.getBoolean(
+                    LocalJvmAccountSessionLease.INODE_ALIAS_GATE_PROPERTY)){
+                BasicFileAttributes staged=Files.readAttributes(
+                    temp,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+                if(!staged.isRegularFile()||staged.isSymbolicLink()||
+                        staged.fileKey()==null)
+                    throw new IOException("R46 STRICT_RAW_STAGED_OBJECT_UNPROVEN");
+                strictRawStagedKey=staged.fileKey();
+            }else strictRawStagedKey=null;
             if(worldFile==null){
                 // R43: non-World standalone STRICT is an optional RAW
                 // publisher too. A witness arriving after RAW admission
@@ -561,6 +577,29 @@ final class StrictDurablePlayerSnapshotWriter {
                             "R45 STRICT_RAW_POST_MOVE_HARDLINK_UNCONFIRMED_MANUAL_REVIEW",
                             uncertain
                         );
+                    }
+                    if(strictRawStagedKey!=null){
+                        try{
+                            // The R39 postmove probe (if any), R43
+                            // witness and R45 nlink checks have run.
+                            // Never ACK a substituted or absent postimage.
+                            LocalCrossJvmAccountSessionLock
+                                .requireNoSymlinkAncestors(parent);
+                            BasicFileAttributes published=Files.readAttributes(
+                                file,BasicFileAttributes.class,
+                                LinkOption.NOFOLLOW_LINKS);
+                            if(!published.isRegularFile()||
+                                    published.isSymbolicLink()||
+                                    !strictRawStagedKey.equals(published.fileKey()))
+                                throw new IOException(
+                                    "R46 STRICT_RAW_POST_MOVE_OBJECT_CHANGED");
+                        }catch(IOException uncertain){
+                            // Atomic replace may already be committed.
+                            // UNKNOWN is not a rollback or a Receipt.
+                            throw new UnconfirmedCommitException(
+                                "R46 STRICT_RAW_POST_MOVE_OBJECT_UNCONFIRMED_MANUAL_REVIEW",
+                                uncertain);
+                        }
                     }
                 }
             }else{
