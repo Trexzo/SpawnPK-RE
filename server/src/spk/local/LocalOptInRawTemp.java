@@ -218,6 +218,11 @@ final class LocalOptInRawTemp {
             // ACTIVE for manual review. Legacy/default RAW stays unchanged.
             LocalDurableAccountReviewIntentPrimitive
                 .requireNoReviewMarker(account);
+            // R38: a final-save NEGATIVE witness survives independently
+            // of the ACTIVE review marker and of the current opt-in
+            // property. A missing ACTIVE leaf is NOT permission to
+            // overwrite an account that still has final-review evidence.
+            LocalFinalSaveNegativeWitness.requireNoNegativeWitness(account);
             // G21.251: existing Mailbox durable/uncertain/write-ahead
             // sidecars are NEGATIVE, not overwritten by opt-in forced RAW.
             // Exact target account is pinned by this resolver. The G21.39
@@ -249,6 +254,10 @@ final class LocalOptInRawTemp {
             // be atomically fenced by these filesystem probes.
             LocalDurableAccountReviewIntentPrimitive
                 .requireNoReviewMarker(account);
+            // R38: repeat AFTER the deterministic pre-move seam. A
+            // newly inserted witness is a veto even if the initial
+            // publication-locked read saw no evidence.
+            LocalFinalSaveNegativeWitness.requireNoNegativeWitness(account);
             if(new MailboxDurableReviewFence(pinned)
                     .present(accountUsername)||
                new MailboxStrictUncertainFence(pinned)
@@ -318,6 +327,11 @@ final class LocalOptInRawTemp {
                 // delete markers, replay, or issue a final-save ACK.
                 LocalDurableAccountReviewIntentPrimitive
                     .requireNoReviewMarker(account);
+                // R38: bytes may already have moved. Late negative
+                // witness evidence must produce an UNKNOWN/REVIEW
+                // result, not a confirmed RAW success or rollback.
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(account);
                 if(new MailboxDurableReviewFence(pinned)
                         .present(accountUsername)||
                    new MailboxStrictUncertainFence(pinned)
