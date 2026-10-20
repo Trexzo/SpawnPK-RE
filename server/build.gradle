@@ -13620,3 +13620,18 @@ tasks.register('rawWorldInodeAliasReservationRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('rawWorldInodeAliasReservationRegression')
 }
+
+
+// R33: rejected RAW publication on same-byte account inode replacement
+// (or missing->created) across primary, named and repository writers.
+tasks.register('rawReservedAccountObjectPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Require the original opt-in RAW account inode until the final publication point.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21361RawReservedAccountObjectPublicationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('rawReservedAccountObjectPublicationRegression')
+}
