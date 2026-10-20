@@ -13847,3 +13847,17 @@ tasks.register('ordinaryRawPostMoveObjectContinuityRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('ordinaryRawPostMoveObjectContinuityRegression')
 }
+
+// R48: same-inode postmove byte changes must never earn positive RAW
+// save results, including the independent strict RAW Receipt.
+tasks.register('rawPostMoveByteIntegrityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fail closed on in-place postmove account-byte corruption across four RAW writers.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21376RawPostMoveByteIntegrityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('rawPostMoveByteIntegrityRegression')
+}

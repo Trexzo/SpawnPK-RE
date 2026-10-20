@@ -169,9 +169,9 @@ final class AccountStore {
                 reservation.requireNoFinalNegativeWitnessBeforePublication();
             }
             // R47: retain the exact new inode chosen for publication.
-            final java.nio.file.attribute.BasicFileAttributes
-                stagedRawObject=reservation==null?null:
-                    reservation.captureStagedRawAccountObject(tmp);
+            final LocalJvmAccountSessionLease.RawWriteReservation
+                .StagedRawAccountObject stagedRawObject=reservation==null
+                    ?null:reservation.captureStagedRawAccountObject(tmp);
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
                     tmp,file,tempIdentity,sealedTemp,reservation,
@@ -192,6 +192,8 @@ final class AccountStore {
             if(reservation!=null){
                 reservation.requireNoFinalNegativeWitnessAfterPublication();
                 reservation.requirePublishedRawAccountObjectStillCurrent(
+                    stagedRawObject);
+                reservation.requirePublishedRawAccountBytesStillCurrent(
                     stagedRawObject);
             }
             completed = true;

@@ -242,14 +242,23 @@ final class LocalJvmAccountSessionLease {
             }
         }
 
-        // R47: the three ordinary RAW writers share the same optional
-        // staged-inode continuity contract as the standalone strict
-        // writer. Pin the staged inode before moving it and refuse a
-        // normal RAW save result if an outsider changes that inode's
-        // account pathname after publication. This is observational,
-        // not a durable ownership epoch or external atomic CAS.
-        java.nio.file.attribute.BasicFileAttributes
-            captureStagedRawAccountObject(Path temp)
+        // R48: preserve both R47 file identity and a bounded, NOFOLLOW
+        // SHA-256 of the serialized temp, so in-place postmove changes
+        // on an unchanged inode cannot earn a normal RAW save result.
+        // The same opt-in inode gate controls both checks.
+        static final class StagedRawAccountObject {
+            final java.nio.file.attribute.BasicFileAttributes attributes;
+            final byte[] sha256;
+            StagedRawAccountObject(
+                java.nio.file.attribute.BasicFileAttributes attributes,
+                byte[] sha256
+            ){
+                this.attributes=attributes;
+                this.sha256=sha256.clone();
+            }
+        }
+
+        StagedRawAccountObject captureStagedRawAccountObject(Path temp)
             throws java.io.IOException{
             if(!inodeAliasGuardEnabled)return null;
             final java.nio.file.attribute.BasicFileAttributes staged=
@@ -260,12 +269,16 @@ final class LocalJvmAccountSessionLease {
                     staged.fileKey()==null)
                 throw new java.io.IOException(
                     "R47_RAW_STAGED_ACCOUNT_OBJECT_UNPROVEN_NO_MOVE");
-            return staged;
+            return new StagedRawAccountObject(
+                staged,LocalOptInRawTemp.seal(temp,staged));
         }
 
         void requirePublishedRawAccountObjectStillCurrent(
-            java.nio.file.attribute.BasicFileAttributes staged
+            StagedRawAccountObject evidence
         )throws java.io.IOException{
+            if(evidence==null)return;
+            final java.nio.file.attribute.BasicFileAttributes staged=
+                evidence.attributes;
             if(staged==null)return;
             try{
                 LocalCrossJvmAccountSessionLock.requireNoSymlinkAncestors(
@@ -295,6 +308,25 @@ final class LocalJvmAccountSessionLease {
                 throw new java.io.IOException(
                     "R47_RAW_POST_MOVE_ACCOUNT_OBJECT_UNCONFIRMED_MANUAL_REVIEW",
                     uncertain);
+            }
+        }
+
+        // R48: same inode, creation-time, link-count and even original
+        // mtime are insufficient. Verify exact bounded staged bytes
+        // only AFTER R47's object continuity and the R39 witness check.
+        void requirePublishedRawAccountBytesStillCurrent(
+            StagedRawAccountObject evidence
+        )throws java.io.IOException{
+            if(evidence==null)return;
+            try{
+                LocalOptInRawTemp.requireSealed(
+                    path,evidence.attributes,evidence.sha256);
+            }catch(java.io.IOException drift){
+                // Already-moved account bytes may be compromised:
+                // UNKNOWN/manual review, never a claimed rollback.
+                throw new java.io.IOException(
+                    "R48_RAW_POST_MOVE_BYTES_UNCONFIRMED_MANUAL_REVIEW",
+                    drift);
             }
         }
 

@@ -514,7 +514,8 @@ final class StrictDurablePlayerSnapshotWriter {
             // the new strict temp inode survives after ATOMIC_MOVE.
             // Keep this independent check behind the opt-in RAW inode
             // alias guard; it is an observation, not an external CAS.
-            final Object strictRawStagedKey;
+            final BasicFileAttributes strictRawStagedAttributes;
+            final byte[] strictRawStagedBytesSha256;
             if(worldFile==null&&raw!=null&&Boolean.getBoolean(
                     LocalJvmAccountSessionLease.INODE_ALIAS_GATE_PROPERTY)){
                 BasicFileAttributes staged=Files.readAttributes(
@@ -522,8 +523,13 @@ final class StrictDurablePlayerSnapshotWriter {
                 if(!staged.isRegularFile()||staged.isSymbolicLink()||
                         staged.fileKey()==null)
                     throw new IOException("R46 STRICT_RAW_STAGED_OBJECT_UNPROVEN");
-                strictRawStagedKey=staged.fileKey();
-            }else strictRawStagedKey=null;
+                strictRawStagedAttributes=staged;
+                strictRawStagedBytesSha256=LocalOptInRawTemp.seal(
+                    temp,staged);
+            }else{
+                strictRawStagedAttributes=null;
+                strictRawStagedBytesSha256=null;
+            }
             if(worldFile==null){
                 // R43: non-World standalone STRICT is an optional RAW
                 // publisher too. A witness arriving after RAW admission
@@ -578,7 +584,7 @@ final class StrictDurablePlayerSnapshotWriter {
                             uncertain
                         );
                     }
-                    if(strictRawStagedKey!=null){
+                    if(strictRawStagedAttributes!=null){
                         try{
                             // The R39 postmove probe (if any), R43
                             // witness and R45 nlink checks have run.
@@ -590,7 +596,8 @@ final class StrictDurablePlayerSnapshotWriter {
                                 LinkOption.NOFOLLOW_LINKS);
                             if(!published.isRegularFile()||
                                     published.isSymbolicLink()||
-                                    !strictRawStagedKey.equals(published.fileKey()))
+                                    !strictRawStagedAttributes.fileKey()
+                                        .equals(published.fileKey()))
                                 throw new IOException(
                                     "R46 STRICT_RAW_POST_MOVE_OBJECT_CHANGED");
                         }catch(IOException uncertain){
@@ -598,6 +605,19 @@ final class StrictDurablePlayerSnapshotWriter {
                             // UNKNOWN is not a rollback or a Receipt.
                             throw new UnconfirmedCommitException(
                                 "R46 STRICT_RAW_POST_MOVE_OBJECT_UNCONFIRMED_MANUAL_REVIEW",
+                                uncertain);
+                        }
+                        try{
+                            // R48: the R46 staged inode may still occupy
+                            // the same leaf after external in-place edits.
+                            // Compare a bounded SHA-256 of exact raw bytes
+                            // even if the inode and mtime have not changed.
+                            LocalOptInRawTemp.requireSealed(
+                                file,strictRawStagedAttributes,
+                                strictRawStagedBytesSha256);
+                        }catch(IOException uncertain){
+                            throw new UnconfirmedCommitException(
+                                "R48 STRICT_RAW_POST_MOVE_BYTES_UNCONFIRMED_MANUAL_REVIEW",
                                 uncertain);
                         }
                     }
