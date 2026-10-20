@@ -319,6 +319,11 @@ final class LocalJvmAccountSessionLease {
 
     private static Object existingAccountFileKey(Path path)
         throws java.io.IOException{
+        // R34: NOFOLLOW on the leaf alone still follows a symlinked
+        // parent or grandparent. Reuse G21.226 for opt-in RAW/World
+        // inode identity, including an absent bootstrap account leaf.
+        LocalCrossJvmAccountSessionLock.requireNoSymlinkAncestors(
+            path.toAbsolutePath().normalize().getParent());
         final java.nio.file.attribute.BasicFileAttributes attrs;
         try{
             attrs=java.nio.file.Files.readAttributes(
