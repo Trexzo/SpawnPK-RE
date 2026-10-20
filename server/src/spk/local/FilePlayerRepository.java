@@ -1820,8 +1820,10 @@ final class FilePlayerRepository
                 // hardlink operation after the last check.
                 LocalJvmAccountSessionLease
                     .requireNonHardlinkedAccount(file);
-                if(raw!=null)
+                if(raw!=null){
                     raw.requireOriginalAccountObjectBeforePublication();
+                    raw.requireNoFinalNegativeWitnessBeforePublication();
+                }
                 if(LocalOptInRawTemp.forcePostimageEnabled()){
                     LocalOptInRawTemp.forcePublish(
                         tmp,file,originalRawTemp,sealedRawTemp,raw,
@@ -1829,6 +1831,8 @@ final class FilePlayerRepository
                 }else{
                     replaceSnapshotTemp(tmp,file,raw);
                 }
+                if(raw!=null)
+                    raw.requireNoFinalNegativeWitnessAfterPublication();
             }
 
             completed=true;
@@ -2049,7 +2053,10 @@ final class FilePlayerRepository
         Path temp,Path file,boolean requireAtomic,
         LocalJvmAccountSessionLease.RawWriteReservation raw
     )throws IOException{
-        if(raw!=null)raw.requireLockObjectContinuity();
+        if(raw!=null){
+            raw.requireLockObjectContinuity();
+            raw.requireNoFinalNegativeWitnessBeforePublication();
+        }
         try{
             Files.move(
                 temp,file,
@@ -2064,7 +2071,10 @@ final class FilePlayerRepository
             // Preserve original default and raw writer compatibility;
             // no non-atomic fallback in G21.192 opt-in mode.
             // G21.245: recheck identity if atomic move was unsupported.
-            if(raw!=null)raw.requireLockObjectContinuity();
+            if(raw!=null){
+                raw.requireLockObjectContinuity();
+                raw.requireNoFinalNegativeWitnessBeforePublication();
+            }
             Files.move(
                 temp,file,StandardCopyOption.REPLACE_EXISTING
             );
