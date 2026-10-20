@@ -632,8 +632,10 @@ final class BankState {
             nextInventory[i]=null;
         }
 
-        if(moved==0&&partial)
-            return "PARTIAL_BANK_FULL movedQty=0";
+        if(moved==0)
+            return partial
+                ?"PARTIAL_BANK_FULL movedQty=0"
+                :"DEPOSITED_ALL_NOOP movedQty=0";
 
         publishContainerPostimage(
             w,
@@ -2720,6 +2722,12 @@ final class BankState {
                 ?"INVENTORY_DRAG_NOOP"
                 :"DRAG_NOOP";
 
+        // An empty source cannot initiate a drag. Otherwise a swap with
+        // an occupied destination could pull items backwards from the
+        // alleged destination and still report a successful player move.
+        if(source[d.sourceSlot]==null)
+            return "REJECTED_DRAG_SOURCE_EMPTY";
+
         Stack[] next=
             copyStacks(source);
 
@@ -2735,6 +2743,13 @@ final class BankState {
                 d.sourceSlot,
                 d.destinationSlot
             );
+
+        // A complete value-identical postimage is not an item movement.
+        // No packet, revision advance or persistence request is justified.
+        if(sameStacks(source,next))
+            return normalInventory
+                ?"INVENTORY_DRAG_NOOP"
+                :"DRAG_NOOP";
 
         if(normalInventory){
             publishNormalInventoryStructuralPostimage(
@@ -2800,6 +2815,8 @@ final class BankState {
             if (p.length<3) return "REJECTED_SETBANKTAB_ARGS";
             int slot=parseInt(p[1],-1), tab=parseInt(p[2],-1);
             if (!validSlot(bank,slot) || bank[slot]==null || tab<0 || tab>8) return "REJECTED_SETBANKTAB_RANGE";
+            if(bank[slot].tab==tab)
+                return "SETBANKTAB_NOOP slot="+slot+" tab="+tab;
 
             Stack[] nextBank=
                 copyStacks(bank);
@@ -2825,6 +2842,8 @@ final class BankState {
             int target=parseInt(p[2],-1);
             int sourceTab=p.length>=4?parseInt(p[3],-1):-1;
             if (target<0 || target>8 || sourceTab<0 || sourceTab>8) return "SWAPBANKTAB_OBSERVED_UNCERTIFIED target="+target+" sourceTab="+sourceTab;
+            if(target==sourceTab)
+                return "SWAPBANKTAB_NOOP sourceTab="+sourceTab+" targetTab="+target;
 
             Stack[] nextBank=
                 copyStacks(bank);
@@ -2840,6 +2859,9 @@ final class BankState {
             for (Stack st:nextBank)
                 if(st!=null&&st.tab==-1)
                     st.tab=target;
+
+            if(sameStacks(bank,nextBank))
+                return "SWAPBANKTAB_NOOP sourceTab="+sourceTab+" targetTab="+target;
 
             publishContainerPostimage(
                 w,

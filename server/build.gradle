@@ -13535,3 +13535,17 @@ tasks.register('preparedInventoryTransformOwnershipRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('preparedInventoryTransformOwnershipRegression')
 }
+
+// R27: no-op bank UI, drag and tab commands must not manufacture item
+// mutation generations, wire packets or account-save intent.
+tasks.register('bankNoopSaveAndLineageRegression', JavaExec) {
+    group = 'verification'
+    description = 'Check no-op bank drags, same tabs, empty deposit-all and valid state-changing counterparts.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.BankNoopSaveAndLineageRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('bankNoopSaveAndLineageRegression')
+}
