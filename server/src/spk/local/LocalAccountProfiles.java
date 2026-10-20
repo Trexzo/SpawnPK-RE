@@ -227,6 +227,8 @@ final class LocalAccountProfiles {
             if(safeTemp)
                 LocalOptInRawTemp.requireSealed(
                     tmp,tempIdentity,sealedTemp);
+            if(reservation!=null)
+                reservation.requireOriginalAccountObjectBeforePublication();
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
                     tmp,file,tempIdentity,sealedTemp,reservation,
