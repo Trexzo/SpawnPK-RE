@@ -1366,6 +1366,39 @@ final class FilePlayerRepository
     }
 
     /**
+     * R37 strict forced-RAW prepublication identity only.
+     *
+     * A custom or redirected resolver may select an existing account
+     * file that belongs to someone else. The strict RAW publisher's
+     * physical preimage check alone would still overwrite its bytes
+     * successfully. Reuse the exact bounded NOFOLLOW account decoder
+     * and require its stored username to match the selected writer.
+     * Old schema-v1 files without a username retain the existing
+     * requested-account migration semantics; this is an observed
+     * mismatch veto, not a cryptographic account identity proof.
+     *
+     * Invoked inside the G21.39 account publication lock, after the
+     * preimage check and before ATOMIC_MOVE. Caller checks preimage
+     * again afterward to detect observed intervening changes.
+     */
+    static void requireForcedRawSelectedProfile(
+        Path exactAccount,String username
+    )throws IOException{
+        Objects.requireNonNull(exactAccount,"exactAccount");
+        Objects.requireNonNull(username,"username");
+        FilePlayerRepository pinned=new FilePlayerRepository(
+            ignored->exactAccount);
+        try{
+            pinned.loadExactFile(
+                username,exactAccount,true,null,64L*1024L*1024L);
+        }catch(IOException|RuntimeException mismatch){
+            throw new IOException(
+                "R37_FORCED_RAW_EXISTING_PROFILE_UNTRUSTED_NO_MOVE",
+                mismatch);
+        }
+    }
+
+    /**
      * G21.32 negative review-fence check for the actual file-backed
      * account source. Presence blocks login regardless of account bytes;
      * unreadable marker metadata fails closed through IOException.
