@@ -294,12 +294,41 @@ final class LocalJvmAccountSessionLease {
         // is not excluded by this JVM-only negative admission.
         if(!Boolean.getBoolean(RAW_WRITE_GATE_PROPERTY)){
             Path unchecked=exactAccountPath.toAbsolutePath().normalize();
+            boolean checkPhysicalAlias;
             synchronized(active){
                 if(active.containsKey(unchecked)||
                    pendingSessionAdmissions.contains(unchecked)||
                    rawWriters.containsKey(unchecked))
                     throw new java.io.IOException(
                         "R40_RAW_OPT_OUT_DURING_ACCOUNT_OWNERSHIP_DENIED");
+                checkPhysicalAlias=Boolean.getBoolean(
+                    INODE_ALIAS_GATE_PROPERTY)&&
+                    (!active.isEmpty()||
+                     !pendingSessionAdmissions.isEmpty()||
+                     !rawWriters.isEmpty());
+            }
+            if(checkPhysicalAlias){
+                // R42: an account already reserved through filename A
+                // may also be named by hardlink B. The late flag-off
+                // RAW path must not bypass the selected opt-in inode
+                // alias guard just because B is a different path.
+                // Observe the filesystem OUTSIDE the global monitor.
+                final Object fileKey;
+                try{
+                    fileKey=existingAccountFileKey(unchecked);
+                }catch(java.io.IOException unsafe){
+                    throw new java.io.IOException(
+                        "R42_RAW_OPT_OUT_ALIAS_PRECHECK_FAILED",unsafe);
+                }
+                synchronized(active){
+                    if(active.containsKey(unchecked)||
+                       pendingSessionAdmissions.contains(unchecked)||
+                       rawWriters.containsKey(unchecked))
+                        throw new java.io.IOException(
+                            "R40_RAW_OPT_OUT_DURING_ACCOUNT_OWNERSHIP_DENIED");
+                    requireNoRawAliasAgainstSessions(unchecked,fileKey);
+                    requireNoRawAliasAgainstRaw(unchecked,fileKey);
+                }
             }
             return null;
         }
@@ -701,7 +730,11 @@ final class LocalJvmAccountSessionLease {
                     invalid);
             }
         }
-        final boolean aliasGuard=optIn&&
+        // R42: when opt-in is toggled OFF after another RAW/World
+        // claimant reserved an inode, the disabled-path check must
+        // still consult the separately enabled inode-alias guard.
+        // The wholly idle default-off fast path returned above.
+        final boolean aliasGuard=
             Boolean.getBoolean(INODE_ALIAS_GATE_PROPERTY);
         final Object initialAccountFileKey;
         if(aliasGuard){
@@ -727,13 +760,13 @@ final class LocalJvmAccountSessionLease {
                 throw new IllegalStateException(
                     "G21.181 JVM_ACCOUNT_SESSION_OWNED_NO_RECOVERY"+
                     " account="+username+" path="+key);
-            if(!optIn)return null;
             if(aliasGuard){
                 requireNoActiveAccountInodeAlias(
                     key,initialAccountFileKey);
                 requireNoSessionAliasAgainstRaw(
                     key,initialAccountFileKey);
             }
+            if(!optIn)return null;
             // Reserve same-file alias identity before OS I/O.
             pendingSessionAdmissions.add(key);
             if(aliasGuard&&initialAccountFileKey!=null)
