@@ -521,6 +521,13 @@ final class StrictDurablePlayerSnapshotWriter {
                     // bootstrap leaf that appeared before this move.
                     raw.requireOriginalAccountObjectBeforePublication();
                     raw.requireLockObjectContinuity();
+                    // R45: another pathname can start naming the
+                    // SAME account inode after RAW admission without
+                    // changing its fileKey. Recheck the optional
+                    // NOFOLLOW nlink policy at the last observed
+                    // pre-move strict publication boundary.
+                    LocalJvmAccountSessionLease
+                        .requireNonHardlinkedAccount(file);
                     raw.requireNoFinalNegativeWitnessBeforePublication();
                 }
                 // Preserve the historical default-off RAW primitive.
@@ -534,9 +541,15 @@ final class StrictDurablePlayerSnapshotWriter {
                         // A late witness means UNKNOWN, never a
                         // confirmed standalone strict Receipt.
                         raw.requireNoFinalNegativeWitnessAfterPublication();
+                        // R45: after ATOMIC_MOVE an external alias
+                        // may instead name the newly published inode.
+                        // A late observation is UNKNOWN, not rollback
+                        // or permission to return a strict Receipt.
+                        LocalJvmAccountSessionLease
+                            .requireNonHardlinkedAccount(file);
                     }catch(IOException uncertain){
                         throw new UnconfirmedCommitException(
-                            "R43 STRICT_RAW_POST_MOVE_FINAL_WITNESS_UNCONFIRMED_MANUAL_REVIEW",
+                            "R45 STRICT_RAW_POST_MOVE_OWNERSHIP_UNCONFIRMED_MANUAL_REVIEW",
                             uncertain
                         );
                     }
