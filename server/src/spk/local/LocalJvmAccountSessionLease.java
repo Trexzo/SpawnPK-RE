@@ -676,7 +676,13 @@ final class LocalJvmAccountSessionLease {
         // is committed OR pending. Live flag toggles are unsupported.
         if(!optIn){
             synchronized(active){
-                if(active.isEmpty()&&pendingSessionAdmissions.isEmpty())
+                // R41: a previously admitted RAW reservation does not
+                // disappear merely because session-lease participation
+                // is toggled off after RAW started. Still run the exact
+                // account-path collision check in that unusual state.
+                // If no owner exists, retain historical unleased mode.
+                if(active.isEmpty()&&pendingSessionAdmissions.isEmpty()&&
+                   rawWriters.isEmpty())
                     return null;
             }
         }
@@ -710,9 +716,11 @@ final class LocalJvmAccountSessionLease {
             initialAccountFileKey=null;
         }
         synchronized(active){
-            if(optIn&&rawWriters.containsKey(key))
+            if(rawWriters.containsKey(key))
                 throw new IllegalStateException(
-                    "G21.208 JVM_LEASE_DENIED_RAW_WRITE_IN_FLIGHT"+
+                    (optIn
+                        ?"G21.208 JVM_LEASE_DENIED_RAW_WRITE_IN_FLIGHT"
+                        :"R41_UNLEASED_SESSION_DENIED_HELD_RAW_WRITER")+
                     " account="+username);
             if(active.containsKey(key)||
                pendingSessionAdmissions.contains(key))
