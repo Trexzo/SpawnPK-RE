@@ -150,23 +150,38 @@ final class BankState {
     }
 
     static final class PreparedInventoryTransform {
+        // A prepared one-slot color transform belongs to the exact local
+        // BankState, full inventory mutation lineage and bank presentation.
+        final BankState owner;
+        final long inventoryGeneration;
+        final long bankViewGeneration;
+        final Stack[] expectedInventory;
+        final Stack[] postimage;
+        private final Stack[] sealedExpectedInventory;
+        private final Stack[] sealedPostimage;
+        final boolean expectedOpen;
         final int slot;
         final int expectedItemId;
         final int replacementItemId;
-        final Stack[] postimage;
         final String rejection;
 
-        PreparedInventoryTransform(
-            int slot,
-            int expectedItemId,
-            int replacementItemId,
-            Stack[] postimage,
-            String rejection
+        private PreparedInventoryTransform(
+            BankState owner,long inventoryGeneration,long bankViewGeneration,
+            Stack[] expectedInventory,boolean expectedOpen,
+            int slot,int expectedItemId,int replacementItemId,
+            Stack[] postimage,String rejection
         ){
+            this.owner=java.util.Objects.requireNonNull(owner,"owner");
+            this.inventoryGeneration=inventoryGeneration;
+            this.bankViewGeneration=bankViewGeneration;
+            this.expectedInventory=copyStacks(expectedInventory);
+            this.postimage=postimage==null?null:copyStacks(postimage);
+            this.sealedExpectedInventory=copyStacks(expectedInventory);
+            this.sealedPostimage=postimage==null?null:copyStacks(postimage);
+            this.expectedOpen=expectedOpen;
             this.slot=slot;
             this.expectedItemId=expectedItemId;
             this.replacementItemId=replacementItemId;
-            this.postimage=postimage;
             this.rejection=rejection;
         }
 
@@ -1919,7 +1934,7 @@ final class BankState {
         return "COSMETIC_UNEQUIP_OK item="+old+" inventorySlot="+dst;
     }
 
-    PreparedInventoryTransform prepareInventoryTransformOne(
+    synchronized PreparedInventoryTransform prepareInventoryTransformOne(
         int slot,
         int expectedItemId,
         int replacementItemId
@@ -1927,6 +1942,8 @@ final class BankState {
         if(!validSlot(inventory,slot) ||
            inventory[slot]==null)
             return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
                 slot,
                 expectedItemId,
                 replacementItemId,
@@ -1938,6 +1955,8 @@ final class BankState {
 
         if(st.itemId!=expectedItemId)
             return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
                 slot,
                 expectedItemId,
                 replacementItemId,
@@ -1948,6 +1967,8 @@ final class BankState {
 
         if(st.qty!=1)
             return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
                 slot,
                 expectedItemId,
                 replacementItemId,
@@ -1960,6 +1981,8 @@ final class BankState {
                 replacementItemId
            )==null)
             return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
                 slot,
                 expectedItemId,
                 replacementItemId,
@@ -1977,6 +2000,8 @@ final class BankState {
             );
 
         return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
             slot,
             expectedItemId,
             replacementItemId,
@@ -1985,86 +2010,76 @@ final class BankState {
         );
     }
 
-    String publishPreparedInventoryTransform(
+    /**
+     * Packet publication and semantic commit are separate because color
+     * changes share the caller's multi-domain packet batch. Never emit the
+     * inventory part of that batch for a foreign, stale, or altered preflight.
+     */
+    private void verifyPreparedInventoryTransform(
+        PreparedInventoryTransform prepared
+    ){
+        if(prepared==null||!prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted inventory transform required");
+        if(prepared.owner!=this)
+            throw new IllegalStateException(
+                "inventory transform owned by different BankState");
+        if(prepared.inventoryGeneration!=inventoryMutationRevision||
+           prepared.bankViewGeneration!=bankViewRevision||
+           prepared.expectedOpen!=open||
+           !sameStacks(inventory,prepared.sealedExpectedInventory))
+            throw new IllegalStateException(
+                "inventory transform stale generation/preimage/view");
+        if(!sameStacks(prepared.expectedInventory,
+                       prepared.sealedExpectedInventory)||
+           !sameStacks(prepared.postimage,
+                       prepared.sealedPostimage))
+            throw new IllegalStateException(
+                "inventory transform preflight image modified");
+    }
+
+    synchronized String publishPreparedInventoryTransform(
         PreparedInventoryTransform prepared,
         ServerPacketWriter w
     )throws IOException{
-        if(prepared==null)
-            throw new NullPointerException(
-                "prepared"
-            );
+        if(prepared==null)throw new NullPointerException("prepared");
+        if(!prepared.accepted())return prepared.rejection;
 
-        if(!prepared.accepted())
-            return prepared.rejection;
-
+        verifyPreparedInventoryTransform(prepared);
         writeNormalInventoryStructuralPostimage(
-            w,
-            prepared.postimage,
-            open
-        );
-
-        return "INVENTORY_TRANSFORM_OK slot="+
-            prepared.slot+
-            " item="+
-            prepared.expectedItemId+
-            "->"+
-            prepared.replacementItemId;
+            w,prepared.sealedPostimage,prepared.expectedOpen);
+        return "INVENTORY_TRANSFORM_OK slot="+prepared.slot+
+            " item="+prepared.expectedItemId+
+            "->"+prepared.replacementItemId;
     }
 
-    String commitPreparedInventoryTransform(
+    synchronized String commitPreparedInventoryTransform(
         PreparedInventoryTransform prepared
     ){
-        if(prepared==null)
-            throw new NullPointerException(
-                "prepared"
-            );
+        if(prepared==null)throw new NullPointerException("prepared");
+        if(!prepared.accepted())return prepared.rejection;
 
-        if(!prepared.accepted())
-            return prepared.rejection;
-
-        if(!validSlot(inventory,prepared.slot) ||
-           inventory[prepared.slot]==null ||
-           inventory[prepared.slot].itemId!=
-                prepared.expectedItemId ||
-           inventory[prepared.slot].qty!=1)
-            throw new IllegalStateException(
-                "inventory transform preimage changed before prepared commit"
-            );
-
-        replaceStacks(
-            inventory,
-            prepared.postimage
-        );
-
-        return "INVENTORY_TRANSFORM_OK slot="+
-            prepared.slot+
-            " item="+
-            prepared.expectedItemId+
-            "->"+
-            prepared.replacementItemId;
+        verifyPreparedInventoryTransform(prepared);
+        replaceStacks(inventory,prepared.sealedPostimage);
+        return "INVENTORY_TRANSFORM_OK slot="+prepared.slot+
+            " item="+prepared.expectedItemId+
+            "->"+prepared.replacementItemId;
     }
 
     /** Exact in-slot non-stackable transform used by native Switch-colors actions. */
-    String transformInventoryOne(int slot,int expectedItemId,int replacementItemId,ServerPacketWriter w) throws IOException {
+    synchronized String transformInventoryOne(
+        int slot,int expectedItemId,int replacementItemId,
+        ServerPacketWriter w
+    )throws IOException{
         PreparedInventoryTransform prepared=
             prepareInventoryTransformOne(
-                slot,
-                expectedItemId,
-                replacementItemId
-            );
-
-        if(!prepared.accepted())
-            return prepared.rejection;
-
+                slot,expectedItemId,replacementItemId);
+        if(!prepared.accepted())return prepared.rejection;
+        verifyPreparedInventoryTransform(prepared);
+        // Preserve the original atomic packet batch path for this direct API.
         publishNormalInventoryStructuralPostimage(
-            w,
-            prepared.postimage,
-            open
-        );
-
-        return commitPreparedInventoryTransform(
-            prepared
-        );
+            w,prepared.sealedPostimage,prepared.expectedOpen);
+        return commitPreparedInventoryTransform(prepared);
     }
 
 

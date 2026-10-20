@@ -13521,3 +13521,17 @@ tasks.register('preparedPetInventoryOwnershipRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('preparedPetInventoryOwnershipRegression')
 }
+
+// R26: pet color single-slot inventory transform is an exact-owner
+// source-local prepared mutation, not an arbitrary caller-controlled item grant.
+tasks.register('preparedInventoryTransformOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify deferred one-slot inventory transform owner, ABA, packet preflight and sealed item postimage integrity.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedInventoryTransformOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedInventoryTransformOwnershipRegression')
+}
