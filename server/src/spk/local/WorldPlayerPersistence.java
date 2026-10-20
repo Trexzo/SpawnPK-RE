@@ -557,6 +557,31 @@ final class WorldPlayerPersistence
             file,username,player,generation);
     }
 
+    /**
+     * A World-owned player-generation is not authority to write a
+     * caller-chosen *different* account file. Registry owner and snapshot
+     * profile must be the same canonical identity before snapshot capture,
+     * lease witness lookup, sequencing, checkpoint suppression or enqueue.
+     *
+     * This closes a local cross-profile misrouting path; it does not
+     * establish crash-durable account ownership across processes.
+     */
+    private static void requireCaptureAccountMatchesOwner(
+        String requestedAccount,WorldPlayer registeredOwner
+    ){
+        String current=registeredOwner.username();
+        String canonicalCurrent=current==null
+            ?""
+            :current.trim().toLowerCase(java.util.Locale.ROOT);
+        String canonicalRequested=requestedAccount==null
+            ?""
+            :requestedAccount.trim().toLowerCase(java.util.Locale.ROOT);
+        if(canonicalCurrent.isEmpty()||
+           !canonicalCurrent.equals(canonicalRequested))
+            throw new IllegalStateException(
+                "ACCOUNT_CAPTURE_PROFILE_OWNER_MISMATCH");
+    }
+
     CapturedSave captureDeferredSave(
         String username,
         WorldPlayer player,
@@ -608,6 +633,7 @@ final class WorldPlayerPersistence
                     expectedGeneration
                 );
 
+            requireCaptureAccountMatchesOwner(username,player);
             snapshot=
                 PlayerSnapshotCodec.capture(
                     username,
@@ -667,6 +693,7 @@ final class WorldPlayerPersistence
                     expectedGeneration
                 );
 
+            requireCaptureAccountMatchesOwner(username,player);
             Long previousSuppression;
 
             synchronized(checkpointLock){

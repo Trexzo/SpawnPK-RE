@@ -13563,3 +13563,17 @@ tasks.register('bankUiMutationSaveBridgeRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('bankUiMutationSaveBridgeRegression')
 }
+
+// R29: World player-generation ownership must never be used to capture a
+// snapshot for a different account name, even before lease-aware persistence.
+tasks.register('worldAccountCaptureProfileOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject cross-profile ordinary/final World snapshots before save sequence or persistence admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.WorldAccountCaptureProfileOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('worldAccountCaptureProfileOwnershipRegression')
+}
