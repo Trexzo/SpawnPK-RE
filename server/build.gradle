@@ -13665,3 +13665,19 @@ tasks.register('standaloneAccountNlinkAncestorNofollowRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('standaloneAccountNlinkAncestorNofollowRegression')
 }
+
+
+// R36: the opt-in account hardlink-count preflight must distinguish
+// actual absence from unknown I/O and reject observed inode changes
+// between NOFOLLOW attribute / nlink reads.
+tasks.register('hardlinkAttributeRaceFailClosedRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fail closed on same-byte account inode substitution during standalone nlink admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21364HardlinkAttributeRaceFailClosedRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('hardlinkAttributeRaceFailClosedRegression')
+}
