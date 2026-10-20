@@ -13803,3 +13803,19 @@ tasks.register('standaloneStrictAccountObjectContinuityRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('standaloneStrictAccountObjectContinuityRegression')
 }
+
+
+// R45: opt-in standalone strict RAW must observe a hardlink added
+// after admission to the old inode and to the new postmove inode.
+// Linux runs real unix:nlink fixtures; Windows does not claim it.
+tasks.register('standaloneStrictLateHardlinkPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fail closed on late pre-move strict account aliases and postmove uncertainty.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21373StandaloneStrictLateHardlinkPublicationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneStrictLateHardlinkPublicationRegression')
+}
