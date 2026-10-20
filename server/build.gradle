@@ -13772,3 +13772,19 @@ tasks.register('liveFlagOptOutHardlinkAliasRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('liveFlagOptOutHardlinkAliasRegression')
 }
+
+
+// R43: standalone strict (non-World) opt-in RAW publication must
+// observe independent final World negative witness before and AFTER
+// the account move, without falsely returning a strict receipt.
+tasks.register('standaloneStrictFinalWitnessPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Keep retained final-save witnesses negative in standalone strict RAW publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21371StandaloneStrictFinalWitnessPublicationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneStrictFinalWitnessPublicationRegression')
+}
