@@ -13681,3 +13681,18 @@ tasks.register('hardlinkAttributeRaceFailClosedRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('hardlinkAttributeRaceFailClosedRegression')
 }
+
+
+// R37: forced RAW publication cannot overwrite an existing account
+// when the selected legacy profile's stored username is different.
+tasks.register('forcedRawExistingProfileOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Veto wrong-account stored profile at strict forced RAW publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21365ForcedRawExistingProfileOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('forcedRawExistingProfileOwnershipRegression')
+}
