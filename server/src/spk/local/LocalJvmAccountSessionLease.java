@@ -228,8 +228,8 @@ final class LocalJvmAccountSessionLease {
                 rawWriterAccountFileKeys.put(
                     file,initialAccountFileKey);
         }
+        LocalCrossJvmAccountSessionLock.Handle processLock=null;
         try{
-            LocalCrossJvmAccountSessionLock.Handle processLock=null;
             if(crossJvm){
                 try{
                     processLock=LocalCrossJvmAccountSessionLock.acquire(
@@ -257,8 +257,19 @@ final class LocalJvmAccountSessionLease {
             }
             return new RawWriteReservation(file,processLock);
         }catch(java.io.IOException|RuntimeException failure){
-            // No published RAW reservation can remain after failure
-            // to acquire the OS lock. No RAW file temp was created.
+            // A failed post-lock inode check must close the OS handle
+            // BEFORE clearing the JVM reservation. Uncertain close
+            // retains negative reservation, not a false new writer.
+            if(processLock!=null){
+                try{
+                    processLock.close();
+                }catch(java.io.IOException uncertain){
+                    failure.addSuppressed(uncertain);
+                    throw new IllegalStateException(
+                        "G21.232 RAW_ALIAS_OS_LOCK_RELEASE_UNCERTAIN",
+                        failure);
+                }
+            }
             synchronized(active){
                 rawWriters.remove(file);
                 rawWriterAccountFileKeys.remove(file);
