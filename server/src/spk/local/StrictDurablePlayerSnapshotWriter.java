@@ -509,12 +509,31 @@ final class StrictDurablePlayerSnapshotWriter {
 
             faults.check(Phase.BEFORE_ATOMIC_REPLACE);
             if(worldFile==null){
-                // G21.244: opt-in RAW/strict OS lock object recheck.
-                if(raw!=null)raw.requireLockObjectContinuity();
-                // Preserve the historical unguarded strict primitive.
+                // R43: non-World standalone STRICT is an optional RAW
+                // publisher too. A witness arriving after RAW admission
+                // must block the final move, not merely the reservation.
+                if(raw!=null){
+                    raw.requireLockObjectContinuity();
+                    raw.requireNoFinalNegativeWitnessBeforePublication();
+                }
+                // Preserve the historical default-off RAW primitive.
                 publishStrictReplacement(
                     temp,file,parent,replaced
                 );
+                if(raw!=null){
+                    try{
+                        // The account has ALREADY been replaced and
+                        // its parent directory force was attempted.
+                        // A late witness means UNKNOWN, never a
+                        // confirmed standalone strict Receipt.
+                        raw.requireNoFinalNegativeWitnessAfterPublication();
+                    }catch(IOException uncertain){
+                        throw new UnconfirmedCommitException(
+                            "R43 STRICT_RAW_POST_MOVE_FINAL_WITNESS_UNCONFIRMED_MANUAL_REVIEW",
+                            uncertain
+                        );
+                    }
+                }
             }else{
                 // The marker publisher uses this SAME per-account lock.
                 // The final check, atomic replace and metadata force are
