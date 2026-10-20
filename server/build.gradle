@@ -13727,3 +13727,18 @@ tasks.register('crossJvmRetainedFinalWitnessRawWriterRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('crossJvmRetainedFinalWitnessRawWriterRegression')
 }
+
+
+// R40: toggling RAW participation OFF must not bypass an existing
+// held World token, pending World admission or same-JVM RAW reservation.
+tasks.register('rawLiveOptOutOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject RAW opt-out across active and pending same-account ownership.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21368RawLiveOptOutOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('rawLiveOptOutOwnershipRegression')
+}
