@@ -13861,3 +13861,17 @@ tasks.register('rawPostMoveByteIntegrityRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('rawPostMoveByteIntegrityRegression')
 }
+
+// R50: unwired, nonadmitting immutable-account object + permanent
+// negative HEAD. Four hard-killed JVM cutpoints and fresh-JVM audits.
+tasks.register('negativeAccountHeadProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify irreversible negative account-head evidence at four child-JVM crash cutpoints.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21378NegativeAccountHeadProcessKillRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('negativeAccountHeadProcessKillRegression')
+}
