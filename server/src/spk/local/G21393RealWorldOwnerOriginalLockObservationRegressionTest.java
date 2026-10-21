@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -23,6 +24,8 @@ import java.util.stream.Stream;
  * R73 exercises an actual second-JVM authenticated TCP login against
  * the competing World, then a fresh-JVM successor after completed
  * final save. Both use the original opt-in session lock.
+ * R74 additionally proves exact World-owned extension state crosses
+ * those two consecutive independently authenticated World sessions.
  */
 public final class G21393RealWorldOwnerOriginalLockObservationRegressionTest {
     private G21393RealWorldOwnerOriginalLockObservationRegressionTest(){}
@@ -169,6 +172,15 @@ public final class G21393RealWorldOwnerOriginalLockObservationRegressionTest {
                         obs.observedWorldGeneration==generation&&
                         !obs.admissionAuthorized&&!obs.releaseAuthorized,
                         "successor falsely claimed durable epoch");
+                    check("first".equals(
+                        admitted.snapshotExtensions().namespace(
+                            "r74_first_world").get("phase")),
+                        "successor did not hydrate first World postimage");
+                    world.submit(admitted,generation,()->
+                        admitted.snapshotExtensions().replaceNamespace(
+                            "r74_successor_world",
+                            Collections.singletonMap("phase","second"))
+                    ).get(5,TimeUnit.SECONDS);
                 }
                 until(()->world.players().size()==0,
                     "successor World unregister");
@@ -177,8 +189,18 @@ public final class G21393RealWorldOwnerOriginalLockObservationRegressionTest {
                     "successor final save lock release");
                 check(world.persistence().failedCount()==0,
                     "successor final save failed");
+                java.util.Optional<PlayerSnapshot> second=
+                    repository.loadForWorldSession(USER);
+                check(second.isPresent()&&"first".equals(
+                        second.get().values().get(
+                            "extension.r74_first_world.phase"))&&
+                    "second".equals(second.get().values().get(
+                        "extension.r74_successor_world.phase")),
+                    "successor final save lost a World generation");
                 System.out.println(
                     "R73_REAL_TCP_FRESH_JVM_SUCCESSOR_ACCEPTED");
+                System.out.println(
+                    "R74_CROSS_JVM_SECOND_WORLD_MUTATION_SAVED");
             }else throw new IllegalArgumentException(role);
         }finally{
             if(!world.closed())world.close();
@@ -240,6 +262,11 @@ public final class G21393RealWorldOwnerOriginalLockObservationRegressionTest {
                     check(admittedGeneration>0&&
                         LocalJvmAccountSessionLease.activeCountForTest()==1,
                         "real World JVM lease absent");
+                    world.submit(capturedOwner,admittedGeneration,()->
+                        capturedOwner.snapshotExtensions().replaceNamespace(
+                            "r74_first_world",
+                            Collections.singletonMap("phase","first"))
+                    ).get(5,TimeUnit.SECONDS);
                     LocalJvmAccountSessionLease.WorldOwnerLabObservation obs=
                         LocalJvmAccountSessionLease
                             .observeRealWorldOwnerUnderOsLockForLab(
@@ -306,6 +333,15 @@ public final class G21393RealWorldOwnerOriginalLockObservationRegressionTest {
             }
             check(world.persistence().failedCount()==0,
                 "healthy real World final save failed");
+            java.util.Optional<PlayerSnapshot> firstSaved=
+                repository.loadForWorldSession(USER);
+            check(firstSaved.isPresent()&&"first".equals(
+                firstSaved.get().values().get(
+                    "extension.r74_first_world.phase")),
+                "first World final mutation missing on disk");
+            check(!firstSaved.get().values().containsKey(
+                "extension.r74_successor_world.phase"),
+                "first World included future successor mutation");
             check(!Files.exists(account.resolveSibling(
                 account.getFileName()+".g21385-ledger-head"),
                 LinkOption.NOFOLLOW_LINKS),
@@ -318,8 +354,22 @@ public final class G21393RealWorldOwnerOriginalLockObservationRegressionTest {
             check(Files.isRegularFile(account,
                 LinkOption.NOFOLLOW_LINKS),
                 "successful successor did not persist account");
+            java.util.Optional<PlayerSnapshot> afterHandoff=
+                repository.loadForWorldSession(USER);
+            check(afterHandoff.isPresent()&&"first".equals(
+                    afterHandoff.get().values().get(
+                        "extension.r74_first_world.phase"))&&
+                "second".equals(afterHandoff.get().values().get(
+                    "extension.r74_successor_world.phase")),
+                "healthy cross-JVM handoff lost prior World state");
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
+            System.out.println("R74_REAL_TCP_CROSS_JVM_POSTIMAGE_HANDOFF_PASS"+
+                " firstWorldFinalMutationPersisted=true"+
+                " successorHydratedExactPreviousMutation=true"+
+                " successorWorldAddedIndependentMutation=true"+
+                " finalSnapshotContainsBothWorldMutations=true"+
+                " noCrashDurabilityClaim=true");
             System.out.println("R73_REAL_TCP_CROSS_JVM_WORLD_HANDOFF_PASS"+
                 " authenticatedConcurrentWorldDenied=true"+
                 " originalWorldOwnerUnchanged=true"+
