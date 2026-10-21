@@ -14081,7 +14081,7 @@ tasks.register('realWorldOwnerOriginalLockObservationRegression', JavaExec) {
     dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
-    mainClass.set('spk.local.G21393RealWorldOwnerOriginalLockObservationRegression')
+    mainClass.set('spk.local.G21393RealWorldOwnerOriginalLockObservationRegressionTest')
 }
 tasks.named('build') {
     dependsOn tasks.named('realWorldOwnerOriginalLockObservationRegression')

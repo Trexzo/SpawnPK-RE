@@ -18,8 +18,8 @@ import java.util.stream.Stream;
  * remains deliberately NONADMITTING and cannot be replayed as
  * durable owner/epoch/final settlement.
  */
-public final class G21393RealWorldOwnerOriginalLockObservationRegression {
-    private G21393RealWorldOwnerOriginalLockObservationRegression(){}
+public final class G21393RealWorldOwnerOriginalLockObservationRegressionTest {
+    private G21393RealWorldOwnerOriginalLockObservationRegressionTest(){}
     private static final String USER="r65-real-world-owner";
     private static void check(boolean condition,String why){
         if(!condition)throw new AssertionError("R65_WORLD_LOCK "+why);
@@ -60,7 +60,7 @@ public final class G21393RealWorldOwnerOriginalLockObservationRegression {
         throws Exception{
         ProcessBuilder builder=new ProcessBuilder(
             javaExe(),"-cp",System.getProperty("java.class.path"),
-            G21393RealWorldOwnerOriginalLockObservationRegression
+            G21393RealWorldOwnerOriginalLockObservationRegressionTest
                 .class.getName(),"--child",account.toString());
         builder.redirectErrorStream(true);
         builder.redirectOutput(log.toFile());
