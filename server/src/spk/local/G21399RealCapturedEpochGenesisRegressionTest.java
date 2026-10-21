@@ -695,18 +695,213 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+    /**
+     * R80 genuine original TCP World, R76 genesis and R78 owner-bound
+     * claim followed by R79 FINAL_PENDING preparation interrupted at
+     * a forced journal stage. The JVM must never return from this test.
+     */
+    private static void prepareKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target
+    )throws Exception{
+        configure(root,true);
+        System.setProperty(
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            "true");
+        System.setProperty(
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            "true");
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        World world=World.isolatedForTest(50L,repository);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(world)){
+            try(Socket socket=server.login(USER)){
+                await(()->world.players().byName(USER)!=null,
+                    "R80 authenticated World owner");
+                WorldPlayer owner=world.players().byName(USER);
+                long generation=owner.generation();
+                check(generation>0&&
+                    LocalJvmAccountSessionLease.activeCountForTest()==1,
+                    "R80 no genuine original World token");
+                world.submit(owner,generation,()->
+                    owner.snapshotExtensions().replaceNamespace(
+                        "r80_prepared",
+                        Collections.singletonMap("phase","PREPARE_KILL"))
+                ).get(5,TimeUnit.SECONDS);
+                WorldPlayerPersistence.CapturedSave captured=
+                    capture(world,owner,generation);
+                check("PREPARE_KILL".equals(
+                    captured.ticket.snapshot.value(
+                        "extension.r80_prepared.phase")),
+                    "R80 snapshot not captured on World thread");
+                Path account=LocalAccountProfiles.accountFile(USER);
+                LocalReusableAccountEpochLab.Observation genesis=
+                    LocalJvmAccountSessionLease
+                        .initializeCapturedEpochGenesisUnderOriginalLockForLab(
+                            account,owner,generation,
+                            captured.ticket.snapshot,captured.ownerWitness);
+                LocalReusableAccountEpochLab.Observation owned=
+                    LocalJvmAccountSessionLease
+                        .claimCapturedEpochUnderOriginalLockForLab(
+                            account,owner,generation,
+                            captured.ticket.snapshot,captured.ownerWitness);
+                check(genesis.sequence==0&&owned.sequence==1&&
+                    owned.phase==LocalReusableAccountEpochLab.Phase.OWNED&&
+                    !owned.admissionAuthorized&&!owned.releaseAuthorized,
+                    "R80 authentic genesis/claim did not hold");
+                LocalJvmAccountSessionLease
+                    .prepareCapturedEpochUnderOriginalLockForLab(
+                        account,owner,generation,captured.ticket.snapshot,
+                        captured.ownerWitness,stage->{
+                            if(stage!=target)return;
+                            Files.write(ready,new byte[]{1},
+                                StandardOpenOption.CREATE_NEW);
+                            System.out.println(
+                                "R80_REAL_WORLD_PREPARE_CUTPOINT_"+target);
+                            System.out.flush();
+                            try{Thread.sleep(120000L);}
+                            catch(InterruptedException interrupted){
+                                Thread.currentThread().interrupt();
+                                throw new IOException(
+                                    "R80_HOLDER_INTERRUPTED",interrupted);
+                            }
+                            throw new AssertionError(
+                                "R80_HOLDER_MUST_BE_KILLED");
+                        });
+            }
+        }finally{
+            if(!world.closed())world.close();
+        }
+        throw new AssertionError("R80 prepare-holder returned normally");
+    }
+
+    private static void runKilledPrepare(
+        LocalReusableAccountEpochLab.Stage stage
+    )throws Exception{
+        Path root=Files.createTempDirectory(
+            "r80-preparation-"+stage.name().toLowerCase(
+                java.util.Locale.ROOT)+"-");
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY
+        };
+        String[] previous=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            previous[i]=System.getProperty(flags[i]);
+        Process child=null;
+        try{
+            configure(root,false);
+            FilePlayerRepository repo=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            repo.save(PlayerSnapshotCodec.capture(USER,new WorldPlayer()));
+            Path account=LocalAccountProfiles.accountFile(USER);
+            byte[] baseline=Files.readAllBytes(account);
+            check(baseline.length>0,"R80 original account absent");
+            Path ready=root.resolve("ready.flag");
+            Path log=root.resolve("prepare-holder.log");
+            ProcessBuilder builder=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+                "--prepare-holder",root.toString(),ready.toString(),
+                stage.name());
+            builder.redirectErrorStream(true);
+            builder.redirectOutput(log.toFile());
+            child=builder.start();
+            final Process running=child;
+            await(()->Files.exists(ready,LinkOption.NOFOLLOW_LINKS)||
+                !running.isAlive(),
+                "R80 real World preparation force boundary "+stage);
+            String trace=new String(Files.readAllBytes(log),
+                StandardCharsets.UTF_8);
+            check(Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                running.isAlive()&&trace.contains(
+                    "R80_REAL_WORLD_PREPARE_CUTPOINT_"+stage),
+                "R80 did not reach forced target "+stage+" "+trace);
+            child.destroyForcibly();
+            check(child.waitFor(10,TimeUnit.SECONDS)&&
+                child.exitValue()!=0,
+                "R80 real World child not forcibly terminated");
+            check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                "R80 partial preparation rewrote legacy account image");
+            Path head=account.resolveSibling(
+                account.getFileName()+".g21385-ledger-head");
+            String headText=new String(Files.readAllBytes(head),
+                StandardCharsets.US_ASCII);
+            int expectedSequence=
+                stage==LocalReusableAccountEpochLab.Stage
+                    .ARCHIVED_HEAD_FORCED?1:2;
+            String expectedPhase=expectedSequence==1?"OWNED":"FINAL_PENDING";
+            check(headText.contains("sequence="+expectedSequence+"\n")&&
+                headText.contains("phase="+expectedPhase+"\n"),
+                "R80 HEAD not at expected interrupted phase "+stage);
+            boolean negative=false;
+            try{
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+            }catch(IOException veto){
+                negative=contains(veto,NEGATIVE);
+            }
+            check(negative,
+                "R80 incomplete final preparation lacked negative sidecar");
+            probeInChild(root,true,true);
+            check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                "R80 fresh JVM probe modified old account bytes");
+            System.out.println("R80_REAL_WORLD_PREPARE_KILL_PASS"+
+                " stage="+stage+
+                " genuineWorldCaptureAndClaim=true"+
+                " originalOSLockHeldAtKill=true"+
+                " incompleteHeadOrJournalRejected=true"+
+                " freshJvmAdmissionAndTCPDenied=true"+
+                " previousAccountUnchanged=true"+
+                " noPositiveFinalReceiptOrRecovery=true"+
+                " noPowerLossClaim=true");
+        }finally{
+            if(child!=null&&child.isAlive()){
+                child.destroyForcibly();
+                child.waitFor(10,TimeUnit.SECONDS);
+            }
+            for(int i=0;i<flags.length;i++){
+                if(previous[i]==null)System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],previous[i]);
+            }
+            try(Stream<Path> files=Files.walk(root)){
+                for(Path file:files.sorted(Comparator.reverseOrder())
+                    .toArray(Path[]::new))Files.deleteIfExists(file);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&("--fresh".equals(args[0])||
-                            "--killed".equals(args[0]))){
-            freshProbe(Paths.get(args[1]),"--killed".equals(args[0]));
+                            "--killed".equals(args[0])||
+                            "--prepare-killed".equals(args[0]))){
+            freshProbe(Paths.get(args[1]),
+                !"--fresh".equals(args[0]),
+                "--prepare-killed".equals(args[0]));
             return;
         }
         if(args.length==3&&"--kill-holder".equals(args[0])){
             killHolder(Paths.get(args[1]),Paths.get(args[2]));
             return;
         }
+        if(args.length==4&&"--prepare-holder".equals(args[0])){
+            prepareKillHolder(Paths.get(args[1]),Paths.get(args[2]),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
         check(args.length==0,"unexpected args");
         exercise();
         runKilledGenesis();
+        runKilledPrepare(
+            LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
+        runKilledPrepare(
+            LocalReusableAccountEpochLab.Stage.HEAD_DIR_FORCED);
     }
 }
