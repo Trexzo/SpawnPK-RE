@@ -14128,3 +14128,17 @@ tasks.register('realCapturedNegativeFinalIntentRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('realCapturedNegativeFinalIntentRegression')
 }
+
+// R69: hard-kill the *real TCP World* after forcing captured R50
+// image, before HEAD, and deny old account from independent restart.
+tasks.register('realWorldPreHeadIntentProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove actual killed World session orphan intent blocks default-off fresh JVM hydration.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21397RealWorldNegativeIntentProcessKillRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldPreHeadIntentProcessKillRegression')
+}
