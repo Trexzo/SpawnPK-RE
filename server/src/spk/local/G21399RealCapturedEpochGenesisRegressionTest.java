@@ -34,6 +34,8 @@ import java.util.stream.Stream;
  * internal nonce. OWNED remains nonadmitting permanent negative.
  * R79 checks one original-token transition to FINAL_PENDING without
  * an account postimage, final receipt, release or recovery authority.
+ * R80 kills genuine World processes at PREPARE archive and HEAD-dir-
+ * forced boundaries, verifying both remain negative across restart.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -111,6 +113,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     }
     private static void freshProbe(Path root,boolean killed)
         throws Exception{
+        freshProbe(root,killed,false);
+    }
+    private static void freshProbe(
+        Path root,boolean killed,boolean prepareKilled
+    )throws Exception{
         configure(root,false);
         Path account=LocalAccountProfiles.accountFile(USER);
         FilePlayerRepository repo=new FilePlayerRepository(
@@ -156,7 +163,22 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         check(locked==!killed,
             killed?"killed World OS lock was not released":
                 "stranded original World released OS lock");
-        if(killed){
+        if(prepareKilled){
+            // Old OWNED HEAD may remain, or the new FINAL_PENDING
+            // HEAD may have moved; neither has a complete receipt
+            // chain after the precisely chosen process-kill points.
+            boolean incomplete=false;
+            try{LocalReusableAccountEpochLab.inspect(account);}
+            catch(IOException denied){
+                incomplete=contains(denied,"MANUAL_REVIEW")||
+                    contains(denied,"NEGATIVE");
+            }
+            check(incomplete,"interrupted prepare was a valid LAB HEAD");
+            System.out.println("R80_FRESH_JVM_PREPARE_INCOMPLETE_VETO"+
+                " realTcpDenied=true"+
+                " originalOsLockReleasedAfterKill=true"+
+                " incompleteLedgerNotAccepted=true");
+        }else if(killed){
             check(!Files.exists(
                     account.resolveSibling(
                         account.getFileName().toString()+
@@ -193,12 +215,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " noPositiveAdmission=true");
         }
     }
-    private static void probeInChild(Path root,boolean killed)throws Exception{
-        Path log=root.resolve(killed?"killed-fresh.log":"fresh.log");
+    private static void probeInChild(Path root,boolean killed)
+        throws Exception{
+        probeInChild(root,killed,false);
+    }
+    private static void probeInChild(
+        Path root,boolean killed,boolean prepareKilled
+    )throws Exception{
+        Path log=root.resolve(prepareKilled?"prepare-fresh.log":
+            killed?"killed-fresh.log":"fresh.log");
         ProcessBuilder b=new ProcessBuilder(
             javaExe(),"-cp",System.getProperty("java.class.path"),
             G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
-            killed?"--killed":"--fresh",root.toString());
+            prepareKilled?"--prepare-killed":
+                killed?"--killed":"--fresh",root.toString());
         b.redirectErrorStream(true);
         b.redirectOutput(log.toFile());
         Process p=b.start();
@@ -210,8 +240,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         String output=new String(Files.readAllBytes(log),
             StandardCharsets.UTF_8);
         check(p.exitValue()==0&&output.contains(
-            killed?"R77_FRESH_JVM_PRE_HEAD_ORPHAN_DENIED":
-                "R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"),
+            prepareKilled?"R80_FRESH_JVM_PREPARE_INCOMPLETE_VETO":
+                killed?"R77_FRESH_JVM_PRE_HEAD_ORPHAN_DENIED":
+                    "R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"),
             "fresh JVM did not veto ledger: "+output);
     }
     private static WorldPlayerPersistence.CapturedSave capture(
