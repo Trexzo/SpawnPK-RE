@@ -1418,6 +1418,97 @@ final class LocalJvmAccountSessionLease {
         }
     }
 
+    /**
+     * R76 STANDALONE, EXPLICIT OPT-IN, PERMANENT NEGATIVE LAB ONLY:
+     * initialize the R57 immutable epoch prototype with the canonical
+     * original G21.202 World capture while borrowing that very Token's
+     * existing G21.185 OS FileLock from genesis onward.
+     *
+     * The R57 ledger is NOT a live final-save protocol: CLOSED cannot
+     * authorize a login, a World handoff, release or replay. Publishing
+     * this LAB genesis deliberately strands a NEGATIVE admission signal
+     * and may cause the original final save to fail. Never activate
+     * this method during ordinary session teardown.
+     */
+    static final String CAPTURED_EPOCH_GENESIS_LAB_PROPERTY=
+        "spk.local.experimentalCapturedEpochGenesisLab";
+
+    static LocalReusableAccountEpochLab.Observation
+    initializeCapturedEpochGenesisUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot captured,SaveCaptureWitness witness
+    )throws java.io.IOException{
+        if(!Boolean.getBoolean(CAPTURED_EPOCH_GENESIS_LAB_PROPERTY))
+            throw new java.io.IOException(
+                "R76_CAPTURED_EPOCH_GENESIS_LAB_DEFAULT_OFF");
+        Objects.requireNonNull(accountFile,"accountFile");
+        Objects.requireNonNull(captured,"captured");
+        Path selected=accountFile.toAbsolutePath().normalize();
+        if(!Boolean.getBoolean(PROPERTY)||
+           !Boolean.getBoolean(LocalCrossJvmAccountSessionLock.PROPERTY)||
+           !Boolean.getBoolean(
+               LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
+            throw new java.io.IOException(
+                "R76_REQUIRES_ACTUAL_SESSION_ORIGINAL_OS_LOCK");
+        if(witness==null||witness.priorUnleased||
+           witness.originalLease==null||owner==null||
+           witness.owner!=owner||witness.generation!=generation||
+           !selected.equals(witness.path)||
+           !witness.account.equals(captured.username()))
+            throw new java.io.IOException(
+                "R76_CAPTURE_WITNESS_NOT_ORIGINAL_OWNER");
+        final Token token;
+        synchronized(active){token=active.get(selected);}
+        if(token==null||token!=witness.originalLease)
+            throw new java.io.IOException(
+                "R76_ORIGINAL_SESSION_TOKEN_RELEASED_OR_REPLACED");
+        synchronized(token){
+            try{
+                token.requireCapturedSaveOwner(
+                    owner,generation,captured.username());
+            }catch(IllegalStateException invalid){
+                throw new java.io.IOException(
+                    "R76_CAPTURE_OWNER_GENERATION_STALE",invalid);
+            }
+            if(token.processLock==null)
+                throw new java.io.IOException(
+                    "R76_CAPTURED_OWNER_MISSING_ORIGINAL_OS_LOCK");
+            return token.processLock.withHeldOriginalAccount(selected,()->{
+                // Inspect before any persistent LAB write, while still
+                // under the sole original cooperating OS lock.
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(selected);
+                byte[] canonical=
+                    LocalCapturedWorldSnapshotFingerprintLab
+                        .canonicalBytes(selected,captured,generation);
+                LocalCapturedWorldSnapshotFingerprintLab.Observation proof=
+                    LocalCapturedWorldSnapshotFingerprintLab
+                        .fingerprint(selected,captured,generation);
+                LocalReusableAccountEpochLab.Observation ledger=
+                    LocalReusableAccountEpochLab
+                        .initializeUnderHeldAccountLock(
+                            selected,token.processLock,canonical);
+                if(ledger.sequence!=0||
+                   ledger.phase!=LocalReusableAccountEpochLab.Phase.CLOSED||
+                   ledger.imageLength!=proof.canonicalBytes||
+                   !ledger.imageSha.equals(proof.canonicalSha256)||
+                   ledger.admissionAuthorized||ledger.releaseAuthorized)
+                    throw new java.io.IOException(
+                        "R76_CAPTURED_LEDGER_GENESIS_UNCERTAIN");
+                try{
+                    token.requireCapturedSaveOwner(
+                        owner,generation,captured.username());
+                }catch(IllegalStateException stale){
+                    throw new java.io.IOException(
+                        "R76_WORLD_OWNER_CHANGED_AFTER_GENESIS",stale);
+                }
+                // The newborn LAB evidence is intentionally a
+                // permanent NEGATIVE for default-off legacy admission.
+                return ledger;
+            });
+        }
+    }
+
     static void requireCurrentWorldOwnerForTest(
         Path accountFile,WorldPlayer owner,long generation
     ){
