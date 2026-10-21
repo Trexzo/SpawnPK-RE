@@ -545,10 +545,11 @@ final class WorldPlayerPersistence
      * snapshot, BEFORE any asynchronous FIFO worker can observe a later
      * account-path lease. Non-file repositories never enter this protocol.
      */
-    private long markWorldSnapshotCaptureStartForLab(
+    private LocalJvmAccountSessionLease.WorldCaptureStartForLab
+        markWorldSnapshotCaptureStartForLab(
         String username,WorldPlayer player,long generation
     ){
-        if(!(repository instanceof FilePlayerRepository))return 0L;
+        if(!(repository instanceof FilePlayerRepository))return null;
         return LocalJvmAccountSessionLease
             .markWorldSnapshotCaptureStartForLab(
                 ((FilePlayerRepository)repository).accountFilePath(username),
@@ -558,7 +559,8 @@ final class WorldPlayerPersistence
     private LocalJvmAccountSessionLease.SaveCaptureWitness
         captureOwnerLeaseWitness(
             String username,WorldPlayer player,long generation,
-            PlayerSnapshot exactWorldCapture,long startedOrdinal
+            PlayerSnapshot exactWorldCapture,
+            LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart
         ){
         if(!(repository instanceof FilePlayerRepository))
             return null;
@@ -568,7 +570,7 @@ final class WorldPlayerPersistence
         // World-thread snapshot, not only the owner's generation.
         return LocalJvmAccountSessionLease.captureSaveWitness(
             file,username,player,generation,exactWorldCapture,
-            startedOrdinal);
+            captureStart);
     }
 
     /**
@@ -636,7 +638,7 @@ final class WorldPlayerPersistence
         );
 
         PlayerSnapshot snapshot;
-        long startedOrdinal;
+        LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -651,7 +653,7 @@ final class WorldPlayerPersistence
                 );
 
             requireCaptureAccountMatchesOwner(username,player);
-            startedOrdinal=markWorldSnapshotCaptureStartForLab(
+            captureStart=markWorldSnapshotCaptureStartForLab(
                 username,player,expectedGeneration);
             snapshot=
                 PlayerSnapshotCodec.capture(
@@ -681,7 +683,7 @@ final class WorldPlayerPersistence
             false,
             captureOwnerLeaseWitness(
                 username,player,expectedGeneration,snapshot,
-                startedOrdinal)
+                captureStart)
         );
     }
 
@@ -701,7 +703,7 @@ final class WorldPlayerPersistence
         );
 
         PlayerSnapshot snapshot;
-        long startedOrdinal;
+        LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -727,7 +729,7 @@ final class WorldPlayerPersistence
             }
 
             try{
-                startedOrdinal=markWorldSnapshotCaptureStartForLab(
+                captureStart=markWorldSnapshotCaptureStartForLab(
                     username,player,expectedGeneration);
                 snapshot=
                     PlayerSnapshotCodec.capture(
@@ -802,7 +804,7 @@ final class WorldPlayerPersistence
             true,
             captureOwnerLeaseWitness(
                 username,player,expectedGeneration,snapshot,
-                startedOrdinal)
+                captureStart)
         );
     }
 
@@ -1343,7 +1345,8 @@ final class WorldPlayerPersistence
                     player.petAccessoryState()
                         .activeItem();
 
-                long startedOrdinal=
+                LocalJvmAccountSessionLease.WorldCaptureStartForLab
+                    captureStart=
                     markWorldSnapshotCaptureStartForLab(
                         username,player,generation);
                 PlayerSnapshot snapshot=
@@ -1363,7 +1366,7 @@ final class WorldPlayerPersistence
                         generation,
                         captureOwnerLeaseWitness(
                             username,player,generation,snapshot,
-                            startedOrdinal)
+                            captureStart)
                     );
 
                 synchronized(checkpointLock){
