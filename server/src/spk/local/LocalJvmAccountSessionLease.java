@@ -1438,6 +1438,19 @@ final class LocalJvmAccountSessionLease {
         Path accountFile,WorldPlayer owner,long generation,
         PlayerSnapshot captured,SaveCaptureWitness witness
     )throws java.io.IOException{
+        return initializeCapturedEpochGenesisUnderOriginalLockForLab(
+            accountFile,owner,generation,captured,witness,stage->{});
+    }
+
+    /** R77 package-only force/cutpoint forwarding, no admission. */
+    static LocalReusableAccountEpochLab.Observation
+    initializeCapturedEpochGenesisUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot captured,SaveCaptureWitness witness,
+        LocalReusableAccountEpochLab.Cutpoint cutpoint
+    )throws java.io.IOException{
+        if(cutpoint==null)
+            throw new java.io.IOException("R77_NULL_CAPTURE_GENESIS_CUTPOINT");
         if(!Boolean.getBoolean(CAPTURED_EPOCH_GENESIS_LAB_PROPERTY))
             throw new java.io.IOException(
                 "R76_CAPTURED_EPOCH_GENESIS_LAB_DEFAULT_OFF");
@@ -1487,7 +1500,7 @@ final class LocalJvmAccountSessionLease {
                 LocalReusableAccountEpochLab.Observation ledger=
                     LocalReusableAccountEpochLab
                         .initializeUnderHeldAccountLock(
-                            selected,token.processLock,canonical);
+                            selected,token.processLock,canonical,cutpoint);
                 if(ledger.sequence!=0||
                    ledger.phase!=LocalReusableAccountEpochLab.Phase.CLOSED||
                    ledger.imageLength!=proof.canonicalBytes||
