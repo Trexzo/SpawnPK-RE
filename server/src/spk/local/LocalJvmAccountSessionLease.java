@@ -1522,6 +1522,106 @@ final class LocalJvmAccountSessionLease {
         }
     }
 
+    /**
+     * R78 STANDALONE NEGATIVE-ONLY: associate an existing, exactly
+     * captured R76 ledger genesis with its genuine World owner under
+     * the same original G21.185 lock. The fresh owner nonce is
+     * generated internally; neither a caller-provided nonce nor a
+     * guessed World generation can be used to claim the ledger here.
+     *
+     * OWNED is merely an immutable experimental audit phase. It
+     * never gives permission to admit, publish a real final save,
+     * acknowledge final completion, release, replay or recover.
+     * Both the R76 genesis and this transition are explicit opt-ins.
+     */
+    static final String CAPTURED_EPOCH_CLAIM_LAB_PROPERTY=
+        "spk.local.experimentalCapturedEpochClaimLab";
+
+    static LocalReusableAccountEpochLab.Observation
+    claimCapturedEpochUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot captured,SaveCaptureWitness witness
+    )throws java.io.IOException{
+        if(!Boolean.getBoolean(CAPTURED_EPOCH_CLAIM_LAB_PROPERTY)||
+           !Boolean.getBoolean(CAPTURED_EPOCH_GENESIS_LAB_PROPERTY))
+            throw new java.io.IOException(
+                "R78_CAPTURED_EPOCH_CLAIM_LAB_DEFAULT_OFF");
+        Objects.requireNonNull(accountFile,"accountFile");
+        Objects.requireNonNull(captured,"captured");
+        Path selected=accountFile.toAbsolutePath().normalize();
+        if(!Boolean.getBoolean(PROPERTY)||
+           !Boolean.getBoolean(LocalCrossJvmAccountSessionLock.PROPERTY)||
+           !Boolean.getBoolean(
+               LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
+            throw new java.io.IOException(
+                "R78_REQUIRES_ACTUAL_SESSION_ORIGINAL_OS_LOCK");
+        if(witness==null||witness.priorUnleased||
+           witness.originalLease==null||owner==null||
+           witness.owner!=owner||witness.generation!=generation||
+           !selected.equals(witness.path)||
+           !witness.account.equals(captured.username()))
+            throw new java.io.IOException(
+                "R78_CAPTURE_WITNESS_NOT_ORIGINAL_OWNER");
+        final Token token;
+        synchronized(active){token=active.get(selected);}
+        if(token==null||token!=witness.originalLease)
+            throw new java.io.IOException(
+                "R78_ORIGINAL_SESSION_TOKEN_RELEASED_OR_REPLACED");
+        synchronized(token){
+            try{
+                token.requireCapturedSaveOwner(
+                    owner,generation,captured.username());
+            }catch(IllegalStateException invalid){
+                throw new java.io.IOException(
+                    "R78_CAPTURE_OWNER_GENERATION_STALE",invalid);
+            }
+            if(token.processLock==null)
+                throw new java.io.IOException(
+                    "R78_CAPTURED_OWNER_MISSING_ORIGINAL_OS_LOCK");
+            return token.processLock.withHeldOriginalAccount(selected,()->{
+                // The R76 ledger is intentionally NEGATIVE. Do not
+                // invoke the default-off legacy admission gate here.
+                LocalReusableAccountEpochLab.Observation genesis=
+                    LocalReusableAccountEpochLab.inspect(selected);
+                if(genesis.sequence!=0||genesis.epoch!=1||
+                   genesis.phase!=LocalReusableAccountEpochLab.Phase.CLOSED)
+                    throw new java.io.IOException(
+                        "R78_GENESIS_NOT_CLOSED_OR_SEQUENCE_CHANGED");
+                LocalCapturedWorldSnapshotFingerprintLab.Observation proof=
+                    LocalCapturedWorldSnapshotFingerprintLab.fingerprint(
+                        selected,captured,generation);
+                if(genesis.imageLength!=proof.canonicalBytes||
+                   !genesis.imageSha.equals(proof.canonicalSha256))
+                    throw new java.io.IOException(
+                        "R78_CAPTURE_NOT_LEDGER_GENESIS");
+                // Distinct from the JVM generation: a random internal
+                // negative-only nonce, not trusted external authority.
+                String nonce="r78_"+
+                    java.util.UUID.randomUUID().toString().replace("-","");
+                LocalReusableAccountEpochLab.Observation owned=
+                    LocalReusableAccountEpochLab.claimUnderHeldAccountLock(
+                        selected,token.processLock,0,generation,nonce);
+                if(owned.sequence!=1||owned.epoch!=2||
+                   owned.phase!=LocalReusableAccountEpochLab.Phase.OWNED||
+                   owned.worldGeneration!=generation||
+                   !nonce.equals(owned.ownerNonce)||
+                   owned.imageLength!=proof.canonicalBytes||
+                   !owned.imageSha.equals(proof.canonicalSha256)||
+                   owned.admissionAuthorized||owned.releaseAuthorized)
+                    throw new java.io.IOException(
+                        "R78_CAPTURED_OWNED_PHASE_UNCERTAIN");
+                try{
+                    token.requireCapturedSaveOwner(
+                        owner,generation,captured.username());
+                }catch(IllegalStateException stale){
+                    throw new java.io.IOException(
+                        "R78_WORLD_OWNER_CHANGED_AFTER_CLAIM",stale);
+                }
+                return owned;
+            });
+        }
+    }
+
     static void requireCurrentWorldOwnerForTest(
         Path accountFile,WorldPlayer owner,long generation
     ){
