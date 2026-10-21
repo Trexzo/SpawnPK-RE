@@ -782,7 +782,8 @@ final class WorldPlayerPersistence
             cleanTag(tag),
             cleanReason(reason),
             true,
-            captureOwnerLeaseWitness(username,player,expectedGeneration)
+            captureOwnerLeaseWitness(
+                username,player,expectedGeneration,snapshot)
         );
     }
 
