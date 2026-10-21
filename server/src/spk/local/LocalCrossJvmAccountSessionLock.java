@@ -30,6 +30,34 @@ final class LocalCrossJvmAccountSessionLock {
         "spk.local.experimentalSessionLockObjectContinuity";
 
 
+    /*
+     * R61.1: on POSIX fcntl locks, closing ANY descriptor to an inode
+     * in the same process can drop that process's OTHER record locks.
+     * A rejected same-JVM duplicate open+tryLock+close must therefore
+     * be stopped BEFORE opening a second channel to a held lock leaf.
+     *
+     * This is a cooperative, exact-name JVM reservation; hardlink
+     * aliases and hostile pathname replacement remain unsupported.
+     * Never perform filesystem I/O while holding this monitor.
+     */
+    private static final java.util.Set<Path> localLockReservations=
+        new java.util.HashSet<Path>();
+
+    private static void reserveLockName(Path lockPath)
+        throws IOException{
+        synchronized(localLockReservations){
+            if(!localLockReservations.add(lockPath))
+                throw new IOException(
+                    "G21.185 ACCOUNT_SESSION_LOCK_BUSY"+
+                    " sameJvmReservation=true");
+        }
+    }
+    private static void clearLockReservation(Path lockPath){
+        synchronized(localLockReservations){
+            localLockReservations.remove(lockPath);
+        }
+    }
+
     private LocalCrossJvmAccountSessionLock(){}
 
     static final class Handle implements AutoCloseable {
@@ -78,6 +106,10 @@ final class LocalCrossJvmAccountSessionLock {
             lock.release();
             channel.close();
             closed=true;
+            // Only the original holder's CONFIRMED close retires this
+            // process-local name reservation. Failed OS close keeps
+            // the reservation fail-closed.
+            clearLockReservation(file);
         }
 
         /**
@@ -164,16 +196,20 @@ final class LocalCrossJvmAccountSessionLock {
         Path lockPath=canonical.resolveSibling(
             canonical.getFileName().toString()+".session.lck");
 
-        FileChannel channel=FileChannel.open(
-            lockPath,
-            StandardOpenOption.CREATE,
-            StandardOpenOption.READ,
-            StandardOpenOption.WRITE,
-            LinkOption.NOFOLLOW_LINKS
-        );
-
+        // Prevent any duplicate same-JVM FileChannel.open on an
+        // already-held lock path, including one whose subsequent
+        // failed tryLock would otherwise close a second POSIX fd.
+        reserveLockName(lockPath);
+        FileChannel channel=null;
         boolean transferred=false;
         try{
+            channel=FileChannel.open(
+                lockPath,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.READ,
+                StandardOpenOption.WRITE,
+                LinkOption.NOFOLLOW_LINKS
+            );
             if(!Files.isRegularFile(
                     lockPath,LinkOption.NOFOLLOW_LINKS))
                 throw new IOException(
@@ -207,8 +243,12 @@ final class LocalCrossJvmAccountSessionLock {
             transferred=true;
             return handle;
         }finally{
-            if(!transferred)
-                channel.close();
+            if(!transferred){
+                // A failed close is uncertain ownership: KEEP the JVM
+                // reservation instead of admitting a new local owner.
+                if(channel!=null)channel.close();
+                clearLockReservation(lockPath);
+            }
         }
     }
 }
