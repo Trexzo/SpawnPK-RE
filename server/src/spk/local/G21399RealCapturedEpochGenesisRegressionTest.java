@@ -30,6 +30,8 @@ import java.util.stream.Stream;
  * epoch, final-save receipt, replay, release or power-loss proof.
  * R77 adds a real-World child-JVM hard-kill at forced genesis archive
  * before HEAD/intent. A fresh JVM must deny both loaders and TCP.
+ * R78 binds OWNED to this same authentic World capture with an
+ * internal nonce. OWNED remains nonadmitting permanent negative.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -72,6 +74,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY
         };
+        // Claim has a distinct, deliberately default-OFF opt-in,
+        // even when R76/R77 genesis experiments are explicitly on.
+        System.clearProperty(
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY);
         for(String flag:flags){
             if(enabled)System.setProperty(flag,"true");
             else System.clearProperty(flag);
@@ -168,10 +174,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }else{
             LocalReusableAccountEpochLab.Observation lab=
                 LocalReusableAccountEpochLab.inspect(account);
-            check(lab.sequence==0&&
-                lab.phase==LocalReusableAccountEpochLab.Phase.CLOSED&&
+            check(lab.sequence==1&&lab.epoch==2&&
+                lab.phase==LocalReusableAccountEpochLab.Phase.OWNED&&
+                lab.worldGeneration>0&&
+                lab.ownerNonce.matches("r78_[0-9a-f]{32}")&&
                 !lab.admissionAuthorized&&!lab.releaseAuthorized,
-                "fresh inspection misread LAB as positive admission");
+                "fresh inspection misread OWNED as authority");
+            System.out.println("R78_FRESH_JVM_OWNED_PHASE_REMAINS_NEGATIVE");
             System.out.println("R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"+
                 " defaultOffRepositoryDenied=true"+
                 " defaultOffLegacyDenied=true"+
@@ -224,7 +233,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalJvmAccountSessionLease.PROPERTY,
             LocalCrossJvmAccountSessionLock.PROPERTY,
             LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
-            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY
         };
         String[] previous=new String[names.length];
         for(int i=0;i<names.length;i++)
@@ -319,8 +329,72 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             contains(invalid,"R57_LEDGER_ALREADY_INITIALIZED");
                     }
                     check(repeated,"duplicate LAB genesis unexpectedly passed");
+
+                    boolean claimDefaultOff=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .claimCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                c.ticket.snapshot,c.ownerWitness);
+                    }catch(IOException invalid){
+                        claimDefaultOff=contains(invalid,
+                            "R78_CAPTURED_EPOCH_CLAIM_LAB_DEFAULT_OFF");
+                    }
+                    check(claimDefaultOff,"R78 claim bypassed default off");
+                    System.setProperty(
+                        LocalJvmAccountSessionLease
+                            .CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,"true");
+                    boolean forgedClaim=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .claimCapturedEpochUnderOriginalLockForLab(
+                                selected,forged,generation,
+                                c.ticket.snapshot,c.ownerWitness);
+                    }catch(IOException invalid){
+                        forgedClaim=contains(invalid,
+                            "R78_CAPTURE_WITNESS_NOT_ORIGINAL_OWNER");
+                    }
+                    check(forgedClaim,"forged owner claimed original epoch");
+                    boolean wrongCapture=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .claimCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                PlayerSnapshotCodec.capture(
+                                    USER,new WorldPlayer()),c.ownerWitness);
+                    }catch(IOException invalid){
+                        wrongCapture=contains(invalid,
+                            "R78_CAPTURE_NOT_LEDGER_GENESIS");
+                    }
+                    check(wrongCapture,
+                        "unrelated captured content claimed prior genesis");
+                    LocalReusableAccountEpochLab.Observation owned=
+                        LocalJvmAccountSessionLease
+                            .claimCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                c.ticket.snapshot,c.ownerWitness);
+                    check(owned.sequence==1&&owned.epoch==2&&
+                        owned.phase==LocalReusableAccountEpochLab.Phase.OWNED&&
+                        owned.worldGeneration==generation&&
+                        owned.ownerNonce.matches("r78_[0-9a-f]{32}")&&
+                        owned.imageSha.equals(seeded.imageSha)&&
+                        owned.imageLength==seeded.imageLength&&
+                        !owned.admissionAuthorized&&!owned.releaseAuthorized,
+                        "authentic World capture not bound to OWNED");
+                    boolean staleDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .claimCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                c.ticket.snapshot,c.ownerWitness);
+                    }catch(IOException invalid){
+                        staleDenied=contains(invalid,
+                            "R78_GENESIS_NOT_CLOSED_OR_SEQUENCE_CHANGED");
+                    }
+                    check(staleDenied,
+                        "replayed captured epoch claim replaced OWNED");
                     check(LocalJvmAccountSessionLease.activeCountForTest()==1,
-                        "genesis erroneously released real session owner");
+                        "negative owned ledger released real session owner");
                 }
                 await(()->live.players().size()==0,
                     "original World unregister");
@@ -333,8 +407,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             check(Arrays.equals(original,Files.readAllBytes(account)),
                 "failed final replaced historical legacy bytes");
             probeInChild(root,false);
+            check(Arrays.equals(original,Files.readAllBytes(account)),
+                "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R78_REAL_WORLD_CAPTURED_OWNED_PHASE_PASS"+
+                " sameOriginalWorldTokenAndLock=true"+
+                " nonceGeneratedInternally=true"+
+                " forgedWorldAndWrongCaptureDenied=true"+
+                " capturedGenesisDigestAndEpochBound=true"+
+                " duplicateClaimDenied=true"+
+                " freshJvmOWNEDDoesNotGrantAdmission=true"+
+                " originalAccountUnmodified=true"+
+                " noPositiveFinalSaveOrRecovery=true");
             System.out.println("R76_GENUINE_CAPTURE_BORROWED_EPOCH_GENESIS_PASS"+
                 " authenticatedWorldCapture=true"+
                 " genesisUsesOriginalHeldOsLock=true"+
@@ -422,7 +507,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalJvmAccountSessionLease.PROPERTY,
             LocalCrossJvmAccountSessionLock.PROPERTY,
             LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
-            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY
         };
         String[] before=new String[flags.length];
         for(int i=0;i<flags.length;i++)
