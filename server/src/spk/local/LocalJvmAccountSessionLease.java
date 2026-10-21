@@ -1653,6 +1653,19 @@ final class LocalJvmAccountSessionLease {
         Path accountFile,WorldPlayer owner,long generation,
         PlayerSnapshot captured,SaveCaptureWitness witness
     )throws java.io.IOException{
+        return prepareCapturedEpochUnderOriginalLockForLab(
+            accountFile,owner,generation,captured,witness,stage->{});
+    }
+
+    /** R80 package-only process-kill cutpoint, NOT a final ACK. */
+    static LocalReusableAccountEpochLab.Observation
+    prepareCapturedEpochUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot captured,SaveCaptureWitness witness,
+        LocalReusableAccountEpochLab.Cutpoint cutpoint
+    )throws java.io.IOException{
+        if(cutpoint==null)
+            throw new java.io.IOException("R80_NULL_FINAL_PREPARE_CUTPOINT");
         if(!Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY)||
            !Boolean.getBoolean(CAPTURED_EPOCH_CLAIM_LAB_PROPERTY)||
            !Boolean.getBoolean(CAPTURED_EPOCH_GENESIS_LAB_PROPERTY))
@@ -1719,7 +1732,7 @@ final class LocalJvmAccountSessionLease {
                         .prepareFinalUnderHeldAccountLock(
                             selected,token.processLock,
                             remembered.sequence,generation,
-                            remembered.ownerNonce);
+                            remembered.ownerNonce,cutpoint);
                 if(pending.sequence!=2||pending.epoch!=remembered.epoch||
                    pending.phase!=LocalReusableAccountEpochLab
                        .Phase.FINAL_PENDING||
