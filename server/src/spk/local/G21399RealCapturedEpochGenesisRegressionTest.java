@@ -39,6 +39,9 @@ import java.util.stream.Stream;
  * R81 extends the same authentic World matrix to after HEAD move but
  * before directory force and after full receipt force: even a fully
  * complete LAB FINAL_PENDING is negative, not positive admission.
+ * R82: a later genuine World mutation is captured as the detached
+ * CLOSED LAB image; this never writes/replays the real account or
+ * grants final ACK, release, or subsequent login.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -87,6 +90,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY);
         System.clearProperty(
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY);
+        System.clearProperty(
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY);
         for(String flag:flags){
             if(enabled)System.setProperty(flag,"true");
             else System.clearProperty(flag);
@@ -230,13 +235,15 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }else{
             LocalReusableAccountEpochLab.Observation lab=
                 LocalReusableAccountEpochLab.inspect(account);
-            check(lab.sequence==2&&lab.epoch==2&&
-                lab.phase==LocalReusableAccountEpochLab.Phase.FINAL_PENDING&&
-                lab.worldGeneration>0&&
-                lab.ownerNonce.matches("r78_[0-9a-f]{32}")&&
+            check(lab.sequence==3&&lab.epoch==2&&
+                lab.phase==LocalReusableAccountEpochLab.Phase.CLOSED&&
+                lab.worldGeneration==0&&
+                "none".equals(lab.ownerNonce)&&
+                lab.imageSequence==3&&
+                lab.imageSha.matches("[0-9a-f]{64}")&&
                 !lab.admissionAuthorized&&!lab.releaseAuthorized,
-                "fresh inspection misread FINAL_PENDING as authority");
-            System.out.println("R79_FRESH_JVM_FINAL_PENDING_REMAINS_NEGATIVE");
+                "fresh inspection misread completed CLOSED as authority");
+            System.out.println("R82_FRESH_JVM_CLOSED_LAB_STILL_NEGATIVE");
             System.out.println("R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"+
                 " defaultOffRepositoryDenied=true"+
                 " defaultOffLegacyDenied=true"+
@@ -310,7 +317,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
-            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
         };
         String[] previous=new String[names.length];
         for(int i=0;i<names.length;i++)
@@ -537,6 +545,98 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         "replayed final prepare advanced LAB sequence");
                     check(LocalJvmAccountSessionLease.activeCountForTest()==1,
                         "negative final-pending ledger released real lease");
+
+                    // A second genuinely World-thread-captured image,
+                    // not an arbitrary legacy file nor synthetic
+                    // caller-supplied final snapshot.
+                    world.submit(owner,generation,()->
+                        owner.snapshotExtensions().replaceNamespace(
+                            "r82_final",
+                            Collections.singletonMap("phase","AFTER_PENDING"))
+                    ).get(5,TimeUnit.SECONDS);
+                    WorldPlayerPersistence.CapturedSave later=
+                        capture(world,owner,generation);
+                    check("AFTER_PENDING".equals(
+                        later.ticket.snapshot.value(
+                            "extension.r82_final.phase")),
+                        "later World postimage was not genuinely captured");
+                    LocalCapturedWorldSnapshotFingerprintLab.Observation
+                        postimage=LocalCapturedWorldSnapshotFingerprintLab
+                            .fingerprint(selected,later.ticket.snapshot,
+                                generation);
+                    check(!postimage.canonicalSha256.equals(
+                        pending.imageSha),
+                        "later World state did not change snapshot");
+
+                    boolean settlementDefaultOff=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                later.ticket.snapshot,later.ownerWitness);
+                    }catch(IOException rejected){
+                        settlementDefaultOff=contains(rejected,
+                            "R82_CAPTURED_EPOCH_SETTLEMENT_LAB_DEFAULT_OFF");
+                    }
+                    check(settlementDefaultOff,
+                        "R82 detached settlement bypassed default OFF");
+                    System.setProperty(
+                        LocalJvmAccountSessionLease
+                            .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,"true");
+                    boolean forgedSettle=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,forged,generation,
+                                later.ticket.snapshot,later.ownerWitness);
+                    }catch(IOException denied){
+                        forgedSettle=contains(denied,
+                            "R82_CAPTURE_WITNESS_NOT_ORIGINAL_OWNER");
+                    }
+                    check(forgedSettle,
+                        "forged World owner settled original LAB epoch");
+                    boolean replayOldImage=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                c.ticket.snapshot,c.ownerWitness);
+                    }catch(IOException invalid){
+                        replayOldImage=contains(invalid,
+                            "R82_FINAL_SNAPSHOT_NOT_DISTINCT_FROM_PENDING");
+                    }
+                    check(replayOldImage,
+                        "unchanged World image counted as new postimage");
+                    LocalReusableAccountEpochLab.Observation settled=
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                later.ticket.snapshot,later.ownerWitness);
+                    check(settled.sequence==3&&settled.epoch==2&&
+                        settled.phase==LocalReusableAccountEpochLab.Phase.CLOSED&&
+                        settled.worldGeneration==0&&
+                        "none".equals(settled.ownerNonce)&&
+                        settled.imageSequence==3&&
+                        settled.imageSha.equals(postimage.canonicalSha256)&&
+                        settled.imageLength==postimage.canonicalBytes&&
+                        !settled.admissionAuthorized&&!settled.releaseAuthorized,
+                        "real World postimage mismatch or unwanted authority");
+                    boolean replaySettlement=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                later.ticket.snapshot,later.ownerWitness);
+                    }catch(IOException denied){
+                        replaySettlement=contains(denied,
+                            "R82_PENDING_DISK_NOT_ORIGINAL_TOKEN");
+                    }
+                    check(replaySettlement,
+                        "LAB settlement replay rewrote completed head");
+                    check(Arrays.equals(original,Files.readAllBytes(account)),
+                        "LAB CLOSED image wrote old legacy account bytes");
+                    check(LocalJvmAccountSessionLease.activeCountForTest()==1,
+                        "LAB settlement prematurely released original lease");
                 }
                 await(()->live.players().size()==0,
                     "original World unregister");
@@ -553,6 +653,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R82_REAL_WORLD_CAPTURED_DETACHED_SETTLEMENT_PASS"+
+                " exactLaterWorldCapture=true"+
+                " priorPendingOriginalTokenAndNonce=true"+
+                " distinctCanonicalLabPostimageForced=true"+
+                " forgedOwnerAndSameImageDenied=true"+
+                " replayAfterClosedDenied=true"+
+                " realLegacyAccountBytesUnchanged=true"+
+                " failedWorldFinalRetainsOriginalLease=true"+
+                " freshJvmClosedStillNoAdmission=true"+
+                " noPositiveACKOrRecovery=true");
             System.out.println("R79_REAL_WORLD_CAPTURED_FINAL_PENDING_PASS"+
                 " originalOwnedJVMTokenRemembered=true"+
                 " sameOriginalWorldCaptureAndNonce=true"+
@@ -658,7 +768,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
-            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
         };
         String[] before=new String[flags.length];
         for(int i=0;i<flags.length;i++)
