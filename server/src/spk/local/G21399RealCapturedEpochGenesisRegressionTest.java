@@ -48,6 +48,8 @@ import java.util.stream.Stream;
  * PlayerSnapshot object, forbidding swapped same-account snapshots.
  * R86 rejects even a genuine same-session capture if its World
  * capture began before R79 FINAL_PENDING was completed.
+ * R87 refuses manufactured package-level witnesses with no original
+ * single-use captured-start ticket, even if snapshot identity matches.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -656,6 +658,28 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(swappedWitnessDenied,
                         "later World image used older same-owner witness");
+                    // R87: this package-level compatibility factory
+                    // binds the REAL late snapshot/owner/token but
+                    // has no minted capture-start ticket. It must
+                    // not manufacture positive ordering from them.
+                    LocalJvmAccountSessionLease.SaveCaptureWitness
+                        untrustedOrdinalWitness=
+                            LocalJvmAccountSessionLease.captureSaveWitness(
+                                selected,USER,owner,generation,
+                                later.ticket.snapshot);
+                    boolean unmintedDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                later.ticket.snapshot,
+                                untrustedOrdinalWitness);
+                    }catch(IOException invalid){
+                        unmintedDenied=contains(invalid,
+                            "R86_FINAL_CAPTURE_NOT_STARTED_AFTER_PREPARE");
+                    }
+                    check(unmintedDenied,
+                        "package witness fabricated R87 capture ordering");
                     check(!LocalCapturedWorldSnapshotFingerprintLab
                             .fingerprint(selected,
                                 preprepared.ticket.snapshot,generation)
@@ -734,6 +758,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R87_OPAQUE_SINGLE_USE_CAPTURE_PROVENANCE_PASS"+
+                " callerRawOrdinalNoLongerAccepted=true"+
+                " unmintedExactWorldSnapshotDenied=true"+
+                " mintedOriginalWorldSnapshotSettledLabOnly=true"+
+                " legacyBytesUnchanged=true"+
+                " noAdmissionOrRelease=true");
             System.out.println("R86_POST_PREPARATION_CAPTURE_ORDER_PASS"+
                 " exactWorldCaptureStartOrdinal=true"+
                 " distinctPrePrepareWorldImageDenied=true"+
