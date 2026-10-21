@@ -169,9 +169,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             // chain after the precisely chosen process-kill points.
             boolean incomplete=false;
             try{LocalReusableAccountEpochLab.inspect(account);}
-            catch(IOException denied){
-                incomplete=contains(denied,"MANUAL_REVIEW")||
-                    contains(denied,"NEGATIVE");
+            catch(IOException invalidLedger){
+                incomplete=contains(invalidLedger,"MANUAL_REVIEW")||
+                    contains(invalidLedger,"NEGATIVE");
             }
             check(incomplete,"interrupted prepare was a valid LAB HEAD");
             System.out.println("R80_FRESH_JVM_PREPARE_INCOMPLETE_VETO"+
