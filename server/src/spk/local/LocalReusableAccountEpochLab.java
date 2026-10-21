@@ -772,31 +772,69 @@ final class LocalReusableAccountEpochLab {
             Phase.CLOSED,Phase.OWNED,generation,nonce,null,stage->{});
     }
 
+    /**
+     * R75: initialize the detached, nonadmitting LAB ledger while
+     * borrowing the ORIGINAL already-held session FileLock. The owner
+     * keeps its close authority. In particular do not open/close a
+     * second channel to the same inode on POSIX: that could release
+     * another record lock held by this JVM.
+     *
+     * The caller-provided image is not proof of gameplay ownership,
+     * final save, login permission, power-loss durability, or recovery.
+     * A LAB ledger remains a persistent negative admission signal.
+     */
+    static Observation initializeUnderHeldAccountLock(
+        Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
+        byte[] imageBytes
+    )throws IOException{
+        requiredLock();
+        if(borrowed==null)
+            throw new IOException("R75_NO_BORROWED_INITIALIZATION_LOCK");
+        requireInitializationImage(imageBytes);
+        Path a=canonical(account);
+        return borrowed.withHeldOriginalAccount(a,()->
+            initializeInsideHeldLock(a,imageBytes,borrowed));
+    }
+
+    private static void requireInitializationImage(byte[] bytes)
+        throws IOException{
+        if(bytes==null||bytes.length==0||bytes.length>MAX_IMAGE)
+            throw new IOException("R57_INIT_IMAGE_SIZE_INVALID");
+    }
+
+    private static Observation initializeInsideHeldLock(
+        Path a,byte[] bytes,
+        LocalCrossJvmAccountSessionLock.Handle originalLock
+    )throws IOException{
+        originalLock.requireOriginalLockNameStillPresent();
+        parent(a);
+        LocalNegativeAccountHeadPrototype.requireNoPublishedHead(a);
+        if(exists(head(a)))
+            throw new IOException("R57_LEDGER_ALREADY_INITIALIZED");
+        scan(a,0,ZERO,false);
+        requireFreshJournal(a);
+        requireFreshArchives(a);
+        String digest=sha(bytes);
+        Path snapshot=image(a,0,digest);
+        forcedCreate(snapshot,bytes,MAX_IMAGE);
+        Observation seed=new Observation(a,1L,0,Phase.CLOSED,0L,
+            "none",0,digest,bytes.length,ZERO);
+        publish(a,seed,stage->{
+            originalLock.requireOriginalLockNameStillPresent();
+        });
+        originalLock.requireOriginalLockNameStillPresent();
+        return inspect(a);
+    }
+
     static Observation initialize(Path account,byte[] bytes)
         throws IOException{
         requiredLock();
-        if(bytes==null||bytes.length==0||bytes.length>MAX_IMAGE)
-            throw new IOException("R57_INIT_IMAGE_SIZE_INVALID");
+        requireInitializationImage(bytes);
         Path a=canonical(account);
         try(LocalCrossJvmAccountSessionLock.Handle lock=
                 LocalCrossJvmAccountSessionLock.acquire(a)){
-            lock.requireOriginalLockNameStillPresent();
-            parent(a);
-            LocalNegativeAccountHeadPrototype.requireNoPublishedHead(a);
-            if(exists(head(a)))
-                throw new IOException("R57_LEDGER_ALREADY_INITIALIZED");
-            scan(a,0,ZERO,false);
-            requireFreshJournal(a);
-            requireFreshArchives(a);
-            String digest=sha(bytes);
-            Path snapshot=image(a,0,digest);
-            forcedCreate(snapshot,bytes,MAX_IMAGE);
-            Observation seed=new Observation(a,1L,0,Phase.CLOSED,0L,
-                "none",0,digest,bytes.length,ZERO);
-            publish(a,seed,stage->{
-                lock.requireOriginalLockNameStillPresent();
-            });
-            return inspect(a);
+            return lock.withHeldOriginalAccount(a,()->
+                initializeInsideHeldLock(a,bytes,lock));
         }
     }
     static Observation claim(Path a,int expected,long generation,
