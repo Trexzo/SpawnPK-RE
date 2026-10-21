@@ -36,6 +36,9 @@ import java.util.stream.Stream;
  * an account postimage, final receipt, release or recovery authority.
  * R80 kills genuine World processes at PREPARE archive and HEAD-dir-
  * forced boundaries, verifying both remain negative across restart.
+ * R81 extends the same authentic World matrix to after HEAD move but
+ * before directory force and after full receipt force: even a fully
+ * complete LAB FINAL_PENDING is negative, not positive admission.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -118,6 +121,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     private static void freshProbe(
         Path root,boolean killed,boolean prepareKilled
     )throws Exception{
+        freshProbe(root,killed,prepareKilled,false);
+    }
+    private static void freshProbe(
+        Path root,boolean killed,boolean prepareKilled,
+        boolean completeReceipt
+    )throws Exception{
         configure(root,false);
         Path account=LocalAccountProfiles.accountFile(USER);
         FilePlayerRepository repo=new FilePlayerRepository(
@@ -164,20 +173,41 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             killed?"killed World OS lock was not released":
                 "stranded original World released OS lock");
         if(prepareKilled){
-            // Old OWNED HEAD may remain, or the new FINAL_PENDING
-            // HEAD may have moved; neither has a complete receipt
-            // chain after the precisely chosen process-kill points.
-            boolean incomplete=false;
-            try{LocalReusableAccountEpochLab.inspect(account);}
-            catch(IOException invalidLedger){
-                incomplete=contains(invalidLedger,"MANUAL_REVIEW")||
-                    contains(invalidLedger,"NEGATIVE");
+            if(completeReceipt){
+                // A fully receipt-complete LAB history is still
+                // intentionally NEGATIVE, not positive final-save.
+                LocalReusableAccountEpochLab.Observation complete=
+                    LocalReusableAccountEpochLab.inspect(account);
+                check(complete.sequence==2&&complete.epoch==2&&
+                    complete.phase==LocalReusableAccountEpochLab
+                        .Phase.FINAL_PENDING&&
+                    complete.worldGeneration>0&&
+                    complete.ownerNonce.matches("r78_[0-9a-f]{32}")&&
+                    !complete.admissionAuthorized&&
+                    !complete.releaseAuthorized,
+                    "completed LAB receipt promoted to live authority");
+                System.out.println(
+                    "R81_FRESH_JVM_COMPLETE_LAB_RECEIPT_STILL_DENIED"+
+                    " exactLedgerInspect=true"+
+                    " realTcpDenied=true"+
+                    " noOriginalOsLockAfterKill=true"+
+                    " noFinalAckOrRecovery=true");
+            }else{
+                // Old OWNED HEAD may remain, or the new FINAL_PENDING
+                // HEAD may have moved; no matching receipt chain.
+                boolean incomplete=false;
+                try{LocalReusableAccountEpochLab.inspect(account);}
+                catch(IOException invalidLedger){
+                    incomplete=contains(invalidLedger,"MANUAL_REVIEW")||
+                        contains(invalidLedger,"NEGATIVE");
+                }
+                check(incomplete,
+                    "interrupted prepare was a valid LAB HEAD");
+                System.out.println("R80_FRESH_JVM_PREPARE_INCOMPLETE_VETO"+
+                    " realTcpDenied=true"+
+                    " originalOsLockReleasedAfterKill=true"+
+                    " incompleteLedgerNotAccepted=true");
             }
-            check(incomplete,"interrupted prepare was a valid LAB HEAD");
-            System.out.println("R80_FRESH_JVM_PREPARE_INCOMPLETE_VETO"+
-                " realTcpDenied=true"+
-                " originalOsLockReleasedAfterKill=true"+
-                " incompleteLedgerNotAccepted=true");
         }else if(killed){
             check(!Files.exists(
                     account.resolveSibling(
@@ -222,12 +252,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     private static void probeInChild(
         Path root,boolean killed,boolean prepareKilled
     )throws Exception{
-        Path log=root.resolve(prepareKilled?"prepare-fresh.log":
-            killed?"killed-fresh.log":"fresh.log");
+        probeInChild(root,killed,prepareKilled,false);
+    }
+    private static void probeInChild(
+        Path root,boolean killed,boolean prepareKilled,
+        boolean completeReceipt
+    )throws Exception{
+        Path log=root.resolve(completeReceipt?"receipt-fresh.log":
+            prepareKilled?"prepare-fresh.log":
+                killed?"killed-fresh.log":"fresh.log");
         ProcessBuilder b=new ProcessBuilder(
             javaExe(),"-cp",System.getProperty("java.class.path"),
             G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
-            prepareKilled?"--prepare-killed":
+            completeReceipt?"--prepare-receipt-complete":
+                prepareKilled?"--prepare-killed":
                 killed?"--killed":"--fresh",root.toString());
         b.redirectErrorStream(true);
         b.redirectOutput(log.toFile());
@@ -240,7 +278,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         String output=new String(Files.readAllBytes(log),
             StandardCharsets.UTF_8);
         check(p.exitValue()==0&&output.contains(
-            prepareKilled?"R80_FRESH_JVM_PREPARE_INCOMPLETE_VETO":
+            completeReceipt?
+                "R81_FRESH_JVM_COMPLETE_LAB_RECEIPT_STILL_DENIED":
+                prepareKilled?"R80_FRESH_JVM_PREPARE_INCOMPLETE_VETO":
                 killed?"R77_FRESH_JVM_PRE_HEAD_ORPHAN_DENIED":
                     "R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"),
             "fresh JVM did not veto ledger: "+output);
@@ -850,14 +890,22 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             }
             check(negative,
                 "R80 incomplete final preparation lacked negative sidecar");
-            probeInChild(root,true,true);
+            boolean receiptComplete=
+                stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED;
+            Path receipt=account.resolveSibling(
+                account.getFileName()+".g21386-receipt-0002");
+            check(Files.exists(receipt,LinkOption.NOFOLLOW_LINKS)==
+                receiptComplete,
+                "R81 wrong final receipt presence for cutpoint "+stage);
+            probeInChild(root,true,true,receiptComplete);
             check(Arrays.equals(baseline,Files.readAllBytes(account)),
-                "R80 fresh JVM probe modified old account bytes");
-            System.out.println("R80_REAL_WORLD_PREPARE_KILL_PASS"+
+                "R81 fresh JVM probe modified old account bytes");
+            System.out.println("R81_REAL_WORLD_PREPARE_KILL_MATRIX_PASS"+
                 " stage="+stage+
                 " genuineWorldCaptureAndClaim=true"+
                 " originalOSLockHeldAtKill=true"+
-                " incompleteHeadOrJournalRejected=true"+
+                " completeReceipt="+receiptComplete+
+                " ledgerNeverAuthorizesAdmission=true"+
                 " freshJvmAdmissionAndTCPDenied=true"+
                 " previousAccountUnchanged=true"+
                 " noPositiveFinalReceiptOrRecovery=true"+
@@ -881,10 +929,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     public static void main(String[] args)throws Exception{
         if(args.length==2&&("--fresh".equals(args[0])||
                             "--killed".equals(args[0])||
-                            "--prepare-killed".equals(args[0]))){
+                            "--prepare-killed".equals(args[0])||
+                            "--prepare-receipt-complete".equals(args[0]))){
+            boolean receiptComplete=
+                "--prepare-receipt-complete".equals(args[0]);
             freshProbe(Paths.get(args[1]),
                 !"--fresh".equals(args[0]),
-                "--prepare-killed".equals(args[0]));
+                "--prepare-killed".equals(args[0])||receiptComplete,
+                receiptComplete);
             return;
         }
         if(args.length==3&&"--kill-holder".equals(args[0])){
@@ -903,5 +955,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.HEAD_DIR_FORCED);
+        // Move without directory-force is never host power-loss proof:
+        // on a still-running filesystem this missing receipt stays
+        // negative whether the renamed HEAD is visible or not.
+        runKilledPrepare(
+            LocalReusableAccountEpochLab.Stage.HEAD_MOVED_BEFORE_DIR_FORCE);
+        runKilledPrepare(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED);
     }
 }
