@@ -13988,3 +13988,17 @@ tasks.register('reusableEpochIntentReceiptCrashRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('reusableEpochIntentReceiptCrashRegression')
 }
+
+// R59: previous HEAD hashes must be independently backed by exact
+// immutable full HEAD bytes and every historical referenced snapshot.
+tasks.register('archivedAccountHeadHistoryRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validate every historical immutable HEAD/image and reject orphan archives after hard-kill.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21387ArchivedAccountHeadHistoryRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('archivedAccountHeadHistoryRegression')
+}

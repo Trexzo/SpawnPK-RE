@@ -42,8 +42,9 @@ final class LocalReusableAccountEpochLab {
     private static final int MAX_SEQUENCE=32;
     private static final String ZERO="0000000000000000000000000000000000000000000000000000000000000000";
     enum Phase { CLOSED, OWNED, FINAL_PENDING }
-    enum Stage { SNAPSHOT_FORCED, INTENT_FORCED, HEAD_TEMP_FORCED,
-                 HEAD_MOVED_BEFORE_DIR_FORCE, HEAD_DIR_FORCED, RECEIPT_FORCED }
+    enum Stage { SNAPSHOT_FORCED, ARCHIVED_HEAD_FORCED, INTENT_FORCED,
+                 HEAD_TEMP_FORCED, HEAD_MOVED_BEFORE_DIR_FORCE,
+                 HEAD_DIR_FORCED, RECEIPT_FORCED }
     @FunctionalInterface interface Cutpoint {
         void reached(Stage stage)throws IOException;
     }
@@ -272,6 +273,8 @@ final class LocalReusableAccountEpochLab {
         String prevHead=ZERO;
         String prevReceipt=ZERO;
         String lastPreviousHead=ZERO;
+        java.util.List<String> receiptHashes=
+            new java.util.ArrayList<String>();
         for(int i=0;i<=current.sequence;i++){
             final byte[] receipt=read(journalLeaf(a,i,true),MAX_HEAD);
             String[] fields=new String(receipt,StandardCharsets.US_ASCII)
@@ -298,6 +301,7 @@ final class LocalReusableAccountEpochLab {
             lastPreviousHead=prevHead;
             prevHead=stepHead;
             prevReceipt=sha(receipt);
+            receiptHashes.add(stepHead);
         }
         if(!sha(currentHeadBytes).equals(prevHead)||
            !current.previousHeadSha.equals(lastPreviousHead))
@@ -306,6 +310,154 @@ final class LocalReusableAccountEpochLab {
         if(!expected.equals(journalLeaves(a)))
             throw new IOException(
                 "R58_JOURNAL_SET_CHANGED_DURING_AUDIT_NEGATIVE");
+        // The receipt hashes are insufficient by themselves: the
+        // complete immutable HEAD objects and their historical
+        // account snapshot references must all still be verifiable.
+        validateArchivedHeadHistory(
+            a,current,currentHeadBytes,receiptHashes);
+    }
+
+    // R59: independently forced, content-addressed full HEAD image
+    // per committed sequence. An immutable receipt's hash without
+    // these bytes cannot validate historical image references.
+    // Records are LAB-only; no automatic quarantine retirement.
+    private static final String ARCHIVE_PREFIX=".g21387-head-";
+    private static Path archivedHead(Path a,int sequence,String digest)
+        throws IOException{
+        if(sequence<0||sequence>MAX_SEQUENCE||digest==null||
+                !digest.matches("[0-9a-f]{64}"))
+            throw new IOException("R59_ARCHIVE_NAME_INVALID");
+        return a.resolveSibling(prefix(a)+ARCHIVE_PREFIX+
+            String.format(java.util.Locale.ROOT,"%04d",sequence)+
+            "-"+digest+".head");
+    }
+    private static java.util.SortedSet<String> archiveLeaves(Path a)
+        throws IOException{
+        String prefix=prefix(a)+ARCHIVE_PREFIX;
+        java.util.SortedSet<String> result=
+            new java.util.TreeSet<String>();
+        try(java.nio.file.DirectoryStream<Path> children=
+                Files.newDirectoryStream(a.getParent())){
+            for(Path path:children){
+                String name=path.getFileName().toString();
+                if(!name.startsWith(prefix))continue;
+                if(!name.substring(prefix.length()).matches(
+                        "[0-9]{4}-[0-9a-f]{64}\\.head"))
+                    throw new IOException(
+                        "R59_MALFORMED_ARCHIVE_LEAF_MANUAL_REVIEW");
+                result.add(name);
+                if(result.size()>MAX_SEQUENCE+1)
+                    throw new IOException(
+                        "R59_UNBOUNDED_ARCHIVE_LEAVES_MANUAL_REVIEW");
+            }
+        }
+        return result;
+    }
+    private static void requireFreshArchives(Path a)throws IOException{
+        if(!archiveLeaves(a).isEmpty())
+            throw new IOException("R59_PREEXISTING_ARCHIVE_NEGATIVE");
+    }
+    private static void validateHistoryTransition(
+        Observation prior,Observation next
+    )throws IOException{
+        if(next.sequence!=prior.sequence+1||
+           !next.previousHeadSha.matches("[0-9a-f]{64}"))
+            throw new IOException(
+                "R59_HISTORICAL_SEQUENCE_LINK_INVALID");
+        boolean sameImage=next.imageSequence==prior.imageSequence&&
+            next.imageSha.equals(prior.imageSha)&&
+            next.imageLength==prior.imageLength;
+        boolean valid=false;
+        if(prior.phase==Phase.CLOSED){
+            valid=next.phase==Phase.OWNED&&
+                prior.epoch<Long.MAX_VALUE&&next.epoch==prior.epoch+1&&
+                next.worldGeneration>0&&!"none".equals(next.ownerNonce)&&
+                sameImage;
+        }else if(prior.phase==Phase.OWNED){
+            valid=next.phase==Phase.FINAL_PENDING&&
+                next.epoch==prior.epoch&&
+                next.worldGeneration==prior.worldGeneration&&
+                next.ownerNonce.equals(prior.ownerNonce)&&sameImage;
+        }else if(prior.phase==Phase.FINAL_PENDING){
+            valid=next.phase==Phase.CLOSED&&
+                next.epoch==prior.epoch&&next.worldGeneration==0&&
+                "none".equals(next.ownerNonce)&&
+                next.imageSequence==next.sequence;
+        }
+        if(!valid)
+            throw new IOException(
+                "R59_HISTORICAL_PHASE_OR_OWNER_LINK_NEGATIVE");
+    }
+    private static void validateArchivedHeadHistory(
+        Path a,Observation current,byte[] headBytes,
+        java.util.List<String> receiptHashes
+    )throws IOException{
+        java.util.SortedSet<String> expected=
+            new java.util.TreeSet<String>();
+        for(int i=0;i<receiptHashes.size();i++)
+            expected.add(archivedHead(a,i,receiptHashes.get(i))
+                .getFileName().toString());
+        if(!expected.equals(archiveLeaves(a)))
+            throw new IOException(
+                "R59_ORPHAN_OR_MISSING_ARCHIVE_MANUAL_REVIEW");
+        Observation previous=null;
+        String lastDigest=ZERO;
+        byte[] lastBytes=null;
+        for(int i=0;i<receiptHashes.size();i++){
+            String expectedHash=receiptHashes.get(i);
+            byte[] record=read(archivedHead(a,i,expectedHash),MAX_HEAD);
+            if(!sha(record).equals(expectedHash))
+                throw new IOException(
+                    "R59_ARCHIVED_HEAD_DIGEST_NEGATIVE");
+            Observation historic=decode(a,record);
+            if(historic.sequence!=i||
+               !historic.previousHeadSha.equals(lastDigest))
+                throw new IOException(
+                    "R59_HISTORICAL_HEAD_PREDECESSOR_NEGATIVE");
+            if(previous==null){
+                if(i!=0||historic.epoch!=1||
+                   historic.phase!=Phase.CLOSED||
+                   historic.worldGeneration!=0||
+                   !"none".equals(historic.ownerNonce)||
+                   historic.imageSequence!=0)
+                    throw new IOException(
+                        "R59_HISTORICAL_GENESIS_NEGATIVE");
+            }else{
+                validateHistoryTransition(previous,historic);
+            }
+            final Path snapshot=image(
+                a,historic.imageSequence,historic.imageSha);
+            byte[] imageBytes;
+            try{
+                imageBytes=read(snapshot,MAX_IMAGE);
+            }catch(IOException unsafe){
+                throw new IOException(
+                    "R59_HISTORICAL_IMAGE_UNREADABLE_NEGATIVE",unsafe);
+            }
+            if(imageBytes.length!=historic.imageLength||
+               !sha(imageBytes).equals(historic.imageSha)||
+               !Arrays.equals(imageBytes,read(snapshot,MAX_IMAGE)))
+                throw new IOException(
+                    "R59_HISTORICAL_IMAGE_TAMPERED_NEGATIVE");
+            if(!Arrays.equals(record,
+                    read(archivedHead(a,i,expectedHash),MAX_HEAD)))
+                throw new IOException(
+                    "R59_ARCHIVE_CHANGED_DURING_READ_NEGATIVE");
+            previous=historic;
+            lastDigest=expectedHash;
+            lastBytes=record;
+        }
+        if(lastBytes==null||previous==null||
+           !Arrays.equals(lastBytes,headBytes)||
+           previous.sequence!=current.sequence||
+           previous.epoch!=current.epoch||
+           previous.phase!=current.phase||
+           !previous.imageSha.equals(current.imageSha))
+            throw new IOException(
+                "R59_CURRENT_HEAD_NOT_ARCHIVED_NEGATIVE");
+        if(!expected.equals(archiveLeaves(a)))
+            throw new IOException(
+                "R59_ARCHIVE_DIRECTORY_CHANGED_NEGATIVE");
     }
     private static byte[] encode(Observation h)throws IOException{
         String canonical=MAGIC+"\n"+
@@ -432,6 +584,15 @@ final class LocalReusableAccountEpochLab {
             next.previousHeadSha,previousReceiptSha,false);
         byte[] receiptBytes=journalRecord(next.sequence,newHeadSha,
             next.previousHeadSha,previousReceiptSha,true);
+        // Persist the complete proposed record first. A crash here
+        // leaves an orphan archive (permanent negative), even with
+        // NO intent yet, instead of silently allowing the old CLOSED
+        // head to be reused.
+        Path candidate=archivedHead(a,next.sequence,newHeadSha);
+        if(exists(candidate))
+            throw new IOException("R59_ARCHIVE_STEP_ALREADY_PRESENT");
+        forcedCreate(candidate,exact,MAX_HEAD);
+        cuts.reached(Stage.ARCHIVED_HEAD_FORCED);
         forcedCreate(intent,intentBytes,MAX_HEAD);
         cuts.reached(Stage.INTENT_FORCED);
         Path temp=Files.createTempFile(
@@ -555,6 +716,7 @@ final class LocalReusableAccountEpochLab {
                 throw new IOException("R57_LEDGER_ALREADY_INITIALIZED");
             scan(a,0,ZERO,false);
             requireFreshJournal(a);
+            requireFreshArchives(a);
             String digest=sha(bytes);
             Path snapshot=image(a,0,digest);
             forcedCreate(snapshot,bytes,MAX_IMAGE);
