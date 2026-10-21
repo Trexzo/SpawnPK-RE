@@ -381,6 +381,12 @@ final class LocalReusableAccountEpochLab {
             throw new IOException("R57_NO_LEDGER_HEAD_MANUAL_REVIEW",missing);
         }
         Observation current=decode(a,first);
+        // R58.1: reject a rolled-back CLOSED/OWNED HEAD against the
+        // complete immutable intent/receipt set BEFORE interpreting
+        // an old imageSequence as an R57 orphan-future-image issue.
+        // A second journal audit below still brackets the image reads
+        // and detects changed sidecar observations.
+        inspectJournal(a,current,first);
         scan(a,current.imageSequence,current.imageSha,true);
         byte[] imageBytes=read(image(a,current.imageSequence,
             current.imageSha),MAX_IMAGE);
