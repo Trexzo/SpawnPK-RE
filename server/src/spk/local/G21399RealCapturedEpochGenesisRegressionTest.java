@@ -42,6 +42,8 @@ import java.util.stream.Stream;
  * R82: a later genuine World mutation is captured as the detached
  * CLOSED LAB image; this never writes/replays the real account or
  * grants final ACK, release, or subsequent login.
+ * R84 covers all seven detached settlement force stages and checks
+ * the exact orphan archive/intent/temp/HEAD/receipt inventory.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -1189,16 +1191,25 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 !complete.admissionAuthorized&&!complete.releaseAuthorized,
                 "R83 fully forced CLOSED ledger granted live authority");
         }else{
-            boolean incomplete=false;
-            try{LocalReusableAccountEpochLab.inspect(account);}
-            catch(IOException invalid){
-                incomplete=contains(invalid,
-                    stage==LocalReusableAccountEpochLab.Stage
-                        .SNAPSHOT_FORCED?
-                        "R57_ORPHAN_FUTURE_IMAGE_MANUAL_REVIEW":
-                        "R58_ORPHAN_OR_MISSING_JOURNAL_MANUAL_REVIEW");
+            String expected;
+            if(stage==LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED)
+                expected="R57_ORPHAN_FUTURE_IMAGE_MANUAL_REVIEW";
+            else if(stage==LocalReusableAccountEpochLab.Stage
+                    .ARCHIVED_HEAD_FORCED)
+                expected="R59_ORPHAN_OR_MISSING_ARCHIVE_MANUAL_REVIEW";
+            else expected="R58_ORPHAN_OR_MISSING_JOURNAL_MANUAL_REVIEW";
+            // R84: no auto-repair, orphan cleanup, retry or
+            // promotion between two forensic observations.
+            for(int attempt=0;attempt<2;attempt++){
+                boolean incomplete=false;
+                try{LocalReusableAccountEpochLab.inspect(account);}
+                catch(IOException invalid){
+                    incomplete=contains(invalid,expected);
+                }
+                check(incomplete,
+                    "R84 interrupted settlement not persistently "+
+                    "negative: "+stage+" attempt="+attempt);
             }
-            check(incomplete,"R83 interrupted settlement was valid");
         }
         System.out.println("R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"+
             " stage="+stage+
@@ -1264,16 +1275,54 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 account.getFileName()+".g21385-ledger-head");
             String content=new String(Files.readAllBytes(head),
                 StandardCharsets.US_ASCII);
-            boolean moved=stage!=LocalReusableAccountEpochLab.Stage
-                .SNAPSHOT_FORCED;
+            int step=stage.ordinal();
+            boolean moved=step>=LocalReusableAccountEpochLab.Stage
+                .HEAD_MOVED_BEFORE_DIR_FORCE.ordinal();
             check(content.contains("sequence="+(moved?3:2)+"\n")&&
                 content.contains("phase="+(moved?"CLOSED":"FINAL_PENDING")+
-                    "\n"),"R83 wrong persisted HEAD after interruption");
+                    "\n"),"R84 wrong persisted HEAD after interruption "+
+                    stage);
+            Path intent=account.resolveSibling(
+                account.getFileName()+".g21386-intent-0003");
             Path receipt=account.resolveSibling(
                 account.getFileName()+".g21386-receipt-0003");
+            check(Files.exists(intent,LinkOption.NOFOLLOW_LINKS)==
+                (step>=LocalReusableAccountEpochLab.Stage
+                    .INTENT_FORCED.ordinal()),
+                "R84 intent presence contradicted forced cutpoint "+stage);
             check(Files.exists(receipt,LinkOption.NOFOLLOW_LINKS)==
                 (stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED),
-                "R83 receipt incorrectly present/absent");
+                "R84 receipt incorrectly present/absent "+stage);
+            // No other stage may silently create/remove a future
+            // image, candidate archive or uncommitted staged HEAD.
+            int futureImages=0,archives=0,stagedHeads=0;
+            String stem=account.getFileName().toString();
+            try(java.nio.file.DirectoryStream<Path> siblings=
+                    Files.newDirectoryStream(account.getParent())){
+                for(Path sibling:siblings){
+                    String leaf=sibling.getFileName().toString();
+                    if(leaf.startsWith(
+                            stem+".g21385-image-0003-")&&
+                       leaf.endsWith(".snapshot"))
+                        futureImages++;
+                    if(leaf.startsWith(
+                            stem+".g21387-head-0003-")&&
+                       leaf.endsWith(".head"))
+                        archives++;
+                    if(leaf.startsWith(
+                            stem+".g21385-head-stage-")&&
+                       leaf.endsWith(".tmp"))
+                        stagedHeads++;
+                }
+            }
+            check(futureImages==1,
+                "R84 forced future settlement snapshot missing "+stage);
+            check(archives==(step>=LocalReusableAccountEpochLab.Stage
+                    .ARCHIVED_HEAD_FORCED.ordinal()?1:0),
+                "R84 immutable archived HEAD inventory wrong "+stage);
+            check(stagedHeads==(stage==LocalReusableAccountEpochLab.Stage
+                    .HEAD_TEMP_FORCED?1:0),
+                "R84 pre-move staged HEAD inventory wrong "+stage);
             boolean negative=false;
             try{
                 LocalReusableLabEvidenceNegativeGate
@@ -1300,6 +1349,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R83 fresh JVM did not veto settlement: "+output);
             check(Arrays.equals(baseline,Files.readAllBytes(account)),
                 "R83 fresh probe rewrote real legacy account bytes");
+            System.out.println("R84_SEVEN_STAGE_SETTLEMENT_KILL_PASS"+
+                " stage="+stage+
+                " exactOrphanInventoryConfirmed=true"+
+                " forensicDoubleInspectionFailClosed=true");
             System.out.println("R83_REAL_WORLD_SETTLEMENT_KILL_PASS"+
                 " stage="+stage+
                 " authenticWorldCapture=true"+
@@ -1371,11 +1424,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalReusableAccountEpochLab.Stage.HEAD_MOVED_BEFORE_DIR_FORCE);
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED);
-        runKilledSettlement(
-            LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED);
-        runKilledSettlement(
-            LocalReusableAccountEpochLab.Stage.HEAD_DIR_FORCED);
-        runKilledSettlement(
-            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED);
+        // Exhaustive enum stage inventory: each exact force
+        // boundary is a distinct independent World child-JVM kill.
+        for(LocalReusableAccountEpochLab.Stage stage:
+                LocalReusableAccountEpochLab.Stage.values())
+            runKilledSettlement(stage);
     }
 }
