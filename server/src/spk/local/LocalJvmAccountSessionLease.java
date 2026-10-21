@@ -1989,21 +1989,46 @@ final class LocalJvmAccountSessionLease {
     }
 
     /**
-     * R86: a World-thread capture start is counted before its
-     * PlayerSnapshot is assembled. Exact account/owner/generation
-     * must already be bound to the current opt-in session Token.
+     * R87: an opaque, single-use in-JVM capture-start ticket. A raw
+     * ordinal supplied by another package caller is not provenance.
+     * Only the original Token may mint this ticket, before snapshot
+     * construction, and the exact capture witness consumes it once.
      *
-     * This does not grant a writer any authority. It is default-off
-     * for regular World gameplay and does not take Token's monitor
-     * or perform filesystem I/O while capturing.
+     * This is NOT admission, a durable epoch or a writer capability.
      */
-    static long markWorldSnapshotCaptureStartForLab(
+    static final class WorldCaptureStartForLab {
+        private final Token originalLease;
+        private final Path path;
+        private final String account;
+        private final WorldPlayer owner;
+        private final long generation;
+        private final long ordinal;
+        private boolean consumed;
+
+        private WorldCaptureStartForLab(
+            Token token,Path path,String account,WorldPlayer owner,
+            long generation,long ordinal
+        ){
+            this.originalLease=token;
+            this.path=path;
+            this.account=account;
+            this.owner=owner;
+            this.generation=generation;
+            this.ordinal=ordinal;
+        }
+    }
+
+    /**
+     * Invoked from the World-owned capture path before codec encoding.
+     * Ordinal issuance is experimental/default-OFF. No Token monitor
+     * or filesystem I/O is taken on the World capture hotpath.
+     */
+    static WorldCaptureStartForLab markWorldSnapshotCaptureStartForLab(
         Path accountFile,String account,WorldPlayer owner,long generation
     ){
-        if(!Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY))
-            return 0L;
-        if(accountFile==null||owner==null||generation<=0)
-            return 0L;
+        if(!Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY)||
+           accountFile==null||owner==null||generation<=0)
+            return null;
         Path path=accountFile.toAbsolutePath().normalize();
         synchronized(active){
             Token token=active.get(path);
@@ -2011,8 +2036,13 @@ final class LocalJvmAccountSessionLease {
                token.admittedWorldOwner!=owner||
                token.admittedWorldGeneration!=generation||
                !token.account.equals(account))
-                return 0L;
-            return token.worldCaptureStartOrdinal.incrementAndGet();
+                return null;
+            long ordinal=token.worldCaptureStartOrdinal.incrementAndGet();
+            if(ordinal<=0)
+                throw new IllegalStateException(
+                    "R87_CAPTURE_START_ORDINAL_EXHAUSTED");
+            return new WorldCaptureStartForLab(
+                token,path,account,owner,generation,ordinal);
         }
     }
 
@@ -2071,17 +2101,18 @@ final class LocalJvmAccountSessionLease {
         WorldPlayer owner,long generation,
         PlayerSnapshot capturedSnapshot
     ){
-        // Package-only compatibility caller has no proven start
-        // ordering; it cannot settle the R86 detached LAB protocol.
+        // Package-only compatibility caller has no minted start:
+        // no positive R86/R87 final settlement ordinal is granted.
         return captureSaveWitness(
             exactAccountPath,account,owner,generation,
-            capturedSnapshot,0L);
+            capturedSnapshot,(WorldCaptureStartForLab)null);
     }
 
     static SaveCaptureWitness captureSaveWitness(
         Path exactAccountPath,String account,
         WorldPlayer owner,long generation,
-        PlayerSnapshot capturedSnapshot,long startedOrdinal
+        PlayerSnapshot capturedSnapshot,
+        WorldCaptureStartForLab captureStart
     ){
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         Objects.requireNonNull(owner,"owner");
@@ -2095,9 +2126,29 @@ final class LocalJvmAccountSessionLease {
             // Do not let an unrelated newly admitted lease retroactively
             // own a genuinely prior-unleased World (G21.184).
             Token token=priorUnleased?null:active.get(path);
+            long ordinal=0L;
+            if(captureStart!=null){
+                if(captureStart.consumed)
+                    throw new IllegalStateException(
+                        "R87_CAPTURE_START_ALREADY_CONSUMED");
+                if(token==null||token.released||
+                   captureStart.originalLease!=token||
+                   captureStart.path==null||
+                   !captureStart.path.equals(path)||
+                   !captureStart.account.equals(account)||
+                   captureStart.owner!=owner||
+                   captureStart.generation!=generation||
+                   captureStart.ordinal<=0||capturedSnapshot==null)
+                    throw new IllegalStateException(
+                        "R87_CAPTURE_START_NOT_ORIGINAL_WORLD_TOKEN");
+                // Exactly one immutable capture may claim this
+                // original-token-issued start; duplicate claims fail.
+                captureStart.consumed=true;
+                ordinal=captureStart.ordinal;
+            }
             return new SaveCaptureWitness(
                 path,account,owner,generation,token,priorUnleased,
-                capturedSnapshot,startedOrdinal);
+                capturedSnapshot,ordinal);
         }
     }
 
