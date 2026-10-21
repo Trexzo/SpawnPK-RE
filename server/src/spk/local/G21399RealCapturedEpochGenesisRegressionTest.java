@@ -1037,6 +1037,294 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+    /**
+     * R83: original authenticated TCP World completes R76 -> R79
+     * but is hard-killed during R82 detached LAB settlement.
+     * No real final save, no legacy account mutation and no release.
+     */
+    private static void settleKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target
+    )throws Exception{
+        configure(root,true);
+        System.setProperty(
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            "true");
+        System.setProperty(
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            "true");
+        System.setProperty(
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,
+            "true");
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        World world=World.isolatedForTest(50L,repository);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(world)){
+            try(Socket socket=server.login(USER)){
+                await(()->world.players().byName(USER)!=null,
+                    "R83 original authenticated TCP World");
+                WorldPlayer owner=world.players().byName(USER);
+                long generation=owner.generation();
+                check(generation>0&&
+                    LocalJvmAccountSessionLease.activeCountForTest()==1,
+                    "R83 original World lease was not held");
+                world.submit(owner,generation,()->
+                    owner.snapshotExtensions().replaceNamespace(
+                        "r83_initial",
+                        Collections.singletonMap("phase","ORIGINAL"))
+                ).get(5,TimeUnit.SECONDS);
+                WorldPlayerPersistence.CapturedSave first=
+                    capture(world,owner,generation);
+                Path account=LocalAccountProfiles.accountFile(USER);
+                LocalReusableAccountEpochLab.Observation seed=
+                    LocalJvmAccountSessionLease
+                        .initializeCapturedEpochGenesisUnderOriginalLockForLab(
+                            account,owner,generation,first.ticket.snapshot,
+                            first.ownerWitness);
+                LocalReusableAccountEpochLab.Observation owned=
+                    LocalJvmAccountSessionLease
+                        .claimCapturedEpochUnderOriginalLockForLab(
+                            account,owner,generation,first.ticket.snapshot,
+                            first.ownerWitness);
+                LocalReusableAccountEpochLab.Observation pending=
+                    LocalJvmAccountSessionLease
+                        .prepareCapturedEpochUnderOriginalLockForLab(
+                            account,owner,generation,first.ticket.snapshot,
+                            first.ownerWitness);
+                check(seed.sequence==0&&owned.sequence==1&&
+                    pending.sequence==2&&pending.epoch==2&&
+                    pending.phase==LocalReusableAccountEpochLab
+                        .Phase.FINAL_PENDING&&
+                    !pending.admissionAuthorized&&!pending.releaseAuthorized,
+                    "R83 real owner setup incomplete");
+                world.submit(owner,generation,()->
+                    owner.snapshotExtensions().replaceNamespace(
+                        "r83_final",
+                        Collections.singletonMap("phase","LATER"))
+                ).get(5,TimeUnit.SECONDS);
+                WorldPlayerPersistence.CapturedSave last=
+                    capture(world,owner,generation);
+                check("LATER".equals(last.ticket.snapshot.value(
+                    "extension.r83_final.phase")),
+                    "R83 actual later World capture missing");
+                LocalJvmAccountSessionLease
+                    .settleCapturedEpochUnderOriginalLockForLab(
+                        account,owner,generation,last.ticket.snapshot,
+                        last.ownerWitness,stage->{
+                            if(stage!=target)return;
+                            Files.write(ready,new byte[]{1},
+                                StandardOpenOption.CREATE_NEW);
+                            System.out.println(
+                                "R83_WORLD_SETTLEMENT_FORCED_"+target);
+                            System.out.flush();
+                            try{Thread.sleep(120000L);}
+                            catch(InterruptedException interrupted){
+                                Thread.currentThread().interrupt();
+                                throw new IOException(
+                                    "R83_HOLDER_INTERRUPTED",interrupted);
+                            }
+                            throw new AssertionError(
+                                "R83_HOLDER_MUST_BE_KILLED");
+                        });
+            }
+        }finally{
+            if(!world.closed())world.close();
+        }
+        throw new AssertionError("R83 holder was not hard-killed");
+    }
+
+    /**
+     * R83 independent JVM with every producer opt-in disabled.
+     * The original OS lock must be released by kernel process exit,
+     * while LAB orphan/complete evidence still permanently vetoes
+     * legacy reads and fresh authenticated World login.
+     */
+    private static void settlementFreshProbe(
+        Path root,LocalReusableAccountEpochLab.Stage stage
+    )throws Exception{
+        configure(root,false);
+        Path account=LocalAccountProfiles.accountFile(USER);
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        boolean denied=false;
+        try{repository.loadForWorldSession(USER);}
+        catch(IOException invalid){denied=contains(invalid,NEGATIVE);}
+        check(denied,"R83 fresh World repository accepted LAB evidence");
+        WorldPlayer direct=new WorldPlayer();
+        denied=false;
+        try{
+            LocalAccountProfiles.load(USER,direct.bank(),direct.equipment(),
+                direct.movement(),direct.petState(),direct.playerState());
+        }catch(IOException invalid){denied=contains(invalid,NEGATIVE);}
+        check(denied,"R83 fresh RAW hydration accepted LAB evidence");
+        World world=World.isolatedForTest(50L,repository);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(world)){
+            check(tcpResponse(server.listener.getLocalPort())!=2&&
+                world.players().size()==0,
+                "R83 fresh actual TCP World admitted settlement evidence");
+            server.waitCompleted();
+        }finally{
+            if(!world.closed())world.close();
+        }
+        System.setProperty(LocalCrossJvmAccountSessionLock.PROPERTY,"true");
+        System.setProperty(
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,"true");
+        try(LocalCrossJvmAccountSessionLock.Handle reclaimed=
+                LocalCrossJvmAccountSessionLock.acquire(account)){
+            reclaimed.requireOriginalLockNameStillPresent();
+        }
+        if(stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED){
+            LocalReusableAccountEpochLab.Observation complete=
+                LocalReusableAccountEpochLab.inspect(account);
+            check(complete.sequence==3&&complete.epoch==2&&
+                complete.phase==LocalReusableAccountEpochLab.Phase.CLOSED&&
+                complete.worldGeneration==0&&
+                "none".equals(complete.ownerNonce)&&
+                complete.imageSequence==3&&
+                !complete.admissionAuthorized&&!complete.releaseAuthorized,
+                "R83 fully forced CLOSED ledger granted live authority");
+        }else{
+            boolean incomplete=false;
+            try{LocalReusableAccountEpochLab.inspect(account);}
+            catch(IOException invalid){
+                incomplete=contains(invalid,
+                    stage==LocalReusableAccountEpochLab.Stage
+                        .SNAPSHOT_FORCED?
+                        "R57_ORPHAN_FUTURE_IMAGE_MANUAL_REVIEW":
+                        "R58_ORPHAN_OR_MISSING_JOURNAL_MANUAL_REVIEW");
+            }
+            check(incomplete,"R83 interrupted settlement was valid");
+        }
+        System.out.println("R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"+
+            " stage="+stage+
+            " fullReceipt="+
+                (stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED)+
+            " lockReleasedAfterKill=true"+
+            " freshRepositoryDirectAndTcpDenied=true"+
+            " noFinalAckOrRecovery=true");
+    }
+
+    private static void runKilledSettlement(
+        LocalReusableAccountEpochLab.Stage stage
+    )throws Exception{
+        Path root=Files.createTempDirectory(
+            "r83-settlement-"+stage.name().toLowerCase(
+                java.util.Locale.ROOT)+"-");
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)saved[i]=System.getProperty(flags[i]);
+        Process holder=null;
+        try{
+            configure(root,false);
+            FilePlayerRepository repository=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            repository.save(PlayerSnapshotCodec.capture(
+                USER,new WorldPlayer()));
+            Path account=LocalAccountProfiles.accountFile(USER);
+            byte[] baseline=Files.readAllBytes(account);
+            Path ready=root.resolve("ready.flag");
+            Path log=root.resolve("holder.log");
+            ProcessBuilder builder=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+                "--settlement-holder",root.toString(),ready.toString(),
+                stage.name());
+            builder.redirectErrorStream(true);
+            builder.redirectOutput(log.toFile());
+            holder=builder.start();
+            final Process running=holder;
+            await(()->Files.exists(ready,LinkOption.NOFOLLOW_LINKS)||
+                !running.isAlive(),"R83 settlement stage "+stage);
+            String trace=new String(Files.readAllBytes(log),
+                StandardCharsets.UTF_8);
+            check(Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                running.isAlive()&&trace.contains(
+                    "R83_WORLD_SETTLEMENT_FORCED_"+stage),
+                "R83 real World never reached forced cutpoint "+trace);
+            holder.destroyForcibly();
+            check(holder.waitFor(10,TimeUnit.SECONDS)&&
+                holder.exitValue()!=0,"R83 original JVM not killed");
+            check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                "R83 killed LAB settlement rewrote historical account");
+            Path head=account.resolveSibling(
+                account.getFileName()+".g21385-ledger-head");
+            String content=new String(Files.readAllBytes(head),
+                StandardCharsets.US_ASCII);
+            boolean moved=stage!=LocalReusableAccountEpochLab.Stage
+                .SNAPSHOT_FORCED;
+            check(content.contains("sequence="+(moved?3:2)+"\n")&&
+                content.contains("phase="+(moved?"CLOSED":"FINAL_PENDING")+
+                    "\n"),"R83 wrong persisted HEAD after interruption");
+            Path receipt=account.resolveSibling(
+                account.getFileName()+".g21386-receipt-0003");
+            check(Files.exists(receipt,LinkOption.NOFOLLOW_LINKS)==
+                (stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED),
+                "R83 receipt incorrectly present/absent");
+            boolean negative=false;
+            try{
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+            }catch(IOException evidence){negative=contains(evidence,NEGATIVE);}
+            check(negative,"R83 original account lost permanent LAB veto");
+            Path fresh=root.resolve("fresh.log");
+            ProcessBuilder next=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+                "--settlement-fresh",root.toString(),stage.name());
+            next.redirectErrorStream(true);
+            next.redirectOutput(fresh.toFile());
+            Process probe=next.start();
+            if(!probe.waitFor(25,TimeUnit.SECONDS)){
+                probe.destroyForcibly();
+                probe.waitFor(10,TimeUnit.SECONDS);
+                throw new AssertionError("R83 fresh JVM timed out");
+            }
+            String output=new String(Files.readAllBytes(fresh),
+                StandardCharsets.UTF_8);
+            check(probe.exitValue()==0&&output.contains(
+                "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
+                "R83 fresh JVM did not veto settlement: "+output);
+            check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                "R83 fresh probe rewrote real legacy account bytes");
+            System.out.println("R83_REAL_WORLD_SETTLEMENT_KILL_PASS"+
+                " stage="+stage+
+                " authenticWorldCapture=true"+
+                " originalOsLockAtForce=true"+
+                " receiptComplete="+
+                    (stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED)+
+                " legacyAccountUnmodified=true"+
+                " freshIndependentJvmAdmissionDenied=true"+
+                " noPositiveWorldAckOrPowerLossClaim=true");
+        }finally{
+            if(holder!=null&&holder.isAlive()){
+                holder.destroyForcibly();
+                holder.waitFor(10,TimeUnit.SECONDS);
+            }
+            for(int i=0;i<flags.length;i++){
+                if(saved[i]==null)System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],saved[i]);
+            }
+            try(Stream<Path> children=Files.walk(root)){
+                for(Path leaf:children.sorted(Comparator.reverseOrder())
+                    .toArray(Path[]::new))Files.deleteIfExists(leaf);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&("--fresh".equals(args[0])||
                             "--killed".equals(args[0])||
@@ -1059,6 +1347,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
             return;
         }
+        if(args.length==4&&"--settlement-holder".equals(args[0])){
+            settleKillHolder(Paths.get(args[1]),Paths.get(args[2]),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==3&&"--settlement-fresh".equals(args[0])){
+            settlementFreshProbe(Paths.get(args[1]),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[2]));
+            return;
+        }
         check(args.length==0,"unexpected args");
         exercise();
         runKilledGenesis();
@@ -1072,6 +1370,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.HEAD_MOVED_BEFORE_DIR_FORCE);
         runKilledPrepare(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED);
+        runKilledSettlement(
+            LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED);
+        runKilledSettlement(
+            LocalReusableAccountEpochLab.Stage.HEAD_DIR_FORCED);
+        runKilledSettlement(
             LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED);
     }
 }
