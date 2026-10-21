@@ -766,13 +766,10 @@ final class LocalReusableAccountEpochLab {
         Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
         int expected,long generation,String nonce
     )throws IOException{
-        requiredLock();
         if(borrowed==null)
             throw new IOException("R61_NO_BORROWED_ACCOUNT_LOCK");
-        Path exact=canonical(account);
-        return borrowed.withHeldOriginalAccount(exact,()->
-            transitionInsideHeldLock(exact,expected,Phase.CLOSED,
-                Phase.OWNED,generation,nonce,null,stage->{},borrowed));
+        return transitionWithBorrowedLock(account,borrowed,expected,
+            Phase.CLOSED,Phase.OWNED,generation,nonce,null,stage->{});
     }
 
     static Observation initialize(Path account,byte[] bytes)
@@ -811,6 +808,43 @@ final class LocalReusableAccountEpochLab {
         return transition(a,expected,Phase.CLOSED,Phase.OWNED,
             generation,nonce,null,cuts);
     }
+    /**
+     * R62: experimental transitions inside the ORIGINAL borrowed OS
+     * lock; no second FileChannel, transfer, release or World grant.
+     * All caller-made nonce/generation fields remain untrusted.
+     */
+    private static Observation transitionWithBorrowedLock(
+        Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
+        int expected,Phase required,Phase next,long generation,
+        String nonce,byte[] snapshot,Cutpoint cutpoint
+    )throws IOException{
+        requiredLock();
+        if(borrowed==null||cutpoint==null)
+            throw new IOException("R62_BORROWED_TRANSITION_ARGUMENT_INVALID");
+        Path exact=canonical(account);
+        return borrowed.withHeldOriginalAccount(exact,()->
+            transitionInsideHeldLock(exact,expected,required,next,
+                generation,nonce,snapshot,cutpoint,borrowed));
+    }
+
+    static Observation prepareFinalUnderHeldAccountLock(
+        Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
+        int expected,long generation,String nonce
+    )throws IOException{
+        return transitionWithBorrowedLock(account,borrowed,expected,
+            Phase.OWNED,Phase.FINAL_PENDING,generation,nonce,null,stage->{});
+    }
+
+    static Observation settleLabFinalUnderHeldAccountLock(
+        Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
+        int expected,long generation,String nonce,byte[] finalImage,
+        Cutpoint cutpoint
+    )throws IOException{
+        return transitionWithBorrowedLock(account,borrowed,expected,
+            Phase.FINAL_PENDING,Phase.CLOSED,generation,nonce,finalImage,
+            cutpoint);
+    }
+
     static Observation prepareFinal(Path a,int expected,long generation,
                                      String nonce)throws IOException{
         return transition(a,expected,Phase.OWNED,Phase.FINAL_PENDING,
