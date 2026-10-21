@@ -81,8 +81,27 @@ public final class G21398RealWorldNegativeHeadProcessKillRegressionTest {
         }
         check(condition.ok(),"timeout "+why);
     }
+    /**
+     * R71: first-login profile starts ABSENT, then the genuine World
+     * bootstrap publishes defaults before the final negative capture.
+     * We retain those exact bootstrap bytes for post-kill verification.
+     */
+    private static long completedWorldWrites(World world){
+        String stats=world.persistence().metrics();
+        String key=",completed=";
+        int index=stats.indexOf(key);
+        if(index<0)throw new AssertionError(
+            "R71_MISSING_WORLD_COMPLETED_METRIC");
+        int start=index+key.length();
+        int end=stats.indexOf(',',start);
+        if(end<=start)throw new AssertionError(
+            "R71_MALFORMED_WORLD_COMPLETED_METRIC");
+        return Long.parseLong(stats.substring(start,end));
+    }
+
     private static void holder(
-        Path root,Path ready,LocalNegativeAccountHeadPrototype.Stage cut
+        Path root,Path ready,LocalNegativeAccountHeadPrototype.Stage cut,
+        boolean firstTime
     )throws Exception{
         configure(root,true);
         FilePlayerRepository repository=new FilePlayerRepository(
@@ -100,6 +119,26 @@ public final class G21398RealWorldNegativeHeadProcessKillRegressionTest {
                 check(generation>0&&
                     LocalJvmAccountSessionLease.activeCountForTest()==1,
                     "real registered owner missing session lease");
+                final Path selected=LocalAccountProfiles.accountFile(USER);
+                if(firstTime){
+                    until(()->completedWorldWrites(world)>=1L&&
+                        Files.isRegularFile(selected,
+                            LinkOption.NOFOLLOW_LINKS),
+                        "genuine first-time bootstrap publication");
+                    byte[] bootstrap=Files.readAllBytes(selected);
+                    check(bootstrap.length>0,
+                        "R71 first-login bootstrap empty");
+                    java.util.Properties properties=
+                        new java.util.Properties();
+                    try(java.io.InputStream in=Files.newInputStream(selected)){
+                        properties.load(in);
+                    }
+                    check(!properties.containsKey(
+                        "extension.r70_head_cut.phase"),
+                        "R71 bootstrap already has final mutation");
+                    Files.write(root.resolve("first-bootstrap.bin"),bootstrap,
+                        StandardOpenOption.CREATE_NEW);
+                }
                 // Guarantee new captured state differs from OLD disk
                 // before deliberately stopping at negative HEAD force.
                 world.submit(owner,generation,()->
@@ -176,12 +215,20 @@ public final class G21398RealWorldNegativeHeadProcessKillRegressionTest {
         }
     }
     private static void freshProbe(
-        Path root,LocalNegativeAccountHeadPrototype.Stage cut
+        Path root,LocalNegativeAccountHeadPrototype.Stage cut,
+        boolean firstTime
     )throws Exception{
         configure(root,false);
         Path account=LocalAccountProfiles.accountFile(USER);
         check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS),
             "OLD legacy account missing");
+        if(firstTime){
+            byte[] bootstrap=Files.readAllBytes(
+                root.resolve("first-bootstrap.bin"));
+            check(bootstrap.length>0&&
+                Arrays.equals(bootstrap,Files.readAllBytes(account)),
+                "R71 fresh JVM did not retain exact first-login bootstrap");
+        }
         check(Files.isRegularFile(
                 LocalNegativeAccountHeadPrototype.headPath(account),
                 LinkOption.NOFOLLOW_LINKS),
@@ -240,13 +287,15 @@ public final class G21398RealWorldNegativeHeadProcessKillRegressionTest {
     }
     private static Process spawn(String mode,Path root,Path ready,
                                   Path log,
-                                  LocalNegativeAccountHeadPrototype.Stage cut)
+                                  LocalNegativeAccountHeadPrototype.Stage cut,
+                                  boolean firstTime)
         throws IOException{
         ProcessBuilder builder=new ProcessBuilder(
             javaExe(),"-cp",System.getProperty("java.class.path"),
             G21398RealWorldNegativeHeadProcessKillRegressionTest.class
                 .getName(),"--child",mode,root.toString(),
-                ready.toString(),cut.name());
+                ready.toString(),cut.name(),
+                firstTime?"FIRST_LOGIN":"EXISTING_ACCOUNT");
         builder.redirectErrorStream(true);
         builder.redirectOutput(log.toFile());
         return builder.start();
@@ -263,19 +312,27 @@ public final class G21398RealWorldNegativeHeadProcessKillRegressionTest {
         return out;
     }
     private static void one(
-        Path root,LocalNegativeAccountHeadPrototype.Stage cut
+        Path root,LocalNegativeAccountHeadPrototype.Stage cut,
+        boolean firstTime
     )throws Exception{
         Files.createDirectories(root);
         configure(root,false);
         FilePlayerRepository repository=new FilePlayerRepository(
             LocalAccountProfiles::accountFile);
-        repository.save(PlayerSnapshotCodec.capture(
-            USER,new WorldPlayer()));
         Path account=LocalAccountProfiles.accountFile(USER);
-        byte[] before=Files.readAllBytes(account);
+        final byte[] existing;
+        if(firstTime){
+            check(!Files.exists(account,LinkOption.NOFOLLOW_LINKS),
+                "R71 first-time account exists before login");
+            existing=null;
+        }else{
+            repository.save(PlayerSnapshotCodec.capture(
+                USER,new WorldPlayer()));
+            existing=Files.readAllBytes(account);
+        }
         Path ready=root.resolve("ready.flag");
         Path holderLog=root.resolve("holder.log");
-        Process holder=spawn("holder",root,ready,holderLog,cut);
+        Process holder=spawn("holder",root,ready,holderLog,cut,firstTime);
         try{
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(25);
             while(holder.isAlive()&&System.nanoTime()<deadline&&
@@ -290,17 +347,23 @@ public final class G21398RealWorldNegativeHeadProcessKillRegressionTest {
             holder.destroyForcibly();
             check(holder.waitFor(10,TimeUnit.SECONDS)&&
                 holder.exitValue()!=0,"holder survived hard kill");
-            check(Arrays.equals(before,Files.readAllBytes(account)),
-                "HEAD publication modified old account bytes");
+            final byte[] before=firstTime
+                ?Files.readAllBytes(root.resolve("first-bootstrap.bin"))
+                :existing;
+            check(before!=null&&before.length>0&&
+                Arrays.equals(before,Files.readAllBytes(account)),
+                "R71 HEAD publication modified baseline account bytes");
             Path probeLog=root.resolve("probe.log");
-            check(finished(spawn("probe",root,ready,probeLog,cut),
-                    probeLog).contains(
+            check(finished(spawn("probe",root,ready,probeLog,cut,
+                    firstTime),probeLog).contains(
                         "R70_FRESH_JVM_NEGATIVE_HEAD_RECONNECT_VETO"),
                 "second JVM did not reject stale TCP reconnect");
             check(Arrays.equals(before,Files.readAllBytes(account)),
                 "probe changed old account bytes");
-            System.out.println("R70_REAL_WORLD_HEAD_KILL_PASS"+
-                " cut="+cut+" oldBytesPreserved=true"+
+            System.out.println("R71_REAL_WORLD_HEAD_KILL_CASE_PASS"+
+                " cut="+cut+
+                " firstTime="+firstTime+
+                " exactBaselinePreserved=true"+
                 " freshJvmTcpAndDirectAdmissionDenied=true");
         }finally{
             if(holder.isAlive()){
@@ -310,13 +373,17 @@ public final class G21398RealWorldNegativeHeadProcessKillRegressionTest {
         }
     }
     public static void main(String[] args)throws Exception{
-        if(args.length==5&&"--child".equals(args[0])){
+        if(args.length==6&&"--child".equals(args[0])){
             LocalNegativeAccountHeadPrototype.Stage cut=
                 LocalNegativeAccountHeadPrototype.Stage.valueOf(args[4]);
+            boolean firstTime="FIRST_LOGIN".equals(args[5]);
+            check(firstTime||"EXISTING_ACCOUNT".equals(args[5]),
+                "unknown case type");
             if("holder".equals(args[1]))
-                holder(Paths.get(args[2]),Paths.get(args[3]),cut);
+                holder(Paths.get(args[2]),Paths.get(args[3]),cut,
+                    firstTime);
             else if("probe".equals(args[1]))
-                freshProbe(Paths.get(args[2]),cut);
+                freshProbe(Paths.get(args[2]),cut,firstTime);
             else throw new IllegalArgumentException("mode");
             return;
         }
@@ -334,8 +401,17 @@ public final class G21398RealWorldNegativeHeadProcessKillRegressionTest {
         for(int i=0;i<props.length;i++)
             before[i]=System.getProperty(props[i]);
         try{
-            for(LocalNegativeAccountHeadPrototype.Stage cut:CUTS)
-                one(root.resolve(cut.name()),cut);
+            for(LocalNegativeAccountHeadPrototype.Stage cut:CUTS){
+                one(root.resolve("EXISTING_"+cut.name()),cut,false);
+                one(root.resolve("FIRST_LOGIN_"+cut.name()),cut,true);
+            }
+            System.out.println("R71_REAL_WORLD_FIRST_LOGIN_HEAD_KILL_MATRIX_PASS"+
+                " firstLoginInitiallyMissingAccount=true"+
+                " realWorldBootstrapCompletedBeforeCapture=true"+
+                " bootstrapAccountBytesPreservedAcrossKill=true"+
+                " firstLoginHeadFileForcedKill=true"+
+                " firstLoginHeadDirectoryForcedKill=true"+
+                " freshJvmFirstLoginStaleBootstrapDenied=true");
             System.out.println("R70_REAL_WORLD_HEAD_PUBLICATION_KILL_MATRIX_PASS"+
                 " actualWorldG21202Capture=true"+
                 " killedJvmHeadFileForced=true"+
