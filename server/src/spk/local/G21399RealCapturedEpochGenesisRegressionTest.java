@@ -46,6 +46,8 @@ import java.util.stream.Stream;
  * the exact orphan archive/intent/temp/HEAD/receipt inventory.
  * R85 binds all LAB operations to the exact World-captured immutable
  * PlayerSnapshot object, forbidding swapped same-account snapshots.
+ * R86 rejects even a genuine same-session capture if its World
+ * capture began before R79 FINAL_PENDING was completed.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -536,6 +538,21 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(wrongPrepare,
                         "unrelated snapshot prepared original LAB final");
+                    // R86: a fully genuine capture of DISTINCT World
+                    // state that starts BEFORE FINAL_PENDING must
+                    // never count as a post-preparation final image.
+                    world.submit(owner,generation,()->
+                        owner.snapshotExtensions().replaceNamespace(
+                            "r86_early",
+                            Collections.singletonMap(
+                                "phase","BEFORE_PREPARATION"))
+                    ).get(5,TimeUnit.SECONDS);
+                    WorldPlayerPersistence.CapturedSave preprepared=
+                        capture(world,owner,generation);
+                    check("BEFORE_PREPARATION".equals(
+                        preprepared.ticket.snapshot.value(
+                            "extension.r86_early.phase")),
+                        "R86 pre-prepare capture missing");
                     LocalReusableAccountEpochLab.Observation pending=
                         LocalJvmAccountSessionLease
                             .prepareCapturedEpochUnderOriginalLockForLab(
@@ -639,6 +656,24 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(swappedWitnessDenied,
                         "later World image used older same-owner witness");
+                    check(!LocalCapturedWorldSnapshotFingerprintLab
+                            .fingerprint(selected,
+                                preprepared.ticket.snapshot,generation)
+                            .canonicalSha256.equals(pending.imageSha),
+                        "preparation ordering test lacks distinct content");
+                    boolean prepreparedDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                preprepared.ticket.snapshot,
+                                preprepared.ownerWitness);
+                    }catch(IOException invalid){
+                        prepreparedDenied=contains(invalid,
+                            "R86_FINAL_CAPTURE_NOT_STARTED_AFTER_PREPARE");
+                    }
+                    check(prepreparedDenied,
+                        "R86 genuine pre-preparation image wrongly settled");
                     boolean replayOldImage=false;
                     try{
                         LocalJvmAccountSessionLease
@@ -697,6 +732,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R86_POST_PREPARATION_CAPTURE_ORDER_PASS"+
+                " exactWorldCaptureStartOrdinal=true"+
+                " distinctPrePrepareWorldImageDenied=true"+
+                " genuinePostPrepareWorldImageAcceptedLabOnly=true"+
+                " noLiveFinalACKOrAdmit=true");
             System.out.println("R85_EXACT_WORLD_SNAPSHOT_WITNESS_PASS"+
                 " genesisSameAccountSyntheticDenied=true"+
                 " claimSameAccountSyntheticDenied=true"+
