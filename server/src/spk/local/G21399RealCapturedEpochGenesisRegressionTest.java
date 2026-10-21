@@ -540,6 +540,55 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(wrongPrepare,
                         "unrelated snapshot prepared original LAB final");
+                    // R87: mint one original-Token ticket on the real
+                    // World execution thread, bind it once to its
+                    // immutable capture, and refuse both cross-path
+                    // consumption and a second same-path binding.
+                    world.submit(owner,generation,()->{
+                        synchronized(owner.mutationLock()){
+                            LocalJvmAccountSessionLease.WorldCaptureStartForLab
+                                started=LocalJvmAccountSessionLease
+                                    .markWorldSnapshotCaptureStartForLab(
+                                        selected,USER,owner,generation);
+                            check(started!=null,
+                                "R87 original World capture mint missing");
+                            PlayerSnapshot sameWorldSnapshot=
+                                PlayerSnapshotCodec.capture(USER,owner);
+                            boolean foreignPathDenied=false;
+                            try{
+                                LocalJvmAccountSessionLease
+                                    .captureSaveWitness(
+                                        selected.resolveSibling(
+                                            "r87-foreign.properties"),
+                                        USER,owner,generation,
+                                        sameWorldSnapshot,started);
+                            }catch(IllegalStateException invalid){
+                                foreignPathDenied=contains(invalid,
+                                    "R87_CAPTURE_START_NOT_ORIGINAL_WORLD_TOKEN");
+                            }
+                            check(foreignPathDenied,
+                                "R87 original ticket rebound other account");
+                            LocalJvmAccountSessionLease.SaveCaptureWitness
+                                first=LocalJvmAccountSessionLease
+                                    .captureSaveWitness(
+                                        selected,USER,owner,generation,
+                                        sameWorldSnapshot,started);
+                            check(first!=null,
+                                "R87 first immutable World binding missing");
+                            boolean duplicateDenied=false;
+                            try{
+                                LocalJvmAccountSessionLease
+                                    .captureSaveWitness(
+                                        selected,USER,owner,generation,
+                                        sameWorldSnapshot,started);
+                            }catch(IllegalStateException invalid){
+                                duplicateDenied=contains(invalid,
+                                    "R87_CAPTURE_START_ALREADY_CONSUMED");
+                            }
+                            check(duplicateDenied,
+                                "R87 captured-start token was replayed");
+                        }
+                    }).get(5,TimeUnit.SECONDS);
                     // R86: a fully genuine capture of DISTINCT World
                     // state that starts BEFORE FINAL_PENDING must
                     // never count as a post-preparation final image.
