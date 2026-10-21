@@ -14016,3 +14016,17 @@ tasks.register('historicalAccountImageInventoryRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('historicalAccountImageInventoryRegression')
 }
+
+// R61: borrow the SAME G21.185 session lock; never nested lock or
+// release the live owner's handle. Standalone, nonadmitting LAB only.
+tasks.register('borrowedAccountOsLockRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove same selected account OS lock can be borrowed without reacquisition or authority grant.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21389BorrowedAccountOsLockRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('borrowedAccountOsLockRegression')
+}

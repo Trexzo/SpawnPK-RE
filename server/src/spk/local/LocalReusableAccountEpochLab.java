@@ -692,6 +692,18 @@ final class LocalReusableAccountEpochLab {
         Path a=canonical(account);
         try(LocalCrossJvmAccountSessionLock.Handle lock=
                 LocalCrossJvmAccountSessionLock.acquire(a)){
+            return lock.withHeldOriginalAccount(a,()->
+                transitionInsideHeldLock(a,expected,required,next,
+                    generation,nonce,newImage,cuts,lock));
+        }
+    }
+
+    /** The already-acquired cooperative lock must not be reacquired. */
+    private static Observation transitionInsideHeldLock(
+        Path a,int expected,Phase required,Phase next,
+        long generation,String nonce,byte[] newImage,Cutpoint cuts,
+        LocalCrossJvmAccountSessionLock.Handle lock
+    )throws IOException{
             lock.requireOriginalLockNameStillPresent();
             Observation prior=inspect(a);
             if(expected!=prior.sequence)
@@ -742,8 +754,27 @@ final class LocalReusableAccountEpochLab {
             });
             lock.requireOriginalLockNameStillPresent();
             return inspect(a);
-        }
     }
+
+    /**
+     * R61 LAB ONLY: borrow an existing G21.185 session lock, rather
+     * than deadlocking on a second same-account FileLock. An untrusted
+     * generation and nonce remain insufficient for live World admission.
+     * No token release, World wiring or positive authorization.
+     */
+    static Observation claimUnderHeldAccountLock(
+        Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
+        int expected,long generation,String nonce
+    )throws IOException{
+        requiredLock();
+        if(borrowed==null)
+            throw new IOException("R61_NO_BORROWED_ACCOUNT_LOCK");
+        Path exact=canonical(account);
+        return borrowed.withHeldOriginalAccount(exact,()->
+            transitionInsideHeldLock(exact,expected,Phase.CLOSED,
+                Phase.OWNED,generation,nonce,null,stage->{},borrowed));
+    }
+
     static Observation initialize(Path account,byte[] bytes)
         throws IOException{
         requiredLock();

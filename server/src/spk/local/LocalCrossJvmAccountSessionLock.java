@@ -80,6 +80,46 @@ final class LocalCrossJvmAccountSessionLock {
             closed=true;
         }
 
+        /**
+         * R61: operation-scoped borrowing of the ORIGINAL acquired OS
+         * lock. The owner keeps sole close authority; this never
+         * creates a second FileLock or releases the borrowed handle.
+         * Synchronize with close() so the OS lock cannot be closed
+         * by the cooperative owner during the protected operation.
+         *
+         * No account ownership is authenticated by this method.
+         */
+        @FunctionalInterface interface LockedOperation<T> {
+            T execute()throws IOException;
+        }
+        synchronized <T> T withHeldOriginalAccount(
+            Path exactAccount,LockedOperation<T> operation
+        )throws IOException{
+            if(exactAccount==null||operation==null)
+                throw new IOException("R61_BORROWED_LOCK_ARGUMENT_INVALID");
+            final Path canonical=exactAccount.toAbsolutePath().normalize();
+            if(canonical.getParent()==null||
+               canonical.getFileName()==null)
+                throw new IOException("R61_BORROWED_LOCK_ACCOUNT_INVALID");
+            final Path expected=canonical.resolveSibling(
+                canonical.getFileName().toString()+".session.lck");
+            // Exact selected path, never a filename-only or same-
+            // parent alias comparison.
+            if(!file.equals(expected))
+                throw new IOException(
+                    "R61_BORROWED_LOCK_WRONG_ACCOUNT_DENIED");
+            if(closed||!channel.isOpen()||!lock.isValid())
+                throw new IOException(
+                    "R61_BORROWED_LOCK_RELEASED_DENIED");
+            requireOriginalLockNameStillPresent();
+            T result=operation.execute();
+            if(closed||!channel.isOpen()||!lock.isValid())
+                throw new IOException(
+                    "R61_BORROWED_LOCK_RELEASED_DURING_OPERATION");
+            requireOriginalLockNameStillPresent();
+            return result;
+        }
+
         Path fileForTest(){return file;}
     }
 
