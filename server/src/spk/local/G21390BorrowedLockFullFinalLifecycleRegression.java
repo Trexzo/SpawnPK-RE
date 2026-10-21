@@ -15,6 +15,8 @@ import java.util.stream.Stream;
  * R62: the one original G21.185 FileLock is continuously borrowed
  * through an entire detached LAB final lifecycle, never granting
  * real World admission or authenticated final release.
+ * R75 moves even initial immutable LAB creation under the same held
+ * lock, rejecting wrong-account, duplicate and released borrow attempts.
  */
 public final class G21390BorrowedLockFullFinalLifecycleRegression {
     private G21390BorrowedLockFullFinalLifecycleRegression(){}
@@ -84,10 +86,24 @@ public final class G21390BorrowedLockFullFinalLifecycleRegression {
     }
     private static void normal(Path root)throws Exception{
         Path account=root.resolve("normal.properties");
-        LocalReusableAccountEpochLab.initialize(account,IMAGE);
         LocalCrossJvmAccountSessionLock.Handle ownerLock=
             LocalCrossJvmAccountSessionLock.acquire(account);
         try{
+            LocalReusableAccountEpochLab.Observation seed=
+                LocalReusableAccountEpochLab.initializeUnderHeldAccountLock(
+                    account,ownerLock,IMAGE);
+            check(seed.sequence==0&&
+                seed.phase==LocalReusableAccountEpochLab.Phase.CLOSED&&
+                !seed.admissionAuthorized&&!seed.releaseAuthorized,
+                "borrowed initial ledger claimed live authority");
+            denied("R57_LEDGER_ALREADY_INITIALIZED",()->
+                LocalReusableAccountEpochLab.initializeUnderHeldAccountLock(
+                    account,ownerLock,IMAGE));
+            denied("R61_BORROWED_LOCK_WRONG_ACCOUNT_DENIED",()->
+                LocalReusableAccountEpochLab.initializeUnderHeldAccountLock(
+                    root.resolve("other.properties"),ownerLock,IMAGE));
+            denied("G21.185 ACCOUNT_SESSION_LOCK_BUSY",()->
+                LocalReusableAccountEpochLab.initialize(account,IMAGE));
             Path log=root.resolve("contender.log");
             check(finish(spawn("contender",account,log),log).contains(
                 "R62_RIVAL_EXCLUDED"),"cross-JVM session lock lost");
@@ -121,6 +137,9 @@ public final class G21390BorrowedLockFullFinalLifecycleRegression {
         denied("R61_BORROWED_LOCK_RELEASED_DENIED",()->
             LocalReusableAccountEpochLab.prepareFinalUnderHeldAccountLock(
                 account,ownerLock,3,610L,OWNER));
+        denied("R61_BORROWED_LOCK_RELEASED_DENIED",()->
+            LocalReusableAccountEpochLab.initializeUnderHeldAccountLock(
+                account,ownerLock,IMAGE));
         LocalReusableAccountEpochLab.Observation successor=
             LocalReusableAccountEpochLab.claim(
                 account,3,710L,"r62_next_owner");
@@ -131,10 +150,11 @@ public final class G21390BorrowedLockFullFinalLifecycleRegression {
     }
     private static void incomplete(Path root)throws Exception{
         Path account=root.resolve("incomplete.properties");
-        LocalReusableAccountEpochLab.initialize(account,IMAGE);
         LocalCrossJvmAccountSessionLock.Handle ownerLock=
             LocalCrossJvmAccountSessionLock.acquire(account);
         try{
+            LocalReusableAccountEpochLab.initializeUnderHeldAccountLock(
+                account,ownerLock,IMAGE);
             LocalReusableAccountEpochLab.claimUnderHeldAccountLock(
                 account,ownerLock,0,610L,OWNER);
             LocalReusableAccountEpochLab.prepareFinalUnderHeldAccountLock(
@@ -177,6 +197,14 @@ public final class G21390BorrowedLockFullFinalLifecycleRegression {
             incomplete(root);
             check(LocalJvmAccountSessionLease.activeCountForTest()==0,
                 "live session token unexpectedly changed");
+            System.out.println("R75_BORROWED_LEDGER_INITIALIZATION_PASS"+
+                " sameOriginalFileLockFromGenesisThroughFinal=true"+
+                " noNestedPOSIXFileChannel=true"+
+                " duplicateInitializationDenied=true"+
+                " wrongAccountBorrowDenied=true"+
+                " releasedBorrowDenied=true"+
+                " ordinaryInitialAcquireRefusedWhileOwnerHeld=true"+
+                " recoveredLABAuthorityStillFalse=true");
             System.out.println("R62_ORIGINAL_BORROWED_LOCK_FINAL_PASS"+
                 " fullLabLifecycleSameHandle=true"+
                 " noNestedFileChannel=true"+
