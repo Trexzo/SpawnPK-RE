@@ -740,11 +740,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             if(stage!=LocalReusableAccountEpochLab.Stage
                                     .ARCHIVED_HEAD_FORCED)
                                 return;
-                            Files.write(ready,new byte[]{1},
-                                StandardOpenOption.CREATE_NEW);
                             System.out.println(
                                 "R77_REAL_WORLD_GENESIS_ARCHIVE_FORCED");
                             System.out.flush();
+                            // Parent observes ready only after the
+                            // process-kill marker was flushed.
+                            Files.write(ready,new byte[]{1},
+                                StandardOpenOption.CREATE_NEW);
                             try{Thread.sleep(120000L);}
                             catch(InterruptedException interrupted){
                                 Thread.currentThread().interrupt();
@@ -909,11 +911,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         account,owner,generation,captured.ticket.snapshot,
                         captured.ownerWitness,stage->{
                             if(stage!=target)return;
-                            Files.write(ready,new byte[]{1},
-                                StandardOpenOption.CREATE_NEW);
                             System.out.println(
                                 "R80_REAL_WORLD_PREPARE_CUTPOINT_"+target);
                             System.out.flush();
+                            // Parent observes ready only after the
+                            // process-kill marker was flushed.
+                            Files.write(ready,new byte[]{1},
+                                StandardOpenOption.CREATE_NEW);
                             try{Thread.sleep(120000L);}
                             catch(InterruptedException interrupted){
                                 Thread.currentThread().interrupt();
@@ -1116,11 +1120,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         account,owner,generation,last.ticket.snapshot,
                         last.ownerWitness,stage->{
                             if(stage!=target)return;
-                            Files.write(ready,new byte[]{1},
-                                StandardOpenOption.CREATE_NEW);
                             System.out.println(
                                 "R83_WORLD_SETTLEMENT_FORCED_"+target);
                             System.out.flush();
+                            // Parent observes ready only after the
+                            // process-kill marker was flushed.
+                            Files.write(ready,new byte[]{1},
+                                StandardOpenOption.CREATE_NEW);
                             try{Thread.sleep(120000L);}
                             catch(InterruptedException interrupted){
                                 Thread.currentThread().interrupt();
