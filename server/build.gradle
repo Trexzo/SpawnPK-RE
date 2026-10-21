@@ -14100,3 +14100,17 @@ tasks.register('realWorldAccountImageBindingRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('realWorldAccountImageBindingRegression')
 }
+
+// R67: original real World-owned immutable capture + G21.202 Token
+// and G21.185 OS lock; purely bounded SHA-256 snapshot provenance.
+tasks.register('realWorldCapturedSnapshotFingerprintRegression', JavaExec) {
+    group = 'verification'
+    description = 'Observe actual immutable WorldPlayerPersistence capture under its original session FileLock.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21395RealWorldCapturedSnapshotFingerprintRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldCapturedSnapshotFingerprintRegression')
+}

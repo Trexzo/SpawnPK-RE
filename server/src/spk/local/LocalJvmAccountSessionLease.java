@@ -1224,6 +1224,80 @@ final class LocalJvmAccountSessionLease {
             });
     }
 
+    /**
+     * R67 LAB ONLY: prove that a particular immutable, already-captured
+     * World-owned PlayerSnapshot is bound to the ORIGINAL G21.202
+     * capture-time session Token, same WorldPlayer identity/generation,
+     * selected account path and original held G21.185 OS lock.
+     *
+     * Unlike the registered-owner observation, this accepts the same
+     * exact captured owner AFTER World unregisters while Token still
+     * owns the lock, but it never authorizes a save/ACK/release.
+     * No synthetic caller-created nonce can replace the actual witness.
+     */
+    static LocalCapturedWorldSnapshotFingerprintLab.Observation
+    observeCapturedWorldSnapshotUnderOsLockForLab(
+        Path exactAccountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot immutableSnapshot,SaveCaptureWitness witness
+    )throws java.io.IOException{
+        Objects.requireNonNull(exactAccountFile,"exactAccountFile");
+        Objects.requireNonNull(immutableSnapshot,"immutableSnapshot");
+        final Path selected=exactAccountFile.toAbsolutePath().normalize();
+        if(!Boolean.getBoolean(PROPERTY)||
+           !Boolean.getBoolean(LocalCrossJvmAccountSessionLock.PROPERTY)||
+           !Boolean.getBoolean(
+               LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
+            throw new java.io.IOException(
+                "R67_CAPTURED_PROOF_REQUIRES_ORIGINAL_SESSION_LOCK_FLAGS");
+        if(witness==null||witness.priorUnleased||
+           witness.originalLease==null||owner==null||
+           witness.owner!=owner||witness.generation!=generation||
+           !selected.equals(witness.path)||
+           !witness.account.equals(immutableSnapshot.username()))
+            throw new java.io.IOException(
+                "R67_CAPTURE_WITNESS_NOT_ORIGINAL_OWNER");
+        final Token token;
+        synchronized(active){
+            token=active.get(selected);
+        }
+        if(token==null||token!=witness.originalLease)
+            throw new java.io.IOException(
+                "R67_CAPTURE_ORIGINAL_LEASE_RELEASED_OR_REPLACED");
+        synchronized(token){
+            try{
+                token.requireCapturedSaveOwner(
+                    owner,generation,immutableSnapshot.username());
+            }catch(IllegalStateException wrong){
+                throw new java.io.IOException(
+                    "R67_CAPTURE_OWNER_GENERATION_STALE",wrong);
+            }
+            if(token.processLock==null)
+                throw new java.io.IOException(
+                    "R67_CAPTURE_MISSING_ORIGINAL_OS_LOCK");
+            return token.processLock.withHeldOriginalAccount(selected,()->{
+                // This tests provenance, NOT account-file bytes. A
+                // pending World capture need not match the old disk
+                // image until a genuinely successful final write.
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(selected);
+                LocalCapturedWorldSnapshotFingerprintLab.Observation result=
+                    LocalCapturedWorldSnapshotFingerprintLab.fingerprint(
+                        selected,immutableSnapshot,generation);
+                try{
+                    token.requireCapturedSaveOwner(
+                        owner,generation,immutableSnapshot.username());
+                }catch(IllegalStateException stale){
+                    throw new java.io.IOException(
+                        "R67_CAPTURE_OWNER_CHANGED_DURING_FINGERPRINT",
+                        stale);
+                }
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(selected);
+                return result;
+            });
+        }
+    }
+
     static void requireCurrentWorldOwnerForTest(
         Path accountFile,WorldPlayer owner,long generation
     ){
