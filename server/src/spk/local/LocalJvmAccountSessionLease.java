@@ -1787,6 +1787,23 @@ final class LocalJvmAccountSessionLease {
         Path accountFile,WorldPlayer owner,long generation,
         PlayerSnapshot finalCapture,SaveCaptureWitness finalWitness
     )throws java.io.IOException{
+        return settleCapturedEpochUnderOriginalLockForLab(
+            accountFile,owner,generation,finalCapture,finalWitness,stage->{});
+    }
+
+    /**
+     * R83 package-only exact filesystem force cutpoint. It is
+     * invoked under the original real World Token/OS lock and
+     * cannot grant admission, final ACK or release authority.
+     */
+    static LocalReusableAccountEpochLab.Observation
+    settleCapturedEpochUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot finalCapture,SaveCaptureWitness finalWitness,
+        LocalReusableAccountEpochLab.Cutpoint cutpoint
+    )throws java.io.IOException{
+        if(cutpoint==null)
+            throw new java.io.IOException("R83_NULL_SETTLEMENT_CUTPOINT");
         if(!Boolean.getBoolean(CAPTURED_EPOCH_SETTLE_LAB_PROPERTY)||
            !Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY)||
            !Boolean.getBoolean(CAPTURED_EPOCH_CLAIM_LAB_PROPERTY)||
@@ -1857,7 +1874,7 @@ final class LocalJvmAccountSessionLease {
                         .settleLabFinalUnderHeldAccountLock(
                             selected,token.processLock,
                             remembered.sequence,generation,
-                            remembered.ownerNonce,image,stage->{});
+                            remembered.ownerNonce,image,cutpoint);
                 if(closed.sequence!=3||closed.epoch!=remembered.epoch||
                    closed.phase!=LocalReusableAccountEpochLab.Phase.CLOSED||
                    closed.worldGeneration!=0||
