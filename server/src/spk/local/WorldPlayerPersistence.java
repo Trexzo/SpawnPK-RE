@@ -545,10 +545,20 @@ final class WorldPlayerPersistence
      * snapshot, BEFORE any asynchronous FIFO worker can observe a later
      * account-path lease. Non-file repositories never enter this protocol.
      */
+    private long markWorldSnapshotCaptureStartForLab(
+        String username,WorldPlayer player,long generation
+    ){
+        if(!(repository instanceof FilePlayerRepository))return 0L;
+        return LocalJvmAccountSessionLease
+            .markWorldSnapshotCaptureStartForLab(
+                ((FilePlayerRepository)repository).accountFilePath(username),
+                username,player,generation);
+    }
+
     private LocalJvmAccountSessionLease.SaveCaptureWitness
         captureOwnerLeaseWitness(
             String username,WorldPlayer player,long generation,
-            PlayerSnapshot exactWorldCapture
+            PlayerSnapshot exactWorldCapture,long startedOrdinal
         ){
         if(!(repository instanceof FilePlayerRepository))
             return null;
@@ -557,7 +567,8 @@ final class WorldPlayerPersistence
         // R85: bind original in-JVM witness to the exact immutable
         // World-thread snapshot, not only the owner's generation.
         return LocalJvmAccountSessionLease.captureSaveWitness(
-            file,username,player,generation,exactWorldCapture);
+            file,username,player,generation,exactWorldCapture,
+            startedOrdinal);
     }
 
     /**
@@ -625,6 +636,7 @@ final class WorldPlayerPersistence
         );
 
         PlayerSnapshot snapshot;
+        long startedOrdinal;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -639,6 +651,8 @@ final class WorldPlayerPersistence
                 );
 
             requireCaptureAccountMatchesOwner(username,player);
+            startedOrdinal=markWorldSnapshotCaptureStartForLab(
+                username,player,expectedGeneration);
             snapshot=
                 PlayerSnapshotCodec.capture(
                     username,
@@ -666,7 +680,8 @@ final class WorldPlayerPersistence
             cleanReason(reason),
             false,
             captureOwnerLeaseWitness(
-                username,player,expectedGeneration,snapshot)
+                username,player,expectedGeneration,snapshot,
+                startedOrdinal)
         );
     }
 
@@ -686,6 +701,7 @@ final class WorldPlayerPersistence
         );
 
         PlayerSnapshot snapshot;
+        long startedOrdinal;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -711,6 +727,8 @@ final class WorldPlayerPersistence
             }
 
             try{
+                startedOrdinal=markWorldSnapshotCaptureStartForLab(
+                    username,player,expectedGeneration);
                 snapshot=
                     PlayerSnapshotCodec.capture(
                         username,
@@ -783,7 +801,8 @@ final class WorldPlayerPersistence
             cleanReason(reason),
             true,
             captureOwnerLeaseWitness(
-                username,player,expectedGeneration,snapshot)
+                username,player,expectedGeneration,snapshot,
+                startedOrdinal)
         );
     }
 
@@ -1324,6 +1343,9 @@ final class WorldPlayerPersistence
                     player.petAccessoryState()
                         .activeItem();
 
+                long startedOrdinal=
+                    markWorldSnapshotCaptureStartForLab(
+                        username,player,generation);
                 PlayerSnapshot snapshot=
                     PlayerSnapshotCodec.capture(
                         username,
@@ -1340,7 +1362,8 @@ final class WorldPlayerPersistence
                         player,
                         generation,
                         captureOwnerLeaseWitness(
-                            username,player,generation,snapshot)
+                            username,player,generation,snapshot,
+                            startedOrdinal)
                     );
 
                 synchronized(checkpointLock){
