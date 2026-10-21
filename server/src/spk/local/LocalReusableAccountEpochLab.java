@@ -886,8 +886,17 @@ final class LocalReusableAccountEpochLab {
         Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
         int expected,long generation,String nonce
     )throws IOException{
+        return prepareFinalUnderHeldAccountLock(
+            account,borrowed,expected,generation,nonce,stage->{});
+    }
+
+    /** R80 package-only forced publication cutpoint, never admission. */
+    static Observation prepareFinalUnderHeldAccountLock(
+        Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
+        int expected,long generation,String nonce,Cutpoint cutpoint
+    )throws IOException{
         return transitionWithBorrowedLock(account,borrowed,expected,
-            Phase.OWNED,Phase.FINAL_PENDING,generation,nonce,null,stage->{});
+            Phase.OWNED,Phase.FINAL_PENDING,generation,nonce,null,cutpoint);
     }
 
     static Observation settleLabFinalUnderHeldAccountLock(
