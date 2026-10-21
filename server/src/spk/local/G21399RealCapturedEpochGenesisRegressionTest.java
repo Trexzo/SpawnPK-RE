@@ -681,11 +681,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                 selected,owner,generation,
                                 c.ticket.snapshot,c.ownerWitness);
                     }catch(IOException invalid){
+                        // The old real World capture is now rejected
+                        // even earlier, by the R86 sequencing fence.
                         replayOldImage=contains(invalid,
-                            "R82_FINAL_SNAPSHOT_NOT_DISTINCT_FROM_PENDING");
+                            "R86_FINAL_CAPTURE_NOT_STARTED_AFTER_PREPARE");
                     }
                     check(replayOldImage,
-                        "unchanged World image counted as new postimage");
+                        "preparation image replay counted as postimage");
                     LocalReusableAccountEpochLab.Observation settled=
                         LocalJvmAccountSessionLease
                             .settleCapturedEpochUnderOriginalLockForLab(
