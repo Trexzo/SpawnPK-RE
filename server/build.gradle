@@ -14072,3 +14072,17 @@ tasks.register('legacyDirectLoadNegativeEvidenceRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('legacyDirectLoadNegativeEvidenceRegression')
 }
+
+// R65: read-only original OS lock observation using an ACTUAL
+// authenticated TCP/World generation, never a caller-created nonce.
+tasks.register('realWorldOwnerOriginalLockObservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exercise real TCP World lease identity under its original cooperating cross-JVM FileLock.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21393RealWorldOwnerOriginalLockObservationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldOwnerOriginalLockObservationRegression')
+}

@@ -985,6 +985,81 @@ final class LocalJvmAccountSessionLease {
         }
     }
 
+    /**
+     * R65: capture a read-only observation of the ACTUAL admitted
+     * WorldPlayer identity/generation while the original G21.185
+     * FileLock is still held by its owning JVM session Token.
+     *
+     * This does NOT export the OS lock or token, write LAB records,
+     * attest cross-process World identity, or give login/release/ACK
+     * authority. Callers must never treat an earlier observation as
+     * current once this call has returned.
+     */
+    static final class WorldOwnerLabObservation {
+        final Path accountFile;
+        final String username;
+        final long observedWorldGeneration;
+        final boolean admissionAuthorized=false;
+        final boolean releaseAuthorized=false;
+        private WorldOwnerLabObservation(
+            Path selected,String account,long generation
+        ){
+            this.accountFile=selected;
+            this.username=account;
+            this.observedWorldGeneration=generation;
+        }
+    }
+
+    static WorldOwnerLabObservation observeRealWorldOwnerUnderOsLockForLab(
+        Path exactAccountFile,WorldPlayer owner,long generation
+    )throws java.io.IOException{
+        Objects.requireNonNull(exactAccountFile,"exactAccountFile");
+        final Path selected=exactAccountFile.toAbsolutePath().normalize();
+        if(!Boolean.getBoolean(PROPERTY)||
+           !Boolean.getBoolean(LocalCrossJvmAccountSessionLock.PROPERTY)||
+           !Boolean.getBoolean(
+               LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
+            throw new java.io.IOException(
+                "R65_REAL_WORLD_LOCK_OBSERVATION_REQUIRES_EXPLICIT_FLAGS");
+        final Token token;
+        synchronized(active){
+            token=active.get(selected);
+        }
+        if(token==null)
+            throw new java.io.IOException(
+                "R65_NO_CURRENT_REAL_WORLD_SESSION_TOKEN");
+        // Follow the existing Token -> active monitor order. Never
+        // hold the global map while checking OS lock continuity.
+        synchronized(token){
+            try{
+                token.requireAdmittedWorldOwner(owner,generation);
+            }catch(IllegalStateException stale){
+                throw new java.io.IOException(
+                    "R65_REAL_WORLD_IDENTITY_OR_GENERATION_REJECTED",stale);
+            }
+            if(token.processLock==null)
+                throw new java.io.IOException(
+                    "R65_REAL_WORLD_SESSION_HAS_NO_OS_LOCK");
+            return token.processLock.withHeldOriginalAccount(selected,()->{
+                try{
+                    token.requireAdmittedWorldOwner(owner,generation);
+                }catch(IllegalStateException stale){
+                    throw new java.io.IOException(
+                        "R65_REAL_WORLD_OWNER_CHANGED_DURING_OBSERVATION",
+                        stale);
+                }
+                // Negative admission evidence is checked under the
+                // same original OS session lock. A real token cannot
+                // turn a concurrent LAB orphan or failed-final witness
+                // into a positive account observation.
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(selected);
+                return new WorldOwnerLabObservation(
+                    selected,token.account,generation);
+            });
+        }
+    }
+
     static void requireCurrentWorldOwnerForTest(
         Path accountFile,WorldPlayer owner,long generation
     ){
