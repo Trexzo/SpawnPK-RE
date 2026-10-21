@@ -787,13 +787,27 @@ final class LocalReusableAccountEpochLab {
         Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
         byte[] imageBytes
     )throws IOException{
+        return initializeUnderHeldAccountLock(
+            account,borrowed,imageBytes,stage->{});
+    }
+
+    /**
+     * R77 package-only deterministic cutpoint. It cannot skip or
+     * reorder a filesystem force and never creates admission rights.
+     */
+    static Observation initializeUnderHeldAccountLock(
+        Path account,LocalCrossJvmAccountSessionLock.Handle borrowed,
+        byte[] imageBytes,Cutpoint cutpoint
+    )throws IOException{
         requiredLock();
         if(borrowed==null)
             throw new IOException("R75_NO_BORROWED_INITIALIZATION_LOCK");
+        if(cutpoint==null)
+            throw new IOException("R77_NULL_GENESIS_CUTPOINT");
         requireInitializationImage(imageBytes);
         Path a=canonical(account);
         return borrowed.withHeldOriginalAccount(a,()->
-            initializeInsideHeldLock(a,imageBytes,borrowed));
+            initializeInsideHeldLock(a,imageBytes,borrowed,cutpoint));
     }
 
     private static void requireInitializationImage(byte[] bytes)
@@ -804,7 +818,8 @@ final class LocalReusableAccountEpochLab {
 
     private static Observation initializeInsideHeldLock(
         Path a,byte[] bytes,
-        LocalCrossJvmAccountSessionLock.Handle originalLock
+        LocalCrossJvmAccountSessionLock.Handle originalLock,
+        Cutpoint cutpoint
     )throws IOException{
         originalLock.requireOriginalLockNameStillPresent();
         parent(a);
@@ -821,6 +836,8 @@ final class LocalReusableAccountEpochLab {
             "none",0,digest,bytes.length,ZERO);
         publish(a,seed,stage->{
             originalLock.requireOriginalLockNameStillPresent();
+            cutpoint.reached(stage);
+            originalLock.requireOriginalLockNameStillPresent();
         });
         originalLock.requireOriginalLockNameStillPresent();
         return inspect(a);
@@ -834,7 +851,7 @@ final class LocalReusableAccountEpochLab {
         try(LocalCrossJvmAccountSessionLock.Handle lock=
                 LocalCrossJvmAccountSessionLock.acquire(a)){
             return lock.withHeldOriginalAccount(a,()->
-                initializeInsideHeldLock(a,bytes,lock));
+                initializeInsideHeldLock(a,bytes,lock,stage->{}));
         }
     }
     static Observation claim(Path a,int expected,long generation,
