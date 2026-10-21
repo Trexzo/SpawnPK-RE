@@ -133,6 +133,8 @@ final class LocalNegativeAccountHeadPrototype {
         RawPublicationProbe callback=beforeRawMoveForTest;
         if(callback!=null)callback.run(account);
         requireNoPublishedHead(account);
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(account);
     }
 
     static void requireNoHeadAfterRawMove(Path account)
@@ -141,6 +143,8 @@ final class LocalNegativeAccountHeadPrototype {
             RawPublicationProbe callback=afterRawMoveForTest;
             if(callback!=null)callback.run(account);
             requireNoPublishedHead(account);
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
         }catch(IOException uncertainty){
             // The move may already have changed the account.
             // Do not claim rollback, a successful save or Receipt.

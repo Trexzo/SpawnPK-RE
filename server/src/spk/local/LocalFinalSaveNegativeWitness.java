@@ -81,6 +81,9 @@ final class LocalFinalSaveNegativeWitness {
         // R53: the independent permanent negative HEAD is vetoed
         // in all existing World/admission/writer witness call sites.
         LocalNegativeAccountHeadPrototype.requireNoPublishedHead(account);
+        // An orphan R57-R59 LAB object without its HEAD still means
+        // the real legacy World path must refuse admission/publication.
+        LocalReusableLabEvidenceNegativeGate.requireNoLegacyCollision(account);
         Path witness=witnessPath(account);
         try{
             Files.readAttributes(witness,BasicFileAttributes.class,

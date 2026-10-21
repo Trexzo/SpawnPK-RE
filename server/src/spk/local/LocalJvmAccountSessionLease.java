@@ -377,6 +377,8 @@ final class LocalJvmAccountSessionLease {
         // HEAD before creating temp, lock or opt-in reservation.
         LocalNegativeAccountHeadPrototype.requireNoPublishedHead(
             exactAccountPath);
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(exactAccountPath);
         // R40: disabling RAW participation while a same-JVM World
         // token, pending session or RAW writer is ALREADY reserved
         // cannot retroactively erase that reservation. Preserve the

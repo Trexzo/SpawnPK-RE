@@ -14044,3 +14044,17 @@ tasks.register('borrowedLockFullFinalLifecycleRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('borrowedLockFullFinalLifecycleRegression')
 }
+
+// R63: any R57/R58/R59 reusable LAB sidecar (including an orphan with
+// no LAB HEAD) is negative for live legacy RAW/World/session paths.
+tasks.register('reusableLabLegacyVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject detached reusable-LAB evidence across all real default-off legacy writers and session reads.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21391ReusableLabLegacyVetoRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('reusableLabLegacyVetoRegression')
+}
