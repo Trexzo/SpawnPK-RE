@@ -1474,6 +1474,12 @@ final class LocalJvmAccountSessionLease {
                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
             throw new java.io.IOException(
                 "R76_REQUIRES_ACTUAL_SESSION_ORIGINAL_OS_LOCK");
+        // R85: owner/generation provenance alone cannot attest a
+        // caller-selected snapshot. Preserve the World-captured
+        // object's identity end to end, even when account matches.
+        if(witness!=null&&witness.capturedSnapshot!=captured)
+            throw new java.io.IOException(
+                "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
         if(witness==null||witness.priorUnleased||
            witness.originalLease==null||owner==null||
            witness.owner!=owner||witness.generation!=generation||
@@ -1566,6 +1572,12 @@ final class LocalJvmAccountSessionLease {
                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
             throw new java.io.IOException(
                 "R78_REQUIRES_ACTUAL_SESSION_ORIGINAL_OS_LOCK");
+        // R85: owner/generation provenance alone cannot attest a
+        // caller-selected snapshot. Preserve the World-captured
+        // object's identity end to end, even when account matches.
+        if(witness!=null&&witness.capturedSnapshot!=captured)
+            throw new java.io.IOException(
+                "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
         if(witness==null||witness.priorUnleased||
            witness.originalLease==null||owner==null||
            witness.owner!=owner||witness.generation!=generation||
@@ -1685,6 +1697,12 @@ final class LocalJvmAccountSessionLease {
                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
             throw new java.io.IOException(
                 "R79_REQUIRES_ACTUAL_SESSION_ORIGINAL_OS_LOCK");
+        // R85: owner/generation provenance alone cannot attest a
+        // caller-selected snapshot. Preserve the World-captured
+        // object's identity end to end, even when account matches.
+        if(witness!=null&&witness.capturedSnapshot!=captured)
+            throw new java.io.IOException(
+                "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
         if(witness==null||witness.priorUnleased||
            witness.originalLease==null||owner==null||
            witness.owner!=owner||witness.generation!=generation||
@@ -1819,6 +1837,12 @@ final class LocalJvmAccountSessionLease {
                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
             throw new java.io.IOException(
                 "R82_REQUIRES_ACTUAL_SESSION_ORIGINAL_OS_LOCK");
+        // R85: owner/generation provenance alone cannot attest a
+        // caller-selected snapshot. Preserve the World-captured
+        // object's identity end to end, even when account matches.
+        if(finalWitness!=null&&finalWitness.capturedSnapshot!=finalCapture)
+            throw new java.io.IOException(
+                "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
         if(finalWitness==null||finalWitness.priorUnleased||
            finalWitness.originalLease==null||owner==null||
            finalWitness.owner!=owner||
@@ -1959,10 +1983,15 @@ final class LocalJvmAccountSessionLease {
         final long generation;
         private final Token originalLease;
         private final boolean priorUnleased;
+        // R85: the exact immutable object constructed by the
+        // World-thread capture. Not an untrusted matching username
+        // or a caller-swappable postimage and never disk authority.
+        private final PlayerSnapshot capturedSnapshot;
 
         private SaveCaptureWitness(
             Path path,String account,WorldPlayer owner,long generation,
-            Token originalLease,boolean priorUnleased
+            Token originalLease,boolean priorUnleased,
+            PlayerSnapshot capturedSnapshot
         ){
             this.path=path;
             this.account=account;
@@ -1970,6 +1999,7 @@ final class LocalJvmAccountSessionLease {
             this.generation=generation;
             this.originalLease=originalLease;
             this.priorUnleased=priorUnleased;
+            this.capturedSnapshot=capturedSnapshot;
         }
     }
 
@@ -1981,6 +2011,17 @@ final class LocalJvmAccountSessionLease {
     static SaveCaptureWitness captureSaveWitness(
         Path exactAccountPath,String account,
         WorldPlayer owner,long generation
+    ){
+        // Compatibility for older explicit package callers. Missing
+        // exact capture provenance cannot enter any R76-R85 LAB API.
+        return captureSaveWitness(
+            exactAccountPath,account,owner,generation,null);
+    }
+
+    static SaveCaptureWitness captureSaveWitness(
+        Path exactAccountPath,String account,
+        WorldPlayer owner,long generation,
+        PlayerSnapshot capturedSnapshot
     ){
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         Objects.requireNonNull(owner,"owner");
@@ -1995,7 +2036,8 @@ final class LocalJvmAccountSessionLease {
             // own a genuinely prior-unleased World (G21.184).
             Token token=priorUnleased?null:active.get(path);
             return new SaveCaptureWitness(
-                path,account,owner,generation,token,priorUnleased);
+                path,account,owner,generation,token,priorUnleased,
+                capturedSnapshot);
         }
     }
 
