@@ -2,6 +2,9 @@ package spk.local;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -11,6 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,6 +29,8 @@ import java.util.stream.Stream;
  * NEGATIVE object, not a positive final-save receipt. Fresh JVM,
  * default-off loader MUST refuse it. This tests process termination,
  * not whole-machine power-loss ordering or hostile alias CAS.
+ * R72 adds a first-login bootstrap case and fresh-JVM TCP admission veto
+ * at this pre-HEAD cutpoint. Both cases remain negative-only.
  */
 public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
     private G21397RealWorldNegativeIntentProcessKillRegressionTest(){}
@@ -71,7 +77,18 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
         }
         check(cond.truth(),"timeout "+reason);
     }
-    private static void holder(Path root,Path ready)throws Exception{
+    private static long completedWorldWrites(World world){
+        String metrics=world.persistence().metrics();
+        String key=",completed=";
+        int start=metrics.indexOf(key);
+        check(start>=0,"missing World completed-save metric");
+        start+=key.length();
+        int end=metrics.indexOf(',',start);
+        check(end>start,"malformed World completed-save metric");
+        return Long.parseLong(metrics.substring(start,end));
+    }
+    private static void holder(Path root,Path ready,boolean firstTime)
+        throws Exception{
         configureRoot(root,true);
         FilePlayerRepository repository=new FilePlayerRepository(
             LocalAccountProfiles::accountFile);
@@ -85,6 +102,30 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
                     "genuine TCP World registration");
                 WorldPlayer owner=world.players().byName(USER);
                 long generation=owner.generation();
+                Path account=LocalAccountProfiles.accountFile(USER);
+                if(firstTime){
+                    await(()->completedWorldWrites(world)>=1L&&
+                        Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS),
+                        "actual first-login bootstrap publication");
+                    byte[] bootstrap=Files.readAllBytes(account);
+                    check(bootstrap.length>0,"first-login bootstrap empty");
+                    java.util.Properties properties=new java.util.Properties();
+                    try(InputStream in=Files.newInputStream(account)){
+                        properties.load(in);
+                    }
+                    check(!properties.containsKey(
+                        "extension.r72_orphan.phase"),
+                        "bootstrap already includes final-only mutation");
+                    Files.write(root.resolve("first-bootstrap.bin"),bootstrap,
+                        StandardOpenOption.CREATE_NEW);
+                }
+                final String phase=firstTime?
+                    "FIRST_LOGIN":"EXISTING_ACCOUNT";
+                world.submit(owner,generation,()->
+                    owner.snapshotExtensions().replaceNamespace(
+                        "r72_orphan",
+                        Collections.singletonMap("phase",phase))
+                ).get(5,TimeUnit.SECONDS);
                 AtomicReference<WorldPlayerPersistence.CapturedSave> capture=
                     new AtomicReference<>();
                 world.submit(owner,generation,()->
@@ -93,8 +134,10 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
                         "R69_PROCESS_CRASH_FINAL_CANDIDATE"))
                 ).get(5,TimeUnit.SECONDS);
                 WorldPlayerPersistence.CapturedSave exact=capture.get();
-                check(exact!=null&&exact.ownerWitness!=null,
-                    "no genuine immutable World capture");
+                check(exact!=null&&exact.ownerWitness!=null&&
+                    phase.equals(exact.ticket.snapshot.values().get(
+                        "extension.r72_orphan.phase")),
+                    "no genuine mutated immutable World capture");
                 LocalJvmAccountSessionLease
                     .publishCapturedFinalNegativeIntentUnderOriginalLockForLab(
                         LocalAccountProfiles.accountFile(USER),owner,
@@ -125,11 +168,41 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
         }
         throw new AssertionError("holder was not killed");
     }
-    private static void freshProbe(Path root)throws Exception{
+    private static int freshTcpResponse(int port)throws Exception{
+        try(Socket socket=new Socket(
+                InetAddress.getByName("127.0.0.1"),port)){
+            socket.setSoTimeout(5000);
+            InputStream in=socket.getInputStream();
+            OutputStream out=socket.getOutputStream();
+            out.write(14);out.write(7);out.flush();
+            byte[] pre=Binary.readExactly(in,9);
+            check((pre[8]&255)==0,"prelogin unexpected");
+            long seed=Binary.i64(Binary.readExactly(in,8),0);
+            check(seed==LocalLoginTransport.SERVER_SEED,
+                "login seed mismatch");
+            int[] seeds={0x01020304,0x11223344,
+                (int)(seed>>>32),(int)seed};
+            byte[] frame=
+                G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .loginFrame(seeds,USER);
+            out.write(16);out.write(frame.length);
+            out.write(frame);out.flush();
+            return in.read();
+        }
+    }
+    private static void freshProbe(Path root,boolean firstTime)
+        throws Exception{
         configureRoot(root,false);
         Path account=LocalAccountProfiles.accountFile(USER);
         check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS),
-            "original account missing");
+            "retained account baseline missing");
+        if(firstTime){
+            byte[] bootstrap=Files.readAllBytes(
+                root.resolve("first-bootstrap.bin"));
+            check(bootstrap.length>0&&Arrays.equals(
+                bootstrap,Files.readAllBytes(account)),
+                "first-login bootstrap bytes changed after kill");
+        }
         check(!Files.exists(
             LocalNegativeAccountHeadPrototype.headPath(account),
             LinkOption.NOFOLLOW_LINKS),"unexpected negative HEAD");
@@ -148,6 +221,20 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
                 target.petState(),target.playerState());
         }catch(IOException veto){denied=has(veto,CODE);}
         check(denied,"direct legacy reader ignored orphan forced object");
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        World replacement=World.isolatedForTest(50L,repository);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(replacement)){
+            int code=freshTcpResponse(server.listener.getLocalPort());
+            check(code!=2&&replacement.players().size()==0,
+                "fresh TCP accepted orphaned account image");
+            server.waitCompleted();
+        }finally{
+            if(!replacement.closed())replacement.close();
+        }
         System.setProperty(LocalCrossJvmAccountSessionLock.PROPERTY,"true");
         System.setProperty(
             LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,"true");
@@ -157,15 +244,19 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
         }
         check(LocalJvmAccountSessionLease.activeCountForTest()==0,
             "fresh process retained killed JVM token");
-        System.out.println("R69_FRESH_JVM_NEGATIVE_ORPHAN_VETO_PASS");
+        System.out.println("R69_FRESH_JVM_NEGATIVE_ORPHAN_VETO_PASS"+
+            " firstTime="+firstTime+
+            " freshTcpDenied=true");
     }
-    private static Process spawn(String role,Path root,Path ready,Path log)
-        throws IOException{
+    private static Process spawn(
+        String role,Path root,Path ready,Path log,boolean firstTime
+    )throws IOException{
         ProcessBuilder b=new ProcessBuilder(
             javaExe(),"-cp",System.getProperty("java.class.path"),
             G21397RealWorldNegativeIntentProcessKillRegressionTest
                 .class.getName(),"--child",role,root.toString(),
-                ready.toString());
+                ready.toString(),
+                firstTime?"FIRST_LOGIN":"EXISTING_ACCOUNT");
         b.redirectErrorStream(true);
         b.redirectOutput(log.toFile());
         return b.start();
@@ -180,8 +271,9 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
         check(p.exitValue()==0,"child failed: "+output);
         return output;
     }
-    private static void run()throws Exception{
-        Path root=Files.createTempDirectory("r69-real-intent-kill-");
+    private static void run(boolean firstTime)throws Exception{
+        Path root=Files.createTempDirectory(firstTime?
+            "r72-first-login-orphan-kill-":"r69-real-intent-kill-");
         String[] flags={
             "spk.local.accountFile",
             LocalJvmAccountSessionLease.PROPERTY,
@@ -198,13 +290,19 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
             configureRoot(root,false);
             FilePlayerRepository repo=new FilePlayerRepository(
                 LocalAccountProfiles::accountFile);
-            repo.save(PlayerSnapshotCodec.capture(
-                USER,new WorldPlayer()));
             Path account=LocalAccountProfiles.accountFile(USER);
-            byte[] originalBytes=Files.readAllBytes(account);
+            if(firstTime){
+                check(!Files.exists(account,LinkOption.NOFOLLOW_LINKS),
+                    "first-login account unexpectedly already exists");
+            }else{
+                repo.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+            }
+            byte[] originalBytes=firstTime?null:
+                Files.readAllBytes(account);
             Path ready=root.resolve("holder.ready");
             Path log=root.resolve("holder.log");
-            original=spawn("holder",root,ready,log);
+            original=spawn("holder",root,ready,log,firstTime);
             Process holder=original;
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(25);
             while(holder.isAlive()&&System.nanoTime()<deadline&&
@@ -219,8 +317,12 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
             check(holder.waitFor(10,TimeUnit.SECONDS)&&
                 holder.exitValue()!=0,
                 "holder survived process kill");
-            check(Arrays.equals(originalBytes,Files.readAllBytes(account)),
-                "killed intent modified healthy original account bytes");
+            byte[] baseline=firstTime?
+                Files.readAllBytes(root.resolve("first-bootstrap.bin")):
+                originalBytes;
+            check(baseline!=null&&baseline.length>0&&
+                Arrays.equals(baseline,Files.readAllBytes(account)),
+                "killed intent modified established account baseline");
             check(!Files.exists(
                 LocalNegativeAccountHeadPrototype.headPath(account),
                 LinkOption.NOFOLLOW_LINKS),
@@ -240,12 +342,14 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
             }
             check(objects==1,"missing exact one forced immutable object");
             Path probeLog=root.resolve("fresh.log");
-            check(completed(spawn("probe",root,ready,probeLog),probeLog)
+            check(completed(spawn("probe",root,ready,probeLog,
+                firstTime),probeLog)
                 .contains("R69_FRESH_JVM_NEGATIVE_ORPHAN_VETO_PASS"),
                 "independent restart did not refuse orphan");
-            check(Arrays.equals(originalBytes,Files.readAllBytes(account)),
-                "fresh process changed old account");
+            check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                "fresh process changed account baseline");
             System.out.println("R69_REAL_WORLD_PRE_HEAD_PROCESS_KILL_PASS"+
+                " firstLogin="+firstTime+
                 " realTcpWorldCapture=true"+
                 " originalSessionOsLock=true"+
                 " forcedImmutableImageBeforeHead=true"+
@@ -254,6 +358,7 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
                 " headMissingButOrphanRetained=true"+
                 " freshJvmDefaultOffWorldHydrationDenied=true"+
                 " freshJvmDirectLegacyLoadDenied=true"+
+                " freshJvmTcpReconnectDenied=true"+
                 " killedOsLockReleasedByKernel=true"+
                 " noAutoReplayOrRecovery=true"+
                 " noPositiveFinalAck=true"+
@@ -274,15 +379,26 @@ public final class G21397RealWorldNegativeIntentProcessKillRegressionTest {
         }
     }
     public static void main(String[] args)throws Exception{
-        if(args.length==4&&"--child".equals(args[0])){
+        if(args.length==5&&"--child".equals(args[0])){
+            boolean firstTime="FIRST_LOGIN".equals(args[4]);
+            check(firstTime||"EXISTING_ACCOUNT".equals(args[4]),
+                "unknown login case");
             if("holder".equals(args[1]))
-                holder(Paths.get(args[2]),Paths.get(args[3]));
+                holder(Paths.get(args[2]),Paths.get(args[3]),firstTime);
             else if("probe".equals(args[1]))
-                freshProbe(Paths.get(args[2]));
+                freshProbe(Paths.get(args[2]),firstTime);
             else throw new IllegalArgumentException("role");
             return;
         }
         check(args.length==0,"args");
-        run();
+        run(false);
+        run(true);
+        System.out.println("R72_FIRST_LOGIN_ORPHAN_PROCESS_KILL_MATRIX_PASS"+
+            " initialAccountMissing=true"+
+            " actualWorldBootstrapBeforeFinalCapture=true"+
+            " preHeadOrphanRetained=true"+
+            " exactBootstrapBytesPreserved=true"+
+            " freshJvmTcpAndDirectAdmissionDenied=true"+
+            " noAutoRecovery=true");
     }
 }
