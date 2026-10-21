@@ -44,6 +44,8 @@ import java.util.stream.Stream;
  * grants final ACK, release, or subsequent login.
  * R84 covers all seven detached settlement force stages and checks
  * the exact orphan archive/intent/temp/HEAD/receipt inventory.
+ * R85 binds all LAB operations to the exact World-captured immutable
+ * PlayerSnapshot object, forbidding swapped same-account snapshots.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -387,6 +389,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(forgedDenied,"forged owner initialized epoch");
 
+                    boolean syntheticGenesisDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .initializeCapturedEpochGenesisUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                PlayerSnapshotCodec.capture(
+                                    USER,new WorldPlayer()),c.ownerWitness);
+                    }catch(IOException invalid){
+                        syntheticGenesisDenied=contains(invalid,
+                            "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
+                    }
+                    check(syntheticGenesisDenied,
+                        "synthetic same-account image borrowed true witness");
+
                     LocalReusableAccountEpochLab.Observation seeded=
                         LocalJvmAccountSessionLease
                             .initializeCapturedEpochGenesisUnderOriginalLockForLab(
@@ -450,7 +466,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                     USER,new WorldPlayer()),c.ownerWitness);
                     }catch(IOException invalid){
                         wrongCapture=contains(invalid,
-                            "R78_CAPTURE_NOT_LEDGER_GENESIS");
+                            "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
                     }
                     check(wrongCapture,
                         "unrelated captured content claimed prior genesis");
@@ -516,7 +532,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                     USER,new WorldPlayer()),c.ownerWitness);
                     }catch(IOException invalid){
                         wrongPrepare=contains(invalid,
-                            "R79_CAPTURE_NOT_ORIGINAL_OWNED_SNAPSHOT");
+                            "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
                     }
                     check(wrongPrepare,
                         "unrelated snapshot prepared original LAB final");
@@ -597,6 +613,32 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(forgedSettle,
                         "forged World owner settled original LAB epoch");
+                    boolean syntheticSettleDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                PlayerSnapshotCodec.capture(
+                                    USER,new WorldPlayer()),
+                                later.ownerWitness);
+                    }catch(IOException invalid){
+                        syntheticSettleDenied=contains(invalid,
+                            "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
+                    }
+                    check(syntheticSettleDenied,
+                        "synthetic postimage used real World owner witness");
+                    boolean swappedWitnessDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                later.ticket.snapshot,c.ownerWitness);
+                    }catch(IOException invalid){
+                        swappedWitnessDenied=contains(invalid,
+                            "R85_CAPTURE_SNAPSHOT_IDENTITY_MISMATCH");
+                    }
+                    check(swappedWitnessDenied,
+                        "later World image used older same-owner witness");
                     boolean replayOldImage=false;
                     try{
                         LocalJvmAccountSessionLease
@@ -655,6 +697,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R85_EXACT_WORLD_SNAPSHOT_WITNESS_PASS"+
+                " genesisSameAccountSyntheticDenied=true"+
+                " claimSameAccountSyntheticDenied=true"+
+                " prepareSameAccountSyntheticDenied=true"+
+                " settlementSameAccountSyntheticDenied=true"+
+                " swappedOriginalWorldWitnessDenied=true"+
+                " actualDistinctWorldCaptureSettlesLab=true"+
+                " noLiveAdmitOrFinalReceipt=true");
             System.out.println("R82_REAL_WORLD_CAPTURED_DETACHED_SETTLEMENT_PASS"+
                 " exactLaterWorldCapture=true"+
                 " priorPendingOriginalTokenAndNonce=true"+
