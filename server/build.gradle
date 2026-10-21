@@ -14086,3 +14086,17 @@ tasks.register('realWorldOwnerOriginalLockObservationRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('realWorldOwnerOriginalLockObservationRegression')
 }
+
+// R66: genuine WorldPlayer/Token/OS lock bound to DOUBLE verified,
+// bounded NOFOLLOW actual-account bytes; never a durable epoch/grant.
+tasks.register('realWorldAccountImageBindingRegression', JavaExec) {
+    group = 'verification'
+    description = 'Bind nonadmitting real TCP session observation to exact account image and reject in-place rewrite.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21394RealWorldAccountImageBindingRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldAccountImageBindingRegression')
+}

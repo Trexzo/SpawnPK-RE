@@ -1010,9 +1010,17 @@ final class LocalJvmAccountSessionLease {
         }
     }
 
-    static WorldOwnerLabObservation observeRealWorldOwnerUnderOsLockForLab(
-        Path exactAccountFile,WorldPlayer owner,long generation
+    @FunctionalInterface
+    private interface LockedRealWorldObservation<T>{
+        T collect(Path account,String username,long generation)
+            throws java.io.IOException;
+    }
+
+    private static <T> T withRealWorldOwnerOriginalLockForLab(
+        Path exactAccountFile,WorldPlayer owner,long generation,
+        LockedRealWorldObservation<T> operation
     )throws java.io.IOException{
+        Objects.requireNonNull(operation,"operation");
         Objects.requireNonNull(exactAccountFile,"exactAccountFile");
         final Path selected=exactAccountFile.toAbsolutePath().normalize();
         if(!Boolean.getBoolean(PROPERTY)||
@@ -1054,10 +1062,166 @@ final class LocalJvmAccountSessionLease {
                 // into a positive account observation.
                 LocalFinalSaveNegativeWitness
                     .requireNoNegativeWitness(selected);
-                return new WorldOwnerLabObservation(
+                T result=operation.collect(
                     selected,token.account,generation);
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(selected);
+                try{
+                    token.requireAdmittedWorldOwner(owner,generation);
+                }catch(IllegalStateException stale){
+                    throw new java.io.IOException(
+                        "R66_REAL_WORLD_OWNER_CHANGED_AFTER_OBSERVATION",
+                        stale);
+                }
+                return result;
             });
         }
+    }
+
+    static WorldOwnerLabObservation observeRealWorldOwnerUnderOsLockForLab(
+        Path exactAccountFile,WorldPlayer owner,long generation
+    )throws java.io.IOException{
+        return withRealWorldOwnerOriginalLockForLab(
+            exactAccountFile,owner,generation,
+            (path,name,actualGen)->new WorldOwnerLabObservation(
+                path,name,actualGen));
+    }
+
+    /**
+     * R66: one strictly read-only, bounded DOUBLE fingerprint of the
+     * selected account object, while the genuine G21.200 World Token
+     * owns the original G21.185 FileLock.
+     *
+     * Never authorize gameplay, publish/replay files, or interpret
+     * observed bytes as an immutable snapshot after returning.
+     * Cooperative exclusion is NOT hostile/uncooperative writer CAS.
+     */
+    static final class WorldAccountImageLabObservation {
+        final Path accountFile;
+        final String username;
+        final long observedWorldGeneration;
+        final int imageLength;
+        final String imageSha256;
+        final boolean admissionAuthorized=false;
+        final boolean releaseAuthorized=false;
+        private WorldAccountImageLabObservation(
+            Path account,String user,long gen,int bytes,String digest
+        ){
+            accountFile=account;
+            username=user;
+            observedWorldGeneration=gen;
+            imageLength=bytes;
+            imageSha256=digest;
+        }
+    }
+
+    @FunctionalInterface interface AccountImageObservationCutpoint {
+        void afterFirstImageRead(Path account)throws java.io.IOException;
+    }
+    private static final class AccountImageFingerprint {
+        final int length;
+        final String digest;
+        final Object fileKey;
+        private AccountImageFingerprint(int n,String d,Object k){
+            length=n;digest=d;fileKey=k;
+        }
+    }
+    private static final int R66_MAX_OBSERVED_ACCOUNT_BYTES=8*1024*1024;
+
+    private static AccountImageFingerprint readAccountImageForLab(Path path)
+        throws java.io.IOException{
+        LocalCrossJvmAccountSessionLock
+            .requireNoSymlinkAncestors(path.getParent());
+        final java.nio.file.attribute.BasicFileAttributes first;
+        try{
+            first=java.nio.file.Files.readAttributes(path,
+                java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        }catch(java.nio.file.NoSuchFileException absent){
+            throw new java.io.IOException(
+                "R66_ACCOUNT_IMAGE_MISSING_NO_POSITIVE_PROOF",absent);
+        }
+        if(!first.isRegularFile()||first.isSymbolicLink()||
+           first.fileKey()==null||first.size()<1||
+           first.size()>R66_MAX_OBSERVED_ACCOUNT_BYTES)
+            throw new java.io.IOException(
+                "R66_UNSAFE_OR_OVERSIZED_ACCOUNT_IMAGE");
+        final java.security.MessageDigest digest;
+        try{
+            digest=java.security.MessageDigest.getInstance("SHA-256");
+        }catch(java.security.NoSuchAlgorithmException unavailable){
+            throw new java.io.IOException(
+                "R66_SHA256_UNAVAILABLE",unavailable);
+        }
+        java.nio.ByteBuffer buffer=java.nio.ByteBuffer.allocate(8192);
+        int count=0;
+        try(java.nio.channels.FileChannel channel=
+                java.nio.channels.FileChannel.open(path,
+                    java.nio.file.StandardOpenOption.READ,
+                    java.nio.file.LinkOption.NOFOLLOW_LINKS)){
+            while(true){
+                buffer.clear();
+                int n=channel.read(buffer);
+                if(n<0)break;
+                if(n==0)throw new java.io.IOException(
+                    "R66_ACCOUNT_IMAGE_READ_STALLED");
+                count+=n;
+                if(count>R66_MAX_OBSERVED_ACCOUNT_BYTES)
+                    throw new java.io.IOException(
+                        "R66_ACCOUNT_IMAGE_GREW_DURING_READ");
+                digest.update(buffer.array(),0,n);
+            }
+        }
+        java.nio.file.attribute.BasicFileAttributes second=
+            java.nio.file.Files.readAttributes(path,
+                java.nio.file.attribute.BasicFileAttributes.class,
+                java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        if(!second.isRegularFile()||second.isSymbolicLink()||
+           second.fileKey()==null||
+           !first.fileKey().equals(second.fileKey())||
+           !first.creationTime().equals(second.creationTime())||
+           !first.lastModifiedTime().equals(second.lastModifiedTime())||
+           first.size()!=second.size()||count!=first.size())
+            throw new java.io.IOException(
+                "R66_ACCOUNT_IMAGE_FILE_OBJECT_CHANGED_DURING_READ");
+        StringBuilder hash=new StringBuilder(64);
+        for(byte value:digest.digest()){
+            String digit=Integer.toHexString(value&255);
+            if(digit.length()==1)hash.append('0');
+            hash.append(digit);
+        }
+        return new AccountImageFingerprint(count,hash.toString(),
+            second.fileKey());
+    }
+
+    static WorldAccountImageLabObservation
+    observeRealWorldAccountImageUnderOsLockForLab(
+        Path exactAccountFile,WorldPlayer owner,long generation
+    )throws java.io.IOException{
+        return observeRealWorldAccountImageUnderOsLockForLab(
+            exactAccountFile,owner,generation,account->{});
+    }
+
+    /** Test-only deterministic mid-observation adversarial mutation. */
+    static WorldAccountImageLabObservation
+    observeRealWorldAccountImageUnderOsLockForLab(
+        Path exactAccountFile,WorldPlayer owner,long generation,
+        AccountImageObservationCutpoint cutpoint
+    )throws java.io.IOException{
+        Objects.requireNonNull(cutpoint,"cutpoint");
+        return withRealWorldOwnerOriginalLockForLab(
+            exactAccountFile,owner,generation,(path,name,gen)->{
+                AccountImageFingerprint first=readAccountImageForLab(path);
+                cutpoint.afterFirstImageRead(path);
+                AccountImageFingerprint second=readAccountImageForLab(path);
+                if(first.length!=second.length||
+                   !first.digest.equals(second.digest)||
+                   !first.fileKey.equals(second.fileKey))
+                    throw new java.io.IOException(
+                        "R66_ACCOUNT_IMAGE_CHANGED_DURING_REAL_OWNER_OBSERVATION");
+                return new WorldAccountImageLabObservation(
+                    path,name,gen,second.length,second.digest);
+            });
     }
 
     static void requireCurrentWorldOwnerForTest(
