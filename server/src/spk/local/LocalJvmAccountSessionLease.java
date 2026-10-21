@@ -649,6 +649,13 @@ final class LocalJvmAccountSessionLease {
         // acknowledgment or authority to release/account handoff.
         private LocalReusableAccountEpochLab.Observation
             capturedPendingLabEpoch;
+        // R86: count *starts* of authenticated World snapshot
+        // captures. This in-JVM ordinal is not serialized and cannot
+        // authorize a save, lease release or admission.
+        private final java.util.concurrent.atomic.AtomicLong
+            worldCaptureStartOrdinal=
+                new java.util.concurrent.atomic.AtomicLong();
+        private long pendingLabCaptureStartFence;
 
         private Token(
             Path path,String account,
@@ -792,6 +799,7 @@ final class LocalJvmAccountSessionLease {
                 admittedWorldGeneration=0L;
                 capturedOwnedLabEpoch=null;
                 capturedPendingLabEpoch=null;
+                pendingLabCaptureStartFence=0L;
             }
         }
     }
@@ -1779,6 +1787,11 @@ final class LocalJvmAccountSessionLease {
                     throw new java.io.IOException(
                         "R82_LAB_PENDING_ALREADY_BOUND");
                 token.capturedPendingLabEpoch=pending;
+                // A World snapshot whose capture started BEFORE
+                // FINAL_PENDING became authoritative as LAB-only
+                // evidence cannot be selected as its later postimage.
+                token.pendingLabCaptureStartFence=
+                    token.worldCaptureStartOrdinal.get();
                 // Keep the original lock. No real final-save ACK.
                 return pending;
             });
@@ -1872,6 +1885,11 @@ final class LocalJvmAccountSessionLease {
             if(remembered==null)
                 throw new java.io.IOException(
                     "R82_NO_ORIGINAL_AUTHENTICATED_PENDING_TOKEN");
+            if(finalWitness.worldCaptureStartOrdinal<=0L||
+               finalWitness.worldCaptureStartOrdinal<=
+                   token.pendingLabCaptureStartFence)
+                throw new java.io.IOException(
+                    "R86_FINAL_CAPTURE_NOT_STARTED_AFTER_PREPARE");
             return token.processLock.withHeldOriginalAccount(selected,()->{
                 LocalReusableAccountEpochLab.Observation disk=
                     LocalReusableAccountEpochLab.inspect(selected);
@@ -1971,6 +1989,34 @@ final class LocalJvmAccountSessionLease {
     }
 
     /**
+     * R86: a World-thread capture start is counted before its
+     * PlayerSnapshot is assembled. Exact account/owner/generation
+     * must already be bound to the current opt-in session Token.
+     *
+     * This does not grant a writer any authority. It is default-off
+     * for regular World gameplay and does not take Token's monitor
+     * or perform filesystem I/O while capturing.
+     */
+    static long markWorldSnapshotCaptureStartForLab(
+        Path accountFile,String account,WorldPlayer owner,long generation
+    ){
+        if(!Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY))
+            return 0L;
+        if(accountFile==null||owner==null||generation<=0)
+            return 0L;
+        Path path=accountFile.toAbsolutePath().normalize();
+        synchronized(active){
+            Token token=active.get(path);
+            if(token==null||token.released||
+               token.admittedWorldOwner!=owner||
+               token.admittedWorldGeneration!=generation||
+               !token.account.equals(account))
+                return 0L;
+            return token.worldCaptureStartOrdinal.incrementAndGet();
+        }
+    }
+
+    /**
      * G21.202: IMMUTABLE, in-JVM capture-time identity witness.
      * This is never written to disk and cannot authorize review release.
      * There are intentionally 3 origins: the exact captured Token,
@@ -1987,11 +2033,12 @@ final class LocalJvmAccountSessionLease {
         // World-thread capture. Not an untrusted matching username
         // or a caller-swappable postimage and never disk authority.
         private final PlayerSnapshot capturedSnapshot;
+        private final long worldCaptureStartOrdinal;
 
         private SaveCaptureWitness(
             Path path,String account,WorldPlayer owner,long generation,
             Token originalLease,boolean priorUnleased,
-            PlayerSnapshot capturedSnapshot
+            PlayerSnapshot capturedSnapshot,long worldCaptureStartOrdinal
         ){
             this.path=path;
             this.account=account;
@@ -2000,6 +2047,7 @@ final class LocalJvmAccountSessionLease {
             this.originalLease=originalLease;
             this.priorUnleased=priorUnleased;
             this.capturedSnapshot=capturedSnapshot;
+            this.worldCaptureStartOrdinal=worldCaptureStartOrdinal;
         }
     }
 
@@ -2023,6 +2071,18 @@ final class LocalJvmAccountSessionLease {
         WorldPlayer owner,long generation,
         PlayerSnapshot capturedSnapshot
     ){
+        // Package-only compatibility caller has no proven start
+        // ordering; it cannot settle the R86 detached LAB protocol.
+        return captureSaveWitness(
+            exactAccountPath,account,owner,generation,
+            capturedSnapshot,0L);
+    }
+
+    static SaveCaptureWitness captureSaveWitness(
+        Path exactAccountPath,String account,
+        WorldPlayer owner,long generation,
+        PlayerSnapshot capturedSnapshot,long startedOrdinal
+    ){
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         Objects.requireNonNull(owner,"owner");
         Path path=exactAccountPath.toAbsolutePath().normalize();
@@ -2037,7 +2097,7 @@ final class LocalJvmAccountSessionLease {
             Token token=priorUnleased?null:active.get(path);
             return new SaveCaptureWitness(
                 path,account,owner,generation,token,priorUnleased,
-                capturedSnapshot);
+                capturedSnapshot,startedOrdinal);
         }
     }
 
