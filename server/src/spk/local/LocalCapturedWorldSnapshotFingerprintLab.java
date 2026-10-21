@@ -48,6 +48,8 @@ final class LocalCapturedWorldSnapshotFingerprintLab {
 
     private static final class Hasher {
         private final MessageDigest digest;
+        private final java.io.ByteArrayOutputStream encoded=
+            new java.io.ByteArrayOutputStream();
         private int bytes;
         private Hasher()throws IOException{
             try{digest=MessageDigest.getInstance("SHA-256");}
@@ -60,6 +62,7 @@ final class LocalCapturedWorldSnapshotFingerprintLab {
                 throw new IOException(
                     "R67_SNAPSHOT_CANONICAL_BOUNDS_EXCEEDED");
             digest.update(src);
+            encoded.write(src,0,src.length);
             bytes+=src.length;
         }
         void integer(int n)throws IOException{
@@ -75,6 +78,7 @@ final class LocalCapturedWorldSnapshotFingerprintLab {
             integer(b.length);
             bytes(b);
         }
+        byte[] exactBytes(){return encoded.toByteArray();}
         String hex(){
             StringBuilder result=new StringBuilder(64);
             for(byte b:digest.digest()){
@@ -86,7 +90,7 @@ final class LocalCapturedWorldSnapshotFingerprintLab {
         }
     }
 
-    static Observation fingerprint(
+    private static Hasher canonical(
         Path selected,PlayerSnapshot snapshot,long generation
     )throws IOException{
         if(selected==null||snapshot==null||
@@ -109,10 +113,28 @@ final class LocalCapturedWorldSnapshotFingerprintLab {
             canonical.string(entry.getValue());
             prior=entry.getKey();
         }
+        return canonical;
+    }
+
+    static Observation fingerprint(
+        Path selected,PlayerSnapshot snapshot,long generation
+    )throws IOException{
+        Hasher canonical=canonical(selected,snapshot,generation);
         int exactBytes=canonical.bytes;
         String sha=canonical.hex();
         return new Observation(
             selected,snapshot,generation,snapshot.values().size(),
             exactBytes,sha);
+    }
+
+    /**
+     * R68: exactly the bytes whose SHA-256 R67 fingerprints. Still
+     * LAB-only domain encoding, NOT a byte-identical legacy .properties
+     * image, a live final save, or a durable positive receipt.
+     */
+    static byte[] canonicalBytes(
+        Path selected,PlayerSnapshot snapshot,long generation
+    )throws IOException{
+        return canonical(selected,snapshot,generation).exactBytes();
     }
 }

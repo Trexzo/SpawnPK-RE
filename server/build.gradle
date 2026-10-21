@@ -14114,3 +14114,17 @@ tasks.register('realWorldCapturedSnapshotFingerprintRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('realWorldCapturedSnapshotFingerprintRegression')
 }
+
+// R68: one real TCP/World capture, forced negative R50 intent under
+// genuine original G21.185 lease, plus orphan-object legacy veto.
+tasks.register('realCapturedNegativeFinalIntentRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove captured immutable World snapshot can be forced as permanent nonadmitting negative intent.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21396RealCapturedNegativeFinalIntentRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realCapturedNegativeFinalIntentRegression')
+}

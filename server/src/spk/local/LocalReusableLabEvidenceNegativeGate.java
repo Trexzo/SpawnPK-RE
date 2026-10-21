@@ -20,7 +20,11 @@ import java.nio.file.attribute.BasicFileAttributes;
  */
 final class LocalReusableLabEvidenceNegativeGate {
     private static final String[] NAMESPACES={
-        ".g21385-", ".g21386-", ".g21387-"
+        ".g21385-", ".g21386-", ".g21387-",
+        // R68: R50 forces immutable snapshot BEFORE forced negative
+        // HEAD. A killed writer may leave only this orphan object.
+        // It must be negative even when HEAD publication never began.
+        ".g21378-object-"
     };
     private LocalReusableLabEvidenceNegativeGate(){}
 

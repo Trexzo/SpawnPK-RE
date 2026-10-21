@@ -1298,6 +1298,126 @@ final class LocalJvmAccountSessionLease {
         }
     }
 
+    /**
+     * R68 STANDALONE, OPT-IN, PERMANENT NEGATIVE ONLY:
+     *
+     * Publish an immutable canonical captured World snapshot to the
+     * already existing R50 negative HEAD protocol while the genuine
+     * G21.202 capture-time Token still owns its ORIGINAL G21.185
+     * cross-JVM FileLock. This deliberately does NOT continue/ACK
+     * the real final save, release the session or authorize recovery.
+     *
+     * Once published, R53/R63 default-off legacy paths refuse the
+     * account. Even an orphan forced object without HEAD is negative.
+     * A subsequent real final-save attempt is expected to FAIL.
+     * No automatic retirement, replay or promotion is available.
+     */
+    static final String CAPTURED_NEGATIVE_INTENT_LAB_PROPERTY=
+        "spk.local.experimentalCapturedNegativeFinalIntentLab";
+
+    static LocalNegativeAccountHeadPrototype.NegativeObservation
+    publishCapturedFinalNegativeIntentUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot captured,SaveCaptureWitness witness
+    )throws java.io.IOException{
+        return publishCapturedFinalNegativeIntentUnderOriginalLockForLab(
+            accountFile,owner,generation,captured,witness,stage->{});
+    }
+
+    /** Package-only deterministic force/cutpoint forwarding to R50. */
+    static LocalNegativeAccountHeadPrototype.NegativeObservation
+    publishCapturedFinalNegativeIntentUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot captured,SaveCaptureWitness witness,
+        LocalNegativeAccountHeadPrototype.Cutpoint cutpoint
+    )throws java.io.IOException{
+        if(!Boolean.getBoolean(CAPTURED_NEGATIVE_INTENT_LAB_PROPERTY))
+            throw new java.io.IOException(
+                "R68_CAPTURED_NEGATIVE_INTENT_LAB_DEFAULT_OFF");
+        if(cutpoint==null)
+            throw new java.io.IOException("R68_NULL_PUBLICATION_CUTPOINT");
+        Objects.requireNonNull(accountFile,"accountFile");
+        Objects.requireNonNull(captured,"captured");
+        Path selected=accountFile.toAbsolutePath().normalize();
+        if(!Boolean.getBoolean(PROPERTY)||
+           !Boolean.getBoolean(LocalCrossJvmAccountSessionLock.PROPERTY)||
+           !Boolean.getBoolean(
+                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
+            throw new java.io.IOException(
+                "R68_REQUIRES_ACTUAL_HELD_SESSION_OS_LOCK");
+        if(witness==null||witness.priorUnleased||
+           witness.originalLease==null||owner==null||
+           witness.owner!=owner||witness.generation!=generation||
+           !selected.equals(witness.path)||
+           !witness.account.equals(captured.username()))
+            throw new java.io.IOException(
+                "R68_CAPTURE_WITNESS_NOT_ORIGINAL_OWNER");
+        final Token token;
+        synchronized(active){token=active.get(selected);}
+        if(token==null||token!=witness.originalLease)
+            throw new java.io.IOException(
+                "R68_ORIGINAL_SESSION_TOKEN_RELEASED_OR_REPLACED");
+        synchronized(token){
+            try{
+                token.requireCapturedSaveOwner(
+                    owner,generation,captured.username());
+            }catch(IllegalStateException incorrect){
+                throw new java.io.IOException(
+                    "R68_CAPTURED_WORLD_OWNER_STALE",incorrect);
+            }
+            if(token.processLock==null)
+                throw new java.io.IOException(
+                    "R68_CAPTURED_OWNER_MISSING_ORIGINAL_OS_LOCK");
+            return token.processLock.withHeldOriginalAccount(selected,()->{
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(selected);
+                byte[] canonical=
+                    LocalCapturedWorldSnapshotFingerprintLab
+                        .canonicalBytes(selected,captured,generation);
+                LocalCapturedWorldSnapshotFingerprintLab.Observation
+                    fingerprint=LocalCapturedWorldSnapshotFingerprintLab
+                        .fingerprint(selected,captured,generation);
+                final String canonicalDigest;
+                try{
+                    byte[] sha=java.security.MessageDigest
+                        .getInstance("SHA-256").digest(canonical);
+                    StringBuilder hex=new StringBuilder(64);
+                    for(byte value:sha){
+                        String nibble=Integer.toHexString(value&255);
+                        if(nibble.length()==1)hex.append('0');
+                        hex.append(nibble);
+                    }
+                    canonicalDigest=hex.toString();
+                }catch(java.security.NoSuchAlgorithmException missing){
+                    throw new java.io.IOException(
+                        "R68_SHA256_UNAVAILABLE",missing);
+                }
+                if(canonical.length!=fingerprint.canonicalBytes||
+                   !canonicalDigest.equals(fingerprint.canonicalSha256))
+                    throw new java.io.IOException(
+                        "R68_CAPTURE_CANONICAL_DIGEST_MISMATCH");
+                // The R50 publisher has NO nested OS lock acquisition.
+                // The actual session's Token retains the sole FileLock.
+                LocalNegativeAccountHeadPrototype.NegativeObservation
+                    head=LocalNegativeAccountHeadPrototype.publishNegative(
+                        selected,captured.username(),generation,
+                        canonical,cutpoint);
+                if(!head.snapshotSha256.equals(canonicalDigest))
+                    throw new java.io.IOException(
+                        "R68_FORCED_NEGATIVE_HEAD_DIGEST_UNCERTAIN");
+                try{
+                    token.requireCapturedSaveOwner(
+                        owner,generation,captured.username());
+                }catch(IllegalStateException stale){
+                    throw new java.io.IOException(
+                        "R68_CAPTURE_OWNER_CHANGED_AFTER_NEGATIVE_INTENT",
+                        stale);
+                }
+                return head;
+            });
+        }
+    }
+
     static void requireCurrentWorldOwnerForTest(
         Path accountFile,WorldPlayer owner,long generation
     ){
