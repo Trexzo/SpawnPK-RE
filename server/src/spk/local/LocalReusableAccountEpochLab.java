@@ -388,6 +388,44 @@ final class LocalReusableAccountEpochLab {
             throw new IOException(
                 "R59_HISTORICAL_PHASE_OR_OWNER_LINK_NEGATIVE");
     }
+
+    /**
+     * R60: an IMAGE at an earlier sequence is not harmless merely
+     * because no currently selected HEAD references its digest.
+     * All historical image files at <= current image sequence must
+     * correspond exactly to a validated archived HEAD reference.
+     *
+     * Leave correctly formed FUTURE images to the original R57
+     * negative-orphan check, preserving that diagnostic boundary.
+     */
+    private static void requireExactHistoricalImageInventory(
+        Path account,int currentImageSequence,
+        java.util.SortedSet<String> expected
+    )throws IOException{
+        final String imagePrefix=prefix(account)+IMAGE_PREFIX;
+        java.util.SortedSet<String> actual=
+            new java.util.TreeSet<String>();
+        try(java.nio.file.DirectoryStream<Path> children=
+                Files.newDirectoryStream(account.getParent())){
+            for(Path child:children){
+                String name=child.getFileName().toString();
+                if(!name.startsWith(imagePrefix))continue;
+                String rest=name.substring(imagePrefix.length());
+                if(!rest.matches("[0-9]{4}-[0-9a-f]{64}\\.snapshot"))
+                    throw new IOException(
+                        "R60_MALFORMED_HISTORICAL_IMAGE_LEAF_NEGATIVE");
+                int sequence=Integer.parseInt(rest.substring(0,4));
+                if(sequence>currentImageSequence)continue;
+                actual.add(name);
+                if(actual.size()>MAX_SEQUENCE+1)
+                    throw new IOException(
+                        "R60_HISTORICAL_IMAGE_SET_UNBOUNDED_NEGATIVE");
+            }
+        }
+        if(!actual.equals(expected))
+            throw new IOException(
+                "R60_UNREFERENCED_HISTORICAL_IMAGE_NEGATIVE");
+    }
     private static void validateArchivedHeadHistory(
         Path a,Observation current,byte[] headBytes,
         java.util.List<String> receiptHashes
@@ -403,6 +441,8 @@ final class LocalReusableAccountEpochLab {
         Observation previous=null;
         String lastDigest=ZERO;
         byte[] lastBytes=null;
+        java.util.SortedSet<String> historicalImages=
+            new java.util.TreeSet<String>();
         for(int i=0;i<receiptHashes.size();i++){
             String expectedHash=receiptHashes.get(i);
             byte[] record=read(archivedHead(a,i,expectedHash),MAX_HEAD);
@@ -427,6 +467,7 @@ final class LocalReusableAccountEpochLab {
             }
             final Path snapshot=image(
                 a,historic.imageSequence,historic.imageSha);
+            historicalImages.add(snapshot.getFileName().toString());
             byte[] imageBytes;
             try{
                 imageBytes=read(snapshot,MAX_IMAGE);
@@ -458,6 +499,8 @@ final class LocalReusableAccountEpochLab {
         if(!expected.equals(archiveLeaves(a)))
             throw new IOException(
                 "R59_ARCHIVE_DIRECTORY_CHANGED_NEGATIVE");
+        requireExactHistoricalImageInventory(
+            a,current.imageSequence,historicalImages);
     }
     private static byte[] encode(Observation h)throws IOException{
         String canonical=MAGIC+"\n"+

@@ -14002,3 +14002,17 @@ tasks.register('archivedAccountHeadHistoryRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('archivedAccountHeadHistoryRegression')
 }
+
+// R60: every earlier reusable-LAB snapshot must be referenced by
+// validated historical HEAD bytes, not just present in the folder.
+tasks.register('historicalAccountImageInventoryRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject unreferenced old snapshot images while retaining R57 future-orphan semantics.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21388HistoricalAccountImageInventoryRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('historicalAccountImageInventoryRegression')
+}
