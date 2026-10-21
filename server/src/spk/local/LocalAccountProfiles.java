@@ -107,10 +107,31 @@ final class LocalAccountProfiles {
     }
 
     static String load(String username,BankState bank,EquipmentState equipment,MovementState movement,PetState pet,PlayerState player)throws IOException{
+        return loadSelected(username,bank,equipment,movement,pet,player,account->{});
+    }
+
+    /** R64: package-only deterministic mid-read evidence cutpoint. */
+    static String loadWithPostReadHookForTest(
+        String username,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace afterRead
+    )throws IOException{
+        return loadSelected(username,bank,equipment,movement,pet,player,afterRead);
+    }
+
+    private static String loadSelected(
+        String username,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace afterRead
+    )throws IOException{
+        Objects.requireNonNull(afterRead,"afterRead");
         String u=clean(username);
-        if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.load(bank,equipment,movement,pet,player);
+        if(PRIMARY.equalsIgnoreCase(u))
+            return AccountStore.loadWithPostReadHookForTest(
+                bank,equipment,movement,pet,player,afterRead);
 
         Path file=accountFile(u);
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
         if(!Files.isRegularFile(file)) return "ACCOUNT_DEFAULTS_NO_FILE file="+file+" profile="+u;
 
         Properties properties=new Properties();
@@ -122,6 +143,10 @@ final class LocalAccountProfiles {
                 properties
             );
 
+        afterRead.run(u);
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
+        if(!file.equals(accountFile(u)))
+            throw new IOException("R64_NAMED_ACCOUNT_PATH_DRIFT_DENIED");
         PlayerSnapshotSchemaV1.apply(
             snapshot.values(),
             bank,

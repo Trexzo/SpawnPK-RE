@@ -38,7 +38,29 @@ final class AccountStore {
     }
 
     static String load(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
-        Path file = accountFile();
+        return loadSelected(bank,equipment,movement,pet,player,account->{});
+    }
+
+    /** R64: package-only fault cutpoint after decoding, before apply. */
+    static String loadWithPostReadHookForTest(
+        BankState bank,EquipmentState equipment,MovementState movement,
+        PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace afterRead
+    )throws IOException{
+        return loadSelected(bank,equipment,movement,pet,player,afterRead);
+    }
+
+    private static String loadSelected(
+        BankState bank,EquipmentState equipment,MovementState movement,
+        PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace afterRead
+    )throws IOException{
+        java.util.Objects.requireNonNull(afterRead,"afterRead");
+        final Path file=accountFile();
+        // R64: retained R50 HEAD, G21.302 final witness and ANY
+        // R63 reusable LAB orphan veto even for missing-file/default
+        // paths. Do not consider a missing legacy file permission.
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
         if (!Files.isRegularFile(file)) return "NEW_ACCOUNT_DEFAULTS file=" + file;
 
         Properties properties = new Properties();
@@ -50,6 +72,12 @@ final class AccountStore {
                 properties
             );
 
+        afterRead.run(CANONICAL_USERNAME);
+        // Decode alone does not mutate gameplay state. Recheck the
+        // exact selected path before calling the mutating apply().
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
+        if(!file.equals(accountFile()))
+            throw new IOException("R64_PRIMARY_ACCOUNT_PATH_DRIFT_DENIED");
         PlayerSnapshotSchemaV1.apply(
             snapshot.values(),
             bank,

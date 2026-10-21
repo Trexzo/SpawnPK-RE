@@ -14058,3 +14058,17 @@ tasks.register('reusableLabLegacyVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('reusableLabLegacyVetoRegression')
 }
+
+// R64: direct legacy AccountStore/LocalAccountProfiles loads are not
+// permitted to ignore any retained negative LAB or R50 HEAD evidence.
+tasks.register('legacyDirectLoadNegativeEvidenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny negative legacy direct reads before defaults and after decode before mutation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21392LegacyDirectLoadNegativeEvidenceRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('legacyDirectLoadNegativeEvidenceRegression')
+}
