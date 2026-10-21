@@ -14142,3 +14142,18 @@ tasks.register('realWorldPreHeadIntentProcessKillRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('realWorldPreHeadIntentProcessKillRegression')
 }
+
+// R70: real World-capture negative HEAD hard-kill matrix: HEAD
+// file forced and directory forced before readback. Fresh JVM real
+// TCP and direct hydration must remain permanently nonadmitting.
+tasks.register('realWorldNegativeHeadProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Kill genuine World owner at forced negative HEAD boundaries and deny fresh TCP reconnect.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21398RealWorldNegativeHeadProcessKillRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldNegativeHeadProcessKillRegression')
+}
