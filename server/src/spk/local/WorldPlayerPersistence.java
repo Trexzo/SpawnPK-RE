@@ -547,14 +547,17 @@ final class WorldPlayerPersistence
      */
     private LocalJvmAccountSessionLease.SaveCaptureWitness
         captureOwnerLeaseWitness(
-            String username,WorldPlayer player,long generation
+            String username,WorldPlayer player,long generation,
+            PlayerSnapshot exactWorldCapture
         ){
         if(!(repository instanceof FilePlayerRepository))
             return null;
         java.nio.file.Path file=
             ((FilePlayerRepository)repository).accountFilePath(username);
+        // R85: bind original in-JVM witness to the exact immutable
+        // World-thread snapshot, not only the owner's generation.
         return LocalJvmAccountSessionLease.captureSaveWitness(
-            file,username,player,generation);
+            file,username,player,generation,exactWorldCapture);
     }
 
     /**
@@ -662,7 +665,8 @@ final class WorldPlayerPersistence
             cleanTag(tag),
             cleanReason(reason),
             false,
-            captureOwnerLeaseWitness(username,player,expectedGeneration)
+            captureOwnerLeaseWitness(
+                username,player,expectedGeneration,snapshot)
         );
     }
 
@@ -1335,7 +1339,7 @@ final class WorldPlayerPersistence
                         player,
                         generation,
                         captureOwnerLeaseWitness(
-                            username,player,generation)
+                            username,player,generation,snapshot)
                     );
 
                 synchronized(checkpointLock){
