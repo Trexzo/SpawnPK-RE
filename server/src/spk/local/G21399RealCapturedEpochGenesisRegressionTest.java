@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -27,6 +28,8 @@ import java.util.stream.Stream;
  * the session lock is retained, and a fresh default-off JVM must deny
  * both repository hydration and actual TCP login. No durable positive
  * epoch, final-save receipt, replay, release or power-loss proof.
+ * R77 adds a real-World child-JVM hard-kill at forced genesis archive
+ * before HEAD/intent. A fresh JVM must deny both loaders and TCP.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -96,7 +99,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             return in.read();
         }
     }
-    private static void freshProbe(Path root)throws Exception{
+    private static void freshProbe(Path root,boolean killed)
+        throws Exception{
         configure(root,false);
         Path account=LocalAccountProfiles.accountFile(USER);
         FilePlayerRepository repo=new FilePlayerRepository(
@@ -139,26 +143,49 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }catch(IOException invalid){
             locked=contains(invalid,"G21.185 ACCOUNT_SESSION_LOCK_BUSY");
         }
-        check(locked,"stranded original World released OS lock");
-        LocalReusableAccountEpochLab.Observation lab=
-            LocalReusableAccountEpochLab.inspect(account);
-        check(lab.sequence==0&&
-            lab.phase==LocalReusableAccountEpochLab.Phase.CLOSED&&
-            !lab.admissionAuthorized&&!lab.releaseAuthorized,
-            "fresh inspection misread LAB as positive admission");
-        System.out.println("R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"+
-            " defaultOffRepositoryDenied=true"+
-            " defaultOffLegacyDenied=true"+
-            " genuineTcpWorldDenied=true"+
-            " originalOsLockStillHeld=true"+
-            " noPositiveAdmission=true");
+        check(locked==!killed,
+            killed?"killed World OS lock was not released":
+                "stranded original World released OS lock");
+        if(killed){
+            check(!Files.exists(
+                    account.resolveSibling(
+                        account.getFileName().toString()+
+                        ".g21385-ledger-head"),LinkOption.NOFOLLOW_LINKS),
+                "pre-HEAD hard kill somehow published HEAD");
+            boolean absent=false;
+            try{LocalReusableAccountEpochLab.inspect(account);}
+            catch(IOException invalid){
+                absent=contains(invalid,
+                    "R57_NO_LEDGER_HEAD_MANUAL_REVIEW");
+            }
+            check(absent,
+                "orphan archive was treated as valid ledger genesis");
+            System.out.println("R77_FRESH_JVM_PRE_HEAD_ORPHAN_DENIED"+
+                " realTcpDenied=true"+
+                " oldAccountDenied=true"+
+                " originalOsLockReleasedAfterProcessKill=true"+
+                " headAbsentNoGrant=true");
+        }else{
+            LocalReusableAccountEpochLab.Observation lab=
+                LocalReusableAccountEpochLab.inspect(account);
+            check(lab.sequence==0&&
+                lab.phase==LocalReusableAccountEpochLab.Phase.CLOSED&&
+                !lab.admissionAuthorized&&!lab.releaseAuthorized,
+                "fresh inspection misread LAB as positive admission");
+            System.out.println("R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"+
+                " defaultOffRepositoryDenied=true"+
+                " defaultOffLegacyDenied=true"+
+                " genuineTcpWorldDenied=true"+
+                " originalOsLockStillHeld=true"+
+                " noPositiveAdmission=true");
+        }
     }
-    private static void probeInChild(Path root)throws Exception{
-        Path log=root.resolve("fresh.log");
+    private static void probeInChild(Path root,boolean killed)throws Exception{
+        Path log=root.resolve(killed?"killed-fresh.log":"fresh.log");
         ProcessBuilder b=new ProcessBuilder(
             javaExe(),"-cp",System.getProperty("java.class.path"),
             G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
-            "--fresh",root.toString());
+            killed?"--killed":"--fresh",root.toString());
         b.redirectErrorStream(true);
         b.redirectOutput(log.toFile());
         Process p=b.start();
@@ -170,7 +197,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         String output=new String(Files.readAllBytes(log),
             StandardCharsets.UTF_8);
         check(p.exitValue()==0&&output.contains(
-            "R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"),
+            killed?"R77_FRESH_JVM_PRE_HEAD_ORPHAN_DENIED":
+                "R76_FRESH_JVM_NEGATIVE_GENESIS_VETO_PASS"),
             "fresh JVM did not veto ledger: "+output);
     }
     private static WorldPlayerPersistence.CapturedSave capture(
@@ -304,7 +332,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "failed final incorrectly released session token");
             check(Arrays.equals(original,Files.readAllBytes(account)),
                 "failed final replaced historical legacy bytes");
-            probeInChild(root);
+            probeInChild(root,false);
             world.close();
             check(world.closed(),"original World could not close");
             System.out.println("R76_GENUINE_CAPTURE_BORROWED_EPOCH_GENESIS_PASS"+
@@ -329,12 +357,160 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             }
         }
     }
+    /** R77: a REAL TCP World dies with archive forced but HEAD absent. */
+    private static void killHolder(Path root,Path ready)throws Exception{
+        configure(root,true);
+        FilePlayerRepository repo=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        World world=World.isolatedForTest(50L,repo);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(world)){
+            try(Socket client=server.login(USER)){
+                await(()->world.players().byName(USER)!=null,
+                    "R77 real World owner registration");
+                WorldPlayer owner=world.players().byName(USER);
+                long generation=owner.generation();
+                check(generation>0&&
+                    LocalJvmAccountSessionLease.activeCountForTest()==1,
+                    "R77 real World original lock not owned");
+                world.submit(owner,generation,()->
+                    owner.snapshotExtensions().replaceNamespace(
+                        "r77_killed",
+                        Collections.singletonMap("phase","POST_BOOT"))
+                ).get(5,TimeUnit.SECONDS);
+                WorldPlayerPersistence.CapturedSave capture=
+                    capture(world,owner,generation);
+                check("POST_BOOT".equals(
+                    capture.ticket.snapshot.value(
+                        "extension.r77_killed.phase")),
+                    "R77 immutable actual World mutation absent");
+                LocalJvmAccountSessionLease
+                    .initializeCapturedEpochGenesisUnderOriginalLockForLab(
+                        LocalAccountProfiles.accountFile(USER),
+                        owner,generation,capture.ticket.snapshot,
+                        capture.ownerWitness,stage->{
+                            if(stage!=LocalReusableAccountEpochLab.Stage
+                                    .ARCHIVED_HEAD_FORCED)
+                                return;
+                            Files.write(ready,new byte[]{1},
+                                StandardOpenOption.CREATE_NEW);
+                            System.out.println(
+                                "R77_REAL_WORLD_GENESIS_ARCHIVE_FORCED");
+                            System.out.flush();
+                            try{Thread.sleep(120000L);}
+                            catch(InterruptedException interrupted){
+                                Thread.currentThread().interrupt();
+                                throw new IOException(
+                                    "R77_HOLDER_INTERRUPTED",interrupted);
+                            }
+                            throw new AssertionError(
+                                "R77_HOLDER_MUST_BE_KILLED");
+                        });
+            }
+        }finally{
+            if(!world.closed())world.close();
+        }
+        throw new AssertionError("R77 holder returned unexpectedly");
+    }
+
+    private static void runKilledGenesis()throws Exception{
+        Path root=Files.createTempDirectory("r77-killed-genesis-");
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY
+        };
+        String[] before=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            before[i]=System.getProperty(flags[i]);
+        Process holder=null;
+        try{
+            configure(root,false);
+            FilePlayerRepository repo=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            repo.save(PlayerSnapshotCodec.capture(USER,new WorldPlayer()));
+            Path account=LocalAccountProfiles.accountFile(USER);
+            byte[] baseline=Files.readAllBytes(account);
+            check(baseline.length>0,"pre-kill legacy baseline missing");
+            Path ready=root.resolve("ready.flag");
+            Path log=root.resolve("holder.log");
+            ProcessBuilder builder=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+                "--kill-holder",root.toString(),ready.toString());
+            builder.redirectErrorStream(true);
+            builder.redirectOutput(log.toFile());
+            holder=builder.start();
+            final Process running=holder;
+            await(()->Files.exists(ready,LinkOption.NOFOLLOW_LINKS)||
+                !running.isAlive(),"original World genesis archive cutpoint");
+            String capturedLog=new String(Files.readAllBytes(log),
+                StandardCharsets.UTF_8);
+            check(Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                running.isAlive()&&capturedLog.contains(
+                    "R77_REAL_WORLD_GENESIS_ARCHIVE_FORCED"),
+                "holder missed forced pre-HEAD cutpoint: "+capturedLog);
+            holder.destroyForcibly();
+            check(holder.waitFor(10,TimeUnit.SECONDS),
+                "hard-killed World process did not exit");
+            check(holder.exitValue()!=0,"holder exited normally");
+            check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                "pre-HEAD hard kill rewrote original account bytes");
+
+            boolean negative=false;
+            try{
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+            }catch(IOException evidence){
+                negative=contains(evidence,NEGATIVE);
+            }
+            check(negative,
+                "orphan forced archive did not create negative evidence");
+            // Independent JVM uses default-OFF legacy and actual TCP
+            // and proves the killed holder's OS lock was released.
+            probeInChild(root,true);
+            check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                "fresh-JVM negative probes mutated old account bytes");
+            System.out.println("R77_GENUINE_WORLD_GENESIS_PRE_HEAD_KILL_PASS"+
+                " originalWorldOwnerCaptured=true"+
+                " archiveForcedBeforeHead=true"+
+                " originalProcessHardKilled=true"+
+                " orphanArchivePermanentlyNegative=true"+
+                " freshJvmTcpAndLegacyDenied=true"+
+                " oldAccountBytesUnchanged=true"+
+                " noPositiveRecoveryOrPowerLossClaim=true");
+        }finally{
+            if(holder!=null&&holder.isAlive()){
+                holder.destroyForcibly();
+                holder.waitFor(10,TimeUnit.SECONDS);
+            }
+            for(int i=0;i<flags.length;i++){
+                if(before[i]==null)System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],before[i]);
+            }
+            try(Stream<Path> files=Files.walk(root)){
+                for(Path path:files.sorted(Comparator.reverseOrder())
+                    .toArray(Path[]::new))Files.deleteIfExists(path);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
-        if(args.length==2&&"--fresh".equals(args[0])){
-            freshProbe(Paths.get(args[1]));
+        if(args.length==2&&("--fresh".equals(args[0])||
+                            "--killed".equals(args[0]))){
+            freshProbe(Paths.get(args[1]),"--killed".equals(args[0]));
+            return;
+        }
+        if(args.length==3&&"--kill-holder".equals(args[0])){
+            killHolder(Paths.get(args[1]),Paths.get(args[2]));
             return;
         }
         check(args.length==0,"unexpected args");
         exercise();
+        runKilledGenesis();
     }
 }
