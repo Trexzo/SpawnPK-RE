@@ -14129,6 +14129,21 @@ tasks.named('build') {
     dependsOn tasks.named('realCapturedNegativeFinalIntentRegression')
 }
 
+// R76: genuine immutable World-captured snapshot initializes a detached
+// R57 epoch genesis under its ORIGINAL G21.185 FileLock. Nonadmitting
+// permanent-negative legacy and genuine fresh-JVM TCP veto only.
+tasks.register('realCapturedBorrowedEpochGenesisRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify genuine World capture seeds nonadmitting ledger under original lock; fresh JVM must deny.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21399RealCapturedEpochGenesisRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realCapturedBorrowedEpochGenesisRegression')
+}
+
 // R69: hard-kill the *real TCP World* after forcing captured R50
 // image, before HEAD, and deny old account from independent restart.
 tasks.register('realWorldPreHeadIntentProcessKillRegression', JavaExec) {
