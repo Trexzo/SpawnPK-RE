@@ -645,6 +645,10 @@ final class LocalJvmAccountSessionLease {
         // owner token and never permission to release this lease.
         private LocalReusableAccountEpochLab.Observation
             capturedOwnedLabEpoch;
+        // R82: original-token-only LAB pending provenance; not an
+        // acknowledgment or authority to release/account handoff.
+        private LocalReusableAccountEpochLab.Observation
+            capturedPendingLabEpoch;
 
         private Token(
             Path path,String account,
@@ -787,6 +791,7 @@ final class LocalJvmAccountSessionLease {
                 admittedWorldOwner=null;
                 admittedWorldGeneration=0L;
                 capturedOwnedLabEpoch=null;
+                capturedPendingLabEpoch=null;
             }
         }
     }
@@ -1749,9 +1754,129 @@ final class LocalJvmAccountSessionLease {
                     throw new java.io.IOException(
                         "R79_WORLD_OWNER_CHANGED_AFTER_PREPARE",stale);
                 }
-                // Deliberately preserve original lock and in-JVM
-                // negative token: final settlement is NOT enabled.
+                // Token assignment happens only after the forced,
+                // read-back lab transition. If interrupted before
+                // assignment, the persistent LAB remains negative.
+                if(token.capturedPendingLabEpoch!=null)
+                    throw new java.io.IOException(
+                        "R82_LAB_PENDING_ALREADY_BOUND");
+                token.capturedPendingLabEpoch=pending;
+                // Keep the original lock. No real final-save ACK.
                 return pending;
+            });
+        }
+    }
+
+    /**
+     * R82: complete only the DETACHED nonadmitting R57 ledger with
+     * a later immutable World-captured domain snapshot (not legacy
+     * account-file bytes). The original live World final save is
+     * deliberately NOT performed by this method.
+     *
+     * This requires the real G21.202 capture Token, original held
+     * G21.185 FileLock, exact R79 pending sequence/nonce and a
+     * distinct subsequently captured image. A consistent CLOSED
+     * ledger is still permanent R63 NEGATIVE evidence for all real
+     * World admissions and saves: do not release, replay or recover.
+     */
+    static final String CAPTURED_EPOCH_SETTLE_LAB_PROPERTY=
+        "spk.local.experimentalCapturedEpochSettlementLab";
+
+    static LocalReusableAccountEpochLab.Observation
+    settleCapturedEpochUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot finalCapture,SaveCaptureWitness finalWitness
+    )throws java.io.IOException{
+        if(!Boolean.getBoolean(CAPTURED_EPOCH_SETTLE_LAB_PROPERTY)||
+           !Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY)||
+           !Boolean.getBoolean(CAPTURED_EPOCH_CLAIM_LAB_PROPERTY)||
+           !Boolean.getBoolean(CAPTURED_EPOCH_GENESIS_LAB_PROPERTY))
+            throw new java.io.IOException(
+                "R82_CAPTURED_EPOCH_SETTLEMENT_LAB_DEFAULT_OFF");
+        Objects.requireNonNull(accountFile,"accountFile");
+        Objects.requireNonNull(finalCapture,"finalCapture");
+        final Path selected=accountFile.toAbsolutePath().normalize();
+        if(!Boolean.getBoolean(PROPERTY)||
+           !Boolean.getBoolean(LocalCrossJvmAccountSessionLock.PROPERTY)||
+           !Boolean.getBoolean(
+               LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY))
+            throw new java.io.IOException(
+                "R82_REQUIRES_ACTUAL_SESSION_ORIGINAL_OS_LOCK");
+        if(finalWitness==null||finalWitness.priorUnleased||
+           finalWitness.originalLease==null||owner==null||
+           finalWitness.owner!=owner||
+           finalWitness.generation!=generation||
+           !selected.equals(finalWitness.path)||
+           !finalWitness.account.equals(finalCapture.username()))
+            throw new java.io.IOException(
+                "R82_CAPTURE_WITNESS_NOT_ORIGINAL_OWNER");
+        final Token token;
+        synchronized(active){token=active.get(selected);}
+        if(token==null||token!=finalWitness.originalLease)
+            throw new java.io.IOException(
+                "R82_ORIGINAL_SESSION_TOKEN_RELEASED_OR_REPLACED");
+        synchronized(token){
+            try{
+                token.requireCapturedSaveOwner(
+                    owner,generation,finalCapture.username());
+            }catch(IllegalStateException invalid){
+                throw new java.io.IOException(
+                    "R82_CAPTURE_OWNER_GENERATION_STALE",invalid);
+            }
+            if(token.processLock==null)
+                throw new java.io.IOException(
+                    "R82_CAPTURED_OWNER_MISSING_ORIGINAL_OS_LOCK");
+            LocalReusableAccountEpochLab.Observation remembered=
+                token.capturedPendingLabEpoch;
+            if(remembered==null)
+                throw new java.io.IOException(
+                    "R82_NO_ORIGINAL_AUTHENTICATED_PENDING_TOKEN");
+            return token.processLock.withHeldOriginalAccount(selected,()->{
+                LocalReusableAccountEpochLab.Observation disk=
+                    LocalReusableAccountEpochLab.inspect(selected);
+                if(disk.sequence!=2||disk.sequence!=remembered.sequence||
+                   disk.epoch!=remembered.epoch||
+                   disk.phase!=LocalReusableAccountEpochLab
+                       .Phase.FINAL_PENDING||
+                   disk.worldGeneration!=generation||
+                   !disk.ownerNonce.equals(remembered.ownerNonce)||
+                   !disk.imageSha.equals(remembered.imageSha)||
+                   disk.imageLength!=remembered.imageLength)
+                    throw new java.io.IOException(
+                        "R82_PENDING_DISK_NOT_ORIGINAL_TOKEN");
+                LocalCapturedWorldSnapshotFingerprintLab.Observation proof=
+                    LocalCapturedWorldSnapshotFingerprintLab.fingerprint(
+                        selected,finalCapture,generation);
+                if(proof.canonicalSha256.equals(remembered.imageSha))
+                    throw new java.io.IOException(
+                        "R82_FINAL_SNAPSHOT_NOT_DISTINCT_FROM_PENDING");
+                byte[] image=LocalCapturedWorldSnapshotFingerprintLab
+                    .canonicalBytes(selected,finalCapture,generation);
+                LocalReusableAccountEpochLab.Observation closed=
+                    LocalReusableAccountEpochLab
+                        .settleLabFinalUnderHeldAccountLock(
+                            selected,token.processLock,
+                            remembered.sequence,generation,
+                            remembered.ownerNonce,image,stage->{});
+                if(closed.sequence!=3||closed.epoch!=remembered.epoch||
+                   closed.phase!=LocalReusableAccountEpochLab.Phase.CLOSED||
+                   closed.worldGeneration!=0||
+                   !"none".equals(closed.ownerNonce)||
+                   !closed.imageSha.equals(proof.canonicalSha256)||
+                   closed.imageLength!=proof.canonicalBytes||
+                   closed.admissionAuthorized||closed.releaseAuthorized)
+                    throw new java.io.IOException(
+                        "R82_LAB_CLOSED_NOT_A_REAL_FINAL_RECEIPT");
+                try{
+                    token.requireCapturedSaveOwner(
+                        owner,generation,finalCapture.username());
+                }catch(IllegalStateException stale){
+                    throw new java.io.IOException(
+                        "R82_WORLD_OWNER_CHANGED_AFTER_SETTLEMENT",stale);
+                }
+                // Keep the JVM token and original OS lock held.
+                // This is LAB history, NEVER real final-save ACK.
+                return closed;
             });
         }
     }
