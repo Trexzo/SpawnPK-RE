@@ -2198,6 +2198,14 @@ final class LocalJvmAccountSessionLease {
             this.finalDisconnectCapture=finalDisconnectCapture;
             this.finalReservationAtCapture=finalReservationAtCapture;
         }
+
+        // R101 regression-only observation; it cannot publish,
+        // acknowledge or extend any reservation.
+        boolean originalFinalReservationStillPresentForLabTest(){
+            return finalReservationAtCapture!=null&&
+                finalReservationAtCapture
+                    .isOriginalReservationStillPresentForLab();
+        }
     }
 
     /**

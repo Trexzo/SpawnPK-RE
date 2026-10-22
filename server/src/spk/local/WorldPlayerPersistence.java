@@ -306,6 +306,11 @@ final class WorldPlayerPersistence
     // than merely the same owner's generation. Guarded by io.
     private final IdentityHashMap<WorldPlayer,ReservedFinalSaveTask>
         finalReservationTasksForLab=new IdentityHashMap<>();
+    // R101: monotonic shutdown latch. The original FIFO witness is
+    // observed without the io monitor while a separate World Token
+    // is held, so closing must invalidate it before executor shutdown.
+    // This remains a best-effort forensic veto, not a durable pin.
+    private volatile boolean labFinalReservationsShutdown;
 
     static final class FinalReservationEvidenceForLab {
         private final WorldPlayerPersistence persistence;
@@ -328,7 +333,8 @@ final class WorldPlayerPersistence
             // acquisition when settlement holds the owner Token.
             // A replacement reservation is a distinct Task object,
             // and can never revive this captured witness.
-            return originalTask.labReservationActive&&
+            return !persistence.labFinalReservationsShutdown&&
+                originalTask.labReservationActive&&
                 originalTask.owner==owner&&
                 originalTask.ownerGeneration==generation;
         }
@@ -5063,10 +5069,14 @@ final class WorldPlayerPersistence
         if(!Thread.holdsLock(io))
             throw new IllegalStateException(
                 "R98_PERSISTENCE_SHUTDOWN_REQUIRES_IO_MONITOR");
-        io.shutdown();
+        // Publish the global negative latch FIRST, while admission
+        // is excluded by io. A lock-free LAB witness must not read
+        // active between executor shutdown and per-task revocation.
+        labFinalReservationsShutdown=true;
         for(ReservedFinalSaveTask task:
                 finalReservationTasksForLab.values())
             task.labReservationActive=false;
+        io.shutdown();
     }
 
     /** R98 package-only bounded test of the real shutdown admission step. */

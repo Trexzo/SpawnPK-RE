@@ -1618,6 +1618,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 check("LATER".equals(last.ticket.snapshot.value(
                     "extension.r83_final.phase")),
                     "R83 actual later World capture missing");
+                if(shutdownAtCutpoint)
+                    check(last.ownerWitness
+                            .originalFinalReservationStillPresentForLabTest(),
+                        "R101 original FIFO was not live before shutdown");
                 boolean revocationDenied=false;
                 try{
                     LocalJvmAccountSessionLease
@@ -1634,6 +1638,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                     else
                                         world.persistence()
                                             .beginLabShutdownForTest();
+                                    check(!last.ownerWitness
+                                            .originalFinalReservationStillPresentForLabTest(),
+                                        "R101 shutdown left captured FIFO witness live");
                                     return;
                                 }
                                 if(disableAtCutpoint){
@@ -1694,6 +1701,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 if(shutdownAtCutpoint){
                     check(revocationDenied,
                         "R98 shutting down persistence did not veto LAB");
+                    check(!last.ownerWitness
+                            .originalFinalReservationStillPresentForLabTest(),
+                        "R101 shutdown witness revived after settlement veto");
                     check(LocalJvmAccountSessionLease
                             .activeCountForTest()==1,
                         "R98 shutdown released original World lease");
