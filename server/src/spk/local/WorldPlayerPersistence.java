@@ -1180,7 +1180,11 @@ final class WorldPlayerPersistence
                 owner
             );
 
-        if(expectedTask!=null&&
+        // R91.6: a direct/unreserved final SaveTask has NO right
+        // to retire a real FIFO slot. Generation matching alone
+        // would let an unrelated final task clear another task's
+        // still-active reservation and its ordinary-save fence.
+        if(expectedTask==null||
            finalReservationTasksForLab.get(owner)!=expectedTask)
             return;
         if(existing!=null&&
