@@ -1135,8 +1135,14 @@ final class WorldPlayerPersistence
     }
 
     private void clearFinalReservationLocked(
-        WorldPlayer owner,
-        long expectedGeneration
+        WorldPlayer owner,long expectedGeneration
+    ){
+        clearFinalReservationLocked(owner,expectedGeneration,null);
+    }
+
+    private void clearFinalReservationLocked(
+        WorldPlayer owner,long expectedGeneration,
+        ReservedFinalSaveTask expectedTask
     ){
         if(!Thread.holdsLock(io))
             throw new IllegalStateException(
