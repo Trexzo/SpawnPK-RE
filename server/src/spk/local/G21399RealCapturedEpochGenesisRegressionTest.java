@@ -1469,6 +1469,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
         boolean revokeAtCutpoint
     )throws Exception{
+        settleKillHolder(root,ready,target,revokeAtCutpoint,false);
+    }
+
+    private static void settleKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
+        boolean revokeAtCutpoint,boolean revokeAfterReadback
+    )throws Exception{
         configure(root,true);
         System.setProperty(
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
@@ -1549,6 +1556,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                     abortLabFinal(last);
                                     return;
                                 }
+                                // R95 must pass through the final
+                                // receipt-force callback, let the
+                                // LAB inspect/owner checks finish, and
+                                // only THEN revoke its original FIFO.
+                                if(revokeAfterReadback)return;
                                 System.out.println(
                                     "R83_WORLD_SETTLEMENT_FORCED_"+target);
                                 System.out.flush();
@@ -1564,11 +1576,41 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                 }
                                 throw new AssertionError(
                                     "R83_HOLDER_MUST_BE_KILLED");
+                            },()->{
+                                if(revokeAfterReadback)
+                                    abortLabFinal(last);
                             });
                 }catch(IOException denied){
-                    if(!revokeAtCutpoint)throw denied;
+                    if(!revokeAtCutpoint&&!revokeAfterReadback)
+                        throw denied;
                     revocationDenied=contains(denied,
-                        "R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                        revokeAfterReadback
+                            ?"R94_FINAL_RESERVATION_REVOKED_BEFORE_LAB_RESULT"
+                            :"R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                }
+                if(revokeAfterReadback){
+                    check(revocationDenied,
+                        "R95 original FIFO revoked after inspection "+
+                            "but LAB result returned");
+                    check(LocalJvmAccountSessionLease
+                            .activeCountForTest()==1,
+                        "R95 after-inspection revocation released lease");
+                    Path head=account.resolveSibling(
+                        account.getFileName()+".g21385-ledger-head");
+                    String bytes=new String(Files.readAllBytes(head),
+                        StandardCharsets.US_ASCII);
+                    check(bytes.contains("sequence=3\n")&&
+                        bytes.contains("phase=CLOSED\n"),
+                        "R95 complete LAB receipt missing CLOSED head");
+                    System.out.println(
+                        "R95_WORLD_POSTREADBACK_REVOCATION_VETO_PASS"+
+                        " allJournalReadbacksFinished=true"+
+                        " originalFifoRevokedAfterInspect=true"+
+                        " labResultWithheld=true"+
+                        " originalSessionLockHeld=true"+
+                        " noRealFinalACKOrRecovery=true");
+                    System.out.flush();
+                    return;
                 }
                 if(revokeAtCutpoint){
                     check(revocationDenied,
