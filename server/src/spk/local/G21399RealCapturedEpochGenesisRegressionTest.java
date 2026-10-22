@@ -87,6 +87,26 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             (System.getProperty("os.name","").toLowerCase().contains("win")
                 ?"java.exe":"java");
     }
+    /** R97: strict inventory of the four independently required
+     *  opt-in knobs, never an arbitrary JVM system property. */
+    private static String[] settlementExperimentFlags(){
+        return new String[]{
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+    }
+
+    private static String checkedSettlementExperimentFlag(
+        String requested
+    ){
+        for(String allowed:settlementExperimentFlags())
+            if(allowed.equals(requested))return allowed;
+        throw new IllegalArgumentException(
+            "R97_UNREVIEWED_SETTLEMENT_FLAG");
+    }
+
     private static void configure(Path root,boolean enabled){
         System.setProperty("spk.local.accountFile",
             root.resolve("opensrc.properties").toString());
