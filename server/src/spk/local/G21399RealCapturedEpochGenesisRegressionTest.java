@@ -320,9 +320,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             "not genuine immutable G21.202 World capture");
         return captured;
     }
-    /** R89: genuine World-thread final-disconnect SNAPSHOT CAPTURE,
-     * never a submitted final write, ACK, retirement or recovery. */
-    private static WorldPlayerPersistence.CapturedSave captureFinal(
+    /** R89: real World-thread deferred FINAL snapshot capture only.
+     * This unreserved variant must fail the new R90 LAB settlement. */
+    private static WorldPlayerPersistence.CapturedSave
+    captureFinalWithoutReservation(
         World world,WorldPlayer owner,long generation
     )throws Exception{
         AtomicReference<WorldPlayerPersistence.CapturedSave> result=
@@ -338,6 +339,26 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             "R89 not a genuine deferred final-disconnect World capture");
         return captured;
     }
+
+    /**
+     * R90: bind a real World deferred-final capture to the existing
+     * owner/generation FIFO final slot. We ABORT the slot without ever
+     * publishing it; the LAB snapshot is forensic-only, not a save.
+     */
+    private static WorldPlayerPersistence.CapturedSave captureFinal(
+        World world,WorldPlayer owner,long generation
+    )throws Exception{
+        WorldPlayerPersistence.FinalSaveReservation reserved=
+            world.persistence().reserveFinalSaveWithBackpressure(
+                owner,generation,5000L);
+        try{
+            return captureFinalWithoutReservation(world,owner,generation);
+        }finally{
+            reserved.abort(new IllegalStateException(
+                "R90_LAB_FINAL_RESERVATION_ABORT_NO_PUBLICATION"));
+        }
+    }
+
     private static void exercise()throws Exception{
         Path root=Files.createTempDirectory("r76-real-genesis-");
         String[] names={
@@ -719,6 +740,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         capture(world,owner,generation);
                     check(!ordinary.finalDisconnect,
                         "ordinary World capture mislabeled final");
+                    // Genuine World final captures without a queued
+                    // owner-bound reservation are also insufficient.
+                    WorldPlayerPersistence.CapturedSave unreserved=
+                        captureFinalWithoutReservation(
+                            world,owner,generation);
+                    check(unreserved.finalDisconnect,
+                        "unreserved negative was not an actual final capture");
                     WorldPlayerPersistence.CapturedSave later=
                         captureFinal(world,owner,generation);
                     check("AFTER_PENDING".equals(
@@ -761,6 +789,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(ordinaryDenied,
                         "ordinary World capture settled final LAB image");
+                    boolean unreservedDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                unreserved.ticket.snapshot,
+                                unreserved.ownerWitness);
+                    }catch(IOException denied){
+                        unreservedDenied=contains(denied,
+                            "R90_FINAL_CAPTURE_WITHOUT_ACTIVE_RESERVATION");
+                    }
+                    check(unreservedDenied,
+                        "unreserved genuine World final captured LAB settlement");
                     boolean forgedSettle=false;
                     try{
                         LocalJvmAccountSessionLease
@@ -899,6 +940,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R90_REAL_FINAL_FIFO_RESERVATION_LAB_PASS"+
+                " genuineUnreservedFinalRejected=true"+
+                " realOwnerBoundFinalFIFOAtCapture=true"+
+                " labFinalSlotAbortedWithoutPublication=true"+
+                " noFinalSaveACKOrLeaseRelease=true"+
+                " negativeAdmissionRemains=true");
             System.out.println("R89_FINAL_DISCONNECT_CAPTURE_CLASS_PASS"+
                 " ordinaryPostPrepareWorldCaptureDenied=true"+
                 " realDeferredFinalCaptureAcceptedLabOnly=true"+
