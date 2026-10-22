@@ -1896,9 +1896,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     private static void runRevokedSettlement(
         LocalReusableAccountEpochLab.Stage stage
     )throws Exception{
+        runRevokedSettlement(stage,false);
+    }
+
+    private static void runRevokedSettlement(
+        LocalReusableAccountEpochLab.Stage stage,boolean afterReadback
+    )throws Exception{
+        if(afterReadback&&stage!=
+                LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED)
+            throw new IllegalArgumentException(
+                "R95_REQUIRES_RECEIPT_FORCED");
         Path root=Files.createTempDirectory(
-            "r93-revoked-"+stage.name().toLowerCase(
-                java.util.Locale.ROOT)+"-");
+            (afterReadback?"r95-post-inspection-":"r93-revoked-")+
+            stage.name().toLowerCase(java.util.Locale.ROOT)+"-");
         String[] flags={
             "spk.local.accountFile",
             LocalJvmAccountSessionLease.PROPERTY,
@@ -1923,7 +1933,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             ProcessBuilder holder=new ProcessBuilder(
                 javaExe(),"-cp",System.getProperty("java.class.path"),
                 G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
-                "--settlement-revoked",root.toString(),stage.name());
+                afterReadback?"--settlement-post-readback-revoked"
+                    :"--settlement-revoked",
+                root.toString(),stage.name());
             holder.redirectErrorStream(true);
             holder.redirectOutput(holderLog.toFile());
             Process p=holder.start();
@@ -1935,8 +1947,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             String trace=new String(Files.readAllBytes(holderLog),
                 StandardCharsets.UTF_8);
             check(p.exitValue()==0&&trace.contains(
-                "R92_WORLD_FORCE_REVOCATION_VETO_PASS stage="+stage),
-                "R93 original World settlement did not fail closed: "+
+                afterReadback
+                    ?"R95_WORLD_POSTREADBACK_REVOCATION_VETO_PASS"
+                    :"R92_WORLD_FORCE_REVOCATION_VETO_PASS stage="+stage),
+                "R93/R95 original World settlement did not fail closed: "+
                     stage+" "+trace);
             check(Arrays.equals(baseline,Files.readAllBytes(account)),
                 "R92 aborted settlement rewrote legacy account");
@@ -2025,10 +2039,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             check(fresh.exitValue()==0&&result.contains(
                 "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
                 "R92 fresh JVM did not refuse partial settlement: "+result);
-            System.out.println("R93_REVOKED_SETTLEMENT_FRESH_JVM_PASS"+
+            System.out.println(
+                (afterReadback
+                    ?"R95_POSTREADBACK_REVOKED_FRESH_JVM_PASS"
+                    :"R93_REVOKED_SETTLEMENT_FRESH_JVM_PASS")+
                 " stage="+stage+
                 " originalWorldAndFifo=true"+
-                " originalReservationRevokedAtStage=true"+
+                " reservationRevokedAfterInspect="+afterReadback+
                 " exactSevenStageInventory=true"+
                 " headMoved="+headMoved+
                 " receiptForced="+receiptForced+
@@ -2067,6 +2084,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         if(args.length==4&&"--prepare-holder".equals(args[0])){
             prepareKillHolder(Paths.get(args[1]),Paths.get(args[2]),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==3&&
+                "--settlement-post-readback-revoked".equals(args[0])){
+            settleKillHolder(Paths.get(args[1]),
+                Paths.get(args[1]).resolve("unused-ready"),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[2]),
+                false,true);
             return;
         }
         if(args.length==3&&"--settlement-revoked".equals(args[0])){
@@ -2110,5 +2135,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         for(LocalReusableAccountEpochLab.Stage stage:
                 LocalReusableAccountEpochLab.Stage.values())
             runRevokedSettlement(stage);
+        // R95: distinct completion/readback window AFTER the last
+        // receipt force callback, BEFORE returning any LAB result.
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,true);
     }
 }
