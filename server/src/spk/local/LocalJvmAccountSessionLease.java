@@ -1822,10 +1822,14 @@ final class LocalJvmAccountSessionLease {
             accountFile,owner,generation,finalCapture,finalWitness,stage->{});
     }
 
+    @FunctionalInterface
+    interface AfterLabInspectionForTest {
+        void reached()throws java.io.IOException;
+    }
+
     /**
-     * R83 package-only exact filesystem force cutpoint. It is
-     * invoked under the original real World Token/OS lock and
-     * cannot grant admission, final ACK or release authority.
+     * Original package-only R83 cutpoint. Production LAB callers
+     * have no post-inspection hook; no live publication is involved.
      */
     static LocalReusableAccountEpochLab.Observation
     settleCapturedEpochUnderOriginalLockForLab(
@@ -1833,8 +1837,29 @@ final class LocalJvmAccountSessionLease {
         PlayerSnapshot finalCapture,SaveCaptureWitness finalWitness,
         LocalReusableAccountEpochLab.Cutpoint cutpoint
     )throws java.io.IOException{
+        return settleCapturedEpochUnderOriginalLockForLab(
+            accountFile,owner,generation,finalCapture,finalWitness,
+            cutpoint,()->{});
+    }
+
+    /**
+     * R95: bounded TEST-only seam between fully inspected detached
+     * LAB receipt and R94's final original-reservation liveness read.
+     * It is available only through the same default-OFF LAB gate
+     * and original World Token/OS account lock. It cannot publish
+     * an account, release a token, or authorize successor admission.
+     */
+    static LocalReusableAccountEpochLab.Observation
+    settleCapturedEpochUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot finalCapture,SaveCaptureWitness finalWitness,
+        LocalReusableAccountEpochLab.Cutpoint cutpoint,
+        AfterLabInspectionForTest afterInspection
+    )throws java.io.IOException{
         if(cutpoint==null)
             throw new java.io.IOException("R83_NULL_SETTLEMENT_CUTPOINT");
+        if(afterInspection==null)
+            throw new java.io.IOException("R95_NULL_AFTER_INSPECTION");
         if(!Boolean.getBoolean(CAPTURED_EPOCH_SETTLE_LAB_PROPERTY)||
            !Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY)||
            !Boolean.getBoolean(CAPTURED_EPOCH_CLAIM_LAB_PROPERTY)||
@@ -1974,6 +1999,11 @@ final class LocalJvmAccountSessionLease {
                     throw new java.io.IOException(
                         "R82_WORLD_OWNER_CHANGED_AFTER_SETTLEMENT",stale);
                 }
+                // R95: deterministic fault injection AFTER a full
+                // LAB journal readback and original-owner check, but
+                // BEFORE the final monotonic reservation liveness
+                // read. No positive save ACK is issued here.
+                afterInspection.reached();
                 // R94: the receipt-force callback is NOT the end
                 // of filesystem verification. Check exact-original
                 // reservation liveness once more after the journal
