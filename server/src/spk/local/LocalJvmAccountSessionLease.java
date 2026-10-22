@@ -1813,6 +1813,22 @@ final class LocalJvmAccountSessionLease {
     static final String CAPTURED_EPOCH_SETTLE_LAB_PROPERTY=
         "spk.local.experimentalCapturedEpochSettlementLab";
 
+    /**
+     * R96: all four experimental producers must remain enabled
+     * throughout a detached LAB transition. A mid-journal opt-out
+     * aborts the LAB operation without granting any positive rights.
+     * It cannot undo already-forced NEGATIVE forensic artifacts.
+     */
+    private static void requireSettlementLabStillEnabled()
+        throws java.io.IOException{
+        if(!Boolean.getBoolean(CAPTURED_EPOCH_SETTLE_LAB_PROPERTY)||
+           !Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY)||
+           !Boolean.getBoolean(CAPTURED_EPOCH_CLAIM_LAB_PROPERTY)||
+           !Boolean.getBoolean(CAPTURED_EPOCH_GENESIS_LAB_PROPERTY))
+            throw new java.io.IOException(
+                "R96_SETTLEMENT_LAB_DISABLED_DURING_TRANSITION");
+    }
+
     static LocalReusableAccountEpochLab.Observation
     settleCapturedEpochUnderOriginalLockForLab(
         Path accountFile,WorldPlayer owner,long generation,
@@ -1967,11 +1983,13 @@ final class LocalJvmAccountSessionLease {
                 // This remains a best-effort LAB stage guard, not
                 // an atomic pin, durable ACK or recovery grant.
                 LocalReusableAccountEpochLab.Cutpoint watched=stage->{
+                    requireSettlementLabStillEnabled();
                     if(!finalWitness.finalReservationAtCapture
                             .isOriginalReservationStillPresentForLab())
                         throw new java.io.IOException(
                             "R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
                     cutpoint.reached(stage);
+                    requireSettlementLabStillEnabled();
                     if(!finalWitness.finalReservationAtCapture
                             .isOriginalReservationStillPresentForLab())
                         throw new java.io.IOException(
@@ -2004,6 +2022,7 @@ final class LocalJvmAccountSessionLease {
                 // BEFORE the final monotonic reservation liveness
                 // read. No positive save ACK is issued here.
                 afterInspection.reached();
+                requireSettlementLabStillEnabled();
                 // R94: the receipt-force callback is NOT the end
                 // of filesystem verification. Check exact-original
                 // reservation liveness once more after the journal
