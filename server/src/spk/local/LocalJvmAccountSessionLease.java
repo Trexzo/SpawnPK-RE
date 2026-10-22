@@ -1974,6 +1974,16 @@ final class LocalJvmAccountSessionLease {
                     throw new java.io.IOException(
                         "R82_WORLD_OWNER_CHANGED_AFTER_SETTLEMENT",stale);
                 }
+                // R94: the receipt-force callback is NOT the end
+                // of filesystem verification. Check exact-original
+                // reservation liveness once more after the journal
+                // reread and owner check, immediately before giving
+                // even a nonadmitting LAB Observation to the caller.
+                // No atomic pin or live ACK is inferred from this.
+                if(!finalWitness.finalReservationAtCapture
+                        .isOriginalReservationStillPresentForLab())
+                    throw new java.io.IOException(
+                        "R94_FINAL_RESERVATION_REVOKED_BEFORE_LAB_RESULT");
                 // Keep the JVM token and original OS lock held.
                 // This is LAB history, NEVER real final-save ACK.
                 return closed;
