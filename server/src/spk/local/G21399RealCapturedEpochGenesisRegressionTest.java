@@ -50,6 +50,8 @@ import java.util.stream.Stream;
  * capture began before R79 FINAL_PENDING was completed.
  * R87 refuses manufactured package-level witnesses with no original
  * single-use captured-start ticket, even if snapshot identity matches.
+ * R88 requires the genuine World execution context at ticket mint
+ * and consumption; off-thread callers may not fabricate capture order.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -540,6 +542,17 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(wrongPrepare,
                         "unrelated snapshot prepared original LAB final");
+                    boolean offThreadMintDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .markWorldSnapshotCaptureStartForLab(
+                                world,selected,USER,owner,generation);
+                    }catch(IllegalStateException invalid){
+                        offThreadMintDenied=contains(invalid,
+                            "R88_CAPTURE_START_NOT_ACTUAL_WORLD_EXECUTION_CONTEXT");
+                    }
+                    check(offThreadMintDenied,
+                        "R88 off-World-thread caller minted capture ticket");
                     // R87: mint one original-Token ticket on the real
                     // World execution thread, bind it once to its
                     // immutable capture, and refuse both cross-path
@@ -549,7 +562,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             LocalJvmAccountSessionLease.WorldCaptureStartForLab
                                 started=LocalJvmAccountSessionLease
                                     .markWorldSnapshotCaptureStartForLab(
-                                        selected,USER,owner,generation);
+                                        world,selected,USER,owner,generation);
                             check(started!=null,
                                 "R87 original World capture mint missing");
                             PlayerSnapshot sameWorldSnapshot=
@@ -588,6 +601,46 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             check(duplicateDenied,
                                 "R87 captured-start token was replayed");
                         }
+                    }).get(5,TimeUnit.SECONDS);
+                    // R88: a legitimate World-minted ticket cannot
+                    // later be consumed by an arbitrary off-World
+                    // caller, even with the correct owner and image.
+                    AtomicReference<
+                        LocalJvmAccountSessionLease.WorldCaptureStartForLab>
+                        unconsumed=new AtomicReference<>();
+                    AtomicReference<PlayerSnapshot> exactForTicket=
+                        new AtomicReference<>();
+                    world.submit(owner,generation,()->{
+                        synchronized(owner.mutationLock()){
+                            unconsumed.set(LocalJvmAccountSessionLease
+                                .markWorldSnapshotCaptureStartForLab(
+                                    world,selected,USER,owner,generation));
+                            exactForTicket.set(
+                                PlayerSnapshotCodec.capture(USER,owner));
+                        }
+                    }).get(5,TimeUnit.SECONDS);
+                    check(unconsumed.get()!=null&&
+                        exactForTicket.get()!=null,
+                        "R88 actual World-start ticket or image missing");
+                    boolean offThreadConsumeDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease.captureSaveWitness(
+                            selected,USER,owner,generation,
+                            exactForTicket.get(),unconsumed.get());
+                    }catch(IllegalStateException invalid){
+                        offThreadConsumeDenied=contains(invalid,
+                            "R88_CAPTURE_WITNESS_NOT_ACTUAL_WORLD_CONTEXT");
+                    }
+                    check(offThreadConsumeDenied,
+                        "R88 off-thread caller consumed World ticket");
+                    world.submit(owner,generation,()->{
+                        LocalJvmAccountSessionLease.SaveCaptureWitness
+                            minted=LocalJvmAccountSessionLease
+                                .captureSaveWitness(selected,USER,
+                                    owner,generation,
+                                    exactForTicket.get(),unconsumed.get());
+                        check(minted!=null,
+                            "R88 legitimate World ticket not consumable");
                     }).get(5,TimeUnit.SECONDS);
                     // R86: a fully genuine capture of DISTINCT World
                     // state that starts BEFORE FINAL_PENDING must
@@ -807,6 +860,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R88_WORLD_EXECUTION_CAPTURE_TICKET_PASS"+
+                " offWorldThreadMintDenied=true"+
+                " offWorldThreadConsumeDenied=true"+
+                " genuineWorldContextMintAndConsume=true"+
+                " noActualSaveOrGrant=true");
             System.out.println("R87_OPAQUE_SINGLE_USE_CAPTURE_PROVENANCE_PASS"+
                 " callerRawOrdinalNoLongerAccepted=true"+
                 " unmintedExactWorldSnapshotDenied=true"+
