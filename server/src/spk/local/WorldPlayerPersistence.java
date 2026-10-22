@@ -1073,9 +1073,15 @@ final class WorldPlayerPersistence
     private SaveTask saveTask(
         CapturedSave captured
     ){
-        return new SaveTask(
-            captured
-        );
+        return new SaveTask(captured);
+    }
+
+    private SaveTask saveTask(
+        CapturedSave captured,ReservedFinalSaveTask originalReservation
+    ){
+        // R91.5: worker-submitted final saves retain the identity
+        // of their original FIFO reservation for terminal cleanup.
+        return new SaveTask(captured,originalReservation);
     }
 
     private boolean finalReservationBlocksLocked(
@@ -1879,7 +1885,7 @@ final class WorldPlayerPersistence
                     .interrupt();
 
             if(ready!=null){
-                saveTask(ready).run();
+                saveTask(ready,this).run();
                 return;
             }
 
@@ -1963,7 +1969,7 @@ final class WorldPlayerPersistence
             }
 
             if(ready!=null)
-                return saveTask(ready)
+                return saveTask(ready,this)
                     .reject(
                         error,
                         stage
@@ -4365,6 +4371,7 @@ final class WorldPlayerPersistence
         private final boolean finalDisconnect;
         private final LocalJvmAccountSessionLease.SaveCaptureWitness
             ownerWitness;
+        private final ReservedFinalSaveTask originalFinalReservation;
         private final long saveSequence;
         private final PlayerSnapshot snapshot;
         private final int petAccessoryItem;
@@ -4372,8 +4379,12 @@ final class WorldPlayerPersistence
         private final String reason;
         private final CompletableFuture<Void> future;
 
+        SaveTask(CapturedSave captured){
+            this(captured,null);
+        }
+
         SaveTask(
-            CapturedSave captured
+            CapturedSave captured,ReservedFinalSaveTask originalReservation
         ){
             CapturedSave checked=
                 Objects.requireNonNull(
@@ -4387,6 +4398,7 @@ final class WorldPlayerPersistence
             this.finalDisconnect=
                 checked.finalDisconnect;
             this.ownerWitness=checked.ownerWitness;
+            this.originalFinalReservation=originalReservation;
             this.saveSequence=
                 checked.ticket.sequence;
             this.snapshot=
@@ -4424,8 +4436,7 @@ final class WorldPlayerPersistence
 
                 if(finalDisconnect)
                     clearFinalReservation(
-                        owner,
-                        expectedGeneration
+                        owner,expectedGeneration,originalFinalReservation
                     );
             }
         }
@@ -4463,8 +4474,7 @@ final class WorldPlayerPersistence
 
             if(finalDisconnect)
                 clearFinalReservation(
-                    owner,
-                    expectedGeneration
+                    owner,expectedGeneration,originalFinalReservation
                 );
 
             return rejected;
