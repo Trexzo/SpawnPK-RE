@@ -1170,17 +1170,19 @@ final class WorldPlayerPersistence
     }
 
     private void clearFinalReservation(
-        WorldPlayer owner,
-        long expectedGeneration
+        WorldPlayer owner,long expectedGeneration
     ){
-        if(owner==null)
-            return;
+        clearFinalReservation(owner,expectedGeneration,null);
+    }
 
+    private void clearFinalReservation(
+        WorldPlayer owner,long expectedGeneration,
+        ReservedFinalSaveTask expectedTask
+    ){
+        if(owner==null)return;
         synchronized(io){
             clearFinalReservationLocked(
-                owner,
-                expectedGeneration
-            );
+                owner,expectedGeneration,expectedTask);
         }
     }
 
