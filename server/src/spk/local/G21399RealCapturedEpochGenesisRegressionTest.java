@@ -1923,6 +1923,41 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 Files.exists(receipt,LinkOption.NOFOLLOW_LINKS)==
                     receiptForced,
                 "R93 revoked-stage journal inventory unexpected "+stage);
+            // R94: revocation and hard-kill must produce the same
+            // exact immutable sidecar inventory at each cutpoint:
+            // one newly forced future image, a candidate archive
+            // only after its own force, and a temporary HEAD only
+            // while the temp has not yet been atomically renamed.
+            int futureImages=0,archives=0,stagedHeads=0;
+            String stem=account.getFileName().toString();
+            try(java.nio.file.DirectoryStream<Path> siblings=
+                    Files.newDirectoryStream(account.getParent())){
+                for(Path sibling:siblings){
+                    String leaf=sibling.getFileName().toString();
+                    if(leaf.startsWith(
+                            stem+".g21385-image-0003-")&&
+                        leaf.endsWith(".snapshot"))
+                        futureImages++;
+                    if(leaf.startsWith(
+                            stem+".g21387-head-0003-")&&
+                        leaf.endsWith(".head"))
+                        archives++;
+                    if(leaf.startsWith(
+                            stem+".g21385-head-stage-")&&
+                        leaf.endsWith(".tmp"))
+                        stagedHeads++;
+                }
+            }
+            check(futureImages==1,
+                "R94 revoked stage lost exact future image "+stage);
+            check(archives==
+                    (stage.ordinal()>=LocalReusableAccountEpochLab.Stage
+                        .ARCHIVED_HEAD_FORCED.ordinal()?1:0),
+                "R94 revoked stage archive inventory mismatch "+stage);
+            check(stagedHeads==
+                    (stage==LocalReusableAccountEpochLab.Stage
+                        .HEAD_TEMP_FORCED?1:0),
+                "R94 revoked stage temp inventory mismatch "+stage);
             boolean negative=false;
             try{
                 LocalReusableLabEvidenceNegativeGate
@@ -1952,6 +1987,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " stage="+stage+
                 " originalWorldAndFifo=true"+
                 " originalReservationRevokedAtStage=true"+
+                " exactSevenStageInventory=true"+
                 " headMoved="+headMoved+
                 " receiptForced="+receiptForced+
                 " oldAccountBytesUnchanged=true"+
