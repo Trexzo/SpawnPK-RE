@@ -1869,15 +1869,6 @@ final class LocalJvmAccountSessionLease {
         if(token==null||token!=finalWitness.originalLease)
             throw new java.io.IOException(
                 "R82_ORIGINAL_SESSION_TOKEN_RELEASED_OR_REPLACED");
-        // R91: observe queue identity OUTSIDE Token's monitor to
-        // avoid a Token -> persistence admission-lock inversion.
-        // This is a settlement-entry observation only, not a
-        // durable/atomic pin through disk publication.
-        if(finalWitness.finalReservationAtCapture!=null&&
-           !finalWitness.finalReservationAtCapture
-               .isOriginalReservationStillPresentForLab())
-            throw new java.io.IOException(
-                "R91_ORIGINAL_FINAL_RESERVATION_ABORTED_OR_REPLACED");
         synchronized(token){
             try{
                 token.requireCapturedSaveOwner(
@@ -1914,6 +1905,14 @@ final class LocalJvmAccountSessionLease {
             if(finalWitness.finalReservationAtCapture==null)
                 throw new java.io.IOException(
                     "R90_FINAL_CAPTURE_WITHOUT_ACTIVE_RESERVATION");
+            // R91: volatile read of the ORIGINAL queue task's
+            // monotonic liveness, no io lock under this Token.
+            // Only settlement-entry evidence, not a durable
+            // reservation pin across the subsequent file write.
+            if(!finalWitness.finalReservationAtCapture
+                    .isOriginalReservationStillPresentForLab())
+                throw new java.io.IOException(
+                    "R91_ORIGINAL_FINAL_RESERVATION_ABORTED_OR_REPLACED");
             return token.processLock.withHeldOriginalAccount(selected,()->{
                 LocalReusableAccountEpochLab.Observation disk=
                     LocalReusableAccountEpochLab.inspect(selected);
