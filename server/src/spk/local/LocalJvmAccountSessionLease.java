@@ -1998,6 +1998,7 @@ final class LocalJvmAccountSessionLease {
      */
     static final class WorldCaptureStartForLab {
         private final Token originalLease;
+        private final World captureWorld;
         private final Path path;
         private final String account;
         private final WorldPlayer owner;
@@ -2006,10 +2007,11 @@ final class LocalJvmAccountSessionLease {
         private boolean consumed;
 
         private WorldCaptureStartForLab(
-            Token token,Path path,String account,WorldPlayer owner,
-            long generation,long ordinal
+            Token token,World world,Path path,String account,
+            WorldPlayer owner,long generation,long ordinal
         ){
             this.originalLease=token;
+            this.captureWorld=world;
             this.path=path;
             this.account=account;
             this.owner=owner;
@@ -2019,16 +2021,23 @@ final class LocalJvmAccountSessionLease {
     }
 
     /**
-     * Invoked from the World-owned capture path before codec encoding.
-     * Ordinal issuance is experimental/default-OFF. No Token monitor
-     * or filesystem I/O is taken on the World capture hotpath.
+     * R88: mint ONLY in the actual World execution context for the
+     * registered owner/generation, before codec encoding. A caller
+     * holding the correct Token identity on an unrelated thread
+     * cannot manufacture a positive capture start. OFF for normal
+     * gameplay; no Token monitor or filesystem I/O on the hotpath.
      */
     static WorldCaptureStartForLab markWorldSnapshotCaptureStartForLab(
-        Path accountFile,String account,WorldPlayer owner,long generation
+        World world,Path accountFile,String account,
+        WorldPlayer owner,long generation
     ){
-        if(!Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY)||
-           accountFile==null||owner==null||generation<=0)
+        if(!Boolean.getBoolean(CAPTURED_EPOCH_PREPARE_LAB_PROPERTY))
             return null;
+        if(world==null||owner==null||accountFile==null||
+           generation<=0||!world.pulse().inExecutionContext()||
+           !world.players().owns(owner,generation))
+            throw new IllegalStateException(
+                "R88_CAPTURE_START_NOT_ACTUAL_WORLD_EXECUTION_CONTEXT");
         Path path=accountFile.toAbsolutePath().normalize();
         synchronized(active){
             Token token=active.get(path);
@@ -2042,7 +2051,7 @@ final class LocalJvmAccountSessionLease {
                 throw new IllegalStateException(
                     "R87_CAPTURE_START_ORDINAL_EXHAUSTED");
             return new WorldCaptureStartForLab(
-                token,path,account,owner,generation,ordinal);
+                token,world,path,account,owner,generation,ordinal);
         }
     }
 
@@ -2131,6 +2140,13 @@ final class LocalJvmAccountSessionLease {
                 if(captureStart.consumed)
                     throw new IllegalStateException(
                         "R87_CAPTURE_START_ALREADY_CONSUMED");
+                if(captureStart.captureWorld==null||
+                   !captureStart.captureWorld.pulse()
+                       .inExecutionContext()||
+                   !captureStart.captureWorld.players()
+                       .owns(owner,generation))
+                    throw new IllegalStateException(
+                        "R88_CAPTURE_WITNESS_NOT_ACTUAL_WORLD_CONTEXT");
                 if(token==null||token.released||
                    captureStart.originalLease!=token||
                    captureStart.path==null||
