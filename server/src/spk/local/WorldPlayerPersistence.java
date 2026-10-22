@@ -307,15 +307,13 @@ final class WorldPlayerPersistence
         }
 
         boolean isOriginalReservationStillPresentForLab(){
-            synchronized(persistence.io){
-                Long current=persistence.finalReservationGenerations
-                    .get(owner);
-                return current!=null&&
-                    current.longValue()==generation&&
-                    persistence.finalReservationTasksForLab.get(owner)==
-                        originalTask&&
-                    !persistence.io.isShutdown();
-            }
+            // R91: monotonic volatile revocation; zero IO-lock
+            // acquisition when settlement holds the owner Token.
+            // A replacement reservation is a distinct Task object,
+            // and can never revive this captured witness.
+            return originalTask.labReservationActive&&
+                originalTask.owner==owner&&
+                originalTask.ownerGeneration==generation;
         }
     }
 
@@ -1133,6 +1131,7 @@ final class WorldPlayerPersistence
             task.ownerGeneration
         );
         finalReservationTasksForLab.put(task.owner,task);
+        task.labReservationActive=true;
     }
 
     private void clearFinalReservationLocked(
@@ -1155,7 +1154,9 @@ final class WorldPlayerPersistence
         if(existing!=null&&
            existing.longValue()==expectedGeneration){
             finalReservationGenerations.remove(owner);
-            finalReservationTasksForLab.remove(owner);
+            ReservedFinalSaveTask original=
+                finalReservationTasksForLab.remove(owner);
+            if(original!=null)original.labReservationActive=false;
         }
     }
 
@@ -1810,6 +1811,9 @@ final class WorldPlayerPersistence
         final long ownerGeneration;
         private CapturedSave captured;
         private Throwable terminalFailure;
+        // R91: monotonically revoked after abort, publication,
+        // failed queue admission or terminal completion.
+        private volatile boolean labReservationActive;
 
         ReservedFinalSaveTask(
             WorldPlayer owner,
@@ -1884,6 +1888,7 @@ final class WorldPlayerPersistence
                 );
 
             this.captured=checked;
+            labReservationActive=false; // LAB cannot rely on published slot
             notifyAll();
             return true;
         }
@@ -1905,6 +1910,7 @@ final class WorldPlayerPersistence
                         )
                         :failure;
                 changed=true;
+                labReservationActive=false;
                 notifyAll();
             }
 
@@ -1927,6 +1933,7 @@ final class WorldPlayerPersistence
 
                 terminalFailure=error;
                 ready=captured;
+                labReservationActive=false;
                 notifyAll();
             }
 
