@@ -552,6 +552,7 @@ final class WorldPlayerPersistence
         if(!(repository instanceof FilePlayerRepository))return null;
         return LocalJvmAccountSessionLease
             .markWorldSnapshotCaptureStartForLab(
+                world,
                 ((FilePlayerRepository)repository).accountFilePath(username),
                 username,player,generation);
     }
