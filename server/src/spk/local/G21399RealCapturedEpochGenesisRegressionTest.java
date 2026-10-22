@@ -2053,6 +2053,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
         String disabledFlag
     )throws Exception{
+        runRevokedSettlement(stage,afterReadback,disabledFlag,false);
+    }
+
+    private static void runRevokedSettlement(
+        LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
+        String disabledFlag,boolean shutdownAtCutpoint
+    )throws Exception{
+        if(shutdownAtCutpoint&&(disabledFlag!=null||afterReadback))
+            throw new IllegalArgumentException(
+                "R98_SHUTDOWN_TEST_REQUIRES_FORCE_STAGE");
         boolean disableLab=disabledFlag!=null;
         if(disableLab)
             checkedSettlementExperimentFlag(disabledFlag);
@@ -2061,7 +2071,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             throw new IllegalArgumentException(
                 "R95_REQUIRES_RECEIPT_FORCED");
         Path root=Files.createTempDirectory(
-            (disableLab?"r96-opt-out-":
+            (shutdownAtCutpoint?"r98-shutdown-":
+            disableLab?"r96-opt-out-":
                 afterReadback?"r95-post-inspection-":"r93-revoked-")+
             stage.name().toLowerCase(java.util.Locale.ROOT)+"-");
         String[] flags={
@@ -2088,11 +2099,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             ProcessBuilder holder=new ProcessBuilder(
                 javaExe(),"-cp",System.getProperty("java.class.path"),
                 G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
-                disableLab
-                    ?afterReadback
-                        ?"--settlement-opt-out-post-readback"
-                        :"--settlement-opt-out-stage"
-                    :afterReadback
+                shutdownAtCutpoint
+                    ?"--settlement-shutdown-at-stage"
+                    :disableLab
+                        ?afterReadback
+                            ?"--settlement-opt-out-post-readback"
+                            :"--settlement-opt-out-stage"
+                        :afterReadback
                         ?"--settlement-post-readback-revoked"
                         :"--settlement-revoked",
                 root.toString(),stage.name());
@@ -2108,14 +2121,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             String trace=new String(Files.readAllBytes(holderLog),
                 StandardCharsets.UTF_8);
             check(p.exitValue()==0&&trace.contains(
-                disableLab
-                    ?"R96_WORLD_SETTLEMENT_OPT_OUT_PASS stage="+stage+
+                shutdownAtCutpoint
+                    ?"R98_WORLD_PERSISTENCE_SHUTDOWN_PASS stage="+stage
+                    :disableLab
+                        ?"R96_WORLD_SETTLEMENT_OPT_OUT_PASS stage="+stage+
                         " afterReadback="+afterReadback+
                         " disabledFlag="+disabledFlag
                     :afterReadback
                         ?"R95_WORLD_POSTREADBACK_REVOCATION_VETO_PASS"
                         :"R92_WORLD_FORCE_REVOCATION_VETO_PASS stage="+stage),
-                "R93/R95/R96 original World settlement did not fail closed: "+
+                "R93/R95/R96/R98 original World settlement did not fail closed: "+
                     stage+" "+trace);
             check(Arrays.equals(baseline,Files.readAllBytes(account)),
                 "R92 aborted settlement rewrote legacy account");
@@ -2205,9 +2220,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
                 "R92 fresh JVM did not refuse partial settlement: "+result);
             System.out.println(
-                (disableLab
-                    ?"R96_SETTLEMENT_OPT_OUT_FRESH_JVM_PASS"
-                    :afterReadback
+                (shutdownAtCutpoint
+                    ?"R98_PERSISTENCE_SHUTDOWN_FRESH_JVM_PASS"
+                    :disableLab
+                        ?"R96_SETTLEMENT_OPT_OUT_FRESH_JVM_PASS"
+                        :afterReadback
                         ?"R95_POSTREADBACK_REVOKED_FRESH_JVM_PASS"
                         :"R93_REVOKED_SETTLEMENT_FRESH_JVM_PASS")+
                 " stage="+stage+
@@ -2215,6 +2232,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " reservationRevokedAfterInspect="+
                     (afterReadback&&!disableLab)+
                 " experimentalOptOutDuringTransition="+disableLab+
+                " persistenceExecutorShutdown="+shutdownAtCutpoint+
                 " disabledFlag="+(disableLab?disabledFlag:"none")+
                 " exactSevenStageInventory=true"+
                 " headMoved="+headMoved+
@@ -2254,6 +2272,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         if(args.length==4&&"--prepare-holder".equals(args[0])){
             prepareKillHolder(Paths.get(args[1]),Paths.get(args[2]),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==3&&
+                "--settlement-shutdown-at-stage".equals(args[0])){
+            settleKillHolder(Paths.get(args[1]),
+                Paths.get(args[1]).resolve("unused-ready"),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[2]),
+                false,false,false,false,
+                LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,
+                true);
             return;
         }
         if((args.length==3||args.length==4)&&
@@ -2338,5 +2366,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
                 true,flag);
         }
+        // R98: executor shutdown is a distinct revocation trigger.
+        // Authenticated World keeps its original lease and all LAB
+        // feature flags ON, but no shutdown FIFO may settle a LAB.
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED,
+            false,null,true);
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
+            false,null,true);
     }
 }
