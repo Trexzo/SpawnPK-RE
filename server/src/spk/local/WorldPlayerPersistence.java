@@ -5051,13 +5051,43 @@ final class WorldPlayerPersistence
             :reason;
     }
 
+    /**
+     * R98: executor shutdown is immediate LAB reservation revocation.
+     * A waiting FIFO worker may remain blocked until its normal
+     * shutdown drain/interrupt, but its previously captured snapshot
+     * is no longer eligible for even detached LAB settlement.
+     * Queue ownership, real save results and existing ACK rules
+     * are unchanged; only the monotonic forensic evidence bit moves.
+     */
+    private void shutdownAndRevokeLabReservationsLocked(){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "R98_PERSISTENCE_SHUTDOWN_REQUIRES_IO_MONITOR");
+        io.shutdown();
+        for(ReservedFinalSaveTask task:
+                finalReservationTasksForLab.values())
+            task.labReservationActive=false;
+    }
+
+    /** R98 package-only bounded test of the real shutdown admission step. */
+    void beginLabShutdownForTest(){
+        if(!Boolean.getBoolean(
+                LocalJvmAccountSessionLease
+                    .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY))
+            throw new IllegalStateException(
+                "R98_TEST_REQUIRES_EXPLICIT_SETTLEMENT_LAB_FLAG");
+        synchronized(io){
+            shutdownAndRevokeLabReservationsLocked();
+        }
+    }
+
     @Override public void close(){
         synchronized(checkpointLock){
             checkpointSuppressedGenerations.clear();
         }
 
         synchronized(io){
-            io.shutdown();
+            shutdownAndRevokeLabReservationsLocked();
         }
 
         boolean clean=false;
