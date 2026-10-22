@@ -342,9 +342,15 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
 
     /**
      * R90: bind a real World deferred-final capture to the existing
-     * owner/generation FIFO final slot. We ABORT the slot without ever
-     * publishing it; the LAB snapshot is forensic-only, not a save.
+     * owner/generation FIFO final slot. R91 keeps that EXACT task
+     * reserved through LAB settlement; every test explicitly aborts
+     * it without calling publish or acknowledging an actual save.
      */
+    private static final IdentityHashMap<
+        WorldPlayerPersistence.CapturedSave,
+        WorldPlayerPersistence.FinalSaveReservation>
+        labFinalReservations=new IdentityHashMap<>();
+
     private static WorldPlayerPersistence.CapturedSave captureFinal(
         World world,WorldPlayer owner,long generation
     )throws Exception{
@@ -352,11 +358,41 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             world.persistence().reserveFinalSaveWithBackpressure(
                 owner,generation,5000L);
         try{
-            return captureFinalWithoutReservation(world,owner,generation);
-        }finally{
-            reserved.abort(new IllegalStateException(
-                "R90_LAB_FINAL_RESERVATION_ABORT_NO_PUBLICATION"));
+            WorldPlayerPersistence.CapturedSave captured=
+                captureFinalWithoutReservation(world,owner,generation);
+            synchronized(labFinalReservations){
+                labFinalReservations.put(captured,reserved);
+            }
+            return captured;
+        }catch(Exception|Error failure){
+            reserved.abort(failure);
+            throw failure;
         }
+    }
+
+    private static void abortLabFinal(
+        WorldPlayerPersistence.CapturedSave captured
+    ){
+        WorldPlayerPersistence.FinalSaveReservation reserved;
+        synchronized(labFinalReservations){
+            reserved=labFinalReservations.remove(captured);
+        }
+        check(reserved!=null,"R91 no tracked final FIFO to abort");
+        reserved.abort(new IllegalStateException(
+            "R91_LAB_CAPTURE_ABORT_NO_FINAL_PUBLICATION"));
+    }
+
+    private static void abortAllLabFinals(){
+        java.util.ArrayList<WorldPlayerPersistence.FinalSaveReservation>
+            pending;
+        synchronized(labFinalReservations){
+            pending=new java.util.ArrayList<>(
+                labFinalReservations.values());
+            labFinalReservations.clear();
+        }
+        for(WorldPlayerPersistence.FinalSaveReservation slot:pending)
+            slot.abort(new IllegalStateException(
+                "R91_LAB_CLEANUP_WITHOUT_PUBLICATION"));
     }
 
     private static void exercise()throws Exception{
@@ -694,6 +730,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     ).get(5,TimeUnit.SECONDS);
                     WorldPlayerPersistence.CapturedSave preprepared=
                         captureFinal(world,owner,generation);
+                    abortLabFinal(preprepared);
                     check("BEFORE_PREPARATION".equals(
                         preprepared.ticket.snapshot.value(
                             "extension.r86_early.phase")),
@@ -747,6 +784,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             world,owner,generation);
                     check(unreserved.finalDisconnect,
                         "unreserved negative was not an actual final capture");
+                    WorldPlayerPersistence.CapturedSave abortedLate=
+                        captureFinal(world,owner,generation);
+                    abortLabFinal(abortedLate);
                     WorldPlayerPersistence.CapturedSave later=
                         captureFinal(world,owner,generation);
                     check("AFTER_PENDING".equals(
@@ -802,6 +842,24 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     }
                     check(unreservedDenied,
                         "unreserved genuine World final captured LAB settlement");
+                    // Even a REAL final capture with a matching FIFO
+                    // reservation at capture time is denied if that
+                    // exact original reservation has been aborted.
+                    // The new reservation used for 'later' cannot
+                    // revive the older witness (R91 ABA guard).
+                    boolean abortedLateDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                abortedLate.ticket.snapshot,
+                                abortedLate.ownerWitness);
+                    }catch(IOException denied){
+                        abortedLateDenied=contains(denied,
+                            "R91_ORIGINAL_FINAL_RESERVATION_ABORTED_OR_REPLACED");
+                    }
+                    check(abortedLateDenied,
+                        "R91 replaced FIFO revived a stale final snapshot");
                     boolean forgedSettle=false;
                     try{
                         LocalJvmAccountSessionLease
@@ -924,6 +982,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         "LAB CLOSED image wrote old legacy account bytes");
                     check(LocalJvmAccountSessionLease.activeCountForTest()==1,
                         "LAB settlement prematurely released original lease");
+                    abortLabFinal(later);
                 }
                 await(()->live.players().size()==0,
                     "original World unregister");
@@ -940,6 +999,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R91_ORIGINAL_FINAL_RESERVATION_CONTINUITY_PASS"+
+                " abortedOriginalTaskDenied=true"+
+                " replacementSameOwnerGenerationCannotRevive=true"+
+                " exactOriginalTaskHeldAtSettlementEntry=true"+
+                " originalFinalQueueAbortedWithoutPublish=true"+
+                " noRealFinalACKOrRecovery=true");
             System.out.println("R90_REAL_FINAL_FIFO_RESERVATION_LAB_PASS"+
                 " genuineUnreservedFinalRejected=true"+
                 " realOwnerBoundFinalFIFOAtCapture=true"+
@@ -1013,6 +1078,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " noPositiveReceiptOrRecovery=true"+
                 " noPowerLossClaim=true");
         }finally{
+            abortAllLabFinals();
             if(world!=null&&!world.closed())world.close();
             for(int i=0;i<names.length;i++){
                 if(previous[i]==null)System.clearProperty(names[i]);
