@@ -1462,6 +1462,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     private static void settleKillHolder(
         Path root,Path ready,LocalReusableAccountEpochLab.Stage target
     )throws Exception{
+        settleKillHolder(root,ready,target,false);
+    }
+
+    private static void settleKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
+        boolean abortAtSnapshotForce
+    )throws Exception{
         configure(root,true);
         System.setProperty(
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
@@ -1526,27 +1533,61 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 check("LATER".equals(last.ticket.snapshot.value(
                     "extension.r83_final.phase")),
                     "R83 actual later World capture missing");
-                LocalJvmAccountSessionLease
-                    .settleCapturedEpochUnderOriginalLockForLab(
-                        account,owner,generation,last.ticket.snapshot,
-                        last.ownerWitness,stage->{
-                            if(stage!=target)return;
-                            System.out.println(
-                                "R83_WORLD_SETTLEMENT_FORCED_"+target);
-                            System.out.flush();
-                            // Parent observes ready only after the
-                            // process-kill marker was flushed.
-                            Files.write(ready,new byte[]{1},
-                                StandardOpenOption.CREATE_NEW);
-                            try{Thread.sleep(120000L);}
-                            catch(InterruptedException interrupted){
-                                Thread.currentThread().interrupt();
-                                throw new IOException(
-                                    "R83_HOLDER_INTERRUPTED",interrupted);
-                            }
-                            throw new AssertionError(
-                                "R83_HOLDER_MUST_BE_KILLED");
-                        });
+                boolean revocationDenied=false;
+                try{
+                    LocalJvmAccountSessionLease
+                        .settleCapturedEpochUnderOriginalLockForLab(
+                            account,owner,generation,last.ticket.snapshot,
+                            last.ownerWitness,stage->{
+                                if(stage!=target)return;
+                                if(abortAtSnapshotForce){
+                                    check(stage==LocalReusableAccountEpochLab
+                                        .Stage.SNAPSHOT_FORCED,
+                                        "R92 revocation at wrong cutpoint");
+                                    abortLabFinal(last);
+                                    return;
+                                }
+                                System.out.println(
+                                    "R83_WORLD_SETTLEMENT_FORCED_"+target);
+                                System.out.flush();
+                                // Parent observes ready only after the
+                                // process-kill marker was flushed.
+                                Files.write(ready,new byte[]{1},
+                                    StandardOpenOption.CREATE_NEW);
+                                try{Thread.sleep(120000L);}
+                                catch(InterruptedException interrupted){
+                                    Thread.currentThread().interrupt();
+                                    throw new IOException(
+                                        "R83_HOLDER_INTERRUPTED",interrupted);
+                                }
+                                throw new AssertionError(
+                                    "R83_HOLDER_MUST_BE_KILLED");
+                            });
+                }catch(IOException denied){
+                    if(!abortAtSnapshotForce)throw denied;
+                    revocationDenied=contains(denied,
+                        "R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                }
+                if(abortAtSnapshotForce){
+                    check(revocationDenied,
+                        "R92 force stage did not veto revoked FIFO slot");
+                    check(LocalJvmAccountSessionLease
+                            .activeCountForTest()==1,
+                        "R92 lab force released original World lease");
+                    Path head=account.resolveSibling(
+                        account.getFileName()+".g21385-ledger-head");
+                    String bytes=new String(Files.readAllBytes(head),
+                        StandardCharsets.US_ASCII);
+                    check(bytes.contains("sequence=2\n")&&
+                        bytes.contains("phase=FINAL_PENDING\n"),
+                        "R92 aborted force published CLOSED HEAD");
+                    System.out.println("R92_WORLD_FORCE_REVOCATION_VETO_PASS"+
+                        " originalFifoAbortedAtSnapshotForced=true"+
+                        " noClosedHeadOrFinalACK=true"+
+                        " originalSessionLockStillHeld=true");
+                    System.out.flush();
+                    return;
+                }
             }
         }finally{
             if(!world.closed())world.close();
