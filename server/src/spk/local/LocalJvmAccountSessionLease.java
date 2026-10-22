@@ -2126,6 +2126,17 @@ final class LocalJvmAccountSessionLease {
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         Objects.requireNonNull(owner,"owner");
         Path path=exactAccountPath.toAbsolutePath().normalize();
+        // R88.1: perform World-registry/context reads BEFORE the
+        // session map monitor. Taking World players' ownership lock
+        // under active would introduce a potential lock-order cycle
+        // with account admission. The captured World command remains
+        // serialized for this specific owner/generation.
+        if(captureStart!=null&&
+           (captureStart.captureWorld==null||
+            !captureStart.captureWorld.pulse().inExecutionContext()||
+            !captureStart.captureWorld.players().owns(owner,generation)))
+            throw new IllegalStateException(
+                "R88_CAPTURE_WITNESS_NOT_ACTUAL_WORLD_CONTEXT");
         synchronized(active){
             UnleasedAdmission previous=unleasedAdmissions.get(owner);
             boolean priorUnleased=previous!=null&&
@@ -2140,13 +2151,6 @@ final class LocalJvmAccountSessionLease {
                 if(captureStart.consumed)
                     throw new IllegalStateException(
                         "R87_CAPTURE_START_ALREADY_CONSUMED");
-                if(captureStart.captureWorld==null||
-                   !captureStart.captureWorld.pulse()
-                       .inExecutionContext()||
-                   !captureStart.captureWorld.players()
-                       .owns(owner,generation))
-                    throw new IllegalStateException(
-                        "R88_CAPTURE_WITNESS_NOT_ACTUAL_WORLD_CONTEXT");
                 if(token==null||token.released||
                    captureStart.originalLease!=token||
                    captureStart.path==null||
