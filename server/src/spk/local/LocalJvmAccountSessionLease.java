@@ -1934,12 +1934,30 @@ final class LocalJvmAccountSessionLease {
                         "R82_FINAL_SNAPSHOT_NOT_DISTINCT_FROM_PENDING");
                 byte[] image=LocalCapturedWorldSnapshotFingerprintLab
                     .canonicalBytes(selected,finalCapture,generation);
+                // R92: R91's original reservation identity was
+                // previously checked ONLY at settlement entry.
+                // Recheck its monotonic revocation on BOTH sides
+                // of every detached force cutpoint. If test/user
+                // cutpoint revokes it, stop before advancing further.
+                // This remains a best-effort LAB stage guard, not
+                // an atomic pin, durable ACK or recovery grant.
+                LocalReusableAccountEpochLab.Cutpoint watched=stage->{
+                    if(!finalWitness.finalReservationAtCapture
+                            .isOriginalReservationStillPresentForLab())
+                        throw new java.io.IOException(
+                            "R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                    cutpoint.reached(stage);
+                    if(!finalWitness.finalReservationAtCapture
+                            .isOriginalReservationStillPresentForLab())
+                        throw new java.io.IOException(
+                            "R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                };
                 LocalReusableAccountEpochLab.Observation closed=
                     LocalReusableAccountEpochLab
                         .settleLabFinalUnderHeldAccountLock(
                             selected,token.processLock,
                             remembered.sequence,generation,
-                            remembered.ownerNonce,image,cutpoint);
+                            remembered.ownerNonce,image,watched);
                 if(closed.sequence!=3||closed.epoch!=remembered.epoch||
                    closed.phase!=LocalReusableAccountEpochLab.Phase.CLOSED||
                    closed.worldGeneration!=0||
