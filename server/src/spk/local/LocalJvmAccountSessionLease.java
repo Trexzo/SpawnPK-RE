@@ -1885,19 +1885,18 @@ final class LocalJvmAccountSessionLease {
             if(remembered==null)
                 throw new java.io.IOException(
                     "R82_NO_ORIGINAL_AUTHENTICATED_PENDING_TOKEN");
-            // R89: an ordinary deferred/checkpoint World capture is
-            // not a deferred FINAL-disconnect capture. Both are
-            // immutable and correctly attested, but only the
-            // genuine WorldPlayerPersistence final capture can
-            // supply the LAB postimage (never a real save ACK).
-            if(!finalWitness.finalDisconnectCapture)
-                throw new java.io.IOException(
-                    "R89_SETTLEMENT_REQUIRES_FINAL_DISCONNECT_CAPTURE");
             if(finalWitness.worldCaptureStartOrdinal<=0L||
                finalWitness.worldCaptureStartOrdinal<=
                    token.pendingLabCaptureStartFence)
                 throw new java.io.IOException(
                     "R86_FINAL_CAPTURE_NOT_STARTED_AFTER_PREPARE");
+            // R89: a normal deferred/checkpoint World capture may
+            // be new and correctly attested, but it is not a genuine
+            // deferred FINAL-disconnect capture. Neither grants
+            // any real final-save ACK or lease release.
+            if(!finalWitness.finalDisconnectCapture)
+                throw new java.io.IOException(
+                    "R89_SETTLEMENT_REQUIRES_FINAL_DISCONNECT_CAPTURE");
             return token.processLock.withHeldOriginalAccount(selected,()->{
                 LocalReusableAccountEpochLab.Observation disk=
                     LocalReusableAccountEpochLab.inspect(selected);
