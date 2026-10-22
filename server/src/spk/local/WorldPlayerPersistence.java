@@ -1218,8 +1218,7 @@ final class WorldPlayerPersistence
         }finally{
             if(!admitted)
                 clearFinalReservationLocked(
-                    task.owner,
-                    task.ownerGeneration
+                    task.owner,task.ownerGeneration,task
                 );
         }
     }
