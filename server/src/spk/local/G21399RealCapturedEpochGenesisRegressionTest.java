@@ -562,7 +562,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             LocalJvmAccountSessionLease.WorldCaptureStartForLab
                                 started=LocalJvmAccountSessionLease
                                     .markWorldSnapshotCaptureStartForLab(
-                                        world,selected,USER,owner,generation);
+                                        live,selected,USER,owner,generation);
                             check(started!=null,
                                 "R87 original World capture mint missing");
                             PlayerSnapshot sameWorldSnapshot=
@@ -614,7 +614,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         synchronized(owner.mutationLock()){
                             unconsumed.set(LocalJvmAccountSessionLease
                                 .markWorldSnapshotCaptureStartForLab(
-                                    world,selected,USER,owner,generation));
+                                    live,selected,USER,owner,generation));
                             exactForTicket.set(
                                 PlayerSnapshotCodec.capture(USER,owner));
                         }
