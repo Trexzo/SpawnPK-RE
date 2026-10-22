@@ -1958,12 +1958,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     private static void runRevokedSettlement(
         LocalReusableAccountEpochLab.Stage stage,boolean afterReadback
     )throws Exception{
+        runRevokedSettlement(stage,afterReadback,false);
+    }
+
+    private static void runRevokedSettlement(
+        LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
+        boolean disableLab
+    )throws Exception{
         if(afterReadback&&stage!=
                 LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED)
             throw new IllegalArgumentException(
                 "R95_REQUIRES_RECEIPT_FORCED");
         Path root=Files.createTempDirectory(
-            (afterReadback?"r95-post-inspection-":"r93-revoked-")+
+            (disableLab?"r96-opt-out-":
+                afterReadback?"r95-post-inspection-":"r93-revoked-")+
             stage.name().toLowerCase(java.util.Locale.ROOT)+"-");
         String[] flags={
             "spk.local.accountFile",
@@ -1989,8 +1997,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             ProcessBuilder holder=new ProcessBuilder(
                 javaExe(),"-cp",System.getProperty("java.class.path"),
                 G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
-                afterReadback?"--settlement-post-readback-revoked"
-                    :"--settlement-revoked",
+                disableLab
+                    ?afterReadback
+                        ?"--settlement-opt-out-post-readback"
+                        :"--settlement-opt-out-stage"
+                    :afterReadback
+                        ?"--settlement-post-readback-revoked"
+                        :"--settlement-revoked",
                 root.toString(),stage.name());
             holder.redirectErrorStream(true);
             holder.redirectOutput(holderLog.toFile());
@@ -2003,10 +2016,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             String trace=new String(Files.readAllBytes(holderLog),
                 StandardCharsets.UTF_8);
             check(p.exitValue()==0&&trace.contains(
-                afterReadback
-                    ?"R95_WORLD_POSTREADBACK_REVOCATION_VETO_PASS"
-                    :"R92_WORLD_FORCE_REVOCATION_VETO_PASS stage="+stage),
-                "R93/R95 original World settlement did not fail closed: "+
+                disableLab
+                    ?"R96_WORLD_SETTLEMENT_OPT_OUT_PASS stage="+stage+
+                        " afterReadback="+afterReadback
+                    :afterReadback
+                        ?"R95_WORLD_POSTREADBACK_REVOCATION_VETO_PASS"
+                        :"R92_WORLD_FORCE_REVOCATION_VETO_PASS stage="+stage),
+                "R93/R95/R96 original World settlement did not fail closed: "+
                     stage+" "+trace);
             check(Arrays.equals(baseline,Files.readAllBytes(account)),
                 "R92 aborted settlement rewrote legacy account");
@@ -2096,12 +2112,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
                 "R92 fresh JVM did not refuse partial settlement: "+result);
             System.out.println(
-                (afterReadback
-                    ?"R95_POSTREADBACK_REVOKED_FRESH_JVM_PASS"
-                    :"R93_REVOKED_SETTLEMENT_FRESH_JVM_PASS")+
+                (disableLab
+                    ?"R96_SETTLEMENT_OPT_OUT_FRESH_JVM_PASS"
+                    :afterReadback
+                        ?"R95_POSTREADBACK_REVOKED_FRESH_JVM_PASS"
+                        :"R93_REVOKED_SETTLEMENT_FRESH_JVM_PASS")+
                 " stage="+stage+
                 " originalWorldAndFifo=true"+
-                " reservationRevokedAfterInspect="+afterReadback+
+                " reservationRevokedAfterInspect="+
+                    (afterReadback&&!disableLab)+
+                " experimentalOptOutDuringTransition="+disableLab+
                 " exactSevenStageInventory=true"+
                 " headMoved="+headMoved+
                 " receiptForced="+receiptForced+
@@ -2140,6 +2160,17 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         if(args.length==4&&"--prepare-holder".equals(args[0])){
             prepareKillHolder(Paths.get(args[1]),Paths.get(args[2]),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==3&&
+                ("--settlement-opt-out-stage".equals(args[0])||
+                 "--settlement-opt-out-post-readback".equals(args[0]))){
+            boolean late="--settlement-opt-out-post-readback".equals(
+                args[0]);
+            settleKillHolder(Paths.get(args[1]),
+                Paths.get(args[1]).resolve("unused-ready"),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[2]),
+                false,false,!late,late);
             return;
         }
         if(args.length==3&&
@@ -2195,5 +2226,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // receipt force callback, BEFORE returning any LAB result.
         runRevokedSettlement(
             LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,true);
+        // R96: opt-out must be honored DURING the detached journal
+        // and even after receipt readback, with no positive rights.
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.HEAD_MOVED_BEFORE_DIR_FORCE,
+            false,true);
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
+            false,true);
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
+            true,true);
     }
 }
