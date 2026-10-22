@@ -1885,6 +1885,14 @@ final class LocalJvmAccountSessionLease {
             if(remembered==null)
                 throw new java.io.IOException(
                     "R82_NO_ORIGINAL_AUTHENTICATED_PENDING_TOKEN");
+            // R89: an ordinary deferred/checkpoint World capture is
+            // not a deferred FINAL-disconnect capture. Both are
+            // immutable and correctly attested, but only the
+            // genuine WorldPlayerPersistence final capture can
+            // supply the LAB postimage (never a real save ACK).
+            if(!finalWitness.finalDisconnectCapture)
+                throw new java.io.IOException(
+                    "R89_SETTLEMENT_REQUIRES_FINAL_DISCONNECT_CAPTURE");
             if(finalWitness.worldCaptureStartOrdinal<=0L||
                finalWitness.worldCaptureStartOrdinal<=
                    token.pendingLabCaptureStartFence)
@@ -2073,11 +2081,15 @@ final class LocalJvmAccountSessionLease {
         // or a caller-swappable postimage and never disk authority.
         private final PlayerSnapshot capturedSnapshot;
         private final long worldCaptureStartOrdinal;
+        // R89: this is classification of the original immutable
+        // World capture, NOT proof of durable final publication.
+        private final boolean finalDisconnectCapture;
 
         private SaveCaptureWitness(
             Path path,String account,WorldPlayer owner,long generation,
             Token originalLease,boolean priorUnleased,
-            PlayerSnapshot capturedSnapshot,long worldCaptureStartOrdinal
+            PlayerSnapshot capturedSnapshot,long worldCaptureStartOrdinal,
+            boolean finalDisconnectCapture
         ){
             this.path=path;
             this.account=account;
@@ -2087,6 +2099,7 @@ final class LocalJvmAccountSessionLease {
             this.priorUnleased=priorUnleased;
             this.capturedSnapshot=capturedSnapshot;
             this.worldCaptureStartOrdinal=worldCaptureStartOrdinal;
+            this.finalDisconnectCapture=finalDisconnectCapture;
         }
     }
 
@@ -2122,6 +2135,26 @@ final class LocalJvmAccountSessionLease {
         WorldPlayer owner,long generation,
         PlayerSnapshot capturedSnapshot,
         WorldCaptureStartForLab captureStart
+    ){
+        // Compatibility/capture-test callers are always ordinary
+        // captures and may not opt into final classification.
+        return captureSaveWitness(
+            exactAccountPath,account,owner,generation,
+            capturedSnapshot,captureStart,false);
+    }
+
+    /**
+     * R89 source-only experimental classification. Trusted
+     * WorldPlayerPersistence passes true exclusively from its real
+     * captureDeferredFinalSave path; no other save/admission behavior
+     * consults this bit.
+     */
+    static SaveCaptureWitness captureSaveWitness(
+        Path exactAccountPath,String account,
+        WorldPlayer owner,long generation,
+        PlayerSnapshot capturedSnapshot,
+        WorldCaptureStartForLab captureStart,
+        boolean finalDisconnectCapture
     ){
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         Objects.requireNonNull(owner,"owner");
@@ -2168,7 +2201,7 @@ final class LocalJvmAccountSessionLease {
             }
             return new SaveCaptureWitness(
                 path,account,owner,generation,token,priorUnleased,
-                capturedSnapshot,ordinal);
+                capturedSnapshot,ordinal,finalDisconnectCapture);
         }
     }
 
