@@ -346,10 +346,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
      * reserved through LAB settlement; every test explicitly aborts
      * it without calling publish or acknowledging an actual save.
      */
-    private static final IdentityHashMap<
+    private static final java.util.IdentityHashMap<
         WorldPlayerPersistence.CapturedSave,
         WorldPlayerPersistence.FinalSaveReservation>
-        labFinalReservations=new IdentityHashMap<>();
+        labFinalReservations=new java.util.IdentityHashMap<>();
 
     private static WorldPlayerPersistence.CapturedSave captureFinal(
         World world,WorldPlayer owner,long generation
