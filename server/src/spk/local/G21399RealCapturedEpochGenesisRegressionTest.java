@@ -828,6 +828,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     System.setProperty(
                         LocalJvmAccountSessionLease
                             .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,"true");
+                    // R91.6: a genuine but UNRESERVED final save
+                    // task has no FIFO slot to clear. Reproduce its
+                    // terminal cleanup while the new real reserved
+                    // final capture is still held. Earlier generation-
+                    // only cleanup would erase the new reservation.
+                    world.persistence()
+                        .replayUnboundFinalCleanupForLabTest(unreserved);
                     boolean ordinaryDenied=false;
                     try{
                         LocalJvmAccountSessionLease
@@ -1011,6 +1018,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R91_UNBOUND_FINAL_CLEANUP_NO_CROSS_SLOT_PASS"+
+                " unboundFinalCannotClearBoundReservation=true"+
+                " genuineBoundFinalStillSettlesLabOnly=true"+
+                " noPublicationOrAcknowledgement=true");
             System.out.println("R91_ORIGINAL_FINAL_RESERVATION_CONTINUITY_PASS"+
                 " abortedOriginalTaskDenied=true"+
                 " replacementSameOwnerGenerationCannotRevive=true"+
