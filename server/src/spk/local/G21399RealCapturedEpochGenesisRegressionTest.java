@@ -2026,13 +2026,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         for(LocalReusableAccountEpochLab.Stage stage:
                 LocalReusableAccountEpochLab.Stage.values())
             runKilledSettlement(stage);
-        // R93: cover pre-HEAD, moved-but-not-directory-forced,
-        // and even completed LAB receipt. None grants admission.
-        runRevokedSettlement(
-            LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED);
-        runRevokedSettlement(
-            LocalReusableAccountEpochLab.Stage.HEAD_MOVED_BEFORE_DIR_FORCE);
-        runRevokedSettlement(
-            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED);
+        // R94: exhaustive, exact enum inventory. Every forced
+        // boundary gets its OWN original authenticated World holder,
+        // revoked FIFO, and independent default-OFF JVM denial.
+        for(LocalReusableAccountEpochLab.Stage stage:
+                LocalReusableAccountEpochLab.Stage.values())
+            runRevokedSettlement(stage);
     }
 }
