@@ -2001,6 +2001,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
         boolean disableLab
     )throws Exception{
+        runRevokedSettlement(stage,afterReadback,
+            disableLab
+                ?LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+                :null);
+    }
+
+    private static void runRevokedSettlement(
+        LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
+        String disabledFlag
+    )throws Exception{
+        boolean disableLab=disabledFlag!=null;
+        if(disableLab)
+            checkedSettlementExperimentFlag(disabledFlag);
         if(afterReadback&&stage!=
                 LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED)
             throw new IllegalArgumentException(
@@ -2041,6 +2054,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         ?"--settlement-post-readback-revoked"
                         :"--settlement-revoked",
                 root.toString(),stage.name());
+            if(disableLab)holder.command().add(disabledFlag);
             holder.redirectErrorStream(true);
             holder.redirectOutput(holderLog.toFile());
             Process p=holder.start();
@@ -2054,7 +2068,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             check(p.exitValue()==0&&trace.contains(
                 disableLab
                     ?"R96_WORLD_SETTLEMENT_OPT_OUT_PASS stage="+stage+
-                        " afterReadback="+afterReadback
+                        " afterReadback="+afterReadback+
+                        " disabledFlag="+disabledFlag
                     :afterReadback
                         ?"R95_WORLD_POSTREADBACK_REVOCATION_VETO_PASS"
                         :"R92_WORLD_FORCE_REVOCATION_VETO_PASS stage="+stage),
@@ -2158,6 +2173,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " reservationRevokedAfterInspect="+
                     (afterReadback&&!disableLab)+
                 " experimentalOptOutDuringTransition="+disableLab+
+                " disabledFlag="+(disableLab?disabledFlag:"none")+
                 " exactSevenStageInventory=true"+
                 " headMoved="+headMoved+
                 " receiptForced="+receiptForced+
@@ -2198,15 +2214,18 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
             return;
         }
-        if(args.length==3&&
+        if((args.length==3||args.length==4)&&
                 ("--settlement-opt-out-stage".equals(args[0])||
                  "--settlement-opt-out-post-readback".equals(args[0]))){
             boolean late="--settlement-opt-out-post-readback".equals(
                 args[0]);
+            String disabled=args.length==4
+                ?checkedSettlementExperimentFlag(args[3])
+                :LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY;
             settleKillHolder(Paths.get(args[1]),
                 Paths.get(args[1]).resolve("unused-ready"),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[2]),
-                false,false,!late,late);
+                false,false,!late,late,disabled);
             return;
         }
         if(args.length==3&&
@@ -2262,16 +2281,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // receipt force callback, BEFORE returning any LAB result.
         runRevokedSettlement(
             LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,true);
-        // R96: opt-out must be honored DURING the detached journal
-        // and even after receipt readback, with no positive rights.
-        runRevokedSettlement(
-            LocalReusableAccountEpochLab.Stage.HEAD_MOVED_BEFORE_DIR_FORCE,
-            false,true);
-        runRevokedSettlement(
-            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
-            false,true);
-        runRevokedSettlement(
-            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
-            true,true);
+        // R97: each of the FOUR independent experiment flags
+        // must fail closed at a moved HEAD, a fully forced LAB
+        // receipt, and after complete readback (12 original TCP
+        // World subprocesses + 12 separate default-OFF JVMs).
+        for(String flag:settlementExperimentFlags()){
+            runRevokedSettlement(
+                LocalReusableAccountEpochLab.Stage.HEAD_MOVED_BEFORE_DIR_FORCE,
+                false,flag);
+            runRevokedSettlement(
+                LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
+                false,flag);
+            runRevokedSettlement(
+                LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
+                true,flag);
+        }
     }
 }
