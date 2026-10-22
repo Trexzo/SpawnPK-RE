@@ -557,12 +557,33 @@ final class WorldPlayerPersistence
                 username,player,generation);
     }
 
+    /**
+     * R90: read-only observation of an actually admitted final FIFO
+     * slot, under the existing persistence admission monitor.
+     * Called only under the opt-in LAB capture flag; cannot publish
+     * a save, reserve a new task or retire a World owner.
+     */
+    private boolean finalReservationPresentAtWorldCaptureForLab(
+        WorldPlayer owner,long generation
+    ){
+        if(!Boolean.getBoolean(
+                LocalJvmAccountSessionLease
+                    .CAPTURED_EPOCH_PREPARE_LAB_PROPERTY))
+            return false;
+        synchronized(io){
+            Long reserved=finalReservationGenerations.get(owner);
+            return reserved!=null&&
+                reserved.longValue()==generation&&!io.isShutdown();
+        }
+    }
+
     private LocalJvmAccountSessionLease.SaveCaptureWitness
         captureOwnerLeaseWitness(
             String username,WorldPlayer player,long generation,
             PlayerSnapshot exactWorldCapture,
             LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart,
-            boolean finalDisconnectCapture
+            boolean finalDisconnectCapture,
+            boolean finalReservationAtCapture
         ){
         if(!(repository instanceof FilePlayerRepository))
             return null;
@@ -572,7 +593,8 @@ final class WorldPlayerPersistence
         // World-thread snapshot, not only the owner's generation.
         return LocalJvmAccountSessionLease.captureSaveWitness(
             file,username,player,generation,exactWorldCapture,
-            captureStart,finalDisconnectCapture);
+            captureStart,finalDisconnectCapture,
+            finalReservationAtCapture);
     }
 
     /**
@@ -685,7 +707,7 @@ final class WorldPlayerPersistence
             false,
             captureOwnerLeaseWitness(
                 username,player,expectedGeneration,snapshot,
-                captureStart,false)
+                captureStart,false,false)
         );
     }
 
@@ -706,6 +728,7 @@ final class WorldPlayerPersistence
 
         PlayerSnapshot snapshot;
         LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart;
+        boolean reservationAtCapture;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -731,6 +754,11 @@ final class WorldPlayerPersistence
             }
 
             try{
+                // Observe the genuine FIFO reservation before
+                // encoding the immutable final World image.
+                reservationAtCapture=
+                    finalReservationPresentAtWorldCaptureForLab(
+                        player,expectedGeneration);
                 captureStart=markWorldSnapshotCaptureStartForLab(
                     username,player,expectedGeneration);
                 snapshot=
@@ -806,7 +834,7 @@ final class WorldPlayerPersistence
             true,
             captureOwnerLeaseWitness(
                 username,player,expectedGeneration,snapshot,
-                captureStart,true)
+                captureStart,true,reservationAtCapture)
         );
     }
 
@@ -1368,7 +1396,7 @@ final class WorldPlayerPersistence
                         generation,
                         captureOwnerLeaseWitness(
                             username,player,generation,snapshot,
-                            captureStart,false)
+                            captureStart,false,false)
                     );
 
                 synchronized(checkpointLock){
