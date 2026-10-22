@@ -1836,6 +1836,112 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+    /**
+     * R92: an authenticated World aborts its exact original final
+     * FIFO at the first forced settlement stage. A fresh independent
+     * JVM must still refuse all LAB evidence.
+     */
+    private static void runRevokedSettlement()throws Exception{
+        Path root=Files.createTempDirectory("r92-revoked-settlement-");
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] previous=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            previous[i]=System.getProperty(flags[i]);
+        try{
+            configure(root,false);
+            FilePlayerRepository repo=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            repo.save(PlayerSnapshotCodec.capture(USER,new WorldPlayer()));
+            Path account=LocalAccountProfiles.accountFile(USER);
+            byte[] baseline=Files.readAllBytes(account);
+            Path holderLog=root.resolve("revoked-holder.log");
+            ProcessBuilder holder=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+                "--settlement-revoked",root.toString());
+            holder.redirectErrorStream(true);
+            holder.redirectOutput(holderLog.toFile());
+            Process p=holder.start();
+            if(!p.waitFor(35,TimeUnit.SECONDS)){
+                p.destroyForcibly();
+                p.waitFor(10,TimeUnit.SECONDS);
+                throw new AssertionError("R92 aborted World holder timed out");
+            }
+            String trace=new String(Files.readAllBytes(holderLog),
+                StandardCharsets.UTF_8);
+            check(p.exitValue()==0&&trace.contains(
+                "R92_WORLD_FORCE_REVOCATION_VETO_PASS"),
+                "R92 original World settlement did not fail closed: "+trace);
+            check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                "R92 aborted settlement rewrote legacy account");
+            Path head=account.resolveSibling(
+                account.getFileName()+".g21385-ledger-head");
+            String headText=new String(Files.readAllBytes(head),
+                StandardCharsets.US_ASCII);
+            check(headText.contains("sequence=2\n")&&
+                headText.contains("phase=FINAL_PENDING\n"),
+                "R92 incomplete transition published CLOSED");
+            Path intent=account.resolveSibling(
+                account.getFileName()+".g21386-intent-0003");
+            Path receipt=account.resolveSibling(
+                account.getFileName()+".g21386-receipt-0003");
+            check(!Files.exists(intent,LinkOption.NOFOLLOW_LINKS)&&
+                !Files.exists(receipt,LinkOption.NOFOLLOW_LINKS),
+                "R92 revoked before journal but intent/receipt exists");
+            boolean negative=false;
+            try{
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+            }catch(IOException invalid){negative=contains(invalid,NEGATIVE);}
+            check(negative,"R92 partial LAB evidence allowed old account");
+            Path freshLog=root.resolve("revoked-fresh.log");
+            ProcessBuilder probe=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+                "--settlement-fresh",root.toString(),
+                LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED.name());
+            probe.redirectErrorStream(true);
+            probe.redirectOutput(freshLog.toFile());
+            Process fresh=probe.start();
+            if(!fresh.waitFor(35,TimeUnit.SECONDS)){
+                fresh.destroyForcibly();
+                fresh.waitFor(10,TimeUnit.SECONDS);
+                throw new AssertionError("R92 fresh denial probe timed out");
+            }
+            String result=new String(Files.readAllBytes(freshLog),
+                StandardCharsets.UTF_8);
+            check(fresh.exitValue()==0&&result.contains(
+                "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
+                "R92 fresh JVM did not refuse partial settlement: "+result);
+            System.out.println("R92_REVOKED_SETTLEMENT_FRESH_JVM_PASS"+
+                " originalWorldAndFifo=true"+
+                " abortDuringSnapshotForce=true"+
+                " intentAndReceiptAbsent=true"+
+                " previousFinalPendingHeadUnchanged=true"+
+                " oldAccountBytesUnchanged=true"+
+                " freshJvmTcpAndLegacyDenied=true"+
+                " noRecoveryOrFinalACK=true");
+        }finally{
+            for(int i=0;i<flags.length;i++){
+                if(previous[i]==null)System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],previous[i]);
+            }
+            try(Stream<Path> entries=Files.walk(root)){
+                for(Path entry:entries.sorted(Comparator.reverseOrder())
+                    .toArray(Path[]::new))Files.deleteIfExists(entry);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&("--fresh".equals(args[0])||
                             "--killed".equals(args[0])||
@@ -1856,6 +1962,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         if(args.length==4&&"--prepare-holder".equals(args[0])){
             prepareKillHolder(Paths.get(args[1]),Paths.get(args[2]),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==2&&"--settlement-revoked".equals(args[0])){
+            settleKillHolder(Paths.get(args[1]),
+                Paths.get(args[1]).resolve("unused-ready"),
+                LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED,true);
             return;
         }
         if(args.length==4&&"--settlement-holder".equals(args[0])){
@@ -1887,5 +1999,6 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         for(LocalReusableAccountEpochLab.Stage stage:
                 LocalReusableAccountEpochLab.Stage.values())
             runKilledSettlement(stage);
+        runRevokedSettlement();
     }
 }
