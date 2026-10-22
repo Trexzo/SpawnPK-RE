@@ -561,7 +561,8 @@ final class WorldPlayerPersistence
         captureOwnerLeaseWitness(
             String username,WorldPlayer player,long generation,
             PlayerSnapshot exactWorldCapture,
-            LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart
+            LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart,
+            boolean finalDisconnectCapture
         ){
         if(!(repository instanceof FilePlayerRepository))
             return null;
@@ -571,7 +572,7 @@ final class WorldPlayerPersistence
         // World-thread snapshot, not only the owner's generation.
         return LocalJvmAccountSessionLease.captureSaveWitness(
             file,username,player,generation,exactWorldCapture,
-            captureStart);
+            captureStart,finalDisconnectCapture);
     }
 
     /**
@@ -684,7 +685,7 @@ final class WorldPlayerPersistence
             false,
             captureOwnerLeaseWitness(
                 username,player,expectedGeneration,snapshot,
-                captureStart)
+                captureStart,false)
         );
     }
 
@@ -805,7 +806,7 @@ final class WorldPlayerPersistence
             true,
             captureOwnerLeaseWitness(
                 username,player,expectedGeneration,snapshot,
-                captureStart)
+                captureStart,true)
         );
     }
 
@@ -1367,7 +1368,7 @@ final class WorldPlayerPersistence
                         generation,
                         captureOwnerLeaseWitness(
                             username,player,generation,snapshot,
-                            captureStart)
+                            captureStart,false)
                     );
 
                 synchronized(checkpointLock){
