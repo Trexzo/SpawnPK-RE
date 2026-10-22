@@ -1507,7 +1507,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     )throws Exception{
         settleKillHolder(root,ready,target,revokeAtCutpoint,
             revokeAfterReadback,disableAtCutpoint,disableAfterReadback,
-            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY);
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,
+            false);
     }
 
     private static void settleKillHolder(
@@ -1516,6 +1517,22 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         boolean disableAtCutpoint,boolean disableAfterReadback,
         String experimentalFlag
     )throws Exception{
+        settleKillHolder(root,ready,target,revokeAtCutpoint,
+            revokeAfterReadback,disableAtCutpoint,disableAfterReadback,
+            experimentalFlag,false);
+    }
+
+    private static void settleKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
+        boolean revokeAtCutpoint,boolean revokeAfterReadback,
+        boolean disableAtCutpoint,boolean disableAfterReadback,
+        String experimentalFlag,boolean shutdownAtCutpoint
+    )throws Exception{
+        if(shutdownAtCutpoint&&
+           (revokeAtCutpoint||revokeAfterReadback||
+            disableAtCutpoint||disableAfterReadback))
+            throw new IllegalArgumentException(
+                "R98_EXCLUSIVE_SHUTDOWN_FAULT_MODE");
         if(disableAtCutpoint||disableAfterReadback)
             checkedSettlementExperimentFlag(experimentalFlag);
         if((disableAtCutpoint||disableAfterReadback)&&
@@ -1593,6 +1610,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             account,owner,generation,last.ticket.snapshot,
                             last.ownerWitness,stage->{
                                 if(stage!=target)return;
+                                if(shutdownAtCutpoint){
+                                    world.persistence()
+                                        .beginLabShutdownForTest();
+                                    return;
+                                }
                                 if(disableAtCutpoint){
                                     // R96: disable the original optional
                                     // LAB feature after a forced stage.
@@ -1638,7 +1660,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             });
                 }catch(IOException denied){
                     if(!revokeAtCutpoint&&!revokeAfterReadback&&
-                       !disableAtCutpoint&&!disableAfterReadback)
+                       !disableAtCutpoint&&!disableAfterReadback&&
+                       !shutdownAtCutpoint)
                         throw denied;
                     revocationDenied=contains(denied,
                         disableAtCutpoint||disableAfterReadback
@@ -1646,6 +1669,25 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             :revokeAfterReadback
                                 ?"R94_FINAL_RESERVATION_REVOKED_BEFORE_LAB_RESULT"
                                 :"R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                }
+                if(shutdownAtCutpoint){
+                    check(revocationDenied,
+                        "R98 shutting down persistence did not veto LAB");
+                    check(LocalJvmAccountSessionLease
+                            .activeCountForTest()==1,
+                        "R98 shutdown released original World lease");
+                    check(Boolean.getBoolean(
+                        LocalJvmAccountSessionLease
+                            .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY),
+                        "R98 did not isolate shutdown from flag opt-out");
+                    System.out.println("R98_WORLD_PERSISTENCE_SHUTDOWN_PASS"+
+                        " stage="+target+
+                        " actualFifoReservationCaptured=true"+
+                        " shutdownRevokedWitness=true"+
+                        " originalSessionLockRetained=true"+
+                        " noLabSuccessOrRealFinalAck=true");
+                    System.out.flush();
+                    return;
                 }
                 if(disableAtCutpoint||disableAfterReadback){
                     check(revocationDenied,
