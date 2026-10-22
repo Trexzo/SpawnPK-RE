@@ -1157,6 +1157,9 @@ final class WorldPlayerPersistence
                 owner
             );
 
+        if(expectedTask!=null&&
+           finalReservationTasksForLab.get(owner)!=expectedTask)
+            return;
         if(existing!=null&&
            existing.longValue()==expectedGeneration){
             finalReservationGenerations.remove(owner);
