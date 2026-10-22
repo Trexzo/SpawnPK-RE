@@ -285,6 +285,39 @@ final class WorldPlayerPersistence
     private final IdentityHashMap<WorldPlayer,Long>
         finalReservationGenerations=
             new IdentityHashMap<>();
+    // R91: track the exact original FIFO reservation task, rather
+    // than merely the same owner's generation. Guarded by io.
+    private final IdentityHashMap<WorldPlayer,ReservedFinalSaveTask>
+        finalReservationTasksForLab=new IdentityHashMap<>();
+
+    static final class FinalReservationEvidenceForLab {
+        private final WorldPlayerPersistence persistence;
+        private final WorldPlayer owner;
+        private final long generation;
+        private final ReservedFinalSaveTask originalTask;
+
+        private FinalReservationEvidenceForLab(
+            WorldPlayerPersistence persistence,WorldPlayer owner,
+            long generation,ReservedFinalSaveTask originalTask
+        ){
+            this.persistence=persistence;
+            this.owner=owner;
+            this.generation=generation;
+            this.originalTask=originalTask;
+        }
+
+        boolean isOriginalReservationStillPresentForLab(){
+            synchronized(persistence.io){
+                Long current=persistence.finalReservationGenerations
+                    .get(owner);
+                return current!=null&&
+                    current.longValue()==generation&&
+                    persistence.finalReservationTasksForLab.get(owner)==
+                        originalTask&&
+                    !persistence.io.isShutdown();
+            }
+        }
+    }
 
     private final Object checkpointLock=
         new Object();
@@ -563,17 +596,23 @@ final class WorldPlayerPersistence
      * Called only under the opt-in LAB capture flag; cannot publish
      * a save, reserve a new task or retire a World owner.
      */
-    private boolean finalReservationPresentAtWorldCaptureForLab(
+    private FinalReservationEvidenceForLab
+        finalReservationPresentAtWorldCaptureForLab(
         WorldPlayer owner,long generation
     ){
         if(!Boolean.getBoolean(
                 LocalJvmAccountSessionLease
                     .CAPTURED_EPOCH_PREPARE_LAB_PROPERTY))
-            return false;
+            return null;
         synchronized(io){
             Long reserved=finalReservationGenerations.get(owner);
-            return reserved!=null&&
-                reserved.longValue()==generation&&!io.isShutdown();
+            ReservedFinalSaveTask original=
+                finalReservationTasksForLab.get(owner);
+            return reserved!=null&&original!=null&&
+                reserved.longValue()==generation&&!io.isShutdown()
+                ?new FinalReservationEvidenceForLab(
+                    this,owner,generation,original)
+                :null;
         }
     }
 
@@ -583,7 +622,7 @@ final class WorldPlayerPersistence
             PlayerSnapshot exactWorldCapture,
             LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart,
             boolean finalDisconnectCapture,
-            boolean finalReservationAtCapture
+            FinalReservationEvidenceForLab finalReservationAtCapture
         ){
         if(!(repository instanceof FilePlayerRepository))
             return null;
@@ -707,7 +746,7 @@ final class WorldPlayerPersistence
             false,
             captureOwnerLeaseWitness(
                 username,player,expectedGeneration,snapshot,
-                captureStart,false,false)
+                captureStart,false,null)
         );
     }
 
@@ -728,7 +767,7 @@ final class WorldPlayerPersistence
 
         PlayerSnapshot snapshot;
         LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart;
-        boolean reservationAtCapture;
+        FinalReservationEvidenceForLab reservationAtCapture;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -1093,6 +1132,7 @@ final class WorldPlayerPersistence
             task.owner,
             task.ownerGeneration
         );
+        finalReservationTasksForLab.put(task.owner,task);
     }
 
     private void clearFinalReservationLocked(
@@ -1113,10 +1153,10 @@ final class WorldPlayerPersistence
             );
 
         if(existing!=null&&
-           existing.longValue()==expectedGeneration)
-            finalReservationGenerations.remove(
-                owner
-            );
+           existing.longValue()==expectedGeneration){
+            finalReservationGenerations.remove(owner);
+            finalReservationTasksForLab.remove(owner);
+        }
     }
 
     private void clearFinalReservation(
@@ -1396,7 +1436,7 @@ final class WorldPlayerPersistence
                         generation,
                         captureOwnerLeaseWitness(
                             username,player,generation,snapshot,
-                            captureStart,false,false)
+                            captureStart,false,null)
                     );
 
                 synchronized(checkpointLock){
