@@ -1084,6 +1084,18 @@ final class WorldPlayerPersistence
         return new SaveTask(captured,originalReservation);
     }
 
+    /** R91.6: test-only unbound SaveTask terminal cleanup, no I/O. */
+    void replayUnboundFinalCleanupForLabTest(CapturedSave captured){
+        if(!Boolean.getBoolean(
+                LocalJvmAccountSessionLease
+                    .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY)||
+           captured==null||!captured.finalDisconnect||
+           captured.owner==null)
+            throw new IllegalStateException(
+                "R91_UNBOUND_CLEANUP_REQUIRES_FINAL_LAB_CAPTURE");
+        new SaveTask(captured).cleanupFinalReservation();
+    }
+
     private boolean finalReservationBlocksLocked(
         SaveTask task
     ){
@@ -4415,6 +4427,13 @@ final class WorldPlayerPersistence
                 checked.ticket.completion;
         }
 
+        private void cleanupFinalReservation(){
+            if(finalDisconnect)
+                clearFinalReservation(
+                    owner,expectedGeneration,originalFinalReservation
+                );
+        }
+
         @Override public void run(){
             inFlightSave.set(this);
             try{
@@ -4438,10 +4457,7 @@ final class WorldPlayerPersistence
                     null
                 );
 
-                if(finalDisconnect)
-                    clearFinalReservation(
-                        owner,expectedGeneration,originalFinalReservation
-                    );
+                cleanupFinalReservation();
             }
         }
 
@@ -4476,10 +4492,7 @@ final class WorldPlayerPersistence
                 );
             }
 
-            if(finalDisconnect)
-                clearFinalReservation(
-                    owner,expectedGeneration,originalFinalReservation
-                );
+            cleanupFinalReservation();
 
             return rejected;
         }
