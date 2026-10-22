@@ -1528,6 +1528,21 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         boolean disableAtCutpoint,boolean disableAfterReadback,
         String experimentalFlag,boolean shutdownAtCutpoint
     )throws Exception{
+        settleKillHolder(root,ready,target,revokeAtCutpoint,
+            revokeAfterReadback,disableAtCutpoint,disableAfterReadback,
+            experimentalFlag,shutdownAtCutpoint,false);
+    }
+
+    private static void settleKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
+        boolean revokeAtCutpoint,boolean revokeAfterReadback,
+        boolean disableAtCutpoint,boolean disableAfterReadback,
+        String experimentalFlag,boolean shutdownAtCutpoint,
+        boolean fullCloseAtCutpoint
+    )throws Exception{
+        if(fullCloseAtCutpoint&&!shutdownAtCutpoint)
+            throw new IllegalArgumentException(
+                "R99_FULL_CLOSE_REQUIRES_SHUTDOWN_MODE");
         if(shutdownAtCutpoint&&
            (revokeAtCutpoint||revokeAfterReadback||
             disableAtCutpoint||disableAfterReadback))
@@ -1611,8 +1626,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             last.ownerWitness,stage->{
                                 if(stage!=target)return;
                                 if(shutdownAtCutpoint){
-                                    world.persistence()
-                                        .beginLabShutdownForTest();
+                                    // R99 invokes the full production
+                                    // close lifecycle, not merely the
+                                    // shared admission transition.
+                                    if(fullCloseAtCutpoint)
+                                        world.persistence().close();
+                                    else
+                                        world.persistence()
+                                            .beginLabShutdownForTest();
                                     return;
                                 }
                                 if(disableAtCutpoint){
@@ -1682,6 +1703,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         "R98 did not isolate shutdown from flag opt-out");
                     System.out.println("R98_WORLD_PERSISTENCE_SHUTDOWN_PASS"+
                         " stage="+target+
+                        " productionClose="+fullCloseAtCutpoint+
                         " actualFifoReservationCaptured=true"+
                         " shutdownRevokedWitness=true"+
                         " originalSessionLockRetained=true"+
