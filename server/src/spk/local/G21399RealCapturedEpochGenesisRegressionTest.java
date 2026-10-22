@@ -1505,6 +1505,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         boolean revokeAtCutpoint,boolean revokeAfterReadback,
         boolean disableAtCutpoint,boolean disableAfterReadback
     )throws Exception{
+        settleKillHolder(root,ready,target,revokeAtCutpoint,
+            revokeAfterReadback,disableAtCutpoint,disableAfterReadback,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY);
+    }
+
+    private static void settleKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
+        boolean revokeAtCutpoint,boolean revokeAfterReadback,
+        boolean disableAtCutpoint,boolean disableAfterReadback,
+        String experimentalFlag
+    )throws Exception{
+        if(disableAtCutpoint||disableAfterReadback)
+            checkedSettlementExperimentFlag(experimentalFlag);
         if((disableAtCutpoint||disableAfterReadback)&&
            (revokeAtCutpoint||revokeAfterReadback||
             (disableAtCutpoint&&disableAfterReadback)))
@@ -1584,9 +1597,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                     // R96: disable the original optional
                                     // LAB feature after a forced stage.
                                     // The real final FIFO stays live.
-                                    System.clearProperty(
-                                        LocalJvmAccountSessionLease
-                                            .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY);
+                                    System.clearProperty(experimentalFlag);
                                     return;
                                 }
                                 if(revokeAtCutpoint){
@@ -1623,9 +1634,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                 if(revokeAfterReadback)
                                     abortLabFinal(last);
                                 if(disableAfterReadback)
-                                    System.clearProperty(
-                                        LocalJvmAccountSessionLease
-                                            .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY);
+                                    System.clearProperty(experimentalFlag);
                             });
                 }catch(IOException denied){
                     if(!revokeAtCutpoint&&!revokeAfterReadback&&
@@ -1641,6 +1650,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 if(disableAtCutpoint||disableAfterReadback){
                     check(revocationDenied,
                         "R96 disabled settlement feature returned result");
+                    check(!Boolean.getBoolean(experimentalFlag),
+                        "R97 requested flag did not switch OFF");
+                    for(String other:settlementExperimentFlags())
+                        if(!other.equals(experimentalFlag))
+                            check(Boolean.getBoolean(other),
+                                "R97 unrelated LAB flag switched OFF");
                     check(LocalJvmAccountSessionLease
                             .activeCountForTest()==1,
                         "R96 disabled LAB released original session lease");
@@ -1658,6 +1673,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     System.out.println("R96_WORLD_SETTLEMENT_OPT_OUT_PASS"+
                         " stage="+target+
                         " afterReadback="+disableAfterReadback+
+                        " disabledFlag="+experimentalFlag+
                         " originalFifoNotPublished=true"+
                         " originalOwnerLockRetained=true"+
                         " noSuccessfulLabResultOrRealAck=true");
