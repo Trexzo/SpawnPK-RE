@@ -1869,8 +1869,7 @@ final class WorldPlayerPersistence
 
             if(terminal!=null)
                 clearFinalReservation(
-                    owner,
-                    ownerGeneration
+                    owner,ownerGeneration,this
                 );
         }
 
@@ -1927,8 +1926,7 @@ final class WorldPlayerPersistence
 
             if(changed)
                 clearFinalReservation(
-                    owner,
-                    ownerGeneration
+                    owner,ownerGeneration,this
                 );
         }
 
@@ -1956,8 +1954,7 @@ final class WorldPlayerPersistence
                     );
 
             clearFinalReservation(
-                owner,
-                ownerGeneration
+                owner,ownerGeneration,this
             );
             return true;
         }
