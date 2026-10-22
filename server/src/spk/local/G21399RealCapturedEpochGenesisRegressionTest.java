@@ -52,6 +52,8 @@ import java.util.stream.Stream;
  * single-use captured-start ticket, even if snapshot identity matches.
  * R88 requires the genuine World execution context at ticket mint
  * and consumption; off-thread callers may not fabricate capture order.
+ * R89 requires a genuine deferred FINAL-disconnect World capture for
+ * the detached LAB settlement, not an ordinary deferred/checkpoint.
  */
 public final class G21399RealCapturedEpochGenesisRegressionTest {
     private G21399RealCapturedEpochGenesisRegressionTest(){}
@@ -316,6 +318,24 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             captured.expectedGeneration==generation&&
             captured.ownerWitness!=null,
             "not genuine immutable G21.202 World capture");
+        return captured;
+    }
+    /** R89: genuine World-thread final-disconnect SNAPSHOT CAPTURE,
+     * never a submitted final write, ACK, retirement or recovery. */
+    private static WorldPlayerPersistence.CapturedSave captureFinal(
+        World world,WorldPlayer owner,long generation
+    )throws Exception{
+        AtomicReference<WorldPlayerPersistence.CapturedSave> result=
+            new AtomicReference<>();
+        world.submit(owner,generation,()->
+            result.set(world.persistence().captureDeferredFinalSave(
+                USER,owner,generation,0,"[r89] ","R89_LAB_FINAL_CAPTURE"))
+        ).get(5,TimeUnit.SECONDS);
+        WorldPlayerPersistence.CapturedSave captured=result.get();
+        check(captured!=null&&captured.owner==owner&&
+            captured.expectedGeneration==generation&&
+            captured.finalDisconnect&&captured.ownerWitness!=null,
+            "R89 not a genuine deferred final-disconnect World capture");
         return captured;
     }
     private static void exercise()throws Exception{
@@ -652,7 +672,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                 "phase","BEFORE_PREPARATION"))
                     ).get(5,TimeUnit.SECONDS);
                     WorldPlayerPersistence.CapturedSave preprepared=
-                        capture(world,owner,generation);
+                        captureFinal(world,owner,generation);
                     check("BEFORE_PREPARATION".equals(
                         preprepared.ticket.snapshot.value(
                             "extension.r86_early.phase")),
@@ -693,8 +713,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             "r82_final",
                             Collections.singletonMap("phase","AFTER_PENDING"))
                     ).get(5,TimeUnit.SECONDS);
-                    WorldPlayerPersistence.CapturedSave later=
+                    // R89 first proves an ordinary genuine post-
+                    // prepare World snapshot is never a final capture.
+                    WorldPlayerPersistence.CapturedSave ordinary=
                         capture(world,owner,generation);
+                    check(!ordinary.finalDisconnect,
+                        "ordinary World capture mislabeled final");
+                    WorldPlayerPersistence.CapturedSave later=
+                        captureFinal(world,owner,generation);
                     check("AFTER_PENDING".equals(
                         later.ticket.snapshot.value(
                             "extension.r82_final.phase")),
@@ -722,6 +748,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     System.setProperty(
                         LocalJvmAccountSessionLease
                             .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,"true");
+                    boolean ordinaryDenied=false;
+                    try{
+                        LocalJvmAccountSessionLease
+                            .settleCapturedEpochUnderOriginalLockForLab(
+                                selected,owner,generation,
+                                ordinary.ticket.snapshot,
+                                ordinary.ownerWitness);
+                    }catch(IOException denied){
+                        ordinaryDenied=contains(denied,
+                            "R89_SETTLEMENT_REQUIRES_FINAL_DISCONNECT_CAPTURE");
+                    }
+                    check(ordinaryDenied,
+                        "ordinary World capture settled final LAB image");
                     boolean forgedSettle=false;
                     try{
                         LocalJvmAccountSessionLease
@@ -860,6 +899,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R78 OWNED state altered historical account bytes");
             world.close();
             check(world.closed(),"original World could not close");
+            System.out.println("R89_FINAL_DISCONNECT_CAPTURE_CLASS_PASS"+
+                " ordinaryPostPrepareWorldCaptureDenied=true"+
+                " realDeferredFinalCaptureAcceptedLabOnly=true"+
+                " distinctOriginalTokenAndImage=true"+
+                " noFinalSaveSubmittedOrACK=true"+
+                " noReleaseOrAdmission=true");
             System.out.println("R88_WORLD_EXECUTION_CAPTURE_TICKET_PASS"+
                 " offWorldThreadMintDenied=true"+
                 " offWorldThreadConsumeDenied=true"+
@@ -1340,7 +1385,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         Collections.singletonMap("phase","LATER"))
                 ).get(5,TimeUnit.SECONDS);
                 WorldPlayerPersistence.CapturedSave last=
-                    capture(world,owner,generation);
+                    captureFinal(world,owner,generation);
                 check("LATER".equals(last.ticket.snapshot.value(
                     "extension.r83_final.phase")),
                     "R83 actual later World capture missing");
