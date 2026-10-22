@@ -786,9 +786,21 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         "unreserved negative was not an actual final capture");
                     WorldPlayerPersistence.CapturedSave abortedLate=
                         captureFinal(world,owner,generation);
+                    WorldPlayerPersistence.FinalSaveReservation oldSlot;
+                    synchronized(labFinalReservations){
+                        oldSlot=labFinalReservations.get(abortedLate);
+                    }
+                    check(oldSlot!=null,
+                        "R91 old original FIFO identity not tracked");
                     abortLabFinal(abortedLate);
                     WorldPlayerPersistence.CapturedSave later=
                         captureFinal(world,owner,generation);
+                    // Deterministically replay the older aborted
+                    // worker's delayed cleanup AFTER the new exact
+                    // same-owner/generation reservation was admitted.
+                    // Prior generation-only cleanup would erase
+                    // the new fence and fail the later settlement.
+                    oldSlot.replayAbortedWorkerCleanupForTest();
                     check("AFTER_PENDING".equals(
                         later.ticket.snapshot.value(
                             "extension.r82_final.phase")),
@@ -1002,6 +1014,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             System.out.println("R91_ORIGINAL_FINAL_RESERVATION_CONTINUITY_PASS"+
                 " abortedOriginalTaskDenied=true"+
                 " replacementSameOwnerGenerationCannotRevive=true"+
+                " delayedOldWorkerCleanupReplaySafe=true"+
                 " exactOriginalTaskHeldAtSettlementEntry=true"+
                 " originalFinalQueueAbortedWithoutPublish=true"+
                 " noRealFinalACKOrRecovery=true");
