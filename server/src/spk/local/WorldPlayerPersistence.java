@@ -185,6 +185,23 @@ final class WorldPlayerPersistence
                     :failure
             );
         }
+
+        /**
+         * R91.4 deterministic test of a worker waking AFTER abort.
+         * Cannot be called on a published or un-aborted reservation.
+         * It invokes the SAME identity-fenced terminal cleanup as
+         * ReservedFinalSaveTask.run, never a final save publication.
+         */
+        void replayAbortedWorkerCleanupForTest(){
+            synchronized(task){
+                if(task.terminalFailure==null||
+                   task.captured!=null)
+                    throw new IllegalStateException(
+                        "R91_TEST_REQUIRES_ABORTED_UNPUBLISHED_TASK");
+            }
+            clearFinalReservation(
+                task.owner,task.ownerGeneration,task);
+        }
     }
 
     private static final class PendingCheckpoint {
