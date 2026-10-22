@@ -2426,11 +2426,22 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         runRevokedSettlement(
             LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
             false,null,true);
-        // R99: unlike R98's bounded admission helper, execute
-        // the ENTIRE production close lifecycle while holding the
-        // original account lock and a genuine final FIFO witness.
-        runRevokedSettlement(
-            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
-            false,null,true,true);
+        // R100: exercise the ENTIRE production close lifecycle,
+        // not just the R98 admission helper, at three materially
+        // different on-disk states under the original authenticated
+        // World lock and real final FIFO reservation:
+        // - pending HEAD after forced snapshot
+        // - CLOSED HEAD renamed before directory force
+        // - complete, forced laboratory receipt
+        // Each gets its own original World, exact sidecar-inventory
+        // checks, unchanged legacy account bytes, and a separate
+        // default-OFF JVM admission denial. No real ACK is enabled.
+        for(LocalReusableAccountEpochLab.Stage stage:
+                new LocalReusableAccountEpochLab.Stage[]{
+                    LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED,
+                    LocalReusableAccountEpochLab.Stage.HEAD_MOVED_BEFORE_DIR_FORCE,
+                    LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED
+                })
+            runRevokedSettlement(stage,false,null,true,true);
     }
 }
