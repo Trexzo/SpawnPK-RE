@@ -1476,6 +1476,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
         boolean revokeAtCutpoint,boolean revokeAfterReadback
     )throws Exception{
+        settleKillHolder(root,ready,target,revokeAtCutpoint,
+            revokeAfterReadback,false,false);
+    }
+
+    private static void settleKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
+        boolean revokeAtCutpoint,boolean revokeAfterReadback,
+        boolean disableAtCutpoint,boolean disableAfterReadback
+    )throws Exception{
+        if((disableAtCutpoint||disableAfterReadback)&&
+           (revokeAtCutpoint||revokeAfterReadback||
+            (disableAtCutpoint&&disableAfterReadback)))
+            throw new IllegalArgumentException("R96_EXCLUSIVE_FAULT_MODE");
         configure(root,true);
         System.setProperty(
             LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
@@ -1547,6 +1560,15 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             account,owner,generation,last.ticket.snapshot,
                             last.ownerWitness,stage->{
                                 if(stage!=target)return;
+                                if(disableAtCutpoint){
+                                    // R96: disable the original optional
+                                    // LAB feature after a forced stage.
+                                    // The real final FIFO stays live.
+                                    System.clearProperty(
+                                        LocalJvmAccountSessionLease
+                                            .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY);
+                                    return;
+                                }
                                 if(revokeAtCutpoint){
                                     // R93: revoke while the true final
                                     // filesystem cutpoint is executing.
@@ -1560,7 +1582,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                 // receipt-force callback, let the
                                 // LAB inspect/owner checks finish, and
                                 // only THEN revoke its original FIFO.
-                                if(revokeAfterReadback)return;
+                                if(revokeAfterReadback||
+                                   disableAfterReadback)return;
                                 System.out.println(
                                     "R83_WORLD_SETTLEMENT_FORCED_"+target);
                                 System.out.flush();
@@ -1579,14 +1602,47 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             },()->{
                                 if(revokeAfterReadback)
                                     abortLabFinal(last);
+                                if(disableAfterReadback)
+                                    System.clearProperty(
+                                        LocalJvmAccountSessionLease
+                                            .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY);
                             });
                 }catch(IOException denied){
-                    if(!revokeAtCutpoint&&!revokeAfterReadback)
+                    if(!revokeAtCutpoint&&!revokeAfterReadback&&
+                       !disableAtCutpoint&&!disableAfterReadback)
                         throw denied;
                     revocationDenied=contains(denied,
-                        revokeAfterReadback
-                            ?"R94_FINAL_RESERVATION_REVOKED_BEFORE_LAB_RESULT"
-                            :"R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                        disableAtCutpoint||disableAfterReadback
+                            ?"R96_SETTLEMENT_LAB_DISABLED_DURING_TRANSITION"
+                            :revokeAfterReadback
+                                ?"R94_FINAL_RESERVATION_REVOKED_BEFORE_LAB_RESULT"
+                                :"R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                }
+                if(disableAtCutpoint||disableAfterReadback){
+                    check(revocationDenied,
+                        "R96 disabled settlement feature returned result");
+                    check(LocalJvmAccountSessionLease
+                            .activeCountForTest()==1,
+                        "R96 disabled LAB released original session lease");
+                    Path head=account.resolveSibling(
+                        account.getFileName()+".g21385-ledger-head");
+                    String headText=new String(Files.readAllBytes(head),
+                        StandardCharsets.US_ASCII);
+                    boolean moved=disableAfterReadback||
+                        target.ordinal()>=LocalReusableAccountEpochLab
+                            .Stage.HEAD_MOVED_BEFORE_DIR_FORCE.ordinal();
+                    check(headText.contains("sequence="+(moved?3:2)+"\n")&&
+                        headText.contains("phase="+
+                            (moved?"CLOSED":"FINAL_PENDING")+"\n"),
+                        "R96 disabled LAB persisted unexpected head");
+                    System.out.println("R96_WORLD_SETTLEMENT_OPT_OUT_PASS"+
+                        " stage="+target+
+                        " afterReadback="+disableAfterReadback+
+                        " originalFifoNotPublished=true"+
+                        " originalOwnerLockRetained=true"+
+                        " noSuccessfulLabResultOrRealAck=true");
+                    System.out.flush();
+                    return;
                 }
                 if(revokeAfterReadback){
                     check(revocationDenied,
