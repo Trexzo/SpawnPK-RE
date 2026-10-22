@@ -1897,6 +1897,14 @@ final class LocalJvmAccountSessionLease {
             if(!finalWitness.finalDisconnectCapture)
                 throw new java.io.IOException(
                     "R89_SETTLEMENT_REQUIRES_FINAL_DISCONNECT_CAPTURE");
+            // R90: final-disconnect capture alone is not proof
+            // that a final-save FIFO reservation was admitted.
+            // Require evidence observed from the existing real
+            // persistence queue at capture time; this is LAB-only
+            // provenance, NOT permission to publish or ACK.
+            if(!finalWitness.finalReservationAtCapture)
+                throw new java.io.IOException(
+                    "R90_FINAL_CAPTURE_WITHOUT_ACTIVE_RESERVATION");
             return token.processLock.withHeldOriginalAccount(selected,()->{
                 LocalReusableAccountEpochLab.Observation disk=
                     LocalReusableAccountEpochLab.inspect(selected);
@@ -2083,12 +2091,14 @@ final class LocalJvmAccountSessionLease {
         // R89: this is classification of the original immutable
         // World capture, NOT proof of durable final publication.
         private final boolean finalDisconnectCapture;
+        private final boolean finalReservationAtCapture;
 
         private SaveCaptureWitness(
             Path path,String account,WorldPlayer owner,long generation,
             Token originalLease,boolean priorUnleased,
             PlayerSnapshot capturedSnapshot,long worldCaptureStartOrdinal,
-            boolean finalDisconnectCapture
+            boolean finalDisconnectCapture,
+            boolean finalReservationAtCapture
         ){
             this.path=path;
             this.account=account;
@@ -2099,6 +2109,7 @@ final class LocalJvmAccountSessionLease {
             this.capturedSnapshot=capturedSnapshot;
             this.worldCaptureStartOrdinal=worldCaptureStartOrdinal;
             this.finalDisconnectCapture=finalDisconnectCapture;
+            this.finalReservationAtCapture=finalReservationAtCapture;
         }
     }
 
@@ -2139,21 +2150,22 @@ final class LocalJvmAccountSessionLease {
         // captures and may not opt into final classification.
         return captureSaveWitness(
             exactAccountPath,account,owner,generation,
-            capturedSnapshot,captureStart,false);
+            capturedSnapshot,captureStart,false,false);
     }
 
     /**
-     * R89 source-only experimental classification. Trusted
-     * WorldPlayerPersistence passes true exclusively from its real
-     * captureDeferredFinalSave path; no other save/admission behavior
-     * consults this bit.
+     * R89-R90 source-only experimental classification. Actual World
+     * persistence supplies whether this was a deferred-final capture
+     * and whether a matching final FIFO reservation was really active.
+     * Neither fact is a durable publication/ACK capability.
      */
     static SaveCaptureWitness captureSaveWitness(
         Path exactAccountPath,String account,
         WorldPlayer owner,long generation,
         PlayerSnapshot capturedSnapshot,
         WorldCaptureStartForLab captureStart,
-        boolean finalDisconnectCapture
+        boolean finalDisconnectCapture,
+        boolean finalReservationAtCapture
     ){
         Objects.requireNonNull(exactAccountPath,"exactAccountPath");
         Objects.requireNonNull(owner,"owner");
@@ -2200,7 +2212,8 @@ final class LocalJvmAccountSessionLease {
             }
             return new SaveCaptureWitness(
                 path,account,owner,generation,token,priorUnleased,
-                capturedSnapshot,ordinal,finalDisconnectCapture);
+                capturedSnapshot,ordinal,finalDisconnectCapture,
+                finalDisconnectCapture&&finalReservationAtCapture);
         }
     }
 
