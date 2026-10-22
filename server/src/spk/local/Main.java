@@ -33,80 +33,159 @@ public final class Main {
         World world = World.shared();
         world.start();
 
-        ExecutorService pool = Executors.newCachedThreadPool(r -> {
-            Thread t = new Thread(r, "spk-local-session"); t.setDaemon(true); return t;
-        });
+        int kotlinPluginCount;
+        final LocalSession.MonsterSpawnerUiFactory
+            monsterSpawnerUiFactory;
 
-        ServerSocket game = new ServerSocket();
-        game.bind(new InetSocketAddress(bind, GAME_PORT));
-        ServerSocket aux = new ServerSocket();
-        aux.bind(new InetSocketAddress(bind, AUX_PORT));
+        try {
+            kotlinPluginCount =
+                KotlinPluginDirectory.loadStartup(
+                    world,
+                    Paths.get(
+                        "plugins",
+                        "kotlin"
+                    )
+                );
 
-        System.out.println("SpawnPK Local Lab "+BuildInfo.summary());
-        System.out.println("GAME  : " + game.getLocalSocketAddress());
-        System.out.println("AUX   : " + aux.getLocalSocketAddress() + " (loopback HTTP/cache guard)");
-        System.out.println("GUARD : loopback-only; no code path dials a remote host");
-        System.out.println("M4    : certified bootstrap=" + bootstrapFinal + " (default false)");
-        System.out.println("M5    : authoritative movement=" + movementFinal + " (600 ms server tick)");
-        System.out.println("ENGINE: one shared World + one authoritative WorldPulse; command migration staged by subsystem");
-        System.out.println("PULSE : " + world.metrics());
-        System.out.println("ITEMS : "+ItemDefinitionRepository.count()+" current client-known ids; ::item / ::tabitem <id> [amount]");
-        System.out.println("SPAWN : packet71 shortcut 0 -> native root 67027 on sidebar tab "+BootstrapPackets.SPAWN_TAB_INDEX);
+            monsterSpawnerUiFactory=
+                LocalLabMonsterSpawnerProvisioning
+                    .create(
+                        world
+                    );
+        } catch (Throwable failure) {
+            try {
+                world.close();
+            } catch (Throwable cleanup) {
+                failure.addSuppressed(
+                    cleanup
+                );
+            }
 
-        LocalServerShutdownCoordinator shutdown =
-            new LocalServerShutdownCoordinator(
+            if (failure instanceof Exception)
+                throw (Exception)failure;
+            if (failure instanceof Error)
+                throw (Error)failure;
+
+            throw new RuntimeException(
+                failure
+            );
+        }
+
+        LocalServerStartupBinder.Resources startup =
+            LocalServerStartupBinder.prepare(
                 world,
-                pool,
-                game,
-                aux
+                ()->
+                    Executors.newCachedThreadPool(
+                        r->{
+                            Thread t=
+                                new Thread(
+                                    r,
+                                    "spk-local-session"
+                                );
+                            t.setDaemon(
+                                true
+                            );
+                            return t;
+                        }
+                    )
             );
+        ServerSocket game = startup.game;
+        ServerSocket aux = startup.aux;
+        LocalServerShutdownCoordinator shutdown =
+            startup.shutdown;
 
-        Thread shutdownHook =
-            new Thread(
-                shutdown::close,
-                "spk-local-shutdown"
-            );
+        LocalServerStartupBinder.bind(
+            shutdown,
+            game,
+            new InetSocketAddress(
+                bind,
+                GAME_PORT
+            ),
+            aux,
+            new InetSocketAddress(
+                bind,
+                AUX_PORT
+            )
+        );
+
+        LocalServerStartupBinder.runBoundSetup(
+            shutdown,
+            ()->{
+                System.out.println("SpawnPK Local Lab "+BuildInfo.summary());
+                System.out.println("GAME  : " + game.getLocalSocketAddress());
+                System.out.println("AUX   : " + aux.getLocalSocketAddress() + " (loopback HTTP/cache guard)");
+                System.out.println("GUARD : loopback-only; no code path dials a remote host");
+                System.out.println("M4    : certified bootstrap=" + bootstrapFinal + " (default false)");
+                System.out.println("M5    : authoritative movement=" + movementFinal + " (600 ms server tick)");
+                System.out.println("ENGINE: one shared World + one authoritative WorldPulse; command migration staged by subsystem");
+                System.out.println("PULSE : " + world.metrics());
+                System.out.println("ITEMS : "+ItemDefinitionRepository.count()+" current client-known ids; ::item / ::tabitem <id> [amount]");
+                System.out.println("SPAWN : packet71 shortcut 0 -> native root 67027 on sidebar tab "+BootstrapPackets.SPAWN_TAB_INDEX);
+                System.out.println(
+                    "KOTLIN: startup plugins=" +
+                    kotlinPluginCount
+                );
+                System.out.println(
+                    "MONSTER_SPAWNER: CUSTOM_LOCALLAB shared runtime configured; command=::monsterspawner"
+                );
+            }
+        );
 
         Runtime runtime =
             Runtime.getRuntime();
 
-        runtime.addShutdownHook(
-            shutdownHook
-        );
+        Thread shutdownHook =
+            LocalServerStartupBinder.installShutdownHook(
+                shutdown,
+                shutdown::close,
+                "spk-local-shutdown",
+                (target,name)->
+                    new Thread(
+                        target,
+                        name
+                    ),
+                runtime::addShutdownHook
+            );
+
+        Throwable servingFailure=null;
 
         try {
             if (!shutdown.submitAuxiliary(
-                    () -> localAux(aux)))
+                    () -> localAux(aux, shutdown)))
                 return;
 
             while (!shutdown.closing()) {
-                Socket s;
+                Socket s=
+                    shutdown.acceptGameSocket();
 
-                try {
-                    s = game.accept();
-                } catch (SocketException error) {
-                    if (shutdown.closing())
-                        break;
-                    throw error;
-                }
+                if(s==null)
+                    break;
 
                 if (!s.getInetAddress().isLoopbackAddress()) {
-                    s.close();
+                    shutdown.rejectSessionSocket(
+                        s
+                    );
                     continue;
                 }
 
                 if (!shutdown.submitSession(
                         s,
-                        new LocalSession(
-                            s,
-                            bootstrapFinal,
-                            movementFinal,
-                            world
-                        )))
+                        (LocalServerShutdownCoordinator.SessionFactory)
+                            ()->
+                                new LocalSession(
+                                    s,
+                                    bootstrapFinal,
+                                    movementFinal,
+                                    world,
+                                    monsterSpawnerUiFactory
+                                )))
                     break;
             }
+        } catch (Throwable failure) {
+            servingFailure=failure;
         } finally {
-            MainShutdownFinalizer.run(
+            MainShutdownFinalizer.runPreserving(
+                servingFailure,
                 shutdown::close,
                 ()->runtime.removeShutdownHook(
                     shutdownHook
@@ -115,22 +194,61 @@ public final class Main {
         }
     }
 
-    private static void localAux(ServerSocket server) {
-        while (!server.isClosed()) {
-            try (Socket s = server.accept()) {
-                if (!s.getInetAddress().isLoopbackAddress()) continue;
-                handleAuxConnection(s);
-            } catch (IOException e) {
-                if (!server.isClosed()) System.err.println("[local-aux] " + e);
-            }
-        }
+    private static void localAux(
+        ServerSocket server,
+        LocalServerShutdownCoordinator shutdown
+    ) {
+        LocalAuxHttpWorker.run(
+            server::isClosed,
+            shutdown::acceptAuxiliarySocket,
+            socket->{
+                if(!socket.getInetAddress()
+                        .isLoopbackAddress())
+                    return;
+
+                handleAuxConnection(
+                    socket,
+                    shutdown::claimAuxiliaryResponseTimeout,
+                    shutdown::publishAuxiliaryWorkerFailure
+                );
+            },
+            shutdown::releaseAuxiliarySocket,
+            failure->
+                System.err.println(
+                    "[local-aux] "+
+                    failure
+                ),
+            failure->
+                System.err.println(
+                    "[local-aux] socket retirement failed "+
+                    failure
+                )
+        );
     }
 
-    private static void handleAuxConnection(Socket s) throws IOException {
-        s.setSoTimeout(2_000);
+    static void handleAuxConnection(Socket s) throws IOException {
+        handleAuxConnection(
+            s,
+            commit->commit.getAsBoolean(),
+            failure->{}
+        );
+    }
+
+    static void handleAuxConnection(
+        Socket s,
+        LocalAuxResponseLiveness.TimeoutAuthority
+            timeoutAuthority,
+        java.util.function.Consumer<Throwable> livenessFailure
+    ) throws IOException {
         InputStream in = s.getInputStream();
         OutputStream out = s.getOutputStream();
-        String first = readAsciiLine(in, 8192);
+        LocalAuxHttpRequestReader request =
+            LocalAuxHttpRequestReader.forSocket(
+                s,
+                in
+            );
+        String first =
+            request.readRequestLine();
         if (first == null || first.isEmpty()) {
             System.out.println("[local-aux] " + s.getRemoteSocketAddress() + " empty connection; closed locally");
             return;
@@ -140,52 +258,114 @@ public final class Main {
             boolean head = first.startsWith("HEAD ");
             String[] parts = first.split(" ", 3);
             String target = parts.length >= 2 ? parts[1] : "/";
-            // Consume remaining HTTP request headers.  Body-bearing requests are not
-            // required by startup; POST endpoints receive a harmless local response.
-            while (true) {
-                String line = readAsciiLine(in, 8192);
-                if (line == null || line.isEmpty()) break;
-            }
+            // Consume remaining HTTP request headers under the same absolute
+            // request deadline and aggregate byte/line budget as the request line.
+            // Body-bearing requests are not required by startup; POST endpoints
+            // receive the same harmless local response behavior as before.
+            request.consumeHeaders();
 
-            byte[] body;
-            String contentType = "text/plain; charset=us-ascii";
-            int status = 200;
-            String reason = "OK";
-            String classification;
+            LocalAuxResponseLiveness liveness=
+                LocalAuxResponseLiveness.arm(
+                    s,
+                    timeoutAuthority,
+                    livenessFailure
+                );
+            OutputStream responseOut=
+                liveness.output(
+                    out
+                );
+            Throwable responseFailure=null;
 
-            if (target.contains("/spk_live/versions.txt")) {
-                body = localVersions();
-                classification = "versions";
-            } else if (target.contains("/forum/10-updates") || target.contains("/forums/")) {
-                // rs.l.d.e is happy with an empty successful page; EOF from a valid HTTP
-                // response is not an exception, unlike v0.3's raw socket close.
-                body = new byte[0];
-                contentType = "text/html; charset=utf-8";
-                classification = "forum-placeholder";
-            } else if (target.contains("/Production/tradingpost")) {
-                body = "{}\n".getBytes(StandardCharsets.UTF_8);
-                contentType = "application/json; charset=utf-8";
-                classification = "tradingpost-placeholder";
-            } else if (target.endsWith("/cache.zip") || target.endsWith("/sprites.zip") || target.endsWith("/configs.zip")) {
-                Path local = localArchiveFor(target);
-                if (local != null && Files.isRegularFile(local)) {
-                    body = Files.readAllBytes(local);
-                    contentType = "application/zip";
-                    classification = "local-archive";
+            try{
+                byte[] body;
+                String contentType = "text/plain; charset=us-ascii";
+                int status = 200;
+                String reason = "OK";
+                String classification;
+                boolean responseComplete=false;
+
+                if (target.contains("/spk_live/versions.txt")) {
+                    body = localVersions();
+                    classification = "versions";
+                } else if (target.contains("/forum/10-updates") || target.contains("/forums/")) {
+                    // rs.l.d.e is happy with an empty successful page; EOF from a valid HTTP
+                    // response is not an exception, unlike v0.3's raw socket close.
+                    body = new byte[0];
+                    contentType = "text/html; charset=utf-8";
+                    classification = "forum-placeholder";
+                } else if (target.contains("/Production/tradingpost")) {
+                    body = "{}\n".getBytes(StandardCharsets.UTF_8);
+                    contentType = "application/json; charset=utf-8";
+                    classification = "tradingpost-placeholder";
+                } else if (target.endsWith("/cache.zip") || target.endsWith("/sprites.zip") || target.endsWith("/configs.zip")) {
+                    Path local = localArchiveFor(target);
+                    Long length =
+                        local==null
+                            ?null
+                            :LocalAuxArchiveAccess
+                                .writeIfAvailable(
+                                    responseOut,
+                                    local,
+                                    head
+                                );
+
+                    if(length!=null) {
+                        System.out.println(
+                            "[local-aux] HTTP local-archive target=" + target +
+                            " status=200 bytes=" + length.longValue()
+                        );
+                        responseComplete=true;
+                        body=null;
+                        classification=null;
+                    }else{
+                        body = "LOCAL_ARCHIVE_NOT_PRESENT\n".getBytes(StandardCharsets.US_ASCII);
+                        status = 404;
+                        reason = "Not Found";
+                        classification = "unexpected-archive-request";
+                    }
                 } else {
-                    body = "LOCAL_ARCHIVE_NOT_PRESENT\n".getBytes(StandardCharsets.US_ASCII);
-                    status = 404;
-                    reason = "Not Found";
-                    classification = "unexpected-archive-request";
+                    body = new byte[0];
+                    classification = "blocked-placeholder";
                 }
-            } else {
-                body = new byte[0];
-                classification = "blocked-placeholder";
+
+                if(!responseComplete){
+                    LocalAuxHttpResponse.writeBytes(
+                        responseOut,
+                        status,
+                        reason,
+                        contentType,
+                        body,
+                        head
+                    );
+                    System.out.println("[local-aux] HTTP " + classification + " target=" + target
+                                     + " status=" + status + " bytes=" + body.length);
+                }
+            }catch(IOException|
+                   RuntimeException|
+                   Error failure){
+                responseFailure=failure;
             }
 
-            writeHttp(out, status, reason, contentType, body, head);
-            System.out.println("[local-aux] HTTP " + classification + " target=" + target
-                             + " status=" + status + " bytes=" + body.length);
+            responseFailure=
+                liveness.finish(
+                    responseFailure
+                );
+
+            if(responseFailure instanceof IOException)
+                throw (IOException)responseFailure;
+
+            if(responseFailure instanceof RuntimeException)
+                throw (RuntimeException)responseFailure;
+
+            if(responseFailure instanceof Error)
+                throw (Error)responseFailure;
+
+            if(responseFailure!=null)
+                throw new IOException(
+                    "unexpected auxiliary response failure",
+                    responseFailure
+                );
+
             return;
         }
 
@@ -196,46 +376,15 @@ public final class Main {
     }
 
     private static byte[] localVersions() {
-        try {
-            Path p = Paths.get(System.getProperty("user.home"), ".spawnpk", "versions.dat");
-            if (Files.isRegularFile(p)) {
-                byte[] data = Files.readAllBytes(p);
-                if (data.length > 0 && data.length < 16_384) return data;
-            }
-        } catch (Throwable ignored) {}
-        return FALLBACK_VERSIONS.clone();
+        return LocalAuxVersions.readUserHome(
+            FALLBACK_VERSIONS
+        );
     }
 
     private static Path localArchiveFor(String target) {
-        String name;
-        if (target.endsWith("/cache.zip")) name = "cache.zip";
-        else if (target.endsWith("/sprites.zip")) name = "sprites.zip";
-        else if (target.endsWith("/configs.zip")) name = "configs.zip";
-        else return null;
-        return Paths.get(System.getProperty("user.home"), ".spawnpk", name);
-    }
-
-    private static String readAsciiLine(InputStream in, int max) throws IOException {
-        ByteArrayOutputStream b = new ByteArrayOutputStream();
-        while (b.size() < max) {
-            int x = in.read();
-            if (x < 0) return b.size() == 0 ? null : b.toString(StandardCharsets.ISO_8859_1.name());
-            if (x == '\n') break;
-            if (x != '\r') b.write(x);
-        }
-        return b.toString(StandardCharsets.ISO_8859_1.name());
-    }
-
-    private static void writeHttp(OutputStream out, int status, String reason, String type, byte[] body, boolean head)
-            throws IOException {
-        String h = "HTTP/1.1 " + status + " " + reason + "\r\n"
-                 + "Content-Type: " + type + "\r\n"
-                 + "Content-Length: " + body.length + "\r\n"
-                 + "Connection: close\r\n"
-                 + "Cache-Control: no-store\r\n\r\n";
-        out.write(h.getBytes(StandardCharsets.US_ASCII));
-        if (!head) out.write(body);
-        out.flush();
+        return LocalAuxArchivePath.resolve(
+            target
+        );
     }
 
     private static String printable(String s) {

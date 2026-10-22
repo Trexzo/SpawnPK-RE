@@ -13,19 +13,98 @@ public final class PetReplacementRuntimeTest {
         try{
             InetAddress loop=InetAddress.getByName("127.0.0.1");
             try(ServerSocket ss=new ServerSocket(0,1,loop)){
-                ExecutorService ex=Executors.newSingleThreadExecutor();Future<?> server=ex.submit(()->{try{new LocalSession(ss.accept(),true,true).run();}catch(IOException e){throw new RuntimeException(e);}});
-                try(Socket s=new Socket(loop,ss.getLocalPort())){
+                ExecutorService ex=
+                    Executors.newSingleThreadExecutor(
+                        r->{
+                            Thread t=
+                                new Thread(
+                                    r,
+                                    "pet-replacement-loopback"
+                                );
+                            t.setDaemon(true);
+                            return t;
+                        }
+                    );
+                Future<?> server=null;
+                try{
+                    server=ex.submit(
+                        ()->{
+                            try{
+                                new LocalSession(
+                                    ss.accept(),
+                                    true,
+                                    true
+                                ).run();
+                            }catch(IOException e){
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    );
+                    try(Socket s=new Socket(loop,ss.getLocalPort())){
                     s.setSoTimeout(5000);InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();out.write(14);out.write(7);out.flush();byte[] pre=Binary.readExactly(in,9);long seed=Binary.i64(Binary.readExactly(in,8),0);int[] seeds={0x01020304,0x11223344,(int)(seed>>>32),(int)seed};byte[] lp=loginPayload(seeds);out.write(16);out.write(lp.length);out.write(lp);out.flush();Binary.readExactly(in,3);IsaacCipher c2s=new IsaacCipher(seeds.clone());int[] si=seeds.clone();for(int i=0;i<4;i++)si[i]+=50;IsaacCipher s2c=new IsaacCipher(si);
                     send185(out,c2s,912);expectFixed(in,s2c,249,3);expectFixed(in,s2c,73,4);expectVarShort(in,s2c,81);expectFixed(in,s2c,110,1);expectVarShort(in,s2c,126);V5BootstrapTestSupport.expectNativeSidebarInventoryAndFountain(in,s2c);
                     send103(out,c2s,"tabitem 22519 1");byte[] invA=expectEventually53(in,s2c,3214);int slotA=findItem(invA,22519);send103(out,c2s,"tabitem 23484 1");byte[] invB=expectEventually53(in,s2c,3214);int slotB=findItem(invB,23484);if(slotA<0||slotB<0)throw new AssertionError("spawn slots "+slotA+","+slotB);
                     send87(out,c2s,22519,3214,slotA);byte[] consumedA=expectEventually53(in,s2c,3214);if(findItem(consumedA,22519)>=0)throw new AssertionError("first pet retained");expectEventually65(in,s2c);
-                    send87(out,c2s,23484,3214,slotB);byte[] consumedB=expectEventually53(in,s2c,3214);if(findItem(consumedB,23484)>=0)throw new AssertionError("new pet retained");expectEventually65(in,s2c); // old follower remove
-                    byte[] restoredOld=expectEventually53(in,s2c,3214);int restoredSlot=findItem(restoredOld,22519);if(restoredSlot<0)throw new AssertionError("old pet item not restored");if(restoredSlot!=slotB)throw new AssertionError("old pet restored to "+restoredSlot+" expected dropped-new slot "+slotB);if(findItem(restoredOld,23484)>=0)throw new AssertionError("new pet item should remain summoned");expectEventually65(in,s2c); // new follower add
+                    send87(out,c2s,23484,3214,slotB);
+                    byte[] replacementInventory=
+                        expectEventually53(
+                            in,
+                            s2c,
+                            3214
+                        );
+                    if(findItem(
+                            replacementInventory,
+                            23484
+                        )>=0)
+                        throw new AssertionError(
+                            "new pet retained"
+                        );
+                    int restoredSlot=
+                        findItem(
+                            replacementInventory,
+                            22519
+                        );
+                    if(restoredSlot<0)
+                        throw new AssertionError(
+                            "old pet item not restored in atomic replacement inventory"
+                        );
+                    if(restoredSlot!=slotB)
+                        throw new AssertionError(
+                            "old pet restored to "+
+                            restoredSlot+
+                            " expected dropped-new slot "+
+                            slotB
+                        );
+
+                    expectEventually65(
+                        in,
+                        s2c
+                    ); // old follower remove
+                    expectEventually65(
+                        in,
+                        s2c
+                    ); // new follower add
+                    }
+                    try{
+                        server.get(
+                            2,
+                            TimeUnit.SECONDS
+                        );
+                    }catch(Exception ignored){}
+                }finally{
+                    ex.shutdownNow();
+                    try{
+                        ex.awaitTermination(
+                            2,
+                            TimeUnit.SECONDS
+                        );
+                    }catch(InterruptedException interrupted){
+                        Thread.currentThread().interrupt();
+                    }
                 }
-                try{server.get(2,TimeUnit.SECONDS);}catch(Exception ignored){}ex.shutdownNow();
             }
             PetState pet=new PetState();AccountStore.load(new BankState(),new EquipmentState(),new MovementState(),pet);if(!pet.active()||pet.itemId()!=23484||pet.npcId()!=3845)throw new AssertionError("persisted active="+pet.active()+" item="+pet.itemId()+" npc="+pet.npcId());
-            System.out.println("V56_PET_REPLACEMENT_RUNTIME_PASS first22519ReturnedToDroppedNewSlot=true second23484Active=true oldFollowerRemoved=true newFollowerSpawned=true persisted=23484->3845");
+            System.out.println("V56_PET_REPLACEMENT_RUNTIME_PASS first22519ReturnedToDroppedNewSlot=true replacementInventoryAtomic53=true second23484Active=true oldFollowerRemoved=true newFollowerSpawned=true persisted=23484->3845");
         }finally{if(old==null)System.clearProperty("spk.local.accountFile");else System.setProperty("spk.local.accountFile",old);}
     }
     private static int findItem(byte[] p,int wanted){int slots=Binary.u16(p,2),off=4;for(int i=0;i<slots;i++){int q=p[off++]&255;if(q==255)off+=4;int lo=((p[off++]&255)-128)&255,hi=p[off++]&255,id=((hi<<8)|lo)-1;if(id==wanted&&q>0)return i;}return -1;}

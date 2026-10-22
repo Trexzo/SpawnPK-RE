@@ -12,6 +12,12 @@ import java.util.Objects;
 final class LocalSessionRuntimeBindings {
     interface SessionBridge {
         void saveAccount(String tag,String reason);
+
+        default void publishTradeRoot(
+            TradeService.RootPublication action
+        )throws IOException{
+            action.publish();
+        }
     }
 
     private final World world;
@@ -67,6 +73,12 @@ final class LocalSessionRuntimeBindings {
 
         boolean[] bindingStarted=
             new boolean[]{false};
+        boolean[] sharedNpcInstalled=
+            new boolean[]{false};
+        boolean[] player81Installed=
+            new boolean[]{false};
+        boolean[] tradeInstalled=
+            new boolean[]{false};
 
         try{
             world.withOpenPlayerOwnership(
@@ -75,17 +87,38 @@ final class LocalSessionRuntimeBindings {
                 ()->{
                     bindingStarted[0]=true;
 
-                    player81Sync=
-                        Player81WorldSync.register(
-                            serverPackets,
-                            world,
-                            worldPlayer,
-                            dev
-                        );
+                    /*
+                     * A retained terminal SharedNpc sentinel represents a
+                     * writer whose transport progress is unknowable. Reject it
+                     * before S2C104 preparation can touch that writer again.
+                     */
+                    SharedNpcWorldRelay.preflightRegistration(
+                        serverPackets,
+                        world,
+                        worldPlayer
+                    );
 
-                    registeredPackets=
-                        serverPackets;
+                    /*
+                     * Publish any required exact S2C104 option state while the
+                     * old runtime bundle is still authoritative. Queue-backed
+                     * rejection is retractable and therefore cannot destroy an
+                     * old Trade/Player81/SharedNpc binding.
+                     */
+                    boolean playerOptionsPrepared=
+                        Player81WorldSync
+                            .preparePlayerOptionsForRegistration(
+                                world,
+                                worldPlayer,
+                                serverPackets
+                            );
 
+                    /*
+                     * SharedNpc live replacement may reject retryably while
+                     * intentionally retaining the exact old relay Context.
+                     * Player81 registration is destructive (it retires the old
+                     * writer/owner Context immediately), so do not replace it
+                     * until SharedNpc admission has committed.
+                     */
                     SharedNpcWorldRelay.register(
                         serverPackets,
                         world,
@@ -93,6 +126,20 @@ final class LocalSessionRuntimeBindings {
                         npcs,
                         movement
                     );
+                    sharedNpcInstalled[0]=true;
+
+                    player81Sync=
+                        Player81WorldSync.register(
+                            serverPackets,
+                            world,
+                            worldPlayer,
+                            dev,
+                            playerOptionsPrepared
+                        );
+                    player81Installed[0]=true;
+
+                    registeredPackets=
+                        serverPackets;
 
                     TradeService.register(
                         world,
@@ -103,19 +150,59 @@ final class LocalSessionRuntimeBindings {
                         ()->bridge.saveAccount(
                             tag,
                             "TRADE_COMMIT"
-                        )
+                        ),
+                        action->
+                            bridge.publishTradeRoot(
+                                action
+                            )
                     );
+                    tradeInstalled[0]=true;
 
-                    Player81WorldSync
-                        .sendPlayerOptionsIfMultiplayer(
-                            world
-                        );
+                    /*
+                     * No packet publication is allowed after Trade replacement.
+                     * The prepublication phase above is the sole S2C104 owner.
+                     */
                 }
             );
         }catch(Throwable failure){
+            if(failure instanceof
+                    Player81WorldSync
+                        .TerminalPlayerOptionsException){
+                Player81WorldSync.TerminalPlayerOptionsException
+                    terminal=
+                        (Player81WorldSync
+                            .TerminalPlayerOptionsException)
+                            failure;
+
+                retireTerminalRuntimeBundle(
+                    terminal.owner,
+                    terminal.writer,
+                    true,
+                    failure
+                );
+            }else if(failure instanceof
+                    SharedNpcWorldRelay
+                        .TerminalRegistrationException){
+                SharedNpcWorldRelay.TerminalRegistrationException
+                    terminal=
+                        (SharedNpcWorldRelay
+                            .TerminalRegistrationException)
+                            failure;
+
+                retireTerminalRuntimeBundle(
+                    terminal.owner,
+                    terminal.writer,
+                    false,
+                    failure
+                );
+            }
+
             if(bindingStarted[0])
                 rollbackRegistration(
                     serverPackets,
+                    tradeInstalled[0],
+                    sharedNpcInstalled[0],
+                    player81Installed[0],
                     failure
                 );
 
@@ -166,34 +253,104 @@ final class LocalSessionRuntimeBindings {
         );
     }
 
-    private void rollbackRegistration(
-        ServerPacketWriter writer,
+    static void retireTerminalRuntimeBundle(
+        WorldPlayer failedOwner,
+        ServerPacketWriter failedWriter,
+        boolean retireSharedNpc,
         Throwable primary
     ){
+        if(failedOwner==null||
+           failedWriter==null)
+            return;
+
+        /*
+         * Terminal classification is one-way and must become visible to the
+         * owning LocalSession before any cross-service cleanup begins.
+         */
+        failedWriter.markTerminal();
+
         try{
-            TradeService.unregister(
-                worldPlayer,
-                writer
-            );
+            TradeService.BrokenWriterRetirement tradeRetirement=
+                TradeService.retireBrokenWriter(
+                    failedOwner,
+                    failedWriter
+                );
+
+            if(tradeRetirement.terminalPeer()){
+                if(tradeRetirement.peerFailure!=null)
+                    primary.addSuppressed(
+                        tradeRetirement.peerFailure
+                    );
+
+                /*
+                 * The Trade was already detached exactly once before the peer
+                 * close was attempted. Retiring the peer therefore cannot
+                 * publish a close back toward the original broken writer.
+                 */
+                retireTerminalRuntimeBundle(
+                    tradeRetirement.peerOwner,
+                    tradeRetirement.peerWriter,
+                    true,
+                    primary
+                );
+            }
         }catch(Throwable cleanup){
             primary.addSuppressed(cleanup);
         }
 
-        try{
-            SharedNpcWorldRelay.unregister(
-                writer
-            );
-        }catch(Throwable cleanup){
-            primary.addSuppressed(cleanup);
-        }
+        if(retireSharedNpc)
+            try{
+                SharedNpcWorldRelay
+                    .retireTerminalWriter(
+                        failedWriter
+                    );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
 
         try{
             Player81WorldSync.unregister(
-                writer
+                failedWriter
             );
         }catch(Throwable cleanup){
             primary.addSuppressed(cleanup);
         }
+    }
+
+    private void rollbackRegistration(
+        ServerPacketWriter writer,
+        boolean tradeInstalled,
+        boolean sharedNpcInstalled,
+        boolean player81Installed,
+        Throwable primary
+    ){
+        if(tradeInstalled)
+            try{
+                TradeService.unregister(
+                    worldPlayer,
+                    writer
+                );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
+
+        if(sharedNpcInstalled)
+            try{
+                SharedNpcWorldRelay.unregister(
+                    writer
+                );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
+
+        if(player81Installed)
+            try{
+                Player81WorldSync.unregister(
+                    writer
+                );
+            }catch(Throwable cleanup){
+                primary.addSuppressed(cleanup);
+            }
 
         registeredPackets=null;
         player81Sync=null;

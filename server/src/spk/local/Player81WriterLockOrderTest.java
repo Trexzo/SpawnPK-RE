@@ -255,23 +255,30 @@ public final class Player81WriterLockOrderTest {
         while(System.nanoTime()<deadline){
             if(thread.getState()==
                     Thread.State.BLOCKED){
-                boolean inTransform=false;
+                boolean inPlayer81OwnershipWait=false;
 
                 for(StackTraceElement element:
-                        thread.getStackTrace())
-                    if(Player81WorldSync.class
+                        thread.getStackTrace()){
+                    if(!Player81WorldSync.class
                             .getName()
                             .equals(
                                 element.getClassName()
-                            )&&
-                       "transform".equals(
-                           element.getMethodName()
-                       )){
-                        inTransform=true;
+                            ))
+                        continue;
+
+                    String method=
+                        element.getMethodName();
+
+                    if("transform".equals(method)||
+                       "transformPrepared".equals(method)||
+                       "beginPreparedBatchStatus".equals(method)||
+                       "withPreparedBatchOwnership".equals(method)){
+                        inPlayer81OwnershipWait=true;
                         break;
                     }
+                }
 
-                if(inTransform)
+                if(inPlayer81OwnershipWait)
                     return;
             }
 

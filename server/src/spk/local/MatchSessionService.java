@@ -9,6 +9,25 @@ import java.util.*;
  * rewards and winner policy are external.
  */
 final class MatchSessionService {
+    static final class CompositionLease {
+        private final String ownerRef;
+
+        private CompositionLease(
+            String ownerRef
+        ){
+            this.ownerRef=
+                requireCompositionLeaseLabel(
+                    ownerRef
+                );
+        }
+
+        @Override public String toString(){
+            return "CompositionLease{"+
+                ownerRef+
+                "}";
+        }
+    }
+
     private static final class TeamState {
         final MatchTeamId id;
         final LinkedHashSet<String> members=
@@ -53,6 +72,7 @@ final class MatchSessionService {
         WorldInstanceId instanceId;
         MatchSession.Result result;
         String cancellationReasonKey;
+        CompositionLease compositionLease;
 
         Entry(MatchId id,MatchRules rules){
             this.id=id;
@@ -62,6 +82,170 @@ final class MatchSessionService {
 
     private final LinkedHashMap<MatchId,Entry> matches=
         new LinkedHashMap<>();
+
+    interface MatchInstanceCompositionAction {
+        void run() throws Exception;
+    }
+
+    synchronized void withWorldInstanceCompositionOwnership(
+        WorldInstanceService instances,
+        MatchInstanceCompositionAction action
+    )throws Exception{
+        Objects.requireNonNull(
+            instances,
+            "instances"
+        );
+        Objects.requireNonNull(
+            action,
+            "action"
+        );
+
+        instances.withMatchCompositionOwnership(
+            action
+        );
+    }
+
+    synchronized CompositionLease acquireWorldInstanceCompositionLease(
+        WorldInstanceService instances,
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String ownerRef
+    )throws Exception{
+        Objects.requireNonNull(
+            instances,
+            "instances"
+        );
+
+        CompositionLease lease=
+            new CompositionLease(
+                ownerRef
+            );
+
+        instances.withMatchCompositionOwnership(
+            ()->{
+                Entry entry=
+                    require(
+                        matchId
+                    );
+                WorldInstanceId checkedInstanceId=
+                    Objects.requireNonNull(
+                        instanceId,
+                        "instanceId"
+                    );
+
+                requireState(
+                    entry,
+                    MatchSession.State.ACTIVE,
+                    "acquireCompositionLease"
+                );
+
+                if(entry.instanceId==null||
+                   !entry.instanceId.equals(
+                        checkedInstanceId))
+                    throw new IllegalStateException(
+                        "match/instance lease mismatch match="+
+                        entry.id+
+                        " expected="+
+                        entry.instanceId+
+                        " actual="+
+                        checkedInstanceId
+                    );
+
+                requireNoCompositionLease(
+                    entry,
+                    "acquireCompositionLease"
+                );
+                instances.requireCompositionLeaseAvailable(
+                    checkedInstanceId
+                );
+
+                entry.compositionLease=
+                    lease;
+
+                try{
+                    instances.acquireCompositionLease(
+                        checkedInstanceId,
+                        lease
+                    );
+                }catch(RuntimeException failure){
+                    entry.compositionLease=null;
+                    throw failure;
+                }catch(Error failure){
+                    entry.compositionLease=null;
+                    throw failure;
+                }
+            }
+        );
+
+        return lease;
+    }
+
+    synchronized void releaseWorldInstanceCompositionLease(
+        WorldInstanceService instances,
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        CompositionLease lease
+    )throws Exception{
+        Objects.requireNonNull(
+            instances,
+            "instances"
+        );
+        CompositionLease checkedLease=
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            );
+
+        instances.withMatchCompositionOwnership(
+            ()->{
+                Entry entry=
+                    require(
+                        matchId
+                    );
+                WorldInstanceId checkedInstanceId=
+                    Objects.requireNonNull(
+                        instanceId,
+                        "instanceId"
+                    );
+
+                if(entry.instanceId==null||
+                   !entry.instanceId.equals(
+                        checkedInstanceId))
+                    throw new IllegalStateException(
+                        "match/instance lease mismatch match="+
+                        entry.id+
+                        " expected="+
+                        entry.instanceId+
+                        " actual="+
+                        checkedInstanceId
+                    );
+
+                requireCompositionLease(
+                    entry,
+                    checkedLease
+                );
+                instances.requireCompositionLease(
+                    checkedInstanceId,
+                    checkedLease
+                );
+
+                instances.releaseCompositionLease(
+                    checkedInstanceId,
+                    checkedLease
+                );
+                entry.compositionLease=
+                    null;
+            }
+        );
+    }
+
+    synchronized boolean compositionLeaseHeld(
+        MatchId matchId
+    ){
+        return require(
+            matchId
+        ).compositionLease!=null;
+    }
 
     synchronized MatchSession create(
         MatchId id,
@@ -252,7 +436,450 @@ final class MatchSessionService {
         String counterKey,
         long delta
     ){
-        Entry entry=requireActive(matchId);
+        Entry entry=requireActive(
+            matchId
+        );
+        requireNoCompositionLease(
+            entry,
+            "adjustTeamScore"
+        );
+
+        return adjustTeamScoreEntry(
+            entry,
+            teamId,
+            counterKey,
+            delta
+        );
+    }
+
+    synchronized MatchSession adjustTeamScoreOwned(
+        MatchId matchId,
+        MatchTeamId teamId,
+        String counterKey,
+        long delta,
+        CompositionLease lease
+    ){
+        Entry entry=requireActive(
+            matchId
+        );
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return adjustTeamScoreEntry(
+            entry,
+            teamId,
+            counterKey,
+            delta
+        );
+    }
+
+    synchronized MatchSession adjustParticipantScore(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta
+    ){
+        Entry entry=requireActive(
+            matchId
+        );
+        requireNoCompositionLease(
+            entry,
+            "adjustParticipantScore"
+        );
+
+        return adjustParticipantScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
+    }
+
+    synchronized MatchSession adjustParticipantScoreOwned(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta,
+        CompositionLease lease
+    ){
+        Entry entry=requireActive(
+            matchId
+        );
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return adjustParticipantScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
+    }
+
+    synchronized boolean tryAdjustPresentParticipantScore(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta
+    ){
+        Entry entry=require(
+            matchId
+        );
+        requireNoCompositionLease(
+            entry,
+            "tryAdjustPresentParticipantScore"
+        );
+
+        return tryAdjustPresentParticipantScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
+    }
+
+    synchronized boolean tryAdjustPresentParticipantScoreOwned(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta,
+        CompositionLease lease
+    ){
+        Entry entry=require(
+            matchId
+        );
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return tryAdjustPresentParticipantScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
+    }
+
+    synchronized boolean tryAdjustPresentParticipantTeamScore(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta
+    ){
+        Entry entry=require(
+            matchId
+        );
+        requireNoCompositionLease(
+            entry,
+            "tryAdjustPresentParticipantTeamScore"
+        );
+
+        return tryAdjustPresentParticipantTeamScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
+    }
+
+    synchronized boolean tryAdjustPresentParticipantTeamScoreOwned(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta,
+        CompositionLease lease
+    ){
+        Entry entry=require(
+            matchId
+        );
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return tryAdjustPresentParticipantTeamScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
+    }
+
+    synchronized MatchSession leave(
+        MatchId matchId,
+        String participantRef
+    ){
+        return markParticipantUnowned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.LEFT
+        );
+    }
+
+    synchronized MatchSession leaveOwned(
+        MatchId matchId,
+        String participantRef,
+        CompositionLease lease
+    ){
+        return markParticipantOwned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.LEFT,
+            lease
+        );
+    }
+
+    synchronized MatchSession forfeit(
+        MatchId matchId,
+        String participantRef
+    ){
+        return markParticipantUnowned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.FORFEITED
+        );
+    }
+
+    synchronized MatchSession forfeitOwned(
+        MatchId matchId,
+        String participantRef,
+        CompositionLease lease
+    ){
+        return markParticipantOwned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.FORFEITED,
+            lease
+        );
+    }
+
+    synchronized MatchSession disconnect(
+        MatchId matchId,
+        String participantRef
+    ){
+        return markParticipantUnowned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.DISCONNECTED
+        );
+    }
+
+    synchronized MatchSession disconnectOwned(
+        MatchId matchId,
+        String participantRef,
+        CompositionLease lease
+    ){
+        return markParticipantOwned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.DISCONNECTED,
+            lease
+        );
+    }
+
+    synchronized MatchSession complete(
+        MatchId matchId,
+        MatchSession.Result result
+    ){
+        Entry entry=require(matchId);
+        requireState(
+            entry,
+            MatchSession.State.ACTIVE,
+            "complete"
+        );
+        requireNoCompositionLease(
+            entry,
+            "complete"
+        );
+
+        return completeEntry(
+            entry,
+            result
+        );
+    }
+
+    synchronized MatchSession completeOwned(
+        MatchId matchId,
+        MatchSession.Result result,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+        requireState(
+            entry,
+            MatchSession.State.ACTIVE,
+            "completeOwned"
+        );
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return completeEntry(
+            entry,
+            result
+        );
+    }
+
+    synchronized MatchSession cancel(
+        MatchId matchId,
+        String reasonKey
+    ){
+        Entry entry=require(matchId);
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
+
+        if(entry.state==MatchSession.State.CANCELLED){
+            if(entry.cancellationReasonKey.equals(reason))
+                return snapshot(entry);
+
+            throw new IllegalStateException(
+                "match already cancelled reason="+
+                entry.cancellationReasonKey
+            );
+        }
+
+        if(entry.state==MatchSession.State.COMPLETED)
+            throw invalid(entry,"cancel");
+
+        requireNoCompositionLease(
+            entry,
+            "cancel"
+        );
+
+        return cancelEntry(
+            entry,
+            reason
+        );
+    }
+
+    synchronized MatchSession cancelOwned(
+        MatchId matchId,
+        String reasonKey,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+        requireState(
+            entry,
+            MatchSession.State.ACTIVE,
+            "cancelOwned"
+        );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
+
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return cancelEntry(
+            entry,
+            reason
+        );
+    }
+
+    synchronized MatchSession get(MatchId id){
+        Entry entry=matches.get(
+            Objects.requireNonNull(id,"id")
+        );
+        return entry==null?null:snapshot(entry);
+    }
+
+    synchronized int size(){
+        return matches.size();
+    }
+
+    synchronized List<MatchSession> snapshot(){
+        ArrayList<Entry> ordered=
+            new ArrayList<>(
+                matches.values()
+            );
+
+        ordered.sort(
+            Comparator.comparing(value->value.id)
+        );
+
+        ArrayList<MatchSession> out=
+            new ArrayList<>();
+
+        for(Entry entry:ordered)
+            out.add(snapshot(entry));
+
+        return Collections.unmodifiableList(out);
+    }
+
+    private static MatchSession completeEntry(
+        Entry entry,
+        MatchSession.Result result
+    ){
+        MatchSession.Result checked=
+            Objects.requireNonNull(
+                result,
+                "result"
+            );
+
+        if(checked.winnerTeamId!=null&&
+           !entry.teams.containsKey(
+                checked.winnerTeamId))
+            throw new IllegalArgumentException(
+                "winner team not in match "+
+                checked.winnerTeamId
+            );
+
+        entry.result=checked;
+        entry.state=
+            MatchSession.State.COMPLETED;
+        return snapshot(entry);
+    }
+
+    private static MatchSession cancelEntry(
+        Entry entry,
+        String reason
+    ){
+        entry.cancellationReasonKey=
+            Objects.requireNonNull(
+                reason,
+                "reason"
+            );
+        entry.state=
+            MatchSession.State.CANCELLED;
+        return snapshot(entry);
+    }
+
+    private static MatchSession adjustTeamScoreEntry(
+        Entry entry,
+        MatchTeamId teamId,
+        String counterKey,
+        long delta
+    ){
         TeamState team=
             entry.teams.get(
                 Objects.requireNonNull(
@@ -263,7 +890,8 @@ final class MatchSessionService {
 
         if(team==null)
             throw new IllegalArgumentException(
-                "unknown team id="+teamId
+                "unknown team id="+
+                teamId
             );
 
         adjustScore(
@@ -272,16 +900,17 @@ final class MatchSessionService {
             delta
         );
 
-        return snapshot(entry);
+        return snapshot(
+            entry
+        );
     }
 
-    synchronized MatchSession adjustParticipantScore(
-        MatchId matchId,
+    private static MatchSession adjustParticipantScoreEntry(
+        Entry entry,
         String participantRef,
         String counterKey,
         long delta
     ){
-        Entry entry=requireActive(matchId);
         ParticipantState participant=
             requireParticipant(
                 entry,
@@ -293,7 +922,8 @@ final class MatchSessionService {
             throw new IllegalStateException(
                 "participant not present "+
                 participant.participantRef+
-                " status="+participant.status
+                " status="+
+                participant.status
             );
 
         adjustScore(
@@ -302,23 +932,17 @@ final class MatchSessionService {
             delta
         );
 
-        return snapshot(entry);
+        return snapshot(
+            entry
+        );
     }
 
-    /**
-     * Atomically score one participant only while the match is ACTIVE and the
-     * participant is still PRESENT. Returns false for a terminal/inactive
-     * match or a no-longer-present participant instead of exposing a
-     * snapshot->mutation race to semantic observers.
-     */
-    synchronized boolean tryAdjustPresentParticipantScore(
-        MatchId matchId,
+    private static boolean tryAdjustPresentParticipantScoreEntry(
+        Entry entry,
         String participantRef,
         String counterKey,
         long delta
     ){
-        Entry entry=require(matchId);
-
         if(entry.state!=
                 MatchSession.State.ACTIVE)
             return false;
@@ -342,18 +966,12 @@ final class MatchSessionService {
         return true;
     }
 
-    /**
-     * Atomically resolve the PRESENT participant's current team and score that
-     * team. Presence and team resolution happen under the same match monitor.
-     */
-    synchronized boolean tryAdjustPresentParticipantTeamScore(
-        MatchId matchId,
+    private static boolean tryAdjustPresentParticipantTeamScoreEntry(
+        Entry entry,
         String participantRef,
         String counterKey,
         long delta
     ){
-        Entry entry=require(matchId);
-
         if(entry.state!=
                 MatchSession.State.ACTIVE)
             return false;
@@ -390,135 +1008,55 @@ final class MatchSessionService {
         return true;
     }
 
-    synchronized MatchSession leave(
-        MatchId matchId,
-        String participantRef
-    ){
-        return markParticipant(
-            matchId,
-            participantRef,
-            MatchSession.ParticipantStatus.LEFT
-        );
-    }
-
-    synchronized MatchSession forfeit(
-        MatchId matchId,
-        String participantRef
-    ){
-        return markParticipant(
-            matchId,
-            participantRef,
-            MatchSession.ParticipantStatus.FORFEITED
-        );
-    }
-
-    synchronized MatchSession disconnect(
-        MatchId matchId,
-        String participantRef
-    ){
-        return markParticipant(
-            matchId,
-            participantRef,
-            MatchSession.ParticipantStatus.DISCONNECTED
-        );
-    }
-
-    synchronized MatchSession complete(
-        MatchId matchId,
-        MatchSession.Result result
-    ){
-        Entry entry=require(matchId);
-        requireState(
-            entry,
-            MatchSession.State.ACTIVE,
-            "complete"
-        );
-
-        MatchSession.Result checked=
-            Objects.requireNonNull(
-                result,
-                "result"
-            );
-
-        if(checked.winnerTeamId!=null&&
-           !entry.teams.containsKey(
-                checked.winnerTeamId))
-            throw new IllegalArgumentException(
-                "winner team not in match "+
-                checked.winnerTeamId
-            );
-
-        entry.result=checked;
-        entry.state=MatchSession.State.COMPLETED;
-        return snapshot(entry);
-    }
-
-    synchronized MatchSession cancel(
-        MatchId matchId,
-        String reasonKey
-    ){
-        Entry entry=require(matchId);
-        String reason=
-            MatchRules.normalizeKey(
-                reasonKey,
-                "reasonKey"
-            );
-
-        if(entry.state==MatchSession.State.CANCELLED){
-            if(entry.cancellationReasonKey.equals(reason))
-                return snapshot(entry);
-
-            throw new IllegalStateException(
-                "match already cancelled reason="+
-                entry.cancellationReasonKey
-            );
-        }
-
-        if(entry.state==MatchSession.State.COMPLETED)
-            throw invalid(entry,"cancel");
-
-        entry.cancellationReasonKey=reason;
-        entry.state=MatchSession.State.CANCELLED;
-        return snapshot(entry);
-    }
-
-    synchronized MatchSession get(MatchId id){
-        Entry entry=matches.get(
-            Objects.requireNonNull(id,"id")
-        );
-        return entry==null?null:snapshot(entry);
-    }
-
-    synchronized int size(){
-        return matches.size();
-    }
-
-    synchronized List<MatchSession> snapshot(){
-        ArrayList<Entry> ordered=
-            new ArrayList<>(
-                matches.values()
-            );
-
-        ordered.sort(
-            Comparator.comparing(value->value.id)
-        );
-
-        ArrayList<MatchSession> out=
-            new ArrayList<>();
-
-        for(Entry entry:ordered)
-            out.add(snapshot(entry));
-
-        return Collections.unmodifiableList(out);
-    }
-
-    private MatchSession markParticipant(
+    private MatchSession markParticipantUnowned(
         MatchId matchId,
         String participantRef,
         MatchSession.ParticipantStatus status
     ){
         Entry entry=require(matchId);
 
+        requireNoCompositionLease(
+            entry,
+            status.name().toLowerCase(
+                Locale.ROOT
+            )
+        );
+
+        return markParticipantEntry(
+            entry,
+            participantRef,
+            status
+        );
+    }
+
+    private MatchSession markParticipantOwned(
+        MatchId matchId,
+        String participantRef,
+        MatchSession.ParticipantStatus status,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return markParticipantEntry(
+            entry,
+            participantRef,
+            status
+        );
+    }
+
+    private static MatchSession markParticipantEntry(
+        Entry entry,
+        String participantRef,
+        MatchSession.ParticipantStatus status
+    ){
         if(entry.state==MatchSession.State.COMPLETED||
            entry.state==MatchSession.State.CANCELLED)
             throw invalid(
@@ -636,6 +1174,50 @@ final class MatchSessionService {
             );
 
         scores.put(key,next);
+    }
+
+    private static void requireNoCompositionLease(
+        Entry entry,
+        String operation
+    ){
+        if(entry.compositionLease!=null)
+            throw new IllegalStateException(
+                operation+
+                " blocked by composition lease match="+
+                entry.id+
+                " lease="+
+                entry.compositionLease
+            );
+    }
+
+    private static void requireCompositionLease(
+        Entry entry,
+        CompositionLease lease
+    ){
+        if(entry.compositionLease!=lease)
+            throw new IllegalStateException(
+                "composition lease identity mismatch match="+
+                entry.id
+            );
+    }
+
+    private static String requireCompositionLeaseLabel(
+        String value
+    ){
+        if(value==null)
+            throw new NullPointerException(
+                "ownerRef"
+            );
+
+        String normalized=
+            value.trim();
+
+        if(normalized.isEmpty())
+            throw new IllegalArgumentException(
+                "ownerRef blank"
+            );
+
+        return normalized;
     }
 
     private static void requireState(

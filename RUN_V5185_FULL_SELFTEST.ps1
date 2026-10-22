@@ -4,6 +4,10 @@ $ErrorActionPreference='Stop'
 $lab=(Resolve-Path -LiteralPath $Target).Path
 $selector=Join-Path $lab 'tools\R85_SelectJava11Plus.ps1'
 if(-not(Test-Path -LiteralPath $selector -PathType Leaf)){throw "Missing R8.5 Java selector: $selector"}
+$hadCallerJavaHome=Test-Path Env:JAVA_HOME
+$callerJavaHome=$env:JAVA_HOME
+$callerPath=$env:Path
+try{
 . $selector
 $javaInfo=Set-R85Java11Plus
 $javaExe=$javaInfo.Path
@@ -239,3 +243,7 @@ $count=0
 foreach($t in $tests){Write-Host ("[V5185-R85] {0}/{1} {2}" -f ($count+1),$tests.Count,$t);Invoke-JavaSelfTestWithRetry -TestName $t -TimeoutMs 90000;$count++}
 if($count -ne 179){throw "Unexpected selftest count: $count"}
 Write-Host 'V5185_FULL_SELFTEST_PASS count=179 inheritedR842=172/172 r85=7/7 exactClient=true bytecodeMajor=55 maxAttemptsPerTest=2' -ForegroundColor Green
+}finally{
+  if($hadCallerJavaHome){$env:JAVA_HOME=$callerJavaHome}else{Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue}
+  $env:Path=$callerPath
+}

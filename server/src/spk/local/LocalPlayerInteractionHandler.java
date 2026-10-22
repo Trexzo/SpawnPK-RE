@@ -26,6 +26,55 @@ final class LocalPlayerInteractionHandler {
     private long activeTradeGeneration;
     private long nextAttackTick;
 
+    static final class Snapshot {
+        final EntityId activeFollow;
+        final long activeFollowGeneration;
+        final EntityId activeAttack;
+        final long activeAttackGeneration;
+        final EntityId activeTrade;
+        final long activeTradeGeneration;
+        final long nextAttackTick;
+
+        private Snapshot(
+            LocalPlayerInteractionHandler source
+        ){
+            activeFollow=source.activeFollow;
+            activeFollowGeneration=
+                source.activeFollowGeneration;
+            activeAttack=source.activeAttack;
+            activeAttackGeneration=
+                source.activeAttackGeneration;
+            activeTrade=source.activeTrade;
+            activeTradeGeneration=
+                source.activeTradeGeneration;
+            nextAttackTick=source.nextAttackTick;
+        }
+    }
+
+    Snapshot snapshot(){
+        return new Snapshot(this);
+    }
+
+    void restore(
+        Snapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException(
+                "player interaction snapshot"
+            );
+
+        activeFollow=snapshot.activeFollow;
+        activeFollowGeneration=
+            snapshot.activeFollowGeneration;
+        activeAttack=snapshot.activeAttack;
+        activeAttackGeneration=
+            snapshot.activeAttackGeneration;
+        activeTrade=snapshot.activeTrade;
+        activeTradeGeneration=
+            snapshot.activeTradeGeneration;
+        nextAttackTick=snapshot.nextAttackTick;
+    }
+
     LocalPlayerInteractionHandler(
         World world,
         WorldPlayer owner,

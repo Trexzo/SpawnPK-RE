@@ -40,6 +40,15 @@ final class LocalPendingRequestDispatcher {
         default void handleRegionLoadAck(
             String tag
         ){}
+
+        default LocalCanonicalNpcAttackHandler.Result
+            handleCanonicalNpcAttack(
+                NpcAction action,
+                NpcEntity clicked,
+                ServerPacketWriter writer
+            )throws IOException{
+            return null;
+        }
     }
 
     private final WorldPlayer worldPlayer;
@@ -131,6 +140,34 @@ final class LocalPendingRequestDispatcher {
                     movement,
                     npcs
                 );
+        this.makeoverMage.installDesignerRootOwner(
+            new LocalMakeoverMageHandler.DesignerRootOwner(){
+                @Override public void publish(
+                    LocalMakeoverMageHandler.DesignerRootAction action
+                )throws IOException{
+                    uiActions.replaceMonsterSpawnerWithMakeoverRoot(
+                        ()->{
+                            action.open();
+                            return "MAKEOVER_DESIGN_ROOT_OPENED";
+                        }
+                    );
+                }
+
+                @Override public void publish(
+                    LocalMakeoverMageHandler.DesignerRootAction action,
+                    LocalMakeoverMageHandler.DesignerRootCommit commit
+                )throws IOException{
+                    uiActions.replaceMonsterSpawnerWithMakeoverRoot(
+                        ()->{
+                            action.open();
+                            return "MAKEOVER_DESIGN_ROOT_OPENED";
+                        },
+                        commit::commit
+                    );
+                }
+            }
+        );
+
         this.compCapeCustomize=Objects.requireNonNull(
             compCapeCustomize,"compCapeCustomize");
         this.itemOnItemHandler=Objects.requireNonNull(
@@ -846,11 +883,25 @@ final class LocalPendingRequestDispatcher {
             return;
         }
 
-        String compCapeItem=
-            compCapeCustomize.handleItemAction(
-                action,
-                serverPackets
-            );
+        String compCapeItem;
+
+        if(compCapeCustomize.willOpenRoot(
+                action
+            ))
+            compCapeItem=
+                uiActions.replaceMonsterSpawnerWithCompCapeRoot(
+                    ()->
+                        compCapeCustomize.handleItemAction(
+                            action,
+                            serverPackets
+                        )
+                );
+        else
+            compCapeItem=
+                compCapeCustomize.handleItemAction(
+                    action,
+                    serverPackets
+                );
 
         if(compCapeItem!=null){
             System.out.println(tag+compCapeItem);
@@ -1128,6 +1179,27 @@ final class LocalPendingRequestDispatcher {
                 clicked+
                 " result="+result+
                 " approach="+approach
+            );
+            return;
+        }
+
+        LocalCanonicalNpcAttackHandler.Result
+            canonicalAttack=
+                bridge.handleCanonicalNpcAttack(
+                    action,
+                    clicked,
+                    serverPackets
+                );
+
+        if(canonicalAttack!=null){
+            System.out.println(
+                tag+
+                "CANONICAL_NPC_ATTACK_CLICK "+
+                action+
+                " clicked="+
+                clicked+
+                " result="+
+                canonicalAttack
             );
             return;
         }

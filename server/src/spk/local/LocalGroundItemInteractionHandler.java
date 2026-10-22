@@ -36,11 +36,15 @@ final class LocalGroundItemInteractionHandler {
     )throws IOException{
         if(action==null)return null;
 
-        GroundItem ground=world.groundItems().find(
-            action.itemId,action.worldX,action.worldY,0);
+        GroundItem ground=world.groundItems().findVisible(
+            action.itemId,
+            action.worldX,
+            action.worldY,
+            movement.plane(),
+            username
+        );
 
-        if(ground==null ||
-           (ground.owner!=null&&!ground.owner.equalsIgnoreCase(username))){
+        if(ground==null){
             return Result.log(
                 "V511_GROUND_ACTION "+action+
                 " result=REJECTED_NOT_VISIBLE_OR_MISSING"
@@ -107,7 +111,7 @@ final class LocalGroundItemInteractionHandler {
            ground.itemId!=action.itemId||
            ground.tile.x!=action.worldX||
            ground.tile.y!=action.worldY||
-           ground.tile.plane!=0||
+           ground.tile.plane!=movement.plane()||
            now>pendingTakeDeadlineMs){
             clearPendingTake();
             return Result.log(
@@ -127,12 +131,20 @@ final class LocalGroundItemInteractionHandler {
             return null;
         }
 
-        clearPendingTake();
         movement.clearQueuedPath();
-        return takeNow(
-            ground,scenePublisher,serverPackets,
-            "TAKE_AFTER_EXACT_TILE_ARRIVAL"
-        );
+
+        Result result=
+            takeNow(
+                ground,scenePublisher,serverPackets,
+                "TAKE_AFTER_EXACT_TILE_ARRIVAL"
+            );
+
+        /*
+         * Clear only after the standalone Take transaction returns normally.
+         * Transport failure leaves the exact pending identity retryable.
+         */
+        clearPendingTake();
+        return result;
     }
 
     boolean hasPendingTake(){
@@ -155,19 +167,83 @@ final class LocalGroundItemInteractionHandler {
         ServerPacketWriter serverPackets,
         String reason
     )throws IOException{
-        if(!bank.canAddInventoryAmount(ground.itemId,ground.amount)){
+        BankState.PreparedInventoryMutation inventoryMutation=
+            bank.prepareAddInventoryAmount(
+                ground.itemId,
+                ground.amount
+            );
+
+        if(!inventoryMutation.accepted()){
             return Result.log(
                 "V511_GROUND_TAKE id="+ground.id+
                 " result=REJECTED_INVENTORY_FULL"
             );
         }
 
-        int destination=bank.addInventoryAmount(
-            ground.itemId,ground.amount,serverPackets);
-        if(destination<0)return null;
+        GroundItemRegistry.PreparedRemove groundMutation=
+            world.groundItems().prepareRemove(
+                ground.id
+            );
 
-        world.groundItems().remove(ground.id);
-        scenePublisher.groundRemove(ground);
+        if(groundMutation.expected!=ground)
+            return null;
+
+        SceneCoordinateContext.Snapshot sceneBefore=
+            scenePublisher.context().snapshot();
+
+        serverPackets.beginBatch();
+        boolean ended=false;
+
+        try{
+            bank.publishPreparedInventoryMutation(
+                inventoryMutation,
+                serverPackets
+            );
+            scenePublisher.groundRemove(
+                ground
+            );
+            serverPackets.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            scenePublisher.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            scenePublisher.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            scenePublisher.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        int destination=
+            bank.commitPreparedInventoryMutation(
+                inventoryMutation
+            );
+
+        if(!world.groundItems().commitPreparedRemove(
+                groundMutation
+           ))
+            throw new IllegalStateException(
+                "prepared ground remove did not commit"
+            );
 
         return new Result(
             "V511_GROUND_TAKE id="+ground.id+

@@ -13,12 +13,27 @@ import spk.content.builtin.LocalLabCoreContentModule;
  * decoded NPC actions are routed here through exact-current NPC definitions.
  */
 final class LocalRoutedNpcInteractionHandler {
+    @FunctionalInterface
+    interface BankRootOpenAction {
+        String open() throws IOException;
+    }
+
+    @FunctionalInterface
+    interface BankRootOwner {
+        String publish(
+            BankRootOpenAction action
+        ) throws IOException;
+    }
+
     private final NpcRegistry npcs;
     private final BankState bank;
     private final MovementState movement;
     private final InteractionApproachResolver approach;
     private final ContentRegistry contentRegistry;
     private final LocalMakeoverMageHandler makeoverMage;
+    private BankRootOwner bankRootOwner=
+        action->action.open();
+    private boolean bankRootOwnerInstalled;
 
     private Integer pendingBankScene;
     private NpcEntity pendingBankNpc;
@@ -84,6 +99,24 @@ final class LocalRoutedNpcInteractionHandler {
                     npcs,
                     contentRegistry
                 );
+    }
+
+    void installBankRootOwner(
+        BankRootOwner owner
+    ){
+        BankRootOwner checked=
+            java.util.Objects.requireNonNull(
+                owner,
+                "owner"
+            );
+
+        if(bankRootOwnerInstalled)
+            throw new IllegalStateException(
+                "NPC bank root owner already installed"
+            );
+
+        bankRootOwner=checked;
+        bankRootOwnerInstalled=true;
     }
 
     LocalMakeoverMageHandler makeoverMage(){
@@ -235,7 +268,6 @@ final class LocalRoutedNpcInteractionHandler {
             return null;
         }
 
-        clearPendingBank();
         movement.clearQueuedPath();
 
         // Preserve the current R8.5 deferred-bank reconstruction exactly:
@@ -244,13 +276,21 @@ final class LocalRoutedNpcInteractionHandler {
         NpcInteractionRouter.Route route=
             NpcInteractionRouter.resolve(synthetic,npc);
 
-        return openBank(
-            npc,
-            synthetic,
-            route,
-            serverPackets,
-            "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
-        );
+        String result=
+            openBank(
+                npc,
+                synthetic,
+                route,
+                serverPackets,
+                "OPENED_AFTER_AUTHORITATIVE_ARRIVAL"
+            );
+
+        /*
+         * A failed standalone Bank publication must retain the exact banker
+         * identity so the next authoritative tick can retry.
+         */
+        clearPendingBank();
+        return result;
     }
 
     boolean hasPendingBank(){
@@ -359,17 +399,21 @@ final class LocalRoutedNpcInteractionHandler {
         ServerPacketWriter serverPackets,
         String reason
     )throws IOException{
-        bank.open(serverPackets);
-        return "V511_BANK_OPEN_NPC npc="+npc.definitionId+
-            " scene="+npc.sceneIndex+
-            " world="+npc.x+","+npc.y+
-            " request="+request+
-            " route="+route+
-            " authorityWorld="+movement.x()+","+movement.y()+
-            " distance="+chebyshev(
-                movement.x(),movement.y(),npc.x,npc.y)+
-            " root="+BankState.BANK_ROOT+
-            " action="+reason;
+        return bankRootOwner.publish(
+            ()->{
+                bank.open(serverPackets);
+                return "V511_BANK_OPEN_NPC npc="+npc.definitionId+
+                    " scene="+npc.sceneIndex+
+                    " world="+npc.x+","+npc.y+
+                    " request="+request+
+                    " route="+route+
+                    " authorityWorld="+movement.x()+","+movement.y()+
+                    " distance="+chebyshev(
+                        movement.x(),movement.y(),npc.x,npc.y)+
+                    " root="+BankState.BANK_ROOT+
+                    " action="+reason;
+            }
+        );
     }
 
     private boolean adjacentTo(int x,int y){
