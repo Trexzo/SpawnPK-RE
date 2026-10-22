@@ -2082,6 +2082,18 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
         String disabledFlag,boolean shutdownAtCutpoint
     )throws Exception{
+        runRevokedSettlement(stage,afterReadback,disabledFlag,
+            shutdownAtCutpoint,false);
+    }
+
+    private static void runRevokedSettlement(
+        LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
+        String disabledFlag,boolean shutdownAtCutpoint,
+        boolean fullCloseAtCutpoint
+    )throws Exception{
+        if(fullCloseAtCutpoint&&!shutdownAtCutpoint)
+            throw new IllegalArgumentException(
+                "R99_PRODUCTION_CLOSE_REQUIRES_SHUTDOWN_MODE");
         if(shutdownAtCutpoint&&(disabledFlag!=null||afterReadback))
             throw new IllegalArgumentException(
                 "R98_SHUTDOWN_TEST_REQUIRES_FORCE_STAGE");
@@ -2093,7 +2105,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             throw new IllegalArgumentException(
                 "R95_REQUIRES_RECEIPT_FORCED");
         Path root=Files.createTempDirectory(
-            (shutdownAtCutpoint?"r98-shutdown-":
+            (fullCloseAtCutpoint?"r99-production-close-":
+            shutdownAtCutpoint?"r98-shutdown-":
             disableLab?"r96-opt-out-":
                 afterReadback?"r95-post-inspection-":"r93-revoked-")+
             stage.name().toLowerCase(java.util.Locale.ROOT)+"-");
@@ -2122,7 +2135,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 javaExe(),"-cp",System.getProperty("java.class.path"),
                 G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
                 shutdownAtCutpoint
-                    ?"--settlement-shutdown-at-stage"
+                    ?fullCloseAtCutpoint
+                        ?"--settlement-production-close-at-stage"
+                        :"--settlement-shutdown-at-stage"
                     :disableLab
                         ?afterReadback
                             ?"--settlement-opt-out-post-readback"
@@ -2144,7 +2159,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 StandardCharsets.UTF_8);
             check(p.exitValue()==0&&trace.contains(
                 shutdownAtCutpoint
-                    ?"R98_WORLD_PERSISTENCE_SHUTDOWN_PASS stage="+stage
+                    ?"R98_WORLD_PERSISTENCE_SHUTDOWN_PASS stage="+stage+
+                        " productionClose="+fullCloseAtCutpoint
                     :disableLab
                         ?"R96_WORLD_SETTLEMENT_OPT_OUT_PASS stage="+stage+
                         " afterReadback="+afterReadback+
@@ -2242,9 +2258,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
                 "R92 fresh JVM did not refuse partial settlement: "+result);
             System.out.println(
-                (shutdownAtCutpoint
-                    ?"R98_PERSISTENCE_SHUTDOWN_FRESH_JVM_PASS"
-                    :disableLab
+                (fullCloseAtCutpoint
+                    ?"R99_PRODUCTION_CLOSE_FRESH_JVM_PASS"
+                    :shutdownAtCutpoint
+                        ?"R98_PERSISTENCE_SHUTDOWN_FRESH_JVM_PASS"
+                        :disableLab
                         ?"R96_SETTLEMENT_OPT_OUT_FRESH_JVM_PASS"
                         :afterReadback
                         ?"R95_POSTREADBACK_REVOKED_FRESH_JVM_PASS"
@@ -2255,6 +2273,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     (afterReadback&&!disableLab)+
                 " experimentalOptOutDuringTransition="+disableLab+
                 " persistenceExecutorShutdown="+shutdownAtCutpoint+
+                " productionClose="+fullCloseAtCutpoint+
                 " disabledFlag="+(disableLab?disabledFlag:"none")+
                 " exactSevenStageInventory=true"+
                 " headMoved="+headMoved+
@@ -2294,6 +2313,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         if(args.length==4&&"--prepare-holder".equals(args[0])){
             prepareKillHolder(Paths.get(args[1]),Paths.get(args[2]),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==3&&
+                "--settlement-production-close-at-stage".equals(args[0])){
+            settleKillHolder(Paths.get(args[1]),
+                Paths.get(args[1]).resolve("unused-ready"),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[2]),
+                false,false,false,false,
+                LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,
+                true,true);
             return;
         }
         if(args.length==3&&
@@ -2397,5 +2426,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         runRevokedSettlement(
             LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
             false,null,true);
+        // R99: unlike R98's bounded admission helper, execute
+        // the ENTIRE production close lifecycle while holding the
+        // original account lock and a genuine final FIFO witness.
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
+            false,null,true,true);
     }
 }
