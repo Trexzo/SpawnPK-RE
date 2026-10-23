@@ -4357,7 +4357,219 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R123: the R122 nonparticipating RAW writer actually published
+     * a newer unrelated account image while the original authenticated
+     * World was alive. Allow that original session to LOG OUT via its
+     * genuine TCP socket, then observe the real World final-save
+     * worker. With no durable account epoch/foreign-write preimage
+     * check in default-off World publication, its older in-memory
+     * snapshot may replace the externally updated profile and still
+     * finish successfully. This is a NEGATIVE failure characterization
+     * only, not authority to recover or automatically reconcile either.
+     */
+    private static boolean r123HasForeignRawMarker(Path account)
+        throws Exception{
+        PlayerSnapshot snapshot=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile)
+            .load(USER).orElseThrow(()->new AssertionError(
+                "R123 selected account missing"));
+        check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS),
+            "R123 legacy account missing");
+        for(String key:snapshot.values().keySet()){
+            if(key.contains("r122_nonparticipating_writer"))
+                return true;
+        }
+        return false;
+    }
+
+    private static void r123RealWorldLogoutAfterForeignRaw(
+        Path root,Path ready,Path proceed
+    )throws Exception{
+        r119EnableCrossJvmSessionLock(root);
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        World world=World.isolatedForTest(50L,repository);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(world)){
+            try(Socket admitted=server.login(USER)){
+                await(()->world.players().byName(USER)!=null,
+                    "R123 genuine original World authenticated player");
+                check(world.players().size()==1,
+                    "R123 original World login did not materialize player");
+                Path account=LocalAccountProfiles.accountFile(USER);
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+                check(!r123HasForeignRawMarker(account),
+                    "R123 original World started on foreign new profile");
+                System.out.println(
+                    "R123_ORIGINAL_TCP_WORLD_READY_FOR_FOREIGN_RAW"+
+                    " authenticatedOwnerPresent=true"+
+                    " osSessionLockHeld=true"+
+                    " newRawMarkerInitiallyAbsent=true");
+                System.out.flush();
+                Files.write(ready,new byte[]{1},
+                    StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE);
+                await(()->Files.exists(
+                        proceed,LinkOption.NOFOLLOW_LINKS),
+                    "R123 parent finished foreign RAW write");
+                check(r123HasForeignRawMarker(account),
+                    "R123 original holder did not observe foreign RAW");
+                // Closing this real authenticated client socket lets
+                // LocalSession tear down, capture FINAL and enqueue
+                // the snapshot through its normal World worker.
+            }
+            server.waitCompleted();
+            check(world.players().size()==0,
+                "R123 original World retained player after TCP logout");
+            System.out.println(
+                "R123_REAL_TCP_LOGOUT_FINAL_WORKER_COMPLETED"+
+                " originalWorldSessionClosed=true"+
+                " originalWorldPlayers=0");
+            System.out.flush();
+        }finally{
+            if(!world.closed())world.close();
+        }
+    }
+
+    private static void runR123ForeignRawThenOriginalWorldFinal()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        Path root=Files.createTempDirectory("r123-foreign-raw-stale-");
+        Process holder=null;
+        try{
+            configure(root,false);
+            System.clearProperty(
+                LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY);
+            FilePlayerRepository repository=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            repository.save(PlayerSnapshotCodec.capture(
+                USER,new WorldPlayer()));
+            Path account=LocalAccountProfiles.accountFile(USER);
+            check(!r123HasForeignRawMarker(account),
+                "R123 seeded account unexpectedly contains foreign RAW");
+            Path ready=root.resolve("r123-owner-ready");
+            Path proceed=root.resolve("r123-allow-final");
+            Path holderLog=root.resolve("r123-authenticated-owner.log");
+            ProcessBuilder first=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest
+                    .class.getName(),
+                "--r123-world-final-holder",root.toString(),
+                ready.toString(),proceed.toString());
+            first.redirectErrorStream(true);
+            first.redirectOutput(holderLog.toFile());
+            holder=first.start();
+            final Process original=holder;
+            await(()->!original.isAlive()||
+                (Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                 new String(Files.readAllBytes(holderLog),
+                     StandardCharsets.UTF_8).contains(
+                     "R123_ORIGINAL_TCP_WORLD_READY_FOR_FOREIGN_RAW")),
+                "R123 first World authenticated and holding original lock");
+            String originalTrace=new String(Files.readAllBytes(holderLog),
+                StandardCharsets.UTF_8);
+            check(original.isAlive()&&
+                Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                originalTrace.contains(
+                    "R123_ORIGINAL_TCP_WORLD_READY_FOR_FOREIGN_RAW"),
+                "R123 original authenticated World failed "+originalTrace);
+            r119EnableCrossJvmSessionLock(root);
+            r120RequireDistinctLockBusy(account);
+            Path rawLog=root.resolve("r123-nonparticipating-raw.log");
+            ProcessBuilder raw=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest
+                    .class.getName(),
+                "--r122-raw-probe",root.toString(),"default-off");
+            raw.redirectErrorStream(true);
+            raw.redirectOutput(rawLog.toFile());
+            Process rawWriter=raw.start();
+            if(!rawWriter.waitFor(30,TimeUnit.SECONDS)){
+                rawWriter.destroyForcibly();
+                rawWriter.waitFor(10,TimeUnit.SECONDS);
+                throw new IOException("R123_FOREIGN_RAW_WRITER_TIMED_OUT");
+            }
+            String rawTrace=new String(Files.readAllBytes(rawLog),
+                StandardCharsets.UTF_8);
+            check(rawWriter.exitValue()==0&&rawTrace.contains(
+                    "R122_DEFAULT_OFF_RAW_WRITE_GAP_CONFIRMED"),
+                "R123 failed to publish foreign RAW bytes "+rawTrace);
+            byte[] foreignRawBytes=Files.readAllBytes(account);
+            check(r123HasForeignRawMarker(account),
+                "R123 foreign RAW extension not actually persisted");
+            r120RequireDistinctLockBusy(account);
+            check(original.isAlive(),
+                "R123 original World exited before final-save signal");
+            Files.write(proceed,new byte[]{1},
+                StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE);
+            if(!original.waitFor(20L,TimeUnit.SECONDS)){
+                original.destroyForcibly();
+                original.waitFor(10L,TimeUnit.SECONDS);
+                throw new IOException("R123_AUTHENTICATED_LOGOUT_TIMED_OUT");
+            }
+            originalTrace=new String(Files.readAllBytes(holderLog),
+                StandardCharsets.UTF_8);
+            check(original.exitValue()==0&&originalTrace.contains(
+                    "R123_REAL_TCP_LOGOUT_FINAL_WORKER_COMPLETED"),
+                "R123 original World logout failed "+originalTrace);
+            // Characterization: genuine World FINAL accepted stale
+            // hydrated state and replaced the second JVM's newer RAW.
+            check(!r123HasForeignRawMarker(account)&&
+                !Arrays.equals(foreignRawBytes,Files.readAllBytes(account)),
+                "R123 original World did not overwrite foreign RAW "+
+                "with its stale in-memory snapshot");
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+            System.out.println(
+                "R123_FOREIGN_RAW_THEN_STALE_WORLD_FINAL_GAP_PASS"+
+                " firstWorldActuallyAuthenticated=true"+
+                " originalAccountOsLockBusyDuringForeignWrite=true"+
+                " secondJvmDefaultOffRawPublicationSucceeded=true"+
+                " foreignSnapshotHadUniqueExtension=true"+
+                " originalTcpLogoutFinalWorkerCompleted=true"+
+                " foreignNewerExtensionLostAfterWorldFinal=true"+
+                " thisIsAConfirmedGapNotSafeRecovery=true");
+        }finally{
+            if(holder!=null&&holder.isAlive()){
+                holder.destroyForcibly();
+                holder.waitFor(10L,TimeUnit.SECONDS);
+            }
+            for(int i=0;i<flags.length;i++){
+                if(saved[i]==null)System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],saved[i]);
+            }
+            try(Stream<Path> entries=Files.walk(root)){
+                for(Path item:entries.sorted(
+                        Comparator.reverseOrder()).toArray(Path[]::new))
+                    Files.deleteIfExists(item);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==4&&"--r123-world-final-holder".equals(args[0])){
+            r123RealWorldLogoutAfterForeignRaw(
+                Paths.get(args[1]),Paths.get(args[2]),
+                Paths.get(args[3]));
+            return;
+        }
         if(args.length==3&&"--r122-raw-probe".equals(args[0])){
             boolean cooperate="cooperating".equals(args[2]);
             check(cooperate||"default-off".equals(args[2]),
@@ -4553,6 +4765,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // separate default-OFF legacy RAW JVM can still publish.
         // Characterize the unsupported gap, do NOT enable recovery.
         runR122NonparticipatingRawWriterGap();
+        // R123: a genuine first World logout can still overwrite
+        // the newer nonparticipating RAW writer's disk image with a
+        // stale hydrated snapshot, despite owning the opt-in lock.
+        runR123ForeignRawThenOriginalWorldFinal();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
