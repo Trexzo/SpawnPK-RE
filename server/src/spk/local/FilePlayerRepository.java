@@ -58,6 +58,8 @@ final class FilePlayerRepository
     // R112 package-only: inject a retained negative sidecar after
     // RAW account replacement but before returning save success.
     private final BeforeWorldReplace afterRawMoveForTest;
+    // R114: inert production default-OFF World post-rename test seam.
+    private final BeforeWorldReplace afterOrdinaryWorldMoveForTest;
 
     FilePlayerRepository(){
         this(
@@ -144,6 +146,23 @@ final class FilePlayerRepository
         BeforeWorldReplace afterForcedWorldMoveForTest,
         BeforeWorldReplace afterRawMoveForTest
     ){
+        this(paths,beforeWorldReplace,insideWorldPublication,
+            afterWorldSessionRead,betweenRestartWitnessPasses,
+            beforeRawReplace,afterForcedWorldMoveForTest,
+            afterRawMoveForTest,account->{});
+    }
+
+    /** R114: package-only after non-forced World rename; no prod hook. */
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication,
+        BeforeWorldReplace afterWorldSessionRead,
+        BeforeWorldReplace betweenRestartWitnessPasses,
+        BeforeWorldReplace beforeRawReplace,
+        BeforeWorldReplace afterForcedWorldMoveForTest,
+        BeforeWorldReplace afterRawMoveForTest,
+        BeforeWorldReplace afterOrdinaryWorldMoveForTest
+    ){
         this.paths=Objects.requireNonNull(paths,"paths");
         this.beforeWorldReplace=Objects.requireNonNull(
             beforeWorldReplace,"beforeWorldReplace");
@@ -159,6 +178,8 @@ final class FilePlayerRepository
             afterForcedWorldMoveForTest,"afterForcedWorldMoveForTest");
         this.afterRawMoveForTest=Objects.requireNonNull(
             afterRawMoveForTest,"afterRawMoveForTest");
+        this.afterOrdinaryWorldMoveForTest=Objects.requireNonNull(
+            afterOrdinaryWorldMoveForTest,"afterOrdinaryWorldMoveForTest");
     }
 
     @Override public Optional<PlayerSnapshot> load(
@@ -1826,6 +1847,11 @@ final class FilePlayerRepository
                             }
                             forcedWorldPostimageCount.incrementAndGet();
                         }else{
+                            // R114: emit a test-only post-rename
+                            // injection before the non-forced World's
+                            // existing negative postimage checks. A
+                            // veto here cannot roll back old bytes.
+                            afterOrdinaryWorldMoveForTest.run(worldAccount);
                             // A negative witness added after the
                             // non-forced move makes completion
                             // uncertain; never claim normal success.

@@ -3223,6 +3223,114 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R114: after non-forced guarded World ATOMIC_MOVE, injection of
+     * detached LAB evidence cannot undo new account bytes. The exact
+     * late evidence must turn normal save completion into uncertainty
+     * and continue to prevent subsequent account admission.
+     */
+    private static void runPostMoveLabEvidenceWorldMatrix()
+        throws Exception{
+        String[] namespaces={
+            ".g21385-r114-after-world-move",
+            ".g21386-r114-after-world-move",
+            ".g21387-r114-after-world-move",
+            ".g21378-object-r114-after-world-move"
+        };
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] originalFlags=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            originalFlags[i]=System.getProperty(flags[i]);
+        for(String namespace:namespaces){
+            Path root=Files.createTempDirectory("r114-postmove-world-");
+            try{
+                configure(root,false);
+                FilePlayerRepository initial=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                initial.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                byte[] before=Files.readAllBytes(account);
+                int oldWorldTemps=r109OwnedWorldTemps(account);
+                Path sidecar=account.resolveSibling(
+                    account.getFileName().toString()+namespace);
+                java.util.concurrent.atomic.AtomicInteger reached=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                FilePlayerRepository raced=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile,
+                    name->{},name->{},name->{},name->{},
+                    name->{},name->{},name->{},
+                    name->{
+                        check(USER.equals(name),
+                            "R114 postmove World identity changed");
+                        check(Files.exists(account,LinkOption.NOFOLLOW_LINKS),
+                            "R114 postmove World account missing");
+                        Files.write(sidecar,new byte[]{1},
+                            StandardOpenOption.CREATE_NEW,
+                            StandardOpenOption.WRITE);
+                        reached.incrementAndGet();
+                    });
+                WorldPlayer changed=new WorldPlayer();
+                changed.snapshotExtensions().replaceNamespace(
+                    "r114_world",
+                    Collections.singletonMap("phase","POSTMOVE_UNCERTAIN"));
+                boolean denied=false;
+                try{
+                    raced.saveForWorld(PlayerSnapshotCodec.capture(
+                        USER,changed));
+                }catch(IOException failure){
+                    denied=contains(failure,NEGATIVE);
+                }
+                check(denied&&reached.get()==1,
+                    "R114 late LAB evidence reported World save success "+
+                    namespace);
+                check(Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS)&&
+                    !Arrays.equals(before,Files.readAllBytes(account)),
+                    "R114 new World bytes missing or evidence lost "+
+                    namespace);
+                check(r109OwnedWorldTemps(account)==oldWorldTemps,
+                    "R114 postmove World temp not consumed "+namespace);
+                boolean loadDenied=false;
+                try{initial.loadForWorldSession(USER);}
+                catch(IOException failure){
+                    loadDenied=contains(failure,NEGATIVE);
+                }
+                check(loadDenied,
+                    "R114 postmove World evidence permitted relogin "+
+                    namespace);
+                System.out.println(
+                    "R114_POSTMOVE_WORLD_LAB_EVIDENCE_UNCERTAIN_PASS"+
+                    " namespace="+namespace+
+                    " accountActuallyReplaced=true"+
+                    " lateSidecarPreserved=true"+
+                    " saveReturnedFailure=true"+
+                    " laterWorldAdmissionDenied=true"+
+                    " noRollbackOrSaveACK=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(originalFlags[i]==null)
+                        System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],originalFlags[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path entry:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(entry);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&"--r113-create-negative".equals(args[0])){
             Path sidecar=Paths.get(args[1]);
@@ -3373,6 +3481,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R113: verify actual cross-process sidecar visibility
         // for RAW and guarded World writers, four namespaces each.
         runCrossJvmLateLabEvidenceMatrix();
+        // R114: characterize late LAB evidence after a non-forced
+        // World move, separately from the forced World receipt path.
+        runPostMoveLabEvidenceWorldMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
