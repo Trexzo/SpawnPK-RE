@@ -2178,10 +2178,22 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 }
                 String overlapTrace=new String(
                     Files.readAllBytes(overlapLog),StandardCharsets.UTF_8);
-                check(secondJvm.exitValue()==0&&overlapTrace.contains(
-                    "R106_LIVE_OVERLAP_FRESH_JVM_NEGATIVE_PASS stage="+stage+
-                    " originalWorldStillAlive=true"),
-                    "R106 concurrent independent JVM admitted account "+
+                // R106.1: the child prints its bounded fullReceipt
+                // field BETWEEN stage and originalWorldStillAlive.
+                // Match each independently, along with the explicit
+                // direct/TCP denial and zero-exit proof. Requiring
+                // those fields to be adjacent is not a safety check.
+                check(secondJvm.exitValue()==0&&
+                    overlapTrace.contains(
+                        "R106_LIVE_OVERLAP_FRESH_JVM_NEGATIVE_PASS"+
+                        " stage="+stage+" fullReceipt="+
+                        (stage==LocalReusableAccountEpochLab.Stage
+                            .RECEIPT_FORCED))&&
+                    overlapTrace.contains(" originalWorldStillAlive=true")&&
+                    overlapTrace.contains(
+                        " freshRepositoryDirectAndTcpDenied=true")&&
+                    overlapTrace.contains(" noFinalAckOrRecovery=true"),
+                    "R106 live second-JVM admission or trace failed "+
                     stage+" "+overlapTrace);
                 check(running.isAlive()&&
                     Files.exists(ready,LinkOption.NOFOLLOW_LINKS),
