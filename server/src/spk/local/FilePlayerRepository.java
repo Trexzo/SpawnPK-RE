@@ -1908,6 +1908,28 @@ final class FilePlayerRepository
                                 if(!sealedWorldTemp.equals(current))
                                     throw new IOException(
                                         "R125_WORLD_POSTIMAGE_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK");
+                                // R126: a foreign account may carry
+                                // byte-for-byte IDENTICAL data while
+                                // being a different filesystem object.
+                                // G21.172 originally captured the temp
+                                // identity BEFORE the World atomic
+                                // rename. Re-read the final account
+                                // identity and compare it here, then
+                                // again after the digest above. This
+                                // is observational, not atomic fencing
+                                // or a session-lifetime owner epoch.
+                                final BasicFileAttributes afterMove;
+                                try{
+                                    afterMove=worldTempEvidence(file);
+                                }catch(IOException unknown){
+                                    throw new IOException(
+                                        "R126_WORLD_POSTIMAGE_OBJECT_UNREADABLE_UNCERTAIN_NO_ACK",
+                                        unknown);
+                                }
+                                if(!sameWorldTempObject(
+                                        originalWorldTemp,afterMove))
+                                    throw new IOException(
+                                        "R126_WORLD_POSTIMAGE_OBJECT_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK");
                             }
                         }
                         return null;

@@ -4875,7 +4875,217 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R126: a distinct JVM must replace the exact World account
+     * after its successful rename using a DIFFERENT filesystem object
+     * containing the SAME BYTES. A SHA-only postimage check cannot
+     * recognize this negative ownership evidence.
+     */
+    private static void r126ReplaceAccountWithIdenticalBytes(Path account)
+        throws Exception{
+        Path selected=account.toAbsolutePath().normalize();
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(selected);
+        byte[] original=Files.readAllBytes(selected);
+        java.nio.file.attribute.BasicFileAttributes before=
+            Files.readAttributes(selected,
+                java.nio.file.attribute.BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        check(before.isRegularFile()&&!before.isSymbolicLink()&&
+            before.fileKey()!=null,
+            "R126 original account inode identity unavailable");
+        Path replacement=Files.createTempFile(
+            selected.getParent(),"r126-identical-postimage-", ".tmp");
+        boolean moved=false;
+        try{
+            Files.write(replacement,original,StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+            java.nio.file.attribute.BasicFileAttributes staged=
+                Files.readAttributes(replacement,
+                    java.nio.file.attribute.BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            check(staged.isRegularFile()&&!staged.isSymbolicLink()&&
+                staged.fileKey()!=null&&
+                !before.fileKey().equals(staged.fileKey()),
+                "R126 staged replacement was not an independent inode");
+            Files.move(replacement,selected,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            moved=true;
+            java.nio.file.attribute.BasicFileAttributes after=
+                Files.readAttributes(selected,
+                    java.nio.file.attribute.BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            check(after.fileKey()!=null&&
+                !before.fileKey().equals(after.fileKey())&&
+                staged.fileKey().equals(after.fileKey())&&
+                Arrays.equals(original,Files.readAllBytes(selected)),
+                "R126 same-byte foreign replacement was not real");
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(selected);
+            System.out.println(
+                "R126_FOREIGN_JVM_SAME_BYTES_DIFFERENT_FILE_OBJECT_PASS"+
+                " contentUnchanged=true"+
+                " filesystemObjectChanged=true"+
+                " noRecoveryOrSuccessAuthority=true");
+        }finally{
+            if(!moved)Files.deleteIfExists(replacement);
+        }
+    }
+
+    private static void runR126SameBytesPostmoveObjectMatrix()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY,
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] originals=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            originals[i]=System.getProperty(flags[i]);
+        for(boolean enabled:new boolean[]{false,true}){
+            Path root=Files.createTempDirectory(
+                enabled?"r126-object-optin-":"r126-object-default-");
+            try{
+                configure(root,false);
+                System.clearProperty(
+                    LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY);
+                System.clearProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+                if(enabled)System.setProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+                    "true");
+                else System.clearProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY);
+                FilePlayerRepository repository=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                repository.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                int tempsBefore=r109OwnedWorldTemps(account);
+                java.util.concurrent.atomic.AtomicInteger hooks=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                final byte[][] originalWorldBytes={null};
+                FilePlayerRepository raced=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile,
+                    name->{},name->{},name->{},name->{},name->{},
+                    name->{},name->{},
+                    name->{
+                        check(USER.equals(name),
+                            "R126 World callback account changed");
+                        check(Files.isRegularFile(
+                            account,LinkOption.NOFOLLOW_LINKS),
+                            "R126 World move did not finish");
+                        originalWorldBytes[0]=Files.readAllBytes(account);
+                        java.nio.file.attribute.BasicFileAttributes pre=
+                            Files.readAttributes(account,
+                                java.nio.file.attribute
+                                    .BasicFileAttributes.class,
+                                LinkOption.NOFOLLOW_LINKS);
+                        Path log=root.resolve("r126-child.log");
+                        ProcessBuilder child=new ProcessBuilder(
+                            javaExe(),"-cp",
+                            System.getProperty("java.class.path"),
+                            G21399RealCapturedEpochGenesisRegressionTest
+                                .class.getName(),
+                            "--r126-identical-foreign-replace",
+                            account.toString());
+                        child.redirectErrorStream(true);
+                        child.redirectOutput(log.toFile());
+                        try{
+                            Process running=child.start();
+                            if(!running.waitFor(30,TimeUnit.SECONDS)){
+                                running.destroyForcibly();
+                                running.waitFor(10,TimeUnit.SECONDS);
+                                throw new IOException(
+                                    "R126_FOREIGN_JVM_TIMED_OUT");
+                            }
+                            String trace=new String(
+                                Files.readAllBytes(log),
+                                StandardCharsets.UTF_8);
+                            check(running.exitValue()==0&&trace.contains(
+                                "R126_FOREIGN_JVM_SAME_BYTES_DIFFERENT_FILE_OBJECT_PASS"),
+                                "R126 independent JVM failed "+trace);
+                        }catch(Exception bad){
+                            throw new IOException(
+                                "R126_FOREIGN_JVM_REPLACEMENT_FAILED",bad);
+                        }
+                        java.nio.file.attribute.BasicFileAttributes after=
+                            Files.readAttributes(account,
+                                java.nio.file.attribute
+                                    .BasicFileAttributes.class,
+                                LinkOption.NOFOLLOW_LINKS);
+                        check(pre.fileKey()!=null&&after.fileKey()!=null&&
+                            !pre.fileKey().equals(after.fileKey())&&
+                            Arrays.equals(originalWorldBytes[0],
+                                Files.readAllBytes(account)),
+                            "R126 test did not cause same-content inode swap");
+                        hooks.incrementAndGet();
+                    });
+                WorldPlayer changed=new WorldPlayer();
+                changed.snapshotExtensions().replaceNamespace(
+                    "r126_world",Collections.singletonMap(
+                        "object","EXPECTED_WORLD_CONTENT"));
+                boolean uncertain=false;
+                try{
+                    raced.saveForWorld(
+                        PlayerSnapshotCodec.capture(USER,changed));
+                }catch(IOException denied){
+                    uncertain=contains(denied,
+                        "R126_WORLD_POSTIMAGE_OBJECT_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK");
+                    if(!enabled)throw denied;
+                }
+                check(hooks.get()==1&&uncertain==enabled,
+                    "R126 unexpected same-content World outcome "+
+                    enabled);
+                check(tempsBefore==r109OwnedWorldTemps(account)&&
+                    Arrays.equals(originalWorldBytes[0],
+                        Files.readAllBytes(account)),
+                    "R126 postmove bytes changed or World temp leaked");
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+                System.out.println(
+                    "R126_SAME_BYTES_DIFFERENT_WORLD_OBJECT_PASS"+
+                    " optIn="+enabled+
+                    " trueIndependentJvmAccountReplacement=true"+
+                    " originalBytesStillIdentical=true"+
+                    " worldAccountObjectChanged=true"+
+                    " optInReportedUncertain="+uncertain+
+                    " noRollbackOrGrant=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(originals[i]==null)System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],originals[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path item:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(item);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==2&&
+                "--r126-identical-foreign-replace".equals(args[0])){
+            r126ReplaceAccountWithIdenticalBytes(Paths.get(args[1]));
+            return;
+        }
         if(args.length==4&&"--r123-world-final-holder".equals(args[0])){
             r123RealWorldLogoutAfterForeignRaw(
                 Paths.get(args[1]),Paths.get(args[2]),
@@ -5089,6 +5299,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // the actual ordinary World move must be reported UNKNOWN
         // when an explicit postimage observer is enabled.
         runR125OrdinaryWorldPostimageMatrix();
+        // R126: identical postmove bytes on a different inode must
+        // NOT earn a normal World save return when opt-in is enabled.
+        runR126SameBytesPostmoveObjectMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
