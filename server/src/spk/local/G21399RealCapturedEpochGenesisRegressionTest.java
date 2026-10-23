@@ -3485,6 +3485,113 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R117: real account bytes are decoded under the publication
+     * lock, then a truly independent JVM publishes a LAB sidecar
+     * through the existing post-read, pre-admission test seam.
+     * The second NOFOLLOW negative-witness check MUST fail closed.
+     *
+     * This is non-admitting regression coverage; it does not infer
+     * a durable world epoch, authorized admission or repair.
+     */
+    private static void runCrossJvmDuringSessionReadNegativeMatrix()
+        throws Exception{
+        String[] namespaces={
+            ".g21385-r117-read-window",
+            ".g21386-r117-read-window",
+            ".g21387-r117-read-window",
+            ".g21378-object-r117-read-window"
+        };
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(String namespace:namespaces){
+            Path root=Files.createTempDirectory("r117-session-read-");
+            try{
+                configure(root,false);
+                FilePlayerRepository initial=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                initial.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                byte[] baseline=Files.readAllBytes(account);
+                Path sidecar=account.resolveSibling(
+                    account.getFileName().toString()+namespace);
+                java.util.concurrent.atomic.AtomicInteger callbackCount=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                FilePlayerRepository reader=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile,
+                    name->{},name->{},
+                    name->{
+                        check(USER.equals(name),
+                            "R117 session-read identity changed");
+                        check(Arrays.equals(baseline,
+                                Files.readAllBytes(account)),
+                            "R117 read callback changed account bytes");
+                        try{
+                            publishR113NegativeFromOtherJvm(
+                                account,sidecar);
+                        }catch(Exception childError){
+                            throw new IOException(
+                                "R117_SECOND_JVM_NEGATIVE_PUBLICATION_FAILED",
+                                childError);
+                        }
+                        callbackCount.incrementAndGet();
+                    });
+                boolean veto=false;
+                try{
+                    reader.loadForWorldSession(USER);
+                }catch(IOException denied){
+                    veto=contains(denied,NEGATIVE);
+                }
+                check(veto&&callbackCount.get()==1,
+                    "R117 account was admitted after foreign negative "+
+                    namespace);
+                check(Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS)&&
+                    Arrays.equals(baseline,Files.readAllBytes(account)),
+                    "R117 foreign witness missing or account mutated");
+                boolean subsequentDenied=false;
+                try{
+                    initial.loadForWorldSession(USER);
+                }catch(IOException denied){
+                    subsequentDenied=contains(denied,NEGATIVE);
+                }
+                check(subsequentDenied,
+                    "R117 later independent read bypassed LAB evidence");
+                System.out.println(
+                    "R117_TWO_JVM_DURING_SESSION_READ_NEGATIVE_PASS"+
+                    " namespace="+namespace+
+                    " accountReadCompletedBeforeInjection=true"+
+                    " foreignJvmPublishedEvidence=true"+
+                    " samePublicationLockRecheckVetoedAdmission=true"+
+                    " originalAccountBytesUnchanged=true"+
+                    " subsequentSessionReadDenied=true"+
+                    " noLoginGrantOrRecovery=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(saved[i]==null)System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],saved[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path entry:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(entry);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&"--r113-create-negative".equals(args[0])){
             Path sidecar=Paths.get(args[1]);
@@ -3641,6 +3748,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R116: cross-JVM late LAB negative after actual RAW and
         // non-forced World account replacement, four sidecar prefixes.
         runCrossJvmPostMoveLabEvidenceMatrix();
+        // R117: a distinct JVM creates LAB evidence after actual
+        // World session bytes were decoded but before admission.
+        runCrossJvmDuringSessionReadNegativeMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
