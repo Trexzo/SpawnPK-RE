@@ -1842,6 +1842,17 @@ final class FilePlayerRepository
                 // serialization must block the account move.
                 LocalNegativeAccountHeadPrototype
                     .requireNoHeadBeforeRawMove(file);
+                // R111: RAW pre-admission checked detached LAB
+                // sidecars before opening its fixed/temp file. A
+                // second process may publish an orphan LAB image,
+                // journal or archive during RAW serialization.
+                // Recheck all four R63 namespaces at the closest
+                // shared point BEFORE any account replacement,
+                // including the opt-in forced RAW publication branch.
+                // This observation is NOT an atomic cross-process
+                // transaction or a positive recovery authorization.
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(file);
                 // R47: bind the raw publication's staged file object
                 // before the move. The postmove test is deliberately
                 // after the existing R39 retained-witness probe.
@@ -1866,6 +1877,12 @@ final class FilePlayerRepository
                 // move is an UNKNOWN outcome, never a normal ACK.
                 LocalNegativeAccountHeadPrototype
                     .requireNoHeadAfterRawMove(file);
+                // R111: detached sidecars created after the last
+                // pre-move read make a RAW completion uncertain.
+                // Refuse an apparent successful return; never
+                // rollback an account file based on negative evidence.
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(file);
             }
 
             completed=true;

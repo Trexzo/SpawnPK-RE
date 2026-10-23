@@ -2855,6 +2855,113 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R111: a default-OFF RAW writer begins with a healthy account,
+     * serializes its legacy .tmp, then a foreign actor introduces
+     * one of four detached LAB sidecar namespaces in the existing
+     * beforeRawReplace TEST hook. The late negative gate must veto
+     * before replacing real account bytes and must remove only its
+     * own abandoned RAW temp, never the evidence sidecar.
+     */
+    private static void runLateLabEvidenceRawWriteMatrix()
+        throws Exception{
+        String[] namespaces={
+            ".g21385-r111-late-orphan",
+            ".g21386-r111-late-intent",
+            ".g21387-r111-late-archive",
+            ".g21378-object-r111-late"
+        };
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(String namespace:namespaces){
+            Path root=Files.createTempDirectory("r111-late-raw-");
+            try{
+                configure(root,false);
+                FilePlayerRepository normal=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                normal.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                byte[] oldBytes=Files.readAllBytes(account);
+                Path rawTmp=account.resolveSibling(
+                    account.getFileName().toString()+".tmp");
+                check(!Files.exists(rawTmp,LinkOption.NOFOLLOW_LINKS),
+                    "R111 baseline has preexisting RAW temp");
+                Path sidecar=account.resolveSibling(
+                    account.getFileName().toString()+namespace);
+                java.util.concurrent.atomic.AtomicInteger injections=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                FilePlayerRepository raced=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile,
+                    name->{},name->{},name->{},name->{},
+                    name->{
+                        check(USER.equals(name),
+                            "R111 RAW callback account identity changed");
+                        check(Files.exists(rawTmp,LinkOption.NOFOLLOW_LINKS),
+                            "R111 RAW callback did not reach serialized temp");
+                        Files.write(sidecar,new byte[]{1},
+                            StandardOpenOption.CREATE_NEW,
+                            StandardOpenOption.WRITE);
+                        injections.incrementAndGet();
+                    });
+                boolean denied=false;
+                try{
+                    raced.save(PlayerSnapshotCodec.capture(
+                        USER,new WorldPlayer()));
+                }catch(IOException rejected){
+                    denied=contains(rejected,NEGATIVE);
+                }
+                check(denied,
+                    "R111 late LAB sidecar passed RAW move "+namespace);
+                check(injections.get()==1&&
+                    Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS),
+                    "R111 injected LAB evidence missing "+namespace);
+                check(Arrays.equals(oldBytes,Files.readAllBytes(account)),
+                    "R111 RAW save replaced old account "+namespace);
+                check(!Files.exists(rawTmp,LinkOption.NOFOLLOW_LINKS),
+                    "R111 RAW save leaked discarded temp "+namespace);
+                boolean loadDenied=false;
+                try{normal.loadForWorldSession(USER);}
+                catch(IOException rejected){
+                    loadDenied=contains(rejected,NEGATIVE);
+                }
+                check(loadDenied,
+                    "R111 late RAW evidence was not admission-negative "+
+                    namespace);
+                System.out.println(
+                    "R111_LATE_LAB_EVIDENCE_RAW_MOVE_VETO_PASS"+
+                    " namespace="+namespace+
+                    " injectedAfterSerialization=true"+
+                    " oldAccountBytesUnchanged=true"+
+                    " abandonedRawTempCleaned=true"+
+                    " negativeAdmissionPreserved=true"+
+                    " noACKOrRecovery=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(saved[i]==null)System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],saved[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path file:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(file);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&("--fresh".equals(args[0])||
                             "--killed".equals(args[0])||
@@ -2987,6 +3094,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // inside-publication callback must prevent even default-OFF
         // World account replacement at all four namespace prefixes.
         runLateLabEvidenceWorldWriteMatrix();
+        // R111: test the separate, default-OFF RAW writer during
+        // serialization, not only the guarded World writer.
+        runLateLabEvidenceRawWriteMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
