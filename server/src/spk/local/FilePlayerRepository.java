@@ -1751,6 +1751,15 @@ final class FilePlayerRepository
                             LocalFinalSaveNegativeWitness
                                 .requireSingleObservedLink(tmp,
                                     "G21.367 WORLD_TEMP_ALIAS_PREMOVE_NEGATIVE");
+                        // R110: a nonparticipating writer can create
+                        // detached LAB evidence INSIDE the guarded
+                        // publication callback, after R109's earlier
+                        // held-lock inspection. Recheck immediately
+                        // before replacing the old account. This is
+                        // fail-closed observation, NOT atomic exclusion
+                        // against a writer racing after this read.
+                        LocalReusableLabEvidenceNegativeGate
+                            .requireNoLegacyCollision(file);
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);
                         if(forceRealWorldPostimage){
@@ -1802,6 +1811,11 @@ final class FilePlayerRepository
                             // uncertain; never claim normal success.
                             LocalFinalSaveNegativeWitness
                                 .requireNoNegativeWitness(file);
+                            // R110: after a non-forced World move,
+                            // late LAB evidence makes completion
+                            // uncertain. No successful save ACK.
+                            LocalReusableLabEvidenceNegativeGate
+                                .requireNoLegacyCollision(file);
                         }
                         return null;
                     });

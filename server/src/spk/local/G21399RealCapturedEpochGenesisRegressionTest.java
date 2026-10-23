@@ -2754,6 +2754,107 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R110: all four detached LAB namespaces are negative even if a
+     * foreign actor introduces one AFTER the first two World writer
+     * checks inside the publication callback but BEFORE atomic move.
+     * No live recovery, ACK, unlink or data migration is performed.
+     */
+    private static void runLateLabEvidenceWorldWriteMatrix()
+        throws Exception{
+        String[] namespaces={
+            ".g21385-r110-late-orphan",
+            ".g21386-r110-late-intent",
+            ".g21387-r110-late-archive",
+            ".g21378-object-r110-late"
+        };
+        String[] flagNames={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] previous=new String[flagNames.length];
+        for(int i=0;i<flagNames.length;i++)
+            previous[i]=System.getProperty(flagNames[i]);
+        for(String namespace:namespaces){
+            Path root=Files.createTempDirectory("r110-late-world-");
+            try{
+                configure(root,false);
+                FilePlayerRepository original=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                original.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                byte[] oldBytes=Files.readAllBytes(account);
+                int oldTemps=r109OwnedWorldTemps(account);
+                Path sidecar=account.resolveSibling(
+                    account.getFileName().toString()+namespace);
+                java.util.concurrent.atomic.AtomicInteger injections=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                FilePlayerRepository raced=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile,
+                    name->{},
+                    name->{
+                        check(USER.equals(name),
+                            "R110 callback changed selected account");
+                        Files.write(sidecar,new byte[]{1},
+                            StandardOpenOption.CREATE_NEW,
+                            StandardOpenOption.WRITE);
+                        injections.incrementAndGet();
+                    });
+                boolean rejected=false;
+                try{
+                    raced.saveForWorld(PlayerSnapshotCodec.capture(
+                        USER,new WorldPlayer()));
+                }catch(IOException denied){
+                    rejected=contains(denied,NEGATIVE);
+                }
+                check(rejected,
+                    "R110 late LAB sidecar crossed World move "+namespace);
+                check(injections.get()==1&&
+                    Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS),
+                    "R110 injection not reached or sidecar lost "+namespace);
+                check(Arrays.equals(oldBytes,Files.readAllBytes(account)),
+                    "R110 late LAB sidecar replaced legacy bytes "+namespace);
+                check(r109OwnedWorldTemps(account)==oldTemps,
+                    "R110 rejected World write leaked owned temp "+namespace);
+                boolean readDenied=false;
+                try{original.loadForWorldSession(USER);}
+                catch(IOException denied){
+                    readDenied=contains(denied,NEGATIVE);
+                }
+                check(readDenied,
+                    "R110 retained late LAB sidecar allowed login "+
+                    namespace);
+                System.out.println(
+                    "R110_LATE_LAB_EVIDENCE_WORLD_MOVE_VETO_PASS"+
+                    " namespace="+namespace+
+                    " injectedInsidePublicationLock=true"+
+                    " oldAccountUnchanged=true"+
+                    " ownedWorldTempCleaned=true"+
+                    " loginRemainsDenied=true"+
+                    " noACKOrRecovery=true");
+            }finally{
+                for(int i=0;i<flagNames.length;i++){
+                    if(previous[i]==null)
+                        System.clearProperty(flagNames[i]);
+                    else System.setProperty(flagNames[i],previous[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path file:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(file);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&("--fresh".equals(args[0])||
                             "--killed".equals(args[0])||
@@ -2882,6 +2983,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
         check(args.length==0,"unexpected args");
         exercise();
+        // R110: injected LAB sidecars at the formerly unguarded
+        // inside-publication callback must prevent even default-OFF
+        // World account replacement at all four namespace prefixes.
+        runLateLabEvidenceWorldWriteMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
