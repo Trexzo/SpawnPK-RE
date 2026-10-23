@@ -3787,12 +3787,27 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
         check(second.players().size()==0,
             "R119 second World retained an unauthorized player");
+        // R119.2: prove the original session still holds its OS
+        // lock AFTER the attempted authenticated TCP login as well
+        // as before it. This detects lost original ownership while
+        // ruling out a LAB-sidecar denial shortcut.
+        boolean stillBusy=false;
+        try(LocalCrossJvmAccountSessionLock.Handle unexpected=
+                LocalCrossJvmAccountSessionLock.acquire(account)){
+            unexpected.requireOriginalLockNameStillPresent();
+        }catch(IOException busy){
+            stillBusy=contains(busy,
+                "G21.185 ACCOUNT_SESSION_LOCK_BUSY");
+        }
+        check(stillBusy,
+            "R119.2 original World OS lock lost after denied TCP");
         LocalReusableLabEvidenceNegativeGate
             .requireNoLegacyCollision(account);
         System.out.println("R119_SECOND_WORLD_LIVE_OWNER_VETO_PASS"+
             " independentJvm=true"+
             " cleanLegacyAccountReadable=true"+
             " osLockBusyWhileOriginalWorldAlive=true"+
+            " osLockStillBusyAfterDeniedTcp=true"+
             " authenticatedSecondTcpDenied=true"+
             " secondWorldPlayers=0"+
             " noLabSidecarAdmissionShortcut=true"+
@@ -3876,16 +3891,37 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             check(second.exitValue()==0&&secondTrace.contains(
                 "R119_SECOND_WORLD_LIVE_OWNER_VETO_PASS"),
                 "R119 clean second World OS denial failed "+secondTrace);
-            check(running.isAlive()&&
-                Arrays.equals(originalAccount,Files.readAllBytes(account)),
-                "R119 second World modified account or original exited");
+            // R119.2: compare ownership and account identity, not
+            // raw bytes. The genuine FIRST World may checkpoint or
+            // autosave while the other JVM runs, including a fresh
+            // saved.at timestamp; byte equality does not establish
+            // which session wrote. The second JVM itself separately
+            // proves no player was admitted and original OS lock
+            // stays continuously unavailable across its TCP probe.
+            check(running.isAlive(),
+                "R119 original authenticated World exited during "+
+                "second JVM probe: "+new String(
+                    Files.readAllBytes(holderLog),
+                    StandardCharsets.UTF_8));
+            check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS),
+                "R119 clean account disappeared during live overlap");
+            java.util.Optional<PlayerSnapshot> current=
+                initial.loadForWorldSession(USER);
+            check(current.isPresent()&&
+                USER.equals(current.get().username()),
+                "R119 account identity drift after competing login");
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
+            boolean originalBytesChanged=!Arrays.equals(
+                originalAccount,Files.readAllBytes(account));
             System.out.println("R119_CLEAN_ACCOUNT_TWO_WORLD_VETO_PASS"+
                 " originalAuthenticatedWorldStillAlive=true"+
                 " cleanAccountHadNoLabSidecars=true"+
                 " secondJvmWorldTcpAdmissionDenied=true"+
-                " originalAccountUnmodifiedByCompetitor=true"+
+                " secondJvmOriginalLockStillBusyAfterTcp=true"+
+                " accountUsernameStillPinned=true"+
+                " originalAccountBytesChangedDuringLiveWorld="+
+                    originalBytesChanged+
                 " noDurableCrashRecoveryOrOwnerHandoffClaim=true");
         }finally{
             if(original!=null&&original.isAlive()){
