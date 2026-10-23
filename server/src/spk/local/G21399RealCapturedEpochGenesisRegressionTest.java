@@ -2008,6 +2008,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     private static void settlementFreshProbe(
         Path root,LocalReusableAccountEpochLab.Stage stage
     )throws Exception{
+        settlementFreshProbe(root,stage,false);
+    }
+
+    /**
+     * R106: prove default-OFF legacy and TCP admission denial while
+     * the ORIGINAL authenticated World JVM is still alive with its
+     * original OS account lock. Reusing the post-kill probe as-is
+     * would block trying to reclaim that lock before owner exit.
+     */
+    private static void settlementFreshProbe(
+        Path root,LocalReusableAccountEpochLab.Stage stage,
+        boolean originalWorldStillAlive
+    )throws Exception{
         configure(root,false);
         Path account=LocalAccountProfiles.accountFile(USER);
         FilePlayerRepository repository=new FilePlayerRepository(
@@ -2035,12 +2048,17 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }finally{
             if(!world.closed())world.close();
         }
-        System.setProperty(LocalCrossJvmAccountSessionLock.PROPERTY,"true");
-        System.setProperty(
-            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,"true");
-        try(LocalCrossJvmAccountSessionLock.Handle reclaimed=
-                LocalCrossJvmAccountSessionLock.acquire(account)){
-            reclaimed.requireOriginalLockNameStillPresent();
+        // Never block on the still-live original World's OS lock.
+        // Its release/reclaim is checked only by the post-kill probe.
+        if(!originalWorldStillAlive){
+            System.setProperty(
+                LocalCrossJvmAccountSessionLock.PROPERTY,"true");
+            System.setProperty(
+                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,"true");
+            try(LocalCrossJvmAccountSessionLock.Handle reclaimed=
+                    LocalCrossJvmAccountSessionLock.acquire(account)){
+                reclaimed.requireOriginalLockNameStillPresent();
+            }
         }
         if(stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED){
             LocalReusableAccountEpochLab.Observation complete=
@@ -2073,11 +2091,15 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     "negative: "+stage+" attempt="+attempt);
             }
         }
-        System.out.println("R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"+
+        System.out.println(
+            (originalWorldStillAlive
+                ?"R106_LIVE_OVERLAP_FRESH_JVM_NEGATIVE_PASS"
+                :"R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS")+
             " stage="+stage+
             " fullReceipt="+
                 (stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED)+
-            " lockReleasedAfterKill=true"+
+            " originalWorldStillAlive="+originalWorldStillAlive+
+            " lockReleasedAfterKill="+(!originalWorldStillAlive)+
             " freshRepositoryDirectAndTcpDenied=true"+
             " noFinalAckOrRecovery=true");
     }
@@ -2128,6 +2150,53 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 running.isAlive()&&trace.contains(
                     "R83_WORLD_SETTLEMENT_FORCED_"+stage),
                 "R83 real World never reached forced cutpoint "+trace);
+            // R106: test an independent default-OFF JVM while the
+            // first authenticated World remains actively parked at
+            // the forced filesystem boundary with its original lock.
+            // Probe both pending and moved HEAD and a forced receipt.
+            boolean liveOverlapStage=
+                stage==LocalReusableAccountEpochLab.Stage.SNAPSHOT_FORCED||
+                stage==LocalReusableAccountEpochLab.Stage
+                    .HEAD_MOVED_BEFORE_DIR_FORCE||
+                stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED;
+            if(liveOverlapStage){
+                Path overlapLog=root.resolve("live-overlap-fresh.log");
+                ProcessBuilder overlapping=new ProcessBuilder(
+                    javaExe(),"-cp",System.getProperty("java.class.path"),
+                    G21399RealCapturedEpochGenesisRegressionTest
+                        .class.getName(),
+                    "--settlement-overlap-fresh",
+                    root.toString(),stage.name());
+                overlapping.redirectErrorStream(true);
+                overlapping.redirectOutput(overlapLog.toFile());
+                Process secondJvm=overlapping.start();
+                if(!secondJvm.waitFor(35,TimeUnit.SECONDS)){
+                    secondJvm.destroyForcibly();
+                    secondJvm.waitFor(10,TimeUnit.SECONDS);
+                    throw new AssertionError(
+                        "R106 live overlapping JVM probe timed out "+stage);
+                }
+                String overlapTrace=new String(
+                    Files.readAllBytes(overlapLog),StandardCharsets.UTF_8);
+                check(secondJvm.exitValue()==0&&overlapTrace.contains(
+                    "R106_LIVE_OVERLAP_FRESH_JVM_NEGATIVE_PASS stage="+stage+
+                    " originalWorldStillAlive=true"),
+                    "R106 concurrent independent JVM admitted account "+
+                    stage+" "+overlapTrace);
+                check(running.isAlive()&&
+                    Files.exists(ready,LinkOption.NOFOLLOW_LINKS),
+                    "R106 original World exited during live overlap "+stage);
+                check(Arrays.equals(baseline,Files.readAllBytes(account)),
+                    "R106 live overlap changed real legacy account "+stage);
+                System.out.println(
+                    "R106_LIVE_TWO_JVM_ADMISSION_VETO_PASS"+
+                    " stage="+stage+
+                    " originalAuthenticatedWorldAlive=true"+
+                    " originalOsLockStillHeldByWorld=true"+
+                    " secondJvmLegacyAndTcpDenied=true"+
+                    " oldAccountBytesUnchanged=true"+
+                    " noReplayOrGrant=true");
+            }
             holder.destroyForcibly();
             check(holder.waitFor(10,TimeUnit.SECONDS)&&
                 holder.exitValue()!=0,"R83 original JVM not killed");
@@ -2684,6 +2753,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         if(args.length==4&&"--settlement-holder".equals(args[0])){
             settleKillHolder(Paths.get(args[1]),Paths.get(args[2]),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==3&&"--settlement-overlap-fresh".equals(args[0])){
+            settlementFreshProbe(Paths.get(args[1]),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[2]),
+                true);
             return;
         }
         if(args.length==3&&"--settlement-fresh".equals(args[0])){
