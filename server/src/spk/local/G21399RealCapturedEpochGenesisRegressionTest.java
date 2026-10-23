@@ -3080,10 +3080,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
      * original repository must observe the now-existing negative
      * evidence without relying on same-process test state.
      */
-    private static void publishR113NegativeFromOtherJvm(Path sidecar)
-        throws Exception{
-        Path trace=sidecar.resolveSibling(
-            sidecar.getFileName().toString()+".r113-process.log");
+    private static void publishR113NegativeFromOtherJvm(
+        Path account,Path sidecar
+    )throws Exception{
+        // R115: the former log name was based on the sidecar basename.
+        // Opening that log itself published a SECOND .g213* negative
+        // leaf before the independent process ran! Keep the trace
+        // outside the account's LAB namespace and prove the account
+        // has no negative sidecars before spawning the foreign writer.
+        Path trace=sidecar.resolveSibling("r115-foreign-writer.log");
+        check(!Files.exists(trace,LinkOption.NOFOLLOW_LINKS)&&
+              !Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS),
+            "R115 preexisting child log or foreign sidecar");
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(account);
         ProcessBuilder command=new ProcessBuilder(
             javaExe(),"-cp",System.getProperty("java.class.path"),
             G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
@@ -3101,7 +3111,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         check(child.exitValue()==0&&output.contains(
             "R113_INDEPENDENT_JVM_NEGATIVE_SIDECAR_WRITTEN")&&
             Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS),
-            "R113 external JVM did not publish negative sidecar "+output);
+            "R115 external JVM did not publish negative sidecar "+output);
+        boolean veto=false;
+        try{
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+        }catch(IOException denied){
+            veto=contains(denied,NEGATIVE);
+        }
+        check(veto,
+            "R115 foreign publication did not change LAB gate");
     }
 
     private static void runCrossJvmLateLabEvidenceMatrix()
@@ -3159,7 +3178,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                     rawTemp,LinkOption.NOFOLLOW_LINKS),
                                 "R113 RAW temp not allocated at callback");
                         try{
-                            publishR113NegativeFromOtherJvm(sidecar);
+                            publishR113NegativeFromOtherJvm(
+                                account,sidecar);
                         }catch(Exception failure){
                             throw new IOException(
                                 "R113_CROSS_JVM_SIDECAR_PROCESS_FAILED",
@@ -3204,6 +3224,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         " mode="+(worldWriter?"WORLD":"RAW")+
                         " namespace="+namespace+
                         " secondProcessPublishedSidecar=true"+
+                        " parentLogOutsideLabNamespace=true"+
+                        " prechildLabGateClear=true"+
+                        " postchildLabGateNegative=true"+
                         " originalAccountUnchanged=true"+
                         " writerTempCleaned=true"+
                         " freshWorldLoadDenied=true"+
