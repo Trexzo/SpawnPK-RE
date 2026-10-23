@@ -2036,6 +2036,33 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 direct.movement(),direct.petState(),direct.playerState());
         }catch(IOException invalid){denied=contains(invalid,NEGATIVE);}
         check(denied,"R83 fresh RAW hydration accepted LAB evidence");
+        // R108: a second, default-OFF JVM must not be able to
+        // overwrite this genuine World account through the separate
+        // DIRECT repository save path. This check is intentionally
+        // independent of the OS session lock: even after the
+        // original JVM is killed, retained LAB evidence remains a
+        // permanent negative writer veto, before legacy temp I/O.
+        byte[] oldAccount=Files.readAllBytes(account);
+        Path rawTemp=account.resolveSibling(
+            account.getFileName().toString()+".tmp");
+        boolean rawTempExisted=Files.exists(
+            rawTemp,LinkOption.NOFOLLOW_LINKS);
+        check(!rawTempExisted,
+            "R108 test baseline contains preexisting RAW temp");
+        boolean rawWriteDenied=false;
+        try{
+            repository.save(PlayerSnapshotCodec.capture(
+                USER,new WorldPlayer()));
+        }catch(IOException rejected){
+            rawWriteDenied=contains(rejected,
+                "R63_REUSABLE_LAB_EVIDENCE_PRESENT_NO_LEGACY_ADMISSION");
+        }
+        check(rawWriteDenied,
+            "R108 default-OFF direct repository save bypassed LAB veto");
+        check(!Files.exists(rawTemp,LinkOption.NOFOLLOW_LINKS),
+            "R108 rejected RAW save allocated legacy temp");
+        check(Arrays.equals(oldAccount,Files.readAllBytes(account)),
+            "R108 rejected RAW save changed original account bytes");
         World world=World.isolatedForTest(50L,repository);
         try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
                 .OneSession server=
@@ -2123,6 +2150,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 originalWorldStillAlive+
             " r107OsLockReacquiredAfterOriginalExit="+
                 (!originalWorldStillAlive)+
+            " r108DirectRawSaveDeniedBeforeTemp=true"+
             " freshRepositoryDirectAndTcpDenied=true"+
             " noFinalAckOrRecovery=true");
     }
@@ -2216,6 +2244,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     overlapTrace.contains(
                         " r107SecondJvmOsLockBusyWhileOriginalAlive=true")&&
                     overlapTrace.contains(
+                        " r108DirectRawSaveDeniedBeforeTemp=true")&&
+                    overlapTrace.contains(
                         " freshRepositoryDirectAndTcpDenied=true")&&
                     overlapTrace.contains(" noFinalAckOrRecovery=true"),
                     "R106 live second-JVM admission or trace failed "+
@@ -2231,6 +2261,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     " originalAuthenticatedWorldAlive=true"+
                     " originalOsLockStillHeldByWorld=true"+
                     " independentJvmTryLockDenied=true"+
+                    " secondJvmRawSaveDeniedBeforeTemp=true"+
                     " secondJvmLegacyAndTcpDenied=true"+
                     " oldAccountBytesUnchanged=true"+
                     " noReplayOrGrant=true");
@@ -2317,6 +2348,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS")&&
                 output.contains(
                     " r107OsLockReacquiredAfterOriginalExit=true")&&
+                output.contains(
+                    " r108DirectRawSaveDeniedBeforeTemp=true")&&
                 output.contains(
                     " freshRepositoryDirectAndTcpDenied=true"),
                 "R107 fresh JVM did not reacquire OS lock and "+
@@ -2828,6 +2861,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         for(LocalReusableAccountEpochLab.Stage stage:
                 LocalReusableAccountEpochLab.Stage.values())
             runKilledSettlement(stage);
+        // R108: every fresh JVM probe also attempts a default-OFF
+        // direct repository save. It must be rejected BEFORE a RAW
+        // temp appears, while existing account bytes remain identical,
+        // both before and after original World termination.
         // R107: selected R106 child-JVM overlap stages also verify
         // the OS lock stays busy while the real authenticated owner
         // lives, then can be reacquired only after its process dies.
