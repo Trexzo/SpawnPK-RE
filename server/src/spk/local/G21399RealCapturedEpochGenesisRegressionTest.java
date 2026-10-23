@@ -4171,7 +4171,200 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R122: characterize the cross-JVM uncooperative RAW writer gap.
+     * The real authenticated World has the original held opt-in OS
+     * lock, but the legacy RAW saver does NOT participate in that
+     * lock unless its own independent JVM opts in. Do not claim
+     * that a successful legacy save transfers a World owner epoch.
+     */
+    private static void r122OtherProcessRawWrite(
+        Path root,boolean cooperating
+    )throws Exception{
+        configure(root,false);
+        System.clearProperty(
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY);
+        if(cooperating){
+            System.setProperty(
+                LocalJvmAccountSessionLease.PROPERTY,"true");
+            System.setProperty(
+                LocalCrossJvmAccountSessionLock.PROPERTY,"true");
+            System.setProperty(
+                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,"true");
+            System.setProperty(
+                LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,"true");
+        }
+        Path account=LocalAccountProfiles.accountFile(USER);
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(account);
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        Path rawTmp=account.resolveSibling(
+            account.getFileName().toString()+".tmp");
+        check(!Files.exists(rawTmp,LinkOption.NOFOLLOW_LINKS),
+            "R122 unexpected RAW temp before independent probe");
+        WorldPlayer changed=new WorldPlayer();
+        changed.snapshotExtensions().replaceNamespace(
+            "r122_nonparticipating_writer",
+            Collections.singletonMap("case",
+                cooperating?"COOPERATING_DENIED":
+                            "LEGACY_OVERWROTE_LIVE_WORLD"));
+        if(cooperating){
+            boolean refused=false;
+            try{
+                repository.save(PlayerSnapshotCodec.capture(
+                    USER,changed));
+            }catch(IOException blocked){
+                refused=contains(blocked,
+                    "G21.216 CROSS_JVM_RAW_ACCOUNT_WRITE_DENIED")&&
+                    contains(blocked,
+                        "G21.185 ACCOUNT_SESSION_LOCK_BUSY");
+            }
+            check(refused,
+                "R122 opt-in RAW saver bypassed live World OS lock");
+            check(!Files.exists(rawTmp,LinkOption.NOFOLLOW_LINKS),
+                "R122 denied cooperating RAW writer left temp");
+            System.out.println(
+                "R122_OPT_IN_RAW_WRITE_DENIED_BY_LIVE_WORLD_PASS"+
+                " differentJvm=true"+
+                " existingWorldLockBusy=true"+
+                " deniedBeforeRawTemp=true"+
+                " noOwnerHandoffOrRecovery=true");
+        }else{
+            byte[] before=Files.readAllBytes(account);
+            repository.save(PlayerSnapshotCodec.capture(USER,changed));
+            byte[] after=Files.readAllBytes(account);
+            check(!Arrays.equals(before,after),
+                "R122 default-OFF RAW save did not replace old bytes");
+            check(!Files.exists(rawTmp,LinkOption.NOFOLLOW_LINKS),
+                "R122 default-OFF RAW save left temp behind");
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+            System.out.println(
+                "R122_DEFAULT_OFF_RAW_WRITE_GAP_CONFIRMED"+
+                " differentJvm=true"+
+                " rawSaverDidNotParticipateInSessionLock=true"+
+                " accountBytesActuallyReplaced=true"+
+                " originalLiveWorldNotAuthorizedToTransfer=true"+
+                " NO_CROSS_JVM_RAW_PROTECTION_WITH_FLAG_OFF=true");
+        }
+    }
+
+    private static void runR122NonparticipatingRawWriterGap()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        Path root=Files.createTempDirectory("r122-raw-lock-gap-");
+        Process original=null;
+        try{
+            configure(root,false);
+            System.clearProperty(
+                LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY);
+            FilePlayerRepository seed=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            seed.save(PlayerSnapshotCodec.capture(USER,new WorldPlayer()));
+            Path account=LocalAccountProfiles.accountFile(USER);
+            Path ready=root.resolve("r122-original-ready");
+            Path holderLog=root.resolve("r122-original.log");
+            ProcessBuilder holder=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest
+                    .class.getName(),
+                "--r119-original-world-holder",
+                root.toString(),ready.toString());
+            holder.redirectErrorStream(true);
+            holder.redirectOutput(holderLog.toFile());
+            original=holder.start();
+            final Process liveOwner=original;
+            await(()->!liveOwner.isAlive()||
+                (Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                 new String(Files.readAllBytes(holderLog),
+                    StandardCharsets.UTF_8).contains(
+                    "R119_ORIGINAL_AUTHENTICATED_WORLD_LOCK_HELD")),
+                "R122 authentic live World owner");
+            check(liveOwner.isAlive()&&
+                Files.exists(ready,LinkOption.NOFOLLOW_LINKS),
+                "R122 original World never held OS lock "+
+                new String(Files.readAllBytes(holderLog),
+                    StandardCharsets.UTF_8));
+            r119EnableCrossJvmSessionLock(root);
+            r120RequireDistinctLockBusy(account);
+            for(boolean cooperating:new boolean[]{true,false}){
+                Path log=root.resolve(cooperating
+                    ?"r122-cooperating-raw.log":"r122-legacy-raw.log");
+                ProcessBuilder child=new ProcessBuilder(
+                    javaExe(),"-cp",System.getProperty("java.class.path"),
+                    G21399RealCapturedEpochGenesisRegressionTest
+                        .class.getName(),
+                    "--r122-raw-probe",root.toString(),
+                    cooperating?"cooperating":"default-off");
+                child.redirectErrorStream(true);
+                child.redirectOutput(log.toFile());
+                Process contender=child.start();
+                if(!contender.waitFor(30,TimeUnit.SECONDS)){
+                    contender.destroyForcibly();
+                    contender.waitFor(10,TimeUnit.SECONDS);
+                    throw new IOException("R122_RAW_PROBE_TIMED_OUT");
+                }
+                String trace=new String(Files.readAllBytes(log),
+                    StandardCharsets.UTF_8);
+                check(contender.exitValue()==0&&trace.contains(
+                    cooperating
+                        ?"R122_OPT_IN_RAW_WRITE_DENIED_BY_LIVE_WORLD_PASS"
+                        :"R122_DEFAULT_OFF_RAW_WRITE_GAP_CONFIRMED"),
+                    "R122 independent RAW writer probe failed "+trace);
+                check(liveOwner.isAlive(),
+                    "R122 owner died during RAW writer probe");
+                r120RequireDistinctLockBusy(account);
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+            }
+            System.out.println(
+                "R122_CROSS_JVM_RAW_WRITER_POLICY_BOUNDARY_PASS"+
+                " originalWorldAuthenticatedAndStillAlive=true"+
+                " cooperatingRawWriterDenied=true"+
+                " nonparticipatingRawWriterCanOverwrite=true"+
+                " liveWorldOsLockStayedBusyThroughout=true"+
+                " allLabFlagsDefaultOff=true"+
+                " noRecoveredEpochNoPositiveHandoffNoSaveACK=true");
+        }finally{
+            if(original!=null&&original.isAlive()){
+                original.destroyForcibly();
+                original.waitFor(10L,TimeUnit.SECONDS);
+            }
+            for(int i=0;i<flags.length;i++){
+                if(saved[i]==null)System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],saved[i]);
+            }
+            try(Stream<Path> leaves=Files.walk(root)){
+                for(Path leaf:leaves.sorted(
+                        Comparator.reverseOrder()).toArray(Path[]::new))
+                    Files.deleteIfExists(leaf);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==3&&"--r122-raw-probe".equals(args[0])){
+            boolean cooperate="cooperating".equals(args[2]);
+            check(cooperate||"default-off".equals(args[2]),
+                "R122 raw probe rejected unknown mode");
+            r122OtherProcessRawWrite(Paths.get(args[1]),cooperate);
+            return;
+        }
         if(args.length==3&&
                 "--r120-other-world-holder".equals(args[0])){
             r120OtherWorldHolder(
@@ -4356,6 +4549,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R120: the independent original-World OS session lock
         // cannot act like a JVM-global or all-account lock.
         runR120IndependentCleanWorlds();
+        // R122: opt-in cooperation does exclude RAW, but a
+        // separate default-OFF legacy RAW JVM can still publish.
+        // Characterize the unsupported gap, do NOT enable recovery.
+        runR122NonparticipatingRawWriterGap();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
