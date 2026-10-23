@@ -3737,13 +3737,18 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             Path account=LocalAccountProfiles.accountFile(USER);
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
-            Files.write(ready,new byte[]{1},StandardOpenOption.CREATE_NEW);
+            // R119.1: stdout is a diagnostic witness, ready is the
+            // parent's publication signal. It must be created only
+            // AFTER the marker is flushed. The previous ordering
+            // let the parent observe ready while the marker was
+            // still absent from the redirected child-process log.
             System.out.println(
                 "R119_ORIGINAL_AUTHENTICATED_WORLD_LOCK_HELD"+
                 " worldPlayerPresent=true"+
                 " experimentalOsSessionLockEnabled=true"+
                 " reusableLabEvidenceAbsent=true");
             System.out.flush();
+            Files.write(ready,new byte[]{1},StandardOpenOption.CREATE_NEW);
             for(;;)Thread.sleep(1000L);
         }finally{
             if(!world.closed())world.close();
@@ -3832,8 +3837,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             holder.redirectOutput(holderLog.toFile());
             original=holder.start();
             final Process running=original;
-            await(()->Files.exists(ready,LinkOption.NOFOLLOW_LINKS)||
-                !running.isAlive(),"R119 original authenticated World");
+            // R119.1: do not accept ready alone or a log marker
+            // alone. The former ordering was a TOCTOU assertion
+            // race between the child's ready write and stdout.
+            await(()->!running.isAlive()||
+                (Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                 Files.exists(holderLog,LinkOption.NOFOLLOW_LINKS)&&
+                 new String(Files.readAllBytes(holderLog),
+                     StandardCharsets.UTF_8).contains(
+                     "R119_ORIGINAL_AUTHENTICATED_WORLD_LOCK_HELD")),
+                "R119 original authenticated World/diagnostic");
             String holderTrace=new String(
                 Files.readAllBytes(holderLog),StandardCharsets.UTF_8);
             check(running.isAlive()&&
