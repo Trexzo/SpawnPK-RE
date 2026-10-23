@@ -3073,7 +3073,165 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R113: a second, independent JVM publishes one LAB sidecar at the
+     * exact RAW or guarded-World pre-replacement callback. The
+     * original repository must observe the now-existing negative
+     * evidence without relying on same-process test state.
+     */
+    private static void publishR113NegativeFromOtherJvm(Path sidecar)
+        throws Exception{
+        Path trace=sidecar.resolveSibling(
+            sidecar.getFileName().toString()+".r113-process.log");
+        ProcessBuilder command=new ProcessBuilder(
+            javaExe(),"-cp",System.getProperty("java.class.path"),
+            G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+            "--r113-create-negative",sidecar.toString());
+        command.redirectErrorStream(true);
+        command.redirectOutput(trace.toFile());
+        Process child=command.start();
+        if(!child.waitFor(20,TimeUnit.SECONDS)){
+            child.destroyForcibly();
+            child.waitFor(10,TimeUnit.SECONDS);
+            throw new IOException("R113_FOREIGN_JVM_WRITER_TIMED_OUT");
+        }
+        String output=new String(Files.readAllBytes(trace),
+            StandardCharsets.UTF_8);
+        check(child.exitValue()==0&&output.contains(
+            "R113_INDEPENDENT_JVM_NEGATIVE_SIDECAR_WRITTEN")&&
+            Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS),
+            "R113 external JVM did not publish negative sidecar "+output);
+    }
+
+    private static void runCrossJvmLateLabEvidenceMatrix()
+        throws Exception{
+        String[] namespaces={
+            ".g21385-r113-foreign-",
+            ".g21386-r113-foreign-",
+            ".g21387-r113-foreign-",
+            ".g21378-object-r113-foreign-"
+        };
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(boolean worldWriter:new boolean[]{false,true}){
+            for(String namespace:namespaces){
+                Path root=Files.createTempDirectory(
+                    worldWriter?"r113-twojvm-world-":"r113-twojvm-raw-");
+                try{
+                    configure(root,false);
+                    FilePlayerRepository initial=new FilePlayerRepository(
+                        LocalAccountProfiles::accountFile);
+                    initial.save(PlayerSnapshotCodec.capture(
+                        USER,new WorldPlayer()));
+                    Path account=LocalAccountProfiles.accountFile(USER);
+                    byte[] previousBytes=Files.readAllBytes(account);
+                    Path sidecar=account.resolveSibling(
+                        account.getFileName().toString()+namespace+
+                        (worldWriter?"world":"raw"));
+                    Path rawTemp=account.resolveSibling(
+                        account.getFileName().toString()+".tmp");
+                    int ownedWorldTemps=r109OwnedWorldTemps(account);
+                    check(!Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS)&&
+                        !Files.exists(rawTemp,LinkOption.NOFOLLOW_LINKS),
+                        "R113 selected baseline unexpectedly dirty");
+                    java.util.concurrent.atomic.AtomicInteger invoked=
+                        new java.util.concurrent.atomic.AtomicInteger();
+                    FilePlayerRepository.BeforeWorldReplace inject=name->{
+                        check(USER.equals(name),"R113 account drift");
+                        if(worldWriter)
+                            check(r109OwnedWorldTemps(account)>
+                                    ownedWorldTemps,
+                                "R113 World temp not allocated at callback");
+                        else
+                            check(Files.exists(
+                                    rawTemp,LinkOption.NOFOLLOW_LINKS),
+                                "R113 RAW temp not allocated at callback");
+                        try{
+                            publishR113NegativeFromOtherJvm(sidecar);
+                        }catch(Exception failure){
+                            throw new IOException(
+                                "R113_CROSS_JVM_SIDECAR_PROCESS_FAILED",
+                                failure);
+                        }
+                        invoked.incrementAndGet();
+                    };
+                    FilePlayerRepository raced=new FilePlayerRepository(
+                        LocalAccountProfiles::accountFile,
+                        name->{},
+                        name->{if(worldWriter)inject.run(name);},
+                        name->{},name->{},
+                        name->{if(!worldWriter)inject.run(name);});
+                    boolean rejected=false;
+                    try{
+                        PlayerSnapshot image=PlayerSnapshotCodec.capture(
+                            USER,new WorldPlayer());
+                        if(worldWriter)raced.saveForWorld(image);
+                        else raced.save(image);
+                    }catch(IOException denied){
+                        rejected=contains(denied,NEGATIVE);
+                    }
+                    check(rejected&&invoked.get()==1,
+                        "R113 cross-JVM sidecar failed to veto "+
+                        (worldWriter?"World":"RAW")+" "+namespace);
+                    check(Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS)&&
+                        Arrays.equals(previousBytes,Files.readAllBytes(account)),
+                        "R113 other-JVM evidence lost or account replaced "+
+                        namespace);
+                    check(r109OwnedWorldTemps(account)==ownedWorldTemps&&
+                        !Files.exists(rawTemp,LinkOption.NOFOLLOW_LINKS),
+                        "R113 rejected writer leaked temp "+namespace);
+                    boolean deniedAdmission=false;
+                    try{initial.loadForWorldSession(USER);}
+                    catch(IOException rejectedLoad){
+                        deniedAdmission=contains(rejectedLoad,NEGATIVE);
+                    }
+                    check(deniedAdmission,
+                        "R113 independent negative witness allowed login");
+                    System.out.println(
+                        "R113_TWO_JVM_LATE_WRITE_VETO_PASS"+
+                        " mode="+(worldWriter?"WORLD":"RAW")+
+                        " namespace="+namespace+
+                        " secondProcessPublishedSidecar=true"+
+                        " originalAccountUnchanged=true"+
+                        " writerTempCleaned=true"+
+                        " freshWorldLoadDenied=true"+
+                        " noRecoveryOrSaveACK=true");
+                }finally{
+                    for(int i=0;i<flags.length;i++){
+                        if(saved[i]==null)System.clearProperty(flags[i]);
+                        else System.setProperty(flags[i],saved[i]);
+                    }
+                    try(Stream<Path> entries=Files.walk(root)){
+                        for(Path leaf:entries.sorted(
+                                Comparator.reverseOrder()).toArray(Path[]::new))
+                            Files.deleteIfExists(leaf);
+                    }
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==2&&"--r113-create-negative".equals(args[0])){
+            Path sidecar=Paths.get(args[1]);
+            Files.write(sidecar,new byte[]{1},
+                StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE);
+            System.out.println(
+                "R113_INDEPENDENT_JVM_NEGATIVE_SIDECAR_WRITTEN");
+            return;
+        }
         if(args.length==2&&("--fresh".equals(args[0])||
                             "--killed".equals(args[0])||
                             "--prepare-killed".equals(args[0])||
@@ -3212,6 +3370,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // sidecar injection must prevent a false successful return.
         // Changed disk bytes are uncertain, NEVER rolled back.
         runPostMoveLabEvidenceRawMatrix();
+        // R113: verify actual cross-process sidecar visibility
+        // for RAW and guarded World writers, four namespaces each.
+        runCrossJvmLateLabEvidenceMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
