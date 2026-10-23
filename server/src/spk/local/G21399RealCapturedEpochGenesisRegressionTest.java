@@ -4563,6 +4563,154 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R124: a default-OFF opt-in can conservatively detect account
+     * mutations made by an independent legacy RAW process AFTER this
+     * World-save invocation sampled its disk preimage, but BEFORE
+     * its own atomic replace. The legacy default is deliberately
+     * left unchanged for comparison. This is NOT a session-lifetime
+     * conflict detector (R123 remains possible when RAW wrote before
+     * final save began) or an atomic external-writer exclusion lock.
+     */
+    private static void runR124ObservedWorldSavePreimageMatrix()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY,
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(boolean enabled:new boolean[]{false,true}){
+            Path root=Files.createTempDirectory(
+                enabled?"r124-preimage-optin-":"r124-preimage-default-");
+            try{
+                configure(root,false);
+                System.clearProperty(
+                    LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY);
+                if(enabled)System.setProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY,
+                    "true");
+                else System.clearProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+                FilePlayerRepository initial=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                initial.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                int oldWorldTemps=r109OwnedWorldTemps(account);
+                java.util.concurrent.atomic.AtomicInteger callbacks=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                final byte[][] foreignBytes={null};
+                FilePlayerRepository racingWorld=
+                    new FilePlayerRepository(
+                        LocalAccountProfiles::accountFile,
+                        name->{
+                            check(USER.equals(name),
+                                "R124 account identity drift");
+                            LocalReusableLabEvidenceNegativeGate
+                                .requireNoLegacyCollision(account);
+                            Path output=root.resolve(
+                                "r124-independent-raw.log");
+                            ProcessBuilder raw=new ProcessBuilder(
+                                javaExe(),"-cp",
+                                System.getProperty("java.class.path"),
+                                G21399RealCapturedEpochGenesisRegressionTest
+                                    .class.getName(),
+                                "--r122-raw-probe",root.toString(),
+                                "default-off");
+                            raw.redirectErrorStream(true);
+                            raw.redirectOutput(output.toFile());
+                            try{
+                                Process child=raw.start();
+                                if(!child.waitFor(30,TimeUnit.SECONDS)){
+                                    child.destroyForcibly();
+                                    child.waitFor(10,TimeUnit.SECONDS);
+                                    throw new IOException(
+                                        "R124_RAW_JVM_TIMED_OUT");
+                                }
+                                String trace=new String(
+                                    Files.readAllBytes(output),
+                                    StandardCharsets.UTF_8);
+                                check(child.exitValue()==0&&
+                                    trace.contains(
+                                        "R122_DEFAULT_OFF_RAW_WRITE_GAP_CONFIRMED"),
+                                    "R124 independent RAW writer failed "+
+                                    trace);
+                                foreignBytes[0]=
+                                    Files.readAllBytes(account);
+                                check(r123HasForeignRawMarker(account),
+                                    "R124 foreign RAW bytes not published");
+                            }catch(Exception failure){
+                                throw new IOException(
+                                    "R124_FOREIGN_RAW_PROCESS_FAILED",
+                                    failure);
+                            }
+                            callbacks.incrementAndGet();
+                        });
+                boolean veto=false;
+                try{
+                    racingWorld.saveForWorld(
+                        PlayerSnapshotCodec.capture(
+                            USER,new WorldPlayer()));
+                }catch(IOException failed){
+                    veto=contains(failed,
+                        "R124_WORLD_ACCOUNT_PREIMAGE_DRIFT_NO_MOVE");
+                    if(!enabled)throw failed;
+                }
+                check(callbacks.get()==1&&veto==enabled,
+                    "R124 WORLD preimage observation wrong veto "+
+                    enabled);
+                check(r109OwnedWorldTemps(account)==oldWorldTemps,
+                    "R124 World-owned temp leaked "+enabled);
+                if(enabled){
+                    check(r123HasForeignRawMarker(account)&&
+                        Arrays.equals(
+                            foreignBytes[0],Files.readAllBytes(account)),
+                        "R124 observed drift was not preserved pre-move");
+                }else{
+                    check(!r123HasForeignRawMarker(account)&&
+                        !Arrays.equals(
+                            foreignBytes[0],Files.readAllBytes(account)),
+                        "R124 default-off comparison did not overwrite RAW");
+                }
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+                System.out.println(
+                    "R124_WORLD_SAVE_PREIMAGE_OBSERVATION_PASS"+
+                    " optIn="+enabled+
+                    " independentRawWroteDuringWorldSerialization=true"+
+                    " optInVetoedBeforeAccountMove="+veto+
+                    " defaultOffStillOverwrites="+(!enabled)+
+                    " accountNotAutomaticallyRecovered=true"+
+                    " sessionLifetimeProtectionNotClaimed=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(saved[i]==null)
+                        System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],saved[i]);
+                }
+                try(Stream<Path> leaves=Files.walk(root)){
+                    for(Path leaf:leaves.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(leaf);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==4&&"--r123-world-final-holder".equals(args[0])){
             r123RealWorldLogoutAfterForeignRaw(
@@ -4769,6 +4917,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // the newer nonparticipating RAW writer's disk image with a
         // stale hydrated snapshot, despite owning the opt-in lock.
         runR123ForeignRawThenOriginalWorldFinal();
+        // R124: optional negative-only account preimage comparison
+        // against an independent nonparticipating RAW writer DURING
+        // a World save. The older R123 session-lifetime loss remains.
+        runR124ObservedWorldSavePreimageMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);

@@ -27,6 +27,12 @@ final class FilePlayerRepository
     // count. This is NOT a durable account epoch, receipt or grant.
     static final String EXPERIMENTAL_FORCE_WORLD_POSTIMAGE_PROPERTY=
         "spk.local.experimentalForceWorldAccountPostimage";
+    // R124 default-OFF negative-only observation: catch a RAW edit
+    // during THIS World save invocation before its account rename.
+    // Not a session-lifetime epoch, not a fence against writes after
+    // the final check, and not a fix for R123's earlier-at-login RAW.
+    static final String EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY=
+        "spk.local.experimentalWorldSaveAccountPreimageObservation";
     private final java.util.concurrent.atomic.AtomicInteger
         forcedWorldPostimageCount=new java.util.concurrent.atomic.AtomicInteger();
 
@@ -1516,6 +1522,9 @@ final class FilePlayerRepository
         final boolean forceRealWorldPostimage=enforceWorldAdmission&&
             Boolean.getBoolean(
                 EXPERIMENTAL_FORCE_WORLD_POSTIMAGE_PROPERTY);
+        final boolean observeWorldAccountPreimage=enforceWorldAdmission&&
+            Boolean.getBoolean(
+                EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
 
         // G21.57: the guarded World save uses ONE account-file
         // location for both the actual replacement and negative markers.
@@ -1586,7 +1595,8 @@ final class FilePlayerRepository
         // silently overwritten as a successful forced final save.
         // Absent first-time accounts remain a distinct valid preimage.
         final LocalOptInRawTemp.AccountPreimage worldAccountPreimage=
-            forceRealWorldPostimage&&LocalFinalSaveNegativeWitness.enabled()
+            (forceRealWorldPostimage&&LocalFinalSaveNegativeWitness.enabled())||
+            observeWorldAccountPreimage
                 ?LocalOptInRawTemp.captureAccountPreimage(file):null;
 
         Path parent=file.getParent();
@@ -1770,7 +1780,9 @@ final class FilePlayerRepository
                                         file,worldAccountPreimage);
                             }catch(IOException drift){
                                 throw new IOException(
-                                    "G21.360 WORLD_ACCOUNT_PREIMAGE_CHANGED_BEFORE_MOVE",
+                                    observeWorldAccountPreimage
+                                        ?"R124_WORLD_ACCOUNT_PREIMAGE_DRIFT_NO_MOVE"
+                                        :"G21.360 WORLD_ACCOUNT_PREIMAGE_CHANGED_BEFORE_MOVE",
                                     drift);
                             }
                             // G21.365: identity, bytes and mtime
