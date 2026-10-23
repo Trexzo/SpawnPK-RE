@@ -3703,7 +3703,205 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R119 clean-account witness: no reusable LAB ledger is involved.
+     * Both JVMs explicitly opt in to the experimental cooperating
+     * owner session lock, so the negative second TCP login is an OS
+     * owner-exclusion claim, NOT a LAB quarantine shortcut.
+     */
+    private static void r119EnableCrossJvmSessionLock(Path root){
+        configure(root,false);
+        System.setProperty(LocalJvmAccountSessionLease.PROPERTY,"true");
+        System.setProperty(LocalCrossJvmAccountSessionLock.PROPERTY,"true");
+        System.setProperty(
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,"true");
+    }
+
+    private static void r119OriginalWorldHolder(
+        Path root,Path ready
+    )throws Exception{
+        r119EnableCrossJvmSessionLock(root);
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        World world=World.isolatedForTest(50L,repository);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(world);
+            Socket admitted=server.login(USER)){
+            await(()->world.players().byName(USER)!=null,
+                "R119 original World admitted its account");
+            check(world.players().size()==1,
+                "R119 original World did not retain sole player");
+            Path account=LocalAccountProfiles.accountFile(USER);
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+            Files.write(ready,new byte[]{1},StandardOpenOption.CREATE_NEW);
+            System.out.println(
+                "R119_ORIGINAL_AUTHENTICATED_WORLD_LOCK_HELD"+
+                " worldPlayerPresent=true"+
+                " experimentalOsSessionLockEnabled=true"+
+                " reusableLabEvidenceAbsent=true");
+            System.out.flush();
+            for(;;)Thread.sleep(1000L);
+        }finally{
+            if(!world.closed())world.close();
+        }
+    }
+
+    private static void r119CompetingWorld(Path root)throws Exception{
+        r119EnableCrossJvmSessionLock(root);
+        Path account=LocalAccountProfiles.accountFile(USER);
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(account);
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        check(repository.loadForWorldSession(USER).isPresent(),
+            "R119 clean repository read unexpectedly denied");
+        boolean osBusy=false;
+        try(LocalCrossJvmAccountSessionLock.Handle unexpected=
+                LocalCrossJvmAccountSessionLock.acquire(account)){
+            unexpected.requireOriginalLockNameStillPresent();
+        }catch(IOException busy){
+            osBusy=contains(busy,"G21.185 ACCOUNT_SESSION_LOCK_BUSY");
+        }
+        check(osBusy,
+            "R119 second JVM could acquire first World's OS lock");
+        World second=World.isolatedForTest(50L,repository);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(second)){
+            int response=tcpResponse(server.listener.getLocalPort());
+            check(response!=2&&second.players().size()==0,
+                "R119 second authenticated World admitted clean account");
+            server.waitCompleted();
+        }finally{
+            if(!second.closed())second.close();
+        }
+        check(second.players().size()==0,
+            "R119 second World retained an unauthorized player");
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(account);
+        System.out.println("R119_SECOND_WORLD_LIVE_OWNER_VETO_PASS"+
+            " independentJvm=true"+
+            " cleanLegacyAccountReadable=true"+
+            " osLockBusyWhileOriginalWorldAlive=true"+
+            " authenticatedSecondTcpDenied=true"+
+            " secondWorldPlayers=0"+
+            " noLabSidecarAdmissionShortcut=true"+
+            " noCrashRecoveryOrPositiveHandoff=true");
+    }
+
+    private static void runR119LiveCrossWorldOwnershipNegative()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        Path root=Files.createTempDirectory("r119-clean-two-world-");
+        Process original=null;
+        try{
+            configure(root,false);
+            FilePlayerRepository initial=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            initial.save(PlayerSnapshotCodec.capture(
+                USER,new WorldPlayer()));
+            Path account=LocalAccountProfiles.accountFile(USER);
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+            Path ready=root.resolve("r119-world-holder-ready");
+            Path holderLog=root.resolve("r119-holder.log");
+            ProcessBuilder holder=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest
+                    .class.getName(),
+                "--r119-original-world-holder",
+                root.toString(),ready.toString());
+            holder.redirectErrorStream(true);
+            holder.redirectOutput(holderLog.toFile());
+            original=holder.start();
+            final Process running=original;
+            await(()->Files.exists(ready,LinkOption.NOFOLLOW_LINKS)||
+                !running.isAlive(),"R119 original authenticated World");
+            String holderTrace=new String(
+                Files.readAllBytes(holderLog),StandardCharsets.UTF_8);
+            check(running.isAlive()&&
+                Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                holderTrace.contains(
+                    "R119_ORIGINAL_AUTHENTICATED_WORLD_LOCK_HELD"),
+                "R119 holder failed authentic World login "+holderTrace);
+            byte[] originalAccount=Files.readAllBytes(account);
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+            Path secondLog=root.resolve("r119-competitor.log");
+            ProcessBuilder competitor=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest
+                    .class.getName(),
+                "--r119-competing-world",root.toString());
+            competitor.redirectErrorStream(true);
+            competitor.redirectOutput(secondLog.toFile());
+            Process second=competitor.start();
+            if(!second.waitFor(30,TimeUnit.SECONDS)){
+                second.destroyForcibly();
+                second.waitFor(10,TimeUnit.SECONDS);
+                throw new IOException("R119_COMPETING_WORLD_TIMED_OUT");
+            }
+            String secondTrace=new String(
+                Files.readAllBytes(secondLog),StandardCharsets.UTF_8);
+            check(second.exitValue()==0&&secondTrace.contains(
+                "R119_SECOND_WORLD_LIVE_OWNER_VETO_PASS"),
+                "R119 clean second World OS denial failed "+secondTrace);
+            check(running.isAlive()&&
+                Arrays.equals(originalAccount,Files.readAllBytes(account)),
+                "R119 second World modified account or original exited");
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+            System.out.println("R119_CLEAN_ACCOUNT_TWO_WORLD_VETO_PASS"+
+                " originalAuthenticatedWorldStillAlive=true"+
+                " cleanAccountHadNoLabSidecars=true"+
+                " secondJvmWorldTcpAdmissionDenied=true"+
+                " originalAccountUnmodifiedByCompetitor=true"+
+                " noDurableCrashRecoveryOrOwnerHandoffClaim=true");
+        }finally{
+            if(original!=null&&original.isAlive()){
+                original.destroyForcibly();
+                original.waitFor(10,TimeUnit.SECONDS);
+            }
+            for(int i=0;i<flags.length;i++){
+                if(saved[i]==null)System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],saved[i]);
+            }
+            try(Stream<Path> entries=Files.walk(root)){
+                for(Path item:entries.sorted(
+                        Comparator.reverseOrder()).toArray(Path[]::new))
+                    Files.deleteIfExists(item);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==3&&
+                "--r119-original-world-holder".equals(args[0])){
+            r119OriginalWorldHolder(
+                Paths.get(args[1]),Paths.get(args[2]));
+            return;
+        }
+        if(args.length==2&&"--r119-competing-world".equals(args[0])){
+            r119CompetingWorld(Paths.get(args[1]));
+            return;
+        }
         if(args.length==2&&"--r113-create-negative".equals(args[0])){
             Path sidecar=Paths.get(args[1]);
             Files.write(sidecar,new byte[]{1},
@@ -3865,6 +4063,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R118: validate the same foreign-JVM read-window race
         // through the real authenticated World TCP admission path.
         runCrossJvmDuringTcpAdmissionNegativeMatrix();
+        // R119: without ANY LAB evidence, prove the separate
+        // cooperating OS session lock denies a second real World
+        // login while the original authenticated World is alive.
+        runR119LiveCrossWorldOwnershipNegative();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
