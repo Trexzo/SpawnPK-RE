@@ -2011,6 +2011,18 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         settlementFreshProbe(root,stage,false);
     }
 
+    private static int r109OwnedWorldTemps(Path account)
+        throws IOException{
+        int count=0;
+        try(java.nio.file.DirectoryStream<Path> entries=
+                Files.newDirectoryStream(account.getParent(),
+                    account.getFileName().toString()+
+                        ".g21170-world-*.tmp")){
+            for(Path ignored:entries)count++;
+        }
+        return count;
+    }
+
     /**
      * R106: prove default-OFF legacy and TCP admission denial while
      * the ORIGINAL authenticated World JVM is still alive with its
@@ -2063,6 +2075,26 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             "R108 rejected RAW save allocated legacy temp");
         check(Arrays.equals(oldAccount,Files.readAllBytes(account)),
             "R108 rejected RAW save changed original account bytes");
+        // R109: the direct guarded World writer is also callable
+        // independently of a currently admitted World save task.
+        // Neither successful OS-lock reacquisition after a crash
+        // nor default-OFF producer flags can authorize writing
+        // over an account whose detached LAB sidecars persist.
+        int worldTempsBefore=r109OwnedWorldTemps(account);
+        boolean worldWriteDenied=false;
+        try{
+            repository.saveForWorld(PlayerSnapshotCodec.capture(
+                USER,new WorldPlayer()));
+        }catch(IOException rejected){
+            worldWriteDenied=contains(rejected,
+                "R63_REUSABLE_LAB_EVIDENCE_PRESENT_NO_LEGACY_ADMISSION");
+        }
+        check(worldWriteDenied,
+            "R109 direct World save bypassed retained LAB evidence");
+        check(r109OwnedWorldTemps(account)==worldTempsBefore,
+            "R109 rejected World save changed temp-file inventory");
+        check(Arrays.equals(oldAccount,Files.readAllBytes(account)),
+            "R109 rejected World save replaced legacy account");
         World world=World.isolatedForTest(50L,repository);
         try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
                 .OneSession server=
@@ -2151,6 +2183,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             " r107OsLockReacquiredAfterOriginalExit="+
                 (!originalWorldStillAlive)+
             " r108DirectRawSaveDeniedBeforeTemp=true"+
+            " r109DirectWorldSaveDeniedBeforeTemp=true"+
             " freshRepositoryDirectAndTcpDenied=true"+
             " noFinalAckOrRecovery=true");
     }
@@ -2246,6 +2279,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     overlapTrace.contains(
                         " r108DirectRawSaveDeniedBeforeTemp=true")&&
                     overlapTrace.contains(
+                        " r109DirectWorldSaveDeniedBeforeTemp=true")&&
+                    overlapTrace.contains(
                         " freshRepositoryDirectAndTcpDenied=true")&&
                     overlapTrace.contains(" noFinalAckOrRecovery=true"),
                     "R106 live second-JVM admission or trace failed "+
@@ -2262,6 +2297,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     " originalOsLockStillHeldByWorld=true"+
                     " independentJvmTryLockDenied=true"+
                     " secondJvmRawSaveDeniedBeforeTemp=true"+
+                    " secondJvmWorldSaveDeniedBeforeTemp=true"+
                     " secondJvmLegacyAndTcpDenied=true"+
                     " oldAccountBytesUnchanged=true"+
                     " noReplayOrGrant=true");
@@ -2350,6 +2386,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     " r107OsLockReacquiredAfterOriginalExit=true")&&
                 output.contains(
                     " r108DirectRawSaveDeniedBeforeTemp=true")&&
+                output.contains(
+                    " r109DirectWorldSaveDeniedBeforeTemp=true")&&
                 output.contains(
                     " freshRepositoryDirectAndTcpDenied=true"),
                 "R107 fresh JVM did not reacquire OS lock and "+
@@ -2861,6 +2899,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         for(LocalReusableAccountEpochLab.Stage stage:
                 LocalReusableAccountEpochLab.Stage.values())
             runKilledSettlement(stage);
+        // R109: additionally exercise direct saveForWorld; LAB
+        // evidence must veto this guarded World entrypoint before
+        // temp allocation and under the publication lock.
         // R108: every fresh JVM probe also attempts a default-OFF
         // direct repository save. It must be rejected BEFORE a RAW
         // temp appears, while existing account bytes remain identical,

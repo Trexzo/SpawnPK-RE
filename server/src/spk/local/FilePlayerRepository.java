@@ -2166,6 +2166,16 @@ final class FilePlayerRepository
         // pinned-account publication lock before atomic replacement.
         Path selected=markerPaths.resolve(account)
             .toAbsolutePath().normalize();
+        // R109: the detached reusable-epoch LAB evidence gate
+        // already fences RAW saves and session hydration, but the
+        // direct guarded World save previously skipped that gate.
+        // Run it both BEFORE allocating the World-owned temp and
+        // again under the exact-account publication lock, where
+        // this existing helper is invoked a second time.
+        // Sidecars remain strictly NEGATIVE evidence: never recover,
+        // replay, replace, release or acknowledge from their presence.
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(selected);
         Path diskCommit=selected.resolveSibling(
             selected.getFileName().toString()+
             MailboxGuardedDiskCommitRecord.SUFFIX);
