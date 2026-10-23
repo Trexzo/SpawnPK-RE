@@ -3354,6 +3354,137 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R116: R112/R114 covered same-JVM post-replacement negatives.
+     * This independent JVM publishes the late sidecar AFTER the real
+     * account file has been replaced. The still-live saving JVM must
+     * report an uncertain failure and leave the new disk postimage
+     * quarantined, not claim it successfully saved or rolled back.
+     *
+     * These observations do not authenticate an owner epoch or prove
+     * power-loss durability. Both branches remain default-OFF.
+     */
+    private static void runCrossJvmPostMoveLabEvidenceMatrix()
+        throws Exception{
+        String[] namespaces={
+            ".g21385-r116-foreign-postmove-",
+            ".g21386-r116-foreign-postmove-",
+            ".g21387-r116-foreign-postmove-",
+            ".g21378-object-r116-foreign-postmove-"
+        };
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(boolean worldWriter:new boolean[]{false,true}){
+            for(String namespace:namespaces){
+                Path root=Files.createTempDirectory(
+                    worldWriter?"r116-world-":"r116-raw-");
+                try{
+                    configure(root,false);
+                    FilePlayerRepository initial=new FilePlayerRepository(
+                        LocalAccountProfiles::accountFile);
+                    initial.save(PlayerSnapshotCodec.capture(
+                        USER,new WorldPlayer()));
+                    Path account=LocalAccountProfiles.accountFile(USER);
+                    byte[] oldBytes=Files.readAllBytes(account);
+                    Path sidecar=account.resolveSibling(
+                        account.getFileName().toString()+namespace+
+                        (worldWriter?"world":"raw"));
+                    Path rawTemp=account.resolveSibling(
+                        account.getFileName().toString()+".tmp");
+                    int worldTemps=r109OwnedWorldTemps(account);
+                    check(!Files.exists(rawTemp,LinkOption.NOFOLLOW_LINKS),
+                        "R116 baseline RAW temp not empty");
+                    java.util.concurrent.atomic.AtomicInteger callbacks=
+                        new java.util.concurrent.atomic.AtomicInteger();
+                    FilePlayerRepository.BeforeWorldReplace afterMove=name->{
+                        check(USER.equals(name),"R116 account identity drift");
+                        check(!Arrays.equals(
+                            oldBytes,Files.readAllBytes(account)),
+                            "R116 postmove hook executed before real move");
+                        try{
+                            publishR113NegativeFromOtherJvm(
+                                account,sidecar);
+                        }catch(Exception childFailure){
+                            throw new IOException(
+                                "R116_CROSS_JVM_NEGATIVE_PUBLICATION_FAILED",
+                                childFailure);
+                        }
+                        callbacks.incrementAndGet();
+                    };
+                    FilePlayerRepository raced=new FilePlayerRepository(
+                        LocalAccountProfiles::accountFile,
+                        name->{},name->{},name->{},name->{},name->{},
+                        name->{},
+                        name->{if(!worldWriter)afterMove.run(name);},
+                        name->{if(worldWriter)afterMove.run(name);});
+                    WorldPlayer revised=new WorldPlayer();
+                    revised.snapshotExtensions().replaceNamespace(
+                        "r116_uncertain",
+                        Collections.singletonMap("postmove",
+                            worldWriter?"WORLD":"RAW"));
+                    boolean rejected=false;
+                    try{
+                        PlayerSnapshot image=PlayerSnapshotCodec.capture(
+                            USER,revised);
+                        if(worldWriter)raced.saveForWorld(image);
+                        else raced.save(image);
+                    }catch(IOException denied){
+                        rejected=contains(denied,NEGATIVE);
+                    }
+                    check(rejected&&callbacks.get()==1,
+                        "R116 postmove other-JVM negative reported "+
+                        "ordinary write success "+namespace);
+                    check(Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS)&&
+                        !Arrays.equals(
+                            oldBytes,Files.readAllBytes(account)),
+                        "R116 sidecar lost or new account rolled back");
+                    check(!Files.exists(rawTemp,LinkOption.NOFOLLOW_LINKS)&&
+                        r109OwnedWorldTemps(account)==worldTemps,
+                        "R116 account writer retained its moved temp");
+                    boolean deniedAdmission=false;
+                    try{initial.loadForWorldSession(USER);}
+                    catch(IOException exception){
+                        deniedAdmission=contains(exception,NEGATIVE);
+                    }
+                    check(deniedAdmission,
+                        "R116 quarantined postmove account admitted");
+                    System.out.println(
+                        "R116_TWO_JVM_POSTMOVE_UNCERTAINTY_PASS"+
+                        " mode="+(worldWriter?"WORLD":"RAW")+
+                        " namespace="+namespace+
+                        " realAccountWasReplaced=true"+
+                        " secondJvmPublishedEvidence=true"+
+                        " firstJvmRejectedSuccess=true"+
+                        " newAccountRemainsQuarantined=true"+
+                        " noRollbackAckOrRecovery=true");
+                }finally{
+                    for(int i=0;i<flags.length;i++){
+                        if(saved[i]==null)
+                            System.clearProperty(flags[i]);
+                        else System.setProperty(flags[i],saved[i]);
+                    }
+                    try(Stream<Path> leaves=Files.walk(root)){
+                        for(Path leaf:leaves.sorted(
+                                Comparator.reverseOrder()).toArray(Path[]::new))
+                            Files.deleteIfExists(leaf);
+                    }
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&"--r113-create-negative".equals(args[0])){
             Path sidecar=Paths.get(args[1]);
@@ -3507,6 +3638,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R114: characterize late LAB evidence after a non-forced
         // World move, separately from the forced World receipt path.
         runPostMoveLabEvidenceWorldMatrix();
+        // R116: cross-JVM late LAB negative after actual RAW and
+        // non-forced World account replacement, four sidecar prefixes.
+        runCrossJvmPostMoveLabEvidenceMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
