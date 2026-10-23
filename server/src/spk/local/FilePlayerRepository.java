@@ -1930,6 +1930,26 @@ final class FilePlayerRepository
                                         originalWorldTemp,afterMove))
                                     throw new IOException(
                                         "R126_WORLD_POSTIMAGE_OBJECT_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK");
+                                // R128: a foreign hardlink to the
+                                // already-published World account can
+                                // preserve SHA256 and fileKey while
+                                // making that inode externally mutable
+                                // through a second name. Observe the
+                                // selected account's single-link
+                                // invariant AFTER the World move.
+                                // Provider uncertainty is negative;
+                                // this cannot atomically fence a
+                                // nonparticipating external process.
+                                try{
+                                    LocalFinalSaveNegativeWitness
+                                        .requireSingleObservedLink(
+                                            file,
+                                            "R128_WORLD_POSTIMAGE_FOREIGN_HARDLINK_UNCERTAIN_NO_ACK");
+                                }catch(IOException unresolved){
+                                    throw new IOException(
+                                        "R128_WORLD_POSTIMAGE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK",
+                                        unresolved);
+                                }
                             }
                         }
                         return null;

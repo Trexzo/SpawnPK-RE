@@ -5285,7 +5285,239 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R128: a separate JVM adds another hardlink to the account
+     * inode AFTER the original World temp has become that account.
+     * Same bytes, same original inode, but nlink=2: the remaining
+     * alias can mutate the account without using its selected name.
+     */
+    private static void r128PublishForeignHardlink(
+        Path requested,Path aliasRequested
+    )throws Exception{
+        Path account=requested.toAbsolutePath().normalize();
+        Path alias=aliasRequested.toAbsolutePath().normalize();
+        check(!account.equals(alias)&&
+            account.getParent().equals(alias.getParent()),
+            "R128 foreign hardlink alias path was not independent");
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(account);
+        check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS)&&
+            !Files.exists(alias,LinkOption.NOFOLLOW_LINKS),
+            "R128 original account missing or alias already existed");
+        byte[] before=Files.readAllBytes(account);
+        java.nio.file.attribute.BasicFileAttributes old=
+            Files.readAttributes(account,
+                java.nio.file.attribute.BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        check(old.fileKey()!=null,
+            "R128 original account fileKey unavailable");
+        Number oldLinks=(Number)Files.getAttribute(
+            account,"unix:nlink",LinkOption.NOFOLLOW_LINKS);
+        check(oldLinks.longValue()==1L,
+            "R128 account already had another hardlink");
+        Files.createLink(alias,account);
+        java.nio.file.attribute.BasicFileAttributes actual=
+            Files.readAttributes(alias,
+                java.nio.file.attribute.BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        Number accountLinks=(Number)Files.getAttribute(
+            account,"unix:nlink",LinkOption.NOFOLLOW_LINKS);
+        Number aliasLinks=(Number)Files.getAttribute(
+            alias,"unix:nlink",LinkOption.NOFOLLOW_LINKS);
+        check(actual.fileKey()!=null&&
+            old.fileKey().equals(actual.fileKey())&&
+            accountLinks.longValue()==2L&&
+            aliasLinks.longValue()==2L&&
+            Arrays.equals(before,Files.readAllBytes(account))&&
+            Arrays.equals(before,Files.readAllBytes(alias)),
+            "R128 foreign independent JVM did not create same-content alias");
+        System.out.println(
+            "R128_INDEPENDENT_JVM_FOREIGN_HARDLINK_CREATED"+
+            " sameOriginalFileKey=true"+
+            " sameOriginalBytes=true"+
+            " bothNamesHaveTwoLinks=true"+
+            " noOwnerAdmissionOrRecovery=true");
+    }
+
+    private static void runR128ForeignHardlinkPostmoveMatrix()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY,
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(boolean enabled:new boolean[]{false,true}){
+            Path root=Files.createTempDirectory(
+                enabled?"r128-postmove-hardlink-optin-":
+                        "r128-postmove-hardlink-default-");
+            try{
+                configure(root,false);
+                System.clearProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+                if(enabled)System.setProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+                    "true");
+                else System.clearProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY);
+                FilePlayerRepository baseline=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                baseline.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                Path alias=account.resolveSibling(
+                    account.getFileName().toString()+"-r128-foreign-alias");
+                int worldTemps=r109OwnedWorldTemps(account);
+                java.util.concurrent.atomic.AtomicInteger hook=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                final byte[][] worldBytes={null};
+                final Object[] observedKey={null};
+                FilePlayerRepository originalWorld=
+                    new FilePlayerRepository(
+                        LocalAccountProfiles::accountFile,
+                        name->{},name->{},name->{},name->{},name->{},
+                        name->{},name->{},
+                        name->{
+                            check(USER.equals(name),
+                                "R128 postmove callback user drift");
+                            worldBytes[0]=Files.readAllBytes(account);
+                            java.nio.file.attribute.BasicFileAttributes
+                                original=Files.readAttributes(account,
+                                    java.nio.file.attribute
+                                        .BasicFileAttributes.class,
+                                    LinkOption.NOFOLLOW_LINKS);
+                            check(original.fileKey()!=null,
+                                "R128 original World inode missing");
+                            observedKey[0]=original.fileKey();
+                            Path log=root.resolve("r128-hardlink-child.log");
+                            ProcessBuilder command=new ProcessBuilder(
+                                javaExe(),"-cp",
+                                System.getProperty("java.class.path"),
+                                G21399RealCapturedEpochGenesisRegressionTest
+                                    .class.getName(),
+                                "--r128-foreign-hardlink",
+                                account.toString(),alias.toString());
+                            command.redirectErrorStream(true);
+                            command.redirectOutput(log.toFile());
+                            try{
+                                Process foreign=command.start();
+                                if(!foreign.waitFor(30L,TimeUnit.SECONDS)){
+                                    foreign.destroyForcibly();
+                                    foreign.waitFor(10L,TimeUnit.SECONDS);
+                                    throw new IOException(
+                                        "R128_INDEPENDENT_JVM_TIMED_OUT");
+                                }
+                                String trace=new String(
+                                    Files.readAllBytes(log),
+                                    StandardCharsets.UTF_8);
+                                check(foreign.exitValue()==0&&trace.contains(
+                                    "R128_INDEPENDENT_JVM_FOREIGN_HARDLINK_CREATED"),
+                                    "R128 hardlink child failed "+trace);
+                            }catch(Exception error){
+                                throw new IOException(
+                                    "R128_FOREIGN_HARDLINK_PROCESS_FAILED",error);
+                            }
+                            Number accountLinks=(Number)Files.getAttribute(
+                                account,"unix:nlink",
+                                LinkOption.NOFOLLOW_LINKS);
+                            java.nio.file.attribute.BasicFileAttributes
+                                after=Files.readAttributes(account,
+                                    java.nio.file.attribute
+                                        .BasicFileAttributes.class,
+                                    LinkOption.NOFOLLOW_LINKS);
+                            check(observedKey[0].equals(after.fileKey())&&
+                                accountLinks.longValue()==2L&&
+                                Arrays.equals(worldBytes[0],
+                                    Files.readAllBytes(account)),
+                                "R128 callback failed to establish stable "+
+                                "bytes/inode with foreign alias");
+                            hook.incrementAndGet();
+                        });
+                boolean negative=false;
+                try{
+                    originalWorld.saveForWorld(PlayerSnapshotCodec.capture(
+                        USER,new WorldPlayer()));
+                }catch(IOException blocked){
+                    negative=contains(blocked,
+                        "R128_WORLD_POSTIMAGE_FOREIGN_HARDLINK_UNCERTAIN_NO_ACK")&&
+                        contains(blocked,
+                        "R128_WORLD_POSTIMAGE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK");
+                    if(!enabled)throw blocked;
+                }
+                check(negative==enabled&&hook.get()==1,
+                    "R128 unexpected same-content alias result "+
+                    enabled);
+                java.nio.file.attribute.BasicFileAttributes accountAttrs=
+                    Files.readAttributes(account,
+                        java.nio.file.attribute.BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS);
+                java.nio.file.attribute.BasicFileAttributes aliasAttrs=
+                    Files.readAttributes(alias,
+                        java.nio.file.attribute.BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS);
+                Number linkCount=(Number)Files.getAttribute(
+                    account,"unix:nlink",LinkOption.NOFOLLOW_LINKS);
+                check(linkCount.longValue()==2L&&
+                    accountAttrs.fileKey()!=null&&
+                    accountAttrs.fileKey().equals(aliasAttrs.fileKey())&&
+                    accountAttrs.fileKey().equals(observedKey[0])&&
+                    Arrays.equals(worldBytes[0],
+                        Files.readAllBytes(account))&&
+                    Arrays.equals(worldBytes[0],
+                        Files.readAllBytes(alias))&&
+                    r109OwnedWorldTemps(account)==worldTemps,
+                    "R128 observing World changed foreign hardlink "+
+                    "or leaked temp");
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+                System.out.println(
+                    "R128_POSTMOVE_FOREIGN_HARDLINK_NEGATIVE_PASS"+
+                    " optIn="+enabled+
+                    " originalWorldMoveCompleted=true"+
+                    " independentJVMAddedExternalAlias=true"+
+                    " bytesAndOriginalFileKeyStillSame=true"+
+                    " accountNlink=2"+
+                    " optInReportedUncertain="+negative+
+                    " defaultOffStillReportsSave="+(!enabled)+
+                    " foreignHardlinkNotRemovedByObserver=true"+
+                    " noRecoveredOwnerOrFinalACK=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(saved[i]==null)System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],saved[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path leaf:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(leaf);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==3&&
+                "--r128-foreign-hardlink".equals(args[0])){
+            r128PublishForeignHardlink(
+                Paths.get(args[1]),Paths.get(args[2]));
+            return;
+        }
         if(args.length==3&&
                 "--r127-foreign-postimage".equals(args[0])){
             r127ForeignCorruptPostimage(Paths.get(args[1]),args[2]);
@@ -5515,6 +5747,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R127: missing, symlink, directory and oversized foreign
         // postimages must never earn a normal World save result.
         runR127PostmoveUnsafeFileMatrix();
+        // R128: same inode and bytes are not exclusive ownership
+        // when a second JVM has made a new hardlink after the move.
+        runR128ForeignHardlinkPostmoveMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
