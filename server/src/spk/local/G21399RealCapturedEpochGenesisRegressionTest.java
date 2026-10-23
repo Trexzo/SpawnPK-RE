@@ -2962,6 +2962,117 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R112: a detached LAB sidecar can appear AFTER RAW account
+     * replacement. The outcome is uncertain, NOT rolled back or
+     * acknowledged. The exact negative namespace must quarantine the
+     * replaced account without deleting the independent evidence.
+     */
+    private static void runPostMoveLabEvidenceRawMatrix()
+        throws Exception{
+        String[] namespaces={
+            ".g21385-r112-after-move",
+            ".g21386-r112-after-move",
+            ".g21387-r112-after-move",
+            ".g21378-object-r112-after-move"
+        };
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(String namespace:namespaces){
+            Path root=Files.createTempDirectory("r112-postmove-raw-");
+            try{
+                configure(root,false);
+                FilePlayerRepository original=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                original.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                byte[] before=Files.readAllBytes(account);
+                Path sidecar=account.resolveSibling(
+                    account.getFileName().toString()+namespace);
+                Path rawTemp=account.resolveSibling(
+                    account.getFileName().toString()+".tmp");
+                check(!Files.exists(rawTemp,LinkOption.NOFOLLOW_LINKS),
+                    "R112 stale initial RAW temp");
+                java.util.concurrent.atomic.AtomicInteger reached=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                FilePlayerRepository raced=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile,
+                    name->{},name->{},name->{},name->{},name->{},
+                    name->{},
+                    name->{
+                        check(USER.equals(name),
+                            "R112 postmove identity drift");
+                        check(Files.exists(account,LinkOption.NOFOLLOW_LINKS),
+                            "R112 account missing after actual RAW move");
+                        Files.write(sidecar,new byte[]{1},
+                            StandardOpenOption.CREATE_NEW,
+                            StandardOpenOption.WRITE);
+                        reached.incrementAndGet();
+                    });
+                WorldPlayer changed=new WorldPlayer();
+                changed.snapshotExtensions().replaceNamespace(
+                    "r112_postmove",
+                    Collections.singletonMap("phase","NEW_UNCONFIRMED"));
+                boolean denied=false;
+                try{
+                    raced.save(PlayerSnapshotCodec.capture(USER,changed));
+                }catch(IOException exception){
+                    denied=contains(exception,NEGATIVE);
+                }
+                check(denied,
+                    "R112 postmove LAB evidence reported successful RAW save "+
+                    namespace);
+                check(reached.get()==1&&
+                    Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS),
+                    "R112 postmove test injection not reached "+namespace);
+                check(!Arrays.equals(before,Files.readAllBytes(account)),
+                    "R112 RAW account unexpectedly unchanged after move "+
+                    namespace);
+                check(!Files.exists(rawTemp,LinkOption.NOFOLLOW_LINKS),
+                    "R112 postmove RAW temp not moved "+namespace);
+                boolean loadDenied=false;
+                try{original.loadForWorldSession(USER);}
+                catch(IOException exception){
+                    loadDenied=contains(exception,NEGATIVE);
+                }
+                check(loadDenied,
+                    "R112 postmove LAB evidence permitted stale relogin "+
+                    namespace);
+                System.out.println(
+                    "R112_POSTMOVE_RAW_LAB_EVIDENCE_UNCERTAIN_PASS"+
+                    " namespace="+namespace+
+                    " actualRawAccountReplaced=true"+
+                    " lateSidecarRetained=true"+
+                    " saveReturnedFailure=true"+
+                    " freshAdmissionDenied=true"+
+                    " noRollbackOrACK=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(saved[i]==null)System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],saved[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path file:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(file);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&("--fresh".equals(args[0])||
                             "--killed".equals(args[0])||
@@ -3097,6 +3208,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R111: test the separate, default-OFF RAW writer during
         // serialization, not only the guarded World writer.
         runLateLabEvidenceRawWriteMatrix();
+        // R112: after actual default-OFF RAW move, negative LAB
+        // sidecar injection must prevent a false successful return.
+        // Changed disk bytes are uncertain, NEVER rolled back.
+        runPostMoveLabEvidenceRawMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);

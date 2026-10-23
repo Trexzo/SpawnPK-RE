@@ -55,6 +55,9 @@ final class FilePlayerRepository
     // World account replacement, BEFORE final postimage and negative
     // sidecar observations. Never used for ordinary production saves.
     private final BeforeWorldReplace afterForcedWorldMoveForTest;
+    // R112 package-only: inject a retained negative sidecar after
+    // RAW account replacement but before returning save success.
+    private final BeforeWorldReplace afterRawMoveForTest;
 
     FilePlayerRepository(){
         this(
@@ -126,6 +129,21 @@ final class FilePlayerRepository
         BeforeWorldReplace beforeRawReplace,
         BeforeWorldReplace afterForcedWorldMoveForTest
     ){
+        this(paths,beforeWorldReplace,insideWorldPublication,
+            afterWorldSessionRead,betweenRestartWitnessPasses,
+            beforeRawReplace,afterForcedWorldMoveForTest,account->{});
+    }
+
+    /** R112: package-scoped, opt-in test seam, inert in production. */
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication,
+        BeforeWorldReplace afterWorldSessionRead,
+        BeforeWorldReplace betweenRestartWitnessPasses,
+        BeforeWorldReplace beforeRawReplace,
+        BeforeWorldReplace afterForcedWorldMoveForTest,
+        BeforeWorldReplace afterRawMoveForTest
+    ){
         this.paths=Objects.requireNonNull(paths,"paths");
         this.beforeWorldReplace=Objects.requireNonNull(
             beforeWorldReplace,"beforeWorldReplace");
@@ -139,6 +157,8 @@ final class FilePlayerRepository
             beforeRawReplace,"beforeRawReplace");
         this.afterForcedWorldMoveForTest=Objects.requireNonNull(
             afterForcedWorldMoveForTest,"afterForcedWorldMoveForTest");
+        this.afterRawMoveForTest=Objects.requireNonNull(
+            afterRawMoveForTest,"afterRawMoveForTest");
     }
 
     @Override public Optional<PlayerSnapshot> load(
@@ -1866,6 +1886,10 @@ final class FilePlayerRepository
                 }else{
                     replaceSnapshotTemp(tmp,file,raw);
                 }
+                // R112: deterministic post-replacement test seam.
+                // The file may ALREADY contain new bytes; a late
+                // negative veto must NEVER imply successful rollback.
+                afterRawMoveForTest.run(snapshot.username());
                 if(raw!=null){
                     raw.requireNoFinalNegativeWitnessAfterPublication();
                     raw.requirePublishedRawAccountObjectStillCurrent(
