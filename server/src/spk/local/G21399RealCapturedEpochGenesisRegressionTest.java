@@ -1552,6 +1552,27 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         String experimentalFlag,boolean shutdownAtCutpoint,
         boolean fullCloseAtCutpoint,boolean closeAfterReadback
     )throws Exception{
+        settleKillHolder(root,ready,target,revokeAtCutpoint,
+            revokeAfterReadback,disableAtCutpoint,disableAfterReadback,
+            experimentalFlag,shutdownAtCutpoint,fullCloseAtCutpoint,
+            closeAfterReadback,false);
+    }
+
+    private static void settleKillHolder(
+        Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
+        boolean revokeAtCutpoint,boolean revokeAfterReadback,
+        boolean disableAtCutpoint,boolean disableAfterReadback,
+        String experimentalFlag,boolean shutdownAtCutpoint,
+        boolean fullCloseAtCutpoint,boolean closeAfterReadback,
+        boolean closeAfterFinalRead
+    )throws Exception{
+        if(closeAfterFinalRead&&
+           (closeAfterReadback||shutdownAtCutpoint||fullCloseAtCutpoint||
+            revokeAtCutpoint||revokeAfterReadback||
+            disableAtCutpoint||disableAfterReadback||
+            target!=LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED))
+            throw new IllegalArgumentException(
+                "R103_LATE_CLOSE_REQUIRES_EXCLUSIVE_RECEIPT_STAGE");
         if(closeAfterReadback&&
             (shutdownAtCutpoint||fullCloseAtCutpoint||
              revokeAtCutpoint||revokeAfterReadback||
@@ -1637,13 +1658,15 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 check("LATER".equals(last.ticket.snapshot.value(
                     "extension.r83_final.phase")),
                     "R83 actual later World capture missing");
-                if(shutdownAtCutpoint||closeAfterReadback)
+                if(shutdownAtCutpoint||closeAfterReadback||
+                   closeAfterFinalRead)
                     check(last.ownerWitness
                             .originalFinalReservationStillPresentForLabTest(),
                         "R101 original FIFO was not live before shutdown");
                 boolean revocationDenied=false;
                 try{
-                    LocalJvmAccountSessionLease
+                    LocalReusableAccountEpochLab.Observation labResult=
+                        LocalJvmAccountSessionLease
                         .settleCapturedEpochUnderOriginalLockForLab(
                             account,owner,generation,last.ticket.snapshot,
                             last.ownerWitness,stage->{
@@ -1684,7 +1707,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                 // only THEN revoke its original FIFO.
                                 if(revokeAfterReadback||
                                    disableAfterReadback||
-                                   closeAfterReadback)return;
+                                   closeAfterReadback||
+                                   closeAfterFinalRead)return;
                                 System.out.println(
                                     "R83_WORLD_SETTLEMENT_FORCED_"+target);
                                 System.out.flush();
@@ -1715,7 +1739,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                             .originalFinalReservationStillPresentForLabTest(),
                                         "R102 postreadback close left FIFO witness active");
                                 }
+                            },()->{
+                                if(closeAfterFinalRead){
+                                    world.persistence().close();
+                                    check(!last.ownerWitness
+                                            .originalFinalReservationStillPresentForLabTest(),
+                                        "R103 late close left FIFO witness active");
+                                }
                             });
+                    if(closeAfterFinalRead)
+                        check(labResult.phase==
+                                LocalReusableAccountEpochLab.Phase.CLOSED&&
+                              !labResult.admissionAuthorized&&
+                              !labResult.releaseAuthorized,
+                            "R103 late LAB observation acquired real authority");
                 }catch(IOException denied){
                     if(!revokeAtCutpoint&&!revokeAfterReadback&&
                        !disableAtCutpoint&&!disableAfterReadback&&
@@ -1727,6 +1764,28 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             :(revokeAfterReadback||closeAfterReadback)
                                 ?"R94_FINAL_RESERVATION_REVOKED_BEFORE_LAB_RESULT"
                                 :"R92_FINAL_RESERVATION_REVOKED_DURING_SETTLEMENT");
+                }
+                if(closeAfterFinalRead){
+                    check(!revocationDenied,
+                        "R103 post-final-check close unexpectedly vetoed LAB result");
+                    check(!last.ownerWitness
+                            .originalFinalReservationStillPresentForLabTest(),
+                        "R103 late close revived FIFO witness");
+                    check(LocalJvmAccountSessionLease
+                            .activeCountForTest()==1,
+                        "R103 late close released original World lease");
+                    check(!last.ticket.completion.isDone(),
+                        "R103 unpublished final save completed unexpectedly");
+                    System.out.println(
+                        "R103_WORLD_POST_FINAL_READ_CLOSE_PASS"+
+                        " stage="+target+
+                        " labOnlyObservationNonAuthorizing=true"+
+                        " actualProductionClose=true"+
+                        " originalFifoRevoked=true"+
+                        " originalWorldLeaseHeld=true"+
+                        " noPublishedFinalAck=true");
+                    System.out.flush();
+                    return;
                 }
                 if(closeAfterReadback){
                     check(revocationDenied,
@@ -2163,6 +2222,22 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         String disabledFlag,boolean shutdownAtCutpoint,
         boolean fullCloseAtCutpoint,boolean closeAfterReadback
     )throws Exception{
+        runRevokedSettlement(stage,afterReadback,disabledFlag,
+            shutdownAtCutpoint,fullCloseAtCutpoint,closeAfterReadback,false);
+    }
+
+    private static void runRevokedSettlement(
+        LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
+        String disabledFlag,boolean shutdownAtCutpoint,
+        boolean fullCloseAtCutpoint,boolean closeAfterReadback,
+        boolean closeAfterFinalRead
+    )throws Exception{
+        if(closeAfterFinalRead&&
+            (!afterReadback||disabledFlag!=null||shutdownAtCutpoint||
+             fullCloseAtCutpoint||closeAfterReadback||
+             stage!=LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED))
+            throw new IllegalArgumentException(
+                "R103_LATE_CLOSE_REQUIRES_EXCLUSIVE_RECEIPT_STAGE");
         if(closeAfterReadback&&
             (!afterReadback||disabledFlag!=null||shutdownAtCutpoint||
              fullCloseAtCutpoint||
@@ -2183,7 +2258,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             throw new IllegalArgumentException(
                 "R95_REQUIRES_RECEIPT_FORCED");
         Path root=Files.createTempDirectory(
-            (closeAfterReadback?"r102-postreadback-close-":
+            (closeAfterFinalRead?"r103-postfinal-close-":
+            closeAfterReadback?"r102-postreadback-close-":
             fullCloseAtCutpoint?"r99-production-close-":
             shutdownAtCutpoint?"r98-shutdown-":
             disableLab?"r96-opt-out-":
@@ -2213,7 +2289,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             ProcessBuilder holder=new ProcessBuilder(
                 javaExe(),"-cp",System.getProperty("java.class.path"),
                 G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
-                closeAfterReadback
+                closeAfterFinalRead
+                    ?"--settlement-production-close-post-final-read"
+                    :closeAfterReadback
                     ?"--settlement-production-close-post-readback"
                     :shutdownAtCutpoint
                     ?fullCloseAtCutpoint
@@ -2239,7 +2317,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             String trace=new String(Files.readAllBytes(holderLog),
                 StandardCharsets.UTF_8);
             check(p.exitValue()==0&&trace.contains(
-                closeAfterReadback
+                closeAfterFinalRead
+                    ?"R103_WORLD_POST_FINAL_READ_CLOSE_PASS stage="+stage
+                    :closeAfterReadback
                     ?"R102_WORLD_POSTREADBACK_PRODUCTION_CLOSE_PASS stage="+stage
                     :shutdownAtCutpoint
                     ?"R98_WORLD_PERSISTENCE_SHUTDOWN_PASS stage="+stage+
@@ -2341,7 +2421,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
                 "R92 fresh JVM did not refuse partial settlement: "+result);
             System.out.println(
-                (closeAfterReadback
+                (closeAfterFinalRead
+                    ?"R103_POST_FINAL_READ_CLOSE_FRESH_JVM_PASS"
+                    :closeAfterReadback
                     ?"R102_POSTREADBACK_CLOSE_FRESH_JVM_PASS"
                     :fullCloseAtCutpoint
                     ?"R99_PRODUCTION_CLOSE_FRESH_JVM_PASS"
@@ -2360,13 +2442,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " persistenceExecutorShutdown="+shutdownAtCutpoint+
                 " productionClose="+fullCloseAtCutpoint+
                 " postReadbackProductionClose="+closeAfterReadback+
+                " closeAfterFinalRead="+closeAfterFinalRead+
                 " disabledFlag="+(disableLab?disabledFlag:"none")+
                 " exactSevenStageInventory=true"+
                 " headMoved="+headMoved+
                 " receiptForced="+receiptForced+
                 " oldAccountBytesUnchanged=true"+
                 " freshJvmTcpAndLegacyDenied=true"+
-                " noSettlementResultOrRealFinalACK=true");
+                (closeAfterFinalRead
+                    ?" labOnlyObservationNotAnACK=true"
+                    :" noSettlementResultOrRealFinalACK=true"));
         }finally{
             for(int i=0;i<flags.length;i++){
                 if(previous[i]==null)System.clearProperty(flags[i]);
@@ -2399,6 +2484,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         if(args.length==4&&"--prepare-holder".equals(args[0])){
             prepareKillHolder(Paths.get(args[1]),Paths.get(args[2]),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==3&&
+                "--settlement-production-close-post-final-read".equals(args[0])){
+            settleKillHolder(Paths.get(args[1]),
+                Paths.get(args[1]).resolve("unused-ready"),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[2]),
+                false,false,false,false,
+                LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,
+                false,false,false,true);
             return;
         }
         if(args.length==3&&
@@ -2522,6 +2617,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         runRevokedSettlement(
             LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
             false,null,true);
+        // R103: closing AFTER the last volatile original-reservation
+        // read may still return a LAB-only observation. It must
+        // authorize neither final ACK nor release/admission.
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
+            true,null,false,false,false,true);
         // R102: after complete receipt journal inspection but before
         // even a non-admitting LAB settlement result, invoke the
         // production persistence close. Original FIFO revocation

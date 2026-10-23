@@ -1872,6 +1872,26 @@ final class LocalJvmAccountSessionLease {
         LocalReusableAccountEpochLab.Cutpoint cutpoint,
         AfterLabInspectionForTest afterInspection
     )throws java.io.IOException{
+        return settleCapturedEpochUnderOriginalLockForLab(
+            accountFile,owner,generation,finalCapture,finalWitness,
+            cutpoint,afterInspection,()->{});
+    }
+
+    /**
+     * R103 TEST-only seam after the last FIFO witness read. If the
+     * reservation is revoked here, a returned LAB Observation is
+     * still negative evidence, never a final ACK or lease grant.
+     */
+    static LocalReusableAccountEpochLab.Observation
+    settleCapturedEpochUnderOriginalLockForLab(
+        Path accountFile,WorldPlayer owner,long generation,
+        PlayerSnapshot finalCapture,SaveCaptureWitness finalWitness,
+        LocalReusableAccountEpochLab.Cutpoint cutpoint,
+        AfterLabInspectionForTest afterInspection,
+        AfterLabInspectionForTest afterFinalReservationRead
+    )throws java.io.IOException{
+        if(afterFinalReservationRead==null)
+            throw new java.io.IOException("R103_NULL_AFTER_FINAL_RESERVATION_READ");
         if(cutpoint==null)
             throw new java.io.IOException("R83_NULL_SETTLEMENT_CUTPOINT");
         if(afterInspection==null)
@@ -2033,6 +2053,10 @@ final class LocalJvmAccountSessionLease {
                         .isOriginalReservationStillPresentForLab())
                     throw new java.io.IOException(
                         "R94_FINAL_RESERVATION_REVOKED_BEFORE_LAB_RESULT");
+                // R103: the final volatile witness check does not
+                // atomically pin FIFO ownership through method return.
+                // A late close can occur here. No real authorization.
+                afterFinalReservationRead.reached();
                 // Keep the JVM token and original OS lock held.
                 // This is LAB history, NEVER real final-save ACK.
                 return closed;
