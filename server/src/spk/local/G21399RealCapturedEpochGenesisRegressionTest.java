@@ -3940,7 +3940,194 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R120: both opt-in World locks MUST be account-local. Two
+     * independent authenticated World JVMs with DIFFERENT clean
+     * usernames should hold their respective OS locks simultaneously.
+     * This is not same-account owner handoff, crash recovery or an
+     * uncooperative-writer exclusion guarantee.
+     */
+    private static final String R120_OTHER_USER="r120-other-clean-world";
+
+    private static void r120OtherWorldHolder(Path root,Path ready)
+        throws Exception{
+        r119EnableCrossJvmSessionLock(root);
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        Path selected=LocalAccountProfiles.accountFile(R120_OTHER_USER);
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(selected);
+        World world=World.isolatedForTest(50L,repository);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(world);
+            Socket admitted=server.login(R120_OTHER_USER)){
+            await(()->world.players().byName(R120_OTHER_USER)!=null,
+                "R120 unrelated World genuine authenticated login");
+            check(world.players().size()==1,
+                "R120 different World failed to admit its own account");
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(selected);
+            System.out.println(
+                "R120_UNRELATED_ACCOUNT_WORLD_LOCK_HELD"+
+                " secondUsername="+R120_OTHER_USER+
+                " worldPlayerPresent=true"+
+                " noLabEvidence=true");
+            System.out.flush();
+            Files.write(ready,new byte[]{1},
+                StandardOpenOption.CREATE_NEW,
+                StandardOpenOption.WRITE);
+            for(;;)Thread.sleep(1000L);
+        }finally{
+            if(!world.closed())world.close();
+        }
+    }
+
+    private static void r120RequireDistinctLockBusy(
+        Path account
+    )throws Exception{
+        boolean busy=false;
+        try(LocalCrossJvmAccountSessionLock.Handle unexpected=
+                LocalCrossJvmAccountSessionLock.acquire(account)){
+            unexpected.requireOriginalLockNameStillPresent();
+        }catch(IOException occupied){
+            busy=contains(occupied,"G21.185 ACCOUNT_SESSION_LOCK_BUSY");
+        }
+        check(busy,
+            "R120 supposedly live World had no held OS lock "+
+            account.getFileName());
+    }
+
+    private static void runR120IndependentCleanWorlds()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] oldFlags=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            oldFlags[i]=System.getProperty(flags[i]);
+        Path root=Files.createTempDirectory("r120-independent-worlds-");
+        Process first=null,second=null;
+        try{
+            configure(root,false);
+            FilePlayerRepository original=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            original.save(PlayerSnapshotCodec.capture(
+                USER,new WorldPlayer()));
+            original.save(PlayerSnapshotCodec.capture(
+                R120_OTHER_USER,new WorldPlayer()));
+            Path one=LocalAccountProfiles.accountFile(USER);
+            Path two=LocalAccountProfiles.accountFile(R120_OTHER_USER);
+            check(!one.equals(two),
+                "R120 unrelated account mapping collided");
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(one);
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(two);
+            Path ready1=root.resolve("r120-original-ready");
+            Path ready2=root.resolve("r120-unrelated-ready");
+            Path log1=root.resolve("r120-original.log");
+            Path log2=root.resolve("r120-unrelated.log");
+            ProcessBuilder firstBuilder=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+                "--r119-original-world-holder",
+                root.toString(),ready1.toString());
+            firstBuilder.redirectErrorStream(true);
+            firstBuilder.redirectOutput(log1.toFile());
+            first=firstBuilder.start();
+            final Process owner1=first;
+            await(()->!owner1.isAlive()||
+                (Files.exists(ready1,LinkOption.NOFOLLOW_LINKS)&&
+                 new String(Files.readAllBytes(log1),
+                     StandardCharsets.UTF_8).contains(
+                     "R119_ORIGINAL_AUTHENTICATED_WORLD_LOCK_HELD")),
+                "R120 first account World held");
+            check(owner1.isAlive()&&
+                Files.exists(ready1,LinkOption.NOFOLLOW_LINKS),
+                "R120 first World never held its original lock "+
+                new String(Files.readAllBytes(log1),
+                    StandardCharsets.UTF_8));
+            // Parent holds neither lock, so both FileChannel.tryLock
+            // probes must be refused only by the separate child JVMs.
+            r119EnableCrossJvmSessionLock(root);
+            r120RequireDistinctLockBusy(one);
+            ProcessBuilder secondBuilder=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
+                "--r120-other-world-holder",
+                root.toString(),ready2.toString());
+            secondBuilder.redirectErrorStream(true);
+            secondBuilder.redirectOutput(log2.toFile());
+            second=secondBuilder.start();
+            final Process owner2=second;
+            await(()->!owner2.isAlive()||
+                (Files.exists(ready2,LinkOption.NOFOLLOW_LINKS)&&
+                 new String(Files.readAllBytes(log2),
+                     StandardCharsets.UTF_8).contains(
+                     "R120_UNRELATED_ACCOUNT_WORLD_LOCK_HELD")),
+                "R120 unrelated account World held");
+            String secondTrace=new String(Files.readAllBytes(log2),
+                StandardCharsets.UTF_8);
+            check(owner2.isAlive()&&owner1.isAlive()&&
+                Files.exists(ready2,LinkOption.NOFOLLOW_LINKS)&&
+                secondTrace.contains(
+                    "R120_UNRELATED_ACCOUNT_WORLD_LOCK_HELD"),
+                "R120 different-account World incorrectly denied "+
+                secondTrace);
+            r120RequireDistinctLockBusy(one);
+            r120RequireDistinctLockBusy(two);
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(one);
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(two);
+            check(original.loadForWorldSession(USER).isPresent()&&
+                original.loadForWorldSession(R120_OTHER_USER).isPresent(),
+                "R120 clean account repository read unexpectedly denied");
+            System.out.println(
+                "R120_DIFFERENT_ACCOUNT_TWO_WORLD_CONCURRENT_PASS"+
+                " twoIndependentAuthenticatedWorldJvms=true"+
+                " originalWorldStillAlive=true"+
+                " unrelatedWorldStillAlive=true"+
+                " bothDistinctOsLocksBusy=true"+
+                " neitherAccountHadLabEvidence=true"+
+                " cleanRepositoryReadsRemainPossible=true"+
+                " noSameAccountHandoffOrDurableRecoveryClaim=true");
+        }finally{
+            for(Process process:new Process[]{second,first}){
+                if(process!=null&&process.isAlive()){
+                    process.destroyForcibly();
+                    process.waitFor(10L,TimeUnit.SECONDS);
+                }
+            }
+            for(int i=0;i<flags.length;i++){
+                if(oldFlags[i]==null)System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],oldFlags[i]);
+            }
+            try(Stream<Path> leaves=Files.walk(root)){
+                for(Path leaf:leaves.sorted(
+                        Comparator.reverseOrder()).toArray(Path[]::new))
+                    Files.deleteIfExists(leaf);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==3&&
+                "--r120-other-world-holder".equals(args[0])){
+            r120OtherWorldHolder(
+                Paths.get(args[1]),Paths.get(args[2]));
+            return;
+        }
         if(args.length==3&&
                 "--r119-original-world-holder".equals(args[0])){
             r119OriginalWorldHolder(
@@ -4116,6 +4303,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // cooperating OS session lock denies a second real World
         // login while the original authenticated World is alive.
         runR119LiveCrossWorldOwnershipNegative();
+        // R120: the independent original-World OS session lock
+        // cannot act like a JVM-global or all-account lock.
+        runR120IndependentCleanWorlds();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
