@@ -4711,6 +4711,170 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R125: a nonparticipating process can replace the World account
+     * AFTER the ordinary World move. Optional byte readback observes
+     * the actual current postimage and refuses false success; unlike
+     * R124 this cannot preserve the World account preimage, since
+     * the World move has ALREADY happened. A clean baseline and the
+     * exact same race with the feature OFF provide controls.
+     */
+    private static void runR125OrdinaryWorldPostimageMatrix()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY,
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(boolean enabled:new boolean[]{false,true}){
+            for(boolean foreignRaw:new boolean[]{false,true}){
+                Path root=Files.createTempDirectory(
+                    "r125-world-postimage-");
+                try{
+                    configure(root,false);
+                    System.clearProperty(
+                        LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY);
+                    System.clearProperty(
+                        FilePlayerRepository
+                            .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+                    if(enabled)System.setProperty(
+                        FilePlayerRepository
+                            .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+                        "true");
+                    else System.clearProperty(
+                        FilePlayerRepository
+                            .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY);
+                    FilePlayerRepository initial=new FilePlayerRepository(
+                        LocalAccountProfiles::accountFile);
+                    initial.save(PlayerSnapshotCodec.capture(
+                        USER,new WorldPlayer()));
+                    Path account=LocalAccountProfiles.accountFile(USER);
+                    int oldWorldTemps=r109OwnedWorldTemps(account);
+                    java.util.concurrent.atomic.AtomicInteger hookCount=
+                        new java.util.concurrent.atomic.AtomicInteger();
+                    final byte[][] foreignBytes={null};
+                    FilePlayerRepository raced=new FilePlayerRepository(
+                        LocalAccountProfiles::accountFile,
+                        name->{},name->{},name->{},name->{},name->{},
+                        name->{},name->{},
+                        name->{
+                            check(USER.equals(name),
+                                "R125 postmove World identity drift");
+                            check(Files.isRegularFile(
+                                account,LinkOption.NOFOLLOW_LINKS),
+                                "R125 real World account not moved");
+                            hookCount.incrementAndGet();
+                            if(!foreignRaw)return;
+                            Path output=root.resolve(
+                                "r125-independent-raw.log");
+                            ProcessBuilder foreign=new ProcessBuilder(
+                                javaExe(),"-cp",
+                                System.getProperty("java.class.path"),
+                                G21399RealCapturedEpochGenesisRegressionTest
+                                    .class.getName(),
+                                "--r122-raw-probe",root.toString(),
+                                "default-off");
+                            foreign.redirectErrorStream(true);
+                            foreign.redirectOutput(output.toFile());
+                            try{
+                                Process child=foreign.start();
+                                if(!child.waitFor(30,TimeUnit.SECONDS)){
+                                    child.destroyForcibly();
+                                    child.waitFor(10,TimeUnit.SECONDS);
+                                    throw new IOException(
+                                        "R125_FOREIGN_RAW_TIMED_OUT");
+                                }
+                                String trace=new String(
+                                    Files.readAllBytes(output),
+                                    StandardCharsets.UTF_8);
+                                check(child.exitValue()==0&&trace.contains(
+                                    "R122_DEFAULT_OFF_RAW_WRITE_GAP_CONFIRMED"),
+                                    "R125 independent writer did not publish "+
+                                    trace);
+                                foreignBytes[0]=Files.readAllBytes(account);
+                                check(r123HasForeignRawMarker(account),
+                                    "R125 RAW marker absent after writer");
+                            }catch(Exception bad){
+                                throw new IOException(
+                                    "R125_FOREIGN_RAW_PROCESS_FAILED",bad);
+                            }
+                        });
+                    WorldPlayer changed=new WorldPlayer();
+                    changed.snapshotExtensions().replaceNamespace(
+                        "r125_world",
+                        Collections.singletonMap("phase",
+                            "OWN_WORLD_MOVE_FINISHED"));
+                    boolean uncertain=false;
+                    try{
+                        raced.saveForWorld(PlayerSnapshotCodec.capture(
+                            USER,changed));
+                    }catch(IOException failure){
+                        uncertain=contains(failure,
+                            "R125_WORLD_POSTIMAGE_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK");
+                        if(!enabled||!foreignRaw)throw failure;
+                    }
+                    check(hookCount.get()==1&&
+                        uncertain==(enabled&&foreignRaw),
+                        "R125 false ACK or unexpected postmove denial "+
+                        " optin="+enabled+" foreignRaw="+foreignRaw);
+                    check(r109OwnedWorldTemps(account)==oldWorldTemps,
+                        "R125 World-owned temp was left after move");
+                    if(foreignRaw){
+                        check(foreignBytes[0]!=null&&
+                            Arrays.equals(
+                                foreignBytes[0],Files.readAllBytes(account))&&
+                            r123HasForeignRawMarker(account),
+                            "R125 foreign RAW postimage was lost");
+                    }else{
+                        check(!r123HasForeignRawMarker(account),
+                            "R125 clean World postimage contained RAW marker");
+                        PlayerSnapshot savedWorld=
+                            initial.loadForWorldSession(USER).orElseThrow(
+                                ()->new AssertionError(
+                                    "R125 saved World postimage missing"));
+                        check(savedWorld.values().keySet().stream().anyMatch(
+                            key->key.contains("r125_world")),
+                            "R125 World-only postimage not published");
+                    }
+                    LocalReusableLabEvidenceNegativeGate
+                        .requireNoLegacyCollision(account);
+                    System.out.println(
+                        "R125_WORLD_POSTMOVE_POSTIMAGE_OBSERVATION_PASS"+
+                        " optIn="+enabled+" independentRaw="+foreignRaw+
+                        " ordinaryWorldMoveCompleted=true"+
+                        " foreignPostimagePreserved="+foreignRaw+
+                        " reportedUncertain="+uncertain+
+                        " noRollbackOrAccountHandoff=true");
+                }finally{
+                    for(int i=0;i<flags.length;i++){
+                        if(saved[i]==null)
+                            System.clearProperty(flags[i]);
+                        else System.setProperty(flags[i],saved[i]);
+                    }
+                    try(Stream<Path> leaves=Files.walk(root)){
+                        for(Path leaf:leaves.sorted(
+                                Comparator.reverseOrder()).toArray(Path[]::new))
+                            Files.deleteIfExists(leaf);
+                    }
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==4&&"--r123-world-final-holder".equals(args[0])){
             r123RealWorldLogoutAfterForeignRaw(
@@ -4921,6 +5085,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // against an independent nonparticipating RAW writer DURING
         // a World save. The older R123 session-lifetime loss remains.
         runR124ObservedWorldSavePreimageMatrix();
+        // R125: a later nonparticipating RAW replacement after
+        // the actual ordinary World move must be reported UNKNOWN
+        // when an explicit postimage observer is enabled.
+        runR125OrdinaryWorldPostimageMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);

@@ -33,6 +33,14 @@ final class FilePlayerRepository
     // the final check, and not a fix for R123's earlier-at-login RAW.
     static final String EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY=
         "spk.local.experimentalWorldSaveAccountPreimageObservation";
+    // R125: independent, default-OFF postmove observation for ordinary
+    // (non-forced) World saves. A late nonparticipating RAW writer may
+    // replace account bytes AFTER this World ATOMIC_MOVE and before
+    // ordinary save completion. Detect an observed byte mismatch and
+    // refuse a normal success result. The disk has ALREADY changed:
+    // this is UNKNOWN outcome, never rollback or positive settlement.
+    static final String EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY=
+        "spk.local.experimentalWorldSavePostimageObservation";
     private final java.util.concurrent.atomic.AtomicInteger
         forcedWorldPostimageCount=new java.util.concurrent.atomic.AtomicInteger();
 
@@ -1525,6 +1533,9 @@ final class FilePlayerRepository
         final boolean observeWorldAccountPreimage=enforceWorldAdmission&&
             Boolean.getBoolean(
                 EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+        final boolean observeWorldAccountPostimage=enforceWorldAdmission&&
+            Boolean.getBoolean(
+                EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY);
 
         // G21.57: the guarded World save uses ONE account-file
         // location for both the actual replacement and negative markers.
@@ -1874,6 +1885,30 @@ final class FilePlayerRepository
                             // uncertain. No successful save ACK.
                             LocalReusableLabEvidenceNegativeGate
                                 .requireNoLegacyCollision(file);
+                            // R125: the ordinary World move itself
+                            // succeeded, but the new disk postimage
+                            // may already belong to an independent
+                            // nonparticipating RAW process. The exact
+                            // sealed serialized World bytes must still
+                            // be present for an opt-in observer to
+                            // report normal completion. Not an atomic
+                            // fence, forced durable receipt, or owner
+                            // generation; any postmove error is
+                            // UNCERTAIN and must not auto-rollback.
+                            if(observeWorldAccountPostimage){
+                                final String current;
+                                try{
+                                    current=restartFingerprintPart(
+                                        file,RESTART_WITNESS_MAX_ACCOUNT_BYTES);
+                                }catch(IOException unreadable){
+                                    throw new IOException(
+                                        "R125_WORLD_POSTIMAGE_UNREADABLE_UNCERTAIN_NO_ACK",
+                                        unreadable);
+                                }
+                                if(!sealedWorldTemp.equals(current))
+                                    throw new IOException(
+                                        "R125_WORLD_POSTIMAGE_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK");
+                            }
                         }
                         return null;
                     });
