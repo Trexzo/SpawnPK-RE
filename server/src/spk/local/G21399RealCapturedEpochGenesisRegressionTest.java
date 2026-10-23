@@ -3592,6 +3592,117 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R118: the R117 repository-only observation is insufficient to
+     * prove the authenticated TCP admission path refuses late LAB
+     * evidence. Exercise actual OneSession/World login while another
+     * JVM publishes the sidecar between decoded account bytes and
+     * the session-return negative recheck.
+     */
+    private static void runCrossJvmDuringTcpAdmissionNegativeMatrix()
+        throws Exception{
+        String[] namespaces={
+            ".g21385-r118-tcp-read-window",
+            ".g21386-r118-tcp-read-window",
+            ".g21387-r118-tcp-read-window",
+            ".g21378-object-r118-tcp-read-window"
+        };
+        String[] flags={
+            "spk.local.accountFile",
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(String namespace:namespaces){
+            Path root=Files.createTempDirectory("r118-tcp-read-");
+            try{
+                configure(root,false);
+                FilePlayerRepository initial=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                initial.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                byte[] baseline=Files.readAllBytes(account);
+                Path sidecar=account.resolveSibling(
+                    account.getFileName().toString()+namespace);
+                java.util.concurrent.atomic.AtomicInteger observed=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                FilePlayerRepository reader=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile,
+                    name->{},name->{},
+                    name->{
+                        check(USER.equals(name),
+                            "R118 TCP reader switched account");
+                        check(Arrays.equals(baseline,
+                                Files.readAllBytes(account)),
+                            "R118 TCP callback mutated account bytes");
+                        try{
+                            publishR113NegativeFromOtherJvm(account,sidecar);
+                        }catch(Exception failure){
+                            throw new IOException(
+                                "R118_SECOND_JVM_TCP_EVIDENCE_FAILED",
+                                failure);
+                        }
+                        observed.incrementAndGet();
+                    });
+                World world=World.isolatedForTest(50L,reader);
+                try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                        .OneSession session=
+                        new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                            .OneSession(world)){
+                    int response=tcpResponse(
+                        session.listener.getLocalPort());
+                    check(response!=2&&world.players().size()==0,
+                        "R118 TCP admitted account with late LAB evidence");
+                    session.waitCompleted();
+                    check(world.players().size()==0,
+                        "R118 late TCP admission materialized a player");
+                }finally{
+                    if(!world.closed())world.close();
+                }
+                check(observed.get()==1,
+                    "R118 authenticated TCP never reached read window");
+                check(Files.exists(sidecar,LinkOption.NOFOLLOW_LINKS)&&
+                    Arrays.equals(baseline,Files.readAllBytes(account)),
+                    "R118 evidence or original account disappeared");
+                boolean subsequentDenied=false;
+                try{initial.loadForWorldSession(USER);}
+                catch(IOException negative){
+                    subsequentDenied=contains(negative,NEGATIVE);
+                }
+                check(subsequentDenied,
+                    "R118 subsequent World admission ignored evidence");
+                System.out.println(
+                    "R118_CROSS_JVM_TCP_READ_WINDOW_DENIAL_PASS"+
+                    " namespace="+namespace+
+                    " realAuthenticatedTcp=true"+
+                    " secondJvmPublishedLateEvidence=true"+
+                    " rejectedBeforeWorldPlayerAttach=true"+
+                    " oldAccountBytesUnchanged=true"+
+                    " subsequentWorldLoadDenied=true"+
+                    " noSaveACKOrRecovery=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(saved[i]==null)System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],saved[i]);
+                }
+                try(Stream<Path> files=Files.walk(root)){
+                    for(Path file:files.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(file);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==2&&"--r113-create-negative".equals(args[0])){
             Path sidecar=Paths.get(args[1]);
@@ -3751,6 +3862,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R117: a distinct JVM creates LAB evidence after actual
         // World session bytes were decoded but before admission.
         runCrossJvmDuringSessionReadNegativeMatrix();
+        // R118: validate the same foreign-JVM read-window race
+        // through the real authenticated World TCP admission path.
+        runCrossJvmDuringTcpAdmissionNegativeMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
