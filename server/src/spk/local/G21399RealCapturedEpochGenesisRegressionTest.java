@@ -1572,20 +1572,52 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             closeAfterReadback,closeAfterFinalRead,false);
     }
 
+    /**
+     * R104/R105: production persistence closes from another thread
+     * while experimental settlement holds the original account Token.
+     * Neither this helper nor its caller publishes a final-save ACK.
+     */
+    private static void closePersistenceConcurrentlyForTest(
+        World world,String milestone
+    )throws IOException{
+        final java.util.concurrent.atomic.AtomicReference<Throwable>
+            failure=new java.util.concurrent.atomic.AtomicReference<>();
+        Thread closer=new Thread(()->{
+            try{world.persistence().close();}
+            catch(Throwable problem){failure.set(problem);}
+        },milestone+"-persistence-close");
+        closer.setDaemon(true);
+        closer.start();
+        try{closer.join(15000L);}
+        catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            throw new IOException(
+                milestone+"_CONCURRENT_CLOSE_INTERRUPTED",interrupted);
+        }
+        if(closer.isAlive())
+            throw new IOException(
+                milestone+"_CONCURRENT_CLOSE_DEADLOCK_OR_TIMEOUT");
+        if(failure.get()!=null)
+            throw new IOException(
+                milestone+"_CONCURRENT_CLOSE_FAILED",failure.get());
+    }
+
     private static void settleKillHolder(
         Path root,Path ready,LocalReusableAccountEpochLab.Stage target,
         boolean revokeAtCutpoint,boolean revokeAfterReadback,
         boolean disableAtCutpoint,boolean disableAfterReadback,
         String experimentalFlag,boolean shutdownAtCutpoint,
         boolean fullCloseAtCutpoint,boolean closeAfterReadback,
-        boolean closeAfterFinalRead,boolean concurrentCloseAfterReadback
+        boolean closeAfterFinalRead,boolean concurrentClose
     )throws Exception{
-        if(concurrentCloseAfterReadback&&
-           (!closeAfterReadback||closeAfterFinalRead||shutdownAtCutpoint||
-            fullCloseAtCutpoint||target!=
-                LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED))
+        if(concurrentClose&&
+           ((!closeAfterReadback&&!closeAfterFinalRead)||
+            shutdownAtCutpoint||fullCloseAtCutpoint||
+            revokeAtCutpoint||revokeAfterReadback||
+            disableAtCutpoint||disableAfterReadback||
+            target!=LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED))
             throw new IllegalArgumentException(
-                "R104_CONCURRENT_CLOSE_REQUIRES_POSTREADBACK_RECEIPT_MODE");
+                "R105_CONCURRENT_CLOSE_REQUIRES_LATE_RECEIPT_MODE");
         if(closeAfterFinalRead&&
            (closeAfterReadback||shutdownAtCutpoint||fullCloseAtCutpoint||
             revokeAtCutpoint||revokeAfterReadback||
@@ -1756,48 +1788,28 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                     // exercise monitor/visibility
                                     // boundaries while LAB retains
                                     // the original World account Token.
-                                    if(concurrentCloseAfterReadback){
-                                        final java.util.concurrent.atomic
-                                            .AtomicReference<Throwable> problem=
-                                                new java.util.concurrent.atomic
-                                                    .AtomicReference<>();
-                                        Thread worker=new Thread(()->{
-                                            try{
-                                                world.persistence().close();
-                                            }catch(Throwable failure){
-                                                problem.set(failure);
-                                            }
-                                        },"r104-persistence-close");
-                                        worker.setDaemon(true);
-                                        worker.start();
-                                        try{
-                                            worker.join(15000L);
-                                        }catch(InterruptedException interrupted){
-                                            Thread.currentThread().interrupt();
-                                            throw new IOException(
-                                                "R104_CONCURRENT_CLOSE_INTERRUPTED",
-                                                interrupted);
-                                        }
-                                        if(worker.isAlive())
-                                            throw new IOException(
-                                                "R104_CONCURRENT_CLOSE_DEADLOCK_OR_TIMEOUT");
-                                        if(problem.get()!=null)
-                                            throw new IOException(
-                                                "R104_CONCURRENT_CLOSE_FAILED",
-                                                problem.get());
-                                    }else{
+                                    if(concurrentClose)
+                                        closePersistenceConcurrentlyForTest(
+                                            world,"R104");
+                                    else
                                         world.persistence().close();
-                                    }
                                     check(!last.ownerWitness
                                             .originalFinalReservationStillPresentForLabTest(),
                                         "R104 postreadback close left FIFO witness active");
                                 }
                             },()->{
                                 if(closeAfterFinalRead){
-                                    world.persistence().close();
+                                    // R105 closes on an independent
+                                    // thread AFTER the final volatile
+                                    // FIFO witness read, before return.
+                                    if(concurrentClose)
+                                        closePersistenceConcurrentlyForTest(
+                                            world,"R105");
+                                    else
+                                        world.persistence().close();
                                     check(!last.ownerWitness
                                             .originalFinalReservationStillPresentForLabTest(),
-                                        "R103 late close left FIFO witness active");
+                                        "R105 late close left FIFO witness active");
                                 }
                             });
                     if(closeAfterFinalRead)
@@ -1830,10 +1842,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     check(!last.ticket.completion.isDone(),
                         "R103 unpublished final save completed unexpectedly");
                     System.out.println(
-                        "R103_WORLD_POST_FINAL_READ_CLOSE_PASS"+
+                        (concurrentClose
+                            ?"R105_WORLD_CONCURRENT_POST_FINAL_READ_CLOSE_PASS"
+                            :"R103_WORLD_POST_FINAL_READ_CLOSE_PASS")+
                         " stage="+target+
                         " labOnlyObservationNonAuthorizing=true"+
                         " actualProductionClose=true"+
+                        " closeThreadIndependent="+concurrentClose+
                         " originalFifoRevoked=true"+
                         " originalWorldLeaseHeld=true"+
                         " noPublishedFinalAck=true");
@@ -1843,7 +1858,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 if(closeAfterReadback){
                     check(revocationDenied,
                         "R102/R104 production close returned LAB result");
-                    if(concurrentCloseAfterReadback)
+                    if(concurrentClose)
                         check(!last.ticket.completion.isDone(),
                             "R104 unpublished final save completed during concurrent close");
                     check(!last.ownerWitness
@@ -1856,13 +1871,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         check(Boolean.getBoolean(flag),
                             "R102 close unexpectedly disabled LAB flag "+flag);
                     System.out.println(
-                        (concurrentCloseAfterReadback
+                        (concurrentClose
                             ?"R104_WORLD_CONCURRENT_PRODUCTION_CLOSE_PASS"
                             :"R102_WORLD_POSTREADBACK_PRODUCTION_CLOSE_PASS")+
                         " stage="+target+
                         " fullyInspectedReceipt=true"+
                         " actualProductionClose=true"+
-                        " closeThreadIndependent="+concurrentCloseAfterReadback+
+                        " closeThreadIndependent="+concurrentClose+
                         " originalFifoRevoked=true"+
                         " originalWorldLeaseHeld=true"+
                         " noLabResultOrRealFinalAck=true");
@@ -2300,14 +2315,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         LocalReusableAccountEpochLab.Stage stage,boolean afterReadback,
         String disabledFlag,boolean shutdownAtCutpoint,
         boolean fullCloseAtCutpoint,boolean closeAfterReadback,
-        boolean closeAfterFinalRead,boolean concurrentCloseAfterReadback
+        boolean closeAfterFinalRead,boolean concurrentClose
     )throws Exception{
-        if(concurrentCloseAfterReadback&&
-           (!closeAfterReadback||closeAfterFinalRead||!afterReadback||
+        if(concurrentClose&&
+           ((!closeAfterReadback&&!closeAfterFinalRead)||!afterReadback||
             disabledFlag!=null||shutdownAtCutpoint||fullCloseAtCutpoint||
             stage!=LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED))
             throw new IllegalArgumentException(
-                "R104_CONCURRENT_CLOSE_REQUIRES_EXCLUSIVE_POSTREADBACK_MODE");
+                "R105_CONCURRENT_CLOSE_REQUIRES_EXCLUSIVE_LATE_MODE");
         if(closeAfterFinalRead&&
             (!afterReadback||disabledFlag!=null||shutdownAtCutpoint||
              fullCloseAtCutpoint||closeAfterReadback||
@@ -2334,8 +2349,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             throw new IllegalArgumentException(
                 "R95_REQUIRES_RECEIPT_FORCED");
         Path root=Files.createTempDirectory(
-            (concurrentCloseAfterReadback?"r104-concurrent-close-":
-            closeAfterFinalRead?"r103-postfinal-close-":
+            (concurrentClose&&closeAfterFinalRead
+                ?"r105-concurrent-postfinal-":
+             concurrentClose?"r104-concurrent-close-":
+             closeAfterFinalRead?"r103-postfinal-close-":
             closeAfterReadback?"r102-postreadback-close-":
             fullCloseAtCutpoint?"r99-production-close-":
             shutdownAtCutpoint?"r98-shutdown-":
@@ -2366,7 +2383,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             ProcessBuilder holder=new ProcessBuilder(
                 javaExe(),"-cp",System.getProperty("java.class.path"),
                 G21399RealCapturedEpochGenesisRegressionTest.class.getName(),
-                concurrentCloseAfterReadback
+                concurrentClose&&closeAfterFinalRead
+                    ?"--settlement-concurrent-close-post-final-read"
+                    :concurrentClose
                     ?"--settlement-concurrent-close-post-readback"
                     :closeAfterFinalRead
                     ?"--settlement-production-close-post-final-read"
@@ -2396,7 +2415,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             String trace=new String(Files.readAllBytes(holderLog),
                 StandardCharsets.UTF_8);
             check(p.exitValue()==0&&trace.contains(
-                concurrentCloseAfterReadback
+                concurrentClose&&closeAfterFinalRead
+                    ?"R105_WORLD_CONCURRENT_POST_FINAL_READ_CLOSE_PASS stage="+stage
+                    :concurrentClose
                     ?"R104_WORLD_CONCURRENT_PRODUCTION_CLOSE_PASS stage="+stage
                     :closeAfterFinalRead
                     ?"R103_WORLD_POST_FINAL_READ_CLOSE_PASS stage="+stage
@@ -2502,7 +2523,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
                 "R92 fresh JVM did not refuse partial settlement: "+result);
             System.out.println(
-                (concurrentCloseAfterReadback
+                (concurrentClose&&closeAfterFinalRead
+                    ?"R105_CONCURRENT_POST_FINAL_READ_FRESH_JVM_PASS"
+                    :concurrentClose
                     ?"R104_CONCURRENT_CLOSE_FRESH_JVM_PASS"
                     :closeAfterFinalRead
                     ?"R103_POST_FINAL_READ_CLOSE_FRESH_JVM_PASS"
@@ -2526,7 +2549,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " productionClose="+fullCloseAtCutpoint+
                 " postReadbackProductionClose="+closeAfterReadback+
                 " closeAfterFinalRead="+closeAfterFinalRead+
-                " concurrentCloseAfterReadback="+concurrentCloseAfterReadback+
+                " concurrentClose="+concurrentClose+
                 " disabledFlag="+(disableLab?disabledFlag:"none")+
                 " exactSevenStageInventory=true"+
                 " headMoved="+headMoved+
@@ -2568,6 +2591,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         if(args.length==4&&"--prepare-holder".equals(args[0])){
             prepareKillHolder(Paths.get(args[1]),Paths.get(args[2]),
                 LocalReusableAccountEpochLab.Stage.valueOf(args[3]));
+            return;
+        }
+        if(args.length==3&&
+                "--settlement-concurrent-close-post-final-read".equals(args[0])){
+            settleKillHolder(Paths.get(args[1]),
+                Paths.get(args[1]).resolve("unused-ready"),
+                LocalReusableAccountEpochLab.Stage.valueOf(args[2]),
+                false,false,false,false,
+                LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY,
+                false,false,false,true,true);
             return;
         }
         if(args.length==3&&
@@ -2711,6 +2744,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         runRevokedSettlement(
             LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
             false,null,true);
+        // R105: independent-thread production close AFTER the
+        // final FIFO witness read. A completed LAB Observation may
+        // return, but never as an ACK or recovery grant; a fresh
+        // default-OFF JVM must still refuse old-account admission.
+        runRevokedSettlement(
+            LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED,
+            true,null,false,false,false,true,true);
         // R104: concurrently close the actual persistence executor
         // from a separate thread while original World settlement
         // holds the session token and complete receipt readback.
