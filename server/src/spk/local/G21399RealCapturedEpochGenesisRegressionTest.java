@@ -5511,6 +5511,191 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R129: assert the last postmove object and link-count
+     * observations do not trust an earlier SHA / fileKey / nlink.
+     * A dedicated test-only cutpoint creates a real foreign process
+     * AFTER R128's first link-count check. No production caller
+     * installs this cutpoint.
+     */
+    private static void runR129LateWorldPostimageMatrix()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY,
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] prior=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            prior[i]=System.getProperty(flags[i]);
+        for(String caseName:new String[]{
+                "clean","identical-new-inode","late-hardlink"}){
+            Path root=Files.createTempDirectory(
+                "r129-postlink-bookend-");
+            try{
+                configure(root,false);
+                System.clearProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+                System.setProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+                    "true");
+                FilePlayerRepository repository=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                repository.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                Path alias=account.resolveSibling(
+                    account.getFileName().toString()+".r129-alias");
+                int oldWorldTemps=r109OwnedWorldTemps(account);
+                java.util.concurrent.atomic.AtomicInteger cuts=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                final byte[][] originalWorldBytes={null};
+                final Object[] worldIdentity={null};
+                FilePlayerRepository.setAfterObservedWorldLinkCountForTest(
+                    name->{
+                        check(USER.equals(name),
+                            "R129 wrong World account in cutpoint");
+                        java.nio.file.attribute.BasicFileAttributes old=
+                            Files.readAttributes(account,
+                                java.nio.file.attribute
+                                    .BasicFileAttributes.class,
+                                LinkOption.NOFOLLOW_LINKS);
+                        check(old.isRegularFile()&&old.fileKey()!=null,
+                            "R129 original postmove account missing");
+                        originalWorldBytes[0]=Files.readAllBytes(account);
+                        worldIdentity[0]=old.fileKey();
+                        cuts.incrementAndGet();
+                        if("clean".equals(caseName))return;
+                        Path output=root.resolve("r129-foreign.log");
+                        ProcessBuilder builder="identical-new-inode"
+                            .equals(caseName)
+                            ?new ProcessBuilder(
+                                javaExe(),"-cp",
+                                System.getProperty("java.class.path"),
+                                G21399RealCapturedEpochGenesisRegressionTest
+                                    .class.getName(),
+                                "--r126-identical-foreign-replace",
+                                account.toString())
+                            :new ProcessBuilder(
+                                javaExe(),"-cp",
+                                System.getProperty("java.class.path"),
+                                G21399RealCapturedEpochGenesisRegressionTest
+                                    .class.getName(),
+                                "--r128-foreign-hardlink",
+                                account.toString(),alias.toString());
+                        builder.redirectErrorStream(true);
+                        builder.redirectOutput(output.toFile());
+                        try{
+                            Process foreign=builder.start();
+                            if(!foreign.waitFor(30L,TimeUnit.SECONDS)){
+                                foreign.destroyForcibly();
+                                foreign.waitFor(10L,TimeUnit.SECONDS);
+                                throw new IOException(
+                                    "R129_FOREIGN_JVM_TIMED_OUT");
+                            }
+                            String trace=new String(
+                                Files.readAllBytes(output),
+                                StandardCharsets.UTF_8);
+                            check(foreign.exitValue()==0&&trace.contains(
+                                "identical-new-inode".equals(caseName)
+                                    ?"R126_FOREIGN_JVM_SAME_BYTES_DIFFERENT_FILE_OBJECT_PASS"
+                                    :"R128_INDEPENDENT_JVM_FOREIGN_HARDLINK_CREATED"),
+                                "R129 foreign process failed "+trace);
+                        }catch(Exception failure){
+                            throw new IOException(
+                                "R129_INDEPENDENT_FOREIGN_PROCESS_FAILED",
+                                failure);
+                        }
+                    });
+                boolean veto=false;
+                try{
+                    repository.saveForWorld(
+                        PlayerSnapshotCodec.capture(
+                            USER,new WorldPlayer()));
+                }catch(IOException negative){
+                    if("identical-new-inode".equals(caseName))
+                        veto=contains(negative,
+                            "R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK");
+                    else if("late-hardlink".equals(caseName))
+                        veto=contains(negative,
+                            "R129_WORLD_POSTIMAGE_LATE_HARDLINK_UNCERTAIN_NO_ACK")&&
+                            contains(negative,
+                            "R129_WORLD_POSTIMAGE_LATE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK");
+                    if(!veto)throw negative;
+                }
+                check(cuts.get()==1&&
+                    veto==!"clean".equals(caseName),
+                    "R129 missed late postmove negative case="+caseName);
+                java.nio.file.attribute.BasicFileAttributes after=
+                    Files.readAttributes(account,
+                        java.nio.file.attribute.BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS);
+                check(after.isRegularFile()&&
+                    after.fileKey()!=null&&
+                    originalWorldBytes[0]!=null&&
+                    Arrays.equals(originalWorldBytes[0],
+                        Files.readAllBytes(account))&&
+                    r109OwnedWorldTemps(account)==oldWorldTemps,
+                    "R129 postmove bytes changed or World temp leaked");
+                if("identical-new-inode".equals(caseName))
+                    check(!worldIdentity[0].equals(after.fileKey()),
+                        "R129 missing foreign inode replacement");
+                else check(worldIdentity[0].equals(after.fileKey()),
+                    "R129 original object changed unexpectedly");
+                if("late-hardlink".equals(caseName)){
+                    Number count=(Number)Files.getAttribute(
+                        account,"unix:nlink",LinkOption.NOFOLLOW_LINKS);
+                    check(count.longValue()==2L&&
+                        Files.isRegularFile(alias,LinkOption.NOFOLLOW_LINKS)&&
+                        Arrays.equals(originalWorldBytes[0],
+                            Files.readAllBytes(alias)),
+                        "R129 observing World modified new hardlink");
+                }else{
+                    Number count=(Number)Files.getAttribute(
+                        account,"unix:nlink",LinkOption.NOFOLLOW_LINKS);
+                    check(count.longValue()==1L,
+                        "R129 unexpected alias in clean/inode case");
+                }
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+                System.out.println(
+                    "R129_POSTLINK_WORLD_POSTIMAGE_BOOKEND_PASS"+
+                    " mode="+caseName+
+                    " firstLinkCountWasClean=true"+
+                    " cutpointReachedOnce=true"+
+                    " actualForeignJVM="+!"clean".equals(caseName)+
+                    " uncertain="+veto+
+                    " originalWorldTempNotLeaked=true"+
+                    " noRollbackNoRecoveryNoOwnerHandoff=true");
+            }finally{
+                FilePlayerRepository.setAfterObservedWorldLinkCountForTest(
+                    null);
+                for(int i=0;i<flags.length;i++){
+                    if(prior[i]==null)System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],prior[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path entry:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(entry);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
         if(args.length==3&&
                 "--r128-foreign-hardlink".equals(args[0])){
@@ -5750,6 +5935,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R128: same inode and bytes are not exclusive ownership
         // when a second JVM has made a new hardlink after the move.
         runR128ForeignHardlinkPostmoveMatrix();
+        // R129: independent post-first-link-count races must not
+        // earn false World success; only observation, no recovery.
+        runR129LateWorldPostimageMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);

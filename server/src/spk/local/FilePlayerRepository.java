@@ -74,6 +74,18 @@ final class FilePlayerRepository
     private final BeforeWorldReplace afterRawMoveForTest;
     // R114: inert production default-OFF World post-rename test seam.
     private final BeforeWorldReplace afterOrdinaryWorldMoveForTest;
+    // R129 test-only cutpoint, inert in production. An independent
+    // JVM may modify the account AFTER the first postmove nlink
+    // observation and BEFORE the final bounded recheck. This never
+    // enables any LAB settlement, recovery, or positive owner grant.
+    private static volatile BeforeWorldReplace
+        afterObservedWorldLinkCountForTest=name->{};
+    static void setAfterObservedWorldLinkCountForTest(
+        BeforeWorldReplace hook
+    ){
+        afterObservedWorldLinkCountForTest=
+            hook==null?name->{}:hook;
+    }
 
     FilePlayerRepository(){
         this(
@@ -1949,6 +1961,45 @@ final class FilePlayerRepository
                                     throw new IOException(
                                         "R128_WORLD_POSTIMAGE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK",
                                         unresolved);
+                                }
+                                // R129: an outsider can change the
+                                // selected name immediately after the
+                                // earlier fileKey/SHA/nlink checks.
+                                // Deterministic cutpoint is TEST ONLY;
+                                // default action is a no-op.
+                                afterObservedWorldLinkCountForTest.run(
+                                    worldAccount);
+                                // Bookend the observed object and
+                                // single-link condition. These checks
+                                // still cannot exclude a foreign write
+                                // immediately AFTER the final return.
+                                final String finalBytes;
+                                final BasicFileAttributes finalObject;
+                                try{
+                                    finalBytes=restartFingerprintPart(
+                                        file,RESTART_WITNESS_MAX_ACCOUNT_BYTES);
+                                    finalObject=worldTempEvidence(file);
+                                }catch(IOException unreadable){
+                                    throw new IOException(
+                                        "R129_WORLD_POSTIMAGE_LATE_UNREADABLE_UNCERTAIN_NO_ACK",
+                                        unreadable);
+                                }
+                                if(!sealedWorldTemp.equals(finalBytes))
+                                    throw new IOException(
+                                        "R129_WORLD_POSTIMAGE_LATE_BYTES_CHANGED_UNCERTAIN_NO_ACK");
+                                if(!sameWorldTempObject(
+                                        originalWorldTemp,finalObject))
+                                    throw new IOException(
+                                        "R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK");
+                                try{
+                                    LocalFinalSaveNegativeWitness
+                                        .requireSingleObservedLink(
+                                            file,
+                                            "R129_WORLD_POSTIMAGE_LATE_HARDLINK_UNCERTAIN_NO_ACK");
+                                }catch(IOException uncertain){
+                                    throw new IOException(
+                                        "R129_WORLD_POSTIMAGE_LATE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK",
+                                        uncertain);
                                 }
                             }
                         }
