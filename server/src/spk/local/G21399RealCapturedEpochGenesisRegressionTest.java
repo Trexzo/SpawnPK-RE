@@ -5080,7 +5080,217 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R127: the postmove observer is a negative-only, bounded
+     * NOFOLLOW observation. A separate JVM may erase the account,
+     * replace it with a symlink/directory, or write an oversized
+     * regular file after the actual ordinary World rename. All four
+     * outcomes MUST refuse normal save completion with opt-in on.
+     *
+     * No positive final-save ACK, rollback, repair or account
+     * deletion by the observing World is permitted.
+     */
+    private static void r127ForeignCorruptPostimage(
+        Path requested,String mode
+    )throws Exception{
+        Path account=requested.toAbsolutePath().normalize();
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(account);
+        check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS),
+            "R127 foreign JVM did not find completed World move");
+        switch(mode){
+        case "absent":
+            Files.delete(account);
+            check(!Files.exists(account,LinkOption.NOFOLLOW_LINKS),
+                "R127 foreign process did not remove account");
+            break;
+        case "symlink":{
+            Path target=Files.createTempFile(account.getParent(),
+                "r127-external-target-",".bin");
+            Files.write(target,new byte[]{55,66,77},
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE);
+            Files.delete(account);
+            Files.createSymbolicLink(account,target.getFileName());
+            check(Files.isSymbolicLink(account),
+                "R127 foreign symlink substitution missing");
+            break;
+        }
+        case "directory":
+            Files.delete(account);
+            Files.createDirectory(account);
+            check(Files.isDirectory(account,LinkOption.NOFOLLOW_LINKS),
+                "R127 foreign directory substitution missing");
+            break;
+        case "oversize":
+            try(java.io.RandomAccessFile output=
+                    new java.io.RandomAccessFile(
+                        account.toFile(),"rw")){
+                output.setLength(64L*1024L*1024L+1L);
+            }
+            check(Files.size(account)>64L*1024L*1024L,
+                "R127 foreign oversize file was not really enlarged");
+            break;
+        default:
+            throw new IllegalArgumentException(
+                "R127_UNREVIEWED_FOREIGN_POSTIMAGE_CASE");
+        }
+        System.out.println(
+            "R127_FOREIGN_JVM_POSTIMAGE_NEGATIVE_PUBLISHED"+
+            " mode="+mode+
+            " genuineWorldMoveAlreadyCompleted=true"+
+            " noRepairOrRecovery=true");
+    }
+
+    private static void runR127PostmoveUnsafeFileMatrix()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY,
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] saved=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            saved[i]=System.getProperty(flags[i]);
+        for(String mode:new String[]{
+                "absent","symlink","directory","oversize"}){
+            Path root=Files.createTempDirectory(
+                "r127-unsafe-postmove-");
+            try{
+                configure(root,false);
+                System.setProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+                    "true");
+                System.clearProperty(
+                    FilePlayerRepository
+                        .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+                FilePlayerRepository initial=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile);
+                initial.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
+                Path account=LocalAccountProfiles.accountFile(USER);
+                int originalTemps=r109OwnedWorldTemps(account);
+                java.util.concurrent.atomic.AtomicInteger reached=
+                    new java.util.concurrent.atomic.AtomicInteger();
+                FilePlayerRepository world=new FilePlayerRepository(
+                    LocalAccountProfiles::accountFile,
+                    name->{},name->{},name->{},name->{},name->{},
+                    name->{},name->{},
+                    name->{
+                        check(USER.equals(name),
+                            "R127 postmove callback account switched");
+                        check(Files.isRegularFile(
+                                account,LinkOption.NOFOLLOW_LINKS),
+                            "R127 World did not publish real account");
+                        Path output=root.resolve(
+                            "r127-independent-jvm-"+mode+".log");
+                        ProcessBuilder process=new ProcessBuilder(
+                            javaExe(),"-cp",
+                            System.getProperty("java.class.path"),
+                            G21399RealCapturedEpochGenesisRegressionTest
+                                .class.getName(),
+                            "--r127-foreign-postimage",account.toString(),
+                            mode);
+                        process.redirectErrorStream(true);
+                        process.redirectOutput(output.toFile());
+                        try{
+                            Process foreign=process.start();
+                            if(!foreign.waitFor(30L,TimeUnit.SECONDS)){
+                                foreign.destroyForcibly();
+                                foreign.waitFor(10L,TimeUnit.SECONDS);
+                                throw new IOException(
+                                    "R127_FOREIGN_JVM_TIMED_OUT");
+                            }
+                            String trace=new String(
+                                Files.readAllBytes(output),
+                                StandardCharsets.UTF_8);
+                            check(foreign.exitValue()==0&&trace.contains(
+                                "R127_FOREIGN_JVM_POSTIMAGE_NEGATIVE_PUBLISHED"),
+                                "R127 negative foreign JVM failed "+trace);
+                        }catch(Exception failure){
+                            throw new IOException(
+                                "R127_FOREIGN_POSTIMAGE_FAILED",failure);
+                        }
+                        reached.incrementAndGet();
+                    });
+                boolean uncertain=false;
+                try{
+                    world.saveForWorld(
+                        PlayerSnapshotCodec.capture(
+                            USER,new WorldPlayer()));
+                }catch(IOException negative){
+                    uncertain=contains(negative,
+                        "R125_WORLD_POSTIMAGE_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK")||
+                        contains(negative,
+                        "R125_WORLD_POSTIMAGE_UNREADABLE_UNCERTAIN_NO_ACK")||
+                        contains(negative,
+                        "R126_WORLD_POSTIMAGE_OBJECT_UNREADABLE_UNCERTAIN_NO_ACK");
+                    check(uncertain,
+                        "R127 wrong World outcome "+mode+" "+
+                        negative.getMessage());
+                }
+                check(uncertain&&reached.get()==1,
+                    "R127 unsafe postimage earned normal World success "+
+                    mode);
+                check(r109OwnedWorldTemps(account)==originalTemps,
+                    "R127 original World temp leaked "+mode);
+                if("absent".equals(mode)){
+                    check(!Files.exists(account,LinkOption.NOFOLLOW_LINKS),
+                        "R127 observing World recreated missing account");
+                }else if("symlink".equals(mode)){
+                    check(Files.isSymbolicLink(account),
+                        "R127 observing World replaced foreign symlink");
+                }else if("directory".equals(mode)){
+                    check(Files.isDirectory(account,LinkOption.NOFOLLOW_LINKS),
+                        "R127 observing World removed foreign directory");
+                }else{
+                    check(Files.isRegularFile(
+                            account,LinkOption.NOFOLLOW_LINKS)&&
+                        Files.size(account)>64L*1024L*1024L,
+                        "R127 observing World altered foreign oversize");
+                }
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+                System.out.println(
+                    "R127_FOREIGN_UNSAFE_POSTMOVE_DENIED_PASS"+
+                    " mode="+mode+
+                    " genuineWorldMoveOccurred=true"+
+                    " originalWorldTempNotLeaked=true"+
+                    " observedPostmoveUncertain=true"+
+                    " foreignDiskImageNotRolledBack=true"+
+                    " noDurableACKOrRecoveredOwner=true");
+            }finally{
+                for(int i=0;i<flags.length;i++){
+                    if(saved[i]==null)System.clearProperty(flags[i]);
+                    else System.setProperty(flags[i],saved[i]);
+                }
+                try(Stream<Path> entries=Files.walk(root)){
+                    for(Path file:entries.sorted(
+                            Comparator.reverseOrder()).toArray(Path[]::new))
+                        Files.deleteIfExists(file);
+                }
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==3&&
+                "--r127-foreign-postimage".equals(args[0])){
+            r127ForeignCorruptPostimage(Paths.get(args[1]),args[2]);
+            return;
+        }
         if(args.length==2&&
                 "--r126-identical-foreign-replace".equals(args[0])){
             r126ReplaceAccountWithIdenticalBytes(Paths.get(args[1]));
@@ -5302,6 +5512,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R126: identical postmove bytes on a different inode must
         // NOT earn a normal World save return when opt-in is enabled.
         runR126SameBytesPostmoveObjectMatrix();
+        // R127: missing, symlink, directory and oversized foreign
+        // postimages must never earn a normal World save result.
+        runR127PostmoveUnsafeFileMatrix();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
