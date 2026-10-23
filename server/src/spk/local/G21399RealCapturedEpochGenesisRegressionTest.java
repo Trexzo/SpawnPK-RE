@@ -2048,13 +2048,32 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }finally{
             if(!world.closed())world.close();
         }
-        // Never block on the still-live original World's OS lock.
-        // Its release/reclaim is checked only by the post-kill probe.
-        if(!originalWorldStillAlive){
-            System.setProperty(
-                LocalCrossJvmAccountSessionLock.PROPERTY,"true");
-            System.setProperty(
-                LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,"true");
+        // R107: test the actual cooperating OS session lock in
+        // this SECOND JVM, independent of LAB's negative evidence.
+        // tryLock is nonblocking; never wait for the original owner.
+        // A successful handle here while the original World is live
+        // is a test failure, not permission to admit/recover anyone.
+        System.setProperty(
+            LocalCrossJvmAccountSessionLock.PROPERTY,"true");
+        System.setProperty(
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,"true");
+        if(originalWorldStillAlive){
+            boolean heldByOriginal=false;
+            try(LocalCrossJvmAccountSessionLock.Handle unexpected=
+                    LocalCrossJvmAccountSessionLock.acquire(account)){
+                unexpected.requireOriginalLockNameStillPresent();
+            }catch(IOException busy){
+                heldByOriginal=contains(
+                    busy,"G21.185 ACCOUNT_SESSION_LOCK_BUSY");
+            }
+            check(heldByOriginal,
+                "R107 second JVM acquired original World OS lock "+
+                stage);
+        }else{
+            // R107: original JVM exited, so the kernel must permit
+            // the independent JVM to reacquire the stable lock file.
+            // This is NOT authorization to load the quarantined
+            // account or clear its negative sidecar evidence.
             try(LocalCrossJvmAccountSessionLock.Handle reclaimed=
                     LocalCrossJvmAccountSessionLock.acquire(account)){
                 reclaimed.requireOriginalLockNameStillPresent();
@@ -2100,6 +2119,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 (stage==LocalReusableAccountEpochLab.Stage.RECEIPT_FORCED)+
             " originalWorldStillAlive="+originalWorldStillAlive+
             " lockReleasedAfterKill="+(!originalWorldStillAlive)+
+            " r107SecondJvmOsLockBusyWhileOriginalAlive="+
+                originalWorldStillAlive+
+            " r107OsLockReacquiredAfterOriginalExit="+
+                (!originalWorldStillAlive)+
             " freshRepositoryDirectAndTcpDenied=true"+
             " noFinalAckOrRecovery=true");
     }
@@ -2191,6 +2214,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             .RECEIPT_FORCED))&&
                     overlapTrace.contains(" originalWorldStillAlive=true")&&
                     overlapTrace.contains(
+                        " r107SecondJvmOsLockBusyWhileOriginalAlive=true")&&
+                    overlapTrace.contains(
                         " freshRepositoryDirectAndTcpDenied=true")&&
                     overlapTrace.contains(" noFinalAckOrRecovery=true"),
                     "R106 live second-JVM admission or trace failed "+
@@ -2205,6 +2230,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     " stage="+stage+
                     " originalAuthenticatedWorldAlive=true"+
                     " originalOsLockStillHeldByWorld=true"+
+                    " independentJvmTryLockDenied=true"+
                     " secondJvmLegacyAndTcpDenied=true"+
                     " oldAccountBytesUnchanged=true"+
                     " noReplayOrGrant=true");
@@ -2288,8 +2314,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             String output=new String(Files.readAllBytes(fresh),
                 StandardCharsets.UTF_8);
             check(probe.exitValue()==0&&output.contains(
-                "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS"),
-                "R83 fresh JVM did not veto settlement: "+output);
+                "R83_FRESH_JVM_SETTLEMENT_NEGATIVE_PASS")&&
+                output.contains(
+                    " r107OsLockReacquiredAfterOriginalExit=true")&&
+                output.contains(
+                    " freshRepositoryDirectAndTcpDenied=true"),
+                "R107 fresh JVM did not reacquire OS lock and "+
+                "continue denying old account admission: "+output);
             check(Arrays.equals(baseline,Files.readAllBytes(account)),
                 "R83 fresh probe rewrote real legacy account bytes");
             System.out.println("R84_SEVEN_STAGE_SETTLEMENT_KILL_PASS"+
@@ -2797,6 +2828,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         for(LocalReusableAccountEpochLab.Stage stage:
                 LocalReusableAccountEpochLab.Stage.values())
             runKilledSettlement(stage);
+        // R107: selected R106 child-JVM overlap stages also verify
+        // the OS lock stays busy while the real authenticated owner
+        // lives, then can be reacquired only after its process dies.
+        // The existing full stage suite retains fresh default-OFF
+        // negative account admission regardless of OS lock release.
         // R94: exhaustive, exact enum inventory. Every forced
         // boundary gets its OWN original authenticated World holder,
         // revoked FIFO, and independent default-OFF JVM denial.
