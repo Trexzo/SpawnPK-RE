@@ -4102,6 +4102,56 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " neitherAccountHadLabEvidence=true"+
                 " cleanRepositoryReadsRemainPossible=true"+
                 " noSameAccountHandoffOrDurableRecoveryClaim=true");
+            // R121: terminate ONLY the second real World process.
+            // Its kernel account lock must become reacquirable, while
+            // the first authenticated World still owns its own lock.
+            // Reacquiring is a diagnostic, never authority to replay
+            // account bytes or admit a new World session.
+            second.destroyForcibly();
+            check(second.waitFor(10L,TimeUnit.SECONDS)&&
+                !second.isAlive()&&second.exitValue()!=0,
+                "R121 unrelated World did not terminate by hard kill");
+            check(first.isAlive(),
+                "R121 original World exited with unrelated process");
+            r120RequireDistinctLockBusy(one);
+            try(LocalCrossJvmAccountSessionLock.Handle reopened=
+                    LocalCrossJvmAccountSessionLock.acquire(two)){
+                reopened.requireOriginalLockNameStillPresent();
+                r120RequireDistinctLockBusy(one);
+                check(first.isAlive(),
+                    "R121 first World exited during other lock reclaim");
+            }
+            // The unchanged first owner now exits, too. Both
+            // persistent lock LEAVES must still exist and be
+            // independently reopenable. Their release is not a
+            // crash-durable failed-final-save or admission proof.
+            first.destroyForcibly();
+            check(first.waitFor(10L,TimeUnit.SECONDS)&&
+                !first.isAlive()&&first.exitValue()!=0,
+                "R121 original World did not terminate by hard kill");
+            try(LocalCrossJvmAccountSessionLock.Handle reopenedFirst=
+                    LocalCrossJvmAccountSessionLock.acquire(one);
+                LocalCrossJvmAccountSessionLock.Handle reopenedOther=
+                    LocalCrossJvmAccountSessionLock.acquire(two)){
+                reopenedFirst.requireOriginalLockNameStillPresent();
+                reopenedOther.requireOriginalLockNameStillPresent();
+                check(!one.equals(two),
+                    "R121 distinct owner paths unexpectedly collapsed");
+            }
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(one);
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(two);
+            System.out.println(
+                "R121_TWO_ACCOUNT_INDEPENDENT_KERNEL_LOCK_RELEASE_PASS"+
+                " bothOriginalWorldsPreviouslyAuthenticated=true"+
+                " unrelatedWorldHardKilledFirst=true"+
+                " unrelatedOsLockReacquiredWhileFirstStillBusy=true"+
+                " firstWorldStayedAliveThroughoutOtherLockReclaim=true"+
+                " firstWorldHardKilledSecond=true"+
+                " bothOriginalLockNamesRemainReusable=true"+
+                " bothCleanAccountsRemainWithoutLabEvidence=true"+
+                " noNewWorldAdmissionRecoveryOrACKClaim=true");
         }finally{
             for(Process process:new Process[]{second,first}){
                 if(process!=null&&process.isAlive()){
