@@ -6315,6 +6315,27 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             // owner handoff. The probe may perform its own ordinary
             // BOOTSTRAP/final writes, so it MUST remain the last test
             // against this disposable per-case account fixture.
+            // R148: pin the outsider-owned hardlink BEFORE a fresh
+            // authenticated World performs any ordinary account saves.
+            // The old aliased inode is a separate forensic object;
+            // it must not be silently relabelled as the new canonical
+            // World-published account or cleaned up by this test.
+            Path foreignAlias=account.resolveSibling(
+                account.getFileName().toString()+".r131-foreign-alias");
+            Object foreignAliasKey=null;
+            if("hardlink".equals(mode)){
+                check(Files.isRegularFile(foreignAlias,
+                        LinkOption.NOFOLLOW_LINKS),
+                    "R148 foreign hardlink missing before fresh World");
+                foreignAliasKey=Files.readAttributes(foreignAlias,
+                    java.nio.file.attribute.BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS).fileKey();
+                check(foreignAliasKey!=null&&
+                    java.util.Objects.equals(foreignAliasKey,uncertainKey)&&
+                    Arrays.equals(uncertainBeforeRead,
+                        Files.readAllBytes(foreignAlias)),
+                    "R148 prelogin foreign hardlink diverged from account");
+            }
             World fresh=World.isolatedForTest(50L,repository);
             try{
                 try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
@@ -6331,6 +6352,35 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 }
                 check(fresh.players().size()==0,
                     "R147 fresh World failed to unregister after TCP logout");
+                // R148: the new World's ordinary successful save
+                // replaces the canonical account inode, while the
+                // outsider's old hardlink and exact old bytes remain.
+                // This does NOT authorize recovery/cleanup of either.
+                if("hardlink".equals(mode)){
+                    Object current=Files.readAttributes(account,
+                        java.nio.file.attribute.BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS).fileKey();
+                    Object aliasNow=Files.readAttributes(foreignAlias,
+                        java.nio.file.attribute.BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS).fileKey();
+                    Number links=(Number)Files.getAttribute(foreignAlias,
+                        "unix:nlink",LinkOption.NOFOLLOW_LINKS);
+                    check(fresh.persistence().failedCount()==0&&
+                        Files.isRegularFile(account,
+                            LinkOption.NOFOLLOW_LINKS)&&
+                        java.util.Objects.equals(aliasNow,foreignAliasKey)&&
+                        !java.util.Objects.equals(current,aliasNow)&&
+                        links.longValue()==1L&&
+                        Arrays.equals(uncertainBeforeRead,
+                            Files.readAllBytes(foreignAlias)),
+                        "R148 fresh World confused canonical account and foreign alias");
+                    System.out.println(
+                        "R148_FOREIGN_HARDLINK_NOT_RECOVERED_OR_CLEANED_PASS"+
+                        " initialAccountAbsent="+firstLoginWithoutDiskAccount+
+                        " newWorldSavedSeparateCanonicalObject=true"+
+                        " foreignAliasObjectAndBytesRetained=true"+
+                        " noOwnerHandoffOrRecoveryACK=true");
+                }
                 System.out.println(
                     "R147_FRESH_WORLD_UNCERTAIN_TCP_READMISSION_GAP_PASS"+
                     " mode="+mode+
