@@ -6091,15 +6091,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
 
     private static void runR130RealTcpFinalPostmoveNegative()
         throws Exception{
-        runR130RealTcpFinalPostmoveNegative("inode");
+        runR130RealTcpFinalPostmoveNegative("inode",false);
         // R131: reuse exactly the same genuine TCP FINAL FIFO route
         // with an outsider's same-file-object HARDLINK created at the
         // late postmove observation. No fresh or recovered owner.
-        runR130RealTcpFinalPostmoveNegative("hardlink");
+        runR130RealTcpFinalPostmoveNegative("hardlink",false);
+        // R142: also exercise a genuinely NEW account absent before
+        // its first authenticated login. Its BOOTSTRAP save creates
+        // the first preimage before the final-save fault is armed.
+        runR130RealTcpFinalPostmoveNegative("inode",true);
+        runR130RealTcpFinalPostmoveNegative("hardlink",true);
     }
 
     private static void runR130RealTcpFinalPostmoveNegative(
-        String mode
+        String mode,boolean firstLoginWithoutDiskAccount
     )throws Exception{
         check("inode".equals(mode)||"hardlink".equals(mode),
             "R131 unexpected final-save mode");
@@ -6122,16 +6127,22 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         for(int i=0;i<flags.length;i++)
             originalProps[i]=System.getProperty(flags[i]);
         Path root=Files.createTempDirectory(
-            "inode".equals(mode)?"r130-tcp-final-inode-":
-                                 "r131-tcp-final-hardlink-");
+            firstLoginWithoutDiskAccount
+                ?"r142-first-login-"+mode+"-"
+                :"inode".equals(mode)?"r130-tcp-final-inode-":
+                                       "r131-tcp-final-hardlink-");
         Process owner=null;
         try{
             configure(root,false);
             FilePlayerRepository repository=new FilePlayerRepository(
                 LocalAccountProfiles::accountFile);
-            repository.save(PlayerSnapshotCodec.capture(
-                USER,new WorldPlayer()));
             Path account=LocalAccountProfiles.accountFile(USER);
+            if(firstLoginWithoutDiskAccount){
+                check(!Files.exists(account,LinkOption.NOFOLLOW_LINKS),
+                    "R142 new account already existed before first login");
+            }else
+                repository.save(PlayerSnapshotCodec.capture(
+                    USER,new WorldPlayer()));
             Path ready=root.resolve("r130-world-ready");
             Path proceed=root.resolve("r130-close-real-tcp");
             Path log=root.resolve("r130-authenticated-world.log");
@@ -6157,6 +6168,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
                 trace.contains("R130_ORIGINAL_WORLD_AUTHENTICATED_READY"),
                 "R130 original World failed before TCP logout "+trace);
+            check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS),
+                "R142 first login BOOTSTRAP did not create disk account");
             r119EnableCrossJvmSessionLock(root);
             r120RequireDistinctLockBusy(account);
             Files.write(proceed,new byte[]{1},
@@ -6197,6 +6210,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             }
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
+            if(firstLoginWithoutDiskAccount)
+                System.out.println(
+                    "R142_NEW_ACCOUNT_REAL_TCP_FINAL_VETO_PASS"+
+                    " mode="+mode+
+                    " accountAbsentBeforeFirstLogin=true"+
+                    " genuineBootstrapCreatedAccount=true"+
+                    " finalFailureNoWorldReadmission=true"+
+                    " noDurableRecoveryOrOwnerHandoff=true");
             System.out.println(
                 "R131_TWO_JVM_AUTHENTIC_TCP_FINAL_SAVE_GAP_PASS"+
                 " mode="+mode+
