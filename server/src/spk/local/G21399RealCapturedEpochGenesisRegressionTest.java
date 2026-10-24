@@ -5709,8 +5709,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
      * final ACK is inferred.
      */
     private static void r130AuthenticatedWorldFinalVetoHolder(
-        Path root,Path ready,Path proceed
+        Path root,Path ready,Path proceed,String mode
     )throws Exception{
+        check("inode".equals(mode)||"hardlink".equals(mode),
+            "R131 unreviewed real World postmove case");
         r119EnableCrossJvmSessionLock(root);
         System.setProperty(
             FilePlayerRepository
@@ -5759,13 +5761,24 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             "R130 World did not publish original inode");
                         byte[] prior=Files.readAllBytes(account);
                         Path log=root.resolve("r130-foreign-object.log");
-                        ProcessBuilder foreign=new ProcessBuilder(
-                            javaExe(),"-cp",
-                            System.getProperty("java.class.path"),
-                            G21399RealCapturedEpochGenesisRegressionTest
-                                .class.getName(),
-                            "--r126-identical-foreign-replace",
-                            account.toString());
+                        Path alias=account.resolveSibling(
+                            account.getFileName().toString()+
+                                ".r131-foreign-alias");
+                        ProcessBuilder foreign="inode".equals(mode)
+                            ?new ProcessBuilder(
+                                javaExe(),"-cp",
+                                System.getProperty("java.class.path"),
+                                G21399RealCapturedEpochGenesisRegressionTest
+                                    .class.getName(),
+                                "--r126-identical-foreign-replace",
+                                account.toString())
+                            :new ProcessBuilder(
+                                javaExe(),"-cp",
+                                System.getProperty("java.class.path"),
+                                G21399RealCapturedEpochGenesisRegressionTest
+                                    .class.getName(),
+                                "--r128-foreign-hardlink",
+                                account.toString(),alias.toString());
                         foreign.redirectErrorStream(true);
                         foreign.redirectOutput(log.toFile());
                         try{
@@ -5780,8 +5793,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                 Files.readAllBytes(log),
                                 StandardCharsets.UTF_8);
                             check(child.exitValue()==0&&trace.contains(
-                                "R126_FOREIGN_JVM_SAME_BYTES_DIFFERENT_FILE_OBJECT_PASS"),
-                                "R130 foreign process failed "+trace);
+                                "inode".equals(mode)
+                                    ?"R126_FOREIGN_JVM_SAME_BYTES_DIFFERENT_FILE_OBJECT_PASS"
+                                    :"R128_INDEPENDENT_JVM_FOREIGN_HARDLINK_CREATED"),
+                                "R131 foreign process failed "+trace);
                         }catch(Exception failure){
                             throw new IOException(
                                 "R130_FOREIGN_PROCESS_FAILED",failure);
@@ -5792,10 +5807,22 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                     .BasicFileAttributes.class,
                                 LinkOption.NOFOLLOW_LINKS);
                         check(now.fileKey()!=null&&
-                            !old.fileKey().equals(now.fileKey())&&
                             Arrays.equals(prior,Files.readAllBytes(account)),
-                            "R130 foreign identical-byte account was "+
-                            "not independently substituted");
+                            "R131 foreign postmove bytes unexpectedly changed");
+                        if("inode".equals(mode)){
+                            check(!old.fileKey().equals(now.fileKey()),
+                                "R130 independent inode was not replaced");
+                        }else{
+                            Number links=(Number)Files.getAttribute(
+                                account,"unix:nlink",
+                                LinkOption.NOFOLLOW_LINKS);
+                            check(old.fileKey().equals(now.fileKey())&&
+                                links.longValue()==2L&&
+                                Files.isRegularFile(
+                                    alias,LinkOption.NOFOLLOW_LINKS)&&
+                                Arrays.equals(prior,Files.readAllBytes(alias)),
+                                "R131 foreign hardlink not preserved");
+                        }
                     });
                 // Close real authenticated socket; its LocalSession
                 // performs the original final World capture and
@@ -5816,9 +5843,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 .requireNoLegacyCollision(account);
             System.out.println(
                 "R130_AUTHENTIC_TCP_FINAL_SAVE_NEGATIVE_PASS"+
+                " mode="+mode+
                 " realWorldAuthenticated=true"+
                 " realTcpSessionClosed=true"+
-                " separateJvmSameBytesForeignInode=true"+
+                " separateJvmSameBytesForeignModification=true"+
                 " originalFinalSaveWorkerFailed=true"+
                 " worldLifetimeNegativeAdmissionRecorded=true"+
                 " noDurableRecoveryOrSuccessACK=true");
@@ -5832,6 +5860,18 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
 
     private static void runR130RealTcpFinalPostmoveNegative()
         throws Exception{
+        runR130RealTcpFinalPostmoveNegative("inode");
+        // R131: reuse exactly the same genuine TCP FINAL FIFO route
+        // with an outsider's same-file-object HARDLINK created at the
+        // late postmove observation. No fresh or recovered owner.
+        runR130RealTcpFinalPostmoveNegative("hardlink");
+    }
+
+    private static void runR130RealTcpFinalPostmoveNegative(
+        String mode
+    )throws Exception{
+        check("inode".equals(mode)||"hardlink".equals(mode),
+            "R131 unexpected final-save mode");
         String[] flags={
             "spk.local.accountFile",
             FilePlayerRepository
@@ -5850,7 +5890,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         String[] originalProps=new String[flags.length];
         for(int i=0;i<flags.length;i++)
             originalProps[i]=System.getProperty(flags[i]);
-        Path root=Files.createTempDirectory("r130-tcp-final-");
+        Path root=Files.createTempDirectory(
+            "inode".equals(mode)?"r130-tcp-final-inode-":
+                                 "r131-tcp-final-hardlink-");
         Process owner=null;
         try{
             configure(root,false);
@@ -5867,7 +5909,7 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 G21399RealCapturedEpochGenesisRegressionTest
                     .class.getName(),
                 "--r130-authenticated-world-final",
-                root.toString(),ready.toString(),proceed.toString());
+                root.toString(),ready.toString(),proceed.toString(),mode);
             child.redirectErrorStream(true);
             child.redirectOutput(log.toFile());
             owner=child.start();
@@ -5896,19 +5938,34 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             trace=new String(Files.readAllBytes(log),
                 StandardCharsets.UTF_8);
             check(original.exitValue()==0&&trace.contains(
-                    "R130_AUTHENTIC_TCP_FINAL_SAVE_NEGATIVE_PASS")&&
-                trace.contains(
-                    "R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK")&&
+                    "R130_AUTHENTIC_TCP_FINAL_SAVE_NEGATIVE_PASS"+
+                    " mode="+mode)&&
+                trace.contains("inode".equals(mode)
+                    ?"R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK"
+                    :"R129_WORLD_POSTIMAGE_LATE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK")&&
                 trace.contains("V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED"),
-                "R130 final World writer did not propagate observed "+
-                "uncertain postimage through TCP teardown "+trace);
+                "R131 real final World worker did not propagate "+
+                "observed uncertain postimage mode="+mode+" "+trace);
             check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS)&&
                 r109OwnedWorldTemps(account)==0,
-                "R130 postmove account missing or World temp leaked");
+                "R131 postmove account missing or World temp leaked");
+            if("hardlink".equals(mode)){
+                Path alias=account.resolveSibling(
+                    account.getFileName().toString()+
+                        ".r131-foreign-alias");
+                Number count=(Number)Files.getAttribute(
+                    account,"unix:nlink",LinkOption.NOFOLLOW_LINKS);
+                check(Files.isRegularFile(alias,LinkOption.NOFOLLOW_LINKS)&&
+                    count.longValue()==2L&&
+                    Arrays.equals(Files.readAllBytes(alias),
+                        Files.readAllBytes(account)),
+                    "R131 final World error path removed foreign alias");
+            }
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
             System.out.println(
-                "R130_TWO_JVM_AUTHENTIC_TCP_FINAL_SAVE_GAP_PASS"+
+                "R131_TWO_JVM_AUTHENTIC_TCP_FINAL_SAVE_GAP_PASS"+
+                " mode="+mode+
                 " firstWorldAuthenticated=true"+
                 " originalOsLockHeldDuringFinal=true"+
                 " independentForeignJvmIdenticalBytes=true"+
@@ -5935,11 +5992,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
     }
 
     public static void main(String[] args)throws Exception{
-        if(args.length==4&&
+        if(args.length==5&&
                 "--r130-authenticated-world-final".equals(args[0])){
             r130AuthenticatedWorldFinalVetoHolder(
                 Paths.get(args[1]),Paths.get(args[2]),
-                Paths.get(args[3]));
+                Paths.get(args[3]),args[4]);
             return;
         }
         if(args.length==3&&
@@ -6183,8 +6240,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R129: independent post-first-link-count races must not
         // earn false World success; only observation, no recovery.
         runR129LateWorldPostimageMatrix();
-        // R130: the same late object-identity veto must propagate
-        // through a genuine authenticated TCP final-save worker.
+        // R130/R131: same-byte new-inode and foreign-hardlink
+        // postmove negatives must both propagate through genuine
+        // authenticated TCP final-save FIFO, without recovery.
         runR130RealTcpFinalPostmoveNegative();
         runKilledGenesis();
         runKilledPrepare(
