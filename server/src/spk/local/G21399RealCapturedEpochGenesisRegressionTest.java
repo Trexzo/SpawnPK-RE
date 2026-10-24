@@ -5981,8 +5981,38 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             }
             check(poisonedStillDenied,
                 "R136 unrelated account success cleared poisoned veto");
+            // R139: the existing G21.26 read-only forensic path may
+            // inspect uncertain disk bytes, but MUST NOT hydrate or
+            // re-admit the original failed-final account. It is not
+            // a recovery decision, valid owner witness or write ACK.
+            java.util.Optional<PlayerSnapshot> forensic=
+                world.persistence().observeUntrustedMailboxAccount(USER);
+            check(forensic.isPresent()&&
+                USER.equals(forensic.get().username())&&
+                world.players().size()==0&&
+                world.persistence().failedFinalSaveAdmissionVetoCount()==1&&
+                Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
+                "R139 forensic read changed failed-final account authority");
+            boolean postForensicAdmissionDenied=false;
+            try{
+                world.persistence().load(USER);
+            }catch(IOException denied){
+                postForensicAdmissionDenied=contains(denied,
+                    "G21.178 FINAL_SAVE_WORLD_LIFETIME_VETO_NO_RECOVERY");
+            }
+            check(postForensicAdmissionDenied&&
+                world.persistence().failedFinalSaveAdmissionVetoCount()==1&&
+                world.persistence().failedCount()==failedBeforeRetry&&
+                Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
+                "R139 forensic read bypassed or cleared World final-save veto");
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
+            System.out.println(
+                "R139_FORENSIC_READ_NO_ADMISSION_PASS"+
+                " mode="+mode+
+                " readOnlyObservation=true"+
+                " finalSaveVetoRetained=true"+
+                " noWorldHydrationOrRecovery=true");
             System.out.println(
                 "R136_SAME_WORLD_UNRELATED_TCP_ACCOUNT_PASS"+
                 " mode="+mode+
