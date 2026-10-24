@@ -5857,6 +5857,19 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " failed="+world.persistence().failedCount()+
                 " sessionNegative="+
                     world.persistence().failedFinalSaveAdmissionVetoCount());
+            // R134: after the genuine final-save worker records its
+            // in-World negative, another session-admitting account load
+            // on that SAME World must fail in the original FIFO. This
+            // is deliberately not a new JVM/restart recovery guarantee.
+            boolean sameWorldReadmissionDenied=false;
+            try{
+                world.persistence().load(USER);
+            }catch(IOException denied){
+                sameWorldReadmissionDenied=contains(denied,
+                    "G21.178 FINAL_SAVE_WORLD_LIFETIME_VETO_NO_RECOVERY");
+            }
+            check(sameWorldReadmissionDenied,
+                "R134 failed final save permitted same-World reload");
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
             System.out.println(
