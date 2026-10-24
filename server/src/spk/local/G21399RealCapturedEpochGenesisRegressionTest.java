@@ -5696,7 +5696,252 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+
+    /**
+     * R130: the R129 late World postimage object veto is exercised
+     * through an ACTUAL authenticated TCP LocalSession final-save FIFO,
+     * not only a direct FilePlayerRepository.saveForWorld call. A
+     * separate uncooperative JVM replaces the account with SAME-BYTE
+     * different-inode evidence at the opt-in test cutpoint. The real
+     * persistence worker must count a failed final save, retain its
+     * World-lifetime admission veto, and log a final-save wait failure.
+     * No crash-durable recovery, permanent negative disk intent or
+     * final ACK is inferred.
+     */
+    private static void r130AuthenticatedWorldFinalVetoHolder(
+        Path root,Path ready,Path proceed
+    )throws Exception{
+        r119EnableCrossJvmSessionLock(root);
+        System.setProperty(
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,"true");
+        System.clearProperty(
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        World world=World.isolatedForTest(50L,repository);
+        java.util.concurrent.atomic.AtomicInteger injected=
+            new java.util.concurrent.atomic.AtomicInteger();
+        Path account=LocalAccountProfiles.accountFile(USER);
+        try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                .OneSession server=
+                new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession(world)){
+            try(Socket admitted=server.login(USER)){
+                await(()->world.players().byName(USER)!=null,
+                    "R130 authentic World login");
+                check(world.players().size()==1,
+                    "R130 original authenticated World missing player");
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(account);
+                System.out.println(
+                    "R130_ORIGINAL_WORLD_AUTHENTICATED_READY"+
+                    " osLockEnabled=true"+
+                    " worldPostimageObservationEnabled=true");
+                System.out.flush();
+                Files.write(ready,new byte[]{1},
+                    StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE);
+                await(()->Files.exists(proceed,LinkOption.NOFOLLOW_LINKS),
+                    "R130 parent signaled TCP logout");
+                FilePlayerRepository.setAfterObservedWorldLinkCountForTest(
+                    username->{
+                        check(USER.equals(username),
+                            "R130 cutpoint targeted a different account");
+                        check(injected.incrementAndGet()==1,
+                            "R130 unexpectedly injected multiple saves");
+                        java.nio.file.attribute.BasicFileAttributes old=
+                            Files.readAttributes(account,
+                                java.nio.file.attribute
+                                    .BasicFileAttributes.class,
+                                LinkOption.NOFOLLOW_LINKS);
+                        check(old.fileKey()!=null&&old.isRegularFile(),
+                            "R130 World did not publish original inode");
+                        byte[] prior=Files.readAllBytes(account);
+                        Path log=root.resolve("r130-foreign-object.log");
+                        ProcessBuilder foreign=new ProcessBuilder(
+                            javaExe(),"-cp",
+                            System.getProperty("java.class.path"),
+                            G21399RealCapturedEpochGenesisRegressionTest
+                                .class.getName(),
+                            "--r126-identical-foreign-replace",
+                            account.toString());
+                        foreign.redirectErrorStream(true);
+                        foreign.redirectOutput(log.toFile());
+                        try{
+                            Process child=foreign.start();
+                            if(!child.waitFor(30L,TimeUnit.SECONDS)){
+                                child.destroyForcibly();
+                                child.waitFor(10L,TimeUnit.SECONDS);
+                                throw new IOException(
+                                    "R130_FOREIGN_INODE_JVM_TIMED_OUT");
+                            }
+                            String trace=new String(
+                                Files.readAllBytes(log),
+                                StandardCharsets.UTF_8);
+                            check(child.exitValue()==0&&trace.contains(
+                                "R126_FOREIGN_JVM_SAME_BYTES_DIFFERENT_FILE_OBJECT_PASS"),
+                                "R130 foreign process failed "+trace);
+                        }catch(Exception failure){
+                            throw new IOException(
+                                "R130_FOREIGN_PROCESS_FAILED",failure);
+                        }
+                        java.nio.file.attribute.BasicFileAttributes now=
+                            Files.readAttributes(account,
+                                java.nio.file.attribute
+                                    .BasicFileAttributes.class,
+                                LinkOption.NOFOLLOW_LINKS);
+                        check(now.fileKey()!=null&&
+                            !old.fileKey().equals(now.fileKey())&&
+                            Arrays.equals(prior,Files.readAllBytes(account)),
+                            "R130 foreign identical-byte account was "+
+                            "not independently substituted");
+                    });
+                // Close real authenticated socket; its LocalSession
+                // performs the original final World capture and
+                // FIFO save. No direct repository shortcut here.
+            }
+            server.waitCompleted();
+            check(world.players().size()==0,
+                "R130 World retained player after TCP session close");
+            check(injected.get()==1&&
+                world.persistence().failedCount()>0&&
+                world.persistence().failedFinalSaveAdmissionVetoCount()>0,
+                "R130 real final worker did not record negative outcome"+
+                " injections="+injected.get()+
+                " failed="+world.persistence().failedCount()+
+                " sessionNegative="+
+                    world.persistence().failedFinalSaveAdmissionVetoCount());
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+            System.out.println(
+                "R130_AUTHENTIC_TCP_FINAL_SAVE_NEGATIVE_PASS"+
+                " realWorldAuthenticated=true"+
+                " realTcpSessionClosed=true"+
+                " separateJvmSameBytesForeignInode=true"+
+                " originalFinalSaveWorkerFailed=true"+
+                " worldLifetimeNegativeAdmissionRecorded=true"+
+                " noDurableRecoveryOrSuccessACK=true");
+            System.out.flush();
+        }finally{
+            FilePlayerRepository.setAfterObservedWorldLinkCountForTest(
+                null);
+            if(!world.closed())world.close();
+        }
+    }
+
+    private static void runR130RealTcpFinalPostmoveNegative()
+        throws Exception{
+        String[] flags={
+            "spk.local.accountFile",
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY,
+            FilePlayerRepository
+                .EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY,
+            LocalJvmAccountSessionLease.PROPERTY,
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY,
+            LocalCrossJvmAccountSessionLock.PROPERTY,
+            LocalCrossJvmAccountSessionLock.CONTINUITY_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_GENESIS_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_CLAIM_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_PREPARE_LAB_PROPERTY,
+            LocalJvmAccountSessionLease.CAPTURED_EPOCH_SETTLE_LAB_PROPERTY
+        };
+        String[] originalProps=new String[flags.length];
+        for(int i=0;i<flags.length;i++)
+            originalProps[i]=System.getProperty(flags[i]);
+        Path root=Files.createTempDirectory("r130-tcp-final-");
+        Process owner=null;
+        try{
+            configure(root,false);
+            FilePlayerRepository repository=new FilePlayerRepository(
+                LocalAccountProfiles::accountFile);
+            repository.save(PlayerSnapshotCodec.capture(
+                USER,new WorldPlayer()));
+            Path account=LocalAccountProfiles.accountFile(USER);
+            Path ready=root.resolve("r130-world-ready");
+            Path proceed=root.resolve("r130-close-real-tcp");
+            Path log=root.resolve("r130-authenticated-world.log");
+            ProcessBuilder child=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest
+                    .class.getName(),
+                "--r130-authenticated-world-final",
+                root.toString(),ready.toString(),proceed.toString());
+            child.redirectErrorStream(true);
+            child.redirectOutput(log.toFile());
+            owner=child.start();
+            final Process original=owner;
+            await(()->!original.isAlive()||
+                (Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                 new String(Files.readAllBytes(log),
+                     StandardCharsets.UTF_8).contains(
+                     "R130_ORIGINAL_WORLD_AUTHENTICATED_READY")),
+                "R130 original authenticated TCP session");
+            String trace=new String(Files.readAllBytes(log),
+                StandardCharsets.UTF_8);
+            check(original.isAlive()&&
+                Files.exists(ready,LinkOption.NOFOLLOW_LINKS)&&
+                trace.contains("R130_ORIGINAL_WORLD_AUTHENTICATED_READY"),
+                "R130 original World failed before TCP logout "+trace);
+            r119EnableCrossJvmSessionLock(root);
+            r120RequireDistinctLockBusy(account);
+            Files.write(proceed,new byte[]{1},
+                StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE);
+            if(!original.waitFor(45L,TimeUnit.SECONDS)){
+                original.destroyForcibly();
+                original.waitFor(10L,TimeUnit.SECONDS);
+                throw new IOException("R130_TCP_FINAL_OUTCOME_TIMED_OUT");
+            }
+            trace=new String(Files.readAllBytes(log),
+                StandardCharsets.UTF_8);
+            check(original.exitValue()==0&&trace.contains(
+                    "R130_AUTHENTIC_TCP_FINAL_SAVE_NEGATIVE_PASS")&&
+                trace.contains(
+                    "R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK")&&
+                trace.contains("V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED"),
+                "R130 final World writer did not propagate observed "+
+                "uncertain postimage through TCP teardown "+trace);
+            check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS)&&
+                r109OwnedWorldTemps(account)==0,
+                "R130 postmove account missing or World temp leaked");
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(account);
+            System.out.println(
+                "R130_TWO_JVM_AUTHENTIC_TCP_FINAL_SAVE_GAP_PASS"+
+                " firstWorldAuthenticated=true"+
+                " originalOsLockHeldDuringFinal=true"+
+                " independentForeignJvmIdenticalBytes=true"+
+                " realFinalSaveNegativeLogged=true"+
+                " originalWorldExitedNormally=true"+
+                " diskAccountNotAutomaticallyRecovered=true"+
+                " noOwnerHandoffOrDurableFinalACK=true");
+        }finally{
+            if(owner!=null&&owner.isAlive()){
+                owner.destroyForcibly();
+                owner.waitFor(10L,TimeUnit.SECONDS);
+            }
+            for(int i=0;i<flags.length;i++){
+                if(originalProps[i]==null)
+                    System.clearProperty(flags[i]);
+                else System.setProperty(flags[i],originalProps[i]);
+            }
+            try(Stream<Path> entries=Files.walk(root)){
+                for(Path item:entries.sorted(
+                        Comparator.reverseOrder()).toArray(Path[]::new))
+                    Files.deleteIfExists(item);
+            }
+        }
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==4&&
+                "--r130-authenticated-world-final".equals(args[0])){
+            r130AuthenticatedWorldFinalVetoHolder(
+                Paths.get(args[1]),Paths.get(args[2]),
+                Paths.get(args[3]));
+            return;
+        }
         if(args.length==3&&
                 "--r128-foreign-hardlink".equals(args[0])){
             r128PublishForeignHardlink(
@@ -5938,6 +6183,9 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         // R129: independent post-first-link-count races must not
         // earn false World success; only observation, no recovery.
         runR129LateWorldPostimageMatrix();
+        // R130: the same late object-identity veto must propagate
+        // through a genuine authenticated TCP final-save worker.
+        runR130RealTcpFinalPostmoveNegative();
         runKilledGenesis();
         runKilledPrepare(
             LocalReusableAccountEpochLab.Stage.ARCHIVED_HEAD_FORCED);
