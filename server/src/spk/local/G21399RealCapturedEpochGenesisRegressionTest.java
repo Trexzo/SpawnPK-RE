@@ -6306,6 +6306,42 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " originalWorldExitedNormally=true"+
                 " diskAccountNotAutomaticallyRecovered=true"+
                 " noOwnerHandoffOrDurableFinalACK=true");
+            // R147: only AFTER preserving/checking the uncertain file,
+            // exercise a genuinely new World with real authenticated
+            // TCP LocalSession in this independent parent JVM.
+            // The previous World's memory-only failed-final marker has
+            // disappeared. A successful login is an UNSAFE ADMISSION
+            // GAP, never a recovered epoch, durable final receipt or
+            // owner handoff. The probe may perform its own ordinary
+            // BOOTSTRAP/final writes, so it MUST remain the last test
+            // against this disposable per-case account fixture.
+            World fresh=World.isolatedForTest(50L,repository);
+            try{
+                try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                        .OneSession nextServer=
+                        new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                            .OneSession(fresh)){
+                    try(Socket connected=nextServer.login(USER)){
+                        await(()->fresh.players().byName(USER)!=null,
+                            "R147 postfailure fresh World authenticated TCP login");
+                        check(fresh.players().size()==1,
+                            "R147 fresh World did not hydrate uncertain account");
+                    }
+                    nextServer.waitCompleted();
+                }
+                check(fresh.players().size()==0,
+                    "R147 fresh World failed to unregister after TCP logout");
+                System.out.println(
+                    "R147_FRESH_WORLD_UNCERTAIN_TCP_READMISSION_GAP_PASS"+
+                    " mode="+mode+
+                    " initialAccountAbsent="+firstLoginWithoutDiskAccount+
+                    " genuinePostfailureTcpLoginSucceeded=true"+
+                    " originalWorldVetoWasOnlyInMemory=true"+
+                    " probeLastAfterForeignPostimageAssertions=true"+
+                    " noCertifiedRecoveryOrOwnerHandoff=true");
+            }finally{
+                if(!fresh.closed())fresh.close();
+            }
         }finally{
             if(owner!=null&&owner.isAlive()){
                 owner.destroyForcibly();
