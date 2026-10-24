@@ -27,6 +27,20 @@ final class FilePlayerRepository
     // count. This is NOT a durable account epoch, receipt or grant.
     static final String EXPERIMENTAL_FORCE_WORLD_POSTIMAGE_PROPERTY=
         "spk.local.experimentalForceWorldAccountPostimage";
+    // R124 default-OFF negative-only observation: catch a RAW edit
+    // during THIS World save invocation before its account rename.
+    // Not a session-lifetime epoch, not a fence against writes after
+    // the final check, and not a fix for R123's earlier-at-login RAW.
+    static final String EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY=
+        "spk.local.experimentalWorldSaveAccountPreimageObservation";
+    // R125: independent, default-OFF postmove observation for ordinary
+    // (non-forced) World saves. A late nonparticipating RAW writer may
+    // replace account bytes AFTER this World ATOMIC_MOVE and before
+    // ordinary save completion. Detect an observed byte mismatch and
+    // refuse a normal success result. The disk has ALREADY changed:
+    // this is UNKNOWN outcome, never rollback or positive settlement.
+    static final String EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY=
+        "spk.local.experimentalWorldSavePostimageObservation";
     private final java.util.concurrent.atomic.AtomicInteger
         forcedWorldPostimageCount=new java.util.concurrent.atomic.AtomicInteger();
 
@@ -55,6 +69,23 @@ final class FilePlayerRepository
     // World account replacement, BEFORE final postimage and negative
     // sidecar observations. Never used for ordinary production saves.
     private final BeforeWorldReplace afterForcedWorldMoveForTest;
+    // R112 package-only: inject a retained negative sidecar after
+    // RAW account replacement but before returning save success.
+    private final BeforeWorldReplace afterRawMoveForTest;
+    // R114: inert production default-OFF World post-rename test seam.
+    private final BeforeWorldReplace afterOrdinaryWorldMoveForTest;
+    // R129 test-only cutpoint, inert in production. An independent
+    // JVM may modify the account AFTER the first postmove nlink
+    // observation and BEFORE the final bounded recheck. This never
+    // enables any LAB settlement, recovery, or positive owner grant.
+    private static volatile BeforeWorldReplace
+        afterObservedWorldLinkCountForTest=name->{};
+    static void setAfterObservedWorldLinkCountForTest(
+        BeforeWorldReplace hook
+    ){
+        afterObservedWorldLinkCountForTest=
+            hook==null?name->{}:hook;
+    }
 
     FilePlayerRepository(){
         this(
@@ -126,6 +157,38 @@ final class FilePlayerRepository
         BeforeWorldReplace beforeRawReplace,
         BeforeWorldReplace afterForcedWorldMoveForTest
     ){
+        this(paths,beforeWorldReplace,insideWorldPublication,
+            afterWorldSessionRead,betweenRestartWitnessPasses,
+            beforeRawReplace,afterForcedWorldMoveForTest,account->{});
+    }
+
+    /** R112: package-scoped, opt-in test seam, inert in production. */
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication,
+        BeforeWorldReplace afterWorldSessionRead,
+        BeforeWorldReplace betweenRestartWitnessPasses,
+        BeforeWorldReplace beforeRawReplace,
+        BeforeWorldReplace afterForcedWorldMoveForTest,
+        BeforeWorldReplace afterRawMoveForTest
+    ){
+        this(paths,beforeWorldReplace,insideWorldPublication,
+            afterWorldSessionRead,betweenRestartWitnessPasses,
+            beforeRawReplace,afterForcedWorldMoveForTest,
+            afterRawMoveForTest,account->{});
+    }
+
+    /** R114: package-only after non-forced World rename; no prod hook. */
+    FilePlayerRepository(
+        PathResolver paths,BeforeWorldReplace beforeWorldReplace,
+        BeforeWorldReplace insideWorldPublication,
+        BeforeWorldReplace afterWorldSessionRead,
+        BeforeWorldReplace betweenRestartWitnessPasses,
+        BeforeWorldReplace beforeRawReplace,
+        BeforeWorldReplace afterForcedWorldMoveForTest,
+        BeforeWorldReplace afterRawMoveForTest,
+        BeforeWorldReplace afterOrdinaryWorldMoveForTest
+    ){
         this.paths=Objects.requireNonNull(paths,"paths");
         this.beforeWorldReplace=Objects.requireNonNull(
             beforeWorldReplace,"beforeWorldReplace");
@@ -139,6 +202,10 @@ final class FilePlayerRepository
             beforeRawReplace,"beforeRawReplace");
         this.afterForcedWorldMoveForTest=Objects.requireNonNull(
             afterForcedWorldMoveForTest,"afterForcedWorldMoveForTest");
+        this.afterRawMoveForTest=Objects.requireNonNull(
+            afterRawMoveForTest,"afterRawMoveForTest");
+        this.afterOrdinaryWorldMoveForTest=Objects.requireNonNull(
+            afterOrdinaryWorldMoveForTest,"afterOrdinaryWorldMoveForTest");
     }
 
     @Override public Optional<PlayerSnapshot> load(
@@ -1366,6 +1433,39 @@ final class FilePlayerRepository
     }
 
     /**
+     * R37 strict forced-RAW prepublication identity only.
+     *
+     * A custom or redirected resolver may select an existing account
+     * file that belongs to someone else. The strict RAW publisher's
+     * physical preimage check alone would still overwrite its bytes
+     * successfully. Reuse the exact bounded NOFOLLOW account decoder
+     * and require its stored username to match the selected writer.
+     * Old schema-v1 files without a username retain the existing
+     * requested-account migration semantics; this is an observed
+     * mismatch veto, not a cryptographic account identity proof.
+     *
+     * Invoked inside the G21.39 account publication lock, after the
+     * preimage check and before ATOMIC_MOVE. Caller checks preimage
+     * again afterward to detect observed intervening changes.
+     */
+    static void requireForcedRawSelectedProfile(
+        Path exactAccount,String username
+    )throws IOException{
+        Objects.requireNonNull(exactAccount,"exactAccount");
+        Objects.requireNonNull(username,"username");
+        FilePlayerRepository pinned=new FilePlayerRepository(
+            ignored->exactAccount);
+        try{
+            pinned.loadExactFile(
+                username,exactAccount,true,null,64L*1024L*1024L);
+        }catch(IOException|RuntimeException mismatch){
+            throw new IOException(
+                "R37_FORCED_RAW_EXISTING_PROFILE_UNTRUSTED_NO_MOVE",
+                mismatch);
+        }
+    }
+
+    /**
      * G21.32 negative review-fence check for the actual file-backed
      * account source. Presence blocks login regardless of account bytes;
      * unreadable marker metadata fails closed through IOException.
@@ -1442,6 +1542,12 @@ final class FilePlayerRepository
         final boolean forceRealWorldPostimage=enforceWorldAdmission&&
             Boolean.getBoolean(
                 EXPERIMENTAL_FORCE_WORLD_POSTIMAGE_PROPERTY);
+        final boolean observeWorldAccountPreimage=enforceWorldAdmission&&
+            Boolean.getBoolean(
+                EXPERIMENTAL_WORLD_PREIMAGE_OBSERVATION_PROPERTY);
+        final boolean observeWorldAccountPostimage=enforceWorldAdmission&&
+            Boolean.getBoolean(
+                EXPERIMENTAL_WORLD_POSTIMAGE_OBSERVATION_PROPERTY);
 
         // G21.57: the guarded World save uses ONE account-file
         // location for both the actual replacement and negative markers.
@@ -1512,7 +1618,8 @@ final class FilePlayerRepository
         // silently overwritten as a successful forced final save.
         // Absent first-time accounts remain a distinct valid preimage.
         final LocalOptInRawTemp.AccountPreimage worldAccountPreimage=
-            forceRealWorldPostimage&&LocalFinalSaveNegativeWitness.enabled()
+            (forceRealWorldPostimage&&LocalFinalSaveNegativeWitness.enabled())||
+            observeWorldAccountPreimage
                 ?LocalOptInRawTemp.captureAccountPreimage(file):null;
 
         Path parent=file.getParent();
@@ -1696,7 +1803,9 @@ final class FilePlayerRepository
                                         file,worldAccountPreimage);
                             }catch(IOException drift){
                                 throw new IOException(
-                                    "G21.360 WORLD_ACCOUNT_PREIMAGE_CHANGED_BEFORE_MOVE",
+                                    observeWorldAccountPreimage
+                                        ?"R124_WORLD_ACCOUNT_PREIMAGE_DRIFT_NO_MOVE"
+                                        :"G21.360 WORLD_ACCOUNT_PREIMAGE_CHANGED_BEFORE_MOVE",
                                     drift);
                             }
                             // G21.365: identity, bytes and mtime
@@ -1718,6 +1827,15 @@ final class FilePlayerRepository
                             LocalFinalSaveNegativeWitness
                                 .requireSingleObservedLink(tmp,
                                     "G21.367 WORLD_TEMP_ALIAS_PREMOVE_NEGATIVE");
+                        // R110: a nonparticipating writer can create
+                        // detached LAB evidence INSIDE the guarded
+                        // publication callback, after R109's earlier
+                        // held-lock inspection. Recheck immediately
+                        // before replacing the old account. This is
+                        // fail-closed observation, NOT atomic exclusion
+                        // against a writer racing after this read.
+                        LocalReusableLabEvidenceNegativeGate
+                            .requireNoLegacyCollision(file);
                         replaceSnapshotTemp(tmp,file,
                             forceRealWorldPostimage);
                         if(forceRealWorldPostimage){
@@ -1764,11 +1882,126 @@ final class FilePlayerRepository
                             }
                             forcedWorldPostimageCount.incrementAndGet();
                         }else{
+                            // R114: emit a test-only post-rename
+                            // injection before the non-forced World's
+                            // existing negative postimage checks. A
+                            // veto here cannot roll back old bytes.
+                            afterOrdinaryWorldMoveForTest.run(worldAccount);
                             // A negative witness added after the
                             // non-forced move makes completion
                             // uncertain; never claim normal success.
                             LocalFinalSaveNegativeWitness
                                 .requireNoNegativeWitness(file);
+                            // R110: after a non-forced World move,
+                            // late LAB evidence makes completion
+                            // uncertain. No successful save ACK.
+                            LocalReusableLabEvidenceNegativeGate
+                                .requireNoLegacyCollision(file);
+                            // R125: the ordinary World move itself
+                            // succeeded, but the new disk postimage
+                            // may already belong to an independent
+                            // nonparticipating RAW process. The exact
+                            // sealed serialized World bytes must still
+                            // be present for an opt-in observer to
+                            // report normal completion. Not an atomic
+                            // fence, forced durable receipt, or owner
+                            // generation; any postmove error is
+                            // UNCERTAIN and must not auto-rollback.
+                            if(observeWorldAccountPostimage){
+                                final String current;
+                                try{
+                                    current=restartFingerprintPart(
+                                        file,RESTART_WITNESS_MAX_ACCOUNT_BYTES);
+                                }catch(IOException unreadable){
+                                    throw new IOException(
+                                        "R125_WORLD_POSTIMAGE_UNREADABLE_UNCERTAIN_NO_ACK",
+                                        unreadable);
+                                }
+                                if(!sealedWorldTemp.equals(current))
+                                    throw new IOException(
+                                        "R125_WORLD_POSTIMAGE_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK");
+                                // R126: a foreign account may carry
+                                // byte-for-byte IDENTICAL data while
+                                // being a different filesystem object.
+                                // G21.172 originally captured the temp
+                                // identity BEFORE the World atomic
+                                // rename. Re-read the final account
+                                // identity and compare it here, then
+                                // again after the digest above. This
+                                // is observational, not atomic fencing
+                                // or a session-lifetime owner epoch.
+                                final BasicFileAttributes afterMove;
+                                try{
+                                    afterMove=worldTempEvidence(file);
+                                }catch(IOException unknown){
+                                    throw new IOException(
+                                        "R126_WORLD_POSTIMAGE_OBJECT_UNREADABLE_UNCERTAIN_NO_ACK",
+                                        unknown);
+                                }
+                                if(!sameWorldTempObject(
+                                        originalWorldTemp,afterMove))
+                                    throw new IOException(
+                                        "R126_WORLD_POSTIMAGE_OBJECT_CHANGED_AFTER_MOVE_UNCERTAIN_NO_ACK");
+                                // R128: a foreign hardlink to the
+                                // already-published World account can
+                                // preserve SHA256 and fileKey while
+                                // making that inode externally mutable
+                                // through a second name. Observe the
+                                // selected account's single-link
+                                // invariant AFTER the World move.
+                                // Provider uncertainty is negative;
+                                // this cannot atomically fence a
+                                // nonparticipating external process.
+                                try{
+                                    LocalFinalSaveNegativeWitness
+                                        .requireSingleObservedLink(
+                                            file,
+                                            "R128_WORLD_POSTIMAGE_FOREIGN_HARDLINK_UNCERTAIN_NO_ACK");
+                                }catch(IOException unresolved){
+                                    throw new IOException(
+                                        "R128_WORLD_POSTIMAGE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK",
+                                        unresolved);
+                                }
+                                // R129: an outsider can change the
+                                // selected name immediately after the
+                                // earlier fileKey/SHA/nlink checks.
+                                // Deterministic cutpoint is TEST ONLY;
+                                // default action is a no-op.
+                                afterObservedWorldLinkCountForTest.run(
+                                    worldAccount);
+                                // Bookend the observed object and
+                                // single-link condition. These checks
+                                // still cannot exclude a foreign write
+                                // immediately AFTER the final return.
+                                final String finalBytes;
+                                final BasicFileAttributes finalObject;
+                                try{
+                                    finalBytes=restartFingerprintPart(
+                                        file,RESTART_WITNESS_MAX_ACCOUNT_BYTES);
+                                    finalObject=worldTempEvidence(file);
+                                }catch(IOException unreadable){
+                                    throw new IOException(
+                                        "R129_WORLD_POSTIMAGE_LATE_UNREADABLE_UNCERTAIN_NO_ACK",
+                                        unreadable);
+                                }
+                                if(!sealedWorldTemp.equals(finalBytes))
+                                    throw new IOException(
+                                        "R129_WORLD_POSTIMAGE_LATE_BYTES_CHANGED_UNCERTAIN_NO_ACK");
+                                if(!sameWorldTempObject(
+                                        originalWorldTemp,finalObject))
+                                    throw new IOException(
+                                        "R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK");
+                                try{
+                                    LocalFinalSaveNegativeWitness
+                                        .requireSingleObservedLink(
+                                            file,
+                                            "R129_WORLD_POSTIMAGE_LATE_HARDLINK_UNCERTAIN_NO_ACK");
+                                }catch(IOException uncertain){
+                                    throw new IOException(
+                                        "R129_WORLD_POSTIMAGE_LATE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK",
+                                        uncertain);
+                                }
+                            }
                         }
                         return null;
                     });
@@ -1787,6 +2020,31 @@ final class FilePlayerRepository
                 // hardlink operation after the last check.
                 LocalJvmAccountSessionLease
                     .requireNonHardlinkedAccount(file);
+                if(raw!=null){
+                    raw.requireOriginalAccountObjectBeforePublication();
+                    raw.requireNoFinalNegativeWitnessBeforePublication();
+                }
+                // R54: late negative HEAD during a default-off RAW
+                // serialization must block the account move.
+                LocalNegativeAccountHeadPrototype
+                    .requireNoHeadBeforeRawMove(file);
+                // R111: RAW pre-admission checked detached LAB
+                // sidecars before opening its fixed/temp file. A
+                // second process may publish an orphan LAB image,
+                // journal or archive during RAW serialization.
+                // Recheck all four R63 namespaces at the closest
+                // shared point BEFORE any account replacement,
+                // including the opt-in forced RAW publication branch.
+                // This observation is NOT an atomic cross-process
+                // transaction or a positive recovery authorization.
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(file);
+                // R47: bind the raw publication's staged file object
+                // before the move. The postmove test is deliberately
+                // after the existing R39 retained-witness probe.
+                final LocalJvmAccountSessionLease.RawWriteReservation
+                    .StagedRawAccountObject stagedRawObject=raw==null
+                        ?null:raw.captureStagedRawAccountObject(tmp);
                 if(LocalOptInRawTemp.forcePostimageEnabled()){
                     LocalOptInRawTemp.forcePublish(
                         tmp,file,originalRawTemp,sealedRawTemp,raw,
@@ -1794,6 +2052,27 @@ final class FilePlayerRepository
                 }else{
                     replaceSnapshotTemp(tmp,file,raw);
                 }
+                // R112: deterministic post-replacement test seam.
+                // The file may ALREADY contain new bytes; a late
+                // negative veto must NEVER imply successful rollback.
+                afterRawMoveForTest.run(snapshot.username());
+                if(raw!=null){
+                    raw.requireNoFinalNegativeWitnessAfterPublication();
+                    raw.requirePublishedRawAccountObjectStillCurrent(
+                        stagedRawObject);
+                    raw.requirePublishedRawAccountBytesStillCurrent(
+                        stagedRawObject);
+                }
+                // R54: a HEAD appearing after the actual account
+                // move is an UNKNOWN outcome, never a normal ACK.
+                LocalNegativeAccountHeadPrototype
+                    .requireNoHeadAfterRawMove(file);
+                // R111: detached sidecars created after the last
+                // pre-move read make a RAW completion uncertain.
+                // Refuse an apparent successful return; never
+                // rollback an account file based on negative evidence.
+                LocalReusableLabEvidenceNegativeGate
+                    .requireNoLegacyCollision(file);
             }
 
             completed=true;
@@ -2014,7 +2293,10 @@ final class FilePlayerRepository
         Path temp,Path file,boolean requireAtomic,
         LocalJvmAccountSessionLease.RawWriteReservation raw
     )throws IOException{
-        if(raw!=null)raw.requireLockObjectContinuity();
+        if(raw!=null){
+            raw.requireLockObjectContinuity();
+            raw.requireNoFinalNegativeWitnessBeforePublication();
+        }
         try{
             Files.move(
                 temp,file,
@@ -2029,7 +2311,10 @@ final class FilePlayerRepository
             // Preserve original default and raw writer compatibility;
             // no non-atomic fallback in G21.192 opt-in mode.
             // G21.245: recheck identity if atomic move was unsupported.
-            if(raw!=null)raw.requireLockObjectContinuity();
+            if(raw!=null){
+                raw.requireLockObjectContinuity();
+                raw.requireNoFinalNegativeWitnessBeforePublication();
+            }
             Files.move(
                 temp,file,StandardCopyOption.REPLACE_EXISTING
             );
@@ -2102,6 +2387,16 @@ final class FilePlayerRepository
         // pinned-account publication lock before atomic replacement.
         Path selected=markerPaths.resolve(account)
             .toAbsolutePath().normalize();
+        // R109: the detached reusable-epoch LAB evidence gate
+        // already fences RAW saves and session hydration, but the
+        // direct guarded World save previously skipped that gate.
+        // Run it both BEFORE allocating the World-owned temp and
+        // again under the exact-account publication lock, where
+        // this existing helper is invoked a second time.
+        // Sidecars remain strictly NEGATIVE evidence: never recover,
+        // replay, replace, release or acknowledge from their presence.
+        LocalReusableLabEvidenceNegativeGate
+            .requireNoLegacyCollision(selected);
         Path diskCommit=selected.resolveSibling(
             selected.getFileName().toString()+
             MailboxGuardedDiskCommitRecord.SUFFIX);

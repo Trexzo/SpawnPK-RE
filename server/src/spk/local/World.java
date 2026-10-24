@@ -556,6 +556,22 @@ final class World implements AutoCloseable {
         void run() throws Exception;
     }
 
+    /**
+     * Source-only current-thread proof for nested World-owned recipe
+     * callbacks. A manually acquired player monitor is insufficient:
+     * the caller must hold this World's lifecycle barrier, the exact
+     * player's mutation lock, and current registry membership/generation.
+     * Never treat this as a durable named-account or cross-JVM lease.
+     */
+    boolean currentThreadHoldsOpenPlayerMutationOwnership(
+        WorldPlayer player,long expectedGeneration
+    ){
+        return player!=null&&!closed.get()&&
+            Thread.holdsLock(lifecycleLock)&&
+            Thread.holdsLock(player.mutationLock())&&
+            players.owns(player,expectedGeneration);
+    }
+
     boolean withOpenPlayerMutationOwnershipIfCurrent(
         WorldPlayer player,
         long expectedGeneration,

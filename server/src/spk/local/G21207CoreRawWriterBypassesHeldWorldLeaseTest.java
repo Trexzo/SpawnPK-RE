@@ -11,12 +11,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * G21.207 TEST-ONLY characterisation: legacy raw repository.save() can
- * replace a newer guarded World postimage while its original opt-in JVM
- * account lease is STILL bound to the registered player/generation.
+ * G21.207 historical TEST-ONLY characterisation updated for R40.
  *
- * A PASS proves the intentionally uncoordinated RAW writer gap.
- * It does NOT authorize direct saves, grant recovery, or fix the gap.
+ * The original PASS demonstrated a RAW writer bypassing an already
+ * held opt-in World lease merely because RAW participation was OFF.
+ * R40 intentionally closes that SAME-JVM live-flag bypass. Preserve
+ * both sides of the evidence: deny the stale RAW overwrite while the
+ * original live World owner still holds its token, then demonstrate
+ * legacy unleased RAW behavior after explicit fixture-only release.
+ *
+ * This does NOT authorize release after an uncertain final save,
+ * authenticated cross-JVM ownership or durable account recovery.
  */
 public final class G21207CoreRawWriterBypassesHeldWorldLeaseTest {
     private static final String USER = "g21207-raw-writer-bypass";
@@ -43,6 +48,10 @@ public final class G21207CoreRawWriterBypassesHeldWorldLeaseTest {
         String oldAccount = System.getProperty(accountProperty);
         String oldLease = System.getProperty(jvmLeaseProperty);
         String oldCrossJvm = System.getProperty(crossJvmProperty);
+        String rawGateProperty=
+            LocalJvmAccountSessionLease.RAW_WRITE_GATE_PROPERTY;
+        String oldRawGate=System.getProperty(rawGateProperty);
+        System.setProperty(rawGateProperty,"false");
         System.setProperty(accountProperty,
             root.resolve("opensrc.properties").toString());
         System.setProperty(jvmLeaseProperty,"true");
@@ -110,27 +119,56 @@ public final class G21207CoreRawWriterBypassesHeldWorldLeaseTest {
             LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
                 account,owner,ownedGeneration);
 
-            // The raw/forensic API intentionally skips the guarded
-            // World admission and in-JVM captured-token check.
-            // Its stale snapshot can replace the current account file
-            // even while the legitimate World owner has a held lease.
-            repository.save(stale.get());
-            check("OLDER_CAPTURE".equals(onDisk(repository)),
-                "raw writer did not demonstrate stale postimage override");
+            // R40 changes this historical gap: toggling RAW writer
+            // participation OFF must not defeat an already-held World
+            // lease for this EXACT account. A failed RAW must preserve
+            // both the last good account bytes and the rightful owner.
+            byte[] guardedBytes=Files.readAllBytes(account);
+            boolean refused=false;
+            try{
+                repository.save(stale.get());
+            }catch(java.io.IOException expected){
+                refused=String.valueOf(expected.getMessage()).contains(
+                    "R40_RAW_OPT_OUT_DURING_ACCOUNT_OWNERSHIP_DENIED");
+            }
+            check(refused,
+                "R40 admitted historical stale RAW live-owner bypass");
+            check(java.util.Arrays.equals(
+                    guardedBytes,Files.readAllBytes(account)),
+                "denied RAW modified guarded account bytes");
+            check(!Files.exists(account.resolveSibling(
+                    account.getFileName().toString()+".tmp"),
+                    LinkOption.NOFOLLOW_LINKS),
+                "denied RAW allocated legacy fixed temp");
+            check("NEWER_WORLD_POSTIMAGE".equals(onDisk(repository)),
+                "failed RAW replaced newer World postimage");
             check(LocalJvmAccountSessionLease.activeCountForTest()==1,
-                "raw writer unexpectedly revoked live JVM lease");
+                "denied RAW revoked live World lease");
             LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
                 account,owner,ownedGeneration);
 
+            // Fixture-only lifecycle completion: this does NOT model
+            // recovery after an uncertain final logout or disk fault.
+            check(world.unregisterPlayer(player,generation),
+                "test World owner unregister failed");
+            held.releaseAfterInitializationFailure();
+            held=null;
+            repository.save(stale.get());
+            check("OLDER_CAPTURE".equals(onDisk(repository)),
+                "historical default-off RAW after explicit release changed");
+            check(LocalJvmAccountSessionLease.activeCountForTest()==0,
+                "test left an account owner after fixture release");
+
             System.out.println(
-                "G21207_RAW_WRITER_HELD_SESSION_LEASE_BYPASS_PASS"+
+                "G21207_HISTORIC_RAW_LIVE_BYPASS_NOW_DENIED_PASS"+
                 " realWorldOwnerRegistered=true"+
-                " originalJVMTokenHeldThroughout=true"+
+                " originalJVMTokenHeldForDeniedRaw=true"+
                 " guardedWorkerCaptureCheckObserved=true"+
                 " guardedNewerPostimageWrittenFirst=true"+
-                " rawWriterStalePostimageReplacedIt=true"+
-                " rawWriterCoordinatedWithJvmLease=false"+
-                " productionRawWriterFence=false"+
+                " staleRawWriterDeniedBeforeTemp=true"+
+                " latestWorldBytesPreservedWhileOwned=true"+
+                " rightfulOwnerRetainedUntilFixtureRelease=true"+
+                " legacyRawAfterManualFixtureReleaseStillUncoordinated=true"+
                 " crossProcessOwnerEpoch=false"+
                 " durableRecovery=false"+
                 " positiveAdmissionAuthority=false");
@@ -149,6 +187,8 @@ public final class G21207CoreRawWriterBypassesHeldWorldLeaseTest {
                 else System.setProperty(jvmLeaseProperty,oldLease);
                 if(oldCrossJvm==null)System.clearProperty(crossJvmProperty);
                 else System.setProperty(crossJvmProperty,oldCrossJvm);
+                if(oldRawGate==null)System.clearProperty(rawGateProperty);
+                else System.setProperty(rawGateProperty,oldRawGate);
                 try(Stream<Path> paths=Files.walk(root)){
                     for(Path path:paths.sorted(Comparator.reverseOrder())
                             .toArray(Path[]::new))

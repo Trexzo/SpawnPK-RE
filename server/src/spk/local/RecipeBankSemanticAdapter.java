@@ -1,0 +1,251 @@
+package spk.local;
+
+import java.util.*;
+
+/**
+ * Explicit source-only recipe adapter for BankState. No packets, XP or
+ * client action registration. Caller must supply verified stackability.
+ * Call only on the owning World thread; no concurrent inventory mutation.
+ */
+final class RecipeBankSemanticAdapter {
+    private RecipeBankSemanticAdapter(){}
+    static final class Prepared {
+        private final BankState owner;
+        private final int[] expectedIds,expectedQuantities;
+        private final boolean expectedBankOpen;
+        private final long expectedBankViewRevision;
+        private final long expectedInventoryMutationRevision;
+        // Tests may deliberately mutate this view; semantic/publication paths
+        // use only privately sealed arrays and reject any changed proposal.
+        final RecipeStackPostimagePlanner.Postimage proposed;
+        private final int[] sealedIds,sealedQuantities;
+        private boolean committed;
+        // Pin retries to the same outbound authority, including backpressure
+        // or publication failures. This is NOT a cross-World session lease.
+        private ServerPacketWriter publicationWriter;
+        private Prepared(BankState owner,int[] ids,int[] quantities,RecipeStackPostimagePlanner.Postimage image){
+            this.owner=Objects.requireNonNull(owner,"owner");
+            expectedIds=ids.clone();expectedQuantities=quantities.clone();
+            expectedBankOpen=owner.isOpen();
+            expectedBankViewRevision=owner.bankViewRevision();
+            expectedInventoryMutationRevision=owner.inventoryMutationRevision();
+            proposed=image;
+            sealedIds=image.ids.clone();sealedQuantities=image.quantities.clone();
+        }
+    }
+    static Prepared prepare(
+        BankState bank,Map<Integer,Integer> ingredients,
+        int product,int perBatch,int batches,Set<Integer> stackable
+    ){
+        return prepareWithTool(bank,ingredients,product,perBatch,batches,
+            stackable,null,false);
+    }
+
+    /** Pure recipe snapshot preparation. The World still owns real state;
+     * this monitor only serializes competing source-only recipe operations.
+     */
+    static Prepared prepareWithTool(
+        BankState bank,Map<Integer,Integer> ingredients,
+        int product,int perBatch,int batches,Set<Integer> stackable,
+        Integer toolId,boolean consumeTool
+    ){
+        Objects.requireNonNull(bank,"bank");
+        // Copy caller-supplied recipe definitions and item authority once.
+        // No external mutable Map/Set can change classification between
+        // validation and arithmetic inside this preparation.
+        Map<Integer,Integer> sealedIngredients=
+            new HashMap<>(Objects.requireNonNull(ingredients,"ingredients"));
+        Set<Integer> sealedStackable=
+            new HashSet<>(Objects.requireNonNull(stackable,"stackable"));
+        synchronized(bank){
+            int n=bank.inventoryCapacity();
+            int[] ids=new int[n],qty=new int[n];
+            for(int i=0;i<n;i++){
+                BankState.Stack stack=bank.inventoryAt(i);
+                ids[i]=stack==null?-1:stack.itemId;
+                qty[i]=stack==null?0:stack.qty;
+            }
+            return new Prepared(bank,ids,qty,
+                RecipeStackPostimagePlanner.prepareWithTool(
+                    ids,qty,sealedIngredients,product,perBatch,batches,
+                    sealedStackable,toolId,consumeTool));
+        }
+    }
+    /**
+     * Separate source-only path for verified mixed stackability. Nonstackable
+     * outputs require one inventory slot per unit; the returned postimage
+     * still uses the same sealed BankState publication boundary.
+     */
+    static Prepared prepareMixedWithTool(
+        BankState bank,Map<Integer,Integer> ingredients,
+        int product,int perBatch,int batches,
+        Set<Integer> stackable,Set<Integer> nonstackable,
+        Integer toolId,boolean consumeTool
+    ){
+        Objects.requireNonNull(bank,"bank");
+        Map<Integer,Integer> sealedIngredients=
+            new HashMap<>(Objects.requireNonNull(ingredients,"ingredients"));
+        Set<Integer> sealedStackable=
+            new HashSet<>(Objects.requireNonNull(stackable,"stackable"));
+        Set<Integer> sealedNonstackable=
+            new HashSet<>(Objects.requireNonNull(nonstackable,"nonstackable"));
+        synchronized(bank){
+            int n=bank.inventoryCapacity();
+            int[] ids=new int[n],qty=new int[n];
+            for(int slot=0;slot<n;slot++){
+                BankState.Stack stack=bank.inventoryAt(slot);
+                ids[slot]=stack==null?-1:stack.itemId;
+                qty[slot]=stack==null?0:stack.qty;
+            }
+            RecipeMixedPostimagePlanner.Postimage image=
+                RecipeMixedPostimagePlanner.prepare(
+                    ids,qty,sealedIngredients,product,perBatch,batches,
+                    sealedStackable,sealedNonstackable,toolId,consumeTool);
+            return new Prepared(bank,ids,qty,
+                new RecipeStackPostimagePlanner.Postimage(
+                    image.ids,image.quantities));
+        }
+    }
+
+    /** Encode the sealed prospective client inventory before semantic commit.
+     * The returned bytes are evidence, not a publication or ACK.
+     */
+    static byte[] encodePreparedInventory(BankState bank,Prepared prepared)
+        throws java.io.IOException{
+        // The primary view and the all-view mirror preflight must use
+        // identical sealed validation. Always validate the bank-open mirror
+        // before returning an apparently valid normal inventory preview.
+        return encodePreparedInventoryViews(bank,prepared)[0];
+    }
+    /**
+     * Read-only copy of ALL inventory views a future queued publication
+     * would need (normally widget 3214, plus widget 5064 when bank-open).
+     * Never enqueue; do not advance the writer's ISAAC or mutate inventory.
+     */
+    static byte[][] encodePreparedInventoryViews(
+        BankState bank,Prepared prepared
+    )throws java.io.IOException{
+        Objects.requireNonNull(bank,"bank");
+        Objects.requireNonNull(prepared,"prepared");
+        synchronized(bank){
+            if(bank!=prepared.owner)
+                throw new IllegalStateException(
+                    "RECIPE_DIFFERENT_INVENTORY_OWNER");
+            if(prepared.committed)
+                throw new IllegalStateException(
+                    "RECIPE_PREPARED_ALREADY_COMMITTED");
+            if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
+               !Arrays.equals(prepared.sealedQuantities,
+                   prepared.proposed.quantities))
+                throw new IllegalStateException(
+                    "RECIPE_PREPARED_POSTIMAGE_CHANGED");
+            requireCurrentPreimage(bank,prepared);
+            byte[][] raw=bank.previewRecipeInventoryViews(
+                prepared.sealedIds,prepared.sealedQuantities);
+            byte[][] detached=new byte[raw.length][];
+            for(int i=0;i<raw.length;i++)
+                detached[i]=raw[i].clone();
+            return detached;
+        }
+    }
+
+    /**
+     * Source-only queue-backed publication and semantic commit. Caller must
+     * hold owning World authority; do not cross-session share a BankState.
+     * A queue admission is NOT a remote client acknowledgement.
+     */
+    static ServerPacketWriter.RecoverablePacketResult
+        publishAndCommitIfIdle(BankState bank,Prepared prepared,
+                              ServerPacketWriter writer)
+        throws java.io.IOException{
+        Objects.requireNonNull(writer,"writer");
+        synchronized(bank){
+            // One sealed preflight supplies the same complete, detached
+            // inventory views used by read-only preview. Queue admission
+            // enqueues them together or retracts the entire batch.
+            byte[][] views=encodePreparedInventoryViews(bank,prepared);
+            if(prepared.publicationWriter!=null&&
+               prepared.publicationWriter!=writer)
+                throw new IllegalStateException(
+                    "RECIPE_PUBLICATION_WRITER_CHANGED");
+            // Bind only after the preimage and both client views validate.
+            // Even a queue-full or terminal attempt cannot move authority
+            // to an unrelated writer: reprepare for a new session.
+            if(prepared.publicationWriter==null)
+                prepared.publicationWriter=writer;
+            ServerPacketWriter.RecoverablePacketResult result=
+                writer.publishQueueOnlyRecoverablePacketIfIdle(
+                    ()->{for(byte[] view:views)writer.varShort(53,view);});
+            if(result==ServerPacketWriter.RecoverablePacketResult.COMMITTED)
+                commitAfterAdmittedPublication(bank,prepared);
+            return result;
+        }
+    }
+
+    private static void requireCurrentPreimage(BankState bank,Prepared prepared){
+        if(prepared.committed)
+            throw new IllegalStateException("RECIPE_PREPARED_ALREADY_COMMITTED");
+        if(bank!=prepared.owner)
+            throw new IllegalStateException("RECIPE_DIFFERENT_INVENTORY_OWNER");
+        if(bank.isOpen()!=prepared.expectedBankOpen||
+           bank.bankViewRevision()!=prepared.expectedBankViewRevision)
+            throw new IllegalStateException("RECIPE_STALE_BANK_VIEW");
+        if(bank.inventoryCapacity()!=prepared.expectedIds.length)
+            throw new IllegalStateException("RECIPE_INVENTORY_CAPACITY_CHANGED");
+        for(int i=0;i<prepared.expectedIds.length;i++){
+            BankState.Stack current=bank.inventoryAt(i);
+            int id=current==null?-1:current.itemId;
+            int qty=current==null?0:current.qty;
+            if(id!=prepared.expectedIds[i]||qty!=prepared.expectedQuantities[i])
+                throw new IllegalStateException("RECIPE_STALE_INVENTORY_POSTIMAGE");
+        }
+        // Distinguish ordinary stale slots above from the harder ABA case:
+        // a source-local mutation occurred but the slots were restored.
+        if(bank.inventoryMutationRevision()!=
+           prepared.expectedInventoryMutationRevision)
+            throw new IllegalStateException(
+                "RECIPE_STALE_INVENTORY_GENERATION");
+    }
+    static void commit(BankState bank,Prepared prepared){
+        Objects.requireNonNull(bank,"bank");
+        Objects.requireNonNull(prepared,"prepared");
+        synchronized(bank){
+            // Source-only direct semantic commit may never bypass a
+            // previously attempted queue publication. Once bound to a
+            // writer, publication/retry is the only valid commit channel.
+            if(prepared.publicationWriter!=null)
+                throw new IllegalStateException(
+                    "RECIPE_DIRECT_COMMIT_AFTER_PUBLICATION_ATTEMPT_DENIED");
+            applyPrepared(bank,prepared);
+        }
+    }
+
+    private static void commitAfterAdmittedPublication(
+        BankState bank,Prepared prepared
+    ){
+        // The caller holds the BankState monitor and reached this point
+        // ONLY after the complete sealed postimage was validated/encoded,
+        // followed by successful atomic queue admission. Do not read the
+        // intentionally mutable test-only proposed view again AFTER bytes
+        // have been admitted: a concurrent test-view edit at that moment
+        // must not turn one successfully queued client postimage into an
+        // uncommitted server inventory. The privately cloned arrays remain
+        // the sole post-admission semantic authority.
+        bank.replaceInventorySemantic(
+            prepared.sealedIds.clone(),
+            prepared.sealedQuantities.clone());
+        prepared.committed=true;
+    }
+
+    private static void applyPrepared(BankState bank,Prepared prepared){
+        requireCurrentPreimage(bank,prepared);
+        if(!Arrays.equals(prepared.sealedIds,prepared.proposed.ids)||
+           !Arrays.equals(prepared.sealedQuantities,
+               prepared.proposed.quantities))
+            throw new IllegalStateException(
+                "RECIPE_PREPARED_POSTIMAGE_CHANGED");
+        bank.replaceInventorySemantic(prepared.sealedIds.clone(),
+            prepared.sealedQuantities.clone());
+        prepared.committed=true;
+    }
+}

@@ -45,6 +45,10 @@ final class WorldPlayer {
     private String username;
     private long generation;
     private boolean registered;
+    // Source-only recipe writer binding: once a session generation has
+    // claimed its writer, a revoked witness cannot be recreated for the
+    // same WorldPlayer generation. Not a durable named-account epoch.
+    private long recipeWriterClaimedGeneration=-1L;
 
     EntityId id(){return entityId;}
     MovementState movement(){return movement;}
@@ -145,6 +149,29 @@ final class WorldPlayer {
 
     synchronized boolean accepts(long expectedGeneration){
         return registered && generation==expectedGeneration;
+    }
+
+    /**
+     * Source-only legacy recipe adapters may run only before a session has
+     * claimed the current player generation. Once a live session writer is
+     * installed, weaker World-only publication authority is permanently
+     * disabled for this generation, including after witness revocation.
+     */
+    synchronized void requireUnclaimedRecipeGeneration(long expectedGeneration){
+        if(recipeWriterClaimedGeneration==expectedGeneration)
+            throw new IllegalStateException(
+                "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+    }
+
+    /** One recipe writer witness per registered player generation, ever. */
+    synchronized void claimRecipeWriterGeneration(long expectedGeneration){
+        if(!accepts(expectedGeneration))
+            throw new IllegalStateException(
+                "RECIPE_SESSION_WRITER_OWNER_NOT_REGISTERED");
+        if(recipeWriterClaimedGeneration==expectedGeneration)
+            throw new IllegalStateException(
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+        recipeWriterClaimedGeneration=expectedGeneration;
     }
 
     @Override public synchronized String toString(){

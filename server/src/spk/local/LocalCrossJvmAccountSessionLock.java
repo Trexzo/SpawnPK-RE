@@ -30,6 +30,34 @@ final class LocalCrossJvmAccountSessionLock {
         "spk.local.experimentalSessionLockObjectContinuity";
 
 
+    /*
+     * R61.1: on POSIX fcntl locks, closing ANY descriptor to an inode
+     * in the same process can drop that process's OTHER record locks.
+     * A rejected same-JVM duplicate open+tryLock+close must therefore
+     * be stopped BEFORE opening a second channel to a held lock leaf.
+     *
+     * This is a cooperative, exact-name JVM reservation; hardlink
+     * aliases and hostile pathname replacement remain unsupported.
+     * Never perform filesystem I/O while holding this monitor.
+     */
+    private static final java.util.Set<Path> localLockReservations=
+        new java.util.HashSet<Path>();
+
+    private static void reserveLockName(Path lockPath)
+        throws IOException{
+        synchronized(localLockReservations){
+            if(!localLockReservations.add(lockPath))
+                throw new IOException(
+                    "G21.185 ACCOUNT_SESSION_LOCK_BUSY"+
+                    " sameJvmReservation=true");
+        }
+    }
+    private static void clearLockReservation(Path lockPath){
+        synchronized(localLockReservations){
+            localLockReservations.remove(lockPath);
+        }
+    }
+
     private LocalCrossJvmAccountSessionLock(){}
 
     static final class Handle implements AutoCloseable {
@@ -78,12 +106,59 @@ final class LocalCrossJvmAccountSessionLock {
             lock.release();
             channel.close();
             closed=true;
+            // Only the original holder's CONFIRMED close retires this
+            // process-local name reservation. Failed OS close keeps
+            // the reservation fail-closed.
+            clearLockReservation(file);
+        }
+
+        /**
+         * R61: operation-scoped borrowing of the ORIGINAL acquired OS
+         * lock. The owner keeps sole close authority; this never
+         * creates a second FileLock or releases the borrowed handle.
+         * Synchronize with close() so the OS lock cannot be closed
+         * by the cooperative owner during the protected operation.
+         *
+         * No account ownership is authenticated by this method.
+         */
+        @FunctionalInterface interface LockedOperation<T> {
+            T execute()throws IOException;
+        }
+        synchronized <T> T withHeldOriginalAccount(
+            Path exactAccount,LockedOperation<T> operation
+        )throws IOException{
+            if(exactAccount==null||operation==null)
+                throw new IOException("R61_BORROWED_LOCK_ARGUMENT_INVALID");
+            final Path canonical=exactAccount.toAbsolutePath().normalize();
+            if(canonical.getParent()==null||
+               canonical.getFileName()==null)
+                throw new IOException("R61_BORROWED_LOCK_ACCOUNT_INVALID");
+            final Path expected=canonical.resolveSibling(
+                canonical.getFileName().toString()+".session.lck");
+            // Exact selected path, never a filename-only or same-
+            // parent alias comparison.
+            if(!file.equals(expected))
+                throw new IOException(
+                    "R61_BORROWED_LOCK_WRONG_ACCOUNT_DENIED");
+            if(closed||!channel.isOpen()||!lock.isValid())
+                throw new IOException(
+                    "R61_BORROWED_LOCK_RELEASED_DENIED");
+            requireOriginalLockNameStillPresent();
+            T result=operation.execute();
+            if(closed||!channel.isOpen()||!lock.isValid())
+                throw new IOException(
+                    "R61_BORROWED_LOCK_RELEASED_DURING_OPERATION");
+            requireOriginalLockNameStillPresent();
+            return result;
         }
 
         Path fileForTest(){return file;}
     }
 
-    private static void requireNoSymlinkAncestors(Path parent)
+    // R34 reuse: opt-in same-JVM inode guard also needs NOFOLLOW
+    // ancestor checks when the separate cross-JVM OS lock is disabled.
+    // The scan is observational, not an atomic path-component pin.
+    static void requireNoSymlinkAncestors(Path parent)
         throws IOException{
         Path walk=parent;
         while(walk!=null){
@@ -121,16 +196,20 @@ final class LocalCrossJvmAccountSessionLock {
         Path lockPath=canonical.resolveSibling(
             canonical.getFileName().toString()+".session.lck");
 
-        FileChannel channel=FileChannel.open(
-            lockPath,
-            StandardOpenOption.CREATE,
-            StandardOpenOption.READ,
-            StandardOpenOption.WRITE,
-            LinkOption.NOFOLLOW_LINKS
-        );
-
+        // Prevent any duplicate same-JVM FileChannel.open on an
+        // already-held lock path, including one whose subsequent
+        // failed tryLock would otherwise close a second POSIX fd.
+        reserveLockName(lockPath);
+        FileChannel channel=null;
         boolean transferred=false;
         try{
+            channel=FileChannel.open(
+                lockPath,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.READ,
+                StandardOpenOption.WRITE,
+                LinkOption.NOFOLLOW_LINKS
+            );
             if(!Files.isRegularFile(
                     lockPath,LinkOption.NOFOLLOW_LINKS))
                 throw new IOException(
@@ -164,8 +243,12 @@ final class LocalCrossJvmAccountSessionLock {
             transferred=true;
             return handle;
         }finally{
-            if(!transferred)
-                channel.close();
+            if(!transferred){
+                // A failed close is uncertain ownership: KEEP the JVM
+                // reservation instead of admitting a new local owner.
+                if(channel!=null)channel.close();
+                clearLockReservation(lockPath);
+            }
         }
     }
 }

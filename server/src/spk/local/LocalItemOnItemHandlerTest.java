@@ -7,11 +7,15 @@ public final class LocalItemOnItemHandlerTest {
         BankState bank=new BankState();
         LocalItemOnItemHandler h=new LocalItemOnItemHandler(bank);
 
-        ByteArrayOutputStream wire=new ByteArrayOutputStream();
-        ServerPacketWriter w=new ServerPacketWriter(wire,new IsaacCipher(new int[]{1,2,3,4}));
+        // Item grants now require a recoverable queued publication; an
+        // ordinary direct socket writer may emit partial bytes and is denied.
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+        ServerPacketWriter w=new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{1,2,3,4}));
 
         bank.spawnItem(28824,1,w);
         bank.spawnItem(3241,1,w);
+        queue.drainTo(new ByteArrayOutputStream(),8192);
 
         if(bank.inventoryAt(0)==null||bank.inventoryAt(1)==null)
             throw new AssertionError("combine precondition inventory");
@@ -33,6 +37,12 @@ public final class LocalItemOnItemHandlerTest {
             throw new AssertionError("result item 28807 missing");
         if(bank.inventoryCount(28824)!=0||bank.inventoryCount(3241)!=0)
             throw new AssertionError("source items not consumed");
+        if(queue.queuedPackets()!=1||queue.queuedBytes()==0)
+            throw new AssertionError("dye was not admitted as one batch");
+        ByteArrayOutputStream committedWire=new ByteArrayOutputStream();
+        if(queue.drainTo(committedWire,8192)<=0||
+           committedWire.size()==0||queue.queuedPackets()!=0)
+            throw new AssertionError("dye batch not drainable");
 
         ItemOnItemAction unknown=new ItemOnItemAction(
             0,0,4151,
@@ -55,6 +65,6 @@ public final class LocalItemOnItemHandlerTest {
         if(unsupported.saveReason!=null)
             throw new AssertionError("unsupported widget must not save");
 
-        System.out.println("LOCAL_ITEM_ON_ITEM_HANDLER_PASS doppelCombine=true failClosedUnknown=true unsupportedWidget=true persistenceSignal=true");
+        System.out.println("LOCAL_ITEM_ON_ITEM_HANDLER_PASS doppelCombine=true failClosedUnknown=true unsupportedWidget=true persistenceSignal=true queueOnlyGrant=true");
     }
 }

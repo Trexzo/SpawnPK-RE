@@ -231,6 +231,12 @@ final class LocalSession implements Runnable {
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
+    // Source-only future recipe witness: exact login writer and World
+    // generation. No live recipe dispatch exists. Revoke before teardown.
+    // Read on the World callback path (requestLogout) and written by the
+    // socket/login thread; volatile makes the exact guard publication
+    // visible before teardown/revocation callbacks inspect it.
+    private volatile RecipeSessionWriterGuard recipeSessionWriterGuard;
     private long sessionWorldTick;
     private boolean worldRegistered;
     private long worldPlayerGeneration;
@@ -1849,6 +1855,13 @@ final class LocalSession implements Runnable {
 
                 @Override public void requestLogout(){
                     LocalSession.this.logoutRequested=true;
+                    // A requested logout closes future recipe publication
+                    // immediately; the finally block repeats revocation as
+                    // a fail-closed teardown barrier.
+                    RecipeSessionWriterGuard witness=
+                        LocalSession.this.recipeSessionWriterGuard;
+                    if(witness!=null)
+                        witness.revokeAndAwait();
                 }
             });
 
@@ -3157,6 +3170,12 @@ final class LocalSession implements Runnable {
                     loginCiphers.serverToClient
                 );
             sessionPackets=serverPackets;
+            recipeSessionWriterGuard=new RecipeSessionWriterGuard(
+                world,worldPlayer,worldPlayerGeneration,serverPackets);
+            // A logout request arriving during initial login must not
+            // acquire a newly active writer witness after it was requested.
+            if(logoutRequested)
+                recipeSessionWriterGuard.revokeAndAwait();
             scenePublisher = new SceneUpdatePublisher(serverPackets,new SceneCoordinateContext(MovementState.REGION_BASE_X,MovementState.REGION_BASE_Y,0));
             ClientPacketProbe clientPackets =
                 new ClientPacketProbe(
@@ -3305,6 +3324,13 @@ final class LocalSession implements Runnable {
         } catch (Throwable t) {
             System.err.println(tag + "closed: " + t);
         } finally {
+            // The exact writer witness must be dead before the session's
+            // player/World ownership is retired. Never hold a World lock
+            // while waiting for an in-flight guarded recipe operation.
+            if(recipeSessionWriterGuard!=null){
+                recipeSessionWriterGuard.revokeAndAwait();
+                recipeSessionWriterGuard=null;
+            }
             /*
              * Stop session-owned World commands first. A command which is
              * already active keeps this session-local monitor until its whole

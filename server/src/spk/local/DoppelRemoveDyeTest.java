@@ -25,11 +25,9 @@ public final class DoppelRemoveDyeTest {
         throws Exception
     {
         BankState b=new BankState();
-        ByteArrayOutputStream out=
-            new ByteArrayOutputStream();
         ServerPacketWriter w=
             new ServerPacketWriter(
-                out,
+                new OutboundPacketQueue(8192),
                 new IsaacCipher(
                     new int[]{17,19,23,29}
                 )
@@ -179,7 +177,7 @@ public final class DoppelRemoveDyeTest {
         throws Exception
     {
         BankState bank=new BankState();
-        ServerPacketWriter good=writer(71);
+        ServerPacketWriter good=queueWriter(71);
 
         req(
             !BankState.isStackable(28824),
@@ -200,22 +198,11 @@ public final class DoppelRemoveDyeTest {
         int dyedSlot=find(bank,28807);
         req(dyedSlot>=0,"dyed slot");
 
-        boolean splitFailed=false;
-        try{
-            bank.splitInventoryOne(
-                dyedSlot,
-                28807,
-                3241,
-                28824,
-                failingWriter(81)
-            );
-        }catch(java.io.IOException expected){
-            splitFailed=true;
-        }
-
+        String splitRefused=bank.splitInventoryOne(
+            dyedSlot,28807,3241,28824,failingWriter(81));
         req(
-            splitFailed,
-            "split publication did not fail"
+            "REJECTED_SPLIT_QUEUE_RETRYABLE".equals(splitRefused),
+            "split full-queue publication did not retract: "+splitRefused
         );
         req(
             bank.inventoryAt(dyedSlot)!=null&&
@@ -247,23 +234,17 @@ public final class DoppelRemoveDyeTest {
             "split retry placement"
         );
 
-        boolean combineFailed=false;
-        try{
-            bank.combineInventoryOne(
-                dyeSlot,
-                28824,
-                regularSlot,
-                3241,
-                28807,
-                failingWriter(91)
-            );
-        }catch(java.io.IOException expected){
-            combineFailed=true;
-        }
-
+        String combineRefusal=bank.combineInventoryOne(
+            dyeSlot,
+            28824,
+            regularSlot,
+            3241,
+            28807,
+            failingWriter(91)
+        );
         req(
-            combineFailed,
-            "combine publication did not fail"
+            "REJECTED_COMBINE_QUEUE_RETRYABLE".equals(combineRefusal),
+            "combine full-queue publication did not retract"
         );
         req(
             bank.inventoryAt(regularSlot)!=null&&
@@ -310,6 +291,15 @@ public final class DoppelRemoveDyeTest {
                     seed+3
                 }
             )
+        );
+    }
+
+    private static ServerPacketWriter queueWriter(int seed){
+        return new ServerPacketWriter(
+            new OutboundPacketQueue(8192),
+            new IsaacCipher(new int[]{
+                seed,seed+1,seed+2,seed+3
+            })
         );
     }
 

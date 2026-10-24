@@ -2038,12 +2038,15 @@ final class LocalSessionUiActionHandler {
         }
 
         if(widget==BankState.DEPOSIT_INVENTORY_WIDGET){
+            long beforeInventoryRevision=
+                bank.inventoryMutationRevision();
             String result=
                 bank.depositInventory(serverPackets);
-            bridge.saveAccount(
-                tag,
-                "BANK_DEPOSIT_INVENTORY"
-            );
+            if(bank.inventoryMutationRevision()!=beforeInventoryRevision)
+                bridge.saveAccount(
+                    tag,
+                    "BANK_DEPOSIT_INVENTORY"
+                );
             System.out.println(
                 tag+"V4_BANK_WIDGET widget="+widget+
                 " action=DEPOSIT_INVENTORY result="+result
@@ -2052,9 +2055,11 @@ final class LocalSessionUiActionHandler {
         }
 
         if(widget==BankState.TOGGLE_PLACEHOLDERS_WIDGET){
+            long beforeBankRevision=bank.bankMutationRevision();
             String result=
                 bank.togglePlaceholders(serverPackets);
-            bridge.saveAccount(tag,"BANK_PLACEHOLDERS");
+            if(bank.bankMutationRevision()!=beforeBankRevision)
+                bridge.saveAccount(tag,"BANK_PLACEHOLDERS");
             System.out.println(
                 tag+"V4_BANK_WIDGET widget="+widget+
                 " action=TOGGLE_PLACEHOLDERS result="+result

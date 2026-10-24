@@ -58,7 +58,14 @@ public final class G21229CoreTwoJvmHardlinkAliasOwnerGapTest {
                     alias.getFileName().toString()+".session.lck"),
                 LinkOption.NOFOLLOW_LINKS),
                 "child OS lock filename missing");
-            Files.writeString(ready,READY,StandardCharsets.UTF_8);
+            // Publish readiness only after bytes are complete. A direct
+            // write creates the marker before writing its content, so the
+            // parent can observe a zero-length file on loaded Linux CI.
+            Path partial=ready.resolveSibling(
+                ready.getFileName().toString()+".partial");
+            Files.writeString(partial,READY,StandardCharsets.UTF_8);
+            Files.move(partial,ready,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
             long stop=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
             while(!Files.exists(finish,LinkOption.NOFOLLOW_LINKS)){
                 check(System.nanoTime()<stop,"child coordination timed out");
@@ -131,15 +138,20 @@ public final class G21229CoreTwoJvmHardlinkAliasOwnerGapTest {
             builder.redirectErrorStream(true);
             process=builder.start();
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
-            while(!Files.isRegularFile(ready,LinkOption.NOFOLLOW_LINKS)){
+            while(true){
+                if(Files.isRegularFile(ready,LinkOption.NOFOLLOW_LINKS)){
+                    String marker=Files.readString(
+                        ready,StandardCharsets.UTF_8);
+                    if(READY.equals(marker))break;
+                    check(READY.startsWith(marker),
+                        "unexpected readiness marker content");
+                }
                 check(process.isAlive(),
                     "child JVM died before held alias owner");
                 check(System.nanoTime()<deadline,
                     "child alias owner never became ready");
                 Thread.sleep(30L);
             }
-            check(READY.equals(Files.readString(ready,
-                    StandardCharsets.UTF_8)),"invalid readiness marker");
             check(LocalJvmAccountSessionLease.activeCountForTest()==1,
                 "parent JVM original owner registry changed");
             LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(

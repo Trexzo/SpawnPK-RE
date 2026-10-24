@@ -13,10 +13,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * G21.211 TEST ONLY: following G21.212 the DEFAULT-OFF primary
- * AccountStore.save compatibility path still bypasses a held lease.
- * The exact parent #2671 preserves the original gate-ON bypass proof.
- * This test-only flag flip is not permission to toggle in production.
+ * G21.211 was an historical unsafe primary-account-store opt-out characterization. R40 must now refuse live opt-out under a World lease; the default-off legacy writer still works after test-only owner release.
+ * This is a regression of the new fail-closed boundary, not a
+ * positive grant, crash recovery, or authorization to toggle live flags.
  */
 public final class G21211CorePrimaryAccountStoreBypassTest {
     private static final String USER=AccountStore.CANONICAL_USERNAME;
@@ -132,8 +131,40 @@ public final class G21211CorePrimaryAccountStoreBypassTest {
             // gate-ON PRIMARY bypass evidence. Following G21.212,
             // default-OFF compatibility must remain demonstrably unsafe.
             // This explicit flag flip is TEST ONLY, never live practice.
+            // R40 correction: G21.211 was an historical unsafe primary-account-store opt-out characterization. R40 must now refuse live opt-out under a World lease; the default-off legacy writer still works after test-only owner release.
             System.setProperty(keys[2],"false");
-            String legacy;
+            String legacy=null;
+            boolean refused=false;
+            try{
+                legacy=AccountStore.save(
+                    owner.bank(),owner.equipment(),owner.movement(),
+                    owner.petState(),owner.playerState());
+            }catch(IOException expected){
+                refused=String.valueOf(expected.getMessage()).contains(
+                    "R40_RAW_OPT_OUT_DURING_ACCOUNT_OWNERSHIP_DENIED");
+            }finally{
+                System.setProperty(keys[2],"true");
+            }
+            check(refused&&legacy==null,
+                "late primary RAW opt-out bypassed World lease");
+            check(Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
+                "denied primary writer replaced newer World bytes");
+            check("LATEST_WORLD_EXTENSION".equals(onDisk(repository)),
+                "denied primary RAW erased World extension");
+            check(!Files.exists(account.resolveSibling(
+                    account.getFileName().toString()+".tmp"),
+                    LinkOption.NOFOLLOW_LINKS),
+                "denied primary allocated fixed temp");
+            check(LocalJvmAccountSessionLease.activeCountForTest()==1&&
+                LocalJvmAccountSessionLease.rawWriteReservationsForTest()==0,
+                "denied primary writer changed held owner accounting");
+            LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
+                account,owner,ownerGeneration);
+            check(world.unregisterPlayer(player,generation),
+                "fixture-only World unregister failed");
+            token.releaseAfterInitializationFailure();
+            token=null;
+            System.setProperty(keys[2],"false");
             try{
                 legacy=AccountStore.save(
                     owner.bank(),owner.equipment(),owner.movement(),
@@ -142,33 +173,19 @@ public final class G21211CorePrimaryAccountStoreBypassTest {
                 System.setProperty(keys[2],"true");
             }
             check(legacy!=null&&legacy.contains("ACCOUNT_SAVED"),
-                "primary AccountStore did not write");
-            check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
-                "legacy profile write did not replace account postimage");
-            check(onDisk(repository)==null,
-                "primary AccountStore writer retained newer World extension");
-            check(LocalJvmAccountSessionLease
-                    .rawWriteReservationsForTest()==0,
-                "legacy writer unexpectedly participated in RAW reservations");
-            check(LocalJvmAccountSessionLease.activeCountForTest()==1,
-                "legacy writer changed held JVM session Token");
-            LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
-                account,owner,ownerGeneration);
+                "primary default-off writer after release was denied");
+            check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account))&&
+                onDisk(repository)==null,
+                "historical unleased primary account semantics changed");
 
             System.out.println(
-                "G21211_PRIMARY_ACCOUNTSTORE_HELD_JVM_LEASE_BYPASS_PASS"+
-                " actualWorldSaveFirst=true"+
-                " originalWorldCaptureLeaseChecked=true"+
-                " participatingRepositoryRawDenied=true"+
-                " primaryAccountStoreWriteSucceededWithGateOff=true"+
-                " newerWorldExtensionLostFromDisk=true"+
-                " originalWorldSessionLeaseStillHeld=true"+
-                " defaultOffFlagsUntouched=true"+
-                " primaryAccountStoreOutsideG21210=true"+
-                " globalWriterExclusion=false"+
-                " authenticatedDurableEpoch=false"+
-                " crossJvmOrCrashRecovery=false"+
-                " positiveGrantOrReviewRetirement=false");
+                "G21211_PRIMARY_LIVE_RAW_OPT_OUT_DENIED_PASS"+
+                " liveWorldLeaseRetainedUntilFixtureRelease=true"+
+                " latePrimaryFlagOffRejectedBeforeTemp=true"+
+                " oldWorldBytesPreservedUnderLease=true"+
+                " legacyUnleasedPrimarySaveAfterRelease=true"+
+                " crossJvmEpoch=false crashDurableRecovery=false");
+
         }finally{
             try{
                 if(world!=null&&player!=null&&generation>0L)

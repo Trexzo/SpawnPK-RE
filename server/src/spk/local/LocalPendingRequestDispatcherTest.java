@@ -6,12 +6,178 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 
 public final class LocalPendingRequestDispatcherTest {
+    private static void encodedRemoveDye75(
+        ByteArrayOutputStream wire,IsaacCipher cipher,
+        int widget,int slot,int item
+    ){
+        // Exact current v308 C2S opcode75: widget LE-A, slot LE,
+        // item BE-A. These are literal client-writer transformations.
+        wire.write((75+cipher.nextInt())&255);
+        wire.write((widget+128)&255);
+        wire.write((widget>>>8)&255);
+        wire.write(slot&255);
+        wire.write((slot>>>8)&255);
+        wire.write((item>>>8)&255);
+        wire.write((item+128)&255);
+    }
+
+    /**
+     * Unlike the earlier handler-only ingress regression, exercise the
+     * actual LocalPendingRequestDispatcher route inside the CURRENT
+     * World/player-generation ownership monitor, including its session
+     * bridge save callback.
+     *
+     * Source-only. Does not imply original-client socket, disk durability,
+     * server-to-client ACK, or a cross-World account lease.
+     */
+    private static void verifyDecodedRemoveDyeSaveFencing(
+        World world,WorldPlayer player,long generation,
+        BankState bank,LocalPendingRequestDispatcher dispatcher,
+        int[] saves,String[] lastReason
+    )throws Exception{
+        int scenarios=0,actualSaves=0;
+        for(boolean open:new boolean[]{false,true}){
+            for(boolean saturated:new boolean[]{false,true}){
+                for(int petSlot:new int[]{3,27}){
+                    OutboundPacketQueue q=new OutboundPacketQueue(8192);
+                    ServerPacketWriter serverPackets=
+                        new ServerPacketWriter(
+                            q,new IsaacCipher(new int[]{0,0,0,0}));
+                    if(bank.isOpen()){
+                        bank.close(serverPackets);
+                        q.drainTo(new ByteArrayOutputStream(),8192);
+                    }
+                    int[] ids=new int[bank.inventoryCapacity()];
+                    int[] amounts=new int[ids.length];
+                    java.util.Arrays.fill(ids,-1);
+                    ids[petSlot]=28807;
+                    amounts[petSlot]=1;
+                    bank.replaceInventorySemantic(ids,amounts);
+                    if(open){
+                        bank.open(serverPackets);
+                        if(q.drainTo(new ByteArrayOutputStream(),8192)<=0)
+                            throw new AssertionError(
+                                "remove-dye World fixture bank overlay failed");
+                    }
+                    final long initial=bank.inventoryMutationRevision();
+                    final long view=bank.bankViewRevision();
+                    final int beforeSave=saves[0];
+                    final int nextDyeSlot=petSlot==0?1:0;
+                    ByteArrayOutputStream encoded=new ByteArrayOutputStream();
+                    IsaacCipher c2s=
+                        new IsaacCipher(new int[]{7,11,13,17});
+                    if(saturated){
+                        for(int i=0;i<3;i++)
+                            encodedRemoveDye75(
+                                encoded,c2s,
+                                BankState.NORMAL_INVENTORY_CONTAINER,
+                                petSlot,28807);
+                        q.offerBatch(new byte[8192]);
+                    }else{
+                        encodedRemoveDye75(encoded,c2s,
+                            BankState.BANK_INVENTORY_CONTAINER,petSlot,28807);
+                        encodedRemoveDye75(encoded,c2s,
+                            BankState.NORMAL_INVENTORY_CONTAINER,petSlot,3241);
+                        encodedRemoveDye75(encoded,c2s,
+                            BankState.NORMAL_INVENTORY_CONTAINER,
+                            petSlot==3?4:3,28807);
+                        encodedRemoveDye75(encoded,c2s,
+                            BankState.NORMAL_INVENTORY_CONTAINER,petSlot,28807);
+                        encodedRemoveDye75(encoded,c2s,
+                            BankState.NORMAL_INVENTORY_CONTAINER,petSlot,28807);
+                    }
+                    ClientPacketProbe decoder=new ClientPacketProbe(
+                        new ByteArrayInputStream(encoded.toByteArray()),
+                        new IsaacCipher(new int[]{7,11,13,17}),
+                        "[pending-remove-dye] ");
+                    int frames=saturated?3:5;
+                    for(int i=0;i<frames;i++){
+                        if(!decoder.readNextKnownPacket()||
+                           !decoder.isAligned()||
+                           decoder.typedRequestCount()!=1)
+                            throw new AssertionError(
+                                "World remove-dye opcode75 decode frame="+i);
+                        boolean owned=world
+                            .withOpenPlayerMutationOwnershipIfCurrent(
+                                player,generation,
+                                ()->dispatcher.drain(
+                                    decoder,serverPackets,
+                                    "[pending-remove-dye] ")
+                            );
+                        if(!owned)
+                            throw new AssertionError(
+                                "World removed owner during dye ingress");
+                        boolean accepted=saturated?i==1:i==3;
+                        int expectedSaves=beforeSave+
+                            (i>=(saturated?1:3)?1:0);
+                        if(saves[0]!=expectedSaves)
+                            throw new AssertionError(
+                                "World dye save-intent mismatch open="+open+
+                                " full="+saturated+" frame="+i+
+                                " expected="+expectedSaves+
+                                " actual="+saves[0]+
+                                " reason="+lastReason[0]);
+                        if(accepted){
+                            if(!"DOPPELGANGER_REMOVE_DYE".equals(
+                                    lastReason[0]))
+                                throw new AssertionError(
+                                    "World dye accepted wrong save reason");
+                            actualSaves++;
+                        }
+                        if(i<(saturated?1:3)){
+                            if(bank.inventoryMutationRevision()!=initial||
+                               bank.inventoryAt(petSlot).itemId!=28807||
+                               bank.inventoryCount(28824)!=0)
+                                throw new AssertionError(
+                                    "World dye refused packet mutated items");
+                        }else if(bank.inventoryMutationRevision()!=initial+1||
+                                bank.inventoryAt(petSlot).itemId!=3241||
+                                bank.inventoryAt(nextDyeSlot)==null||
+                                bank.inventoryAt(nextDyeSlot).itemId!=28824||
+                                bank.inventoryCount(28807)!=0)
+                            throw new AssertionError(
+                                "World dye grant not exactly once");
+                        if(bank.bankViewRevision()!=view)
+                            throw new AssertionError(
+                                "World dye changed bank presentation");
+                        if(saturated&&i==0){
+                            if(q.queuedBytes()!=8192||
+                               q.queuedPackets()!=1)
+                                throw new AssertionError(
+                                    "World dye full queue admitted packets");
+                            q.drainTo(new ByteArrayOutputStream(),8192);
+                        }else if(q.queuedPackets()!=
+                                (i>=(saturated?1:3)?1:0))
+                            throw new AssertionError(
+                                "World dye packet batch count mismatch");
+                    }
+                    if(decoder.typedRequestCount()!=0||
+                       !decoder.isAligned()||
+                       decoder.decodedCount()!=frames||
+                       decoder.readNextKnownPacket())
+                        throw new AssertionError(
+                            "World dye decoder lost alignment at EOF");
+                    if(q.queuedPackets()!=1||
+                       q.drainTo(new ByteArrayOutputStream(),8192)<=0)
+                        throw new AssertionError(
+                            "World dye committed batch undrainable");
+                    scenarios++;
+                }
+            }
+        }
+        if(scenarios!=8||actualSaves!=8)
+            throw new AssertionError(
+                "World dye dispatcher coverage cases="+scenarios+
+                " saves="+actualSaves);
+    }
+
     public static void main(String[] args)throws Exception{
         World world=World.isolatedForTest(50L);
 
         try{
             WorldPlayer player=new WorldPlayer();
-            world.registerPlayer(player,"opensrc");
+            long currentGeneration=
+                world.registerPlayer(player,"opensrc");
 
             MovementState movement=player.movement();
             BankState bank=player.bank();
@@ -484,7 +650,14 @@ public final class LocalPendingRequestDispatcherTest {
                         @Override public void applyPetDialogResult(
                             LocalPetInventoryDialogHandler.Result result,
                             String tag
-                        ){}
+                        ){
+                            // Mirror LocalSession.applyPetDialogResult's
+                            // persistence callback; no filesystem save.
+                            if(result!=null&&result.saveReason!=null){
+                                dispatcherSaveCount[0]++;
+                                dispatcherLastSaveReason[0]=result.saveReason;
+                            }
+                        }
                         @Override public void clearOpponentOverlay(
                             ServerPacketWriter serverPackets,
                             String tag,
@@ -1030,12 +1203,33 @@ public final class LocalPendingRequestDispatcherTest {
                 "[pending-test] "
             );
 
-            if(dispatcherSaveCount[0]!=
-                    savesBeforeUnknown+1||
-               !"BANK_ITEM_ACTION".equals(
-                    dispatcherLastSaveReason[0]))
+            if(dispatcherSaveCount[0]!=savesBeforeUnknown)
                 throw new AssertionError(
-                    "exact Bank widget no longer owns persistence"
+                    "rejected bank widget scheduled account persistence"
+                );
+
+            // An actually completed withdrawal still has save intent.
+            bank.open(writer);
+            routeItemAction.invoke(
+                dispatcher,
+                new ItemContainerAction(
+                    145,
+                    BankState.BANK_CONTAINER,
+                    0,
+                    995,
+                    0,
+                    "WITHDRAW_1"
+                ),
+                writer,
+                "[pending-test] "
+            );
+
+            if(dispatcherSaveCount[0]!=savesBeforeUnknown+1||
+               !"BANK_ITEM_ACTION".equals(
+                    dispatcherLastSaveReason[0])||
+               bank.inventoryCount(995)<1)
+                throw new AssertionError(
+                    "successful Bank withdrawal lost persistence intent"
                 );
 
             int rootBeforeInvalid=
@@ -1123,6 +1317,11 @@ public final class LocalPendingRequestDispatcherTest {
                     "hidden Comp Cape cancel emitted close packet after root replacement"
                 );
 
+            verifyDecodedRemoveDyeSaveFencing(
+                world,player,currentGeneration,bank,dispatcher,
+                dispatcherSaveCount,dispatcherLastSaveReason
+            );
+
             System.out.println(
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
@@ -1143,7 +1342,11 @@ public final class LocalPendingRequestDispatcherTest {
                 "hiddenCompCapeWidgetRejected=true "+
                 "makeoverDesignerTargetPreserved=true "+
                 "itemLibraryRevokesMakeoverDesigner=true "+
-                "hiddenMakeoverDesignRejected=true"
+                "hiddenMakeoverDesignRejected=true "+
+                " rejectedBankWidgetNoSave=true"+
+                " completedBankWithdrawSave=true"+
+                " decodedRemoveDyeWorldOwnedSaveFence=true"+
+                " decodedRemoveDyeDispatchCases=8"
             );
         }finally{
             world.close();

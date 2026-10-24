@@ -218,6 +218,11 @@ final class LocalOptInRawTemp {
             // ACTIVE for manual review. Legacy/default RAW stays unchanged.
             LocalDurableAccountReviewIntentPrimitive
                 .requireNoReviewMarker(account);
+            // R38: a final-save NEGATIVE witness survives independently
+            // of the ACTIVE review marker and of the current opt-in
+            // property. A missing ACTIVE leaf is NOT permission to
+            // overwrite an account that still has final-review evidence.
+            LocalFinalSaveNegativeWitness.requireNoNegativeWitness(account);
             // G21.251: existing Mailbox durable/uncertain/write-ahead
             // sidecars are NEGATIVE, not overwritten by opt-in forced RAW.
             // Exact target account is pinned by this resolver. The G21.39
@@ -249,6 +254,10 @@ final class LocalOptInRawTemp {
             // be atomically fenced by these filesystem probes.
             LocalDurableAccountReviewIntentPrimitive
                 .requireNoReviewMarker(account);
+            // R38: repeat AFTER the deterministic pre-move seam. A
+            // newly inserted witness is a veto even if the initial
+            // publication-locked read saw no evidence.
+            LocalFinalSaveNegativeWitness.requireNoNegativeWitness(account);
             if(new MailboxDurableReviewFence(pinned)
                     .present(accountUsername)||
                new MailboxStrictUncertainFence(pinned)
@@ -258,6 +267,14 @@ final class LocalOptInRawTemp {
                 throw new IOException(
                     "G21.251 FORCED_RAW_MAILBOX_REVIEW_FENCE_PRESENT");
             requirePublicationLockName(account,publicationLockIdentity);
+            requireAccountPreimageUnchanged(account,expectedPreimage);
+            // R37: the strictly forced RAW postimage must not replace
+            // an EXISTING account file for a different username just
+            // because the same resolver path and bytes were pinned.
+            // Revalidate the preimage AFTER the bounded NOFOLLOW
+            // profile read, before the existing final nlink check.
+            FilePlayerRepository.requireForcedRawSelectedProfile(
+                account,accountUsername);
             requireAccountPreimageUnchanged(account,expectedPreimage);
             // G21.260: with the existing DEFAULT-OFF G21.230 nlink
             // gate, recheck after the before-move race seam. A new
@@ -310,6 +327,11 @@ final class LocalOptInRawTemp {
                 // delete markers, replay, or issue a final-save ACK.
                 LocalDurableAccountReviewIntentPrimitive
                     .requireNoReviewMarker(account);
+                // R38: bytes may already have moved. Late negative
+                // witness evidence must produce an UNKNOWN/REVIEW
+                // result, not a confirmed RAW success or rollback.
+                LocalFinalSaveNegativeWitness
+                    .requireNoNegativeWitness(account);
                 if(new MailboxDurableReviewFence(pinned)
                         .present(accountUsername)||
                    new MailboxStrictUncertainFence(pinned)
