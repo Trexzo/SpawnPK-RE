@@ -6005,6 +6005,26 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 world.persistence().failedCount()==failedBeforeRetry&&
                 Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
                 "R139 forensic read bypassed or cleared World final-save veto");
+            // R140: a G21.26 read-only forensic observation must also
+            // leave the real socket-facing login boundary fail-closed.
+            // Checking only the direct FIFO load after observation
+            // would miss a future TCP login path bypassing that veto.
+            try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession afterForensic=
+                    new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                        .OneSession(world)){
+                int response=tcpResponse(
+                    afterForensic.listener.getLocalPort());
+                check(response!=2&&world.players().size()==0,
+                    "R140 TCP login accepted forensic-observed failed-final account");
+                afterForensic.waitCompleted();
+            }
+            check(world.players().size()==0&&
+                world.persistence().failedFinalSaveAdmissionVetoCount()==1&&
+                world.persistence().failedCount()==failedBeforeRetry&&
+                world.persistence().load(unaffected).isPresent()&&
+                Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
+                "R140 forensic-observed TCP denial corrupted unrelated account");
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
             System.out.println(
