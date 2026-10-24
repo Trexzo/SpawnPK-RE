@@ -6187,6 +6187,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             }
             trace=new String(Files.readAllBytes(log),
                 StandardCharsets.UTF_8);
+            // R144: healthy unrelated accounts intentionally produce
+            // successful SESSION_END saves in the SAME child World log.
+            // Only a successful save of the exact failed-final account
+            // is forbidden; a global success-token check is unsound.
+            boolean forbiddenOriginalFinalSuccess=trace.lines().anyMatch(
+                line->line.contains("V5123_ACCOUNT_SAVE reason=SESSION_END")&&
+                    line.contains("username="+USER+","));
             check(original.exitValue()==0&&trace.contains(
                     "R130_AUTHENTIC_TCP_FINAL_SAVE_NEGATIVE_PASS"+
                     " mode="+mode)&&
@@ -6194,8 +6201,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     ?"R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK"
                     :"R129_WORLD_POSTIMAGE_LATE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK")&&
                 trace.contains("V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED")&&
-                trace.contains("V5123_ACCOUNT_SAVE_FAILED reason=SESSION_END")&&
-                !trace.contains("V5123_ACCOUNT_SAVE reason=SESSION_END")&&
+                trace.contains(
+                    "V5123_ACCOUNT_SAVE_FAILED reason=SESSION_END profile="+
+                    USER+" ")&&
+                !forbiddenOriginalFinalSuccess&&
                 trace.contains(
                     "R141_WORLD_CLOSE_ACCOUNT_POSTIMAGE_STABLE_PASS"+
                     " mode="+mode),
