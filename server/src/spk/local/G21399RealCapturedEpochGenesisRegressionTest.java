@@ -5726,6 +5726,10 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         java.util.concurrent.atomic.AtomicInteger injected=
             new java.util.concurrent.atomic.AtomicInteger();
         Path account=LocalAccountProfiles.accountFile(USER);
+        // R141 shutdown baseline is captured only after all genuine
+        // failed-final and healthy-session checks have succeeded.
+        byte[] failedFinalBeforeClose=null;
+        Object failedFinalFileKeyBeforeClose=null;
         try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
                 .OneSession server=
                 new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
@@ -6040,6 +6044,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " originalVetoRetained=true"+
                 " originalDiskAccountUnchanged=true"+
                 " noCrashRecoveryOrOwnerHandoff=true");
+            failedFinalBeforeClose=Files.readAllBytes(account);
+            failedFinalFileKeyBeforeClose=Files.readAttributes(
+                account,java.nio.file.attribute.BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS).fileKey();
+            check(failedFinalFileKeyBeforeClose!=null,
+                "R141 failed-final file identity unavailable before World close");
             System.out.println(
                 "R130_AUTHENTIC_TCP_FINAL_SAVE_NEGATIVE_PASS"+
                 " mode="+mode+
@@ -6054,6 +6064,28 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             FilePlayerRepository.setAfterObservedWorldLinkCountForTest(
                 null);
             if(!world.closed())world.close();
+            // R141: closing the original authenticated World must not
+            // republish, truncate, unlink or substitute the uncertain
+            // final-save postimage. This is an end-of-life file-stability
+            // check, NOT a crash-durable refusal or recovered owner ACK.
+            if(failedFinalBeforeClose!=null){
+                Object afterKey=Files.readAttributes(
+                    account,java.nio.file.attribute.BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS).fileKey();
+                check(world.closed()&&injected.get()==1&&
+                    failedFinalFileKeyBeforeClose.equals(afterKey)&&
+                    Arrays.equals(failedFinalBeforeClose,
+                        Files.readAllBytes(account))&&
+                    r109OwnedWorldTemps(account)==0,
+                    "R141 World.close rewrote uncertain final-save account");
+                System.out.println(
+                    "R141_WORLD_CLOSE_ACCOUNT_POSTIMAGE_STABLE_PASS"+
+                    " mode="+mode+
+                    " originalWorldClosed=true"+
+                    " diskBytesAndFileObjectUnchanged=true"+
+                    " noFinalRetryOrRecoveryACK=true");
+                System.out.flush();
+            }
         }
     }
 
@@ -6142,8 +6174,11 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 trace.contains("inode".equals(mode)
                     ?"R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK"
                     :"R129_WORLD_POSTIMAGE_LATE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK")&&
-                trace.contains("V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED"),
-                "R131 real final World worker did not propagate "+
+                trace.contains("V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED")&&
+                trace.contains(
+                    "R141_WORLD_CLOSE_ACCOUNT_POSTIMAGE_STABLE_PASS"+
+                    " mode="+mode),
+                "R141 real final World failed shutdown stability "+
                 "observed uncertain postimage mode="+mode+" "+trace);
             check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS)&&
                 r109OwnedWorldTemps(account)==0,
