@@ -5914,6 +5914,29 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     check(world.players().size()==1&&
                         world.players().byName(USER)==null,
                         "R136 unrelated login revived poisoned account");
+                    // R137: while the unrelated, healthy TCP session is
+                    // still authenticated, a second real TCP login for
+                    // the failed-final account must be denied. Preserve
+                    // the healthy player's membership and pending save.
+                    try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                            .OneSession blockedServer=
+                            new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                                .OneSession(world)){
+                        int response=tcpResponse(
+                            blockedServer.listener.getLocalPort());
+                        check(response!=2&&
+                            world.players().size()==1&&
+                            world.players().byName(unaffected)!=null&&
+                            world.players().byName(USER)==null,
+                            "R137 poisoned TCP login displaced healthy session");
+                        blockedServer.waitCompleted();
+                    }
+                    check(world.players().size()==1&&
+                        world.players().byName(unaffected)!=null&&
+                        world.persistence().failedFinalSaveAdmissionVetoCount()==1&&
+                        Arrays.equals(accountBeforeRetry,
+                            Files.readAllBytes(account)),
+                        "R137 overlapping rejected login altered account ownership");
                 }
                 otherServer.waitCompleted();
             }
