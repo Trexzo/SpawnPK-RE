@@ -5890,8 +5890,58 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 world.persistence().failedCount()==failedBeforeRetry&&
                 Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
                 "R135 denied real TCP retry changed World/account outcome");
+            // R136: a failed FINAL must veto only its original account.
+            // The other clean profile uses a REAL successful TCP login,
+            // bootstrap and ordinary final-save on the same World.
+            // Retire the artificial foreign-writer cutpoint first:
+            // that test hook must not be mistaken for production policy.
+            FilePlayerRepository.setAfterObservedWorldLinkCountForTest(null);
+            String unaffected="r136-unrelated-clean";
+            Path otherAccount=LocalAccountProfiles.accountFile(unaffected);
+            check(!account.equals(otherAccount),
+                "R136 separate account resolved to poisoned account path");
+            repository.save(PlayerSnapshotCodec.capture(
+                unaffected,new WorldPlayer()));
+            LocalReusableLabEvidenceNegativeGate
+                .requireNoLegacyCollision(otherAccount);
+            try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession otherServer=
+                    new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                        .OneSession(world)){
+                try(Socket otherSocket=otherServer.login(unaffected)){
+                    await(()->world.players().byName(unaffected)!=null,
+                        "R136 unrelated authenticated TCP admission");
+                    check(world.players().size()==1&&
+                        world.players().byName(USER)==null,
+                        "R136 unrelated login revived poisoned account");
+                }
+                otherServer.waitCompleted();
+            }
+            check(world.players().size()==0&&
+                world.persistence().failedFinalSaveAdmissionVetoCount()==1&&
+                world.persistence().failedCount()==failedBeforeRetry&&
+                Files.isRegularFile(otherAccount,LinkOption.NOFOLLOW_LINKS)&&
+                repository.loadForWorldSession(unaffected).isPresent()&&
+                Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
+                "R136 clean TCP final-save failed or poisoned account changed");
+            boolean poisonedStillDenied=false;
+            try{
+                world.persistence().load(USER);
+            }catch(IOException denied){
+                poisonedStillDenied=contains(denied,
+                    "G21.178 FINAL_SAVE_WORLD_LIFETIME_VETO_NO_RECOVERY");
+            }
+            check(poisonedStillDenied,
+                "R136 unrelated account success cleared poisoned veto");
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
+            System.out.println(
+                "R136_SAME_WORLD_UNRELATED_TCP_ACCOUNT_PASS"+
+                " mode="+mode+
+                " secondAccountAdmittedAndSaved=true"+
+                " originalVetoRetained=true"+
+                " originalDiskAccountUnchanged=true"+
+                " noCrashRecoveryOrOwnerHandoff=true");
             System.out.println(
                 "R130_AUTHENTIC_TCP_FINAL_SAVE_NEGATIVE_PASS"+
                 " mode="+mode+
