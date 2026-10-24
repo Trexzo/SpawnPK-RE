@@ -6250,6 +6250,36 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             }
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
+            // R146: this parent is a DISTINCT JVM from the now-exited
+            // authenticated World holder. Its fresh session-file read
+            // does not inherit the failed-final World-memory veto.
+            // The opt-in late-postmove observation only reported
+            // uncertainty; it did not publish a crash-durable negative
+            // intent. Document that gap without logging in, writing,
+            // recovering, or granting authority to any player.
+            byte[] uncertainBeforeRead=Files.readAllBytes(account);
+            Object uncertainKey=Files.readAttributes(
+                account,java.nio.file.attribute.BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS).fileKey();
+            java.util.Optional<PlayerSnapshot> freshRead=
+                repository.loadForWorldSession(USER);
+            check(freshRead.isPresent()&&
+                USER.equals(freshRead.get().username())&&
+                Arrays.equals(uncertainBeforeRead,
+                    Files.readAllBytes(account))&&
+                java.util.Objects.equals(uncertainKey,
+                    Files.readAttributes(account,
+                        java.nio.file.attribute.BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS).fileKey()),
+                "R146 distinct JVM read failed or modified uncertain final image");
+            System.out.println(
+                "R146_UNDURABLE_FINAL_NEGATIVE_GAP_OBSERVED"+
+                " mode="+mode+
+                " initialAccountAbsent="+firstLoginWithoutDiskAccount+
+                " separateJvmRepositorySessionReadAllowed=true"+
+                " originalWorldLifetimeVetoNotDurable=true"+
+                " readOnlyNoTcpHydrationOrSave=true"+
+                " unresolvedIssue2540=true");
             System.out.println(
                 "R145_FINAL_FAILURE_FOREIGN_POSTMOVE_RETAINED_PASS"+
                 " mode="+mode+
