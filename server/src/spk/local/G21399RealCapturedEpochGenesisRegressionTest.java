@@ -5839,6 +5839,16 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             server.waitCompleted();
             check(world.players().size()==0,
                 "R130 World retained player after TCP session close");
+            // R133: the final-save future is completed exceptionally
+            // before SaveTask.run() executes its terminal finally.
+            // LocalSession.waitCompleted() can therefore return while
+            // the same FIFO worker is still recording the in-World
+            // negative-admission marker. Wait for that exact marker
+            // rather than racing a completion callback against finally.
+            // This is a bounded TEST observation, not a recovery grant.
+            await(()->world.persistence()
+                .failedFinalSaveAdmissionVetoCount()>0,
+                "R133 completed final-save negative admission marker");
             check(injected.get()==1&&
                 world.persistence().failedCount()>0&&
                 world.persistence().failedFinalSaveAdmissionVetoCount()>0,
