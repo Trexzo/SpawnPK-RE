@@ -5835,6 +5835,15 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                                 Arrays.equals(prior,Files.readAllBytes(alias)),
                                 "R131 foreign hardlink not preserved");
                         }
+                        // R145: after the genuine World FINAL move and
+                        // foreign same-byte intervention, capture those
+                        // exact uncertain postmove bytes as test evidence.
+                        // BOOTSTRAP bytes cannot be treated as unchanged:
+                        // the final move already occurred before this hook.
+                        Files.write(root.resolve(
+                            "r145-foreign-postmove-"+mode+".bin"),
+                            prior,StandardOpenOption.CREATE_NEW,
+                            StandardOpenOption.WRITE);
                     });
                 // Close real authenticated socket; its LocalSession
                 // performs the original final World capture and
@@ -6213,13 +6222,20 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS)&&
                 r109OwnedWorldTemps(account)==0,
                 "R131 postmove account missing or World temp leaked");
-            // R143: a confirmed negative final outcome must never
-            // overwrite the last successful BOOTSTRAP image, including
-            // when the file did not exist before the first real login.
-            // This does not authorize recovery, replay or a final ACK.
-            check(Arrays.equals(successfulBootstrap,
+            // R145: the uncertain final postimage is NOT necessarily
+            // the earlier BOOTSTRAP image. Compare to the exact bytes
+            // witnessed by the fault hook after a genuine final move
+            // and foreign same-byte replacement/hardlink. The World
+            // must leave that foreign object unmodified on shutdown.
+            // Such byte equality is no final-success ACK or recovery.
+            Path postmoveWitness=root.resolve(
+                "r145-foreign-postmove-"+mode+".bin");
+            check(Files.isRegularFile(postmoveWitness,
+                    LinkOption.NOFOLLOW_LINKS)&&
+                Files.size(postmoveWitness)>0L&&
+                Arrays.equals(Files.readAllBytes(postmoveWitness),
                     Files.readAllBytes(account)),
-                "R143 failed final save changed last successful BOOTSTRAP bytes");
+                "R145 World changed foreign uncertain final postmove bytes");
             if("hardlink".equals(mode)){
                 Path alias=account.resolveSibling(
                     account.getFileName().toString()+
@@ -6235,11 +6251,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
             System.out.println(
-                "R143_FINAL_FAILURE_BOOTSTRAP_PREIMAGE_RETAINED_PASS"+
+                "R145_FINAL_FAILURE_FOREIGN_POSTMOVE_RETAINED_PASS"+
                 " mode="+mode+
                 " initialAccountAbsent="+firstLoginWithoutDiskAccount+
-                " exactBootstrapBytesRetained=true"+
-                " noSuccessfulFinalSaveLog=true"+
+                " successfulBootstrapWasPresent=true"+
+                " exactForeignPostmoveBytesRetained=true"+
+                " noSuccessfulOriginalFinalSaveLog=true"+
                 " noRecoveryOrFinalACK=true");
             if(firstLoginWithoutDiskAccount)
                 System.out.println(
