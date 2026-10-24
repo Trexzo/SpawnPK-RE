@@ -6170,6 +6170,12 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 "R130 original World failed before TCP logout "+trace);
             check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS),
                 "R142 first login BOOTSTRAP did not create disk account");
+            // R143: the genuine BOOTSTRAP save is the last successful
+            // disk postimage before the parent's final-save trigger.
+            // Pin its exact bytes without trusting later error logs.
+            byte[] successfulBootstrap=Files.readAllBytes(account);
+            check(successfulBootstrap.length>0,
+                "R143 authenticated BOOTSTRAP account image was empty");
             r119EnableCrossJvmSessionLock(root);
             r120RequireDistinctLockBusy(account);
             Files.write(proceed,new byte[]{1},
@@ -6188,6 +6194,8 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     ?"R129_WORLD_POSTIMAGE_LATE_OBJECT_CHANGED_UNCERTAIN_NO_ACK"
                     :"R129_WORLD_POSTIMAGE_LATE_LINK_COUNT_UNPROVEN_UNCERTAIN_NO_ACK")&&
                 trace.contains("V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED")&&
+                trace.contains("V5123_ACCOUNT_SAVE_FAILED reason=SESSION_END")&&
+                !trace.contains("V5123_ACCOUNT_SAVE reason=SESSION_END")&&
                 trace.contains(
                     "R141_WORLD_CLOSE_ACCOUNT_POSTIMAGE_STABLE_PASS"+
                     " mode="+mode),
@@ -6196,6 +6204,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS)&&
                 r109OwnedWorldTemps(account)==0,
                 "R131 postmove account missing or World temp leaked");
+            // R143: a confirmed negative final outcome must never
+            // overwrite the last successful BOOTSTRAP image, including
+            // when the file did not exist before the first real login.
+            // This does not authorize recovery, replay or a final ACK.
+            check(Arrays.equals(successfulBootstrap,
+                    Files.readAllBytes(account)),
+                "R143 failed final save changed last successful BOOTSTRAP bytes");
             if("hardlink".equals(mode)){
                 Path alias=account.resolveSibling(
                     account.getFileName().toString()+
@@ -6210,6 +6225,13 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             }
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
+            System.out.println(
+                "R143_FINAL_FAILURE_BOOTSTRAP_PREIMAGE_RETAINED_PASS"+
+                " mode="+mode+
+                " initialAccountAbsent="+firstLoginWithoutDiskAccount+
+                " exactBootstrapBytesRetained=true"+
+                " noSuccessfulFinalSaveLog=true"+
+                " noRecoveryOrFinalACK=true");
             if(firstLoginWithoutDiskAccount)
                 System.out.println(
                     "R142_NEW_ACCOUNT_REAL_TCP_FINAL_VETO_PASS"+
