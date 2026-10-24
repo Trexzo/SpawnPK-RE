@@ -5737,6 +5737,14 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     "R130 original authenticated World missing player");
                 LocalReusableLabEvidenceNegativeGate
                     .requireNoLegacyCollision(account);
+                // R132: the genuine login also queues a BOOTSTRAP save.
+                // Its FIFO worker can run after TCP login returns.
+                // Finish that save BEFORE arming the late postmove
+                // hook, so the sole injected failure is the actual
+                // SESSION_END final-save publication, not BOOTSTRAP.
+                await(()->world.persistence().metrics().contains(
+                    ",submitted=1,completed=1,failed=0,queued=0,"),
+                    "R132 initial BOOTSTRAP save fully drained");
                 System.out.println(
                     "R130_ORIGINAL_WORLD_AUTHENTICATED_READY"+
                     " osLockEnabled=true"+
