@@ -5947,6 +5947,31 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 repository.loadForWorldSession(unaffected).isPresent()&&
                 Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
                 "R136 clean TCP final-save failed or poisoned account changed");
+            // R138: the healthy account's first logout must remain
+            // readable through this SAME World's queued admission path.
+            // A second fully authenticated TCP login/logout must also
+            // succeed despite the original account's retained veto.
+            check(world.persistence().load(unaffected).isPresent(),
+                "R138 healthy account failed same-World FIFO reload");
+            try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession healthyAgain=
+                    new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                        .OneSession(world)){
+                try(Socket healthySocket=healthyAgain.login(unaffected)){
+                    await(()->world.players().byName(unaffected)!=null,
+                        "R138 second healthy real TCP login");
+                    check(world.players().size()==1&&
+                        world.players().byName(USER)==null,
+                        "R138 second healthy TCP login revived poisoned account");
+                }
+                healthyAgain.waitCompleted();
+            }
+            check(world.players().size()==0&&
+                world.persistence().failedFinalSaveAdmissionVetoCount()==1&&
+                world.persistence().failedCount()==failedBeforeRetry&&
+                world.persistence().load(unaffected).isPresent()&&
+                Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
+                "R138 second healthy final-save or poisoned-account isolation failed");
             boolean poisonedStillDenied=false;
             try{
                 world.persistence().load(USER);
