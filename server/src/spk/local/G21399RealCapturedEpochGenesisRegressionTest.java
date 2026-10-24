@@ -5870,6 +5870,26 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
             }
             check(sameWorldReadmissionDenied,
                 "R134 failed final save permitted same-World reload");
+            // R135: an actual second loopback TCP LocalSession using
+            // this SAME still-live World must fail before login success
+            // or player registration. R134's direct worker load alone
+            // cannot prove the socket-facing admission boundary.
+            byte[] accountBeforeRetry=Files.readAllBytes(account);
+            long failedBeforeRetry=world.persistence().failedCount();
+            try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession retry=
+                    new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                        .OneSession(world)){
+                int response=tcpResponse(retry.listener.getLocalPort());
+                check(response!=2&&world.players().size()==0,
+                    "R135 failed final save admitted second real TCP login");
+                retry.waitCompleted();
+            }
+            check(world.players().size()==0&&
+                world.persistence().failedFinalSaveAdmissionVetoCount()>0&&
+                world.persistence().failedCount()==failedBeforeRetry&&
+                Arrays.equals(accountBeforeRetry,Files.readAllBytes(account)),
+                "R135 denied real TCP retry changed World/account outcome");
             LocalReusableLabEvidenceNegativeGate
                 .requireNoLegacyCollision(account);
             System.out.println(
