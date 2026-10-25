@@ -14275,3 +14275,18 @@ tasks.register('accountEpochNegativeHeadCrossJvmHaltRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochNegativeHeadCrossJvmHaltRegression')
 }
+
+
+// R159: a separate JVM substitutes or aliases the negative HEAD between
+// CREATE_NEW and postforce readback. All 12 staged cases deny publication.
+tasks.register('accountEpochNegativeHeadForeignJVMIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny external-JVM HEAD inode replacement and hardlink alias races.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadForeignJVMIdentityTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadForeignJVMIdentityRegression')
+}
