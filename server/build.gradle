@@ -14335,3 +14335,18 @@ tasks.register('accountEpochCrossJvmLateReadVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochCrossJvmLateReadVetoRegression')
 }
+
+
+// R163: genuine LocalSession/World TCP admission attempt, with an
+// independent JVM publishing G21.377 negative evidence after account read.
+tasks.register('accountEpochCrossJvmTcpReadVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject late foreign-JVM G21.377 evidence on real World TCP login.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochCrossJvmTcpReadVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochCrossJvmTcpReadVetoRegression')
+}

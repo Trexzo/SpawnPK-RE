@@ -186,3 +186,10 @@ This regression exercises the already-present second observation in \`loadForWor
 A fresh independent child JVM publishes a forced immutable G21.377 snapshot object, and optionally its complete negative HEAD, at the existing package-only \`FilePlayerRepository.afterWorldSessionRead\` seam. Four cases cover existing/missing account paths and HEAD/object versus orphan-object-only evidence. The parent repository must reject the already-decoded account with the unchanged R53/R63 denial at the second real session-admission check. Immutable object verification, original account byte/object preservation (or initial absence), fresh repository denial, and unrelated clean-account access are asserted.
 
 Unlike R161, each injected sidecar is published by a **separate Java process**, but this remains deterministic source-only staging rather than an authenticated game TCP session, an OS writer fence against arbitrary programs, forced power loss, or positive account epoch recovery. No legacy account is modified by the new test. #2540 and #2559 stay unresolved; PR #2965 remains draft.
+
+
+## 18. R163 — foreign JVM negative evidence during real LocalSession TCP login
+
+Four source-level localhost transport scenarios run the genuine LocalSession/World admission path with a synthetic revision-317 login frame. An independent JVM publishes a forced R153 snapshot object, optionally followed by an R154 untrusted negative HEAD, in the exact selected account post-read callback. Both initially missing and existing accounts are covered. The network login must never succeed, World must never attach a player, both the immutable evidence and original legacy state must persist, and a fresh repository admission must still refuse the negative marker/object.
+
+This remains synthetic TCP, not the original graphical client, power loss, full cross-process ownership, durable positive account-epoch publication or final-save ACK. Issues #2540/#2559 remain open. PR #2965 stays draft pending exact-head Linux/Windows CI.
