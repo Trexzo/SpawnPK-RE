@@ -54,8 +54,26 @@ public final class LocalAccountEpochLegacyNegativeVetoTest {
         throws IOException{
         byte[] bytes=image(accountName(account));
         if(evidence==Evidence.HEAD_AND_OBJECT){
-            LocalAccountEpochNegativeHeadPublication.publish(
-                account,marker(account,bytes),bytes);
+            String leaf=accountName(account);
+            if(leaf.matches("[a-z0-9_-]{1,64}")){
+                LocalAccountEpochNegativeHeadPublication.publish(
+                    account,marker(account,bytes),bytes);
+            }else{
+                // A real hashed named-profile leaf starts with "profile-"
+                // and has 64 SHA-256 characters (72 total). R152's
+                // prototype codec rejects that valid legacy account
+                // filename; NEVER relax its production encoding simply
+                // to make the fixture pass. The negative veto must also
+                // reject an unparseable HEAD for this selected account.
+                LocalAccountEpochSnapshotObjects.publish(account,bytes);
+                Files.write(
+                    LocalAccountEpochNegativeHeadPublication.headPath(
+                        account),
+                    "R160_UNTRUSTED_UNENCODABLE_PROFILE_HEAD"
+                        .getBytes(StandardCharsets.US_ASCII),
+                    StandardOpenOption.CREATE_NEW,
+                    StandardOpenOption.WRITE);
+            }
         }else{
             LocalAccountEpochSnapshotObjects.publish(account,bytes);
             check(!Files.exists(
