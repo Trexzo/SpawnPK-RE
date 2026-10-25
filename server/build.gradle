@@ -14290,3 +14290,18 @@ tasks.register('accountEpochNegativeHeadForeignJVMIdentityRegression', JavaExec)
 tasks.named('build') {
     dependsOn tasks.named('accountEpochNegativeHeadForeignJVMIdentityRegression')
 }
+
+
+// R160: the newer G21.377 negative HEAD and its pre-HEAD orphan object
+// must veto the EXISTING legacy World, RAW, and session paths.
+tasks.register('accountEpochLegacyNegativeVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny real legacy account access on R153/R154 negative evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochLegacyNegativeVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochLegacyNegativeVetoRegression')
+}

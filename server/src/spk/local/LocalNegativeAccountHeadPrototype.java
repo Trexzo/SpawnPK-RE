@@ -102,15 +102,25 @@ final class LocalNegativeAccountHeadPrototype {
         // Read-only negative leaf presence does NOT supersede the
         // existing writer-specific ancestry/error classification.
         // Those opt-in checks remain responsible for preflight.
-        Path head=headPath(exact);
-        try{
-            Files.readAttributes(head,BasicFileAttributes.class,
-                LinkOption.NOFOLLOW_LINKS);
-        }catch(NoSuchFileException absent){
-            return;
+        Path[] negativeHeads={
+            headPath(exact),
+            // R160: the independent R154-G21.377 negative HEAD is also
+            // untrusted evidence. Presence blocks legacy admission and
+            // writes even if its codec parses as a complete HEAD.
+            exact.resolveSibling(exact.getFileName().toString()+
+                LocalAccountEpochNegativeHeadPublication.SUFFIX)
+        };
+        for(Path head:negativeHeads){
+            try{
+                Files.readAttributes(head,BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            }catch(NoSuchFileException absent){
+                continue;
+            }
+            throw new IOException(
+                "R53_NEGATIVE_ACCOUNT_HEAD_PRESENT_NO_AUTO_RECOVERY"+
+                " leaf="+head.getFileName());
         }
-        throw new IOException(
-            "R53_NEGATIVE_ACCOUNT_HEAD_PRESENT_NO_AUTO_RECOVERY");
     }
 
     // R54: narrow package-only deterministic fault seams. In

@@ -24,7 +24,11 @@ final class LocalReusableLabEvidenceNegativeGate {
         // R68: R50 forces immutable snapshot BEFORE forced negative
         // HEAD. A killed writer may leave only this orphan object.
         // It must be negative even when HEAD publication never began.
-        ".g21378-object-"
+        ".g21378-object-",
+        // R160: R153 forces this independent snapshot object before
+        // attempting its R154 HEAD. An abrupt halt before HEAD leaves
+        // an orphan that must still veto ordinary legacy admission.
+        LocalAccountEpochSnapshotObjects.PREFIX
     };
     private LocalReusableLabEvidenceNegativeGate(){}
 
