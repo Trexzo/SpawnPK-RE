@@ -14172,3 +14172,17 @@ tasks.register('realWorldNegativeHeadProcessKillRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('realWorldNegativeHeadProcessKillRegression')
 }
+
+
+// R152 standalone/unwired immutable HEAD serialization guard.
+tasks.register('accountEpochHeadCodecRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify canonical bounded epoch HEAD encoding; never admit or recover.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochHeadCodecTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochHeadCodecRegression')
+}
