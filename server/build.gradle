@@ -14186,3 +14186,17 @@ tasks.register('accountEpochHeadCodecRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochHeadCodecRegression')
 }
+
+
+// R153: detached immutable object publication, negative-only IO fault seams.
+tasks.register('accountEpochSnapshotObjectRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify standalone immutable account snapshot publication; no HEAD or admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochSnapshotObjectsTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochSnapshotObjectRegression')
+}
