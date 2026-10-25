@@ -14260,3 +14260,18 @@ tasks.register('accountEpochNegativeHeadCrossJvmRaceRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochNegativeHeadCrossJvmRaceRegression')
 }
+
+
+// R158: hard-halt one of two alive JVMs at each negative HEAD stage;
+// independent third-JVM read must never confer positive account authority.
+tasks.register('accountEpochNegativeHeadCrossJvmHaltRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify staged competing JVM hard-halt HEAD cutpoints.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadCrossJvmHaltTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadCrossJvmHaltRegression')
+}
