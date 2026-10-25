@@ -14230,3 +14230,18 @@ tasks.register('accountEpochNegativeHeadProcessKillRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochNegativeHeadProcessKillRegression')
 }
+
+
+// R156: reject foreign same-byte HEAD inode substitution and hardlink
+// insertion across three negative publication cutpoints (12 cases).
+tasks.register('accountEpochNegativeHeadIdentityRaceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny foreign same-byte HEAD inode swaps and hardlink aliases.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadIdentityRaceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadIdentityRaceRegression')
+}

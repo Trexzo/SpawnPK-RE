@@ -175,13 +175,24 @@ final class LocalAccountEpochNegativeHeadPublication {
         LocalAccountEpochSnapshotObjects.Observation object=
             LocalAccountEpochSnapshotObjects.publish(account,snapshot);
         if(probe!=null)probe.at(Stage.OBJECT_FORCED_BEFORE_HEAD);
+        // R156: seal the newly-created leaf's observed inode while its
+        // writer is still open. Exact HEAD bytes alone cannot prove that
+        // the post-force path still names the leaf this call created.
+        final Object createdHeadFileKey;
         try(FileChannel writer=FileChannel.open(head,
                 StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE,
                 LinkOption.NOFOLLOW_LINKS)){
             ByteBuffer body=ByteBuffer.wrap(sealed);
             while(body.hasRemaining())writer.write(body);
+            BasicFileAttributes created=regular(head);
+            oneLink(head);
+            createdHeadFileKey=created.fileKey();
             if(probe!=null)probe.at(Stage.HEAD_WRITTEN_BEFORE_FILE_FORCE);
             writer.force(true);
+            BasicFileAttributes forced=regular(head);
+            oneLink(head);
+            if(!createdHeadFileKey.equals(forced.fileKey()))
+                throw new IOException("R156_HEAD_INODE_CHANGED_DURING_FORCE");
         }
         if(probe!=null)
             probe.at(Stage.HEAD_FILE_FORCED_BEFORE_DIRECTORY_FORCE);
@@ -189,6 +200,8 @@ final class LocalAccountEpochNegativeHeadPublication {
         if(probe!=null)
             probe.at(Stage.HEAD_DIRECTORY_FORCED_BEFORE_READBACK);
         Observation result=inspectNegative(account);
+        if(!createdHeadFileKey.equals(result.fileKey))
+            throw new IOException("R156_HEAD_INODE_CHANGED_AFTER_FORCE");
         if(!Arrays.equals(sealed,readBounded(head))||
            !object.fileKey.equals(
                LocalAccountEpochSnapshotObjects.verify(
