@@ -79,3 +79,32 @@ The state names are design labels. No existing code is entitled to parse or publ
 5. **Operator-reviewed recovery and real client:** only after full crash-cutpoint evidence and an explicit product decision on whether/how to retire negative markers. No default-on switch and no issue closure until verified.
 
 **Not certified:** this document adds no durable protocol, token authority, positive release, account migration, crash recovery, gameplay feature, donor recipe registration, or original-v308 runtime compatibility. The permanent negative witnesses must remain untouched. [#2540](https://github.com/Trexzo/SpawnPK-RE/issues/2540) and [#2559](https://github.com/Trexzo/SpawnPK-RE/issues/2559) remain OPEN, and PR #2965 stays DRAFT.
+
+## 6. R146–R151 hosted evidence: live exclusion is not durable final-save authority
+
+**Evidence head:** [`9270745a`](https://github.com/Trexzo/SpawnPK-RE/commit/9270745a242b46a4f44b60817580eb61c12e9047) (R151), [Linux Gradle #40199765645](https://github.com/Trexzo/SpawnPK-RE/actions/runs/40199765645) SUCCESS, [Windows source-only #40199765604](https://github.com/Trexzo/SpawnPK-RE/actions/runs/40199765604) SUCCESS. The same branch's R149 [`bdbb559e`](https://github.com/Trexzo/SpawnPK-RE/commit/bdbb559e860a2c053f37089aa398d13dad383e4a) and R150 [`d732789a`](https://github.com/Trexzo/SpawnPK-RE/commit/d732789a9082cdb77eba1aa5406d918ed0326cc1) also passed both workflows at their exact heads. These are source-revision synthetic TCP + hosted filesystem observations, not original-client or crash/power-loss certification.
+
+The test matrix is **four scenarios**: initial account file present vs absent before first login, each crossed with independent-JVM same-byte inode substitution vs hardlink insertion at an authentic World final-save postmove cutpoint. The first World reports an uncertain/failed final save and retains its in-memory same-World veto. All cases preserve the observed foreign postimage after the failed final and original World shutdown.
+
+| Evidence | Observed result on hosted Linux | Safety interpretation |
+|---|---|---|
+| R146 | A separate JVM can read the uncertain account using `FilePlayerRepository.loadForWorldSession` after original World exit | In-memory failed-final veto was not durably published |
+| R147 | A fresh World authenticates a real loopback TCP session for that account | This is **unsafe readmission**, not recovered ownership |
+| R148 | Later ordinary save replaces the canonical file while the unrelated hardlink retains its old inode and bytes | Neither alias nor new account proves reconciliation |
+| R149 | Fresh World closes with its own new canonical postimage unchanged; optional final-review witness is absent | Later normal final success cannot retroactively ACK the first failure |
+| R150 | A third independent JVM, while the second World is **live**, cannot obtain its cross-JVM OS account lock or authenticate the same account over TCP | Cooperative *live* session exclusion works in this tested opt-in configuration |
+| R151 | After second World closes/releases, a third JVM can acquire the OS lock and authenticate over genuine TCP | Released lock conveys **no durable claim** about the original failed final |
+
+The Linux R151 run emitted `R151_POSTRELEASE_THIRD_JVM_GAP_CONFIRMED` four times. The tests assert the before/after cutpoint and account identities in disposable per-case files. The R151 third JVM uses ordinary save/close behavior; it is **not** a recovered session or a proof that the previous failure was harmless.
+
+### Concrete next implementation gate (not yet satisfied)
+
+For any future opt-in implementation to reverse the demonstrated unsafe outcome, it must satisfy all of the following against these *same genuine TCP scenarios*:
+
+1. **Before hydration:** bind account path, schema, an authentic monotonic durable account epoch and the selected previously committed snapshot under an unambiguously owned cross-JVM lock. Publish a durable **ACTIVE/negative** account HEAD before the new World can mutate gameplay state. A failed, absent, unforced, unknown-version or partially readable claim is not a successful login.
+2. **Before each checkpoint/final:** accept only an immutable snapshot from the exact current session owner/generation and strictly increasing sequence. Force the complete snapshot object and its directory before it can be referenced by a forced authoritative HEAD. Stale, default-off, bypass RAW and unexpected link/inode changes require a negative decision; they cannot silently publish a successful state.
+3. **On any final-save ambiguity:** do not release positive admission authority based only on `SaveTicket` completion, byte equality, inode stability, a later normal save or an OS-lock release. After a **hard kill** of the exact owning process at each documented publication cutpoint, a separately started World must either observe a fully validated reusable committed HEAD or refuse admission with preserved operator-review evidence. Refusal is required on unproven outcome, not a guessed rollback or inferred successful replay.
+4. **Across two independent JVMs:** replay R150 while the first process holds the lock, then R151 after it releases. Only a fully validated previous-epoch final transition may permit the subsequent owner; simply closing the first session and removing the lock must not convert an unresolved failed-final state into a new grant.
+5. **Operational prerequisites:** specify every writer participating (World, checkpoint, BOOTSTRAP, RAW, named profile, strict path); define explicit migration and opt-out behavior; bounded canonical record parsing, NOFOLLOW and durability-capability preflight, forced directory + exact postimage verification, and a separate operator audit/recovery contract. Reject unsupported Windows/filesystem semantics rather than treating source compilation as durability support.
+
+**Go/no-go:** no positive adoption of the new authoritative HEAD in `LocalSession`, `WorldPlayerPersistence` or `FilePlayerRepository` until a standalone codec/publication layer and killed-JVM cutpoint matrix are independently tested. The existing `LocalDurableOwnerEpochPrototype` is intentionally non-admitting and cannot be treated as the new authenticated HEAD. Existing R146–R151 successful tests are **red evidence for release**: they prove which failure mode the eventual strict protocol must eliminate. Keep #2540 and #2559 OPEN, PR #2965 DRAFT, and all automatic recovery/marker-retirement/owner-handoff/ACK paths disabled.
