@@ -14200,3 +14200,17 @@ tasks.register('accountEpochSnapshotObjectRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochSnapshotObjectRegression')
 }
+
+
+// R154: untrusted, negative-only account HEAD after forced immutable object.
+tasks.register('accountEpochNegativeHeadPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject unsafe epoch HEAD publication and preserve cutpoint negative artifacts.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadPublicationTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadPublicationRegression')
+}
