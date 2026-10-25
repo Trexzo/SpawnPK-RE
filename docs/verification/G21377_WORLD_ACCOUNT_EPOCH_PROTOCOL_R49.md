@@ -172,3 +172,10 @@ The mandatory R160 source regression covers four existing RAW callers (repositor
 
 
 **R160.1 fixture correction:** Named profiles use a \`profile-\` plus 64-character SHA-256 leaf (72 characters before \`.properties\`), whereas R152's experimental HEAD account field accepts at most 64 characters. The named-profile HEAD fixture therefore creates a deliberately malformed/untrusted negative sibling after a forced immutable object, without relaxing the codec or claiming a valid owner epoch. It must still block RAW, World and session access by NOFOLLOW presence alone. Short encodable account leaves continue to exercise full R154 publication. This codec/path-length mismatch remains a prerequisite for any eventual positive protocol migration.
+
+
+## 16. R161 — late G21.377 negative evidence during admitted account read
+
+R161 adds a mandatory source-level regression at the existing \`FilePlayerRepository.afterWorldSessionRead\` test-only cutpoint. In four cases (account initially missing or existing, paired with a complete untrusted R154 negative HEAD or an R153 orphan immutable object), the late evidence is created after decoding the selected account and before the existing second admission veto. The repository must reject hydration with the original R53/R63 negative error, preserve original account bytes and inode (or its initial absence), retain the immutable object and optional HEAD, and deny an additional read by a fresh repository instance. An unrelated account remains loadable.
+
+This regression exercises the already-present second observation in \`loadForWorldSession\` and does not add an independent positive guard, cross-process atomicity, account unlock, real TCP World admission, recovery or final-save ACK. #2540 and #2559 stay open. PR #2965 remains draft until exact-head CI.

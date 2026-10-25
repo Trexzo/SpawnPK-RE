@@ -14305,3 +14305,18 @@ tasks.register('accountEpochLegacyNegativeVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochLegacyNegativeVetoRegression')
 }
+
+
+// R161: R153/R154 negative HEAD or orphan object appears after the real
+// account read and must be vetoed on the existing second session check.
+tasks.register('accountEpochLateReadNegativeVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject late G21.377 evidence at World session read recheck.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochLateReadNegativeVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochLateReadNegativeVetoRegression')
+}
