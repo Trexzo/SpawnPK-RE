@@ -14245,3 +14245,18 @@ tasks.register('accountEpochNegativeHeadIdentityRaceRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochNegativeHeadIdentityRaceRegression')
 }
+
+
+// R157: two independent JVMs reach the same first negative-HEAD publication
+// cutpoint, then race CREATE_NEW; reject losing writer and retain objects.
+tasks.register('accountEpochNegativeHeadCrossJvmRaceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Compete two JVMs on the same negative HEAD without granting recovery.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadCrossJvmRaceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadCrossJvmRaceRegression')
+}
