@@ -14320,3 +14320,18 @@ tasks.register('accountEpochLateReadNegativeVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochLateReadNegativeVetoRegression')
 }
+
+
+// R162: R153/154 negative evidence published by a separate JVM after
+// actual account hydration read must be denied before World session return.
+tasks.register('accountEpochCrossJvmLateReadVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny separate-JVM late G21.377 sidecars in World session read.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochCrossJvmLateReadVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochCrossJvmLateReadVetoRegression')
+}
