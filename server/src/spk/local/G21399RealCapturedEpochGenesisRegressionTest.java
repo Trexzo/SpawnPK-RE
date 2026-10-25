@@ -6357,6 +6357,53 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                             "R147 postfailure fresh World authenticated TCP login");
                         check(fresh.players().size()==1,
                             "R147 fresh World did not hydrate uncertain account");
+                        // R150: successful but UNSAFE postfailure admission
+                        // must not itself authorize a second live owner.
+                        // Reuse the existing independent-JVM R119
+                        // competitor: it proves both the held OS session
+                        // lock and a denied real TCP login in its World.
+                        Path competitorLog=root.resolve(
+                            "r150-postfailure-competing-"+mode+".log");
+                        ProcessBuilder competitorCommand=new ProcessBuilder(
+                            javaExe(),"-cp",
+                            System.getProperty("java.class.path"),
+                            G21399RealCapturedEpochGenesisRegressionTest
+                                .class.getName(),
+                            "--r119-competing-world",root.toString());
+                        competitorCommand.redirectErrorStream(true);
+                        competitorCommand.redirectOutput(
+                            competitorLog.toFile());
+                        Process competitor=competitorCommand.start();
+                        try{
+                            if(!competitor.waitFor(30L,TimeUnit.SECONDS)){
+                                competitor.destroyForcibly();
+                                competitor.waitFor(10L,TimeUnit.SECONDS);
+                                throw new IOException(
+                                    "R150_COMPETING_WORLD_TCP_TIMED_OUT");
+                            }
+                            String competitorTrace=new String(
+                                Files.readAllBytes(competitorLog),
+                                StandardCharsets.UTF_8);
+                            check(competitor.exitValue()==0&&
+                                competitorTrace.contains(
+                                    "R119_SECOND_WORLD_LIVE_OWNER_VETO_PASS")&&
+                                fresh.players().size()==1&&
+                                fresh.players().byName(USER)!=null,
+                                "R150 second JVM took postfailure fresh owner "+
+                                competitorTrace);
+                        }finally{
+                            if(competitor.isAlive()){
+                                competitor.destroyForcibly();
+                                competitor.waitFor(10L,TimeUnit.SECONDS);
+                            }
+                        }
+                        System.out.println(
+                            "R150_POSTFAILURE_FRESH_OWNER_COMPETITOR_DENIED_PASS"+
+                            " mode="+mode+
+                            " initialAccountAbsent="+firstLoginWithoutDiskAccount+
+                            " separateJvmRealTcpDenied=true"+
+                            " originalFreshWorldOwnerStillActive=true"+
+                            " noDurableRecoveryOrOwnerHandoff=true");
                     }
                     nextServer.waitCompleted();
                 }
