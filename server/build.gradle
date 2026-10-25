@@ -14365,3 +14365,18 @@ tasks.register('accountEpochFreshJvmTcpRestartVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochFreshJvmTcpRestartVetoRegression')
 }
+
+
+// R165: killed publisher JVM at each HEAD stage followed by genuine
+// synthetic TCP denied in a new World process with negative evidence.
+tasks.register('accountEpochKilledPublisherFreshTcpVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny fresh-World TCP after hard-killed negative HEAD publisher.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochKilledPublisherFreshTcpVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochKilledPublisherFreshTcpVetoRegression')
+}
