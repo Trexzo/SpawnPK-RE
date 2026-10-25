@@ -14214,3 +14214,19 @@ tasks.register('accountEpochNegativeHeadPublicationRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochNegativeHeadPublicationRegression')
 }
+
+
+// R155: actual abrupt JVM termination at four negative-only HEAD cutpoints.
+// Across both absent and existing legacy accounts, independent JVM reader
+// must deny; this is not power-loss, World capture, or positive recovery.
+tasks.register('accountEpochNegativeHeadProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Halt child JVM at each negative HEAD cutpoint and deny detached restart.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadProcessKillTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadProcessKillRegression')
+}
