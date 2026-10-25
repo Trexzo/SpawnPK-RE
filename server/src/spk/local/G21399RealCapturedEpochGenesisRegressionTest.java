@@ -6492,6 +6492,61 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                 " foreignHardlinkPreserved="+("hardlink".equals(mode))+
                 " negativeReviewWitnessStillAbsent=true"+
                 " originalFailedFinalNotDurablyResolved=true");
+            // R151: AFTER the R150 denied contender and the R149
+            // verified World.close(), use another independent JVM.
+            // The live-session lock should be available again, but
+            // ordinary TCP re-admission remains unauthoritative as
+            // evidence of final-save recovery or epoch handoff.
+            Path postreleaseLog=root.resolve(
+                "r151-postrelease-"+mode+".log");
+            ProcessBuilder postrelease=new ProcessBuilder(
+                javaExe(),"-cp",System.getProperty("java.class.path"),
+                G21399RealCapturedEpochGenesisRegressionTest
+                    .class.getName(),"--r151-postrelease-world",
+                root.toString(),mode);
+            postrelease.redirectErrorStream(true);
+            postrelease.redirectOutput(postreleaseLog.toFile());
+            Process next=postrelease.start();
+            try{
+                if(!next.waitFor(30L,TimeUnit.SECONDS)){
+                    next.destroyForcibly();
+                    next.waitFor(10L,TimeUnit.SECONDS);
+                    throw new IOException("R151_POSTRELEASE_TCP_PROBE_TIMED_OUT");
+                }
+                String nextTrace=new String(
+                    Files.readAllBytes(postreleaseLog),
+                    StandardCharsets.UTF_8);
+                check(next.exitValue()==0&&nextTrace.contains(
+                    "R151_POSTRELEASE_INDEPENDENT_TCP_READMISSION_GAP_PASS"+
+                    " mode="+mode),
+                    "R151 separate postrelease JVM rejected ordinary "+
+                    "TCP re-admission: "+nextTrace);
+            }finally{
+                if(next.isAlive()){
+                    next.destroyForcibly();
+                    next.waitFor(10L,TimeUnit.SECONDS);
+                }
+            }
+            check(!Files.exists(negativeReviewWitness,
+                    LinkOption.NOFOLLOW_LINKS),
+                "R151 postrelease World unexpectedly installed review marker");
+            if("hardlink".equals(mode))
+                check(Files.isRegularFile(foreignAlias,
+                        LinkOption.NOFOLLOW_LINKS)&&
+                    java.util.Objects.equals(foreignAliasKey,
+                        Files.readAttributes(foreignAlias,
+                            java.nio.file.attribute.BasicFileAttributes.class,
+                            LinkOption.NOFOLLOW_LINKS).fileKey())&&
+                    Arrays.equals(uncertainBeforeRead,
+                        Files.readAllBytes(foreignAlias)),
+                    "R151 third JVM changed separate foreign hardlink");
+            System.out.println(
+                "R151_POSTRELEASE_THIRD_JVM_GAP_CONFIRMED"+
+                " mode="+mode+
+                " initialAccountAbsent="+firstLoginWithoutDiskAccount+
+                " independentRealTcpAdmissionSucceeded=true"+
+                " finalReviewWitnessAbsentNotSafetyProof=true"+
+                " noRecoveredEpochOrOwnerHandoff=true");
         }finally{
             if(owner!=null&&owner.isAlive()){
                 owner.destroyForcibly();
@@ -6510,7 +6565,68 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
         }
     }
 
+    // R151: genuine independent-JVM owner after the second World's
+    // tested close. A successful ordinary login is deliberately
+    // classified as a durable-fence GAP, not as recovery or handoff.
+    private static void r151PostreleaseWorld(
+        Path root,String mode
+    )throws Exception{
+        check("inode".equals(mode)||"hardlink".equals(mode),
+            "R151 unexpected foreign-object mode");
+        r119EnableCrossJvmSessionLock(root);
+        Path account=LocalAccountProfiles.accountFile(USER);
+        check(Files.isRegularFile(account,LinkOption.NOFOLLOW_LINKS)&&
+            !Files.exists(
+                LocalFinalSaveNegativeWitness.witnessPath(account),
+                LinkOption.NOFOLLOW_LINKS),
+            "R151 postrelease account missing or review witness present");
+        LocalReusableLabEvidenceNegativeGate.requireNoLegacyCollision(account);
+        try(LocalCrossJvmAccountSessionLock.Handle claim=
+                LocalCrossJvmAccountSessionLock.acquire(account)){
+            claim.requireOriginalLockNameStillPresent();
+        }
+        FilePlayerRepository repository=new FilePlayerRepository(
+            LocalAccountProfiles::accountFile);
+        World third=World.isolatedForTest(50L,repository);
+        try{
+            try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                    .OneSession server=
+                    new G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
+                        .OneSession(third)){
+                try(Socket connected=server.login(USER)){
+                    await(()->third.players().byName(USER)!=null,
+                        "R151 independent third World real TCP login");
+                    check(third.players().size()==1,
+                        "R151 third World did not own one authenticated player");
+                }
+                server.waitCompleted();
+            }
+            check(third.players().size()==0&&
+                third.persistence().failedCount()==0,
+                "R151 third World final TCP session did not settle");
+        }finally{
+            if(!third.closed())third.close();
+        }
+        check(third.closed()&&
+            !Files.exists(
+                LocalFinalSaveNegativeWitness.witnessPath(account),
+                LinkOption.NOFOLLOW_LINKS),
+            "R151 third World close unexpectedly created final-review witness");
+        System.out.println(
+            "R151_POSTRELEASE_INDEPENDENT_TCP_READMISSION_GAP_PASS"+
+            " mode="+mode+
+            " releasedOsLockAcquired=true"+
+            " independentRealTcpLoginSucceeded=true"+
+            " thirdWorldClosed=true"+
+            " noDurableFinalReviewOrRecovery=true");
+    }
+
     public static void main(String[] args)throws Exception{
+        if(args.length==3&&
+                "--r151-postrelease-world".equals(args[0])){
+            r151PostreleaseWorld(Paths.get(args[1]),args[2]);
+            return;
+        }
         if(args.length==5&&
                 "--r130-authenticated-world-final".equals(args[0])){
             r130AuthenticatedWorldFinalVetoHolder(
