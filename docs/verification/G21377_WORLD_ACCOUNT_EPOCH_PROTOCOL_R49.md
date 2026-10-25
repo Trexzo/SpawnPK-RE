@@ -193,3 +193,10 @@ Unlike R161, each injected sidecar is published by a **separate Java process**, 
 Four source-level localhost transport scenarios run the genuine LocalSession/World admission path with a synthetic revision-317 login frame. An independent JVM publishes a forced R153 snapshot object, optionally followed by an R154 untrusted negative HEAD, in the exact selected account post-read callback. Both initially missing and existing accounts are covered. The network login must never succeed, World must never attach a player, both the immutable evidence and original legacy state must persist, and a fresh repository admission must still refuse the negative marker/object.
 
 This remains synthetic TCP, not the original graphical client, power loss, full cross-process ownership, durable positive account-epoch publication or final-save ACK. Issues #2540/#2559 remain open. PR #2965 stays draft pending exact-head Linux/Windows CI.
+
+
+## 19. R164 — separate freshly started World JVM refuses retained negative login evidence
+
+R164 adds six cases on disposable real file-backed accounts (original file present versus absent; complete untrusted R154 HEAD, malformed HEAD, or R153 object-only orphan). A newly started independent JVM boots an isolated World and attempts actual synthetic-revision317 localhost TCP login to \`opensrc\`, with all owner-lock opt-ins disabled. The fresh repository must classify the exact selected account evidence as negative, the TCP response must not admit or attach a World player, the existing account bytes/inode (or initial absence) must remain unchanged, and original HEAD bytes and digest-verifiable immutable objects must remain untouched. An independent clean-account TCP login control must succeed, preventing unrelated transport failure from masquerading as an admission veto.
+
+This is a deterministic process restart, not an OS crash/power-loss durability test, original graphical-client test, trusted global owner epoch, automated repair, failed-final recovery, final-save ACK or settlement. No production account code is changed. Issues #2540/#2559 remain open, PR #2965 remains draft pending exact-head CI.

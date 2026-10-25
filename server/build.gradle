@@ -14350,3 +14350,18 @@ tasks.register('accountEpochCrossJvmTcpReadVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochCrossJvmTcpReadVetoRegression')
 }
+
+
+// R164: fresh independent JVM + World TCP restart must deny retained
+// complete/malformed negative HEAD or orphan object; healthy TCP control.
+tasks.register('accountEpochFreshJvmTcpRestartVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny retained G21.377 forensic evidence in fresh World JVM TCP login.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochFreshJvmTcpRestartVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochFreshJvmTcpRestartVetoRegression')
+}
