@@ -6336,7 +6336,17 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                         Files.readAllBytes(foreignAlias)),
                     "R148 prelogin foreign hardlink diverged from account");
             }
+            // R149: there is no durable G21.298 operator-review
+            // witness from this default-off late-postmove failure.
+            // Absence is NOT evidence that the account is safe.
+            Path negativeReviewWitness=
+                LocalFinalSaveNegativeWitness.witnessPath(account);
+            check(!Files.exists(negativeReviewWitness,
+                    LinkOption.NOFOLLOW_LINKS),
+                "R149 unexpectedly found durable final-review witness");
             World fresh=World.isolatedForTest(50L,repository);
+            byte[] afterFreshFinalBytes=null;
+            Object afterFreshFinalKey=null;
             try{
                 try(G21173CoreSocketReconnectAfterWorldRestartIntegrationTest
                         .OneSession nextServer=
@@ -6389,9 +6399,52 @@ public final class G21399RealCapturedEpochGenesisRegressionTest {
                     " originalWorldVetoWasOnlyInMemory=true"+
                     " probeLastAfterForeignPostimageAssertions=true"+
                     " noCertifiedRecoveryOrOwnerHandoff=true");
+                // R149: a successful follow-on session cannot be
+                // mistaken for a durable resolution of the earlier
+                // failed final-save. Capture its exact disk postimage
+                // before close, then recheck after World teardown.
+                check(fresh.persistence().failedCount()==0&&
+                    fresh.persistence().failedFinalSaveAdmissionVetoCount()==0,
+                    "R149 fresh World unexpected save failure or negative veto");
+                afterFreshFinalBytes=Files.readAllBytes(account);
+                afterFreshFinalKey=Files.readAttributes(account,
+                    java.nio.file.attribute.BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS).fileKey();
+                check(afterFreshFinalKey!=null&&
+                    afterFreshFinalBytes.length>0,
+                    "R149 fresh final-save postimage not observable");
             }finally{
                 if(!fresh.closed())fresh.close();
             }
+            check(fresh.closed()&&
+                Arrays.equals(afterFreshFinalBytes,
+                    Files.readAllBytes(account))&&
+                java.util.Objects.equals(afterFreshFinalKey,
+                    Files.readAttributes(account,
+                        java.nio.file.attribute.BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS).fileKey())&&
+                !Files.exists(negativeReviewWitness,
+                    LinkOption.NOFOLLOW_LINKS)&&
+                r109OwnedWorldTemps(account)==0,
+                "R149 fresh World close modified final postimage or created review witness");
+            if("hardlink".equals(mode))
+                check(Files.isRegularFile(foreignAlias,
+                        LinkOption.NOFOLLOW_LINKS)&&
+                    java.util.Objects.equals(foreignAliasKey,
+                        Files.readAttributes(foreignAlias,
+                            java.nio.file.attribute.BasicFileAttributes.class,
+                            LinkOption.NOFOLLOW_LINKS).fileKey())&&
+                    Arrays.equals(uncertainBeforeRead,
+                        Files.readAllBytes(foreignAlias)),
+                    "R149 fresh World close altered separate foreign hardlink");
+            System.out.println(
+                "R149_FRESH_WORLD_CLOSE_NO_DURABLE_RESOLUTION_PASS"+
+                " mode="+mode+
+                " initialAccountAbsent="+firstLoginWithoutDiskAccount+
+                " freshFinalBytesAndObjectStableAtClose=true"+
+                " foreignHardlinkPreserved="+("hardlink".equals(mode))+
+                " negativeReviewWitnessStillAbsent=true"+
+                " originalFailedFinalNotDurablyResolved=true");
         }finally{
             if(owner!=null&&owner.isAlive()){
                 owner.destroyForcibly();
