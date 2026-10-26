@@ -199,5 +199,5 @@ public final class PlayableShopEconomyReconnectTest {
             throw new AssertionError(message);
     }
 
-    private G2ShopRoundTripIntegrationTest(){}
+    private PlayableShopEconomyReconnectTest(){}
 }
