@@ -14528,3 +14528,18 @@ tasks.register('playableQuickPrayerTcpReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableQuickPrayerTcpReconnectSmoke')
 }
+
+
+// P5.6: targeted magic must not route while caster is dead; original
+// spell effects, runes, cast/death concurrency remain intentionally unknown.
+tasks.register('playableDeadCasterSpellFenceSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Owner-bound spell route denies dead and zero-HP casters.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableDeadCasterSpellFenceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableDeadCasterSpellFenceSmoke')
+}
