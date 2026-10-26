@@ -122,15 +122,22 @@ public final class G123QuickPrayerOnIntegrationTest {
                 player.prayers().activeCount()==0,
                 "existing OFF path did not clear Quick ON state");
 
-            Capture blocked=new Capture(1);
+            // OutboundPacketQueue requires >=1024 bytes capacity.
+            // Fill that *valid* queue completely with a known sentinel,
+            // then ensure Quick ON does not append or alter it.
+            Capture blocked=new Capture(1024);
+            byte[] sentinel=new byte[1024];
+            Arrays.fill(sentinel,(byte)0x5a);
+            blocked.queue.offer(sentinel);
             ui.handleWidget(
                 QuickPrayerSelectionPresentation.QUICK_ON_WIDGET,
                 blocked.writer,"[g123-backpressure] ");
             require("REJECTED_WRITER_BACKPRESSURE_RETRYABLE"
                     .equals(bridge.lastOn)&&
-                blocked.drain().length==0&&
+                blocked.queue.queuedBytes()==1024&&
+                Arrays.equals(blocked.drain(),sentinel)&&
                 player.prayers().activeCount()==0,
-                "queue-full ON granted prayer or packets");
+                "queue-full ON granted prayer or appended packets");
 
             ByteArrayOutputStream directBytes=
                 new ByteArrayOutputStream();
