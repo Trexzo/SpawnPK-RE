@@ -16,6 +16,16 @@ final class LocalGameplayWidgetHandler {
     private final MagicState magic;
     private final BankState bank;
     private boolean acceptedHomeTeleport;
+    private final WorldPlayer lifecycleOwner;
+
+    /** Production route: binds all state to the canonical session owner. */
+    LocalGameplayWidgetHandler(WorldPlayer owner){
+        this(
+            java.util.Objects.requireNonNull(owner,"owner"),
+            owner.prayers(),owner.playerState(),owner.equipment(),
+            owner.combatStyles(),owner.magic(),owner.bank()
+        );
+    }
 
     LocalGameplayWidgetHandler(
         PrayerState prayers,
@@ -25,6 +35,19 @@ final class LocalGameplayWidgetHandler {
         MagicState magic,
         BankState bank
     ){
+        this(null,prayers,playerState,equipment,combatStyles,magic,bank);
+    }
+
+    private LocalGameplayWidgetHandler(
+        WorldPlayer owner,
+        PrayerState prayers,
+        PlayerState playerState,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        MagicState magic,
+        BankState bank
+    ){
+        this.lifecycleOwner=owner;
         this.prayers=java.util.Objects.requireNonNull(prayers,"prayers");
         this.playerState=java.util.Objects.requireNonNull(playerState,"playerState");
         this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
@@ -53,6 +76,25 @@ final class LocalGameplayWidgetHandler {
             return "V510_COMBAT_STYLE widget="+widget+
                 " weapon="+equipment.weapon()+
                 " result="+result;
+        }
+
+        // Only an actual direct spell is lifecycle-gated here. Prayer,
+        // combat style and unrelated UI widgets retain their existing
+        // routing semantics. Reset the home-teleport token above first,
+        // so a rejected click cannot replay a previous accepted teleport.
+        SpellDefinitionRepository.Spell requested=
+            SpellDefinitionRepository.byWidget(widget);
+        if(lifecycleOwner!=null&&
+           requested!=null&&!requested.targeted){
+            synchronized(lifecycleOwner.mutationLock()){
+                if(lifecycleOwner.lifecycle().dead()||
+                   playerState.currentLevel(PlayerState.HITPOINTS)<=0){
+                    return "V510_MAGIC_DIRECT widget="+widget+
+                        " result=REJECTED_CASTER_DEAD"+
+                        " authority=CUSTOM_LOCALLAB_LIFECYCLE"+
+                        " noTeleportOrMagicMutation=true";
+                }
+            }
         }
 
         MagicState.Check directSpell=
