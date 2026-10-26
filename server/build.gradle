@@ -14380,3 +14380,77 @@ tasks.register('accountEpochKilledPublisherFreshTcpVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochKilledPublisherFreshTcpVetoRegression')
 }
+
+
+// P1: connect real LocalLab PvM -> owned ground Take -> native bank
+// publication -> checkpoint and fresh World restore in one journey.
+tasks.register('playablePvmBankReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'PvM kill, ground Take, bank earned coins, fresh World restore.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayablePvmBankReconnectSmokeTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playablePvmBankReconnectSmoke')
+}
+
+
+// P2: real LocalSession synthetic TCP bank journey, source-owned final
+// logout checkpoint, and fresh World account restore of held inventory.
+tasks.register('playableBankTcpCheckpointReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Real local TCP bank withdraw, final logout, fresh World restore.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableBankTcpCheckpointReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableBankTcpCheckpointReconnectSmoke')
+}
+
+
+// P3: synthetic LocalSession TCP withdraw/Wield, client appearance,
+// normal movement, final-save and fresh World equipment restoration.
+tasks.register('playableEquipmentTcpReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Bank withdraw and Wield weapon; restart with persisted gear.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableEquipmentTcpReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableEquipmentTcpReconnectSmoke')
+}
+
+
+// P4: CUSTOM_LOCALLAB buy/sell/rebuy with account-file checkpoint and
+// fresh World inventory verification (shop stock remains World-local).
+tasks.register('playableShopEconomyReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Shop buy/sell/buy, save exact inventory and restore in fresh World.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableShopEconomyReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableShopEconomyReconnectSmoke')
+}
+
+// P5: real Rocktail inventory Eat action, heal and cadence through
+// authoritative player+bank mutation, file checkpoint and fresh World.
+tasks.register('playableRocktailHealingReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Eat Rocktail, reject rapid/duplicate consumption and restore HP.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableRocktailHealingReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableRocktailHealingReconnectSmoke')
+}
