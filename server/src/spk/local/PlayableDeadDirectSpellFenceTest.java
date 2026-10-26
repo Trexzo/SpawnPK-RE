@@ -91,8 +91,10 @@ public final class PlayableDeadDirectSpellFenceTest {
             "after-respawn Home Teleport not restored");
 
         // Fail closed if a broken lifecycle marks ALIVE but HP is zero.
-        player.playerState().setCurrentLevel(
-            PlayerState.HITPOINTS,0);
+        require(player.playerState().applyHitpointsDamage(99)==99&&
+            player.playerState().currentLevel(PlayerState.HITPOINTS)==0&&
+            player.lifecycle().alive(),
+            "explicit inconsistent ALIVE/zero-HP fixture");
         bytes=capture.wire.size();
         String inconsistent=gameplay.handle(1195,capture.writer);
         require(inconsistent.contains("REJECTED_CASTER_DEAD")&&
