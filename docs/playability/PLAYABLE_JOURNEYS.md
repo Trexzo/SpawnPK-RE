@@ -30,3 +30,10 @@ The test checks the **delta** against the stock 100,000-coin bank preimage; it d
 P1 source journey; P2 same-account network journey plus real graphical acceptance; P3 equipment/prayer/magic and consumables; P4 shops/bosses/Slayer/reward loops; P5 multiplayer/PvP/raids; P6 interface, content and release completeness. All release candidates need end-to-end actual-client tests and honest CUSTOM_LOCALLAB labeling when original SpawnPK formulas or policy are unknown.
 
 Project coordination: #2526. Gameplay drop-observer retry #2587, kill-credit origin #2558, Daily Money Making lifetime #2547. Account-safety #2540/#2559 remain independent blockers; no replay, cleanup, release, owner handoff or final-save ACK is added here.
+
+
+## Second journey — P2 TCP bank/checkpoint candidate
+
+P2 is a separate test-only integration built from the exact server packet flow in BankRuntimeIntegrationTest. One LocalSession on a real isolated World accepts the synthetic revision-317 localhost login, walk packet 164, object packet 132, bank overlay S2C248/53, a withdraw then store then second withdraw through opcode 145, and an explicit bank close before real socket logout. It requires LocalSession completion (no ignored Future timeout), then starts a separate fresh World and validates saved bank 995x99,999 and inventory 995x1. This is more than a no-net-mutation bank UI replay and checks actual final-save state from the transport session, but still uses synthetic wire data and does not prove failed-final-save crash recovery, original GUI or cross-JVM ownership.
+
+Do not mark P2 certified until exact-head Linux Gradle and Windows source-only checks pass on this additional commit.

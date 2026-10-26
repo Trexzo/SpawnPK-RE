@@ -14395,3 +14395,18 @@ tasks.register('playablePvmBankReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playablePvmBankReconnectSmoke')
 }
+
+
+// P2: real LocalSession synthetic TCP bank journey, source-owned final
+// logout checkpoint, and fresh World account restore of held inventory.
+tasks.register('playableBankTcpCheckpointReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Real local TCP bank withdraw, final logout, fresh World restore.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableBankTcpCheckpointReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableBankTcpCheckpointReconnectSmoke')
+}
