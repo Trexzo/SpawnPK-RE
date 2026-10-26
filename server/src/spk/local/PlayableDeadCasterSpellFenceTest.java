@@ -99,8 +99,10 @@ public final class PlayableDeadCasterSpellFenceTest {
             published.size()==bytes,
             "alive caster not restored after respawn");
 
-        player.playerState().setCurrentLevel(
-            PlayerState.HITPOINTS,0);
+        require(player.playerState().applyHitpointsDamage(99)==99&&
+            player.playerState().currentLevel(PlayerState.HITPOINTS)==0&&
+            player.lifecycle().alive(),
+            "explicit inconsistent ALIVE/zero-HP fixture");
         String inconsistent=handler.handle(playerTarget(),packets);
         require(inconsistent.contains("REJECTED_CASTER_DEAD")&&
             published.size()==bytes,
