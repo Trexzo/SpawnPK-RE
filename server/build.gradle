@@ -14380,3 +14380,18 @@ tasks.register('accountEpochKilledPublisherFreshTcpVetoRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('accountEpochKilledPublisherFreshTcpVetoRegression')
 }
+
+
+// P1: connect real LocalLab PvM -> owned ground Take -> native bank
+// publication -> checkpoint and fresh World restore in one journey.
+tasks.register('playablePvmBankReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'PvM kill, ground Take, bank earned coins, fresh World restore.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayablePvmBankReconnectSmokeTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playablePvmBankReconnectSmoke')
+}
