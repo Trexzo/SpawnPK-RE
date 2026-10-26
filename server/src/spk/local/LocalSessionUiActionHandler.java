@@ -398,6 +398,13 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default String handleQuickPrayerOn(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            return null;
+        }
+
         default String handleQuickPrayerOff(
             ServerPacketWriter serverPackets,
             String tag
@@ -1477,6 +1484,19 @@ final class LocalSessionUiActionHandler {
                 " rewardClaim=false"+
                 " rngClaim=false"
             );
+            return;
+        }
+
+        if(widget==
+                QuickPrayerSelectionPresentation.QUICK_ON_WIDGET){
+            String result=bridge.handleQuickPrayerOn(
+                serverPackets,tag);
+            System.out.println(
+                tag+"G123_QUICK_PRAYER_ON widget="+widget+
+                " status="+(result==null?"UNCONFIGURED_HANDLER_NOOP":result)+
+                " authority=LOCAL_LAB_POLICY_G123"+
+                " clientTokenAuthority=EXACT_CURRENT_CLIENT"+
+                " prayerDrainOrCombatEffectClaim=false");
             return;
         }
 

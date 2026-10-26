@@ -14498,3 +14498,18 @@ tasks.register('playableSurvivalRespawnReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableSurvivalRespawnReconnectSmoke')
 }
+
+
+// G123: Quick Prayer ON (widget 5000), exact config/token queue admission,
+// level gating, zero-byte backpressure and direct-writer rejection.
+tasks.register('quickPrayerOnIntegrationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Native Quick ON, queue-atomic level gated activation and retry.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G123QuickPrayerOnIntegrationTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('quickPrayerOnIntegrationRegression')
+}
