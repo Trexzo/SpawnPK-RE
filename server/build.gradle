@@ -14440,3 +14440,17 @@ tasks.register('playableShopEconomyReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableShopEconomyReconnectSmoke')
 }
+
+// P5: real Rocktail inventory Eat action, heal and cadence through
+// authoritative player+bank mutation, file checkpoint and fresh World.
+tasks.register('playableRocktailHealingReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Eat Rocktail, reject rapid/duplicate consumption and restore HP.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableRocktailHealingReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableRocktailHealingReconnectSmoke')
+}

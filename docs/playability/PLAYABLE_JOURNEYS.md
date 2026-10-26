@@ -47,3 +47,7 @@ This connected equipment test reuses the existing native bank withdraw and Wield
 ## P4 — shop economy and fresh World candidate
 
 Connected CUSTOM_LOCALLAB service path: acquire 100 coins in an isolated test player's inventory, buy two Rocktails at the explicitly custom ten-coin rate, sell one back for four coins, rebuy one for ten, require independently committed transactions and finite stock delta, then write the actual snapshot through FilePlayerRepository. An entirely fresh World rehydrates 74 inventory coins, two Rocktails and the unchanged 100,000 bank coins. This does not prove original SpawnPK prices, real client shop controls, permanent shared market stock across restart, crash recovery or economic anti-dupe in multi-JVM production.
+
+## P5 — real Eat/health/reconnect candidate
+
+The G1 Rocktail CUSTOM_LOCALLAB inventory-action handler (opcode 122) is exercised with two nonstackable food items: 50→60 HP, rejected premature cooldown, eligible second 60→70 HP, rejected duplicate stale-slot Eat, and no accidental bank stock consumption. After a real file-backed source checkpoint, the test boots an entirely new World and requires the healed HP and depleted inventory to remain exact. Source-only integration; it does not certify actual graphical UI, original heal amount, death/revival, failure durability, or production server concurrency.
