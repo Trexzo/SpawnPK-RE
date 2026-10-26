@@ -62,6 +62,24 @@ final class PrayerState {
         return "PRAYERS_CLEARED count="+n;
     }
 
+    /**
+     * Called only after the exact quick-on queue batch was admitted.
+     * This only records presentation activation; it establishes no drain,
+     * prayer conflict, combat effect, or original SpawnPK policy.
+     */
+    void recordPublishedQuickActivation(
+        Collection<PrayerDefinitionRepository.Def> selected
+    ){
+        Objects.requireNonNull(selected,"selected");
+        for(PrayerDefinitionRepository.Def def:selected){
+            if(def==null||def.book!=book)
+                throw new IllegalArgumentException(
+                    "quick activation wrong prayer book");
+        }
+        for(PrayerDefinitionRepository.Def def:selected)
+            activeWidgets.add(def.widget);
+    }
+
     String publishManualHeadIcon(int value,ServerPacketWriter w)throws IOException{
         if(value<-1||value>20)return "REJECTED_HEADICON_RANGE expected=-1..20";
         manualHeadIcon=value;
