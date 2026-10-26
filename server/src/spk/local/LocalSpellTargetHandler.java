@@ -42,6 +42,19 @@ final class LocalSpellTargetHandler {
         NpcRegistry npcs,
         CombatEngine combat
     ){
+        this(null,magic,bank,equipment,playerState,npcs,combat);
+    }
+
+    private LocalSpellTargetHandler(
+        WorldPlayer owner,
+        MagicState magic,
+        BankState bank,
+        EquipmentState equipment,
+        PlayerState playerState,
+        NpcRegistry npcs,
+        CombatEngine combat
+    ){
+        this.lifecycleOwner=owner;
         this.magic=java.util.Objects.requireNonNull(magic,"magic");
         this.bank=java.util.Objects.requireNonNull(bank,"bank");
         this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
