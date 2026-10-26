@@ -14557,3 +14557,17 @@ tasks.register('playableDeadDirectSpellFenceSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableDeadDirectSpellFenceSmoke')
 }
+
+
+// P5.8: dead Normal/Curses clicks cannot toggle active prayers or varps.
+tasks.register('playableDeadPrayerWidgetFenceSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Reject Normal and Curses prayer widgets during death.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableDeadPrayerWidgetFenceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableDeadPrayerWidgetFenceSmoke')
+}

@@ -61,6 +61,21 @@ final class LocalGameplayWidgetHandler {
         PrayerDefinitionRepository.Def prayer=
             PrayerDefinitionRepository.byWidget(widget);
         if(prayer!=null){
+            // Both Normal Prayer and Curses use this widget route. Keep the
+            // same canonical lifecycle admission as direct magic; reject
+            // before PrayerState.click can toggle activation or emit a varp.
+            // Does not infer original death-time auto-deactivation rules.
+            if(lifecycleOwner!=null){
+                synchronized(lifecycleOwner.mutationLock()){
+                    if(lifecycleOwner.lifecycle().dead()||
+                       playerState.currentLevel(PlayerState.HITPOINTS)<=0){
+                        return "V510_PRAYER_WIDGET widget="+widget+
+                            " result=REJECTED_PLAYER_DEAD"+
+                            " authority=CUSTOM_LOCALLAB_LIFECYCLE"+
+                            " configStatePreserved=true";
+                    }
+                }
+            }
             String result=prayers.click(prayer,playerState,serverPackets);
             return "V510_PRAYER_WIDGET widget="+widget+
                 " result="+result+
