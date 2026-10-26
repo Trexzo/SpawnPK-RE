@@ -14543,3 +14543,17 @@ tasks.register('playableDeadCasterSpellFenceSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableDeadCasterSpellFenceSmoke')
 }
+
+
+// P5.7: production-bound direct spell and Home Teleport lifecycle denial.
+tasks.register('playableDeadDirectSpellFenceSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Deny direct spells and all Home Teleport widgets when dead.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableDeadDirectSpellFenceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableDeadDirectSpellFenceSmoke')
+}
