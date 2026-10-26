@@ -102,7 +102,10 @@ public final class PlayableDeadPrayerWidgetFenceTest {
             "curse prayer after respawn");
 
         // Contradictory ALIVE lifecycle + 0 HP must fail closed.
-        player.playerState().setCurrentLevel(HP,0);
+        require(player.playerState().applyHitpointsDamage(99)==99&&
+            player.playerState().currentLevel(HP)==0&&
+            player.lifecycle().alive(),
+            "explicit inconsistent ALIVE/zero-HP fixture");
         int beforeZeroHp=wire.size();
         String zeroHp=router.handle(CURSE_PROTECT_ITEM,packets);
         require(zeroHp.contains("REJECTED_PLAYER_DEAD")&&
