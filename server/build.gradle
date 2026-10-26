@@ -14468,3 +14468,18 @@ tasks.register('playableRocktailTcpReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableRocktailTcpReconnectSmoke')
 }
+
+
+// P5.2: exact opcode185 prayer widgets through LocalSession TCP, level
+// gate and live packet36; ordinary final save and clean new World.
+tasks.register('playablePrayerTcpReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Prayer 185/36 level gate, toggle and source-owned reconnect.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayablePrayerTcpReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playablePrayerTcpReconnectSmoke')
+}

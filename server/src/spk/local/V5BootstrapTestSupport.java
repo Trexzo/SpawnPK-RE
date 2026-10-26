@@ -13,6 +13,13 @@ final class V5BootstrapTestSupport {
 
     /** Bootstrap with a source-restored damaged player's current HP. */
     static void expectNativeSidebarInventoryAndFountain(InputStream in, IsaacCipher s2c, int expectedHitpoints) throws IOException {
+        expectNativeSidebarInventoryAndFountain(in,s2c,expectedHitpoints,99);
+    }
+
+    /** Assert restored current prayer level without changing old callers. */
+    static void expectNativeSidebarInventoryAndFountain(InputStream in, IsaacCipher s2c, int expectedHitpoints, int expectedPrayer) throws IOException {
+        if(expectedPrayer<0||expectedPrayer>255)
+            throw new IllegalArgumentException("expectedPrayer");
         if(expectedHitpoints<1||expectedHitpoints>255)
             throw new IllegalArgumentException("expectedHitpoints");
         int[][] mappings = {
@@ -41,7 +48,8 @@ final class V5BootstrapTestSupport {
         for(int skill=0;skill<PlayerState.COMBAT_SKILL_COUNT;skill++){
             byte[] got=expectFixedBytes(in,s2c,134,6);
             byte[] want=BootstrapPackets.skill134(skill,PlayerState.XP_99,
-                skill==PlayerState.HITPOINTS?expectedHitpoints:99);
+                skill==PlayerState.HITPOINTS?expectedHitpoints:
+                    (skill==PlayerState.PRAYER?expectedPrayer:99));
             if(!Arrays.equals(got,want))
                 throw new AssertionError("skill134 skill="+skill+" got="+ClientPacketProbe.hex(got,16)+" expected="+ClientPacketProbe.hex(want,16));
         }
