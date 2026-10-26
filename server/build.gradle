@@ -14454,3 +14454,17 @@ tasks.register('playableRocktailHealingReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableRocktailHealingReconnectSmoke')
 }
+
+
+// P5.1: exact C2S opcode122 through LocalSession + fresh World restore.
+tasks.register('playableRocktailTcpReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Real TCP inventory Eat, heal packet and healthy final save.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableRocktailTcpReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableRocktailTcpReconnectSmoke')
+}

@@ -51,3 +51,8 @@ Connected CUSTOM_LOCALLAB service path: acquire 100 coins in an isolated test pl
 ## P5 — real Eat/health/reconnect candidate
 
 The G1 Rocktail CUSTOM_LOCALLAB inventory-action handler (opcode 122) is exercised with two nonstackable food items: 50→60 HP, rejected premature cooldown, eligible second 60→70 HP, rejected duplicate stale-slot Eat, and no accidental bank stock consumption. After a real file-backed source checkpoint, the test boots an entirely new World and requires the healed HP and depleted inventory to remain exact. Source-only integration; it does not certify actual graphical UI, original heal amount, death/revival, failure durability, or production server concurrency.
+
+
+## P5.1 — TCP Rocktail Eat and healthy LocalSession logout
+
+Stacked playability draft branch playability/p5-1-rocktail-tcp. The integration pre-seeds a source-owned account at 50 current HP, logs in through actual LocalSession loopback TCP, withdraws a Rocktail from bank slot 3, closes the overlay, and sends exact pinned-v308 inventory option opcode 122. It checks normal inventory 53, skill 134 HP 60, stale Eat replay and ISAAC alignment via a later walk packet. The real healthy LocalSession logout must restore HP 60, zero carried Rocktails, and 19 bank Rocktails in a fresh World. This is synthetic TCP input, NOT the original graphical client. Healing numbers remain CUSTOM_LOCALLAB; healthy session persistence is NOT power-loss recovery or cross-JVM ownership proof. Do not mark P5.1 CI-certified until the new exact-head Linux Gradle and Windows source-only jobs finish successfully.

@@ -8,6 +8,13 @@ final class V5BootstrapTestSupport {
     private V5BootstrapTestSupport() {}
 
     static void expectNativeSidebarInventoryAndFountain(InputStream in, IsaacCipher s2c) throws IOException {
+        expectNativeSidebarInventoryAndFountain(in,s2c,99);
+    }
+
+    /** Bootstrap with a source-restored damaged player's current HP. */
+    static void expectNativeSidebarInventoryAndFountain(InputStream in, IsaacCipher s2c, int expectedHitpoints) throws IOException {
+        if(expectedHitpoints<1||expectedHitpoints>255)
+            throw new IllegalArgumentException("expectedHitpoints");
         int[][] mappings = {
             {CombatInterfaceRepository.forWeapon(new EquipmentState().weapon()), CombatInterfaceRepository.TAB_INDEX},
             {BootstrapPackets.SKILLS_ROOT, 1},
@@ -30,10 +37,11 @@ final class V5BootstrapTestSupport {
             if (!Arrays.equals(got, want))
                 throw new AssertionError("sidebar71 got="+ClientPacketProbe.hex(got,16)+" expected="+ClientPacketProbe.hex(want,16));
         }
-        // v5.4 server-owned combat-skill bootstrap. All seven are 99 / 13,034,431.
+        // All combat XP is 13,034,431; persisted current HP may differ from 99.
         for(int skill=0;skill<PlayerState.COMBAT_SKILL_COUNT;skill++){
             byte[] got=expectFixedBytes(in,s2c,134,6);
-            byte[] want=BootstrapPackets.skill134(skill,PlayerState.XP_99,99);
+            byte[] want=BootstrapPackets.skill134(skill,PlayerState.XP_99,
+                skill==PlayerState.HITPOINTS?expectedHitpoints:99);
             if(!Arrays.equals(got,want))
                 throw new AssertionError("skill134 skill="+skill+" got="+ClientPacketProbe.hex(got,16)+" expected="+ClientPacketProbe.hex(want,16));
         }
