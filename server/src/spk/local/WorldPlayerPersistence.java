@@ -185,6 +185,23 @@ final class WorldPlayerPersistence
                     :failure
             );
         }
+
+        /**
+         * R91.4 deterministic test of a worker waking AFTER abort.
+         * Cannot be called on a published or un-aborted reservation.
+         * It invokes the SAME identity-fenced terminal cleanup as
+         * ReservedFinalSaveTask.run, never a final save publication.
+         */
+        void replayAbortedWorkerCleanupForTest(){
+            synchronized(task){
+                if(task.terminalFailure==null||
+                   task.captured!=null)
+                    throw new IllegalStateException(
+                        "R91_TEST_REQUIRES_ABORTED_UNPUBLISHED_TASK");
+            }
+            clearFinalReservation(
+                task.owner,task.ownerGeneration,task);
+        }
     }
 
     private static final class PendingCheckpoint {
@@ -285,6 +302,43 @@ final class WorldPlayerPersistence
     private final IdentityHashMap<WorldPlayer,Long>
         finalReservationGenerations=
             new IdentityHashMap<>();
+    // R91: track the exact original FIFO reservation task, rather
+    // than merely the same owner's generation. Guarded by io.
+    private final IdentityHashMap<WorldPlayer,ReservedFinalSaveTask>
+        finalReservationTasksForLab=new IdentityHashMap<>();
+    // R101: monotonic shutdown latch. The original FIFO witness is
+    // observed without the io monitor while a separate World Token
+    // is held, so closing must invalidate it before executor shutdown.
+    // This remains a best-effort forensic veto, not a durable pin.
+    private volatile boolean labFinalReservationsShutdown;
+
+    static final class FinalReservationEvidenceForLab {
+        private final WorldPlayerPersistence persistence;
+        private final WorldPlayer owner;
+        private final long generation;
+        private final ReservedFinalSaveTask originalTask;
+
+        private FinalReservationEvidenceForLab(
+            WorldPlayerPersistence persistence,WorldPlayer owner,
+            long generation,ReservedFinalSaveTask originalTask
+        ){
+            this.persistence=persistence;
+            this.owner=owner;
+            this.generation=generation;
+            this.originalTask=originalTask;
+        }
+
+        boolean isOriginalReservationStillPresentForLab(){
+            // R91: monotonic volatile revocation; zero IO-lock
+            // acquisition when settlement holds the owner Token.
+            // A replacement reservation is a distinct Task object,
+            // and can never revive this captured witness.
+            return !persistence.labFinalReservationsShutdown&&
+                originalTask.labReservationActive&&
+                originalTask.owner==owner&&
+                originalTask.ownerGeneration==generation;
+        }
+    }
 
     private final Object checkpointLock=
         new Object();
@@ -545,16 +599,89 @@ final class WorldPlayerPersistence
      * snapshot, BEFORE any asynchronous FIFO worker can observe a later
      * account-path lease. Non-file repositories never enter this protocol.
      */
+    private LocalJvmAccountSessionLease.WorldCaptureStartForLab
+        markWorldSnapshotCaptureStartForLab(
+        String username,WorldPlayer player,long generation
+    ){
+        if(!(repository instanceof FilePlayerRepository))return null;
+        return LocalJvmAccountSessionLease
+            .markWorldSnapshotCaptureStartForLab(
+                world,
+                ((FilePlayerRepository)repository).accountFilePath(username),
+                username,player,generation);
+    }
+
+    /**
+     * R90: read-only observation of an actually admitted final FIFO
+     * slot, under the existing persistence admission monitor.
+     * Called only under the opt-in LAB capture flag; cannot publish
+     * a save, reserve a new task or retire a World owner.
+     */
+    private FinalReservationEvidenceForLab
+        finalReservationPresentAtWorldCaptureForLab(
+        WorldPlayer owner,long generation
+    ){
+        if(!Boolean.getBoolean(
+                LocalJvmAccountSessionLease
+                    .CAPTURED_EPOCH_PREPARE_LAB_PROPERTY))
+            return null;
+        synchronized(io){
+            Long reserved=finalReservationGenerations.get(owner);
+            ReservedFinalSaveTask original=
+                finalReservationTasksForLab.get(owner);
+            return reserved!=null&&original!=null&&
+                reserved.longValue()==generation&&!io.isShutdown()
+                ?new FinalReservationEvidenceForLab(
+                    this,owner,generation,original)
+                :null;
+        }
+    }
+
     private LocalJvmAccountSessionLease.SaveCaptureWitness
         captureOwnerLeaseWitness(
-            String username,WorldPlayer player,long generation
+            String username,WorldPlayer player,long generation,
+            PlayerSnapshot exactWorldCapture,
+            LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart,
+            boolean finalDisconnectCapture,
+            FinalReservationEvidenceForLab finalReservationAtCapture
         ){
         if(!(repository instanceof FilePlayerRepository))
             return null;
         java.nio.file.Path file=
             ((FilePlayerRepository)repository).accountFilePath(username);
+        // R85: bind original in-JVM witness to the exact immutable
+        // World-thread snapshot, not only the owner's generation.
         return LocalJvmAccountSessionLease.captureSaveWitness(
-            file,username,player,generation);
+            file,username,player,generation,exactWorldCapture,
+            captureStart,finalDisconnectCapture,
+            finalReservationAtCapture);
+    }
+
+    /**
+     * A World-owned player-generation is not authority to write a
+     * caller-chosen *different* account file. Registry owner and snapshot
+     * profile must be the same canonical identity before snapshot capture,
+     * lease witness lookup, sequencing, checkpoint suppression or enqueue.
+     *
+     * This closes a local cross-profile misrouting path; it does not
+     * establish crash-durable account ownership across processes.
+     */
+    private static void requireCaptureAccountMatchesOwner(
+        String requestedAccount,WorldPlayer registeredOwner
+    ){
+        String canonicalCurrent=LocalAccountProfiles.canonicalProfile(
+            registeredOwner.username());
+        String canonicalRequested=LocalAccountProfiles.canonicalProfile(
+            requestedAccount);
+        // Preserve the pre-existing snapshot codec's argument error for
+        // empty/null usernames. Existing final-capture rollback consumers
+        // distinguish malformed input from a foreign registered profile.
+        if(canonicalRequested.isEmpty())
+            throw new IllegalArgumentException("username");
+        if(canonicalCurrent.isEmpty()||
+           !canonicalCurrent.equals(canonicalRequested))
+            throw new IllegalStateException(
+                "ACCOUNT_CAPTURE_PROFILE_OWNER_MISMATCH");
     }
 
     CapturedSave captureDeferredSave(
@@ -595,6 +722,7 @@ final class WorldPlayerPersistence
         );
 
         PlayerSnapshot snapshot;
+        LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -608,6 +736,9 @@ final class WorldPlayerPersistence
                     expectedGeneration
                 );
 
+            requireCaptureAccountMatchesOwner(username,player);
+            captureStart=markWorldSnapshotCaptureStartForLab(
+                username,player,expectedGeneration);
             snapshot=
                 PlayerSnapshotCodec.capture(
                     username,
@@ -634,7 +765,9 @@ final class WorldPlayerPersistence
             cleanTag(tag),
             cleanReason(reason),
             false,
-            captureOwnerLeaseWitness(username,player,expectedGeneration)
+            captureOwnerLeaseWitness(
+                username,player,expectedGeneration,snapshot,
+                captureStart,false,null)
         );
     }
 
@@ -654,6 +787,8 @@ final class WorldPlayerPersistence
         );
 
         PlayerSnapshot snapshot;
+        LocalJvmAccountSessionLease.WorldCaptureStartForLab captureStart;
+        FinalReservationEvidenceForLab reservationAtCapture;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -667,6 +802,7 @@ final class WorldPlayerPersistence
                     expectedGeneration
                 );
 
+            requireCaptureAccountMatchesOwner(username,player);
             Long previousSuppression;
 
             synchronized(checkpointLock){
@@ -678,6 +814,13 @@ final class WorldPlayerPersistence
             }
 
             try{
+                // Observe the genuine FIFO reservation before
+                // encoding the immutable final World image.
+                reservationAtCapture=
+                    finalReservationPresentAtWorldCaptureForLab(
+                        player,expectedGeneration);
+                captureStart=markWorldSnapshotCaptureStartForLab(
+                    username,player,expectedGeneration);
                 snapshot=
                     PlayerSnapshotCodec.capture(
                         username,
@@ -749,7 +892,9 @@ final class WorldPlayerPersistence
             cleanTag(tag),
             cleanReason(reason),
             true,
-            captureOwnerLeaseWitness(username,player,expectedGeneration)
+            captureOwnerLeaseWitness(
+                username,player,expectedGeneration,snapshot,
+                captureStart,true,reservationAtCapture)
         );
     }
 
@@ -934,9 +1079,27 @@ final class WorldPlayerPersistence
     private SaveTask saveTask(
         CapturedSave captured
     ){
-        return new SaveTask(
-            captured
-        );
+        return new SaveTask(captured);
+    }
+
+    private SaveTask saveTask(
+        CapturedSave captured,ReservedFinalSaveTask originalReservation
+    ){
+        // R91.5: worker-submitted final saves retain the identity
+        // of their original FIFO reservation for terminal cleanup.
+        return new SaveTask(captured,originalReservation);
+    }
+
+    /** R91.6: test-only unbound SaveTask terminal cleanup, no I/O. */
+    void replayUnboundFinalCleanupForLabTest(CapturedSave captured){
+        if(!Boolean.getBoolean(
+                LocalJvmAccountSessionLease
+                    .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY)||
+           captured==null||!captured.finalDisconnect||
+           captured.owner==null)
+            throw new IllegalStateException(
+                "R91_UNBOUND_CLEANUP_REQUIRES_FINAL_LAB_CAPTURE");
+        new SaveTask(captured).cleanupFinalReservation();
     }
 
     private boolean finalReservationBlocksLocked(
@@ -1008,11 +1171,19 @@ final class WorldPlayerPersistence
             task.owner,
             task.ownerGeneration
         );
+        finalReservationTasksForLab.put(task.owner,task);
+        task.labReservationActive=true;
     }
 
     private void clearFinalReservationLocked(
-        WorldPlayer owner,
-        long expectedGeneration
+        WorldPlayer owner,long expectedGeneration
+    ){
+        clearFinalReservationLocked(owner,expectedGeneration,null);
+    }
+
+    private void clearFinalReservationLocked(
+        WorldPlayer owner,long expectedGeneration,
+        ReservedFinalSaveTask expectedTask
     ){
         if(!Thread.holdsLock(io))
             throw new IllegalStateException(
@@ -1027,25 +1198,36 @@ final class WorldPlayerPersistence
                 owner
             );
 
+        // R91.6: a direct/unreserved final SaveTask has NO right
+        // to retire a real FIFO slot. Generation matching alone
+        // would let an unrelated final task clear another task's
+        // still-active reservation and its ordinary-save fence.
+        if(expectedTask==null||
+           finalReservationTasksForLab.get(owner)!=expectedTask)
+            return;
         if(existing!=null&&
-           existing.longValue()==expectedGeneration)
-            finalReservationGenerations.remove(
-                owner
-            );
+           existing.longValue()==expectedGeneration){
+            finalReservationGenerations.remove(owner);
+            ReservedFinalSaveTask original=
+                finalReservationTasksForLab.remove(owner);
+            if(original!=null)original.labReservationActive=false;
+        }
     }
 
     private void clearFinalReservation(
-        WorldPlayer owner,
-        long expectedGeneration
+        WorldPlayer owner,long expectedGeneration
     ){
-        if(owner==null)
-            return;
+        clearFinalReservation(owner,expectedGeneration,null);
+    }
 
+    private void clearFinalReservation(
+        WorldPlayer owner,long expectedGeneration,
+        ReservedFinalSaveTask expectedTask
+    ){
+        if(owner==null)return;
         synchronized(io){
             clearFinalReservationLocked(
-                owner,
-                expectedGeneration
-            );
+                owner,expectedGeneration,expectedTask);
         }
     }
 
@@ -1081,8 +1263,7 @@ final class WorldPlayerPersistence
         }finally{
             if(!admitted)
                 clearFinalReservationLocked(
-                    task.owner,
-                    task.ownerGeneration
+                    task.owner,task.ownerGeneration,task
                 );
         }
     }
@@ -1290,6 +1471,10 @@ final class WorldPlayerPersistence
                     player.petAccessoryState()
                         .activeItem();
 
+                LocalJvmAccountSessionLease.WorldCaptureStartForLab
+                    captureStart=
+                    markWorldSnapshotCaptureStartForLab(
+                        username,player,generation);
                 PlayerSnapshot snapshot=
                     PlayerSnapshotCodec.capture(
                         username,
@@ -1306,7 +1491,8 @@ final class WorldPlayerPersistence
                         player,
                         generation,
                         captureOwnerLeaseWitness(
-                            username,player,generation)
+                            username,player,generation,snapshot,
+                            captureStart,false,null)
                     );
 
                 synchronized(checkpointLock){
@@ -1630,6 +1816,16 @@ final class WorldPlayerPersistence
                             .loadForWorldSession(username)
                         :repository.load(username);
                 if(enforceAdmission&&loaded.isPresent()){
+                    // Custom PlayerRepository adapters need the same
+                    // fail-closed profile check as FilePlayerRepository.
+                    // Forensic observations are intentionally untrusted and
+                    // must remain readable with enforceAdmission=false.
+                    if(!LocalAccountProfiles.canonicalProfile(
+                            username).equals(
+                            LocalAccountProfiles.canonicalProfile(
+                                loaded.get().username())))
+                        throw new IOException(
+                            "ACCOUNT_LOAD_WORKER_PROFILE_MISMATCH");
                     MailboxPreparedRestartAdmission.Decision admission=
                         MailboxPreparedRestartAdmission.inspect(
                             loaded.get()
@@ -1670,6 +1866,9 @@ final class WorldPlayerPersistence
         final long ownerGeneration;
         private CapturedSave captured;
         private Throwable terminalFailure;
+        // R91: monotonically revoked after abort, publication,
+        // failed queue admission or terminal completion.
+        private volatile boolean labReservationActive;
 
         ReservedFinalSaveTask(
             WorldPlayer owner,
@@ -1708,14 +1907,13 @@ final class WorldPlayerPersistence
                     .interrupt();
 
             if(ready!=null){
-                saveTask(ready).run();
+                saveTask(ready,this).run();
                 return;
             }
 
             if(terminal!=null)
                 clearFinalReservation(
-                    owner,
-                    ownerGeneration
+                    owner,ownerGeneration,this
                 );
         }
 
@@ -1744,6 +1942,7 @@ final class WorldPlayerPersistence
                 );
 
             this.captured=checked;
+            labReservationActive=false; // LAB cannot rely on published slot
             notifyAll();
             return true;
         }
@@ -1765,13 +1964,13 @@ final class WorldPlayerPersistence
                         )
                         :failure;
                 changed=true;
+                labReservationActive=false;
                 notifyAll();
             }
 
             if(changed)
                 clearFinalReservation(
-                    owner,
-                    ownerGeneration
+                    owner,ownerGeneration,this
                 );
         }
 
@@ -1787,19 +1986,19 @@ final class WorldPlayerPersistence
 
                 terminalFailure=error;
                 ready=captured;
+                labReservationActive=false;
                 notifyAll();
             }
 
             if(ready!=null)
-                return saveTask(ready)
+                return saveTask(ready,this)
                     .reject(
                         error,
                         stage
                     );
 
             clearFinalReservation(
-                owner,
-                ownerGeneration
+                owner,ownerGeneration,this
             );
             return true;
         }
@@ -4194,6 +4393,7 @@ final class WorldPlayerPersistence
         private final boolean finalDisconnect;
         private final LocalJvmAccountSessionLease.SaveCaptureWitness
             ownerWitness;
+        private final ReservedFinalSaveTask originalFinalReservation;
         private final long saveSequence;
         private final PlayerSnapshot snapshot;
         private final int petAccessoryItem;
@@ -4201,8 +4401,12 @@ final class WorldPlayerPersistence
         private final String reason;
         private final CompletableFuture<Void> future;
 
+        SaveTask(CapturedSave captured){
+            this(captured,null);
+        }
+
         SaveTask(
-            CapturedSave captured
+            CapturedSave captured,ReservedFinalSaveTask originalReservation
         ){
             CapturedSave checked=
                 Objects.requireNonNull(
@@ -4216,6 +4420,7 @@ final class WorldPlayerPersistence
             this.finalDisconnect=
                 checked.finalDisconnect;
             this.ownerWitness=checked.ownerWitness;
+            this.originalFinalReservation=originalReservation;
             this.saveSequence=
                 checked.ticket.sequence;
             this.snapshot=
@@ -4226,6 +4431,13 @@ final class WorldPlayerPersistence
             this.reason=checked.reason;
             this.future=
                 checked.ticket.completion;
+        }
+
+        private void cleanupFinalReservation(){
+            if(finalDisconnect)
+                clearFinalReservation(
+                    owner,expectedGeneration,originalFinalReservation
+                );
         }
 
         @Override public void run(){
@@ -4251,11 +4463,7 @@ final class WorldPlayerPersistence
                     null
                 );
 
-                if(finalDisconnect)
-                    clearFinalReservation(
-                        owner,
-                        expectedGeneration
-                    );
+                cleanupFinalReservation();
             }
         }
 
@@ -4290,11 +4498,7 @@ final class WorldPlayerPersistence
                 );
             }
 
-            if(finalDisconnect)
-                clearFinalReservation(
-                    owner,
-                    expectedGeneration
-                );
+            cleanupFinalReservation();
 
             return rejected;
         }
@@ -4853,13 +5057,47 @@ final class WorldPlayerPersistence
             :reason;
     }
 
+    /**
+     * R98: executor shutdown is immediate LAB reservation revocation.
+     * A waiting FIFO worker may remain blocked until its normal
+     * shutdown drain/interrupt, but its previously captured snapshot
+     * is no longer eligible for even detached LAB settlement.
+     * Queue ownership, real save results and existing ACK rules
+     * are unchanged; only the monotonic forensic evidence bit moves.
+     */
+    private void shutdownAndRevokeLabReservationsLocked(){
+        if(!Thread.holdsLock(io))
+            throw new IllegalStateException(
+                "R98_PERSISTENCE_SHUTDOWN_REQUIRES_IO_MONITOR");
+        // Publish the global negative latch FIRST, while admission
+        // is excluded by io. A lock-free LAB witness must not read
+        // active between executor shutdown and per-task revocation.
+        labFinalReservationsShutdown=true;
+        for(ReservedFinalSaveTask task:
+                finalReservationTasksForLab.values())
+            task.labReservationActive=false;
+        io.shutdown();
+    }
+
+    /** R98 package-only bounded test of the real shutdown admission step. */
+    void beginLabShutdownForTest(){
+        if(!Boolean.getBoolean(
+                LocalJvmAccountSessionLease
+                    .CAPTURED_EPOCH_SETTLE_LAB_PROPERTY))
+            throw new IllegalStateException(
+                "R98_TEST_REQUIRES_EXPLICIT_SETTLEMENT_LAB_FLAG");
+        synchronized(io){
+            shutdownAndRevokeLabReservationsLocked();
+        }
+    }
+
     @Override public void close(){
         synchronized(checkpointLock){
             checkpointSuppressedGenerations.clear();
         }
 
         synchronized(io){
-            io.shutdown();
+            shutdownAndRevokeLabReservationsLocked();
         }
 
         boolean clean=false;

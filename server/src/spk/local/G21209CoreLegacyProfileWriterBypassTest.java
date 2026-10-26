@@ -13,10 +13,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * G21.209 TEST ONLY: after G21.210, the default-OFF/explicit opt-out
- * LocalAccountProfiles.save path still bypasses a held JVM session lease.
- * G21.209 parent #2666 proves the earlier gate-ON compatibility gap.
- * A PASS characterizes unsafe legacy opt-out, not a recovery fix.
+ * G21.209 was an historical unsafe legacy-profile opt-out characterization. R40 must now refuse the late opt-out during a live World lease, while preserving historical raw behavior only after test-only release.
+ * This is a regression of the new fail-closed boundary, not a
+ * positive grant, crash recovery, or authorization to toggle live flags.
  */
 public final class G21209CoreLegacyProfileWriterBypassTest {
     private static final String USER="g21209-profile-bypass";
@@ -135,8 +134,40 @@ public final class G21209CoreLegacyProfileWriterBypassTest {
             // After G21.210, the historical opt-out is deliberately
             // preserved as default-OFF compatibility. G21.209's prior
             // certified parent demonstrates the pre-fix ON bypass.
+            // R40 correction: G21.209 was an historical unsafe legacy-profile opt-out characterization. R40 must now refuse the late opt-out during a live World lease, while preserving historical raw behavior only after test-only release.
             System.setProperty(keys[2],"false");
-            String legacy;
+            String legacy=null;
+            boolean refused=false;
+            try{
+                legacy=LocalAccountProfiles.save(
+                    USER,owner.bank(),owner.equipment(),
+                    owner.movement(),owner.petState(),owner.playerState());
+            }catch(IOException expected){
+                refused=String.valueOf(expected.getMessage()).contains(
+                    "R40_RAW_OPT_OUT_DURING_ACCOUNT_OWNERSHIP_DENIED");
+            }finally{
+                System.setProperty(keys[2],"true");
+            }
+            check(refused&&legacy==null,
+                "late legacy-profile RAW opt-out bypassed World lease");
+            check(Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
+                "denied profile writer replaced newer World bytes");
+            check("LATEST_WORLD_EXTENSION".equals(onDisk(repository)),
+                "denied RAW erased live World extension");
+            check(!Files.exists(account.resolveSibling(
+                    account.getFileName().toString()+".tmp"),
+                    LinkOption.NOFOLLOW_LINKS),
+                "denied legacy profile allocated fixed temp");
+            check(LocalJvmAccountSessionLease.activeCountForTest()==1&&
+                LocalJvmAccountSessionLease.rawWriteReservationsForTest()==0,
+                "denied profile writer changed live owner accounting");
+            LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
+                account,owner,ownerGeneration);
+            check(world.unregisterPlayer(player,generation),
+                "fixture-only World unregister failed");
+            token.releaseAfterInitializationFailure();
+            token=null;
+            System.setProperty(keys[2],"false");
             try{
                 legacy=LocalAccountProfiles.save(
                     USER,owner.bank(),owner.equipment(),
@@ -145,33 +176,19 @@ public final class G21209CoreLegacyProfileWriterBypassTest {
                 System.setProperty(keys[2],"true");
             }
             check(legacy!=null&&legacy.contains("ACCOUNT_SAVED"),
-                "legacy profile adapter did not write");
-            check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account)),
-                "legacy profile write did not replace account postimage");
-            check(onDisk(repository)==null,
-                "legacy profile writer retained newer World extension");
-            check(LocalJvmAccountSessionLease
-                    .rawWriteReservationsForTest()==0,
-                "legacy writer unexpectedly participated in RAW reservations");
-            check(LocalJvmAccountSessionLease.activeCountForTest()==1,
-                "legacy writer changed held JVM session Token");
-            LocalJvmAccountSessionLease.requireCurrentWorldOwnerForTest(
-                account,owner,ownerGeneration);
+                "default-off profile after owner release was denied");
+            check(!Arrays.equals(beforeLegacy,Files.readAllBytes(account))&&
+                onDisk(repository)==null,
+                "historical post-release legacy profile semantics changed");
 
             System.out.println(
-                "G21209_LEGACY_PROFILE_WRITER_HELD_JVM_LEASE_BYPASS_PASS"+
-                " actualWorldSaveFirst=true"+
-                " originalWorldCaptureLeaseChecked=true"+
-                " participatingRepositoryRawDenied=true"+
-                " legacyProfileWriteSucceededWithGateOff=true"+
-                " newerWorldExtensionLostFromDisk=true"+
-                " originalWorldSessionLeaseStillHeld=true"+
-                " defaultOffFlagsUntouched=true"+
-                " legacyOptOutCompatibilityStillUnsafe=true"+
-                " globalWriterExclusion=false"+
-                " authenticatedDurableEpoch=false"+
-                " crossJvmOrCrashRecovery=false"+
-                " positiveGrantOrReviewRetirement=false");
+                "G21209_LEGACY_PROFILE_LIVE_OPT_OUT_DENIED_PASS"+
+                " liveWorldOwnerRetainedUntilFixtureRelease=true"+
+                " lateRawFlagOffRejectedBeforeTemp=true"+
+                " oldWorldPostimageUnchangedWhileOwned=true"+
+                " historicalUnleasedProfileSaveAfterRelease=true"+
+                " crossJvmEpoch=false crashDurableRecovery=false");
+
         }finally{
             try{
                 if(world!=null&&player!=null&&generation>0L)

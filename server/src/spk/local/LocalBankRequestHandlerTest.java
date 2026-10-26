@@ -14,14 +14,14 @@ public final class LocalBankRequestHandlerTest {
         LocalBankRequestHandler.Result amount=h.handleAmount(7,w);
         if(amount==null||!amount.logText.contains("IGNORED_BANK_CLOSED"))
             throw new AssertionError("closed bank amount route");
-        if(!"BANK_AMOUNT".equals(amount.saveReason))
-            throw new AssertionError("bank amount save contract");
+        if(amount.saveReason!=null)
+            throw new AssertionError("closed bank amount must not save");
 
         LocalBankRequestHandler.Result bankCommand=h.handleCommand("::banksearch whip",w);
         if(bankCommand==null||!bankCommand.logText.contains("IGNORED_BANK_CLOSED"))
             throw new AssertionError("bank command route");
-        if(!"BANK_COMMAND".equals(bankCommand.saveReason))
-            throw new AssertionError("bank command save contract");
+        if(bankCommand.saveReason!=null)
+            throw new AssertionError("closed bank command must not save");
 
         if(h.handleCommand("::nurse",w)!=null)
             throw new AssertionError("non-bank command must fall through");
@@ -46,6 +46,6 @@ public final class LocalBankRequestHandlerTest {
            bank.inventoryAt(0).itemId!=second||bank.inventoryAt(1).itemId!=first)
             throw new AssertionError("authoritative inventory drag not applied");
 
-        System.out.println("LOCAL_BANK_REQUEST_HANDLER_PASS amountRouting=true bankCommandFallthrough=true inventoryDrag=true persistenceSignals=true");
+        System.out.println("LOCAL_BANK_REQUEST_HANDLER_PASS amountRouting=true bankCommandFallthrough=true inventoryDrag=true persistenceSignals=true rejectedAmountAndCommandNoSave=true");
     }
 }

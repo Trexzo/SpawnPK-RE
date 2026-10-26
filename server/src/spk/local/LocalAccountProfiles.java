@@ -107,10 +107,31 @@ final class LocalAccountProfiles {
     }
 
     static String load(String username,BankState bank,EquipmentState equipment,MovementState movement,PetState pet,PlayerState player)throws IOException{
+        return loadSelected(username,bank,equipment,movement,pet,player,account->{});
+    }
+
+    /** R64: package-only deterministic mid-read evidence cutpoint. */
+    static String loadWithPostReadHookForTest(
+        String username,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace afterRead
+    )throws IOException{
+        return loadSelected(username,bank,equipment,movement,pet,player,afterRead);
+    }
+
+    private static String loadSelected(
+        String username,BankState bank,EquipmentState equipment,
+        MovementState movement,PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace afterRead
+    )throws IOException{
+        Objects.requireNonNull(afterRead,"afterRead");
         String u=clean(username);
-        if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.load(bank,equipment,movement,pet,player);
+        if(PRIMARY.equalsIgnoreCase(u))
+            return AccountStore.loadWithPostReadHookForTest(
+                bank,equipment,movement,pet,player,afterRead);
 
         Path file=accountFile(u);
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
         if(!Files.isRegularFile(file)) return "ACCOUNT_DEFAULTS_NO_FILE file="+file+" profile="+u;
 
         Properties properties=new Properties();
@@ -122,6 +143,10 @@ final class LocalAccountProfiles {
                 properties
             );
 
+        afterRead.run(u);
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
+        if(!file.equals(accountFile(u)))
+            throw new IOException("R64_NAMED_ACCOUNT_PATH_DRIFT_DENIED");
         PlayerSnapshotSchemaV1.apply(
             snapshot.values(),
             bank,
@@ -227,17 +252,43 @@ final class LocalAccountProfiles {
             if(safeTemp)
                 LocalOptInRawTemp.requireSealed(
                     tmp,tempIdentity,sealedTemp);
+            if(reservation!=null){
+                reservation.requireOriginalAccountObjectBeforePublication();
+                reservation.requireNoFinalNegativeWitnessBeforePublication();
+            }
+            LocalNegativeAccountHeadPrototype
+                .requireNoHeadBeforeRawMove(file);
+            // R47: pin the staged named-account inode for postmove
+            // positive-receipt exclusion if the optional gate is on.
+            final LocalJvmAccountSessionLease.RawWriteReservation
+                .StagedRawAccountObject stagedRawObject=reservation==null
+                    ?null:reservation.captureStagedRawAccountObject(tmp);
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
                     tmp,file,tempIdentity,sealedTemp,reservation,
                     u,accountPreimage);
             }else try{
-                if(reservation!=null)reservation.requireLockObjectContinuity();
+                if(reservation!=null){
+                    reservation.requireLockObjectContinuity();
+                    reservation.requireNoFinalNegativeWitnessBeforePublication();
+                }
                 Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);
             }catch(AtomicMoveNotSupportedException e){
-                if(reservation!=null)reservation.requireLockObjectContinuity();
+                if(reservation!=null){
+                    reservation.requireLockObjectContinuity();
+                    reservation.requireNoFinalNegativeWitnessBeforePublication();
+                }
                 Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING);
             }
+            if(reservation!=null){
+                reservation.requireNoFinalNegativeWitnessAfterPublication();
+                reservation.requirePublishedRawAccountObjectStillCurrent(
+                    stagedRawObject);
+                reservation.requirePublishedRawAccountBytesStillCurrent(
+                    stagedRawObject);
+            }
+            LocalNegativeAccountHeadPrototype
+                .requireNoHeadAfterRawMove(file);
             completed=true;
         }finally{
             if(!completed&&
@@ -291,5 +342,9 @@ final class LocalAccountProfiles {
             " runEnabled="+movement.persistentRun()+" runEnergy="+movement.runEnergy()+petText+playerText;
     }
 
-    private static String clean(String s){return s==null?"":s.trim().toLowerCase(Locale.ROOT);}
+    // Shared canonical identity for account routing, snapshots and worker admission.
+    static String canonicalProfile(String username){
+        return username==null?"":username.trim().toLowerCase(Locale.ROOT);
+    }
+    private static String clean(String s){return canonicalProfile(s);}
 }

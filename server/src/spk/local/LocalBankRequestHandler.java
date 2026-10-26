@@ -29,16 +29,16 @@ final class LocalBankRequestHandler {
         String result=bank.applyAmount(amount,serverPackets);
         return new Result(
             "V522_BANK_AMOUNT opcode=208 amount="+amount+" result="+result,
-            "BANK_AMOUNT"
+            BankMutationSaveClassifier.amount(result)?"BANK_AMOUNT":null
         );
     }
 
     Result handleDrag(ContainerDrag drag,ServerPacketWriter serverPackets)throws IOException{
         String result=bank.applyDrag(drag,serverPackets);
-        String saveReason=
-            drag.widgetId==BankState.NORMAL_INVENTORY_CONTAINER
-                ?"INVENTORY_DRAG"
-                :"BANK_DRAG";
+        String saveReason=BankMutationSaveClassifier.drag(result)
+            ?(drag.widgetId==BankState.NORMAL_INVENTORY_CONTAINER
+                ?"INVENTORY_DRAG":"BANK_DRAG")
+            :null;
         return new Result(
             "V561_CONTAINER_DRAG "+drag+" result="+result,
             saveReason
@@ -51,7 +51,7 @@ final class LocalBankRequestHandler {
 
         return new Result(
             "V522_BANK_COMMAND command="+command+" result="+result,
-            "BANK_COMMAND"
+            BankMutationSaveClassifier.command(result)?"BANK_COMMAND":null
         );
     }
 

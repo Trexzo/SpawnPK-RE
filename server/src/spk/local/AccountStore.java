@@ -38,7 +38,29 @@ final class AccountStore {
     }
 
     static String load(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
-        Path file = accountFile();
+        return loadSelected(bank,equipment,movement,pet,player,account->{});
+    }
+
+    /** R64: package-only fault cutpoint after decoding, before apply. */
+    static String loadWithPostReadHookForTest(
+        BankState bank,EquipmentState equipment,MovementState movement,
+        PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace afterRead
+    )throws IOException{
+        return loadSelected(bank,equipment,movement,pet,player,afterRead);
+    }
+
+    private static String loadSelected(
+        BankState bank,EquipmentState equipment,MovementState movement,
+        PetState pet,PlayerState player,
+        FilePlayerRepository.BeforeWorldReplace afterRead
+    )throws IOException{
+        java.util.Objects.requireNonNull(afterRead,"afterRead");
+        final Path file=accountFile();
+        // R64: retained R50 HEAD, G21.302 final witness and ANY
+        // R63 reusable LAB orphan veto even for missing-file/default
+        // paths. Do not consider a missing legacy file permission.
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
         if (!Files.isRegularFile(file)) return "NEW_ACCOUNT_DEFAULTS file=" + file;
 
         Properties properties = new Properties();
@@ -50,6 +72,12 @@ final class AccountStore {
                 properties
             );
 
+        afterRead.run(CANONICAL_USERNAME);
+        // Decode alone does not mutate gameplay state. Recheck the
+        // exact selected path before calling the mutating apply().
+        LocalFinalSaveNegativeWitness.requireNoNegativeWitness(file);
+        if(!file.equals(accountFile()))
+            throw new IOException("R64_PRIMARY_ACCOUNT_PATH_DRIFT_DENIED");
         PlayerSnapshotSchemaV1.apply(
             snapshot.values(),
             bank,
@@ -164,17 +192,42 @@ final class AccountStore {
             if(safeTemp)
                 LocalOptInRawTemp.requireSealed(
                     tmp,tempIdentity,sealedTemp);
+            if(reservation!=null){
+                reservation.requireOriginalAccountObjectBeforePublication();
+                reservation.requireNoFinalNegativeWitnessBeforePublication();
+            }
+            LocalNegativeAccountHeadPrototype
+                .requireNoHeadBeforeRawMove(file);
+            // R47: retain the exact new inode chosen for publication.
+            final LocalJvmAccountSessionLease.RawWriteReservation
+                .StagedRawAccountObject stagedRawObject=reservation==null
+                    ?null:reservation.captureStagedRawAccountObject(tmp);
             if(LocalOptInRawTemp.forcePostimageEnabled()){
                 LocalOptInRawTemp.forcePublish(
                     tmp,file,tempIdentity,sealedTemp,reservation,
                     CANONICAL_USERNAME,accountPreimage);
             }else try {
-                if(reservation!=null)reservation.requireLockObjectContinuity();
+                if(reservation!=null){
+                    reservation.requireLockObjectContinuity();
+                    reservation.requireNoFinalNegativeWitnessBeforePublication();
+                }
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
-                if(reservation!=null)reservation.requireLockObjectContinuity();
+                if(reservation!=null){
+                    reservation.requireLockObjectContinuity();
+                    reservation.requireNoFinalNegativeWitnessBeforePublication();
+                }
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
+            if(reservation!=null){
+                reservation.requireNoFinalNegativeWitnessAfterPublication();
+                reservation.requirePublishedRawAccountObjectStillCurrent(
+                    stagedRawObject);
+                reservation.requirePublishedRawAccountBytesStillCurrent(
+                    stagedRawObject);
+            }
+            LocalNegativeAccountHeadPrototype
+                .requireNoHeadAfterRawMove(file);
             completed = true;
         } finally {
             if (!completed &&

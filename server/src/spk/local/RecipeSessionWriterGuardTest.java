@@ -1,0 +1,1046 @@
+package spk.local;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.*;
+
+/**
+ * Source-only exact LocalSession writer identity and revocation tests.
+ * No recipe opcode registration, TCP login or durable account authority.
+ */
+public final class RecipeSessionWriterGuardTest {
+    private RecipeSessionWriterGuardTest(){}
+    private static final Set<Integer> STACKABLE=
+        new HashSet<>(Arrays.asList(100,300));
+    // Synthetic all-stackable fixture is independent of the mixed-item
+    // test's explicit nonstackable=200 classification.
+    private static final Set<Integer> ALL_STACKABLE_FIXTURE=
+        new HashSet<>(Arrays.asList(100,200,300));
+    private static final Set<Integer> NONSTACKABLE=
+        new HashSet<>(Arrays.asList(200,400));
+
+    @FunctionalInterface
+    interface Checked { void run() throws Exception; }
+
+    private static void ok(boolean condition,String reason){
+        if(!condition)
+            throw new AssertionError("RECIPE_SESSION_WRITER "+reason);
+    }
+    private static void denied(Checked action,String token)throws Exception{
+        boolean failed=false;
+        try{action.run();}
+        catch(IllegalStateException expected){
+            failed=String.valueOf(expected.getMessage()).contains(token);
+        }
+        ok(failed,"missing denial "+token);
+    }
+
+    private static World world(){
+        return World.isolatedForTest(60000L,new PlayerRepository(){
+            @Override public Optional<PlayerSnapshot> load(String user){
+                return Optional.empty();
+            }
+            @Override public void save(PlayerSnapshot snapshot){
+                throw new AssertionError("recipe guard cannot write accounts");
+            }
+        });
+    }
+    private static void seed(WorldPlayer player){
+        int[] ids=new int[player.bank().inventoryCapacity()];
+        int[] qty=new int[ids.length];
+        Arrays.fill(ids,-1);
+        ids[0]=100;qty[0]=5;
+        ids[1]=200;qty[1]=1;
+        ids[2]=200;qty[2]=1;
+        player.bank().replaceInventorySemantic(ids,qty);
+    }
+    private static ServerPacketWriter writer(OutboundPacketQueue queue){
+        return new ServerPacketWriter(
+            queue,new IsaacCipher(new int[]{0,0,0,0}));
+    }
+    private static RecipeWorldOwnedAdapter.SessionPrepared prepare(
+        RecipeSessionWriterGuard witness)throws Exception{
+        return RecipeWorldOwnedAdapter.prepareSessionStackable(
+            witness,Collections.singletonMap(100,2),300,3,2,
+            ALL_STACKABLE_FIXTURE,null,false);
+    }
+    private static RecipeWorldOwnedAdapter.SessionPrepared prepareMixed(
+        RecipeSessionWriterGuard witness)throws Exception{
+        Map<Integer,Integer> inputs=new HashMap<>();
+        inputs.put(100,1);
+        inputs.put(200,1);
+        return RecipeWorldOwnedAdapter.prepareSessionMixed(
+            witness,inputs,400,1,2,
+            STACKABLE,NONSTACKABLE,null,false);
+    }
+
+    public static void main(String[] args)throws Exception{
+        // Login installs the guard on the socket thread; logout can be
+        // requested from a World callback. Protect this publication edge
+        // against accidental removal of the volatile field contract.
+        java.lang.reflect.Field sessionField=
+            LocalSession.class.getDeclaredField("recipeSessionWriterGuard");
+        ok(java.lang.reflect.Modifier.isVolatile(
+                sessionField.getModifiers()),
+            "LocalSession recipe witness publication is not volatile");
+        World world=world();
+        try{
+            WorldPlayer player=new WorldPlayer();
+            seed(player);
+            OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+            ServerPacketWriter writer=writer(queue);
+            denied(()->new RecipeSessionWriterGuard(world,player,1,writer),
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+
+            long generation=world.registerPlayer(
+                player,"recipe_session_guard");
+            RecipeSessionWriterGuard witness=
+                new RecipeSessionWriterGuard(world,player,generation,writer);
+            denied(()->witness.runBound(
+                    world,player,generation,writer,()->null),
+                "RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
+            // Merely acquiring the player's mutation monitor must not
+            // fake this World's lifecycle + registry ownership.
+            denied(()->{
+                synchronized(player.mutationLock()){
+                    witness.runBound(
+                        world,player,generation,writer,()->null);
+                }
+            },"RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
+            ok(witness.activeForTest(),
+                "rejected unowned call revoked rightful session writer");
+            ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->{
+                    if(!world.currentThreadHoldsOpenPlayerMutationOwnership(
+                            player,generation))
+                        throw new AssertionError(
+                            "World did not expose actual owned callback");
+                    witness.runBound(
+                        world,player,generation,writer,()->null);
+                }),
+                "valid World-owned witness operation rejected");
+            ServerPacketWriter foreign=writer(
+                new OutboundPacketQueue(4096));
+            denied(()->world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->witness.runBound(
+                    world,player,generation,foreign,()->null)),
+                "RECIPE_SESSION_WRITER_IDENTITY_MISMATCH");
+            denied(()->world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->witness.runBound(
+                    world,new WorldPlayer(),generation,writer,()->null)),
+                "RECIPE_SESSION_WRITER_IDENTITY_MISMATCH");
+            ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->{
+                    witness.runBound(
+                        world,player,generation,writer,()->{
+                            denied(()->witness.runBound(
+                                world,player,generation,writer,()->null),
+                                "RECIPE_REENTRANT_WRITER_ACTION_DENIED");
+                            return null;
+                        });
+                }),
+                "nested writer action was not rejected");
+            boolean callbackFailed=false;
+            try{
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    player,generation,
+                    ()->witness.runBound(
+                        world,player,generation,writer,()->{
+                            throw new IOException("synthetic before-publication");
+                        }));
+            }catch(IOException expected){
+                callbackFailed="synthetic before-publication".equals(
+                    expected.getMessage());
+            }
+            ok(callbackFailed&&world.withOpenPlayerMutationOwnershipIfCurrent(
+                    player,generation,
+                    ()->witness.runBound(
+                        world,player,generation,writer,()->null)),
+                "failed guarded action did not release in-flight flag");
+            RecipeWorldOwnedAdapter.SessionPrepared prepared=prepare(witness);
+            ok(RecipeWorldOwnedAdapter.publishSession(prepared)==
+                    ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+                queue.queuedPackets()==1&&
+                player.bank().inventoryAt(0).qty==1&&
+                player.bank().inventoryAt(3).qty==6,
+                "bound writer did not publish expected inventory");
+            denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
+                "RECIPE_PREPARED_ALREADY_COMMITTED");
+            witness.revokeAndAwait();
+            denied(()->prepare(witness),"RECIPE_SESSION_WRITER_REVOKED");
+            denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
+                "RECIPE_SESSION_WRITER_REVOKED");
+            denied(()->new RecipeSessionWriterGuard(
+                    world,player,generation,writer),
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+            denied(()->new RecipeSessionWriterGuard(
+                    world,player,generation,foreign),
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+            ok(world.unregisterPlayer(player,generation),
+                "first owner cleanup failed");
+
+            WorldPlayer delayed=new WorldPlayer();
+            seed(delayed);
+            long delayedGeneration=world.registerPlayer(
+                delayed,"recipe_session_backpressure");
+            OutboundPacketQueue delayedQueue=new OutboundPacketQueue(4096);
+            delayedQueue.offerBatch(new byte[4096]);
+            ServerPacketWriter delayedWriter=writer(delayedQueue);
+            RecipeSessionWriterGuard delayedGuard=
+                new RecipeSessionWriterGuard(
+                    world,delayed,delayedGeneration,delayedWriter);
+            RecipeWorldOwnedAdapter.SessionPrepared waiting=
+                prepare(delayedGuard);
+            ok(RecipeWorldOwnedAdapter.publishSession(waiting)==
+                    ServerPacketWriter.RecoverablePacketResult.RETRACTED_RETRYABLE&&
+                delayed.bank().inventoryAt(0).qty==5&&
+                delayedQueue.queuedBytes()==4096,
+                "queue-full session attempt mutated inventory");
+            delayedQueue.drainTo(new java.io.ByteArrayOutputStream(),4096);
+            delayedGuard.revokeAndAwait();
+            denied(()->RecipeWorldOwnedAdapter.publishSession(waiting),
+                "RECIPE_SESSION_WRITER_REVOKED");
+            ok(delayedQueue.queuedBytes()==0&&
+                delayed.bank().inventoryAt(0).qty==5,
+                "revocation retried a formerly backpressured request");
+            // A revoked writer cannot be re-minted for this same owner
+            // generation; only a fresh World registration can claim again.
+            denied(()->new RecipeSessionWriterGuard(
+                    world,delayed,delayedGeneration,delayedWriter),
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+            ok(world.unregisterPlayer(delayed,delayedGeneration),
+                "backpressure owner cleanup failed");
+            long rejoined=world.registerPlayer(
+                delayed,"recipe_session_backpressure");
+            ok(rejoined>delayedGeneration,
+                "re-registration did not advance World generation");
+            denied(()->RecipeWorldOwnedAdapter.publishSession(waiting),
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+            RecipeSessionWriterGuard renewed=
+                new RecipeSessionWriterGuard(
+                    world,delayed,rejoined,delayedWriter);
+            RecipeWorldOwnedAdapter.SessionPrepared fresh=prepare(renewed);
+            ok(RecipeWorldOwnedAdapter.publishSession(fresh)==
+                    ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+                delayed.bank().inventoryAt(0).qty==1&&
+                delayedQueue.queuedPackets()==1,
+                "fresh generation could not commit after revoked request");
+            renewed.revokeAndAwait();
+            ok(world.unregisterPlayer(delayed,rejoined),
+                "rejoined backpressure owner cleanup failed");
+
+            // Foreign-World construction must reject without consuming a
+            // registered player's one allowed generation claim.
+            World foreignWorld=world();
+            try{
+                WorldPlayer foreignPlayer=new WorldPlayer();
+                seed(foreignPlayer);
+                long foreignGeneration=foreignWorld.registerPlayer(
+                    foreignPlayer,"recipe_session_foreign_world");
+                ServerPacketWriter foreignOwnedWriter=writer(
+                    new OutboundPacketQueue(4096));
+                denied(()->new RecipeSessionWriterGuard(
+                        world,foreignPlayer,foreignGeneration,
+                        foreignOwnedWriter),
+                    "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+                RecipeSessionWriterGuard rightful=
+                    new RecipeSessionWriterGuard(
+                        foreignWorld,foreignPlayer,foreignGeneration,
+                        foreignOwnedWriter);
+                ok(rightful.activeForTest(),
+                    "foreign-world denial consumed rightful witness");
+                rightful.revokeAndAwait();
+                ok(foreignWorld.unregisterPlayer(
+                    foreignPlayer,foreignGeneration),
+                    "foreign-owner cleanup failed");
+            }finally{
+                foreignWorld.close();
+            }
+
+            WorldPlayer stalePlayer=new WorldPlayer();
+            seed(stalePlayer);
+            long staleGeneration=world.registerPlayer(
+                stalePlayer,"recipe_guard_stale_monitor");
+            ServerPacketWriter staleWriter=writer(
+                new OutboundPacketQueue(4096));
+            RecipeSessionWriterGuard staleGuard=
+                new RecipeSessionWriterGuard(
+                    world,stalePlayer,staleGeneration,staleWriter);
+            ok(world.unregisterPlayer(stalePlayer,staleGeneration),
+                "stale-monitor owner could not unregister");
+            denied(()->{
+                synchronized(stalePlayer.mutationLock()){
+                    staleGuard.runBound(
+                        world,stalePlayer,staleGeneration,
+                        staleWriter,()->null);
+                }
+            },"RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
+            long reinstated=world.registerPlayer(
+                stalePlayer,"recipe_guard_stale_monitor");
+            denied(()->staleGuard.runBound(
+                world,stalePlayer,staleGeneration,
+                staleWriter,()->null),
+                "RECIPE_WORLD_MUTATION_OWNERSHIP_REQUIRED");
+            staleGuard.revokeAndAwait();
+            RecipeSessionWriterGuard restoredGuard=
+                new RecipeSessionWriterGuard(
+                    world,stalePlayer,reinstated,staleWriter);
+            restoredGuard.revokeAndAwait();
+            ok(world.unregisterPlayer(stalePlayer,reinstated),
+                "restored-monitor owner could not unregister");
+
+            WorldPlayer terminalPlayer=new WorldPlayer();
+            seed(terminalPlayer);
+            long terminalGen=world.registerPlayer(
+                terminalPlayer,"recipe_session_terminal");
+            OutboundPacketQueue terminalQueue=new OutboundPacketQueue(4096);
+            ServerPacketWriter terminalWriter=writer(terminalQueue);
+            // A writer already dead before binding may not consume the
+            // only session writer claim of this registered generation.
+            ServerPacketWriter initiallyDead=writer(
+                new OutboundPacketQueue(4096));
+            initiallyDead.markTerminal();
+            denied(()->new RecipeSessionWriterGuard(
+                    world,terminalPlayer,terminalGen,initiallyDead),
+                "RECIPE_TERMINAL_WRITER_CANNOT_CLAIM");
+            RecipeSessionWriterGuard terminal=
+                new RecipeSessionWriterGuard(
+                    world,terminalPlayer,terminalGen,terminalWriter);
+            RecipeWorldOwnedAdapter.SessionPrepared terminalReady=
+                prepareMixed(terminal);
+            terminalWriter.markTerminal();
+            boolean terminalDenied=false;
+            try{
+                RecipeWorldOwnedAdapter.publishSession(terminalReady);
+            }catch(IOException expected){
+                terminalDenied=String.valueOf(expected.getMessage())
+                    .contains("terminal recipe session writer");
+            }
+            ok(terminalDenied&&terminalQueue.queuedBytes()==0&&
+                terminalPlayer.bank().inventoryAt(0).qty==5&&
+                terminalPlayer.bank().inventoryAt(1).itemId==200&&
+                !terminal.activeForTest(),
+                "terminal writer leaked products or left active authority");
+            denied(()->prepareMixed(terminal),
+                "RECIPE_SESSION_WRITER_REVOKED");
+            denied(()->new RecipeSessionWriterGuard(
+                    world,terminalPlayer,terminalGen,
+                    writer(new OutboundPacketQueue(4096))),
+                "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+            terminal.revokeAndAwait();
+            ok(world.unregisterPlayer(terminalPlayer,terminalGen),
+                "terminal owner cleanup failed");
+
+            revocationWaitsForGuardedAction(world);
+            revocationPublicationRaces(world);
+            concurrentWitnessClaims(world);
+            closedWorldDeniesSessionPublication();
+            legacyWorldOnlyCannotBypassSessionWitness(world);
+            sessionPreviewIsReadOnly(world);
+            concurrentLegacyToSessionBinding(world);
+            sessionBankOpenViewPreview(world);
+            terminalDuringGuardedActionRevokes(world);
+        }finally{
+            world.close();
+        }
+        System.out.println("RECIPE_SESSION_WRITER_GUARD_PASS"+
+            " exactWriterDenied=true foreignPlayerDenied=true"+
+            " directUnownedCallDenied=true playerLockAloneDenied=true"+
+            " fullWorldOwnershipAsserted=true staleMonitorDenied=true"+
+            " reentrantWriterDenied=true inFlightExceptionCleared=true"+
+            " terminalBindDenied=true"+
+            " terminalRevokesWitness=true"+
+            " sameGenerationRebindDenied=true"+
+            " loginLogoutVolatileWitness=true"+
+            " foreignWorldWitnessClaimDenied=true"+
+            " revokedPrepareDenied=true revokedPublicationDenied=true"+
+            " backpressureRevocationDenied=true terminalWriterDenied=true"+
+            " inFlightRevocationBarrier=true"+
+            " closedWorldSessionDenied=true"+
+            " worldOnlyBypassAfterSessionClaimDenied=true"+
+            " missingOccupiedStackEvidenceDenied=true"+
+            " sessionPreviewReadOnlyAndStaleDenied=true"+
+            " legacyVsWriterClaimRaces=128"+
+            " bankOpenPreviewMirrorAndAbaDenied=true"+
+            " terminalDuringGuardedActionRevokes=true"+
+            " revocationPublicationRaces=64"+
+            " concurrentOneTimeWitnessClaims=64"+
+            " liveRecipeRegistered=false durableAccountEpoch=false");
+    }
+
+    private static void terminalDuringGuardedActionRevokes(World world)
+        throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_terminal_during_action_fixture");
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=writer(queue);
+        RecipeSessionWriterGuard guard=
+            new RecipeSessionWriterGuard(
+                world,player,generation,writer);
+        RecipeWorldOwnedAdapter.SessionPrepared prepared=prepare(guard);
+        ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+                player,generation,
+                ()->{
+                    guard.runBound(
+                        world,player,generation,writer,()->{
+                            writer.markTerminal();
+                            return null;
+                        });
+                }),
+            "terminal-during-callback fixture lost World ownership");
+        ok(!guard.activeForTest()&&queue.queuedBytes()==0&&
+            player.bank().inventoryAt(0).qty==5,
+            "terminal during callback left active recipe authority");
+        denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
+            "RECIPE_SESSION_WRITER_REVOKED");
+        denied(()->new RecipeSessionWriterGuard(
+                world,player,generation,
+                writer(new OutboundPacketQueue(4096))),
+            "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+        ok(world.unregisterPlayer(player,generation),
+            "terminal-in-action owner cleanup failed");
+
+        // Checked callback exceptions must also revoke after a terminal
+        // transport transition, not just after normal callback return.
+        WorldPlayer exceptional=new WorldPlayer();
+        seed(exceptional);
+        long nextGeneration=world.registerPlayer(
+            exceptional,"recipe_terminal_exception_fixture");
+        ServerPacketWriter failingWriter=writer(
+            new OutboundPacketQueue(4096));
+        RecipeSessionWriterGuard failing=
+            new RecipeSessionWriterGuard(
+                world,exceptional,nextGeneration,failingWriter);
+        boolean checkedFailure=false;
+        try{
+            world.withOpenPlayerMutationOwnershipIfCurrent(
+                exceptional,nextGeneration,
+                ()->{
+                    failing.runBound(
+                        world,exceptional,nextGeneration,
+                        failingWriter,()->{
+                            failingWriter.markTerminal();
+                            throw new java.io.IOException(
+                                "synthetic terminal callback failure");
+                        });
+                });
+        }catch(java.io.IOException expected){
+            checkedFailure="synthetic terminal callback failure".equals(
+                expected.getMessage());
+        }
+        ok(checkedFailure&&!failing.activeForTest(),
+            "terminal callback exception did not revoke session writer");
+        denied(()->prepare(failing),"RECIPE_SESSION_WRITER_REVOKED");
+        ok(world.unregisterPlayer(exceptional,nextGeneration),
+            "terminal callback exception cleanup failed");
+    }
+
+    private static void sessionBankOpenViewPreview(World world)
+        throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_bank_open_view_preview");
+        OutboundPacketQueue queue=new OutboundPacketQueue(8192);
+        ServerPacketWriter writer=writer(queue);
+        player.bank().open(writer);
+        queue.drainTo(new java.io.ByteArrayOutputStream(),8192);
+        ok(queue.queuedBytes()==0&&player.bank().isOpen(),
+            "bank-open preview fixture not initialized");
+        RecipeSessionWriterGuard guard=new RecipeSessionWriterGuard(
+            world,player,generation,writer);
+        RecipeWorldOwnedAdapter.SessionPrepared prepared=
+            prepareMixed(guard);
+        long revision=player.bank().inventoryMutationRevision();
+        long viewRevision=player.bank().bankViewRevision();
+        byte[][] views=RecipeWorldOwnedAdapter.previewSessionViews(prepared);
+        byte[][] copy=RecipeWorldOwnedAdapter.previewSessionViews(prepared);
+        byte[] primary=RecipeWorldOwnedAdapter.previewSession(prepared);
+        ok(views.length==2&&copy.length==2&&
+            Arrays.deepEquals(views,copy)&&
+            Arrays.equals(views[0],primary)&&
+            views[0].length>=4&&views[1].length>=4&&
+            ((views[0][0]&255)<<8|(views[0][1]&255))==3214&&
+            ((views[1][0]&255)<<8|(views[1][1]&255))==5064&&
+            queue.queuedBytes()==0&&
+            player.bank().inventoryMutationRevision()==revision&&
+            player.bank().bankViewRevision()==viewRevision&&
+            player.bank().inventoryAt(0).qty==5,
+            "bank-open view preview did not return pure mirror bodies");
+        views[0][0]^=0x1;
+        views[1][0]^=0x1;
+        ok(Arrays.deepEquals(copy,
+                RecipeWorldOwnedAdapter.previewSessionViews(prepared)),
+            "returned bank mirror alias modified subsequent previews");
+
+        player.bank().close(writer);
+        player.bank().open(writer);
+        queue.drainTo(new java.io.ByteArrayOutputStream(),8192);
+        denied(()->RecipeWorldOwnedAdapter.previewSessionViews(prepared),
+            "RECIPE_STALE_BANK_VIEW");
+        ok(queue.queuedBytes()==0&&
+            player.bank().inventoryAt(0).qty==5,
+            "bank-view ABA preview queued or granted an item");
+        RecipeWorldOwnedAdapter.SessionPrepared refreshed=
+            prepareMixed(guard);
+        byte[][] expected=
+            RecipeWorldOwnedAdapter.previewSessionViews(refreshed);
+        ok(expected.length==2&&
+            RecipeWorldOwnedAdapter.publishSession(refreshed)==
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            queue.queuedPackets()==1&&
+            player.bank().inventoryAt(0).qty==3&&
+            player.bank().inventoryAt(1).itemId==400,
+            "fresh bank-open preview altered mirrored publication");
+        denied(()->RecipeWorldOwnedAdapter.previewSessionViews(refreshed),
+            "RECIPE_PREPARED_ALREADY_COMMITTED");
+        guard.revokeAndAwait();
+        ok(world.unregisterPlayer(player,generation),
+            "bank-open preview owner cleanup failed");
+    }
+
+    private static void concurrentLegacyToSessionBinding(World world)
+        throws Exception{
+        ExecutorService workers=Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                final int sample=trial;
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_legacy_prepare_race_"+trial);
+                OutboundPacketQueue legacyQueue=
+                    new OutboundPacketQueue(4096);
+                ServerPacketWriter legacyWriter=writer(legacyQueue);
+                ServerPacketWriter sessionWriter=writer(
+                    new OutboundPacketQueue(4096));
+                java.util.concurrent.atomic.AtomicReference<
+                    RecipeWorldOwnedAdapter.Prepared> staged=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                java.util.concurrent.atomic.AtomicReference<
+                    RecipeSessionWriterGuard> witness=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                CountDownLatch ready=new CountDownLatch(2),
+                    start=new CountDownLatch(1);
+                Future<String> preparation=workers.submit(()->{
+                    ready.countDown();start.await();
+                    try{
+                        staged.set(
+                            RecipeWorldOwnedAdapter.prepareStackable(
+                                world,player,generation,legacyWriter,
+                                Collections.singletonMap(100,2),
+                                300,3,2,ALL_STACKABLE_FIXTURE,null,false));
+                        return "PREPARED";
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                });
+                Future<String> claim=workers.submit(()->{
+                    ready.countDown();start.await();
+                    witness.set(new RecipeSessionWriterGuard(
+                        world,player,generation,sessionWriter));
+                    return "CLAIMED";
+                });
+                ok(ready.await(5,TimeUnit.SECONDS),
+                    "prepare/claim did not reach gate "+sample);
+                start.countDown();
+                String prep=preparation.get(5,TimeUnit.SECONDS),
+                    bound=claim.get(5,TimeUnit.SECONDS);
+                ok("CLAIMED".equals(bound)&&
+                    ("PREPARED".equals(prep)||
+                     prep.contains("RECIPE_WORLD_ONLY_PATH_BLOCKED"))&&
+                    witness.get()!=null,
+                    "concurrent prepare/claim unexpected result "+sample+
+                    " prep="+prep+" claim="+bound);
+                if(staged.get()!=null)
+                    denied(()->RecipeWorldOwnedAdapter.publish(staged.get()),
+                        "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+                ok(legacyQueue.queuedBytes()==0&&
+                    player.bank().inventoryAt(0).qty==5,
+                    "legacy preparation claimed-session packet leak "+sample);
+                witness.get().revokeAndAwait();
+                ok(world.unregisterPlayer(player,generation),
+                    "prepare/claim unregister failed "+sample);
+            }
+
+            for(int trial=0;trial<64;trial++){
+                final int sample=trial;
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_legacy_publish_race_"+trial);
+                OutboundPacketQueue legacyQueue=
+                    new OutboundPacketQueue(4096);
+                ServerPacketWriter legacyWriter=writer(legacyQueue);
+                RecipeWorldOwnedAdapter.Prepared prepared=
+                    RecipeWorldOwnedAdapter.prepareStackable(
+                        world,player,generation,legacyWriter,
+                        Collections.singletonMap(100,2),
+                        300,3,2,ALL_STACKABLE_FIXTURE,null,false);
+                ServerPacketWriter sessionWriter=writer(
+                    new OutboundPacketQueue(4096));
+                java.util.concurrent.atomic.AtomicReference<
+                    RecipeSessionWriterGuard> witness=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                CountDownLatch ready=new CountDownLatch(2),
+                    start=new CountDownLatch(1);
+                Future<String> publication=workers.submit(()->{
+                    ready.countDown();start.await();
+                    try{
+                        return String.valueOf(
+                            RecipeWorldOwnedAdapter.publish(prepared));
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                });
+                Future<String> claim=workers.submit(()->{
+                    ready.countDown();start.await();
+                    witness.set(new RecipeSessionWriterGuard(
+                        world,player,generation,sessionWriter));
+                    return "CLAIMED";
+                });
+                ok(ready.await(5,TimeUnit.SECONDS),
+                    "publish/claim did not reach gate "+sample);
+                start.countDown();
+                String published=publication.get(5,TimeUnit.SECONDS),
+                    bound=claim.get(5,TimeUnit.SECONDS);
+                boolean completed="COMMITTED".equals(published);
+                ok("CLAIMED".equals(bound)&&
+                    (completed||published.contains(
+                        "RECIPE_WORLD_ONLY_PATH_BLOCKED"))&&
+                    witness.get()!=null&&
+                    legacyQueue.queuedPackets()==(completed?1:0)&&
+                    player.bank().inventoryAt(0).qty==(completed?1:5)&&
+                    ((player.bank().inventoryAt(3)==null)==!completed),
+                    "legacy publication/claim not linearized "+sample+
+                    " published="+published+" bound="+bound);
+                denied(()->RecipeWorldOwnedAdapter.publish(prepared),
+                    "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+                witness.get().revokeAndAwait();
+                ok(world.unregisterPlayer(player,generation),
+                    "publish/claim unregister failed "+sample);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
+    }
+
+    private static void sessionPreviewIsReadOnly(World world)
+        throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_session_preview_fixture");
+        OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+        ServerPacketWriter writer=writer(queue);
+        RecipeSessionWriterGuard guard=new RecipeSessionWriterGuard(
+            world,player,generation,writer);
+        RecipeWorldOwnedAdapter.SessionPrepared prepared=
+            prepareMixed(guard);
+        long revision=player.bank().inventoryMutationRevision();
+        byte[] first=RecipeWorldOwnedAdapter.previewSession(prepared);
+        byte[] second=RecipeWorldOwnedAdapter.previewSession(prepared);
+        ok(first.length>0&&Arrays.equals(first,second)&&
+            queue.queuedBytes()==0&&
+            player.bank().inventoryMutationRevision()==revision&&
+            player.bank().inventoryAt(0).qty==5&&
+            player.bank().inventoryAt(1).itemId==200,
+            "session preview queued bytes or changed inventory");
+        first[0]=(byte)(first[0]^0x7f);
+        ok(Arrays.equals(second,
+                RecipeWorldOwnedAdapter.previewSession(prepared)),
+            "caller mutated subsequent preview bytes");
+        ok(RecipeWorldOwnedAdapter.publishSession(prepared)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            queue.queuedPackets()==1&&
+            player.bank().inventoryAt(0).qty==3&&
+            player.bank().inventoryAt(1).itemId==400,
+            "preview changed later queue-backed publication semantics");
+        denied(()->RecipeWorldOwnedAdapter.previewSession(prepared),
+            "RECIPE_PREPARED_ALREADY_COMMITTED");
+        guard.revokeAndAwait();
+        ok(world.unregisterPlayer(player,generation),
+            "preview owner cleanup failed");
+
+        WorldPlayer stalePlayer=new WorldPlayer();
+        seed(stalePlayer);
+        long staleGen=world.registerPlayer(
+            stalePlayer,"recipe_session_preview_stale");
+        OutboundPacketQueue staleQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter staleWriter=writer(staleQueue);
+        RecipeSessionWriterGuard staleGuard=new RecipeSessionWriterGuard(
+            world,stalePlayer,staleGen,staleWriter);
+        RecipeWorldOwnedAdapter.SessionPrepared stale=prepare(staleGuard);
+        // Identical contents restored under the canonical World ownership:
+        // mutation revision still invalidates a previously prepared preview.
+        ok(world.withOpenPlayerMutationOwnershipIfCurrent(
+            stalePlayer,staleGen,()->{
+                int[] ids=new int[stalePlayer.bank().inventoryCapacity()];
+                int[] qty=new int[ids.length];
+                Arrays.fill(ids,-1);
+                ids[0]=100;qty[0]=5;
+                ids[1]=200;qty[1]=1;
+                ids[2]=200;qty[2]=1;
+                stalePlayer.bank().replaceInventorySemantic(ids,qty);
+            }),"stale preview fixture lost World ownership");
+        denied(()->RecipeWorldOwnedAdapter.previewSession(stale),
+            "RECIPE_STALE_INVENTORY_GENERATION");
+        ok(staleQueue.queuedBytes()==0&&
+            stalePlayer.bank().inventoryAt(0).qty==5,
+            "stale session preview leaked bytes or items");
+        RecipeWorldOwnedAdapter.SessionPrepared revoked=
+            prepare(staleGuard);
+        staleGuard.revokeAndAwait();
+        denied(()->RecipeWorldOwnedAdapter.previewSession(revoked),
+            "RECIPE_SESSION_WRITER_REVOKED");
+        ok(world.unregisterPlayer(stalePlayer,staleGen),
+            "stale preview owner cleanup failed");
+
+        WorldPlayer expiredPlayer=new WorldPlayer();
+        seed(expiredPlayer);
+        long expiredGen=world.registerPlayer(
+            expiredPlayer,"recipe_session_preview_expired");
+        OutboundPacketQueue expiredQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter expiredWriter=writer(expiredQueue);
+        RecipeSessionWriterGuard expiredGuard=
+            new RecipeSessionWriterGuard(
+                world,expiredPlayer,expiredGen,expiredWriter);
+        RecipeWorldOwnedAdapter.SessionPrepared expired=
+            prepare(expiredGuard);
+        ok(world.unregisterPlayer(expiredPlayer,expiredGen),
+            "expired preview fixture could not unregister");
+        denied(()->RecipeWorldOwnedAdapter.previewSession(expired),
+            "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+        ok(expiredQueue.queuedBytes()==0&&
+            expiredPlayer.bank().inventoryAt(0).qty==5,
+            "expired preview affected owner state");
+        expiredGuard.revokeAndAwait();
+    }
+
+    private static void legacyWorldOnlyCannotBypassSessionWitness(
+        World world
+    )throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_legacy_bypass_fixture");
+        OutboundPacketQueue legacyQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter legacyWriter=writer(legacyQueue);
+        // This inventory includes synthetic item 200. Without a verified
+        // stackable classification, the stricter stackable-only path must
+        // deny it before creating a prepared request or emitting bytes.
+        long initialRevision=player.bank().inventoryMutationRevision();
+        boolean unknownOccupiedDenied=false;
+        try{
+            RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                STACKABLE,null,false);
+        }catch(IllegalArgumentException expected){
+            unknownOccupiedDenied=String.valueOf(expected.getMessage())
+                .contains("unverified occupied stackable inventory item");
+        }
+        ok(unknownOccupiedDenied&&legacyQueue.queuedBytes()==0&&
+            player.bank().inventoryMutationRevision()==initialRevision&&
+            player.bank().inventoryAt(0).qty==5,
+            "unverified occupied item bypassed stackable-only planner");
+        // This is a distinct synthetic all-stackable fixture. Item 200 is
+        // NOT being claimed stackable in any actual v308 game inventory.
+        // An unbound request can exist before the session writer is claimed.
+        // Claiming the session must invalidate its PUBLICATION authority,
+        // even if the preimage and World generation never changed.
+        RecipeWorldOwnedAdapter.Prepared staleUnbound=
+            RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                ALL_STACKABLE_FIXTURE,null,false);
+        OutboundPacketQueue canonicalQueue=new OutboundPacketQueue(4096);
+        ServerPacketWriter canonicalWriter=writer(canonicalQueue);
+        RecipeSessionWriterGuard canonical=
+            new RecipeSessionWriterGuard(
+                world,player,generation,canonicalWriter);
+        denied(()->RecipeWorldOwnedAdapter.publish(staleUnbound),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        denied(()->RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                ALL_STACKABLE_FIXTURE,null,false),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        denied(()->RecipeWorldOwnedAdapter.prepareMixed(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),400,1,1,
+                STACKABLE,NONSTACKABLE,null,false),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        ok(legacyQueue.queuedPackets()==0&&
+            canonicalQueue.queuedPackets()==0&&
+            player.bank().inventoryAt(0).qty==5,
+            "unbound legacy path leaked item or packet after binding");
+        canonical.revokeAndAwait();
+        denied(()->RecipeWorldOwnedAdapter.publish(staleUnbound),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        denied(()->RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,generation,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                ALL_STACKABLE_FIXTURE,null,false),
+            "RECIPE_WORLD_ONLY_PATH_BLOCKED_BY_SESSION_WRITER");
+        ok(world.unregisterPlayer(player,generation),
+            "legacy bypass session unregister failed");
+
+        // A brand new registered World generation (still source-only) can
+        // create an unbound synthetic request if no session claimed it.
+        long next=world.registerPlayer(
+            player,"recipe_legacy_bypass_fixture");
+        ok(next>generation,"legacy fixture generation did not advance");
+        RecipeWorldOwnedAdapter.Prepared unboundFresh=
+            RecipeWorldOwnedAdapter.prepareStackable(
+                world,player,next,legacyWriter,
+                Collections.singletonMap(100,2),300,3,2,
+                ALL_STACKABLE_FIXTURE,null,false);
+        ok(RecipeWorldOwnedAdapter.publish(unboundFresh)==
+            ServerPacketWriter.RecoverablePacketResult.COMMITTED&&
+            legacyQueue.queuedPackets()==1&&
+            player.bank().inventoryAt(0).qty==1&&
+            player.bank().inventoryAt(3).qty==6,
+            "fresh unclaimed source-only generation was rejected");
+        ok(world.unregisterPlayer(player,next),
+            "legacy bypass fresh owner cleanup failed");
+    }
+
+    private static void closedWorldDeniesSessionPublication()
+        throws Exception{
+        World closing=world();
+        try{
+            WorldPlayer player=new WorldPlayer();
+            seed(player);
+            long generation=closing.registerPlayer(
+                player,"recipe_guard_closed_world");
+            OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+            ServerPacketWriter writer=writer(queue);
+            RecipeSessionWriterGuard witness=
+                new RecipeSessionWriterGuard(
+                    closing,player,generation,writer);
+            RecipeWorldOwnedAdapter.SessionPrepared prepared=
+                prepare(witness);
+            closing.close();
+            denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+            denied(()->new RecipeSessionWriterGuard(
+                    closing,player,generation,
+                    writer(new OutboundPacketQueue(4096))),
+                "RECIPE_WORLD_OWNER_GENERATION_NOT_CURRENT");
+            ok(queue.queuedBytes()==0&&
+                player.bank().inventoryAt(0).qty==5&&
+                player.bank().inventoryAt(3)==null,
+                "closed World permitted recipe queue or inventory grant");
+            witness.revokeAndAwait();
+        }finally{
+            closing.close();
+        }
+    }
+
+    private static void concurrentWitnessClaims(World world)
+        throws Exception{
+        ExecutorService workers=Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_unique_claim_"+trial);
+                ServerPacketWriter firstWriter=writer(
+                    new OutboundPacketQueue(4096));
+                ServerPacketWriter secondWriter=writer(
+                    new OutboundPacketQueue(4096));
+                CountDownLatch ready=new CountDownLatch(2);
+                CountDownLatch begin=new CountDownLatch(1);
+                java.util.concurrent.atomic.AtomicReference<
+                    RecipeSessionWriterGuard> winner=
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                java.util.concurrent.Callable<String> a=()->{
+                    ready.countDown();begin.await();
+                    try{
+                        RecipeSessionWriterGuard guard=
+                            new RecipeSessionWriterGuard(
+                                world,player,generation,firstWriter);
+                        winner.set(guard);
+                        return "CLAIMED";
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                };
+                java.util.concurrent.Callable<String> b=()->{
+                    ready.countDown();begin.await();
+                    try{
+                        RecipeSessionWriterGuard guard=
+                            new RecipeSessionWriterGuard(
+                                world,player,generation,secondWriter);
+                        winner.set(guard);
+                        return "CLAIMED";
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                };
+                Future<String> first=workers.submit(a);
+                Future<String> second=workers.submit(b);
+                ok(ready.await(5,TimeUnit.SECONDS),
+                    "concurrent claim contenders not ready "+trial);
+                begin.countDown();
+                String left=first.get(5,TimeUnit.SECONDS),
+                    right=second.get(5,TimeUnit.SECONDS);
+                ok(("CLAIMED".equals(left)^"CLAIMED".equals(right))&&
+                    (left.contains("GENERATION_ALREADY_CLAIMED")||
+                     right.contains("GENERATION_ALREADY_CLAIMED"))&&
+                    winner.get()!=null,
+                    "simultaneous witness claims both acquired "+trial+
+                    " a="+left+" b="+right);
+                winner.get().revokeAndAwait();
+                denied(()->new RecipeSessionWriterGuard(
+                        world,player,generation,firstWriter),
+                    "RECIPE_SESSION_WRITER_GENERATION_ALREADY_CLAIMED");
+                ok(world.unregisterPlayer(player,generation),
+                    "claimed generation cleanup failed "+trial);
+                long renewed=world.registerPlayer(
+                    player,"recipe_unique_claim_"+trial);
+                ok(renewed>generation,
+                    "new World generation did not advance "+trial);
+                RecipeSessionWriterGuard fresh=
+                    new RecipeSessionWriterGuard(
+                        world,player,renewed,firstWriter);
+                fresh.revokeAndAwait();
+                ok(world.unregisterPlayer(player,renewed),
+                    "renewed witness owner cleanup failed "+trial);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
+    }
+
+    private static void revocationPublicationRaces(World world)
+        throws Exception{
+        ExecutorService workers=Executors.newFixedThreadPool(2);
+        try{
+            for(int trial=0;trial<64;trial++){
+                WorldPlayer player=new WorldPlayer();
+                seed(player);
+                long generation=world.registerPlayer(
+                    player,"recipe_guard_revoke_race_"+trial);
+                OutboundPacketQueue queue=new OutboundPacketQueue(4096);
+                ServerPacketWriter writer=writer(queue);
+                RecipeSessionWriterGuard guard=
+                    new RecipeSessionWriterGuard(
+                        world,player,generation,writer);
+                RecipeWorldOwnedAdapter.SessionPrepared prepared=
+                    prepare(guard);
+                CountDownLatch ready=new CountDownLatch(2);
+                CountDownLatch start=new CountDownLatch(1);
+                Future<String> publication=workers.submit(()->{
+                    ready.countDown();start.await();
+                    try{
+                        return String.valueOf(
+                            RecipeWorldOwnedAdapter.publishSession(prepared));
+                    }catch(IllegalStateException expected){
+                        return String.valueOf(expected.getMessage());
+                    }
+                });
+                Future<?> revocation=workers.submit(()->{
+                    ready.countDown();
+                    try{
+                        start.await();
+                    }catch(InterruptedException interrupted){
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(
+                            "RECIPE_GUARD_RACE_INTERRUPTED",interrupted);
+                    }
+                    guard.revokeAndAwait();
+                });
+                ok(ready.await(5,TimeUnit.SECONDS),
+                    "publication and revoke did not reach start gate "+trial);
+                start.countDown();
+                String outcome=publication.get(5,TimeUnit.SECONDS);
+                revocation.get(5,TimeUnit.SECONDS);
+                boolean admitted="COMMITTED".equals(outcome);
+                ok(admitted||outcome.contains("RECIPE_SESSION_WRITER_REVOKED"),
+                    "unexpected revoke/publish outcome "+trial+
+                    " result="+outcome);
+                ok(queue.queuedPackets()==(admitted?1:0)&&
+                    player.bank().inventoryAt(0).qty==
+                        (admitted?1:5)&&
+                    ((player.bank().inventoryAt(3)==null)==!admitted),
+                    "revocation race packet/inventory mismatch "+trial);
+                denied(()->RecipeWorldOwnedAdapter.publishSession(prepared),
+                    "RECIPE_SESSION_WRITER_REVOKED");
+                ok(world.unregisterPlayer(player,generation),
+                    "revocation race owner cleanup failed "+trial);
+            }
+        }finally{
+            workers.shutdownNow();
+        }
+    }
+
+    private static void revocationWaitsForGuardedAction(World world)
+        throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        seed(player);
+        long generation=world.registerPlayer(
+            player,"recipe_guard_quiescence");
+        ServerPacketWriter writer=writer(new OutboundPacketQueue(4096));
+        RecipeSessionWriterGuard guard=
+            new RecipeSessionWriterGuard(world,player,generation,writer);
+        ExecutorService workers=Executors.newFixedThreadPool(2);
+        CountDownLatch inside=new CountDownLatch(1),
+            exit=new CountDownLatch(1);
+        try{
+            Future<?> action=workers.submit(()->{
+                try{
+                    world.withOpenPlayerMutationOwnershipIfCurrent(
+                        player,generation,
+                        ()->guard.runBound(
+                            world,player,generation,writer,()->{
+                                inside.countDown();
+                                if(!exit.await(5,TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "guarded action release timed out");
+                                return null;
+                            }));
+                }catch(Exception failure){
+                    throw new RuntimeException(failure);
+                }
+            });
+            ok(inside.await(5,TimeUnit.SECONDS),
+                "test action never entered session guard");
+            CountDownLatch revokerStarted=new CountDownLatch(1);
+            Future<?> revocation=workers.submit(()->{
+                revokerStarted.countDown();
+                guard.revokeAndAwait();
+            });
+            ok(revokerStarted.await(5,TimeUnit.SECONDS),
+                "revoker never started");
+            try{
+                revocation.get(100,TimeUnit.MILLISECONDS);
+                throw new AssertionError(
+                    "revocation returned before guarded action exited");
+            }catch(TimeoutException expected){
+                // Revocation is blocked by the guarded action monitor.
+            }
+            exit.countDown();
+            action.get(5,TimeUnit.SECONDS);
+            revocation.get(5,TimeUnit.SECONDS);
+            ok(!guard.activeForTest(),
+                "revoked witness still active");
+            denied(()->guard.runBound(
+                world,player,generation,writer,()->null),
+                "RECIPE_SESSION_WRITER_REVOKED");
+            ok(world.unregisterPlayer(player,generation),
+                "quiescence fixture cleanup failed");
+        }finally{
+            exit.countDown();
+            workers.shutdownNow();
+        }
+    }
+}

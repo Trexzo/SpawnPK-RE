@@ -73,21 +73,30 @@ final class BankState {
     }
 
     static final class PreparedInventoryMutation {
+        final BankState owner;
+        final long inventoryGeneration;
         final Stack[] expectedInventory;
         final Stack[] postimage;
+        private final Stack[] sealedExpectedInventory;
+        private final Stack[] sealedPostimage;
         final boolean expectedOpen;
         final int result;
         final String rejection;
 
-        PreparedInventoryMutation(
+        private PreparedInventoryMutation(
+            BankState owner,long inventoryGeneration,
             Stack[] expectedInventory,
             Stack[] postimage,
             boolean expectedOpen,
             int result,
             String rejection
         ){
-            this.expectedInventory=expectedInventory;
-            this.postimage=postimage;
+            this.owner=java.util.Objects.requireNonNull(owner,"owner");
+            this.inventoryGeneration=inventoryGeneration;
+            this.expectedInventory=copyStacks(expectedInventory);
+            this.postimage=postimage==null?null:copyStacks(postimage);
+            this.sealedExpectedInventory=copyStacks(expectedInventory);
+            this.sealedPostimage=postimage==null?null:copyStacks(postimage);
             this.expectedOpen=expectedOpen;
             this.result=result;
             this.rejection=rejection;
@@ -99,14 +108,22 @@ final class BankState {
     }
 
     static final class PreparedPetInventoryMutation {
+        // Drop/Pick-up item grants are source-local, one-use capabilities
+        // belonging to their exact BankState and preparation generation.
+        final BankState owner;
+        final long inventoryGeneration;
+        final long bankViewGeneration;
         final Stack[] expectedInventory;
         final Stack[] postimage;
+        private final Stack[] sealedExpectedInventory;
+        private final Stack[] sealedPostimage;
         final boolean expectedOpen;
         final int newPetSlot;
         final int oldPetReturnedSlot;
         final String rejection;
 
-        PreparedPetInventoryMutation(
+        private PreparedPetInventoryMutation(
+            BankState owner,long inventoryGeneration,long bankViewGeneration,
             Stack[] expectedInventory,
             Stack[] postimage,
             boolean expectedOpen,
@@ -114,8 +131,13 @@ final class BankState {
             int oldPetReturnedSlot,
             String rejection
         ){
-            this.expectedInventory=expectedInventory;
-            this.postimage=postimage;
+            this.owner=java.util.Objects.requireNonNull(owner,"owner");
+            this.inventoryGeneration=inventoryGeneration;
+            this.bankViewGeneration=bankViewGeneration;
+            this.expectedInventory=copyStacks(expectedInventory);
+            this.postimage=postimage==null?null:copyStacks(postimage);
+            this.sealedExpectedInventory=copyStacks(expectedInventory);
+            this.sealedPostimage=postimage==null?null:copyStacks(postimage);
             this.expectedOpen=expectedOpen;
             this.newPetSlot=newPetSlot;
             this.oldPetReturnedSlot=oldPetReturnedSlot;
@@ -128,23 +150,38 @@ final class BankState {
     }
 
     static final class PreparedInventoryTransform {
+        // A prepared one-slot color transform belongs to the exact local
+        // BankState, full inventory mutation lineage and bank presentation.
+        final BankState owner;
+        final long inventoryGeneration;
+        final long bankViewGeneration;
+        final Stack[] expectedInventory;
+        final Stack[] postimage;
+        private final Stack[] sealedExpectedInventory;
+        private final Stack[] sealedPostimage;
+        final boolean expectedOpen;
         final int slot;
         final int expectedItemId;
         final int replacementItemId;
-        final Stack[] postimage;
         final String rejection;
 
-        PreparedInventoryTransform(
-            int slot,
-            int expectedItemId,
-            int replacementItemId,
-            Stack[] postimage,
-            String rejection
+        private PreparedInventoryTransform(
+            BankState owner,long inventoryGeneration,long bankViewGeneration,
+            Stack[] expectedInventory,boolean expectedOpen,
+            int slot,int expectedItemId,int replacementItemId,
+            Stack[] postimage,String rejection
         ){
+            this.owner=java.util.Objects.requireNonNull(owner,"owner");
+            this.inventoryGeneration=inventoryGeneration;
+            this.bankViewGeneration=bankViewGeneration;
+            this.expectedInventory=copyStacks(expectedInventory);
+            this.postimage=postimage==null?null:copyStacks(postimage);
+            this.sealedExpectedInventory=copyStacks(expectedInventory);
+            this.sealedPostimage=postimage==null?null:copyStacks(postimage);
+            this.expectedOpen=expectedOpen;
             this.slot=slot;
             this.expectedItemId=expectedItemId;
             this.replacementItemId=replacementItemId;
-            this.postimage=postimage;
             this.rejection=rejection;
         }
 
@@ -154,14 +191,24 @@ final class BankState {
     }
 
     static final class PreparedExternalBankCredit {
+        // Exact source-local bank owner and semantic mutation lineage.
+        // Equal bank arrays are insufficient after ABA or across players.
+        final BankState owner;
+        final long bankGeneration;
+        // Existing callers may inspect the prepared arrays. They are not
+        // authoritative commit instructions: retain private independent
+        // snapshots to detect even same-package accidental mutation.
         final Stack[] expectedBank;
         final Stack[] postimage;
+        private final Stack[] sealedExpectedBank;
+        private final Stack[] sealedPostimage;
         final int itemId;
         final int amount;
         final int destinationSlot;
         final String rejection;
 
-        PreparedExternalBankCredit(
+        private PreparedExternalBankCredit(
+            BankState owner,long bankGeneration,
             Stack[] expectedBank,
             Stack[] postimage,
             int itemId,
@@ -169,8 +216,12 @@ final class BankState {
             int destinationSlot,
             String rejection
         ){
-            this.expectedBank=expectedBank;
-            this.postimage=postimage;
+            this.owner=java.util.Objects.requireNonNull(owner,"owner");
+            this.bankGeneration=bankGeneration;
+            this.expectedBank=copyStacks(expectedBank);
+            this.postimage=copyStacks(postimage);
+            this.sealedExpectedBank=copyStacks(expectedBank);
+            this.sealedPostimage=copyStacks(postimage);
             this.itemId=itemId;
             this.amount=amount;
             this.destinationSlot=destinationSlot;
@@ -185,8 +236,38 @@ final class BankState {
     private final Stack[] bank = new Stack[BANK_CAPACITY];
     private final Stack[] inventory = new Stack[INVENTORY_CAPACITY];
     private boolean open;
+    // Monotonic presentation generation: a close/reopen ABA must not revive
+    // an obsolete prepared recipe with an otherwise identical inventory.
+    private long bankViewRevision;
+    // Local mutation lineage fences a prepared recipe even after an ABA
+    // restoration of the same slots. Not a durable account/session epoch.
+    private long inventoryMutationRevision;
+    // Bank-side lineage for pending X responses, including same-slot ABA
+    // and tab moves. The BankState revision is source-only and not a
+    // cross-session durable account generation.
+    private long bankMutationRevision;
     private boolean placeholdersEnabled;
-    private ItemContainerAction pendingX;
+    private PendingBankAmount pendingX;
+
+    private static final class PendingBankAmount {
+        final ItemContainerAction action;
+        final ServerPacketWriter writer;
+        final long bankViewGeneration;
+        final long inventoryGeneration;
+        final long bankGeneration;
+
+        PendingBankAmount(
+            ItemContainerAction action,ServerPacketWriter writer,
+            long bankViewGeneration,long inventoryGeneration,
+            long bankGeneration
+        ){
+            this.action=java.util.Objects.requireNonNull(action,"action");
+            this.writer=java.util.Objects.requireNonNull(writer,"writer");
+            this.bankViewGeneration=bankViewGeneration;
+            this.inventoryGeneration=inventoryGeneration;
+            this.bankGeneration=bankGeneration;
+        }
+    }
 
     BankState() {
         // Synthetic LOCAL bank state only. Inventory intentionally starts empty.
@@ -200,20 +281,35 @@ final class BankState {
     }
 
     boolean isOpen() { return open; }
+    long bankViewRevision() { return bankViewRevision; }
+    long inventoryMutationRevision() { return inventoryMutationRevision; }
+    long bankMutationRevision() { return bankMutationRevision; }
     boolean placeholdersEnabled() { return placeholdersEnabled; }
     int bankSlots() { return occupied(bank); }
     int inventorySlots() { return occupied(inventory); }
     int bankCapacity() { return BANK_CAPACITY; }
     int inventoryCapacity() { return INVENTORY_CAPACITY; }
-    Stack bankAt(int slot) { return slot>=0 && slot<bank.length ? bank[slot] : null; }
-    Stack inventoryAt(int slot) { return slot>=0 && slot<inventory.length ? inventory[slot] : null; }
+    // Read-only-by-copy access: do not give a caller a mutable Stack alias
+    // that bypasses semantic publication and inventory mutation revision.
+    Stack bankAt(int slot) {
+        return slot>=0&&slot<bank.length
+            ?copyStack(bank[slot]):null;
+    }
+    Stack inventoryAt(int slot) {
+        return slot>=0&&slot<inventory.length
+            ?copyStack(inventory[slot]):null;
+    }
+    private static Stack copyStack(Stack source){
+        return source==null?null:
+            new Stack(source.itemId,source.qty,source.tab);
+    }
     int inventoryCount(int itemId) {
         long total=0;
         for(Stack st:inventory) if(st!=null && st.itemId==itemId) total+=st.qty;
         return total>Integer.MAX_VALUE?Integer.MAX_VALUE:(int)total;
     }
 
-    PreparedExternalBankCredit prepareExternalBankCredit(
+    synchronized PreparedExternalBankCredit prepareExternalBankCredit(
         int itemId,
         int amount
     ){
@@ -240,6 +336,7 @@ final class BankState {
 
         if(dst<0)
             return new PreparedExternalBankCredit(
+                this,bankMutationRevision,
                 expected,
                 expected,
                 itemId,
@@ -261,6 +358,7 @@ final class BankState {
 
         if(merged>Integer.MAX_VALUE)
             return new PreparedExternalBankCredit(
+                this,bankMutationRevision,
                 expected,
                 expected,
                 itemId,
@@ -276,6 +374,7 @@ final class BankState {
         next[dst].qty=(int)merged;
 
         return new PreparedExternalBankCredit(
+            this,bankMutationRevision,
             expected,
             next,
             itemId,
@@ -285,7 +384,7 @@ final class BankState {
         );
     }
 
-    int commitPreparedExternalBankCredit(
+    synchronized int commitPreparedExternalBankCredit(
         PreparedExternalBankCredit prepared
     ){
         if(prepared==null||
@@ -294,23 +393,37 @@ final class BankState {
                 "accepted external bank credit required"
             );
 
-        if(!sameStacks(
-                bank,
-                prepared.expectedBank
-            ))
+        if(prepared.owner!=this)
             throw new IllegalStateException(
-                "bank preimage changed before external credit commit"
+                "external bank credit belongs to a different BankState"
+            );
+        if(prepared.bankGeneration!=bankMutationRevision||
+           !sameStacks(bank,prepared.sealedExpectedBank))
+            throw new IllegalStateException(
+                "bank lineage/preimage changed before external credit commit"
+            );
+        // Prepared arrays are observable within spk.local. Never let
+        // modified copies turn an approved finite grant into arbitrary
+        // coins/items or silently diverge from what was published.
+        if(!sameStacks(prepared.expectedBank,prepared.sealedExpectedBank)||
+           !sameStacks(prepared.postimage,prepared.sealedPostimage))
+            throw new IllegalStateException(
+                "external bank credit prepared snapshot was modified"
             );
 
         replaceStacks(
             bank,
-            prepared.postimage
+            prepared.sealedPostimage
         );
 
         return prepared.destinationSlot;
     }
 
-    void open(ServerPacketWriter w) throws IOException {
+    // The BankState monitor also guards source-only recipe prepare/commit.
+    // Overlay transitions must serialize with it, preserving bank-view
+    // generation and the encoded normal/bank inventory mirror as one state.
+    // Lock ordering remains BankState -> ServerPacketWriter.
+    synchronized void open(ServerPacketWriter w) throws IOException {
         byte[] root=
             BootstrapPackets.interfaceOverlay248(
                 BANK_ROOT,
@@ -365,11 +478,14 @@ final class BankState {
             throw failure;
         }
 
+        // Every successful overlay publication is a new presentation
+        // generation, even if the bank was already open before re-opening.
+        bankViewRevision++;
         open = true;
         pendingX = null;
     }
 
-    void close(ServerPacketWriter w) throws IOException {
+    synchronized void close(ServerPacketWriter w) throws IOException {
         if (!open) return;
 
         byte[] normalInventory=
@@ -414,23 +530,25 @@ final class BankState {
             throw failure;
         }
 
+        bankViewRevision++;
         open = false;
         pendingX = null;
     }
 
-    boolean clientClosed() {
+    synchronized boolean clientClosed() {
         boolean wasOpen = open;
+        if(wasOpen)bankViewRevision++;
         open = false;
         pendingX = null;
         return wasOpen;
     }
 
-    void sendContainers(ServerPacketWriter w) throws IOException {
+    synchronized void sendContainers(ServerPacketWriter w) throws IOException {
         w.varShort(53, containerPayload(BANK_CONTAINER, bank));
         w.varShort(53, containerPayload(BANK_INVENTORY_CONTAINER, inventory));
     }
 
-    String togglePlaceholders(ServerPacketWriter w) throws IOException {
+    synchronized String togglePlaceholders(ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
 
         boolean nextEnabled=
@@ -465,7 +583,7 @@ final class BankState {
             bankSlots();
     }
 
-    String depositInventory(ServerPacketWriter w) throws IOException {
+    synchronized String depositInventory(ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
 
         Stack[] nextBank=
@@ -514,8 +632,10 @@ final class BankState {
             nextInventory[i]=null;
         }
 
-        if(moved==0&&partial)
-            return "PARTIAL_BANK_FULL movedQty=0";
+        if(moved==0)
+            return partial
+                ?"PARTIAL_BANK_FULL movedQty=0"
+                :"DEPOSITED_ALL_NOOP movedQty=0";
 
         publishContainerPostimage(
             w,
@@ -537,6 +657,52 @@ final class BankState {
         return "DEPOSITED_ALL movedQty="+moved+
             " bankOccupied="+occupied(bank)+
             " inventoryOccupied="+occupied(inventory);
+    }
+
+    /** Source-only conversion preflight: fully encode the proposed inventory
+     * packet before any semantic inventory mutation. No send, no grant.
+     */
+    byte[] previewRecipeInventoryPacket(int[] proposedIds,int[] proposedQty)throws IOException{
+        if(proposedIds==null||proposedQty==null||
+           proposedIds.length!=INVENTORY_CAPACITY||
+           proposedQty.length!=INVENTORY_CAPACITY)
+            throw new IllegalArgumentException("recipe postimage length");
+        Stack[] staged=new Stack[INVENTORY_CAPACITY];
+        for(int i=0;i<staged.length;i++){
+            int item=proposedIds[i],qty=proposedQty[i];
+            if(item==-1){
+                if(qty!=0)throw new IllegalArgumentException(
+                    "recipe empty-slot quantity");
+            }else{
+                // Do not silently normalize -2/-3 or other invalid client
+                // item IDs into a valid empty container slot.
+                if(item<0||item>=0xffff)
+                    throw new IllegalArgumentException(
+                        "recipe invalid client item ID");
+                if(qty<=0)throw new IllegalArgumentException(
+                    "recipe nonpositive quantity");
+                staged[i]=new Stack(item,qty);
+            }
+        }
+        return containerPayload(NORMAL_INVENTORY_CONTAINER,staged);
+    }
+
+    /**
+     * Pre-encode every inventory view affected by a recipe. Each element is a
+     * complete opcode-53 body; caller must queue them in a single batch.
+     * Bank-open clients require both 3214 and 5064 views. The bank contents
+     * themselves are unchanged, so a 5382 refresh is unnecessary.
+     */
+    byte[][] previewRecipeInventoryViews(int[] ids,int[] quantities)
+        throws IOException{
+        byte[] normal=previewRecipeInventoryPacket(ids,quantities);
+        if(!open)return new byte[][]{normal};
+        Stack[] staged=new Stack[INVENTORY_CAPACITY];
+        for(int i=0;i<staged.length;i++)
+            if(ids[i]>=0)staged[i]=new Stack(ids[i],quantities[i]);
+        return new byte[][]{
+            normal,containerPayload(BANK_INVENTORY_CONTAINER,staged)
+        };
     }
 
     void sendNormalInventory(ServerPacketWriter w) throws IOException {
@@ -720,7 +886,10 @@ final class BankState {
             int itemId=itemIds[slot];
             int quantity=quantities[slot];
 
-            if(itemId<0){
+            // Canonical empty inventory is -1; arbitrary negative values
+            // and unencodable client container IDs must not be normalized
+            // to empty or admitted through the semantic postimage seam.
+            if(itemId==-1){
                 if(quantity!=0)
                     throw new IllegalArgumentException(
                         "empty inventory postimage quantity slot="+
@@ -728,6 +897,10 @@ final class BankState {
                     );
                 continue;
             }
+            if(itemId<0||itemId>=0xffff)
+                throw new IllegalArgumentException(
+                    "invalid inventory postimage item ID slot="+slot+
+                    " item="+itemId);
 
             if(quantity<=0)
                 throw new IllegalArgumentException(
@@ -764,6 +937,7 @@ final class BankState {
                     quantity
                 );
         }
+        inventoryMutationRevision++;
     }
 
     /**
@@ -971,6 +1145,7 @@ final class BankState {
             inventory[slot]=null;
         else
             st.qty=after;
+        inventoryMutationRevision++;
 
         return new InventoryConsumeResult(
             slot,
@@ -981,7 +1156,7 @@ final class BankState {
         );
     }
 
-    PreparedPetInventoryMutation preparePetDropInventory(
+    synchronized PreparedPetInventoryMutation preparePetDropInventory(
         int slot,
         int newItemId,
         Integer oldItemId
@@ -992,6 +1167,7 @@ final class BankState {
         if(!validSlot(expected,slot)||
            expected[slot]==null)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1004,6 +1180,7 @@ final class BankState {
 
         if(clicked.itemId!=newItemId)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1015,6 +1192,7 @@ final class BankState {
 
         if(clicked.qty<=0)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1053,6 +1231,7 @@ final class BankState {
 
             if(dst<0)
                 return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                     expected,
                     null,
                     open,
@@ -1065,6 +1244,7 @@ final class BankState {
                (next[dst].itemId!=old||
                 next[dst].qty==Integer.MAX_VALUE))
                 return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                     expected,
                     null,
                     open,
@@ -1085,6 +1265,7 @@ final class BankState {
         }
 
         return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
             expected,
             next,
             open,
@@ -1094,7 +1275,7 @@ final class BankState {
         );
     }
 
-    PreparedPetInventoryMutation preparePetPickupInventory(
+    synchronized PreparedPetInventoryMutation preparePetPickupInventory(
         int itemId
     ){
         Stack[] expected=
@@ -1112,6 +1293,7 @@ final class BankState {
 
         if(dst<0)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1123,6 +1305,7 @@ final class BankState {
         if(next[dst]!=null&&
            next[dst].qty==Integer.MAX_VALUE)
             return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
                 expected,
                 null,
                 open,
@@ -1141,6 +1324,7 @@ final class BankState {
         next[dst].qty++;
 
         return new PreparedPetInventoryMutation(
+                this,inventoryMutationRevision,bankViewRevision,
             expected,
             next,
             open,
@@ -1150,45 +1334,57 @@ final class BankState {
         );
     }
 
-    void publishPreparedPetInventory(
-        PreparedPetInventoryMutation prepared,
-        ServerPacketWriter w
-    )throws IOException{
-        if(prepared==null||
-           !prepared.accepted())
+    /**
+     * Validate both sides of a prepared pet item mutation before publishing
+     * inventory presentation or committing a semantic change.
+     *
+     * This is deliberately an independent local item-state fence: the
+     * caller's World/actor ownership and multi-domain batch remain external.
+     */
+    private void verifyPreparedPetInventory(
+        PreparedPetInventoryMutation prepared
+    ){
+        if(prepared==null||!prepared.accepted())
             throw new IllegalArgumentException(
                 "accepted prepared pet inventory required"
             );
+        if(prepared.owner!=this)
+            throw new IllegalStateException(
+                "prepared pet inventory belongs to another BankState"
+            );
+        if(prepared.inventoryGeneration!=inventoryMutationRevision||
+           prepared.bankViewGeneration!=bankViewRevision||
+           open!=prepared.expectedOpen||
+           !sameStacks(inventory,prepared.sealedExpectedInventory))
+            throw new IllegalStateException(
+                "prepared pet inventory ownership/view/preimage changed"
+            );
+        if(!sameStacks(prepared.expectedInventory,
+                       prepared.sealedExpectedInventory)||
+           !sameStacks(prepared.postimage,
+                       prepared.sealedPostimage))
+            throw new IllegalStateException(
+                "prepared pet inventory arrays modified after preflight"
+            );
+    }
 
+    synchronized void publishPreparedPetInventory(
+        PreparedPetInventoryMutation prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        verifyPreparedPetInventory(prepared);
         publishNormalInventoryStructuralPostimage(
             w,
-            prepared.postimage,
+            prepared.sealedPostimage,
             prepared.expectedOpen
         );
     }
 
-    void commitPreparedPetInventory(
+    synchronized void commitPreparedPetInventory(
         PreparedPetInventoryMutation prepared
     ){
-        if(prepared==null||
-           !prepared.accepted())
-            throw new IllegalArgumentException(
-                "accepted prepared pet inventory required"
-            );
-
-        if(open!=prepared.expectedOpen||
-           !sameStacks(
-                inventory,
-                prepared.expectedInventory
-           ))
-            throw new IllegalStateException(
-                "pet inventory preimage changed before commit"
-            );
-
-        replaceStacks(
-            inventory,
-            prepared.postimage
-        );
+        verifyPreparedPetInventory(prepared);
+        replaceStacks(inventory,prepared.sealedPostimage);
     }
 
     /** Remove exactly one item from a concrete inventory slot (pet Drop path). */
@@ -1288,7 +1484,7 @@ final class BankState {
         return dst;
     }
 
-    PreparedInventoryMutation prepareConsumeInventoryAll(
+    synchronized PreparedInventoryMutation prepareConsumeInventoryAll(
         int slot,
         int itemId
     ){
@@ -1298,6 +1494,7 @@ final class BankState {
         if(!validSlot(expected,slot)||
            expected[slot]==null)
             return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                 expected,
                 null,
                 open,
@@ -1310,6 +1507,7 @@ final class BankState {
         if(st.itemId!=itemId||
            st.qty<=0)
             return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                 expected,
                 null,
                 open,
@@ -1323,6 +1521,7 @@ final class BankState {
         next[slot]=null;
 
         return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
             expected,
             next,
             open,
@@ -1331,7 +1530,7 @@ final class BankState {
         );
     }
 
-    PreparedInventoryMutation prepareAddInventoryAmount(
+    synchronized PreparedInventoryMutation prepareAddInventoryAmount(
         int itemId,
         int amount
     ){
@@ -1340,6 +1539,7 @@ final class BankState {
 
         if(amount<=0)
             return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                 expected,
                 null,
                 open,
@@ -1361,6 +1561,7 @@ final class BankState {
 
             if(dst<0)
                 return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                     expected,
                     null,
                     open,
@@ -1381,6 +1582,7 @@ final class BankState {
 
             if(merged>Integer.MAX_VALUE)
                 return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                     expected,
                     null,
                     open,
@@ -1399,6 +1601,7 @@ final class BankState {
 
             if(free<amount)
                 return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
                     expected,
                     null,
                     open,
@@ -1419,6 +1622,7 @@ final class BankState {
         }
 
         return new PreparedInventoryMutation(
+                this,inventoryMutationRevision,
             expected,
             next,
             open,
@@ -1427,62 +1631,54 @@ final class BankState {
         );
     }
 
-    void writePreparedInventoryMutation(
-        PreparedInventoryMutation prepared,
-        ServerPacketWriter w
-    )throws IOException{
-        if(prepared==null||
-           !prepared.accepted())
-            throw new IllegalArgumentException(
-                "accepted prepared inventory mutation required"
-            );
-
-        writeNormalInventoryStructuralPostimage(
-            w,
-            prepared.postimage,
-            prepared.expectedOpen
-        );
-    }
-
-    void publishPreparedInventoryMutation(
-        PreparedInventoryMutation prepared,
-        ServerPacketWriter w
-    )throws IOException{
-        if(prepared==null||
-           !prepared.accepted())
-            throw new IllegalArgumentException(
-                "accepted prepared inventory mutation required"
-            );
-
-        publishNormalInventoryStructuralPostimage(
-            w,
-            prepared.postimage,
-            prepared.expectedOpen
-        );
-    }
-
-    int commitPreparedInventoryMutation(
+    /**
+     * A deferred inventory preflight can only be used by its original BankState
+     * while that exact inventory generation and presentation remain current.
+     * Observed arrays cannot add unauthorized items or change the packet.
+     */
+    private void verifyPreparedInventoryMutation(
         PreparedInventoryMutation prepared
     ){
-        if(prepared==null||
-           !prepared.accepted())
+        if(prepared==null||!prepared.accepted())
             throw new IllegalArgumentException(
-                "accepted prepared inventory mutation required"
-            );
-
-        if(open!=prepared.expectedOpen||
-           !sameStacks(
-                inventory,
-                prepared.expectedInventory
-           ))
+                "accepted prepared inventory mutation required");
+        if(prepared.owner!=this)
             throw new IllegalStateException(
-                "inventory preimage changed before prepared commit"
-            );
+                "foreign prepared inventory mutation");
+        if(prepared.inventoryGeneration!=inventoryMutationRevision||
+           open!=prepared.expectedOpen||
+           !sameStacks(inventory,prepared.sealedExpectedInventory))
+            throw new IllegalStateException(
+                "prepared inventory lineage/preimage changed");
+        if(!sameStacks(prepared.expectedInventory,
+                       prepared.sealedExpectedInventory)||
+           !sameStacks(prepared.postimage,
+                       prepared.sealedPostimage))
+            throw new IllegalStateException(
+                "prepared inventory snapshot modified after preflight");
+    }
 
-        replaceStacks(
-            inventory,
-            prepared.postimage
-        );
+    synchronized void writePreparedInventoryMutation(
+        PreparedInventoryMutation prepared,ServerPacketWriter w
+    )throws IOException{
+        verifyPreparedInventoryMutation(prepared);
+        writeNormalInventoryStructuralPostimage(
+            w,prepared.sealedPostimage,prepared.expectedOpen);
+    }
+
+    synchronized void publishPreparedInventoryMutation(
+        PreparedInventoryMutation prepared,ServerPacketWriter w
+    )throws IOException{
+        verifyPreparedInventoryMutation(prepared);
+        publishNormalInventoryStructuralPostimage(
+            w,prepared.sealedPostimage,prepared.expectedOpen);
+    }
+
+    synchronized int commitPreparedInventoryMutation(
+        PreparedInventoryMutation prepared
+    ){
+        verifyPreparedInventoryMutation(prepared);
+        replaceStacks(inventory,prepared.sealedPostimage);
         return prepared.result;
     }
 
@@ -1740,7 +1936,7 @@ final class BankState {
         return "COSMETIC_UNEQUIP_OK item="+old+" inventorySlot="+dst;
     }
 
-    PreparedInventoryTransform prepareInventoryTransformOne(
+    synchronized PreparedInventoryTransform prepareInventoryTransformOne(
         int slot,
         int expectedItemId,
         int replacementItemId
@@ -1748,6 +1944,8 @@ final class BankState {
         if(!validSlot(inventory,slot) ||
            inventory[slot]==null)
             return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
                 slot,
                 expectedItemId,
                 replacementItemId,
@@ -1759,6 +1957,8 @@ final class BankState {
 
         if(st.itemId!=expectedItemId)
             return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
                 slot,
                 expectedItemId,
                 replacementItemId,
@@ -1769,6 +1969,8 @@ final class BankState {
 
         if(st.qty!=1)
             return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
                 slot,
                 expectedItemId,
                 replacementItemId,
@@ -1781,6 +1983,8 @@ final class BankState {
                 replacementItemId
            )==null)
             return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
                 slot,
                 expectedItemId,
                 replacementItemId,
@@ -1798,6 +2002,8 @@ final class BankState {
             );
 
         return new PreparedInventoryTransform(
+                this,inventoryMutationRevision,bankViewRevision,
+                copyStacks(inventory),open,
             slot,
             expectedItemId,
             replacementItemId,
@@ -1806,90 +2012,80 @@ final class BankState {
         );
     }
 
-    String publishPreparedInventoryTransform(
+    /**
+     * Packet publication and semantic commit are separate because color
+     * changes share the caller's multi-domain packet batch. Never emit the
+     * inventory part of that batch for a foreign, stale, or altered preflight.
+     */
+    private void verifyPreparedInventoryTransform(
+        PreparedInventoryTransform prepared
+    ){
+        if(prepared==null||!prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted inventory transform required");
+        if(prepared.owner!=this)
+            throw new IllegalStateException(
+                "inventory transform owned by different BankState");
+        if(prepared.inventoryGeneration!=inventoryMutationRevision||
+           prepared.bankViewGeneration!=bankViewRevision||
+           prepared.expectedOpen!=open||
+           !sameStacks(inventory,prepared.sealedExpectedInventory))
+            throw new IllegalStateException(
+                "inventory transform stale generation/preimage/view");
+        if(!sameStacks(prepared.expectedInventory,
+                       prepared.sealedExpectedInventory)||
+           !sameStacks(prepared.postimage,
+                       prepared.sealedPostimage))
+            throw new IllegalStateException(
+                "inventory transform preflight image modified");
+    }
+
+    synchronized String publishPreparedInventoryTransform(
         PreparedInventoryTransform prepared,
         ServerPacketWriter w
     )throws IOException{
-        if(prepared==null)
-            throw new NullPointerException(
-                "prepared"
-            );
+        if(prepared==null)throw new NullPointerException("prepared");
+        if(!prepared.accepted())return prepared.rejection;
 
-        if(!prepared.accepted())
-            return prepared.rejection;
-
+        verifyPreparedInventoryTransform(prepared);
         writeNormalInventoryStructuralPostimage(
-            w,
-            prepared.postimage,
-            open
-        );
-
-        return "INVENTORY_TRANSFORM_OK slot="+
-            prepared.slot+
-            " item="+
-            prepared.expectedItemId+
-            "->"+
-            prepared.replacementItemId;
+            w,prepared.sealedPostimage,prepared.expectedOpen);
+        return "INVENTORY_TRANSFORM_OK slot="+prepared.slot+
+            " item="+prepared.expectedItemId+
+            "->"+prepared.replacementItemId;
     }
 
-    String commitPreparedInventoryTransform(
+    synchronized String commitPreparedInventoryTransform(
         PreparedInventoryTransform prepared
     ){
-        if(prepared==null)
-            throw new NullPointerException(
-                "prepared"
-            );
+        if(prepared==null)throw new NullPointerException("prepared");
+        if(!prepared.accepted())return prepared.rejection;
 
-        if(!prepared.accepted())
-            return prepared.rejection;
-
-        if(!validSlot(inventory,prepared.slot) ||
-           inventory[prepared.slot]==null ||
-           inventory[prepared.slot].itemId!=
-                prepared.expectedItemId ||
-           inventory[prepared.slot].qty!=1)
-            throw new IllegalStateException(
-                "inventory transform preimage changed before prepared commit"
-            );
-
-        replaceStacks(
-            inventory,
-            prepared.postimage
-        );
-
-        return "INVENTORY_TRANSFORM_OK slot="+
-            prepared.slot+
-            " item="+
-            prepared.expectedItemId+
-            "->"+
-            prepared.replacementItemId;
+        verifyPreparedInventoryTransform(prepared);
+        replaceStacks(inventory,prepared.sealedPostimage);
+        return "INVENTORY_TRANSFORM_OK slot="+prepared.slot+
+            " item="+prepared.expectedItemId+
+            "->"+prepared.replacementItemId;
     }
 
     /** Exact in-slot non-stackable transform used by native Switch-colors actions. */
-    String transformInventoryOne(int slot,int expectedItemId,int replacementItemId,ServerPacketWriter w) throws IOException {
+    synchronized String transformInventoryOne(
+        int slot,int expectedItemId,int replacementItemId,
+        ServerPacketWriter w
+    )throws IOException{
         PreparedInventoryTransform prepared=
             prepareInventoryTransformOne(
-                slot,
-                expectedItemId,
-                replacementItemId
-            );
-
-        if(!prepared.accepted())
-            return prepared.rejection;
-
+                slot,expectedItemId,replacementItemId);
+        if(!prepared.accepted())return prepared.rejection;
+        verifyPreparedInventoryTransform(prepared);
+        // Preserve the original atomic packet batch path for this direct API.
         publishNormalInventoryStructuralPostimage(
-            w,
-            prepared.postimage,
-            open
-        );
-
-        return commitPreparedInventoryTransform(
-            prepared
-        );
+            w,prepared.sealedPostimage,prepared.expectedOpen);
+        return commitPreparedInventoryTransform(prepared);
     }
 
 
-    void restoreAccountState(
+    synchronized void restoreAccountState(
         Stack[] nextBank,
         Stack[] nextInventory,
         boolean placeholders
@@ -1905,15 +2101,20 @@ final class BankState {
                 "inventory snapshot length"
             );
 
+        // Account hydration cannot retain mutable aliases into caller-owned
+        // arrays. Later edits to a snapshot must not bypass live inventory
+        // mutation lineage or rewrite the canonical bank contents.
+        Stack[] sealedBank=copyStacks(nextBank);
+        Stack[] sealedInventory=copyStacks(nextInventory);
         System.arraycopy(
-            nextBank,
+            sealedBank,
             0,
             bank,
             0,
             bank.length
         );
         System.arraycopy(
-            nextInventory,
+            sealedInventory,
             0,
             inventory,
             0,
@@ -1921,8 +2122,11 @@ final class BankState {
         );
 
         placeholdersEnabled=placeholders;
+        if(open)bankViewRevision++;
         open=false;
         pendingX=null;
+        inventoryMutationRevision++;
+        bankMutationRevision++;
     }
 
 
@@ -2306,146 +2510,185 @@ final class BankState {
         return "UNEQUIP_OK item="+itemId+" slot="+slot+" equipmentIndex="+equipmentIndex+" amount="+amount+" inventorySlot="+dst;
     }
 
-    /** Dyed Doppel -> regular Doppel in-place plus a returned dye in another slot. */
-    String splitInventoryOne(int slot,int expectedItemId,int primaryReplacement,int extraItem,ServerPacketWriter w) throws IOException {
-        if(!validSlot(inventory,slot)||inventory[slot]==null)return "REJECTED_INVENTORY_SLOT";
-        Stack st=inventory[slot];
-        if(st.itemId!=expectedItemId)return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
-        if(st.qty!=1)return "REJECTED_TRANSFORM_QTY qty="+st.qty;
-        if(ItemDefinitionRepository.get(primaryReplacement)==null||ItemDefinitionRepository.get(extraItem)==null)return "REJECTED_UNKNOWN_REPLACEMENT";
+    /**
+     * Live Doppelganger REMOVE-dye: a dyed pet becomes one regular pet
+     * and one returned dye. This too is an ITEM GRANT and must obey the
+     * same queue-first, all-container atomicity as combineInventoryOne.
+     *
+     * World/BankState -> writer is the required lock order; never permit a
+     * caller's active packet batch to absorb this transaction.
+     */
+    String splitInventoryOne(
+        int slot,int expectedItemId,int primaryReplacement,
+        int extraItem,ServerPacketWriter w
+    )throws IOException{
+        java.util.Objects.requireNonNull(w,"remove-dye packet writer");
+        if(expectedItemId!=28807||primaryReplacement!=3241||
+           extraItem!=28824)
+            return "REJECTED_SPLIT_UNVERIFIED_PAIR";
+        synchronized(this){
+        synchronized(w){
+            if(w.terminal())return "REJECTED_SPLIT_WRITER_TERMINAL";
+            if(w.batchActive())return "REJECTED_SPLIT_WRITER_BUSY";
+            if(!validSlot(inventory,slot)||inventory[slot]==null)
+                return "REJECTED_INVENTORY_SLOT";
+            Stack st=inventory[slot];
+            if(st.itemId!=expectedItemId)
+                return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
+            if(st.qty!=1)
+                return "REJECTED_TRANSFORM_QTY qty="+st.qty;
+            if(ItemDefinitionRepository.get(primaryReplacement)==null||
+               ItemDefinitionRepository.get(extraItem)==null)
+                return "REJECTED_UNKNOWN_REPLACEMENT";
 
-        Stack[] nextInventory=
-            copyStacks(inventory);
-        int extraDst=isStackable(extraItem)?findItem(nextInventory,extraItem):-1;
-        if(extraDst<0)
-            extraDst=firstEmptyExcept(nextInventory,slot);
-        if(extraDst<0)return "REJECTED_INVENTORY_FULL_FOR_SPLIT";
+            Stack[] nextInventory=copyStacks(inventory);
+            int extraDst=isStackable(extraItem)
+                ?findItem(nextInventory,extraItem):-1;
+            if(extraDst<0)
+                extraDst=firstEmptyExcept(nextInventory,slot);
+            if(extraDst<0)return "REJECTED_INVENTORY_FULL_FOR_SPLIT";
+            nextInventory[slot]=new Stack(primaryReplacement,1);
+            if(nextInventory[extraDst]==null)
+                nextInventory[extraDst]=new Stack(extraItem,0);
+            if(nextInventory[extraDst].itemId!=extraItem||
+               nextInventory[extraDst].qty==Integer.MAX_VALUE)
+                throw new IllegalStateException("split preflight mismatch");
+            nextInventory[extraDst].qty++;
 
-        nextInventory[slot]=
-            new Stack(
-                primaryReplacement,
-                1
-            );
-        if(nextInventory[extraDst]==null)
-            nextInventory[extraDst]=
-                new Stack(
-                    extraItem,
-                    0
-                );
-        if(nextInventory[extraDst].itemId!=extraItem||
-           nextInventory[extraDst].qty==Integer.MAX_VALUE)
-            throw new IllegalStateException(
-                "split preflight mismatch"
-            );
-        nextInventory[extraDst].qty++;
+            final boolean expectedBankOpen=open;
+            ServerPacketWriter.RecoverablePacketResult admitted=
+                w.publishQueueOnlyRecoverablePacketIfIdle(
+                    ()->writeNormalInventoryStructuralPostimage(
+                        w,nextInventory,expectedBankOpen));
+            if(admitted!=ServerPacketWriter.RecoverablePacketResult.COMMITTED)
+                return "REJECTED_SPLIT_QUEUE_RETRYABLE";
 
-        publishNormalInventoryStructuralPostimage(
-            w,
-            nextInventory,
-            open
-        );
-        replaceStacks(
-            inventory,
-            nextInventory
-        );
-
-        return "INVENTORY_SPLIT_OK slot="+slot+" item="+expectedItemId+"->"+primaryReplacement+" extra="+extraItem+" extraSlot="+extraDst;
+            replaceStacks(inventory,nextInventory);
+            return "INVENTORY_SPLIT_OK slot="+slot+" item="+
+                expectedItemId+"->"+primaryReplacement+" extra="+
+                extraItem+" extraSlot="+extraDst;
+        }
+        }
     }
 
-    /** Consume one dye and one regular pet and place the dyed pet in the regular-pet slot. */
+    /**
+     * Existing live Doppelganger dye combination. Publish first, then commit
+     * semantic inventory. A caller's pre-existing packet batch must never
+     * absorb this item grant: nested batches can be aborted after this method
+     * returns, causing an invisible server-only conversion.
+     */
     String combineInventoryOne(int slotA,int itemA,int slotB,int itemB,int resultItem,ServerPacketWriter w)throws IOException{
-        if(slotA==slotB)return "REJECTED_COMBINE_SAME_SLOT";
-        if(!validSlot(inventory,slotA)||!validSlot(inventory,slotB)||inventory[slotA]==null||inventory[slotB]==null)return "REJECTED_INVENTORY_SLOT";
-        if(inventory[slotA].itemId!=itemA||inventory[slotB].itemId!=itemB)return "REJECTED_COMBINE_ITEM_MISMATCH";
-        if(ItemDefinitionRepository.get(resultItem)==null)return "REJECTED_UNKNOWN_RESULT";
+        java.util.Objects.requireNonNull(w,"dye packet writer");
+        // This live semantic seam is ONLY the recovered Doppelganger dye
+        // transformation. Reject arbitrary caller-invented combinations
+        // even when the requested result happens to exist in the catalogue.
+        if(resultItem!=28807||
+           !((itemA==3241&&itemB==28824)||
+             (itemA==28824&&itemB==3241)))
+            return "REJECTED_COMBINE_UNVERIFIED_PAIR";
+        synchronized(this){
+        synchronized(w){
+            // Canonical inventory lock precedes the writer lock, matching
+            // the recipe adapter's BankState -> ServerPacketWriter order.
+            // Enforce it even for direct package-local callers.
+            // Hold the writer monitor through preflight, packet publication
+            // and mutation, preventing another thread opening a batch in
+            // between. This is local World authority, not account durability.
+            if(w.terminal())return "REJECTED_COMBINE_WRITER_TERMINAL";
+            if(w.batchActive())return "REJECTED_COMBINE_WRITER_BUSY";
+            if(slotA==slotB)return "REJECTED_COMBINE_SAME_SLOT";
+            if(!validSlot(inventory,slotA)||!validSlot(inventory,slotB)||inventory[slotA]==null||inventory[slotB]==null)return "REJECTED_INVENTORY_SLOT";
+            if(inventory[slotA].itemId!=itemA||inventory[slotB].itemId!=itemB)return "REJECTED_COMBINE_ITEM_MISMATCH";
+            if(ItemDefinitionRepository.get(resultItem)==null)return "REJECTED_UNKNOWN_RESULT";
 
-        Stack[] nextInventory=
-            copyStacks(inventory);
-        int regularSlot=itemA==3241?slotA:itemB==3241?slotB:slotB;
-        int other=regularSlot==slotA?slotB:slotA;
-        Stack rs=nextInventory[regularSlot], os=nextInventory[other];
+            Stack[] nextInventory=copyStacks(inventory);
+            int regularSlot=itemA==3241?slotA:itemB==3241?slotB:slotB;
+            int other=regularSlot==slotA?slotB:slotA;
+            Stack rs=nextInventory[regularSlot], os=nextInventory[other];
 
-        if(rs.qty<=0||os.qty<=0)return "REJECTED_COMBINE_QTY";
-        rs.qty--;
-        os.qty--;
-        if(rs.qty==0)nextInventory[regularSlot]=null;
-        if(os.qty==0)nextInventory[other]=null;
+            if(rs.qty<=0||os.qty<=0)return "REJECTED_COMBINE_QTY";
+            rs.qty--;
+            os.qty--;
+            if(rs.qty==0)nextInventory[regularSlot]=null;
+            if(os.qty==0)nextInventory[other]=null;
 
-        // Exact mechanic here uses one regular pet + one dye -> one dyed pet.
-        if(nextInventory[regularSlot]!=null)
-            return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
+            // Exactly one regular pet plus one dye yields one dyed pet.
+            if(nextInventory[regularSlot]!=null)
+                return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
 
-        nextInventory[regularSlot]=
-            new Stack(
-                resultItem,
-                1
-            );
-
-        publishNormalInventoryStructuralPostimage(
-            w,
-            nextInventory,
-            open
-        );
-        replaceStacks(
-            inventory,
-            nextInventory
-        );
-
-        return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+" consumed="+itemA+"+"+itemB+" result="+resultItem;
+            nextInventory[regularSlot]=new Stack(resultItem,1);
+            // Live dye conversion is an item grant. Unlike ordinary
+            // structural UI publications, its semantic inventory commit
+            // requires a COMPLETE, retractable queue admission first.
+            // A direct socket writer may partially emit bytes and cannot
+            // provide the same rollback guarantee, so it fails closed.
+            final boolean expectedBankOpen=open;
+            ServerPacketWriter.RecoverablePacketResult published=
+                w.publishQueueOnlyRecoverablePacketIfIdle(
+                    ()->writeNormalInventoryStructuralPostimage(
+                        w,nextInventory,expectedBankOpen));
+            if(published!=
+                ServerPacketWriter.RecoverablePacketResult.COMMITTED)
+                return "REJECTED_COMBINE_QUEUE_RETRYABLE";
+            replaceStacks(inventory,nextInventory);
+            return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+
+                " consumed="+itemA+"+"+itemB+" result="+resultItem;
+        }
+        }
     }
 
-    String apply(ItemContainerAction a, ServerPacketWriter w) throws IOException {
+    synchronized String apply(ItemContainerAction a, ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
         if (a.widgetId == BANK_CONTAINER) return withdraw(a, w);
         if (a.widgetId == BANK_INVENTORY_CONTAINER) return deposit(a, w);
         return "OBSERVED_NON_BANK_WIDGET widget="+a.widgetId;
     }
 
-    String applyAmount(int amount, ServerPacketWriter w) throws IOException {
-        if (!open) {
+    synchronized String applyAmount(int amount, ServerPacketWriter w)
+        throws IOException{
+        if(!open){
             pendingX=null;
             return "IGNORED_BANK_CLOSED";
         }
-
-        ItemContainerAction a=pendingX;
-        if (a==null)
+        PendingBankAmount pending=pendingX;
+        if(pending==null)
             return "IGNORED_NO_PENDING_X amount="+amount;
-
-        if (amount<=0) {
+        if(amount<=0){
             pendingX=null;
             return "X_NO_ITEMS_MOVED amount="+amount;
         }
-
-        String result;
-
-        if (a.widgetId==BANK_CONTAINER)
-            result=
-                withdrawAmount(
-                    a,
-                    amount,
-                    w,
-                    "WITHDRAW_X_OK"
-                );
-        else if (a.widgetId==
-                    BANK_INVENTORY_CONTAINER)
-            result=
-                depositAmount(
-                    a,
-                    amount,
-                    w,
-                    "STORE_X_OK"
-                );
-        else {
+        if(pending.writer!=w){
             pendingX=null;
-            return "X_PENDING_WIDGET_UNSUPPORTED widget="+
-                a.widgetId;
+            return "REJECTED_X_SESSION_WRITER_MISMATCH";
+        }
+        if(w.terminal()){
+            pendingX=null;
+            return "REJECTED_X_SESSION_WRITER_TERMINAL";
+        }
+        if(pending.bankViewGeneration!=bankViewRevision||
+           pending.inventoryGeneration!=inventoryMutationRevision||
+           pending.bankGeneration!=bankMutationRevision){
+            pendingX=null;
+            return "REJECTED_X_STALE_BANK_OR_INVENTORY_GENERATION";
         }
 
+        ItemContainerAction a=pending.action;
+        String result;
+        if(a.widgetId==BANK_CONTAINER)
+            result=withdrawAmount(a,amount,w,"WITHDRAW_X_OK");
+        else if(a.widgetId==BANK_INVENTORY_CONTAINER)
+            result=depositAmount(a,amount,w,"STORE_X_OK");
+        else{
+            pendingX=null;
+            return "X_PENDING_WIDGET_UNSUPPORTED widget="+a.widgetId;
+        }
+        // A writer IOException retains the same one-use, pinned prompt for
+        // an exact-writer retry; any mutation or writer rotation will veto.
         pendingX=null;
         return result;
     }
 
-    String applyDrag(ContainerDrag d, ServerPacketWriter w) throws IOException {
+    synchronized String applyDrag(ContainerDrag d, ServerPacketWriter w) throws IOException {
         // Opcode 214 is shared by the ordinary inventory (3214) and bank containers.
         // The old handler incorrectly required the bank to be open before even looking
         // at the widget id. That made a normal inventory drag look correct client-side
@@ -2479,6 +2722,12 @@ final class BankState {
                 ?"INVENTORY_DRAG_NOOP"
                 :"DRAG_NOOP";
 
+        // An empty source cannot initiate a drag. Otherwise a swap with
+        // an occupied destination could pull items backwards from the
+        // alleged destination and still report a successful player move.
+        if(source[d.sourceSlot]==null)
+            return "REJECTED_DRAG_SOURCE_EMPTY";
+
         Stack[] next=
             copyStacks(source);
 
@@ -2494,6 +2743,13 @@ final class BankState {
                 d.sourceSlot,
                 d.destinationSlot
             );
+
+        // A complete value-identical postimage is not an item movement.
+        // No packet, revision advance or persistence request is justified.
+        if(sameStacks(source,next))
+            return normalInventory
+                ?"INVENTORY_DRAG_NOOP"
+                :"DRAG_NOOP";
 
         if(normalInventory){
             publishNormalInventoryStructuralPostimage(
@@ -2541,7 +2797,7 @@ final class BankState {
     }
 
     /** Handle exact SpawnPK bank-tab command strings emitted through opcode 103. */
-    String applyCommand(String command, ServerPacketWriter w) throws IOException {
+    synchronized String applyCommand(String command, ServerPacketWriter w) throws IOException {
         if (command==null) return "IGNORED_NULL_COMMAND";
         String s=command.trim();
         if (s.startsWith("::")) s=s.substring(2);
@@ -2559,6 +2815,8 @@ final class BankState {
             if (p.length<3) return "REJECTED_SETBANKTAB_ARGS";
             int slot=parseInt(p[1],-1), tab=parseInt(p[2],-1);
             if (!validSlot(bank,slot) || bank[slot]==null || tab<0 || tab>8) return "REJECTED_SETBANKTAB_RANGE";
+            if(bank[slot].tab==tab)
+                return "SETBANKTAB_NOOP slot="+slot+" tab="+tab;
 
             Stack[] nextBank=
                 copyStacks(bank);
@@ -2584,6 +2842,8 @@ final class BankState {
             int target=parseInt(p[2],-1);
             int sourceTab=p.length>=4?parseInt(p[3],-1):-1;
             if (target<0 || target>8 || sourceTab<0 || sourceTab>8) return "SWAPBANKTAB_OBSERVED_UNCERTIFIED target="+target+" sourceTab="+sourceTab;
+            if(target==sourceTab)
+                return "SWAPBANKTAB_NOOP sourceTab="+sourceTab+" targetTab="+target;
 
             Stack[] nextBank=
                 copyStacks(bank);
@@ -2599,6 +2859,9 @@ final class BankState {
             for (Stack st:nextBank)
                 if(st!=null&&st.tab==-1)
                     st.tab=target;
+
+            if(sameStacks(bank,nextBank))
+                return "SWAPBANKTAB_NOOP sourceTab="+sourceTab+" targetTab="+target;
 
             publishContainerPostimage(
                 w,
@@ -2637,7 +2900,9 @@ final class BankState {
                 return withdrawAmount(a,a.extra,w,"WITHDRAW_CONFIGURED_OK");
             case 135:
                 w.fixed(27,new byte[0]);
-                pendingX=a;
+                pendingX=new PendingBankAmount(
+                    a,w,bankViewRevision,inventoryMutationRevision,
+                    bankMutationRevision);
                 return "WITHDRAW_X_PROMPT_SENT opcode=27 pendingSlot="+a.slot+" itemId="+a.itemId;
             default: return "UNSUPPORTED_BANK_WITHDRAW_OPCODE";
         }
@@ -2654,7 +2919,9 @@ final class BankState {
             case 129: return depositAmount(a,s.qty,w,"STORE_OK");
             case 135:
                 w.fixed(27,new byte[0]);
-                pendingX=a;
+                pendingX=new PendingBankAmount(
+                    a,w,bankViewRevision,inventoryMutationRevision,
+                    bankMutationRevision);
                 return "STORE_X_PROMPT_SENT opcode=27 pendingSlot="+a.slot+" itemId="+a.itemId;
             default: return "UNSUPPORTED_BANK_STORE_OPCODE";
         }
@@ -2864,7 +3131,7 @@ final class BankState {
         return copy;
     }
 
-    private static void replaceStacks(
+    private void replaceStacks(
         Stack[] target,
         Stack[] source
     ){
@@ -2884,6 +3151,8 @@ final class BankState {
                         stack.tab
                     );
         }
+        if(target==inventory)inventoryMutationRevision++;
+        if(target==bank)bankMutationRevision++;
     }
 
     private static void publishContainerPostimage(

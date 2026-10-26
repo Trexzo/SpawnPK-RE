@@ -9,6 +9,8 @@ import java.util.Map;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -508,13 +510,128 @@ final class StrictDurablePlayerSnapshotWriter {
             }
 
             faults.check(Phase.BEFORE_ATOMIC_REPLACE);
+            // R46: original-account continuity (R44) does not prove
+            // the new strict temp inode survives after ATOMIC_MOVE.
+            // Keep this independent check behind the opt-in RAW inode
+            // alias guard; it is an observation, not an external CAS.
+            final BasicFileAttributes strictRawStagedAttributes;
+            final byte[] strictRawStagedBytesSha256;
+            if(worldFile==null&&raw!=null&&Boolean.getBoolean(
+                    LocalJvmAccountSessionLease.INODE_ALIAS_GATE_PROPERTY)){
+                BasicFileAttributes staged=Files.readAttributes(
+                    temp,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+                if(!staged.isRegularFile()||staged.isSymbolicLink()||
+                        staged.fileKey()==null)
+                    throw new IOException("R46 STRICT_RAW_STAGED_OBJECT_UNPROVEN");
+                strictRawStagedAttributes=staged;
+                strictRawStagedBytesSha256=LocalOptInRawTemp.seal(
+                    temp,staged);
+            }else{
+                strictRawStagedAttributes=null;
+                strictRawStagedBytesSha256=null;
+            }
             if(worldFile==null){
-                // G21.244: opt-in RAW/strict OS lock object recheck.
-                if(raw!=null)raw.requireLockObjectContinuity();
-                // Preserve the historical unguarded strict primitive.
+                // R43: non-World standalone STRICT is an optional RAW
+                // publisher too. A witness arriving after RAW admission
+                // must block the final move, not merely the reservation.
+                if(raw!=null){
+                    // R44: a RAW reservation refers to the account
+                    // inode observed at admission. Replacing that
+                    // pathname during strict serialization must not
+                    // grant permission to overwrite a successor file.
+                    // Covers both existing accounts and an absent
+                    // bootstrap leaf that appeared before this move.
+                    raw.requireOriginalAccountObjectBeforePublication();
+                    raw.requireLockObjectContinuity();
+                    // R45: another pathname can start naming the
+                    // SAME account inode after RAW admission without
+                    // changing its fileKey. Recheck the optional
+                    // NOFOLLOW nlink policy at the last observed
+                    // pre-move strict publication boundary.
+                    LocalJvmAccountSessionLease
+                        .requireNonHardlinkedAccount(file);
+                    raw.requireNoFinalNegativeWitnessBeforePublication();
+                }
+                LocalNegativeAccountHeadPrototype
+                    .requireNoHeadBeforeRawMove(file);
+                // Preserve the historical default-off RAW primitive.
                 publishStrictReplacement(
                     temp,file,parent,replaced
                 );
+                if(raw!=null){
+                    try{
+                        // The account has ALREADY been replaced and
+                        // its parent directory force was attempted.
+                        // A late witness means UNKNOWN, never a
+                        // confirmed standalone strict Receipt.
+                        raw.requireNoFinalNegativeWitnessAfterPublication();
+                    }catch(IOException uncertain){
+                        // R43: preserve the specific witness failure
+                        // classification for existing audited callers.
+                        throw new UnconfirmedCommitException(
+                            "R43 STRICT_RAW_POST_MOVE_FINAL_WITNESS_UNCONFIRMED_MANUAL_REVIEW",
+                            uncertain
+                        );
+                    }
+                    try{
+                        // R45: after ATOMIC_MOVE an external alias
+                        // may instead name the newly published inode.
+                        // A late observation is UNKNOWN, not rollback
+                        // or permission to return a strict Receipt.
+                        LocalJvmAccountSessionLease
+                            .requireNonHardlinkedAccount(file);
+                    }catch(IOException uncertain){
+                        throw new UnconfirmedCommitException(
+                            "R45 STRICT_RAW_POST_MOVE_HARDLINK_UNCONFIRMED_MANUAL_REVIEW",
+                            uncertain
+                        );
+                    }
+                    if(strictRawStagedAttributes!=null){
+                        try{
+                            // The R39 postmove probe (if any), R43
+                            // witness and R45 nlink checks have run.
+                            // Never ACK a substituted or absent postimage.
+                            LocalCrossJvmAccountSessionLock
+                                .requireNoSymlinkAncestors(parent);
+                            BasicFileAttributes published=Files.readAttributes(
+                                file,BasicFileAttributes.class,
+                                LinkOption.NOFOLLOW_LINKS);
+                            if(!published.isRegularFile()||
+                                    published.isSymbolicLink()||
+                                    !strictRawStagedAttributes.fileKey()
+                                        .equals(published.fileKey()))
+                                throw new IOException(
+                                    "R46 STRICT_RAW_POST_MOVE_OBJECT_CHANGED");
+                        }catch(IOException uncertain){
+                            // Atomic replace may already be committed.
+                            // UNKNOWN is not a rollback or a Receipt.
+                            throw new UnconfirmedCommitException(
+                                "R46 STRICT_RAW_POST_MOVE_OBJECT_UNCONFIRMED_MANUAL_REVIEW",
+                                uncertain);
+                        }
+                        try{
+                            // R48: the R46 staged inode may still occupy
+                            // the same leaf after external in-place edits.
+                            // Compare a bounded SHA-256 of exact raw bytes
+                            // even if the inode and mtime have not changed.
+                            LocalOptInRawTemp.requireSealed(
+                                file,strictRawStagedAttributes,
+                                strictRawStagedBytesSha256);
+                        }catch(IOException uncertain){
+                            throw new UnconfirmedCommitException(
+                                "R48 STRICT_RAW_POST_MOVE_BYTES_UNCONFIRMED_MANUAL_REVIEW",
+                                uncertain);
+                        }
+                    }
+                }
+                try{
+                    LocalNegativeAccountHeadPrototype
+                        .requireNoHeadAfterRawMove(file);
+                }catch(IOException uncertainty){
+                    throw new UnconfirmedCommitException(
+                        "R54_STRICT_RAW_HEAD_POST_MOVE_UNCONFIRMED_MANUAL_REVIEW",
+                        uncertainty);
+                }
             }else{
                 // The marker publisher uses this SAME per-account lock.
                 // The final check, atomic replace and metadata force are

@@ -13231,3 +13231,1152 @@ tasks.register('g2096GroundBatchPrecommitRegression', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass.set('spk.local.G2096GroundBatchMixedStackControlTest')
 }
+
+// Source-only donor-derived recipe arithmetic; NOT a live v308 gameplay gate.
+tasks.register('recipeConversionQuantityPlannerRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeConversionQuantityPlannerTest')
+}
+
+// Source-only donor-derived atomic stackable recipe postimage regression.
+tasks.register('recipeStackPostimageRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeStackPostimagePlannerTest')
+}
+
+// Source-only BankState recipe transaction adapter regression.
+tasks.register('recipeBankSemanticAdapterRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeBankSemanticAdapterTest')
+}
+
+// Donor recipe source regressions are mandatory for ordinary Gradle build.
+// Standalone tasks remain available for targeted diagnosis.
+tasks.named('build') {
+    dependsOn tasks.named('recipeConversionQuantityPlannerRegression')
+    dependsOn tasks.named('recipeStackPostimageRegression')
+    dependsOn tasks.named('recipeBankSemanticAdapterRegression')
+}
+
+// Exact opcode-53 LocalItemOnItemHandler deny-by-default evidence.
+tasks.register('recipeItemOnItemDispatchBoundaryRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeItemOnItemDispatchBoundaryTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('recipeItemOnItemDispatchBoundaryRegression')
+}
+
+// Preserve verified Doppelganger dye round-trip compatibility while
+// introducing opt-in source-only recipe conversion infrastructure.
+tasks.register('doppelDyeRoundTripRegression', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.DoppelRemoveDyeTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('doppelDyeRoundTripRegression')
+}
+
+
+// Source-only mixed stackable/nonstackable recipe safety. No gameplay grant.
+tasks.register('recipeMixedPostimageRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify mixed recipe per-slot capacity, tool rules and seeded item conservation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeMixedPostimagePlannerTest')
+}
+
+tasks.register('recipeMixedBankAdapterRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify nonstackable recipe postimages via queue-only BankState publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeMixedBankAdapterTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('recipeMixedPostimageRegression')
+    dependsOn tasks.named('recipeMixedBankAdapterRegression')
+}
+
+
+// Source-only recipe preparation/publication guarded by current World
+// registration generation. Not a live v308 recipe or account lease.
+tasks.register('recipeWorldOwnedRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify World-owned recipe generation, unregister/rejoin fencing and no foreign-World publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeWorldOwnedAdapterTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('recipeWorldOwnedRegression')
+}
+
+
+// Future recipe session witness, source-only. Existing LocalSession binds it
+// at login and revokes it before teardown; no recipe opcode is registered.
+tasks.register('recipeSessionWriterGuardRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify exact session writer identity and revocation across recipe publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeSessionWriterGuardTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('recipeSessionWriterGuardRegression')
+}
+
+
+// Synthetic exact-writer parity: request none/1/5/64 read-only previews
+// before queue publication and require identical outbound ISAAC wire bytes.
+tasks.register('recipeSessionPreviewWireParityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Compare source-only bank-closed/open session recipe queued bytes with/without read-only previews.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.RecipeSessionPreviewWireParityTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('recipeSessionPreviewWireParityRegression')
+}
+
+
+// Existing narrow, real item-on-item dye interaction. This is NOT a
+// registration or authorization for any speculative donor recipe.
+tasks.register('doppelgangerDyeTransactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify established Doppelganger dye handler conserves items and rolls back outbound queue failures.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.DoppelgangerDyeTransactionRegression')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('doppelgangerDyeTransactionRegression')
+}
+
+// R15: C2S original-v308 static opcode-53 framing through typed
+// ClientPacketProbe requests into the existing narrow live dye handler.
+// This is synthetic wire evidence, not original-client login/ACK.
+tasks.register('liveDyeOpcode53IngressRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validate exact ISAAC-encoded opcode53 -> typed decode -> dye transaction and byte-for-byte S2C bank mirrors.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LiveDyeOpcode53IngressRegression')
+}
+
+// The old handler test used a direct socket writer to grant dye after R13
+// made recoverable queue admission mandatory. Keep the test, but update its
+// fixture and make it part of the mandatory Gradle verification graph.
+tasks.register('localItemOnItemHandlerRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify legacy live dye handler fixture under queue-only grants.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalItemOnItemHandlerTest')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('liveDyeOpcode53IngressRegression')
+    dependsOn tasks.named('localItemOnItemHandlerRegression')
+}
+
+// R17: the live REMOVE-dye option-75 is an item grant just like ADD-dye.
+// The whole normal/bank mirror must queue atomically before semantic commit.
+tasks.register('doppelRemoveDyeAtomicTransactionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify established Doppel remove-dye queue-only atomic grant, retry ISAAC parity and concurrent exactly-once removal.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.DoppelRemoveDyeAtomicTransactionRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('doppelRemoveDyeAtomicTransactionRegression')
+}
+
+// R18: exact pinned client opcode75 -> typed FIFO -> established pet-dialog
+// option -> queue-atomic removal. No original-client socket/ACK claim.
+tasks.register('doppelRemoveDyeOpcode75IngressRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validate exact opcode75 client byte transforms, save-intent fencing and queue-atomic live remove-dye.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.DoppelRemoveDyeOpcode75IngressRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('doppelRemoveDyeOpcode75IngressRegression')
+}
+
+// R20: saving an account is caused only by an acknowledged BankState
+// semantic mutation, never merely by decoded input or UI widget ownership.
+tasks.register('bankSaveIntentGateRegression', JavaExec) {
+    group = 'verification'
+    description = 'Gate bank search/noops/rejections/amount prompts from save intent while preserving completed withdrawal, store, drag and tab changes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.BankSaveIntentGateRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('bankSaveIntentGateRegression')
+}
+
+// R21: a bank X prompt may not be reused with a substituted writer, an
+// inventory/bank ABA generation, or a reopened bank presentation.
+tasks.register('bankAmountPromptOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Check X amount prompt writer identity, bank/inventory generation, view revocation and exactly-once semantic transfer.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.BankAmountPromptOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('bankAmountPromptOwnershipRegression')
+}
+
+// R22: a prepared external bank grant is not transferable to a different
+// BankState or valid after bank mutation (including equal-state ABA).
+tasks.register('preparedExternalBankCreditOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fence deferred external bank credits by exact owner and bank lineage, including ABA and concurrent duplicate grant.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedExternalBankCreditOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedExternalBankCreditOwnershipRegression')
+}
+
+// R23: the prepared bank-credit postimage is an immutable-in-effect
+// source-local grant, not a mutable arbitrary commit payload.
+tasks.register('preparedExternalBankCreditSealingRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject in-place tampering of prepared external bank grant snapshots; preserve valid credits and bank lineage.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedExternalBankCreditSealingRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedExternalBankCreditSealingRegression')
+}
+
+// R24: deferred inventory add/consume may not be forged from a different
+// local BankState, stale ABA snapshot, or manipulated packet postimage.
+tasks.register('preparedInventoryMutationOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fence general prepared inventory grants by exact owner, generation and sealed prepublication snapshots.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedInventoryMutationOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedInventoryMutationOwnershipRegression')
+}
+
+// R25: prepared pet Drop/Pick-up inventory postimages belong only to their
+// exact BankState/inventory/view generation and may not be altered.
+tasks.register('preparedPetInventoryOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fence pet Drop/Pick-up inventory preflight by owner and generation, and reject mutable prepared-item publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedPetInventoryOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedPetInventoryOwnershipRegression')
+}
+
+// R26: pet color single-slot inventory transform is an exact-owner
+// source-local prepared mutation, not an arbitrary caller-controlled item grant.
+tasks.register('preparedInventoryTransformOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify deferred one-slot inventory transform owner, ABA, packet preflight and sealed item postimage integrity.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PreparedInventoryTransformOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('preparedInventoryTransformOwnershipRegression')
+}
+
+// R27: no-op bank UI, drag and tab commands must not manufacture item
+// mutation generations, wire packets or account-save intent.
+tasks.register('bankNoopSaveAndLineageRegression', JavaExec) {
+    group = 'verification'
+    description = 'Check no-op bank drags, same tabs, empty deposit-all and valid state-changing counterparts.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.BankNoopSaveAndLineageRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('bankNoopSaveAndLineageRegression')
+}
+
+// R28: direct widget-to-session save callback, not just BankState result
+// labels. No-op and closed bank input cannot request an account save.
+tasks.register('bankUiMutationSaveBridgeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify real bank widgets only signal account saves after canonical inventory or placeholder metadata mutations.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.BankUiMutationSaveBridgeRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('bankUiMutationSaveBridgeRegression')
+}
+
+// R29: World player-generation ownership must never be used to capture a
+// snapshot for a different account name, even before lease-aware persistence.
+tasks.register('worldAccountCaptureProfileOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject cross-profile ordinary/final World snapshots before save sequence or persistence admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.WorldAccountCaptureProfileOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('worldAccountCaptureProfileOwnershipRegression')
+}
+
+// R30: the selected account and loaded snapshot must match before a
+// repository adapter's bytes may hydrate a WorldPlayer.
+tasks.register('accountSnapshotLoadIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject foreign-account repository snapshots before player hydration, via direct and World FIFO sources.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.AccountSnapshotLoadIdentityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountSnapshotLoadIdentityRegression')
+}
+
+// R31: direct WorldPlayerPersistence.load admission is independent
+// of the LocalAccountLifecycle hydration-side cross-profile guard.
+tasks.register('worldPersistenceLoadOwnerIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fail closed on wrong-account FIFO snapshots while preserving read-only untrusted forensic observations.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.WorldPersistenceLoadOwnerIdentityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('worldPersistenceLoadOwnerIdentityRegression')
+}
+
+
+// R32: real hardlink RAW versus pending/live World owner reservations.
+// Guard is opt-in and best-effort JVM fileKey matching, not a durable epoch.
+tasks.register('rawWorldInodeAliasReservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exercise hardlinked RAW/World reservation exclusion and real repository write refusal.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21360RawWorldAccountInodeAliasReservationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('rawWorldInodeAliasReservationRegression')
+}
+
+
+// R33: rejected RAW publication on same-byte account inode replacement
+// (or missing->created) across primary, named and repository writers.
+tasks.register('rawReservedAccountObjectPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Require the original opt-in RAW account inode until the final publication point.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21361RawReservedAccountObjectPublicationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('rawReservedAccountObjectPublicationRegression')
+}
+
+
+// R34: opt-in same-JVM inode ownership refuses symbolic-link ancestors
+// for RAW and World without depending on cross-JVM lock opt-in.
+tasks.register('jvmRawWorldInodeAncestorNofollowRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject RAW and World account path parent/grandparent symlink redirects.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21362JvmRawWorldInodeAncestorNofollowRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('jvmRawWorldInodeAncestorNofollowRegression')
+}
+
+
+// R35: separately selectable NOFOLLOW hardlink-count mode rejects
+// redirected parent/grandparent components even without inode/OS lock.
+tasks.register('standaloneAccountNlinkAncestorNofollowRegression', JavaExec) {
+    group = 'verification'
+    description = 'Enforce NOFOLLOW ancestors for standalone account link-count gate and real RAW writes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21363HardlinkCountStandaloneAncestorNofollowRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneAccountNlinkAncestorNofollowRegression')
+}
+
+
+// R36: the opt-in account hardlink-count preflight must distinguish
+// actual absence from unknown I/O and reject observed inode changes
+// between NOFOLLOW attribute / nlink reads.
+tasks.register('hardlinkAttributeRaceFailClosedRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fail closed on same-byte account inode substitution during standalone nlink admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21364HardlinkAttributeRaceFailClosedRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('hardlinkAttributeRaceFailClosedRegression')
+}
+
+
+// R37: forced RAW publication cannot overwrite an existing account
+// when the selected legacy profile's stored username is different.
+tasks.register('forcedRawExistingProfileOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Veto wrong-account stored profile at strict forced RAW publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21365ForcedRawExistingProfileOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('forcedRawExistingProfileOwnershipRegression')
+}
+
+
+// R38: strictly forced RAW must observe final World NEGATIVE witness
+// independently of ACTIVE review marker, even when witness opt-in is OFF.
+tasks.register('forcedRawFinalNegativeWitnessFenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Veto surviving final-save negative witnesses before forced RAW move and return unknown after move.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21366ForcedRawFinalNegativeWitnessFenceRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('forcedRawFinalNegativeWitnessFenceRegression')
+}
+
+
+// R39: independent JVMs must observe retained real final World
+// negative witnesses before ANY cooperating opt-in RAW save, including
+// legacy non-forced primary/named/repository writers.
+tasks.register('crossJvmRetainedFinalWitnessRawWriterRegression', JavaExec) {
+    group = 'verification'
+    description = 'Keep retained negative final World witnesses effective across cooperating RAW writer JVMs.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21367CrossJvmRetainedFinalWitnessRawWriterRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('crossJvmRetainedFinalWitnessRawWriterRegression')
+}
+
+
+// R40: toggling RAW participation OFF must not bypass an existing
+// held World token, pending World admission or same-JVM RAW reservation.
+tasks.register('rawLiveOptOutOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject RAW opt-out across active and pending same-account ownership.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21368RawLiveOptOutOwnershipRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('rawLiveOptOutOwnershipRegression')
+}
+
+
+// R41: disabling World JVM lease opt-in does not erase a RAW writer
+// reservation previously acquired in the same process.
+tasks.register('worldLeaseOptOutRawOwnerRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny unleased World admission while same-account RAW owner remains held.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21369WorldLeaseOptOutRawOwnerRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('worldLeaseOptOutRawOwnerRegression')
+}
+
+
+// R42: original inode owners must remain exclusive through a second
+// hardlink pathname even after disabling RAW / World lease participation.
+tasks.register('liveFlagOptOutHardlinkAliasRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject late opt-out hardlink aliases to already-held JVM account inodes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21370LiveFlagOptOutHardlinkAliasRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('liveFlagOptOutHardlinkAliasRegression')
+}
+
+
+// R43: standalone strict (non-World) opt-in RAW publication must
+// observe independent final World negative witness before and AFTER
+// the account move, without falsely returning a strict receipt.
+tasks.register('standaloneStrictFinalWitnessPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Keep retained final-save witnesses negative in standalone strict RAW publication.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21371StandaloneStrictFinalWitnessPublicationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneStrictFinalWitnessPublicationRegression')
+}
+
+
+// R44: standalone strict RAW must not overwrite a successor account
+// inode substituted after the reservation, including a new bootstrap.
+tasks.register('standaloneStrictAccountObjectContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject same-byte changed account inode and late bootstrap leaf in strict RAW.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21372StandaloneStrictAccountObjectContinuityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneStrictAccountObjectContinuityRegression')
+}
+
+
+// R45: opt-in standalone strict RAW must observe a hardlink added
+// after admission to the old inode and to the new postmove inode.
+// Linux runs real unix:nlink fixtures; Windows does not claim it.
+tasks.register('standaloneStrictLateHardlinkPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fail closed on late pre-move strict account aliases and postmove uncertainty.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21373StandaloneStrictLateHardlinkPublicationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneStrictLateHardlinkPublicationRegression')
+}
+
+// R46: verify that standalone strict opt-in RAW still publishes its
+// exact staged inode after a same-byte postmove substitution or unlink.
+tasks.register('standaloneStrictPostMoveObjectRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny strict RAW Receipt if the published postmove inode is replaced.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21374StandaloneStrictPostMoveObjectRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('standaloneStrictPostMoveObjectRegression')
+}
+
+// R47: all cooperating ordinary RAW writers must re-observe the exact
+// published staged inode after the testable postmove witness boundary.
+tasks.register('ordinaryRawPostMoveObjectContinuityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject positive RAW save results for same-byte inode swap and postmove removal.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21375RawPostMoveObjectContinuityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('ordinaryRawPostMoveObjectContinuityRegression')
+}
+
+// R48: same-inode postmove byte changes must never earn positive RAW
+// save results, including the independent strict RAW Receipt.
+tasks.register('rawPostMoveByteIntegrityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Fail closed on in-place postmove account-byte corruption across four RAW writers.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21376RawPostMoveByteIntegrityRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('rawPostMoveByteIntegrityRegression')
+}
+
+// R50: unwired, nonadmitting immutable-account object + permanent
+// negative HEAD. Four hard-killed JVM cutpoints and fresh-JVM audits.
+tasks.register('negativeAccountHeadProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify irreversible negative account-head evidence at four child-JVM crash cutpoints.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21378NegativeAccountHeadProcessKillRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('negativeAccountHeadProcessKillRegression')
+}
+
+// R51: pure nonadmitting owner epoch / checkpoint / final / review
+// transition contract; no filesystem authority or LocalSession wiring.
+tasks.register('accountEpochTransitionMatrixRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject stale/foreign World account head transitions with only untrusted fixture tokens.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21379AccountEpochTransitionMatrixRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochTransitionMatrixRegression')
+}
+
+// R52: the R50 permanent, nonadmitting HEAD can opt in to the existing
+// stable G21.185 cross-process lock. Two actual JVMs must not publish
+// concurrently; kill/release can never authorize HEAD reuse.
+tasks.register('crossJvmNegativeHeadPublicationGateRegression', JavaExec) {
+    group = 'verification'
+    description = 'Require stable cooperating cross-JVM owner lock for irreversible nonadmitting HEAD creation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21380CrossJvmNegativeHeadPublicationGateRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('crossJvmNegativeHeadPublicationGateRegression')
+}
+
+// R53: read-only permanent negative HEAD veto at actual World load,
+// World save and four RAW writer admissions, flags default-off.
+tasks.register('negativeHeadLegacyAdmissionVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject World/RAW access to permanent or malformed negative account HEADs.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21381NegativeHeadLegacyAdmissionVetoRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('negativeHeadLegacyAdmissionVetoRegression')
+}
+
+// R54: late negative HEAD created during RAW serialization or after
+// the account move must never earn a normal RAW/strict success result.
+tasks.register('lateNegativeHeadRawPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject late HEAD before move and withhold receipts after move across all four default-off RAW writers.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21382LateNegativeHeadRawPublicationRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('lateNegativeHeadRawPublicationRegression')
+}
+
+// R55: immutable negative transition prepare/object/commit chain,
+// same G21.185 OS lock, three real killed-JVM cutpoints. UNWIRED.
+tasks.register('negativeHeadMonotonicTransitionProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove incomplete account-head transitions stay negative across real process death.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21383NegativeHeadTransitionProcessKillRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('negativeHeadMonotonicTransitionProcessKillRegression')
+}
+
+// R56: an orphan transition image without its PREPARE, or an extra
+// competing/malformed image leaf, remains permanent negative evidence.
+tasks.register('negativeTransitionOrphanImageRegression', JavaExec) {
+    group = 'verification'
+    description = 'Detect orphan and foreign R55 sidecar images before trusting any negative chain observation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21384NegativeTransitionOrphanImageRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('negativeTransitionOrphanImageRegression')
+}
+
+// R57: intentionally UNWIRED reusable epoch ledger LAB, not login
+// authority. Genuine child JVM contention, forced final image crash.
+tasks.register('reusableEpochLedgerLabRegression', JavaExec) {
+    group = 'verification'
+    description = 'Rehearse claim/final/settled/reclaim under a cooperating cross-JVM ledger lock.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21385ReusableEpochLedgerLabRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('reusableEpochLedgerLabRegression')
+}
+
+// R58: no R57 CLOSED/OWNED HEAD is a valid observed state without a
+// forced immutable write-ahead intent and matching forced receipt.
+tasks.register('reusableEpochIntentReceiptCrashRegression', JavaExec) {
+    group = 'verification'
+    description = 'Refuse replayed CLOSED heads, orphan claims and corrupt immutable receipt history.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21386ReusableEpochIntentReceiptCrashRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('reusableEpochIntentReceiptCrashRegression')
+}
+
+// R59: previous HEAD hashes must be independently backed by exact
+// immutable full HEAD bytes and every historical referenced snapshot.
+tasks.register('archivedAccountHeadHistoryRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validate every historical immutable HEAD/image and reject orphan archives after hard-kill.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21387ArchivedAccountHeadHistoryRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('archivedAccountHeadHistoryRegression')
+}
+
+// R60: every earlier reusable-LAB snapshot must be referenced by
+// validated historical HEAD bytes, not just present in the folder.
+tasks.register('historicalAccountImageInventoryRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject unreferenced old snapshot images while retaining R57 future-orphan semantics.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21388HistoricalAccountImageInventoryRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('historicalAccountImageInventoryRegression')
+}
+
+// R61: borrow the SAME G21.185 session lock; never nested lock or
+// release the live owner's handle. Standalone, nonadmitting LAB only.
+tasks.register('borrowedAccountOsLockRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove same selected account OS lock can be borrowed without reacquisition or authority grant.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21389BorrowedAccountOsLockRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('borrowedAccountOsLockRegression')
+}
+
+// R62: all detached LAB claim/final phases under the original
+// borrowed G21.185 OS lock; postmove failures remain nonadmitting.
+tasks.register('borrowedLockFullFinalLifecycleRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove one borrowed session OS lock spans nonadmitting claim/final/settle and uncertain restart.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21390BorrowedLockFullFinalLifecycleRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('borrowedLockFullFinalLifecycleRegression')
+}
+
+// R63: any R57/R58/R59 reusable LAB sidecar (including an orphan with
+// no LAB HEAD) is negative for live legacy RAW/World/session paths.
+tasks.register('reusableLabLegacyVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject detached reusable-LAB evidence across all real default-off legacy writers and session reads.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21391ReusableLabLegacyVetoRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('reusableLabLegacyVetoRegression')
+}
+
+// R64: direct legacy AccountStore/LocalAccountProfiles loads are not
+// permitted to ignore any retained negative LAB or R50 HEAD evidence.
+tasks.register('legacyDirectLoadNegativeEvidenceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny negative legacy direct reads before defaults and after decode before mutation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21392LegacyDirectLoadNegativeEvidenceRegression')
+}
+tasks.named('build') {
+    dependsOn tasks.named('legacyDirectLoadNegativeEvidenceRegression')
+}
+
+// R65: read-only original OS lock observation using an ACTUAL
+// authenticated TCP/World generation, never a caller-created nonce.
+tasks.register('realWorldOwnerOriginalLockObservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Exercise real TCP World lease identity under its original cooperating cross-JVM FileLock.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21393RealWorldOwnerOriginalLockObservationRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldOwnerOriginalLockObservationRegression')
+}
+
+// R66: genuine WorldPlayer/Token/OS lock bound to DOUBLE verified,
+// bounded NOFOLLOW actual-account bytes; never a durable epoch/grant.
+tasks.register('realWorldAccountImageBindingRegression', JavaExec) {
+    group = 'verification'
+    description = 'Bind nonadmitting real TCP session observation to exact account image and reject in-place rewrite.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21394RealWorldAccountImageBindingRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldAccountImageBindingRegression')
+}
+
+// R67: original real World-owned immutable capture + G21.202 Token
+// and G21.185 OS lock; purely bounded SHA-256 snapshot provenance.
+tasks.register('realWorldCapturedSnapshotFingerprintRegression', JavaExec) {
+    group = 'verification'
+    description = 'Observe actual immutable WorldPlayerPersistence capture under its original session FileLock.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21395RealWorldCapturedSnapshotFingerprintRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldCapturedSnapshotFingerprintRegression')
+}
+
+// R68: one real TCP/World capture, forced negative R50 intent under
+// genuine original G21.185 lease, plus orphan-object legacy veto.
+tasks.register('realCapturedNegativeFinalIntentRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove captured immutable World snapshot can be forced as permanent nonadmitting negative intent.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21396RealCapturedNegativeFinalIntentRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realCapturedNegativeFinalIntentRegression')
+}
+
+// R76: genuine immutable World-captured snapshot initializes a detached
+// R57 epoch genesis under its ORIGINAL G21.185 FileLock. Nonadmitting
+// permanent-negative legacy and genuine fresh-JVM TCP veto only.
+tasks.register('realCapturedBorrowedEpochGenesisRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify genuine World capture seeds nonadmitting ledger under original lock; fresh JVM must deny.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21399RealCapturedEpochGenesisRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realCapturedBorrowedEpochGenesisRegression')
+}
+
+// R69: hard-kill the *real TCP World* after forcing captured R50
+// image, before HEAD, and deny old account from independent restart.
+tasks.register('realWorldPreHeadIntentProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Prove actual killed World session orphan intent blocks default-off fresh JVM hydration.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21397RealWorldNegativeIntentProcessKillRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldPreHeadIntentProcessKillRegression')
+}
+
+// R70: real World-capture negative HEAD hard-kill matrix: HEAD
+// file forced and directory forced before readback. Fresh JVM real
+// TCP and direct hydration must remain permanently nonadmitting.
+tasks.register('realWorldNegativeHeadProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Kill genuine World owner at forced negative HEAD boundaries and deny fresh TCP reconnect.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.G21398RealWorldNegativeHeadProcessKillRegressionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('realWorldNegativeHeadProcessKillRegression')
+}
+
+
+// R152 standalone/unwired immutable HEAD serialization guard.
+tasks.register('accountEpochHeadCodecRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify canonical bounded epoch HEAD encoding; never admit or recover.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochHeadCodecTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochHeadCodecRegression')
+}
+
+
+// R153: detached immutable object publication, negative-only IO fault seams.
+tasks.register('accountEpochSnapshotObjectRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify standalone immutable account snapshot publication; no HEAD or admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochSnapshotObjectsTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochSnapshotObjectRegression')
+}
+
+
+// R154: untrusted, negative-only account HEAD after forced immutable object.
+tasks.register('accountEpochNegativeHeadPublicationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject unsafe epoch HEAD publication and preserve cutpoint negative artifacts.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadPublicationTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadPublicationRegression')
+}
+
+
+// R155: actual abrupt JVM termination at four negative-only HEAD cutpoints.
+// Across both absent and existing legacy accounts, independent JVM reader
+// must deny; this is not power-loss, World capture, or positive recovery.
+tasks.register('accountEpochNegativeHeadProcessKillRegression', JavaExec) {
+    group = 'verification'
+    description = 'Halt child JVM at each negative HEAD cutpoint and deny detached restart.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadProcessKillTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadProcessKillRegression')
+}
+
+
+// R156: reject foreign same-byte HEAD inode substitution and hardlink
+// insertion across three negative publication cutpoints (12 cases).
+tasks.register('accountEpochNegativeHeadIdentityRaceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny foreign same-byte HEAD inode swaps and hardlink aliases.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadIdentityRaceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadIdentityRaceRegression')
+}
+
+
+// R157: two independent JVMs reach the same first negative-HEAD publication
+// cutpoint, then race CREATE_NEW; reject losing writer and retain objects.
+tasks.register('accountEpochNegativeHeadCrossJvmRaceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Compete two JVMs on the same negative HEAD without granting recovery.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadCrossJvmRaceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadCrossJvmRaceRegression')
+}
+
+
+// R158: hard-halt one of two alive JVMs at each negative HEAD stage;
+// independent third-JVM read must never confer positive account authority.
+tasks.register('accountEpochNegativeHeadCrossJvmHaltRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verify staged competing JVM hard-halt HEAD cutpoints.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadCrossJvmHaltTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadCrossJvmHaltRegression')
+}
+
+
+// R159: a separate JVM substitutes or aliases the negative HEAD between
+// CREATE_NEW and postforce readback. All 12 staged cases deny publication.
+tasks.register('accountEpochNegativeHeadForeignJVMIdentityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny external-JVM HEAD inode replacement and hardlink alias races.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochNegativeHeadForeignJVMIdentityTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochNegativeHeadForeignJVMIdentityRegression')
+}
+
+
+// R160: the newer G21.377 negative HEAD and its pre-HEAD orphan object
+// must veto the EXISTING legacy World, RAW, and session paths.
+tasks.register('accountEpochLegacyNegativeVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny real legacy account access on R153/R154 negative evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochLegacyNegativeVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochLegacyNegativeVetoRegression')
+}
+
+
+// R161: R153/R154 negative HEAD or orphan object appears after the real
+// account read and must be vetoed on the existing second session check.
+tasks.register('accountEpochLateReadNegativeVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject late G21.377 evidence at World session read recheck.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochLateReadNegativeVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochLateReadNegativeVetoRegression')
+}
+
+
+// R162: R153/154 negative evidence published by a separate JVM after
+// actual account hydration read must be denied before World session return.
+tasks.register('accountEpochCrossJvmLateReadVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny separate-JVM late G21.377 sidecars in World session read.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochCrossJvmLateReadVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochCrossJvmLateReadVetoRegression')
+}
+
+
+// R163: genuine LocalSession/World TCP admission attempt, with an
+// independent JVM publishing G21.377 negative evidence after account read.
+tasks.register('accountEpochCrossJvmTcpReadVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Reject late foreign-JVM G21.377 evidence on real World TCP login.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochCrossJvmTcpReadVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochCrossJvmTcpReadVetoRegression')
+}
+
+
+// R164: fresh independent JVM + World TCP restart must deny retained
+// complete/malformed negative HEAD or orphan object; healthy TCP control.
+tasks.register('accountEpochFreshJvmTcpRestartVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny retained G21.377 forensic evidence in fresh World JVM TCP login.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochFreshJvmTcpRestartVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochFreshJvmTcpRestartVetoRegression')
+}
+
+
+// R165: killed publisher JVM at each HEAD stage followed by genuine
+// synthetic TCP denied in a new World process with negative evidence.
+tasks.register('accountEpochKilledPublisherFreshTcpVetoRegression', JavaExec) {
+    group = 'verification'
+    description = 'Deny fresh-World TCP after hard-killed negative HEAD publisher.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.LocalAccountEpochKilledPublisherFreshTcpVetoTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('accountEpochKilledPublisherFreshTcpVetoRegression')
+}
