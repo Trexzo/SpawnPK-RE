@@ -14483,3 +14483,18 @@ tasks.register('playablePrayerTcpReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playablePrayerTcpReconnectSmoke')
 }
+
+
+// P5.3: coherent survival-domain composition, not wire acceptance:
+// damage, Eat, death guard, five-tick respawn, Eat and file restore.
+tasks.register('playableSurvivalRespawnReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Survival damage, food, death guard, respawn, fresh World.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableSurvivalRespawnReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableSurvivalRespawnReconnectSmoke')
+}
