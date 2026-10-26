@@ -73,8 +73,8 @@ public final class PlayableQuickPrayerTcpReconnectTest {
                         // Exact pinned-v308 185: open Quick Prayer selector.
                         send185(out,c2s,
                             QuickPrayerSelectionPresentation.SELECT_WIDGET);
-                        byte[] root=expectEventuallyFixed(in,s2c,97,2);
-                        if(!Arrays.equals(root,
+                        byte[] quickRoot=expectEventuallyFixed(in,s2c,97,2);
+                        if(!Arrays.equals(quickRoot,
                             BootstrapPackets.interface97(
                                 QuickPrayerSelectionPresentation.NORMAL_ROOT)))
                             throw new AssertionError(
