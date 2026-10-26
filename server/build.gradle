@@ -14425,3 +14425,18 @@ tasks.register('playableEquipmentTcpReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableEquipmentTcpReconnectSmoke')
 }
+
+
+// P4: CUSTOM_LOCALLAB buy/sell/rebuy with account-file checkpoint and
+// fresh World inventory verification (shop stock remains World-local).
+tasks.register('playableShopEconomyReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Shop buy/sell/buy, save exact inventory and restore in fresh World.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableShopEconomyReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableShopEconomyReconnectSmoke')
+}

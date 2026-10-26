@@ -42,3 +42,8 @@ Do not mark P2 certified until exact-head Linux Gradle and Windows source-only c
 ## P3 — real TCP weapon Wield and reconnect candidate
 
 This connected equipment test reuses the existing native bank withdraw and Wield opcode-41 paths, ensures the old Bloodrend item returns to inventory, verifies appearance81 and continued movement, waits for LocalSession final save, then starts a fresh World with the persisted weapon and inventory. No actual original client or failed-final-save certification is claimed. P3 remains unverified until hosted exact-head CI.
+
+
+## P4 — shop economy and fresh World candidate
+
+Connected CUSTOM_LOCALLAB service path: acquire 100 coins in an isolated test player's inventory, buy two Rocktails at the explicitly custom ten-coin rate, sell one back for four coins, rebuy one for ten, require independently committed transactions and finite stock delta, then write the actual snapshot through FilePlayerRepository. An entirely fresh World rehydrates 74 inventory coins, two Rocktails and the unchanged 100,000 bank coins. This does not prove original SpawnPK prices, real client shop controls, permanent shared market stock across restart, crash recovery or economic anti-dupe in multi-JVM production.
