@@ -14513,3 +14513,18 @@ tasks.register('quickPrayerOnIntegrationRegression', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('quickPrayerOnIntegrationRegression')
 }
+
+
+// P5.5: native selector 5001/17202/17241 and Quick ON/OFF 5000/4999
+// through the real LocalSession TCP wire with ISAAC and fresh World.
+tasks.register('playableQuickPrayerTcpReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Exact 185 Quick selector, ON/OFF wire packet36+126.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableQuickPrayerTcpReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableQuickPrayerTcpReconnectSmoke')
+}
