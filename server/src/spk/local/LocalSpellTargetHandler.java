@@ -15,6 +15,24 @@ final class LocalSpellTargetHandler {
     private final PlayerState playerState;
     private final NpcRegistry npcs;
     private final CombatEngine combat;
+    private final WorldPlayer lifecycleOwner;
+
+    /**
+     * Production binding. All state channels are resolved from this exact
+     * WorldPlayer; the legacy composition constructor below is retained
+     * only for existing source-only unit callers.
+     */
+    LocalSpellTargetHandler(
+        WorldPlayer owner,
+        NpcRegistry npcs,
+        CombatEngine combat
+    ){
+        this(
+            java.util.Objects.requireNonNull(owner,"owner"),
+            owner.magic(),owner.bank(),owner.equipment(),
+            owner.playerState(),npcs,combat
+        );
+    }
 
     LocalSpellTargetHandler(
         MagicState magic,
@@ -24,6 +42,19 @@ final class LocalSpellTargetHandler {
         NpcRegistry npcs,
         CombatEngine combat
     ){
+        this(null,magic,bank,equipment,playerState,npcs,combat);
+    }
+
+    private LocalSpellTargetHandler(
+        WorldPlayer owner,
+        MagicState magic,
+        BankState bank,
+        EquipmentState equipment,
+        PlayerState playerState,
+        NpcRegistry npcs,
+        CombatEngine combat
+    ){
+        this.lifecycleOwner=owner;
         this.magic=java.util.Objects.requireNonNull(magic,"magic");
         this.bank=java.util.Objects.requireNonNull(bank,"bank");
         this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
@@ -34,6 +65,23 @@ final class LocalSpellTargetHandler {
 
     String handle(SpellTargetRequest req,ServerPacketWriter serverPackets)throws IOException{
         if(req==null)return null;
+
+        // Production gameplay must not route caster actions after a lethal
+        // hit. Check the canonical WorldPlayer lifecycle before touching
+        // MagicState (which updates its "last" field on accepted validation)
+        // or routing to a dummy NPC hit. This is a same-thread gameplay
+        // admission guard, not a concurrent cast/death linearization proof.
+        if(lifecycleOwner!=null){
+            synchronized(lifecycleOwner.mutationLock()){
+                if(lifecycleOwner.lifecycle().dead()||
+                   playerState.currentLevel(PlayerState.HITPOINTS)<=0){
+                    return "V510_MAGIC_TARGET "+req+
+                        " result=REJECTED_CASTER_DEAD"+
+                        " authority=CUSTOM_LOCALLAB_LIFECYCLE"+
+                        " originalMagicEffectsUnverified=true";
+                }
+            }
+        }
 
         MagicState.Check check=magic.target(req,bank,equipment,playerState);
         if(!check.accepted){
