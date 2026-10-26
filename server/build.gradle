@@ -14410,3 +14410,18 @@ tasks.register('playableBankTcpCheckpointReconnectSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableBankTcpCheckpointReconnectSmoke')
 }
+
+
+// P3: synthetic LocalSession TCP withdraw/Wield, client appearance,
+// normal movement, final-save and fresh World equipment restoration.
+tasks.register('playableEquipmentTcpReconnectSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Bank withdraw and Wield weapon; restart with persisted gear.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableEquipmentTcpReconnectTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableEquipmentTcpReconnectSmoke')
+}

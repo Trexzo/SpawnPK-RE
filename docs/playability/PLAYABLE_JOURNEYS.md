@@ -37,3 +37,8 @@ Project coordination: #2526. Gameplay drop-observer retry #2587, kill-credit ori
 P2 is a separate test-only integration built from the exact server packet flow in BankRuntimeIntegrationTest. One LocalSession on a real isolated World accepts the synthetic revision-317 localhost login, walk packet 164, object packet 132, bank overlay S2C248/53, a withdraw then store then second withdraw through opcode 145, and an explicit bank close before real socket logout. It requires LocalSession completion (no ignored Future timeout), then starts a separate fresh World and validates saved bank 995x99,999 and inventory 995x1. This is more than a no-net-mutation bank UI replay and checks actual final-save state from the transport session, but still uses synthetic wire data and does not prove failed-final-save crash recovery, original GUI or cross-JVM ownership.
 
 Do not mark P2 certified until exact-head Linux Gradle and Windows source-only checks pass on this additional commit.
+
+
+## P3 — real TCP weapon Wield and reconnect candidate
+
+This connected equipment test reuses the existing native bank withdraw and Wield opcode-41 paths, ensures the old Bloodrend item returns to inventory, verifies appearance81 and continued movement, waits for LocalSession final save, then starts a fresh World with the persisted weapon and inventory. No actual original client or failed-final-save certification is claimed. P3 remains unverified until hosted exact-head CI.
