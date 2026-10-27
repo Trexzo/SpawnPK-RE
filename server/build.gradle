@@ -14656,3 +14656,17 @@ tasks.register('playableWorldOwnedMagicPrayerWidgetSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWorldOwnedMagicPrayerWidgetSmoke')
 }
+
+
+// P5.15: Quick Prayer ON and OFF must retain exact World generation.
+tasks.register('playableQuickPrayerWorldGenerationSmoke', JavaExec) {
+    group = 'verification'
+    description = 'World-bound Quick ON/OFF, detached/ABA/closed and Curses.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableQuickPrayerWorldGenerationTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableQuickPrayerWorldGenerationSmoke')
+}

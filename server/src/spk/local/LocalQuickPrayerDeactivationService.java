@@ -20,13 +20,41 @@ final class LocalQuickPrayerDeactivationService {
         "LOCAL_LAB_POLICY_P59_QUICK_OFF_ATOMIC";
 
     private final WorldPlayer player;
+    private final World canonicalWorld;
+    private final java.util.function.LongSupplier worldGeneration;
 
+    // Isolated preexisting smoke callers retain their historical mode.
     LocalQuickPrayerDeactivationService(WorldPlayer player){
+        this(null,player,null);
+    }
+
+    // Production LocalSession is locked to this World generation.
+    LocalQuickPrayerDeactivationService(
+        World world,
+        WorldPlayer player,
+        java.util.function.LongSupplier generation
+    ){
+        if((world==null)!=(generation==null))
+            throw new IllegalArgumentException("World and generation must match");
+        this.canonicalWorld=world;
+        this.worldGeneration=generation;
         this.player=Objects.requireNonNull(player,"player");
     }
 
     String deactivate(ServerPacketWriter writer)throws IOException{
         Objects.requireNonNull(writer,"writer");
+        if(canonicalWorld!=null){
+            final String[] response=new String[1];
+            boolean admitted=canonicalWorld.withOpenPlayerOwnershipIfCurrent(
+                player,worldGeneration.getAsLong(),
+                ()->response[0]=deactivateCurrent(writer)
+            );
+            return admitted?response[0]:"REJECTED_STALE_WORLD_OWNER";
+        }
+        return deactivateCurrent(writer);
+    }
+
+    private String deactivateCurrent(ServerPacketWriter writer)throws IOException{
         synchronized(player.mutationLock()){
             if(player.lifecycle().dead()||
                player.playerState().currentLevel(

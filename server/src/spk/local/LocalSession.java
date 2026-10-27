@@ -1774,7 +1774,9 @@ final class LocalSession implements Runnable {
                     String tag
                 )throws IOException{
                     return new LocalQuickPrayerActivationService(
+                        LocalSession.this.world,
                         LocalSession.this.worldPlayer,
+                        ()->LocalSession.this.worldPlayerGeneration,
                         LocalSession.this.quickPrayerSelections
                     ).activate(writer);
                 }
@@ -1784,7 +1786,9 @@ final class LocalSession implements Runnable {
                     String tag
                 )throws IOException{
                     return new LocalQuickPrayerDeactivationService(
-                        LocalSession.this.worldPlayer
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        ()->LocalSession.this.worldPlayerGeneration
                     ).deactivate(writer);
                 }
 
