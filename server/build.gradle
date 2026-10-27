@@ -14670,3 +14670,17 @@ tasks.register('playableQuickPrayerWorldGenerationSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableQuickPrayerWorldGenerationSmoke')
 }
+
+
+// P5.16: Quick Prayer G121 editor toggle/confirm World generation.
+tasks.register('playableQuickPrayerSelectionOwnershipSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Detached/ABA/closed World cannot toggle or confirm prayer selection.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableQuickPrayerSelectionOwnershipTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableQuickPrayerSelectionOwnershipSmoke')
+}
