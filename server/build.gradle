@@ -14627,3 +14627,17 @@ tasks.register('playableWindStrikeRuneTransactionSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeRuneTransactionSmoke')
 }
+
+
+// P5.13: actual World NPC + viewer scene canonical spell target ownership.
+tasks.register('playableCanonicalSpellTargetOwnershipSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Reject dead/removed canonical NPC or stale caster World.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableCanonicalSpellTargetOwnershipTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableCanonicalSpellTargetOwnershipSmoke')
+}
