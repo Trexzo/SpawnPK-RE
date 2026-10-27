@@ -83,6 +83,34 @@ final class LocalSpellTargetHandler {
             }
         }
 
+        // Validate the *actual* target identity before invoking MagicState,
+        // whose accepted check changes the 'last' spell record. This avoids
+        // phantom accepted casts on stale scene indexes or inventory slots.
+        // Typed codec transport is exact-client; the target-validity policy
+        // is conservative CUSTOM_LOCALLAB (no original effects inferred).
+        if(req.kind==SpellTargetRequest.Kind.NPC&&
+           npcs.scene(req.targetIndex)==null){
+            return "V510_MAGIC_TARGET "+req+
+                " result=REJECTED_TARGET_NPC_NOT_VISIBLE"+
+                " scene="+req.targetIndex+
+                " magicStateUnchanged=true";
+        }
+        if(req.kind==SpellTargetRequest.Kind.INVENTORY_ITEM){
+            if(req.targetWidget!=BankState.NORMAL_INVENTORY_CONTAINER){
+                return "V510_MAGIC_TARGET "+req+
+                    " result=REJECTED_TARGET_UNVERIFIED_INVENTORY_WIDGET"+
+                    " widget="+req.targetWidget+
+                    " magicStateUnchanged=true";
+            }
+            BankState.Stack slot=bank.inventoryAt(req.targetSlot);
+            if(slot==null||slot.itemId!=req.targetId||
+               slot.qty<=0){
+                return "V510_MAGIC_TARGET "+req+
+                    " result=REJECTED_TARGET_INVENTORY_MISMATCH"+
+                    " magicStateUnchanged=true";
+            }
+        }
+
         MagicState.Check check=magic.target(req,bank,equipment,playerState);
         if(!check.accepted){
             return "V510_MAGIC_TARGET "+req+
