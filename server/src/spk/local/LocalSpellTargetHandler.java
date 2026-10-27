@@ -16,12 +16,34 @@ final class LocalSpellTargetHandler {
     private final NpcRegistry npcs;
     private final CombatEngine combat;
     private final WorldPlayer lifecycleOwner;
+    private World canonicalWorld;
+    private java.util.function.LongSupplier worldGeneration;
+
 
     /**
      * Production binding. All state channels are resolved from this exact
      * WorldPlayer; the legacy composition constructor below is retained
      * only for existing source-only unit callers.
      */
+    /**
+     * Exact LocalSession production binding. The World ownership guard is
+     * only an in-process current-session admission check, not the durable
+     * cross-World account lease tracked separately under #2559.
+     */
+    LocalSpellTargetHandler(
+        World world,
+        WorldPlayer owner,
+        java.util.function.LongSupplier generation,
+        NpcRegistry npcs,
+        CombatEngine combat
+    ){
+        this(owner,npcs,combat);
+        this.canonicalWorld=java.util.Objects.requireNonNull(
+            world,"world");
+        this.worldGeneration=java.util.Objects.requireNonNull(
+            generation,"generation");
+    }
+
     LocalSpellTargetHandler(
         WorldPlayer owner,
         NpcRegistry npcs,
@@ -80,6 +102,43 @@ final class LocalSpellTargetHandler {
                         " authority=CUSTOM_LOCALLAB_LIFECYCLE"+
                         " originalMagicEffectsUnverified=true";
                 }
+            }
+        }
+
+        // An old LocalSession must not validate a cast using a player
+        // detached from this exact World generation.
+        if(canonicalWorld!=null&&
+           (canonicalWorld.closed()||
+            !canonicalWorld.players().owns(
+                lifecycleOwner,worldGeneration.getAsLong()))){
+            return "V510_MAGIC_TARGET "+req+
+                " result=REJECTED_STALE_CASTER_WORLD_OWNER"+
+                " magicStateUnchanged=true";
+        }
+
+        // Canonical combat NPCs have a stable World ID in the viewer's
+        // projection. A stale scene index is not permission to cast at an
+        // unregistered/dead canonical NPC. Legacy local diagnostic dummies
+        // have no canonical ID and retain their original separate route.
+        if(canonicalWorld!=null&&
+           req.kind==SpellTargetRequest.Kind.NPC){
+            NpcEntity view=npcs.scene(req.targetIndex);
+            if(view!=null&&view.canonicalId()!=null){
+                EntityId id=view.canonicalId();
+                WorldNpc canonical=canonicalWorld.npcs().byId(id);
+                if(canonical==null||
+                   canonical.definitionId!=view.definitionId)
+                    return "V510_MAGIC_TARGET "+req+
+                        " result=REJECTED_STALE_CANONICAL_NPC"+
+                        " magicStateUnchanged=true";
+                NpcLifecycleService.Snapshot state=
+                    canonicalWorld.npcLifecycle().get(id);
+                if(state==null||!state.alive()||
+                   state.hitpoints<=0||
+                   state.definitionId!=view.definitionId)
+                    return "V510_MAGIC_TARGET "+req+
+                        " result=REJECTED_CANONICAL_NPC_NOT_ALIVE"+
+                        " magicStateUnchanged=true";
             }
         }
 

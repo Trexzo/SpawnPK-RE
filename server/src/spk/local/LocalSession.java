@@ -343,7 +343,7 @@ final class LocalSession implements Runnable {
         this.bankRequests = new LocalBankRequestHandler(worldPlayer,bank);
         this.itemOnItemHandler = new LocalItemOnItemHandler(bank);
         this.spellTargetHandler = new LocalSpellTargetHandler(
-            worldPlayer,npcs,combat);
+            world,worldPlayer,()->this.worldPlayerGeneration,npcs,combat);
         this.groundItemHandler = new LocalGroundItemInteractionHandler(
             world,bank,movement);
         this.itemOnNpcHandler = new LocalItemOnNpcHandler(
