@@ -35,7 +35,9 @@ final class LocalQuickPrayerActivationService {
                 selection.snapshot();
             if(snapshot.editing)
                 return "REJECTED_SELECTION_DRAFT_OPEN";
-            if(player.lifecycle().dead())
+            if(player.lifecycle().dead()||
+               player.playerState().currentLevel(
+                   PlayerState.HITPOINTS)<=0)
                 return "REJECTED_PLAYER_DEAD";
             List<String> keys=snapshot.confirmed(snapshot.currentBook);
             if(keys.isEmpty())

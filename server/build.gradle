@@ -14585,3 +14585,17 @@ tasks.register('playableQuickPrayerOffAtomicSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableQuickPrayerOffAtomicSmoke')
 }
+
+
+// P5.10: Quick ON refuses contradictory ALIVE and 0 HP state.
+tasks.register('playableQuickPrayerOnZeroHpSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Quick ON dead and zero-HP lifecycle guard.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableQuickPrayerOnZeroHpTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableQuickPrayerOnZeroHpSmoke')
+}
