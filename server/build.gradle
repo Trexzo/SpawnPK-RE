@@ -14571,3 +14571,17 @@ tasks.register('playableDeadPrayerWidgetFenceSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableDeadPrayerWidgetFenceSmoke')
 }
+
+
+// P5.9: recoverable queue-only Quick Prayer OFF current-book batch.
+tasks.register('playableQuickPrayerOffAtomicSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Atomic Quick OFF, backpressure, dead guard and curses scope.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableQuickPrayerOffAtomicTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableQuickPrayerOffAtomicSmoke')
+}

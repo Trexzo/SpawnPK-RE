@@ -63,6 +63,29 @@ final class PrayerState {
     }
 
     /**
+     * Update current-book activation only after the exact OFF packet batch
+     * was admitted by a retractable output queue. Does not infer original
+     * death-clear policy, prayer drain, combat effects or server ACK.
+     */
+    void recordPublishedQuickDeactivation(
+        PrayerDefinitionRepository.Book expectedBook,
+        Collection<PrayerDefinitionRepository.Def> selected
+    ){
+        Objects.requireNonNull(expectedBook,"expectedBook");
+        Objects.requireNonNull(selected,"selected");
+        if(book!=expectedBook)
+            throw new IllegalStateException(
+                "quick off prayer book changed before commit");
+        for(PrayerDefinitionRepository.Def def:selected)
+            if(def==null||def.book!=book||
+               !activeWidgets.contains(def.widget))
+                throw new IllegalStateException(
+                    "quick off expected active prayer changed");
+        for(PrayerDefinitionRepository.Def def:selected)
+            activeWidgets.remove(def.widget);
+    }
+
+    /**
      * Called only after the exact quick-on queue batch was admitted.
      * This only records presentation activation; it establishes no drain,
      * prayer conflict, combat effect, or original SpawnPK policy.
