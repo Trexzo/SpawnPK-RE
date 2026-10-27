@@ -19,17 +19,48 @@ final class LocalQuickPrayerActivationService {
 
     private final WorldPlayer player;
     private final QuickPrayerSelectionService selection;
+    private final World canonicalWorld;
+    private final java.util.function.LongSupplier worldGeneration;
 
+    // Existing isolated source callers intentionally have no World lease.
     LocalQuickPrayerActivationService(
         WorldPlayer player,
         QuickPrayerSelectionService selection
     ){
+        this(null,player,null,selection);
+    }
+
+    // Production LocalSession requires an exact in-JVM World generation.
+    LocalQuickPrayerActivationService(
+        World world,
+        WorldPlayer player,
+        java.util.function.LongSupplier generation,
+        QuickPrayerSelectionService selection
+    ){
+        if((world==null)!=(generation==null))
+            throw new IllegalArgumentException("World and generation must match");
+        this.canonicalWorld=world;
+        this.worldGeneration=generation;
         this.player=Objects.requireNonNull(player,"player");
         this.selection=Objects.requireNonNull(selection,"selection");
     }
 
     String activate(ServerPacketWriter writer)throws IOException{
         Objects.requireNonNull(writer,"writer");
+        if(canonicalWorld!=null){
+            final String[] response=new String[1];
+            // The World lifecycle barrier is held through queue admission
+            // AND semantic state commit. A stale registration has no bytes.
+            boolean admitted=canonicalWorld.withOpenPlayerOwnershipIfCurrent(
+                player,worldGeneration.getAsLong(),
+                ()->response[0]=activateCurrent(writer)
+            );
+            return admitted?response[0]:"REJECTED_STALE_WORLD_OWNER";
+        }
+        return activateCurrent(writer);
+    }
+
+    private String activateCurrent(ServerPacketWriter writer)throws IOException{
         synchronized(player.mutationLock()){
             QuickPrayerSelectionService.Snapshot snapshot=
                 selection.snapshot();

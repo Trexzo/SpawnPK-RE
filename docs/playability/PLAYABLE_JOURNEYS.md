@@ -138,3 +138,8 @@ it is not a cross-JVM durable named-account lease (#2559), does not establish
 the teleport commit's own ownership lock, and is not original client GUI
 acceptance. Existing non-atomic direct writer semantics have not been
 silently renamed as failure-atomic. Keep draft pending exact-head CI.
+
+
+## P5.15 — World-generation ownership through Quick Prayer ON/OFF
+
+Draft `playability/p5-15-quick-prayer-world-generation` covers the remaining independent Quick Prayer ON widget 5000 and OFF widget 4999 services. Production `LocalSession` now constructs both with the exact World, canonical WorldPlayer and current session generation supplier. `World.withOpenPlayerOwnershipIfCurrent` holds in-JVM World lifecycle ownership through the existing player-locked selection validation, queue-backed atomic packet publication and semantic activation/deactivation commit. A detached, re-registered (even same WorldPlayer object/ABA) or closed World denies both actions with **zero newly published bytes and no state changes**. The original isolated service constructors remain for source-only P5.9/P5.10 tests. The mandatory `playableQuickPrayerWorldGenerationSmoke` verifies current ON/OFF, detach, generation rotation, fresh handler acceptance, Curses OFF preserving the Normal book and closed World denial. This is not an original v308 GUI test, cross-JVM durable named-account ownership (#2559), client ACK, drain/protection effect or original death-time prayer rule. Do not confuse queue admission with persisted crash-safe account state (#2540). Keep draft until exact-head Linux and Windows CI pass.
