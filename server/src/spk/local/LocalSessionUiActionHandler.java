@@ -1581,7 +1581,11 @@ final class LocalSessionUiActionHandler {
                     tag
                 );
 
+            // A denied stale-World confirm must not be presented as
+            // a successful edit closure; only the actual confirmation
+            // action is allowed to retire this modal.
             if(action!=null&&
+               action.startsWith("QUICK_SELECTION_CONFIRM")&&
                widget==
                     QuickPrayerSelectionPresentation
                         .CONFIRM_WIDGET)

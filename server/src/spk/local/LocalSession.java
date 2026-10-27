@@ -212,6 +212,7 @@ final class LocalSession implements Runnable {
     private final LocalDonationCartUiHandler donationCartUi;
     private final QuickPrayerSelectionService quickPrayerSelections;
     private final QuickPrayerSelectionPresentation quickPrayerPresentation;
+    private final LocalQuickPrayerSelectionWorldGate quickPrayerWorldGate;
     private final LocalDuelUiHandler duelUi;
     private final LocalCommandDispatcher commandDispatcher;
     private LocalMailboxRootlessSession rootlessMailbox;
@@ -640,6 +641,13 @@ final class LocalSession implements Runnable {
         this.quickPrayerPresentation=
             new QuickPrayerSelectionPresentation(
                 this.quickPrayerSelections
+            );
+        this.quickPrayerWorldGate=
+            new LocalQuickPrayerSelectionWorldGate(
+                this.world,
+                this.worldPlayer,
+                ()->this.worldPlayerGeneration,
+                this.quickPrayerPresentation
             );
         this.duelUi=
             new LocalDuelUiHandler(
@@ -1797,8 +1805,8 @@ final class LocalSession implements Runnable {
                     String tag
                 )throws IOException{
                     return LocalSession.this
-                        .quickPrayerPresentation
-                        .handleWidget(widget);
+                        .quickPrayerWorldGate
+                        .handle(widget);
                 }
 
                 @Override public boolean openPkRatings(
