@@ -349,7 +349,7 @@ final class LocalSession implements Runnable {
         this.itemOnNpcHandler = new LocalItemOnNpcHandler(
             bank,npcs,movement,petAccessoryState);
         this.gameplayWidgetHandler = new LocalGameplayWidgetHandler(
-            worldPlayer);
+            world,worldPlayer,()->this.worldPlayerGeneration);
         this.bankObjectHandler = new LocalBankObjectInteractionHandler(
             bank,
             movement,
