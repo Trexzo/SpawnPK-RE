@@ -104,7 +104,8 @@ final class LocalSpellTargetHandler {
                 worldGeneration.getAsLong(),
                 ()->{
                     synchronized(lifecycleOwner.mutationLock()){
-                        response[0]=handleCurrent(req,serverPackets);
+                        response[0]=handleWithCanonicalNpcLease(
+                            req,serverPackets);
                     }
                 }
             );
@@ -112,6 +113,88 @@ final class LocalSpellTargetHandler {
             ?response[0]
             :"V510_MAGIC_TARGET "+req+
                 " result=REJECTED_STALE_CASTER_WORLD_OWNER"+
+                " magicStateUnchanged=true";
+    }
+
+    /**
+     * Canonical World NPC spells must retain the registry's exact object
+     * ownership AND the lifecycle registration monitor until target
+     * validation has finished updating MagicState. World and player
+     * ownership are already held by the caller.
+     *
+     * This is only an admission/metadata linearization seam: combat hits,
+     * damage, runes, experience and cross-JVM authority are NOT settled.
+     */
+    private String handleWithCanonicalNpcLease(
+        SpellTargetRequest req,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        if(req.kind!=SpellTargetRequest.Kind.NPC)
+            return handleCurrent(req,serverPackets);
+
+        NpcEntity scene=npcs.scene(req.targetIndex);
+        if(scene==null||scene.canonicalId()==null)
+            return handleCurrent(req,serverPackets);
+
+        EntityId expectedId=scene.canonicalId();
+        WorldNpc expected=canonicalWorld.npcs().byId(expectedId);
+        if(expected==null||
+           expected.definitionId!=scene.definitionId)
+            return "V510_MAGIC_TARGET "+req+
+                " result=REJECTED_STALE_CANONICAL_NPC"+
+                " magicStateUnchanged=true";
+
+        final String[] answer=new String[1];
+        boolean current;
+        try{
+            current=canonicalWorld.npcs()
+                .withCurrentMutationOwnershipIfCurrent(
+                    expected,
+                    ()->{
+                        // NPC lifecycle unregisterExact is synchronized on
+                        // the service without always taking registry lock.
+                        // Both monitors are necessary through MagicState.
+                        synchronized(canonicalWorld.npcLifecycle()){
+                            NpcEntity now=npcs.scene(req.targetIndex);
+                            if(now==null||
+                               !expectedId.equals(now.canonicalId())||
+                               now.definitionId!=expected.definitionId){
+                                answer[0]="V510_MAGIC_TARGET "+req+
+                                    " result=REJECTED_STALE_CANONICAL_NPC_SCENE"+
+                                    " magicStateUnchanged=true";
+                                return;
+                            }
+
+                            NpcLifecycleService.Snapshot state=
+                                canonicalWorld.npcLifecycle().get(expectedId);
+                            if(state==null||!state.alive()||
+                               state.hitpoints<=0||
+                               state.definitionId!=expected.definitionId){
+                                answer[0]="V510_MAGIC_TARGET "+req+
+                                    " result=REJECTED_CANONICAL_NPC_NOT_ALIVE"+
+                                    " magicStateUnchanged=true";
+                                return;
+                            }
+
+                            // Existing validated routing, not a new
+                            // damage or resource-spend pathway.
+                            answer[0]=handleCurrent(req,serverPackets);
+                        }
+                    }
+                );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IOException(
+                "canonical NPC spell admission failed",failure);
+        }
+
+        return current
+            ?answer[0]
+            :"V510_MAGIC_TARGET "+req+
+                " result=REJECTED_STALE_CANONICAL_NPC"+
                 " magicStateUnchanged=true";
     }
 
