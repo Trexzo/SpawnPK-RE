@@ -50,7 +50,7 @@ public final class PlayableQuickPrayerWorldGenerationTest {
         try{
             QuickPrayerSelectionService selected=
                 new QuickPrayerSelectionService(
-                    player,"CUSTOM_LOCALLAB_P515_QUICK_SELECTION");
+                    player,"LOCAL_LAB_POLICY_P515_QUICK_SELECTION");
             selected.beginEdit();
             selected.toggleDraft("normal:thick_skin");
             selected.confirmEdit();
