@@ -104,7 +104,8 @@ public final class PlayableWindStrikeWorldOwnershipTest {
             Capture saturated=new Capture(1024);
             byte[] sentinel=new byte[1024];
             Arrays.fill(sentinel,(byte)0x5a);
-            require(saturated.queue.offer(sentinel),
+            saturated.queue.offer(sentinel);
+            require(saturated.queue.queuedBytes()==1024,
                 "failed to fill queue");
             require("REJECTED_WRITER_BACKPRESSURE_RETRYABLE"
                     .equals(fresh.settle(saturated.writer))&&
