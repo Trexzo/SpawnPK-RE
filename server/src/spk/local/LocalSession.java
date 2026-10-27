@@ -1783,17 +1783,9 @@ final class LocalSession implements Runnable {
                     ServerPacketWriter writer,
                     String tag
                 )throws IOException{
-                    String result=
-                        LocalSession.this.prayers
-                            .deactivateAll(writer);
-
-                    QuickPrayerSelectionPresentation
-                        .publishActive(
-                            writer,
-                            false
-                        );
-
-                    return result;
+                    return new LocalQuickPrayerDeactivationService(
+                        LocalSession.this.worldPlayer
+                    ).deactivate(writer);
                 }
 
                 @Override public String handleQuickPrayerWidget(
