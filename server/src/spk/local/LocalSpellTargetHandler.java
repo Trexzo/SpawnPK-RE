@@ -85,8 +85,40 @@ final class LocalSpellTargetHandler {
         this.combat=java.util.Objects.requireNonNull(combat,"combat");
     }
 
-    String handle(SpellTargetRequest req,ServerPacketWriter serverPackets)throws IOException{
+    String handle(
+        SpellTargetRequest req,
+        ServerPacketWriter serverPackets
+    )throws IOException{
         if(req==null)return null;
+        if(canonicalWorld==null)
+            return handleCurrent(req,serverPackets);
+
+        // World lifecycle ownership must remain live for the complete
+        // target validation, MagicState.last mutation and effect routing.
+        // An ownership preflight alone would race against unregister and
+        // same-instance re-registration with a new generation.
+        final String[] response=new String[1];
+        boolean current=
+            canonicalWorld.withOpenPlayerOwnershipIfCurrent(
+                lifecycleOwner,
+                worldGeneration.getAsLong(),
+                ()->{
+                    synchronized(lifecycleOwner.mutationLock()){
+                        response[0]=handleCurrent(req,serverPackets);
+                    }
+                }
+            );
+        return current
+            ?response[0]
+            :"V510_MAGIC_TARGET "+req+
+                " result=REJECTED_STALE_CASTER_WORLD_OWNER"+
+                " magicStateUnchanged=true";
+    }
+
+    private String handleCurrent(
+        SpellTargetRequest req,
+        ServerPacketWriter serverPackets
+    )throws IOException{
 
         // Production gameplay must not route caster actions after a lethal
         // hit. Check the canonical WorldPlayer lifecycle before touching
@@ -103,17 +135,6 @@ final class LocalSpellTargetHandler {
                         " originalMagicEffectsUnverified=true";
                 }
             }
-        }
-
-        // An old LocalSession must not validate a cast using a player
-        // detached from this exact World generation.
-        if(canonicalWorld!=null&&
-           (canonicalWorld.closed()||
-            !canonicalWorld.players().owns(
-                lifecycleOwner,worldGeneration.getAsLong()))){
-            return "V510_MAGIC_TARGET "+req+
-                " result=REJECTED_STALE_CASTER_WORLD_OWNER"+
-                " magicStateUnchanged=true";
         }
 
         // Canonical combat NPCs have a stable World ID in the viewer's

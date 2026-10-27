@@ -14698,3 +14698,18 @@ tasks.register('playableWindStrikeWorldOwnershipSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeWorldOwnershipSmoke')
 }
+
+
+// P5.18: targeted spell validation through MagicState mutation must
+// retain World generation ownership across the entire action.
+tasks.register('playableTargetedMagicWorldFenceSmoke', JavaExec) {
+    group = 'verification'
+    description = 'No targeted spell mutation after detach, ABA or World close.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableTargetedMagicWorldFenceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableTargetedMagicWorldFenceSmoke')
+}
