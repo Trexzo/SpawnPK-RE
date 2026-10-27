@@ -35,6 +35,28 @@ public final class PlayableWindStrikeRuneTransactionTest {
         }
     }
 
+    private static boolean exactInventory53(
+        Capture capture,BankState bank
+    )throws IOException{
+        byte[] wire=capture.drain();
+        int[] ids=new int[BankState.INVENTORY_CAPACITY];
+        int[] qty=new int[BankState.INVENTORY_CAPACITY];
+        for(int slot=0;slot<ids.length;slot++){
+            BankState.Stack stack=bank.inventoryAt(slot);
+            ids[slot]=stack==null?-1:stack.itemId;
+            qty[slot]=stack==null?0:stack.qty;
+        }
+        byte[] expected=bank.previewRecipeInventoryPacket(ids,qty);
+        if(wire.length!=expected.length+3)
+            return false;
+        IsaacCipher cipher=new IsaacCipher(SEED.clone());
+        int opcode=((wire[0]&255)-cipher.nextInt())&255;
+        int length=((wire[1]&255)<<8)|(wire[2]&255);
+        return opcode==53&&length==expected.length&&
+            Arrays.equals(
+                Arrays.copyOfRange(wire,3,wire.length),expected);
+    }
+
     private static void add(WorldPlayer player,int id,int qty)
         throws Exception{
         ByteArrayOutputStream sink=new ByteArrayOutputStream();
@@ -76,14 +98,14 @@ public final class PlayableWindStrikeRuneTransactionTest {
                 once.contains("airSpent=1 mindSpent=1")&&
                 player.bank().inventoryCount(AIR)==1&&
                 player.bank().inventoryCount(MIND)==1&&
-                a.drain().length>0&&
+                exactInventory53(a,player.bank())&&
                 player.magic().last().equals(magicLast),
                 "first two-rune settlement or presentation missing");
 
             Capture b=new Capture(4096);
             require(tx.settle(b.writer).startsWith(
                     "LOCAL_LAB_WIND_STRIKE_RUNES_SETTLED")&&
-                b.drain().length>0&&
+                exactInventory53(b,player.bank())&&
                 player.bank().inventoryCount(AIR)==0&&
                 player.bank().inventoryCount(MIND)==0,
                 "second settlement failed or created runes");
@@ -101,7 +123,7 @@ public final class PlayableWindStrikeRuneTransactionTest {
             String providerResult=tx.settle(provider.writer);
             require(providerResult.contains(
                     "usedAirStaff=true airSpent=0 mindSpent=1")&&
-                provider.drain().length>0&&
+                exactInventory53(provider,player.bank())&&
                 player.bank().inventoryCount(AIR)==0&&
                 player.bank().inventoryCount(MIND)==2,
                 "equipped air staff was consumed/ignored");
@@ -150,7 +172,7 @@ public final class PlayableWindStrikeRuneTransactionTest {
             Capture retry=new Capture(4096);
             require(tx.settle(retry.writer).startsWith(
                     "LOCAL_LAB_WIND_STRIKE_RUNES_SETTLED")&&
-                retry.drain().length>0&&
+                exactInventory53(retry,player.bank())&&
                 player.bank().inventoryCount(MIND)==beforeMind-1,
                 "retry did not settle one mind rune");
 
@@ -172,7 +194,7 @@ public final class PlayableWindStrikeRuneTransactionTest {
             Capture resumed=new Capture(4096);
             require(tx.settle(resumed.writer).startsWith(
                     "LOCAL_LAB_WIND_STRIKE_RUNES_SETTLED")&&
-                resumed.drain().length>0&&
+                exactInventory53(resumed,player.bank())&&
                 player.bank().inventoryCount(MIND)==mindAtDeath-1,
                 "post-respawn rune cost not restored");
 
@@ -186,7 +208,7 @@ public final class PlayableWindStrikeRuneTransactionTest {
                 " busyWriterNoMutation=true"+
                 " directWriterDenied=true retryOnce=true"+
                 " deadCannotSpend=true respawnRestoresSpend=true"+
-                " realInventoryPacket53Queued=true"+
+                " exactInventoryPacket53PayloadValidated=true"+
                 " productionSpellRoutingNotChanged=true"+
                 " combinedRunesAndCombatEffectsUnknown=true");
         }finally{
