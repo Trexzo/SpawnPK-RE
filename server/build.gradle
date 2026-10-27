@@ -14599,3 +14599,17 @@ tasks.register('playableQuickPrayerOnZeroHpSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableQuickPrayerOnZeroHpSmoke')
 }
+
+
+// P5.11: reject stale NPC/item spell targets before changing MagicState.
+tasks.register('playableMagicTargetPreflightSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Preflight NPC and inventory target identity before casting.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableMagicTargetPreflightTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableMagicTargetPreflightSmoke')
+}
