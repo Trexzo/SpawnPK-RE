@@ -116,3 +116,25 @@ Draft `playability/p5-12-wind-strike-rune-transaction` adds **a real isolated LO
 ## P5.13 — canonical NPC and caster World ownership before targeted Magic
 
 Draft `playability/p5-13-canonical-spell-target-owner` binds the production `LocalSession` spell-target handler to its exact World and session WorldPlayer generation. The handler rejects detached/stale caster owners and checks a visible NPC's bound canonical World NPC ID against `WorldNpcRegistry` plus `NpcLifecycleService` state, current definition and positive HP **before** `MagicState.target` can record accepted validation. Local diagnostic dummy scenes without canonical IDs retain their historical, independent, unimplemented effect path. The mandatory `playableCanonicalSpellTargetOwnershipSmoke` creates an actual World NPC, lifecycle registration and viewer-local relay scene, confirms valid Air Surge metadata routing without guessing damage, kills the NPC in its real lifecycle, checks dead-target denial and zero output, then unregisters the canonical entity while the viewer projection remains stale and confirms instant rejection; a detached WorldPlayer is also denied before MagicState changes. This is a conservative `CUSTOM_LOCALLAB` source admission check, **not** a race-linearized World-to-NPC hit, durable cross-World lease, target lock, original spell effect, rune consumption or graphical original v308 acceptance. These require separate gameplay arbitration before live PvM spell casts can be charged or damaging.
+
+
+## P5.14 — World-generation fencing for direct spell and prayer widgets
+
+Draft `playability/p5-14-widget-world-generation` makes the real `LocalSession`
+construct `LocalGameplayWidgetHandler` with its exact `World`, `WorldPlayer`,
+and session registration generation. For Normal Prayer/Curses widgets and direct
+(non-targeted) spell widgets, `World.withOpenPlayerOwnershipIfCurrent` holds
+the in-process World lifecycle barrier across the existing handler's state
+validation/publication, with the canonical player mutation monitor inside.
+Detached, closed or re-registered player generations cannot change prayer,
+MagicState.last, packet output or obtain a Home Teleport token. An accepted
+but unconsumed token is discarded if its World registration is no longer
+current at consumption time. All combat-style and unrelated widget routing
+remain independent. The mandatory `playableWorldOwnedMagicPrayerWidgetSmoke`
+covers a valid first generation, unregister, stale action rejection, blocked
+old token, same-player re-register generation ABA, fresh handler admission
+and closed World denial. This guards **in-JVM session ownership only**;
+it is not a cross-JVM durable named-account lease (#2559), does not establish
+the teleport commit's own ownership lock, and is not original client GUI
+acceptance. Existing non-atomic direct writer semantics have not been
+silently renamed as failure-atomic. Keep draft pending exact-head CI.

@@ -17,6 +17,25 @@ final class LocalGameplayWidgetHandler {
     private final BankState bank;
     private boolean acceptedHomeTeleport;
     private final WorldPlayer lifecycleOwner;
+    private World canonicalWorld;
+    private java.util.function.LongSupplier worldGeneration;
+
+    /**
+     * Live-session widget binding. World membership is fenced under its
+     * lifecycle barrier for prayer and non-targeted Magic activation.
+     * Cross-JVM account leases and all other UI families remain separate.
+     */
+    LocalGameplayWidgetHandler(
+        World world,
+        WorldPlayer owner,
+        java.util.function.LongSupplier generation
+    ){
+        this(owner);
+        this.canonicalWorld=java.util.Objects.requireNonNull(
+            world,"world");
+        this.worldGeneration=java.util.Objects.requireNonNull(
+            generation,"generation");
+    }
 
     /** Production route: binds all state to the canonical session owner. */
     LocalGameplayWidgetHandler(WorldPlayer owner){
@@ -58,6 +77,41 @@ final class LocalGameplayWidgetHandler {
 
     String handle(int widget,ServerPacketWriter serverPackets)throws IOException{
         acceptedHomeTeleport=false;
+        // The live Source LocalSession must not accept a prayer or direct
+        // spell click after its exact World registration has gone stale.
+        // World lifecycle ownership stays held through the semantic action.
+        // Other widgets keep their previously defined independent routing.
+        SpellDefinitionRepository.Spell direct=
+            SpellDefinitionRepository.byWidget(widget);
+        boolean sensitive=
+            PrayerDefinitionRepository.byWidget(widget)!=null||
+            (direct!=null&&!direct.targeted);
+        if(canonicalWorld!=null&&sensitive){
+            final String[] answer=new String[1];
+            boolean owned=
+                canonicalWorld.withOpenPlayerOwnershipIfCurrent(
+                    lifecycleOwner,
+                    worldGeneration.getAsLong(),
+                    ()->{
+                        synchronized(lifecycleOwner.mutationLock()){
+                            answer[0]=handleCurrent(
+                                widget,serverPackets);
+                        }
+                    }
+                );
+            if(!owned)
+                return "V510_WORLD_WIDGET widget="+widget+
+                    " result=REJECTED_STALE_WORLD_OWNER"+
+                    " prayerAndMagicUnchanged=true"+
+                    " homeTeleportToken=false";
+            return answer[0];
+        }
+        return handleCurrent(widget,serverPackets);
+    }
+
+    private String handleCurrent(
+        int widget,ServerPacketWriter serverPackets
+    )throws IOException{
         PrayerDefinitionRepository.Def prayer=
             PrayerDefinitionRepository.byWidget(widget);
         if(prayer!=null){
@@ -129,6 +183,13 @@ final class LocalGameplayWidgetHandler {
     }
 
     boolean consumeAcceptedHomeTeleport(){
+        if(canonicalWorld!=null&&
+           (canonicalWorld.closed()||
+            !canonicalWorld.players().owns(
+                lifecycleOwner,worldGeneration.getAsLong()))){
+            acceptedHomeTeleport=false;
+            return false;
+        }
         boolean value=acceptedHomeTeleport;
         acceptedHomeTeleport=false;
         return value;

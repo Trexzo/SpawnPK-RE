@@ -14641,3 +14641,18 @@ tasks.register('playableCanonicalSpellTargetOwnershipSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableCanonicalSpellTargetOwnershipSmoke')
 }
+
+ 
+// P5.14: direct spells and normal/curses prayer widgets must retain
+// current WorldPlayer generation for the whole mutation action.
+tasks.register('playableWorldOwnedMagicPrayerWidgetSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Reject detached/stale-world magic and prayer widget actions.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWorldOwnedMagicPrayerWidgetTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWorldOwnedMagicPrayerWidgetSmoke')
+}
