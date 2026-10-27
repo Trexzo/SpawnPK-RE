@@ -14713,3 +14713,18 @@ tasks.register('playableTargetedMagicWorldFenceSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableTargetedMagicWorldFenceSmoke')
 }
+
+
+// P5.19: an accepted canonical NPC cast must retain both exact NPC
+// registry identity and lifecycle registration until spell metadata commits.
+tasks.register('playableCanonicalSpellNpcLeaseSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Guard NPC lifecycle, registration and cast acceptance.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableCanonicalSpellNpcLeaseTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableCanonicalSpellNpcLeaseSmoke')
+}
