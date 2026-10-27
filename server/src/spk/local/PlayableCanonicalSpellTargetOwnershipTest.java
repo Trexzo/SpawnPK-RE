@@ -148,6 +148,8 @@ public final class PlayableCanonicalSpellTargetOwnershipTest {
                 " runeSpendingAndSpellDamageNotApplied=true"+
                 " nativeClientGuiAndConcurrentDespawnNotProven=true");
         }finally{
+            if(npc!=null)
+                SharedNpcWorldRelay.untrackCanonicalNpc(world,npc.id);
             if(registered)
                 SharedNpcWorldRelay.unregister(relayWriter);
             if(npc!=null){
