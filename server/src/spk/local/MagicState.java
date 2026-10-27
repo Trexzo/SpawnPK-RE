@@ -32,6 +32,27 @@ final class MagicState {
         return c;
     }
 
+    /**
+     * Read-only targeted spell requirement validation.
+     *
+     * Does not record TARGET_ACCEPT, update last, spend resources, route a
+     * hit or establish target/world ownership. The eventual settlement
+     * path must recheck under its full player + target ownership locks.
+     */
+    Check previewTarget(
+        SpellTargetRequest req,
+        BankState bank,
+        EquipmentState equipment,
+        PlayerState player
+    ){
+        SpellDefinitionRepository.Spell s=
+            SpellDefinitionRepository.byWidget(req.spellWidget);
+        if(s==null||!s.targeted)
+            return Check.rejectHandled(
+                "REJECTED_UNKNOWN_TARGETED_SPELL widget="+req.spellWidget);
+        return validate(s,req.kind,bank,equipment,player);
+    }
+
     Check target(SpellTargetRequest req,BankState bank,EquipmentState equipment,PlayerState player){
         SpellDefinitionRepository.Spell s=SpellDefinitionRepository.byWidget(req.spellWidget);
         if(s==null||!s.targeted)return Check.rejectHandled("REJECTED_UNKNOWN_TARGETED_SPELL widget="+req.spellWidget);
