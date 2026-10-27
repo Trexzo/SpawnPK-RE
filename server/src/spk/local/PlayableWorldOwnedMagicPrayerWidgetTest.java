@@ -92,6 +92,14 @@ public final class PlayableWorldOwnedMagicPrayerWidgetTest {
                 !current.consumeAcceptedHomeTeleport(),
                 "new generation home teleport not exactly once");
 
+            // The same generation fence must cover Curses, not only
+            // normal prayer. Keep Curses active through the stale close.
+            player.prayers().switchBook("curses",writer);
+            String curses=current.handle(22503,writer);
+            require(curses.contains("enabled=true")&&
+                player.prayers().activeWidget(22503),
+                "current World cannot activate Curses prayer");
+
             // Combat-style and unrelated widgets keep their distinct
             // routing paths instead of becoming accidental prayer/magic.
             require(current.handle(999999,writer)==null,
@@ -104,14 +112,17 @@ public final class PlayableWorldOwnedMagicPrayerWidgetTest {
             int bytesClosed=wire.size();
             require(current.handle(5609,writer)
                     .contains("REJECTED_STALE_WORLD_OWNER")&&
+                current.handle(22503,writer)
+                    .contains("REJECTED_STALE_WORLD_OWNER")&&
                 current.handle(1195,writer)
                     .contains("REJECTED_STALE_WORLD_OWNER")&&
+                player.prayers().activeWidget(22503)&&
                 wire.size()==bytesClosed,
-                "closed World accepted prayer or teleport");
+                "closed World accepted prayer/Curses/teleport");
 
             System.out.println(
                 "P514_WORLD_OWNED_MAGIC_PRAYER_WIDGET_PASS"+
-                " ownerPrayerOnOff=true"+
+                " ownerPrayerOnOff=true cursesOwnerFence=true"+
                 " stalePrayerAndTeleportRejected=true"+
                 " detachedTeleportTokenDropped=true"+
                 " identicalPlayerNewGenerationABARejected=true"+
