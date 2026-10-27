@@ -25,13 +25,51 @@ final class LocalLabWindStrikeRuneTransaction {
         "CUSTOM_LOCALLAB_P512_WIND_STRIKE_CANONICAL_RUNE_COST";
 
     private final WorldPlayer owner;
+    private final World canonicalWorld;
+    private final java.util.function.LongSupplier expectedGeneration;
 
+    // The original constructor is retained only for isolated LocalLab
+    // source fixtures. A live caller must supply the exact World lease.
     LocalLabWindStrikeRuneTransaction(WorldPlayer owner){
+        this(null,owner,null);
+    }
+
+    LocalLabWindStrikeRuneTransaction(
+        World world,
+        WorldPlayer owner,
+        java.util.function.LongSupplier generation
+    ){
+        if((world==null)!=(generation==null))
+            throw new IllegalArgumentException(
+                "World and generation must be supplied together");
         this.owner=Objects.requireNonNull(owner,"owner");
+        this.canonicalWorld=world;
+        this.expectedGeneration=generation;
     }
 
     String settle(ServerPacketWriter writer)throws IOException{
         Objects.requireNonNull(writer,"writer");
+        if(canonicalWorld!=null){
+            final String[] response=new String[1];
+            // World lifecycle lock stays held across the full queue
+            // admission and inventory semantic commit. If owner/gen
+            // is stale, nothing is published or consumed.
+            boolean current=
+                canonicalWorld.withOpenPlayerOwnershipIfCurrent(
+                    owner,
+                    expectedGeneration.getAsLong(),
+                    ()->response[0]=settleCurrent(writer)
+                );
+            return current
+                ?response[0]
+                :"REJECTED_STALE_WORLD_OWNER";
+        }
+        return settleCurrent(writer);
+    }
+
+    private String settleCurrent(
+        ServerPacketWriter writer
+    )throws IOException{
         synchronized(owner.mutationLock()){
             if(owner.lifecycle().dead()||
                owner.playerState().currentLevel(

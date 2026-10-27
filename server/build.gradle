@@ -14684,3 +14684,17 @@ tasks.register('playableQuickPrayerSelectionOwnershipSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableQuickPrayerSelectionOwnershipSmoke')
 }
+
+
+// P5.17: rune-cost queue admission and commit require current World owner.
+tasks.register('playableWindStrikeWorldOwnershipSmoke', JavaExec) {
+    group = 'verification'
+    description = 'World generation fence for standalone Wind Strike runes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeWorldOwnershipTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeWorldOwnershipSmoke')
+}
