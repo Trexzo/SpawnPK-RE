@@ -14613,3 +14613,17 @@ tasks.register('playableMagicTargetPreflightSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableMagicTargetPreflightSmoke')
 }
+
+
+// P5.12: isolated LOCAL_LAB Wind Strike rune-cost settlement primitive.
+tasks.register('playableWindStrikeRuneTransactionSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Atomic Wind Strike canonical runes with packet53 admission.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeRuneTransactionTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeRuneTransactionSmoke')
+}
