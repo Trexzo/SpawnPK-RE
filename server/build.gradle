@@ -14728,3 +14728,18 @@ tasks.register('playableCanonicalSpellNpcLeaseSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableCanonicalSpellNpcLeaseSmoke')
 }
+
+
+// P5.20: read-only joint Wind Strike, exact World and canonical NPC
+// eligibility; must not mutate magic state, resources or NPC health.
+tasks.register('playableWindStrikeNpcPreflightSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Wind Strike canonical NPC and rune readiness has no side effects.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeNpcPreflightTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeNpcPreflightSmoke')
+}
