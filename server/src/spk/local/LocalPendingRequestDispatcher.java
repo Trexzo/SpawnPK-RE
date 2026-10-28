@@ -1259,7 +1259,7 @@ final class LocalPendingRequestDispatcher {
     )throws IOException{
         System.out.println(
             tag+
-            spellTargetHandler.handle(
+            spellTargetHandler.handleTyped(
                 request,
                 serverPackets
             )
