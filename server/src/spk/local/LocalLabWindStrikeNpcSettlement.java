@@ -25,6 +25,11 @@ final class LocalLabWindStrikeNpcSettlement {
     private final WorldPlayer player;
     private final LongSupplier generation;
     private final NpcRegistry view;
+    // P5.29 deterministic source-only lifecycle fault injection hooks.
+    // Normal fixture construction uses no-op hooks; LocalSession never
+    // constructs the fixture at all. No original-game callback implied.
+    private final Runnable beforeQueuePublication;
+    private final Runnable afterPacketsAdmitted;
     // P5.22: tick admission is owned by the canonical WorldPlayer, not
     // by this disposable service wrapper. Still only in-JVM LocalLab policy.
 
@@ -34,10 +39,26 @@ final class LocalLabWindStrikeNpcSettlement {
         LongSupplier generation,
         NpcRegistry view
     ){
+        this(world,player,generation,view,()->{},()->{});
+    }
+
+    /** Test-only hooks for deterministic same-thread reentry / failure. */
+    LocalLabWindStrikeNpcSettlement(
+        World world,
+        WorldPlayer player,
+        LongSupplier generation,
+        NpcRegistry view,
+        Runnable beforeQueuePublication,
+        Runnable afterPacketsAdmitted
+    ){
         this.world=Objects.requireNonNull(world,"world");
         this.player=Objects.requireNonNull(player,"player");
         this.generation=Objects.requireNonNull(generation,"generation");
         this.view=Objects.requireNonNull(view,"view");
+        this.beforeQueuePublication=Objects.requireNonNull(
+            beforeQueuePublication,"beforeQueuePublication");
+        this.afterPacketsAdmitted=Objects.requireNonNull(
+            afterPacketsAdmitted,"afterPacketsAdmitted");
     }
 
     /**
@@ -250,6 +271,7 @@ final class LocalLabWindStrikeNpcSettlement {
                         // -> RECOVERING. No damage or rune postimage
                         // is modified before queue admission.
                         lifecycle.publishing(ticket);
+                        beforeQueuePublication.run();
                         ServerPacketWriter.RecoverablePacketResult result=
                             writer.publishQueueOnlyRecoverablePacketIfIdle(
                                 ()->{
@@ -271,6 +293,7 @@ final class LocalLabWindStrikeNpcSettlement {
                         // throws, finally leaves this exact owner in
                         // FAULTED (not READY for an unsafe retry).
                         lifecycle.packetsAdmitted(ticket);
+                        afterPacketsAdmitted.run();
 
                         // Under all four owner monitors, the previously
                         // validated source-local semantic transitions have
