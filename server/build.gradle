@@ -14867,3 +14867,29 @@ tasks.register('playableSharedPvmMeleeMagicGateSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableSharedPvmMeleeMagicGateSmoke')
 }
+
+
+// P5.31: a fast, explicit acceptance lane for the entire P5.20-P5.30
+// source-only PvM integration chain. Full Linux Gradle build remains a
+// separate release gate. Windows source smoke calls this aggregate,
+// rather than compiling the new PvM tests without executing them.
+tasks.register('playablePvmChainSmoke') {
+    group = 'verification'
+    description = 'Runs every source-only Wind Strike, native opcode and shared melee/magic regression.'
+    dependsOn (
+        tasks.named('playableWindStrikeRuneTransactionSmoke'),
+        tasks.named('playableWindStrikeWorldOwnershipSmoke'),
+        tasks.named('playableWindStrikeNpcPreflightSmoke'),
+        tasks.named('playableWindStrikeNpcSettlementSmoke'),
+        tasks.named('playableWindStrikeCollisionCorridorSmoke'),
+        tasks.named('playableWindStrikeTypedHandlerBridgeSmoke'),
+        tasks.named('playableWindStrikeNativeOpcode131CodecSmoke'),
+        tasks.named('playableWindStrikeLoopbackTcpSmoke'),
+        tasks.named('playableWindStrikeRecoveryCadenceSmoke'),
+        tasks.named('playableWindStrikeAttackLifecycleSmoke'),
+        tasks.named('playableSharedPvmMeleeMagicGateSmoke')
+    )
+    doLast {
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=11 originalClientGui=false productionMagicOff=true')
+    }
+}
