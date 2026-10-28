@@ -14804,3 +14804,19 @@ tasks.register('playableWindStrikeNativeOpcode131CodecSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeNativeOpcode131CodecSmoke')
 }
+
+
+// P5.27: actual localhost TCP sockets for post-login source test.
+// Exercises native C2S ISAAC opcode 185+131, typed handler, and S2C
+// ISAAC packet 53+65 over the wire, while keeping LocalSession default OFF.
+tasks.register('playableWindStrikeLoopbackTcpSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Real loopback TCP post-login native Wind Strike request and response framing.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeLoopbackTcpTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeLoopbackTcpSmoke')
+}
