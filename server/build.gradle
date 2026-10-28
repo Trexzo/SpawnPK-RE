@@ -14836,3 +14836,19 @@ tasks.register('playableWindStrikeRecoveryCadenceSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeRecoveryCadenceSmoke')
 }
+
+
+// P5.29: in-process source-only Wind Strike attack phases.
+// Assert same-thread reentry is impossible under reentrant monitors
+// and that uncertain postqueue semantic faults lock out retries.
+tasks.register('playableWindStrikeAttackLifecycleSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Owner-scoped attack phase transitions, reentry and queue fault fencing.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeAttackLifecycleTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeAttackLifecycleSmoke')
+}

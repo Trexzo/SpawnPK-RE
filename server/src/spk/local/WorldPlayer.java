@@ -57,6 +57,11 @@ final class WorldPlayer {
     private World localLabWindStrikeRecoveryWorld;
     private long localLabWindStrikeRecoveryGeneration=-1L;
     private int localLabWindStrikeRecoveryTicks=1;
+    // P5.29: source-only attack lifecycle bound to the exact canonical
+    // player, not to an individual LocalLab spell wrapper or socket.
+    private final LocalLabWindStrikeAttackLifecycle
+        localLabWindStrikeAttackLifecycle=
+            new LocalLabWindStrikeAttackLifecycle();
     private String username;
     private long generation;
     private boolean registered;
@@ -104,6 +109,13 @@ final class WorldPlayer {
     }
 
     Object mutationLock(){return mutationLock;}
+
+    // Calls require the existing World ownership + mutation locks; the
+    // state machine itself separately guards same-thread reentrant calls.
+    LocalLabWindStrikeAttackLifecycle
+        localLabWindStrikeAttackLifecycle(){
+        return localLabWindStrikeAttackLifecycle;
+    }
 
     // Callers hold the current World lifecycle lease and mutationLock.
     // Synchronization is reentrant and also protects direct test callers.
