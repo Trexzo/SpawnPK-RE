@@ -14869,14 +14869,19 @@ tasks.named('build') {
 }
 
 
-// P5.31: a fast, explicit acceptance lane for the entire P5.20-P5.30
-// source-only PvM integration chain. Full Linux Gradle build remains a
-// separate release gate. Windows source smoke calls this aggregate,
-// rather than compiling the new PvM tests without executing them.
+// P5.31: explicit source-only acceptance lane for P5.16-P5.30
+// target/caster safety, Wind Strike and the canonical melee boundary.
+// Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
     group = 'verification'
-    description = 'Runs every source-only Wind Strike, native opcode and shared melee/magic regression.'
+    description = 'Source-only canonical PvM and Wind Strike admission chain, including shared melee/magic action gating.'
     dependsOn (
+        tasks.named('playableDeadCasterSpellFenceSmoke'),
+        tasks.named('playableDeadDirectSpellFenceSmoke'),
+        tasks.named('playableMagicTargetPreflightSmoke'),
+        tasks.named('playableCanonicalSpellTargetOwnershipSmoke'),
+        tasks.named('playableTargetedMagicWorldFenceSmoke'),
+        tasks.named('playableCanonicalSpellNpcLeaseSmoke'),
         tasks.named('playableWindStrikeRuneTransactionSmoke'),
         tasks.named('playableWindStrikeWorldOwnershipSmoke'),
         tasks.named('playableWindStrikeNpcPreflightSmoke'),
@@ -14887,9 +14892,12 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('playableWindStrikeLoopbackTcpSmoke'),
         tasks.named('playableWindStrikeRecoveryCadenceSmoke'),
         tasks.named('playableWindStrikeAttackLifecycleSmoke'),
+        tasks.named('canonicalNpcAttackClickRegression'),
+        tasks.named('canonicalNpcAttackOwnershipRaceRegression'),
+        tasks.named('canonicalNpcAttackSpatialAtomicityRegression'),
         tasks.named('playableSharedPvmMeleeMagicGateSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=11 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=20 originalClientGui=false productionMagicOff=true')
     }
 }
