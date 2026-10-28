@@ -123,6 +123,17 @@ final class LocalLabWindStrikeNpcSettlement {
                             return;
                         }
 
+                        // Exact canonical NPC coordinates, never the
+                        // stale per-viewer NpcEntity scene coordinates.
+                        // Source-only bounded geometry; no LOS proof.
+                        String geometry=
+                            LocalLabWindStrikeTargetGeometry.rejection(
+                                player.movement(),canonical);
+                        if(geometry!=null){
+                            response[0]=geometry;
+                            return;
+                        }
+
                         SpellDefinitionRepository.Spell spell=
                             SpellDefinitionRepository.byWidget(
                                 request.spellWidget);
