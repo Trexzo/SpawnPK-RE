@@ -14789,3 +14789,18 @@ tasks.register('playableWindStrikeTypedHandlerBridgeSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeTypedHandlerBridgeSmoke')
 }
+
+
+// P5.26: exact pinned NPC spell opcode131 4-byte LE-A/BE-A decoder
+// including edge values, malformed lengths and exact metadata.
+tasks.register('playableWindStrikeNativeOpcode131CodecSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Boundary and invalid-input verification for native NPC spell body.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeNativeOpcode131CodecTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeNativeOpcode131CodecSmoke')
+}
