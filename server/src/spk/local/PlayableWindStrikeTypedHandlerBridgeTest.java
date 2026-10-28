@@ -135,7 +135,8 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
             Capture saturated=new Capture(1024);
             byte[] sentinel=new byte[1024];
             Arrays.fill(sentinel,(byte)0x37);
-            require(saturated.queue.offer(sentinel),
+            saturated.queue.offer(sentinel);
+            require(saturated.queue.queuedBytes()==1024,
                 "failed to fill outbound queue");
             String denied=explicit.handle(spell,saturated.writer);
             require(denied.contains(
