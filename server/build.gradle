@@ -14743,3 +14743,18 @@ tasks.register('playableWindStrikeNpcPreflightSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeNpcPreflightSmoke')
 }
+
+
+// P5.21: isolated CUSTOM_LOCALLAB Wind Strike canonical NPC
+// one-hit + rune settlement with both S2C53 inventory and S2C65 hit.
+tasks.register('playableWindStrikeNpcSettlementSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Joint queue admission, rune and canonical NPC HP settlement.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeNpcSettlementTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeNpcSettlementSmoke')
+}
