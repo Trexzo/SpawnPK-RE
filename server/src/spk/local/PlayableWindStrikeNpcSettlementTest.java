@@ -170,24 +170,43 @@ public final class PlayableWindStrikeNpcSettlementTest {
                 "first joint settlement did not commit exact runes and hp");
             assertTwoPackets(firstPacket.drain());
 
+            // P5.22: multiple wrappers of the exact same WorldPlayer
+            // must share the LocalLab once-per-tick semantic admission.
+            LocalLabWindStrikeNpcSettlement secondWrapper=
+                new LocalLabWindStrikeNpcSettlement(
+                    world,player,()->first,scene);
             Capture duplicate=new Capture(4096);
             require("REJECTED_SAME_TICK_DUPLICATE".equals(
-                    spell.settle(request,duplicate.writer))&&
+                    secondWrapper.settle(request,duplicate.writer))&&
                 duplicate.drain().length==0&&
                 player.bank().inventoryCount(AIR)==2&&
                 player.bank().inventoryCount(MIND)==2&&
                 world.npcLifecycle().get(target.id).hitpoints==2,
-                "same-tick replay double spent or double hit");
+                "different service wrapper replayed same-tick hit");
+
+            Capture sameWrapper=new Capture(4096);
+            require("REJECTED_SAME_TICK_DUPLICATE".equals(
+                    spell.settle(request,sameWrapper.writer))&&
+                sameWrapper.drain().length==0,
+                "original wrapper missed shared tick ledger");
 
             world.clock().advance();
             Capture second=new Capture(4096);
-            require(spell.settle(request,second.writer)
+            require(secondWrapper.settle(request,second.writer)
                     .contains("npcHpAfter=1")&&
                 player.bank().inventoryCount(AIR)==1&&
                 player.bank().inventoryCount(MIND)==1&&
                 world.npcLifecycle().get(target.id).hitpoints==1,
                 "second tick joint settlement inconsistent");
             assertTwoPackets(second.drain());
+
+            Capture originalAfterSecond=new Capture(4096);
+            require("REJECTED_SAME_TICK_DUPLICATE".equals(
+                    spell.settle(request,originalAfterSecond.writer))&&
+                originalAfterSecond.drain().length==0&&
+                player.bank().inventoryCount(AIR)==1&&
+                world.npcLifecycle().get(target.id).hitpoints==1,
+                "original wrapper did not observe sibling's tick");
 
             world.clock().advance();
             Capture lethal=new Capture(4096);
@@ -216,9 +235,27 @@ public final class PlayableWindStrikeNpcSettlementTest {
                 "World unregister refused");
             Capture detached=new Capture(4096);
             require("REJECTED_STALE_WORLD_OWNER".equals(
-                    spell.settle(request,detached.writer))&&
+                    secondWrapper.settle(request,detached.writer))&&
                 detached.drain().length==0,
                 "old World generation accepted target hit");
+
+            // The ledger must distinguish a new registration even for the
+            // very same WorldPlayer object and numeric tick.
+            long next=world.registerPlayer(player,"p521-atomic-hit");
+            try{
+                long settledTick=world.clock().tick()-1L;
+                require(player.localLabWindStrikeSettledThisTick(
+                        world,first,settledTick)&&
+                    !player.localLabWindStrikeSettledThisTick(
+                        world,next,settledTick),
+                    "new World registration inherited retired tick");
+                require("REJECTED_STALE_WORLD_OWNER".equals(
+                        spell.settle(request,new Capture(4096).writer)),
+                    "retired wrapper revived after same-player ABA");
+            }finally{
+                require(world.unregisterPlayer(player,next),
+                    "new World generation cleanup failed");
+            }
 
             System.out.println(
                 "P521_WIND_STRIKE_NPC_SETTLEMENT_PASS"+
@@ -226,7 +263,8 @@ public final class PlayableWindStrikeNpcSettlementTest {
                 " fixedOneDamageAndRuneCost=true"+
                 " realWorldNpcLethalLifecycle=true"+
                 " queueFullAndBusyDirectWriterDenied=true"+
-                " sameTickDuplicateDenied=true"+
+                " sameTickDuplicateDeniedAcrossWrappers=true"+
+                " generationScopedTickLedger=true"+
                 " afterDeathAndStaleWorldDenied=true"+
                 " magicLastUnchangedAndNoXpLoot=true"+
                 " productionLocalSessionNotConnected=true"+
