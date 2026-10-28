@@ -14852,3 +14852,18 @@ tasks.register('playableWindStrikeAttackLifecycleSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeAttackLifecycleSmoke')
 }
+
+
+// P5.30: explicitly opted-in shared basic-attack + Wind Strike
+// one-owner action reservation. Real LocalSession remains default OFF.
+tasks.register('playableSharedPvmMeleeMagicGateSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Cross-style in-flight exclusion, same-tick commit and generation isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableSharedPvmMeleeMagicGateTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableSharedPvmMeleeMagicGateSmoke')
+}
