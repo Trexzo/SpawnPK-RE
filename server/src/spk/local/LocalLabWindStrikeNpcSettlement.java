@@ -25,9 +25,8 @@ final class LocalLabWindStrikeNpcSettlement {
     private final WorldPlayer player;
     private final LongSupplier generation;
     private final NpcRegistry view;
-    // One successful settlement per World tick for this particular service
-    // instance. This is NOT a global replay/packet idempotency token.
-    private long lastSettledTick=-1L;
+    // P5.22: tick admission is owned by the canonical WorldPlayer, not
+    // by this disposable service wrapper. Still only in-JVM LocalLab policy.
 
     LocalLabWindStrikeNpcSettlement(
         World world,
@@ -52,12 +51,14 @@ final class LocalLabWindStrikeNpcSettlement {
                LocalLabWindStrikeRuneTransaction.WIND_STRIKE_WIDGET)
             return "REJECTED_NOT_REVIEWED_WIND_STRIKE_NPC";
 
+        final long expectedGeneration=generation.getAsLong();
         final String[] response=new String[1];
         boolean current=world.withOpenPlayerOwnershipIfCurrent(
-            player,generation.getAsLong(),
+            player,expectedGeneration,
             ()->{
                 synchronized(player.mutationLock()){
-                    response[0]=settleWithPlayerOwner(request,writer);
+                    response[0]=settleWithPlayerOwner(
+                        request,writer,expectedGeneration);
                 }
             }
         );
@@ -68,7 +69,8 @@ final class LocalLabWindStrikeNpcSettlement {
 
     private String settleWithPlayerOwner(
         SpellTargetRequest request,
-        ServerPacketWriter writer
+        ServerPacketWriter writer,
+        long expectedGeneration
     )throws IOException{
         if(player.lifecycle().dead()||
            player.playerState().currentLevel(
@@ -76,7 +78,8 @@ final class LocalLabWindStrikeNpcSettlement {
             return "REJECTED_CASTER_DEAD";
 
         final long tick=world.clock().tick();
-        if(tick==lastSettledTick)
+        if(player.localLabWindStrikeSettledThisTick(
+                world,expectedGeneration,tick))
             return "REJECTED_SAME_TICK_DUPLICATE";
 
         NpcEntity target=view.scene(request.targetIndex);
@@ -209,7 +212,8 @@ final class LocalLabWindStrikeNpcSettlement {
                             throw new IllegalStateException(
                                 "prevalidated NPC hit result changed");
                         bank.replaceInventorySemantic(postIds,postQty);
-                        lastSettledTick=tick;
+                        player.markLocalLabWindStrikeSettled(
+                            world,expectedGeneration,tick);
 
                         response[0]="LOCAL_LAB_WIND_STRIKE_NPC_SETTLED"+
                             " npc="+id+

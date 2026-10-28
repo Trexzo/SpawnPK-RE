@@ -42,6 +42,14 @@ final class WorldPlayer {
     // publishes its cooldown. Track the in-flight admission independently
     // of the shared thread monitor. This is not an account/session lease.
     private boolean canonicalNpcAttackInFlight;
+    // P5.22 source-only Wind Strike once-per-World-tick ledger.
+    // Shared by ALL isolated settlement service wrappers of this player.
+    // Unlike an instance-local timestamp, a second wrapper cannot spend
+    // again in the same World/session generation/tick.
+    // Not a durable replay key, nor original SpawnPK spell cadence.
+    private World localLabWindStrikeLastWorld;
+    private long localLabWindStrikeLastGeneration=-1L;
+    private long localLabWindStrikeLastTick=-1L;
     private String username;
     private long generation;
     private boolean registered;
@@ -89,6 +97,40 @@ final class WorldPlayer {
     }
 
     Object mutationLock(){return mutationLock;}
+
+    // Callers hold the current World lifecycle lease and mutationLock.
+    // Synchronization is reentrant and also protects direct test callers.
+    boolean localLabWindStrikeSettledThisTick(
+        World expectedWorld,long generation,long tick
+    ){
+        if(expectedWorld==null||generation<0L||tick<0L)
+            throw new IllegalArgumentException(
+                "invalid source-only spell tick identity");
+        synchronized(mutationLock){
+            return localLabWindStrikeLastWorld==expectedWorld&&
+                localLabWindStrikeLastGeneration==generation&&
+                localLabWindStrikeLastTick==tick;
+        }
+    }
+
+    // Invoked only AFTER successful queue admission, canonical NPC HP
+    // change and exact inventory semantic postimage commit.
+    void markLocalLabWindStrikeSettled(
+        World expectedWorld,long generation,long tick
+    ){
+        if(expectedWorld==null||generation<0L||tick<0L)
+            throw new IllegalArgumentException(
+                "invalid source-only spell tick identity");
+        synchronized(mutationLock){
+            if(localLabWindStrikeSettledThisTick(
+                    expectedWorld,generation,tick))
+                throw new IllegalStateException(
+                    "LocalLab Wind Strike tick already committed");
+            localLabWindStrikeLastWorld=expectedWorld;
+            localLabWindStrikeLastGeneration=generation;
+            localLabWindStrikeLastTick=tick;
+        }
+    }
 
     Object canonicalNpcAttackLock(){return canonicalNpcAttackLock;}
 
