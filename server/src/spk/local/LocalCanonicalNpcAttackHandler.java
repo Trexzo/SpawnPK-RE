@@ -843,6 +843,12 @@ final class LocalCanonicalNpcAttackHandler {
             NpcCombatResolutionService
                 .ImmediateDamageAdmissionRejectedException rejected
         ){
+            // Resolver/lifecycle code proves this typed rejection
+            // occurs before any canonical NPC HP write. Unlike an
+            // arbitrary exception, it can release the opt-in shared
+            // PvM action without leaving an uncertain partial hit.
+            player.localLabSharedPvmActionGate()
+                .confirmedPreDamageRejection(pvmTicket);
             return result(
                 Status.OUT_OF_RANGE,
                 clicked,
@@ -858,6 +864,12 @@ final class LocalCanonicalNpcAttackHandler {
             NpcCombatResolutionService
                 .StaleAttackerOwnershipException stale
         ){
+            // Resolver/lifecycle code proves this typed rejection
+            // occurs before any canonical NPC HP write. Unlike an
+            // arbitrary exception, it can release the opt-in shared
+            // PvM action without leaving an uncertain partial hit.
+            player.localLabSharedPvmActionGate()
+                .confirmedPreDamageRejection(pvmTicket);
             return result(
                 Status.STALE_PLAYER,
                 clicked,
@@ -873,6 +885,12 @@ final class LocalCanonicalNpcAttackHandler {
             NpcCombatResolutionService
                 .StaleTargetOwnershipException stale
         ){
+            // Resolver/lifecycle code proves this typed rejection
+            // occurs before any canonical NPC HP write. Unlike an
+            // arbitrary exception, it can release the opt-in shared
+            // PvM action without leaving an uncertain partial hit.
+            player.localLabSharedPvmActionGate()
+                .confirmedPreDamageRejection(pvmTicket);
             return result(
                 Status.STALE_CANONICAL,
                 clicked,
@@ -888,6 +906,12 @@ final class LocalCanonicalNpcAttackHandler {
             NpcLifecycleService
                 .StaleLifecycleRegistrationException replaced
         ){
+            // Resolver/lifecycle code proves this typed rejection
+            // occurs before any canonical NPC HP write. Unlike an
+            // arbitrary exception, it can release the opt-in shared
+            // PvM action without leaving an uncertain partial hit.
+            player.localLabSharedPvmActionGate()
+                .confirmedPreDamageRejection(pvmTicket);
             return result(
                 Status.STALE_LIFECYCLE,
                 clicked,
@@ -903,6 +927,12 @@ final class LocalCanonicalNpcAttackHandler {
             NpcLifecycleService
                 .LifecycleOwnershipException stale
         ){
+            // Resolver/lifecycle code proves this typed rejection
+            // occurs before any canonical NPC HP write. Unlike an
+            // arbitrary exception, it can release the opt-in shared
+            // PvM action without leaving an uncertain partial hit.
+            player.localLabSharedPvmActionGate()
+                .confirmedPreDamageRejection(pvmTicket);
             return result(
                 Status.LIFECYCLE_MISSING,
                 clicked,
