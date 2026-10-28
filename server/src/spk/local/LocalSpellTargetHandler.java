@@ -65,9 +65,13 @@ final class LocalSpellTargetHandler {
         LocalLabWindStrikeNpcSettlement isolatedWindStrike
     ){
         this(world,owner,generation,npcs,combat);
-        this.isolatedWindStrike=
+        LocalLabWindStrikeNpcSettlement fixture=
             java.util.Objects.requireNonNull(
                 isolatedWindStrike,"isolatedWindStrike");
+        if(!fixture.boundTo(world,owner,npcs))
+            throw new IllegalArgumentException(
+                "P525_ISOLATED_WIND_STRIKE_BINDING_MISMATCH");
+        this.isolatedWindStrike=fixture;
     }
 
     LocalSpellTargetHandler(
