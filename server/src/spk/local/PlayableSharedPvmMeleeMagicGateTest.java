@@ -106,11 +106,13 @@ public final class PlayableSharedPvmMeleeMagicGateTest {
                         LocalLabSharedPvmActionGate.Kind.WIND_STRIKE,0)
                         .denial),
                 "successful melee did not block same tick magic");
-            require(gate.begin(
+            LocalLabSharedPvmActionGate.Admission followingTick=
+                gate.begin(
                     world,first,
-                    LocalLabSharedPvmActionGate.Kind.WIND_STRIKE,1)
-                    .ticket!=null,
+                    LocalLabSharedPvmActionGate.Kind.WIND_STRIKE,1);
+            require(followingTick.ticket!=null,
                 "next tick should be ready in one-tick trial");
+            gate.exit(followingTick.ticket);
 
             // Clear the active probe explicitly; an incomplete attempt
             // before HP publication must not consume an attack.
