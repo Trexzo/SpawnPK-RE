@@ -134,6 +134,18 @@ final class LocalLabWindStrikeNpcSettlement {
                             return;
                         }
 
+                        // Projectile-specific static collision masks, not
+                        // walking reachability. Unknown map coverage and
+                        // corner clipping fail closed before any queue,
+                        // rune, NPC HP or player tick change.
+                        String corridor=
+                            LocalLabWindStrikeCollisionCorridor.rejection(
+                                player.movement(),canonical);
+                        if(corridor!=null){
+                            response[0]=corridor;
+                            return;
+                        }
+
                         SpellDefinitionRepository.Spell spell=
                             SpellDefinitionRepository.byWidget(
                                 request.spellWidget);
