@@ -364,7 +364,8 @@ final class LocalCanonicalNpcAttackHandler {
                 // independent behaviour, even with source trial enabled.
                 NpcInteractionRouter.Route candidate=
                     NpcInteractionRouter.resolve(action,clicked);
-                if(candidate.service!=
+                if(clicked==null||
+                   candidate.service!=
                         NpcInteractionRouter.Service.ATTACK||
                    CombatTargetRepository.isCombatDummy(
                        clicked.definitionId))
