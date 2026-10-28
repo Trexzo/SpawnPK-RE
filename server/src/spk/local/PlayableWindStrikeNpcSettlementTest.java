@@ -114,6 +114,39 @@ public final class PlayableWindStrikeNpcSettlementTest {
             add(player,AIR,3);
             add(player,MIND,3);
 
+            // P5.23: spatial authority is canonical WorldNpc.tile,
+            // not a potentially stale viewer-local NpcEntity coordinate.
+            // All geometry denials must occur before queue publication,
+            // resource consumption, HP mutation or same-tick admission.
+            world.npcs().move(target.id,3088,3495,1);
+            Capture otherPlane=new Capture(4096);
+            require("REJECTED_TARGET_DIFFERENT_PLANE".equals(
+                    spell.settle(request,otherPlane.writer))&&
+                otherPlane.drain().length==0&&
+                player.bank().inventoryCount(AIR)==3&&
+                player.bank().inventoryCount(MIND)==3&&
+                world.npcLifecycle().get(target.id).hitpoints==3,
+                "cross-plane NPC accepted a charged hit");
+            world.npcs().move(target.id,3105,3495,0);
+            Capture far=new Capture(4096);
+            require("REJECTED_TARGET_OUT_OF_LAB_RANGE".equals(
+                    spell.settle(request,far.writer))&&
+                far.drain().length==0&&
+                player.bank().inventoryCount(AIR)==3&&
+                player.bank().inventoryCount(MIND)==3&&
+                world.npcLifecycle().get(target.id).hitpoints==3,
+                "far-away NPC accepted stale visible scene target");
+            world.npcs().move(target.id,3400,3800,0);
+            Capture outsideWindow=new Capture(4096);
+            require("REJECTED_TARGET_OUTSIDE_LOADED_REGION".equals(
+                    spell.settle(request,outsideWindow.writer))&&
+                outsideWindow.drain().length==0&&
+                player.bank().inventoryCount(AIR)==3&&
+                player.bank().inventoryCount(MIND)==3&&
+                world.npcLifecycle().get(target.id).hitpoints==3,
+                "NPC outside loaded region admitted spell");
+            world.npcs().move(target.id,3088,3495,0);
+
             Capture full=new Capture(1024);
             byte[] sentinel=new byte[1024];
             Arrays.fill(sentinel,(byte)0x5a);
@@ -157,6 +190,10 @@ public final class PlayableWindStrikeNpcSettlementTest {
             require(busy.drain().length==0,
                 "busy writer published bytes");
 
+            // Inclusive 8-tile range boundary is explicit LocalLab
+            // policy. Projection still reports the old near coordinate.
+            // The result must come from the canonical WorldNpc position.
+            world.npcs().move(target.id,3095,3495,0);
             Capture firstPacket=new Capture(4096);
             String firstHit=spell.settle(request,firstPacket.writer);
             require(firstHit.startsWith(
@@ -169,6 +206,7 @@ public final class PlayableWindStrikeNpcSettlementTest {
                 magicLast.equals(player.magic().last()),
                 "first joint settlement did not commit exact runes and hp");
             assertTwoPackets(firstPacket.drain());
+            world.npcs().move(target.id,3088,3495,0);
 
             // P5.22: multiple wrappers of the exact same WorldPlayer
             // must share the LocalLab once-per-tick semantic admission.
@@ -265,6 +303,8 @@ public final class PlayableWindStrikeNpcSettlementTest {
                 " queueFullAndBusyDirectWriterDenied=true"+
                 " sameTickDuplicateDeniedAcrossWrappers=true"+
                 " generationScopedTickLedger=true"+
+                " canonicalWorldGeometryFence=true"+
+                " distantAndOtherPlaneDenialsZeroPackets=true"+
                 " afterDeathAndStaleWorldDenied=true"+
                 " magicLastUnchangedAndNoXpLoot=true"+
                 " productionLocalSessionNotConnected=true"+
