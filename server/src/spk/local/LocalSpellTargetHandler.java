@@ -18,6 +18,13 @@ final class LocalSpellTargetHandler {
     private final WorldPlayer lifecycleOwner;
     private World canonicalWorld;
     private java.util.function.LongSupplier worldGeneration;
+    /**
+     * Explicit source-only P5.25 test bridge. Null for every normal
+     * LocalSession and historical composition constructor; only tests
+     * selecting this overload can commit CUSTOM_LOCALLAB one-HP magic.
+     */
+    private LocalLabWindStrikeNpcSettlement isolatedWindStrike;
+
 
 
     /**
@@ -42,6 +49,25 @@ final class LocalSpellTargetHandler {
             world,"world");
         this.worldGeneration=java.util.Objects.requireNonNull(
             generation,"generation");
+    }
+
+    /**
+     * Explicitly opted-in source test bridge from a genuine typed
+     * SpellTargetRequest to the isolated P5.21-P5.24 transaction.
+     * NEVER used by normal LocalSession construction.
+     */
+    LocalSpellTargetHandler(
+        World world,
+        WorldPlayer owner,
+        java.util.function.LongSupplier generation,
+        NpcRegistry npcs,
+        CombatEngine combat,
+        LocalLabWindStrikeNpcSettlement isolatedWindStrike
+    ){
+        this(world,owner,generation,npcs,combat);
+        this.isolatedWindStrike=
+            java.util.Objects.requireNonNull(
+                isolatedWindStrike,"isolatedWindStrike");
     }
 
     LocalSpellTargetHandler(
@@ -173,6 +199,30 @@ final class LocalSpellTargetHandler {
                                 answer[0]="V510_MAGIC_TARGET "+req+
                                     " result=REJECTED_CANONICAL_NPC_NOT_ALIVE"+
                                     " magicStateUnchanged=true";
+                                return;
+                            }
+
+                            // This opt-in is for bounded source-only
+                            // exercises. The production constructor leaves
+                            // isolatedWindStrike null, preserving current
+                            // original-client behavior and routing.
+                            if(isolatedWindStrike!=null&&
+                               req.spellWidget==
+                                   LocalLabWindStrikeRuneTransaction
+                                       .WIND_STRIKE_WIDGET){
+                                String settled=isolatedWindStrike.settle(
+                                    req,serverPackets);
+                                if(settled.startsWith(
+                                    "LOCAL_LAB_WIND_STRIKE_NPC_SETTLED")){
+                                    // Only a truly committed queue+HP+rune
+                                    // transaction may mark a completed cast.
+                                    // Must remain a non-throwing assignment
+                                    // after the semantic postimages commit.
+                                    magic.recordIsolatedWindStrikeNpcSettlement(
+                                        req);
+                                }
+                                answer[0]="V510_MAGIC_TARGET "+req+
+                                    " result="+settled;
                                 return;
                             }
 
