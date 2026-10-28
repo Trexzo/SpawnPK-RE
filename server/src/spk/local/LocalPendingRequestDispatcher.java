@@ -508,7 +508,7 @@ final class LocalPendingRequestDispatcher {
                     (SpellTargetClientRequest)request;
 
                 routeSpellTarget(
-                    spell.request(),
+                    spell,
                     serverPackets,
                     tag
                 );
@@ -1253,7 +1253,7 @@ final class LocalPendingRequestDispatcher {
     }
 
     private void routeSpellTarget(
-        SpellTargetRequest request,
+        SpellTargetClientRequest request,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
