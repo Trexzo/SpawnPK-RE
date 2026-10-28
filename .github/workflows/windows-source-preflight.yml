@@ -73,7 +73,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & ./server/gradlew.bat --no-daemon playableWindStrikeRuneTransactionSmoke playableWindStrikeWorldOwnershipSmoke playableWindStrikeNpcPreflightSmoke playableWindStrikeNpcSettlementSmoke playableWindStrikeCollisionCorridorSmoke playableWindStrikeTypedHandlerBridgeSmoke playableWindStrikeNativeOpcode131CodecSmoke playableWindStrikeLoopbackTcpSmoke playableWindStrikeRecoveryCadenceSmoke playableWindStrikeAttackLifecycleSmoke playableSharedPvmMeleeMagicGateSmoke
+          & ./server/gradlew.bat --no-daemon playablePvmChainSmoke
           if ($LASTEXITCODE -ne 0) {
             throw "WINDOWS_PVM_SOURCE_REGRESSION_FAILED exitCode=$LASTEXITCODE"
           }
