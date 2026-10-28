@@ -14773,3 +14773,19 @@ tasks.register('playableWindStrikeCollisionCorridorSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeCollisionCorridorSmoke')
 }
+
+
+// P5.25: genuine typed SpellTargetRequest handler can enter the isolated
+// joint rune + canonical NPC hit only through an explicit test constructor.
+// Normal LocalSession remains intentionally untouched.
+tasks.register('playableWindStrikeTypedHandlerBridgeSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Typed spell-handler opt-in joint hit and default-off boundary.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeTypedHandlerBridgeTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeTypedHandlerBridgeSmoke')
+}
