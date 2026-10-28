@@ -116,6 +116,33 @@ final class LocalLabWindStrikeNpcSettlement {
             world,expectedGeneration,tick);
         if(recovery!=null)return recovery;
 
+        // This source-only cross-style admission is default OFF.
+        // Its synchronized methods never acquire the melee lock,
+        // avoiding a reverse lock order with canonical NPC attacks.
+        LocalLabSharedPvmActionGate shared=
+            player.localLabSharedPvmActionGate();
+        LocalLabSharedPvmActionGate.Admission pvm=
+            shared.begin(
+                world,expectedGeneration,
+                LocalLabSharedPvmActionGate.Kind.WIND_STRIKE,tick);
+        if(pvm.denial!=null)return pvm.denial;
+        try{
+            return settleUnderSharedPvmSlot(
+                request,writer,expectedGeneration,tick,
+                shared,pvm.ticket);
+        }finally{
+            shared.exit(pvm.ticket);
+        }
+    }
+
+    private String settleUnderSharedPvmSlot(
+        SpellTargetRequest request,
+        ServerPacketWriter writer,
+        long expectedGeneration,
+        long tick,
+        LocalLabSharedPvmActionGate shared,
+        LocalLabSharedPvmActionGate.Ticket pvmTicket
+    )throws IOException{
         LocalLabWindStrikeAttackLifecycle lifecycle=
             player.localLabWindStrikeAttackLifecycle();
         LocalLabWindStrikeAttackLifecycle.Admission admission=
@@ -129,7 +156,7 @@ final class LocalLabWindStrikeNpcSettlement {
         try{
             return settleActiveAttack(
                 request,writer,expectedGeneration,tick,
-                admission.ticket,lifecycle);
+                admission.ticket,lifecycle,shared,pvmTicket);
         }finally{
             lifecycle.exit(admission.ticket);
         }
@@ -141,7 +168,9 @@ final class LocalLabWindStrikeNpcSettlement {
         long expectedGeneration,
         long tick,
         LocalLabWindStrikeAttackLifecycle.Ticket ticket,
-        LocalLabWindStrikeAttackLifecycle lifecycle
+        LocalLabWindStrikeAttackLifecycle lifecycle,
+        LocalLabSharedPvmActionGate shared,
+        LocalLabSharedPvmActionGate.Ticket pvmTicket
     )throws IOException{
         NpcEntity target=view.scene(request.targetIndex);
         if(target==null||target.canonicalId()==null)
@@ -293,6 +322,9 @@ final class LocalLabWindStrikeNpcSettlement {
                         // throws, finally leaves this exact owner in
                         // FAULTED (not READY for an unsafe retry).
                         lifecycle.packetsAdmitted(ticket);
+                        // A postqueue semantic error is conservatively
+                        // faulted in BOTH source-only admission layers.
+                        shared.mayHaveCommitted(pvmTicket);
                         afterPacketsAdmitted.run();
 
                         // Under all four owner monitors, the previously
@@ -310,6 +342,7 @@ final class LocalLabWindStrikeNpcSettlement {
                         bank.replaceInventorySemantic(postIds,postQty);
                         player.markLocalLabWindStrikeSettled(
                             world,expectedGeneration,tick);
+                        shared.committed(pvmTicket);
                         lifecycle.hitCommitted(ticket);
 
                         response[0]="LOCAL_LAB_WIND_STRIKE_NPC_SETTLED"+
