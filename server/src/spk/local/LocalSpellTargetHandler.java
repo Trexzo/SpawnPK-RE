@@ -133,7 +133,7 @@ final class LocalSpellTargetHandler {
      * if both the decoded request AND transport metadata match the
      * recovered pinned-client NPC spell writer.
      */
-    String handle(
+    String handleTyped(
         SpellTargetClientRequest req,
         ServerPacketWriter serverPackets
     )throws IOException{
