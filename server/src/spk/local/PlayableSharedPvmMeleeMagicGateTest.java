@@ -156,6 +156,43 @@ public final class PlayableSharedPvmMeleeMagicGateTest {
                         LocalLabSharedPvmActionGate.Kind.WIND_STRIKE,2)
                         .denial),
                 "uncertain melee HP operation was not fenced");
+            // The resolver's typed range/stale-owner/target/
+            // lifecycle exceptions are all thrown before its HP
+            // write. They must safely cancel the potentially-damaging
+            // reservation without poisoning the entire player.
+            LocalLabSharedPvmActionGate safeRejection=
+                new LocalLabSharedPvmActionGate();
+            safeRejection.install(world,first);
+            LocalLabSharedPvmActionGate.Admission beforeHp=
+                safeRejection.begin(
+                    world,first,
+                    LocalLabSharedPvmActionGate.Kind
+                        .CANONICAL_NPC_BASIC,2);
+            require(beforeHp.ticket!=null,
+                "typed pre-damage proof fixture not admitted");
+            safeRejection.mayHaveCommitted(beforeHp.ticket);
+            safeRejection.confirmedPreDamageRejection(
+                beforeHp.ticket);
+            try{
+                safeRejection.committed(beforeHp.ticket);
+                throw new AssertionError(
+                    "rejected melee ticket allowed fabricated hit commit");
+            }catch(IllegalStateException expected){
+                require(expected.getMessage().contains(
+                    "P530_SHARED_PVM_DOUBLE_OR_REJECTED_COMMIT"),
+                    "wrong rejected ticket reuse denial");
+            }
+            safeRejection.exit(beforeHp.ticket);
+            require(!safeRejection.faulted(world,first),
+                "proved pre-HP rejection incorrectly poisoned owner");
+            LocalLabSharedPvmActionGate.Admission retry=
+                safeRejection.begin(
+                    world,first,
+                    LocalLabSharedPvmActionGate.Kind.WIND_STRIKE,2);
+            require(retry.ticket!=null,
+                "same-tick magic retry blocked after pre-HP rejection");
+            safeRejection.exit(retry.ticket);
+
             // A retired generation must not clear a current fault.
             require(world.unregisterPlayer(owner,first),
                 "source owner detach refused");
@@ -383,6 +420,7 @@ public final class PlayableSharedPvmMeleeMagicGateTest {
                 " sameTickCrossStyleHitDenied=true"+
                 " abandonedReservationRetryable=true"+
                 " uncertainMeleeDamageFaultsClosed=true"+
+                " typedPreHpResolverRejectionRetryable=true"+
                 " realWindStrikeRupeAndHpCommit=true"+
                 " originalCombatAndNativeGuiNotProven=true");
         }finally{
