@@ -14758,3 +14758,18 @@ tasks.register('playableWindStrikeNpcSettlementSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeNpcSettlementSmoke')
 }
+
+
+// P5.24: fail-closed projectile-mask corridor from backed WORLD regions
+// and recovered HOME projectile overlay; synthetic source regression.
+tasks.register('playableWindStrikeCollisionCorridorSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Projectile-specific corridor, unknown source and corner-clipping gates.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeCollisionCorridorTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeCollisionCorridorSmoke')
+}
