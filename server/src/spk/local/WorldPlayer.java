@@ -50,6 +50,13 @@ final class WorldPlayer {
     private World localLabWindStrikeLastWorld;
     private long localLabWindStrikeLastGeneration=-1L;
     private long localLabWindStrikeLastTick=-1L;
+    // P5.28 opt-in, source-only recovery policy. One immutable policy
+    // per World+player-generation, shared by every settlement wrapper.
+    // Defaults to the preexisting one-hit-per-tick behaviour unless
+    // explicitly installed before the first successful local cast.
+    private World localLabWindStrikeRecoveryWorld;
+    private long localLabWindStrikeRecoveryGeneration=-1L;
+    private int localLabWindStrikeRecoveryTicks=1;
     private String username;
     private long generation;
     private boolean registered;
@@ -113,6 +120,74 @@ final class WorldPlayer {
         }
     }
 
+    /**
+     * Explicit LocalLab-only trial policy. Must be installed while the
+     * current World-player lease is held, before the first committed cast
+     * for this exact generation. There is deliberately no downgrade or
+     * reconfiguration pathway in the same owner generation.
+     *
+     * No real SpawnPK magic cadence is inferred by this operation.
+     */
+    boolean installLocalLabWindStrikeRecovery(
+        World expectedWorld,long expectedGeneration,int recoveryTicks
+    )throws java.io.IOException{
+        if(expectedWorld==null||expectedGeneration<0L||
+           recoveryTicks<2||recoveryTicks>8)
+            throw new IllegalArgumentException(
+                "P528_INVALID_LOCAL_LAB_RECOVERY_POLICY");
+        return expectedWorld.withOpenPlayerOwnershipIfCurrent(
+            this,expectedGeneration,()->{
+                synchronized(mutationLock){
+                    if(localLabWindStrikeRecoveryWorld==expectedWorld&&
+                       localLabWindStrikeRecoveryGeneration==
+                           expectedGeneration)
+                        throw new IllegalStateException(
+                            "P528_RECOVERY_POLICY_ALREADY_INSTALLED");
+                    if(localLabWindStrikeLastWorld==expectedWorld&&
+                       localLabWindStrikeLastGeneration==
+                           expectedGeneration)
+                        throw new IllegalStateException(
+                            "P528_RECOVERY_POLICY_AFTER_FIRST_CAST");
+                    localLabWindStrikeRecoveryWorld=expectedWorld;
+                    localLabWindStrikeRecoveryGeneration=
+                        expectedGeneration;
+                    localLabWindStrikeRecoveryTicks=recoveryTicks;
+                }
+            }
+        );
+    }
+
+    /**
+     * The shared player-owned state, not a handler-instance timer,
+     * determines admission. Null is READY; denials are stable and do
+     * not mutate anything, including the cooldown or MagicState.last.
+     */
+    String localLabWindStrikeRecoveryRejection(
+        World expectedWorld,long expectedGeneration,long tick
+    ){
+        if(expectedWorld==null||expectedGeneration<0L||tick<0L)
+            throw new IllegalArgumentException(
+                "invalid source-only recovery tick identity");
+        synchronized(mutationLock){
+            if(localLabWindStrikeLastWorld!=expectedWorld||
+               localLabWindStrikeLastGeneration!=expectedGeneration)
+                return null;
+            if(tick<localLabWindStrikeLastTick)
+                return "REJECTED_WORLD_TICK_REGRESSION";
+            if(tick==localLabWindStrikeLastTick)
+                return "REJECTED_SAME_TICK_DUPLICATE";
+            int interval=localLabWindStrikeRecoveryWorld==expectedWorld&&
+                localLabWindStrikeRecoveryGeneration==
+                    expectedGeneration
+                ?localLabWindStrikeRecoveryTicks:1;
+            // Compare differences without adding to lastSettledTick,
+            // avoiding overflow near Long.MAX_VALUE.
+            if(tick-localLabWindStrikeLastTick<interval)
+                return "REJECTED_LOCAL_LAB_SPELL_RECOVERY";
+            return null;
+        }
+    }
+
     // Invoked only AFTER successful queue admission, canonical NPC HP
     // change and exact inventory semantic postimage commit.
     void markLocalLabWindStrikeSettled(
@@ -122,10 +197,11 @@ final class WorldPlayer {
             throw new IllegalArgumentException(
                 "invalid source-only spell tick identity");
         synchronized(mutationLock){
-            if(localLabWindStrikeSettledThisTick(
-                    expectedWorld,generation,tick))
+            String blocked=localLabWindStrikeRecoveryRejection(
+                expectedWorld,generation,tick);
+            if(blocked!=null)
                 throw new IllegalStateException(
-                    "LocalLab Wind Strike tick already committed");
+                    "LocalLab Wind Strike commit after denial "+blocked);
             localLabWindStrikeLastWorld=expectedWorld;
             localLabWindStrikeLastGeneration=generation;
             localLabWindStrikeLastTick=tick;
