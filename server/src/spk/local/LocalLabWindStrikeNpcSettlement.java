@@ -40,6 +40,16 @@ final class LocalLabWindStrikeNpcSettlement {
         this.view=Objects.requireNonNull(view,"view");
     }
 
+    /**
+     * P5.25 bridge must never attach a fixture created for another
+     * World, canonical owner, or viewer projection.
+     */
+    boolean boundTo(World expectedWorld,WorldPlayer expectedPlayer,
+                    NpcRegistry expectedView){
+        return world==expectedWorld&&player==expectedPlayer&&
+            view==expectedView;
+    }
+
     String settle(
         SpellTargetRequest request,
         ServerPacketWriter writer
