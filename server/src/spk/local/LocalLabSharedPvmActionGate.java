@@ -23,6 +23,7 @@ final class LocalLabSharedPvmActionGate {
         final Kind kind;
         final long tick;
         private boolean mayHaveCommitted;
+        private boolean confirmedPreDamageRejection;
         private boolean committed;
 
         private Ticket(World world,long generation,Kind kind,long tick){
@@ -112,16 +113,35 @@ final class LocalLabSharedPvmActionGate {
     synchronized void mayHaveCommitted(Ticket ticket){
         if(ticket==null)return; // default OFF
         requireActive(ticket);
+        if(ticket.confirmedPreDamageRejection)
+            throw new IllegalStateException(
+                "P530_SHARED_PVM_REJECTED_TICKET_NOT_REUSABLE");
         ticket.mayHaveCommitted=true;
+    }
+
+    /**
+     * Caller has received a TYPED resolver rejection that is known to
+     * happen strictly before NpcLifecycleService changes any HP:
+     * range admission, stale attacker/target, or stale lifecycle.
+     * All other exceptions remain uncertain and must fault closed.
+     */
+    synchronized void confirmedPreDamageRejection(Ticket ticket){
+        if(ticket==null)return;
+        requireActive(ticket);
+        if(!ticket.mayHaveCommitted||ticket.committed||
+           ticket.confirmedPreDamageRejection)
+            throw new IllegalStateException(
+                "P530_SHARED_PVM_INVALID_PRE_DAMAGE_PROOF");
+        ticket.confirmedPreDamageRejection=true;
     }
 
     /** Only call when this specific action's HP/state has committed. */
     synchronized void committed(Ticket ticket){
         if(ticket==null)return;
         requireActive(ticket);
-        if(ticket.committed)
+        if(ticket.committed||ticket.confirmedPreDamageRejection)
             throw new IllegalStateException(
-                "P530_SHARED_PVM_DOUBLE_COMMIT");
+                "P530_SHARED_PVM_DOUBLE_OR_REJECTED_COMMIT");
         if(hasCommittedTick&&ticket.tick<=lastCommittedTick)
             throw new IllegalStateException(
                 "P530_SHARED_PVM_NONMONOTONIC_COMMIT");
@@ -138,7 +158,8 @@ final class LocalLabSharedPvmActionGate {
     synchronized void exit(Ticket ticket){
         if(ticket==null)return;
         if(active!=ticket)return; // stale ticket has no authority
-        if(ticket.mayHaveCommitted&&!ticket.committed)
+        if(ticket.mayHaveCommitted&&!ticket.committed&&
+           !ticket.confirmedPreDamageRejection)
             faulted=true;
         active=null;
     }
