@@ -95,6 +95,33 @@ final class LocalLabWindStrikeNpcSettlement {
             world,expectedGeneration,tick);
         if(recovery!=null)return recovery;
 
+        LocalLabWindStrikeAttackLifecycle lifecycle=
+            player.localLabWindStrikeAttackLifecycle();
+        LocalLabWindStrikeAttackLifecycle.Admission admission=
+            lifecycle.begin(world,expectedGeneration,tick);
+        if(admission.denial!=null)return admission.denial;
+
+        // Java synchronized monitors are reentrant: even a callback on
+        // the SAME thread cannot start a second cast before the first
+        // publishes or commits. All nonpublished exit paths free the
+        // active attempt without consuming the recovery slot.
+        try{
+            return settleActiveAttack(
+                request,writer,expectedGeneration,tick,
+                admission.ticket,lifecycle);
+        }finally{
+            lifecycle.exit(admission.ticket);
+        }
+    }
+
+    private String settleActiveAttack(
+        SpellTargetRequest request,
+        ServerPacketWriter writer,
+        long expectedGeneration,
+        long tick,
+        LocalLabWindStrikeAttackLifecycle.Ticket ticket,
+        LocalLabWindStrikeAttackLifecycle lifecycle
+    )throws IOException{
         NpcEntity target=view.scene(request.targetIndex);
         if(target==null||target.canonicalId()==null)
             return "REJECTED_NOT_CANONICAL_VISIBLE_NPC";
@@ -218,6 +245,11 @@ final class LocalLabWindStrikeNpcSettlement {
                         NpcSyncEncoder.Mask hit=
                             NpcSyncEncoder.Mask.singleHit(
                                 DAMAGE,1,hpAfter,npc.maxHitpoints);
+                        // Strict source-only phases:
+                        // VALIDATING -> PUBLISHING -> PACKETS_ADMITTED
+                        // -> RECOVERING. No damage or rune postimage
+                        // is modified before queue admission.
+                        lifecycle.publishing(ticket);
                         ServerPacketWriter.RecoverablePacketResult result=
                             writer.publishQueueOnlyRecoverablePacketIfIdle(
                                 ()->{
@@ -235,6 +267,11 @@ final class LocalLabWindStrikeNpcSettlement {
                             return;
                         }
 
+                        // If any post-queue semantic step unexpectedly
+                        // throws, finally leaves this exact owner in
+                        // FAULTED (not READY for an unsafe retry).
+                        lifecycle.packetsAdmitted(ticket);
+
                         // Under all four owner monitors, the previously
                         // validated source-local semantic transitions have
                         // no expected failure path. This is NOT crash ACID.
@@ -250,6 +287,7 @@ final class LocalLabWindStrikeNpcSettlement {
                         bank.replaceInventorySemantic(postIds,postQty);
                         player.markLocalLabWindStrikeSettled(
                             world,expectedGeneration,tick);
+                        lifecycle.hitCommitted(ticket);
 
                         response[0]="LOCAL_LAB_WIND_STRIKE_NPC_SETTLED"+
                             " npc="+id+
