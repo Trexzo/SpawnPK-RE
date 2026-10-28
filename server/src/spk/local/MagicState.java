@@ -81,6 +81,23 @@ final class MagicState {
             " runeConsumption=NOT_APPLIED_SERVER_RULE_UNKNOWN effects=ROUTER_ONLY");
     }
 
+    /**
+     * Source-only P5.25 marker for a completed opt-in LocalLab
+     * canonical NPC Wind Strike. Caller has already validated the
+     * exact request, committed recoverable writer admission, NPC HP
+     * and rune inventory. Do not run resource validation a second
+     * time after runes were consumed, or invent original combat status.
+     *
+     * Intentionally non-throwing after the transaction's semantic commit.
+     * Normal LocalSession never invokes this marker.
+     */
+    void recordIsolatedWindStrikeNpcSettlement(
+        SpellTargetRequest request
+    ){
+        last="TARGET_SETTLED_CUSTOM_LOCALLAB_WIND_STRIKE"+
+            " scene="+request.targetIndex;
+    }
+
     String summary(){return "book="+book+" root="+book.root+" last="+last;}
 
     static final class Check {
