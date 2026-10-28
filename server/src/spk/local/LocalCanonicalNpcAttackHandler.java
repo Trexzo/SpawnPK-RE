@@ -28,6 +28,7 @@ final class LocalCanonicalNpcAttackHandler {
         OUT_OF_RANGE,
         PRESENTATION_UNREPRESENTABLE,
         CADENCE_BLOCKED,
+        SHARED_PVM_BLOCKED,
         HIT
     }
 
@@ -348,7 +349,7 @@ final class LocalCanonicalNpcAttackHandler {
                        clicked.definitionId
                    ))
                     return handleUnderPlayerCadence(
-                        action,clicked,writer
+                        action,clicked,writer,null
                     );
                 return result(
                     Status.CADENCE_BLOCKED,
@@ -358,12 +359,40 @@ final class LocalCanonicalNpcAttackHandler {
                 );
             }
             try{
-                return handleUnderPlayerCadence(
-                    action,clicked,writer
-                );
+                // Only real canonical ATTACK actions participate.
+                // Legacy dummy and non-attack paths keep their old
+                // independent behaviour, even with source trial enabled.
+                NpcInteractionRouter.Route candidate=
+                    NpcInteractionRouter.resolve(action,clicked);
+                if(candidate.service!=
+                        NpcInteractionRouter.Service.ATTACK||
+                   CombatTargetRepository.isCombatDummy(
+                       clicked.definitionId))
+                    return handleUnderPlayerCadence(
+                        action,clicked,writer,null);
+
+                LocalLabSharedPvmActionGate shared=
+                    player.localLabSharedPvmActionGate();
+                LocalLabSharedPvmActionGate.Admission pvm=
+                    shared.begin(
+                        world,generationSupplier.getAsLong(),
+                        LocalLabSharedPvmActionGate.Kind
+                            .CANONICAL_NPC_BASIC,
+                        world.clock().tick());
+                if(pvm.denial!=null)
+                    return result(
+                        Status.SHARED_PVM_BLOCKED,
+                        clicked,clicked.canonicalId(),
+                        -1,-1,0,-1,-1,false);
+                try{
+                    return handleUnderPlayerCadence(
+                        action,clicked,writer,pvm.ticket);
+                }finally{
+                    shared.exit(pvm.ticket);
+                }
             }finally{
-                // Also release on IOException, callback failure, stale
-                // ownership or early status return. Never reset cooldown.
+                // Release even on failure; the cross-style source
+                // gate independently faults an uncertain HP attempt.
                 player.leaveCanonicalNpcAttack();
             }
         }
@@ -372,7 +401,8 @@ final class LocalCanonicalNpcAttackHandler {
     private Result handleUnderPlayerCadence(
         NpcAction action,
         NpcEntity clicked,
-        ServerPacketWriter writer
+        ServerPacketWriter writer,
+        LocalLabSharedPvmActionGate.Ticket pvmTicket
     )throws IOException{
         NpcInteractionRouter.Route route=
             NpcInteractionRouter.resolve(
@@ -777,6 +807,11 @@ final class LocalCanonicalNpcAttackHandler {
                     false
                 );
 
+            // The resolver may mutate canonical NPC HP before
+            // it returns. A thrown post-admission failure cannot
+            // release an opt-in shared slot as safely retryable.
+            player.localLabSharedPvmActionGate()
+                .mayHaveCommitted(pvmTicket);
             hit=
                 resolution.resolveImmediateOwnedAdmitted(
                     world,
@@ -933,6 +968,11 @@ final class LocalCanonicalNpcAttackHandler {
                 hit.nextAttackDelayTicks
             )
         );
+        // This semantic hit is already committed, before packet-65
+        // presentation and lethal finalization can fail. Preserve
+        // same-tick cross-style exclusion after output errors.
+        player.localLabSharedPvmActionGate()
+            .committed(pvmTicket);
 
         // Type 1 is explicit LocalLab basic-hit compatibility. It is not a
         // SpawnPK max-hit or original damage-family claim.
