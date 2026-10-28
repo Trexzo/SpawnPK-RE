@@ -88,9 +88,12 @@ final class LocalLabWindStrikeNpcSettlement {
             return "REJECTED_CASTER_DEAD";
 
         final long tick=world.clock().tick();
-        if(player.localLabWindStrikeSettledThisTick(
-                world,expectedGeneration,tick))
-            return "REJECTED_SAME_TICK_DUPLICATE";
+        // P5.28: one canonical WorldPlayer recovery admission shared
+        // by all settlement wrappers. No failed preflight/queue attempt
+        // consumes any timing slot; mark occurs only after HP+runes commit.
+        String recovery=player.localLabWindStrikeRecoveryRejection(
+            world,expectedGeneration,tick);
+        if(recovery!=null)return recovery;
 
         NpcEntity target=view.scene(request.targetIndex);
         if(target==null||target.canonicalId()==null)
