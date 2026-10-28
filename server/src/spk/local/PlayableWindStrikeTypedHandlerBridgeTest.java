@@ -218,6 +218,19 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
                 world.npcLifecycle().get(canonical.id).hitpoints==2,
                 "wrong opcode131 schema authorized fixture hit");
 
+            SpellTargetClientRequest fakeSource=
+                new SpellTargetClientRequest(
+                    decoded,ClientRequestMetadata.exactCurrent(
+                        131,"FIXED4_NPC_LE_A_SPELL_BE_A",
+                        "SYNTHETIC_UNREVIEWED_WRITER"));
+            Capture sourceWriter=new Capture(4096);
+            require(!explicit.handle(fakeSource,sourceWriter.writer)
+                    .contains("LOCAL_LAB_WIND_STRIKE_NPC_SETTLED")&&
+                sourceWriter.drain().length==0&&
+                player.bank().inventoryCount(556)==2&&
+                world.npcLifecycle().get(canonical.id).hitpoints==2,
+                "wrong opcode131 writer source authorized fixture");
+
             SpellTargetClientRequest fakeOpcode=
                 new SpellTargetClientRequest(
                     decoded,ClientRequestMetadata.exactCurrent(
