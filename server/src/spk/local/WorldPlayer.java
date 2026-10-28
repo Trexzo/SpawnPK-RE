@@ -62,6 +62,12 @@ final class WorldPlayer {
     private final LocalLabWindStrikeAttackLifecycle
         localLabWindStrikeAttackLifecycle=
             new LocalLabWindStrikeAttackLifecycle();
+    // P5.30 optional cross-style PvM admission. Independent from the
+    // canonical melee and Wind Strike internal monitors: its own short
+    // synchronized methods never call into World or session services.
+    private final LocalLabSharedPvmActionGate
+        localLabSharedPvmActionGate=
+            new LocalLabSharedPvmActionGate();
     private String username;
     private long generation;
     private boolean registered;
@@ -218,6 +224,27 @@ final class WorldPlayer {
             localLabWindStrikeLastGeneration=generation;
             localLabWindStrikeLastTick=tick;
         }
+    }
+
+    /** Opt-in LocalLab-only shared source action arbiter. */
+    LocalLabSharedPvmActionGate localLabSharedPvmActionGate(){
+        return localLabSharedPvmActionGate;
+    }
+
+    boolean installLocalLabSharedPvmAdmission(
+        World expectedWorld,long expectedGeneration
+    )throws java.io.IOException{
+        if(expectedWorld==null||expectedGeneration<0L)
+            throw new IllegalArgumentException(
+                "invalid P530 owner/generation");
+        return expectedWorld.withOpenPlayerOwnershipIfCurrent(
+            this,expectedGeneration,()->{
+                synchronized(mutationLock){
+                    localLabSharedPvmActionGate.install(
+                        expectedWorld,expectedGeneration);
+                }
+            }
+        );
     }
 
     Object canonicalNpcAttackLock(){return canonicalNpcAttackLock;}
