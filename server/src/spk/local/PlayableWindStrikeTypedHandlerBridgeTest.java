@@ -143,7 +143,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
                     world,player,()->generation,scene,
                     new CombatEngine());
             Capture defaultWriter=new Capture(4096);
-            String unchanged=productionShape.handle(
+            String unchanged=productionShape.handleTyped(
                 nativeSpell,defaultWriter.writer);
             require(unchanged.contains(
                     "TARGET_NPC_VISIBLE def=100")&&
@@ -211,7 +211,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
                         131,"FIXED4_NPC_UNREVIEWED_SCHEMA",
                         "PINNED_CLIENT_SPELL_ON_NPC_WRITER"));
             Capture fakeWriter=new Capture(4096);
-            require(!explicit.handle(fakeSchema,fakeWriter.writer)
+            require(!explicit.handleTyped(fakeSchema,fakeWriter.writer)
                     .contains("LOCAL_LAB_WIND_STRIKE_NPC_SETTLED")&&
                 fakeWriter.drain().length==0&&
                 player.bank().inventoryCount(556)==2&&
@@ -224,7 +224,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
                         131,"FIXED4_NPC_LE_A_SPELL_BE_A",
                         "SYNTHETIC_UNREVIEWED_WRITER"));
             Capture sourceWriter=new Capture(4096);
-            require(!explicit.handle(fakeSource,sourceWriter.writer)
+            require(!explicit.handleTyped(fakeSource,sourceWriter.writer)
                     .contains("LOCAL_LAB_WIND_STRIKE_NPC_SETTLED")&&
                 sourceWriter.drain().length==0&&
                 player.bank().inventoryCount(556)==2&&
@@ -237,7 +237,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
                         249,"FIXED4_NPC_LE_A_SPELL_BE_A",
                         "PINNED_CLIENT_SPELL_ON_NPC_WRITER"));
             Capture fakeId=new Capture(4096);
-            require(!explicit.handle(fakeOpcode,fakeId.writer)
+            require(!explicit.handleTyped(fakeOpcode,fakeId.writer)
                     .contains("LOCAL_LAB_WIND_STRIKE_NPC_SETTLED")&&
                 fakeId.drain().length==0&&
                 player.bank().inventoryCount(556)==2&&
@@ -252,7 +252,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
             saturated.queue.offer(sentinel);
             require(saturated.queue.queuedBytes()==1024,
                 "failed to fill outbound queue");
-            String denied=explicit.handle(nativeSpell,saturated.writer);
+            String denied=explicit.handleTyped(nativeSpell,saturated.writer);
             require(denied.contains(
                     "REJECTED_WRITER_BACKPRESSURE_RETRYABLE")&&
                 Arrays.equals(sentinel,saturated.drain())&&
@@ -263,7 +263,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
                 "backpressure changed state through typed handler");
 
             Capture accepted=new Capture(4096);
-            String first=explicit.handle(nativeSpell,accepted.writer);
+            String first=explicit.handleTyped(nativeSpell,accepted.writer);
             require(first.contains(
                     "LOCAL_LAB_WIND_STRIKE_NPC_SETTLED")&&
                 player.magic().last().startsWith(
@@ -284,7 +284,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
                     new LocalLabWindStrikeNpcSettlement(
                         world,player,()->generation,scene));
             Capture replay=new Capture(4096);
-            String twice=sibling.handle(nativeSpell,replay.writer);
+            String twice=sibling.handleTyped(nativeSpell,replay.writer);
             require(twice.contains("REJECTED_SAME_TICK_DUPLICATE")&&
                 replay.drain().length==0&&
                 committedLast.equals(player.magic().last())&&
@@ -294,7 +294,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
 
             world.clock().advance();
             Capture second=new Capture(4096);
-            String lethal=sibling.handle(nativeSpell,second.writer);
+            String lethal=sibling.handleTyped(nativeSpell,second.writer);
             require(lethal.contains(
                     "LOCAL_LAB_WIND_STRIKE_NPC_SETTLED")&&
                 lethal.contains("newlyDead=true")&&
@@ -306,7 +306,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
 
             world.clock().advance();
             Capture dead=new Capture(4096);
-            String deniedDead=explicit.handle(nativeSpell,dead.writer);
+            String deniedDead=explicit.handleTyped(nativeSpell,dead.writer);
             require(deniedDead.contains(
                     "REJECTED_CANONICAL_NPC_NOT_ALIVE")&&
                 dead.drain().length==0&&
@@ -318,7 +318,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
             require(world.unregisterPlayer(player,generation),
                 "World user unregister failed");
             Capture stale=new Capture(4096);
-            String detached=explicit.handle(nativeSpell,stale.writer);
+            String detached=explicit.handleTyped(nativeSpell,stale.writer);
             require(detached.contains(
                     "REJECTED_STALE_CASTER_WORLD_OWNER")&&
                 stale.drain().length==0,
