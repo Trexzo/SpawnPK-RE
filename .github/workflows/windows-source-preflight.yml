@@ -66,7 +66,7 @@ jobs:
           Write-Host "SPK_WINDOWS_SOURCE_SMOKE_PASS java11Bytecode=true accountWaitFixture=true npcAttemptFixture=true strictNlinkAdmissionFailClosedFixtures=3 strictRealWorldTokenFixtures=3 originalClientGui=false"
 
       # P5.31 source-only regression lane. Windows compilation alone
-      # does not execute any of the P5.20-P5.30 combat regressions,
+      # does not execute any of the P5.16-P5.30 combat regressions,
       # while full Linux Gradle runs may be cancelled independently.
       # Keep the original negative native-client release gate unchanged.
       - name: Execute source-only Wind Strike and shared PvM combat regressions
@@ -77,7 +77,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "WINDOWS_PVM_SOURCE_REGRESSION_FAILED exitCode=$LASTEXITCODE"
           }
-          Write-Host "SPK_WINDOWS_PVM_SOURCE_REGRESSION_PASS tasks=11 defaultLocalSessionStillOff=true originalClientGui=false"
+          Write-Host "SPK_WINDOWS_PVM_SOURCE_REGRESSION_PASS tasks=20 defaultLocalSessionStillOff=true originalClientGui=false"
 
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
