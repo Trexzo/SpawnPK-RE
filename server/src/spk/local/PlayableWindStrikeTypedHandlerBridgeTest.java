@@ -126,6 +126,32 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
             LocalLabWindStrikeNpcSettlement isolated=
                 new LocalLabWindStrikeNpcSettlement(
                     world,player,()->generation,scene);
+
+            // An opt-in fixture is never portable to another canonical
+            // owner or a different per-session viewer registry.
+            try{
+                new LocalSpellTargetHandler(
+                    world,new WorldPlayer(),()->generation,scene,
+                    new CombatEngine(),isolated);
+                throw new AssertionError(
+                    "wrong-player settlement injection admitted");
+            }catch(IllegalArgumentException expected){
+                require(expected.getMessage().contains(
+                    "P525_ISOLATED_WIND_STRIKE_BINDING_MISMATCH"),
+                    "wrong-player binding failed for unrelated reason");
+            }
+            try{
+                new LocalSpellTargetHandler(
+                    world,player,()->generation,new NpcRegistry(),
+                    new CombatEngine(),isolated);
+                throw new AssertionError(
+                    "wrong-viewer settlement injection admitted");
+            }catch(IllegalArgumentException expected){
+                require(expected.getMessage().contains(
+                    "P525_ISOLATED_WIND_STRIKE_BINDING_MISMATCH"),
+                    "wrong-viewer binding failed for unrelated reason");
+            }
+
             LocalSpellTargetHandler explicit=
                 new LocalSpellTargetHandler(
                     world,player,()->generation,scene,
@@ -214,6 +240,7 @@ public final class PlayableWindStrikeTypedHandlerBridgeTest {
                 "P525_TYPED_WIND_STRIKE_HANDLER_PASS"+
                 " productionConstructorUnchanged=true"+
                 " explicitSourceTestBridge=true"+
+                " foreignOwnerAndViewerBindingDenied=true"+
                 " nativeOpcode53And65=true"+
                 " queueBackpressureNoPhantomCast=true"+
                 " magicLastOnlyAfterCommit=true"+
