@@ -41,6 +41,29 @@ public final class PlayableSharedPvmMeleeMagicGateTest {
             "rune fixture item seed failed");
     }
 
+    private static int[] attackDefinitionAndOpcode(){
+        int[] opcodes={155,72,17,21,18};
+        for(int id=0;id<65536;id++){
+            if(CombatTargetRepository.isCombatDummy(id))
+                continue;
+            EffectiveNpcDefinitionRepository.Def def=
+                EffectiveNpcDefinitionRepository.get(id);
+            if(def==null)continue;
+            for(int option=1;option<=5;option++){
+                String text=def.normalized(option);
+                if(text==null)text=def.action(option);
+                if(text==null)continue;
+                String normalized=text.toLowerCase(
+                    java.util.Locale.ROOT)
+                    .replaceAll("<[^>]+>","").trim();
+                if("attack".equals(normalized))
+                    return new int[]{id,opcodes[option-1]};
+            }
+        }
+        throw new AssertionError(
+            "P530 no exact-client combat NPC action fixture");
+    }
+
     private static SpellTargetRequest spell(int scene){
         return new SpellTargetRequest(
             131,SpellTargetRequest.Kind.NPC,
@@ -174,6 +197,7 @@ public final class PlayableSharedPvmMeleeMagicGateTest {
                 new IsaacCipher(new int[]{451,452,453,454}));
         boolean relayRegistered=false;
         WorldNpc npc=null;
+        WorldNpc meleeNpc=null;
         try{
             SharedNpcWorldRelay.register(
                 relay,world,player,scene,player.movement());
@@ -243,6 +267,38 @@ public final class PlayableSharedPvmMeleeMagicGateTest {
                         world.clock().tick()).denial),
                 "committed magic did not block same-tick melee");
 
+            // Exercise the *real* LocalCanonicalNpcAttackHandler path,
+            // not only the shared admission helper. Resolve an exact
+            // client action definition with an Attack option.
+            int[] basicFixture=attackDefinitionAndOpcode();
+            meleeNpc=world.npcs().spawn(
+                basicFixture[0],3088,3495,0);
+            world.npcLifecycle().register(
+                meleeNpc,3,"CUSTOM_LOCALLAB_P530_BASIC_NPC");
+            SharedNpcWorldRelay.trackCanonicalNpc(world,meleeNpc);
+            SharedNpcWorldRelay.syncRemotePets(relay);
+            NpcEntity meleeView=scene.canonical(meleeNpc.id);
+            require(meleeView!=null,
+                "basic attack NPC not projected");
+            final NpcAction basicClick=new NpcAction(
+                basicFixture[1],meleeView.sceneIndex);
+            require(NpcInteractionRouter.resolve(
+                    basicClick,meleeView).service==
+                    NpcInteractionRouter.Service.ATTACK,
+                "selected exact client NPC action was not Attack");
+            final LocalCanonicalNpcAttackHandler basic=
+                new LocalCanonicalNpcAttackHandler(
+                    world,player,()->gen,
+                    player.equipment(),player.combatStyles(),scene);
+            LocalCanonicalNpcAttackHandler.Result sameTickBasic=
+                basic.handle(
+                    basicClick,meleeView,new Capture().writer);
+            require(sameTickBasic.status==
+                    LocalCanonicalNpcAttackHandler.Status
+                        .SHARED_PVM_BLOCKED&&
+                world.npcLifecycle().get(meleeNpc.id).hitpoints==3,
+                "real canonical NPC attack ignored successful magic tick");
+
             world.clock().advance();
             LocalLabSharedPvmActionGate.Admission nextMelee=
                 gate.begin(
@@ -259,8 +315,33 @@ public final class PlayableSharedPvmMeleeMagicGateTest {
                 "concurrent melee did not suppress next-tick magic");
             gate.exit(nextMelee.ticket);
 
+            // Reverse direction: actual canonical NPC basic handler
+            // is invoked synchronously while magic owns the source
+            // slot. The other lock ordering must not deadlock.
+            final LocalCanonicalNpcAttackHandler.Result[] nestedBasic=
+                new LocalCanonicalNpcAttackHandler.Result[1];
+            final NpcEntity selectedBasic=meleeView;
+            LocalLabWindStrikeNpcSettlement spellWithBasicCallback=
+                new LocalLabWindStrikeNpcSettlement(
+                    world,player,()->gen,scene,
+                    ()->{
+                        try{
+                            nestedBasic[0]=basic.handle(
+                                basicClick,selectedBasic,
+                                new Capture().writer);
+                        }catch(IOException e){
+                            throw new IllegalStateException(e);
+                        }
+                    },()->{});
             Capture second=new Capture();
-            String lethal=spell.settle(request,second.writer);
+            String lethal=spellWithBasicCallback.settle(
+                request,second.writer);
+            require(nestedBasic[0]!=null&&
+                nestedBasic[0].status==
+                    LocalCanonicalNpcAttackHandler.Status
+                        .SHARED_PVM_BLOCKED&&
+                world.npcLifecycle().get(meleeNpc.id).hitpoints==3,
+                "nested real melee bypassed active magic reservation");
             require(lethal.startsWith(
                     "LOCAL_LAB_WIND_STRIKE_NPC_SETTLED")&&
                 lethal.contains("newlyDead=true")&&
@@ -297,17 +378,26 @@ public final class PlayableSharedPvmMeleeMagicGateTest {
                 " exactWorldPlayerGeneration=true"+
                 " noCrossMonitorWait=true"+
                 " inFlightCrossStyleDenied=true"+
+                " realCanonicalNpcHandlerBlocked=true"+
+                " inverseLockOrderCallbackNoDeadlock=true"+
                 " sameTickCrossStyleHitDenied=true"+
                 " abandonedReservationRetryable=true"+
                 " uncertainMeleeDamageFaultsClosed=true"+
                 " realWindStrikeRupeAndHpCommit=true"+
                 " originalCombatAndNativeGuiNotProven=true");
         }finally{
+            if(meleeNpc!=null)
+                SharedNpcWorldRelay.untrackCanonicalNpc(
+                    world,meleeNpc.id);
             if(npc!=null)
                 SharedNpcWorldRelay.untrackCanonicalNpc(
                     world,npc.id);
             if(relayRegistered)
                 SharedNpcWorldRelay.unregister(relay);
+            if(meleeNpc!=null){
+                world.npcLifecycle().unregisterExact(meleeNpc);
+                world.npcs().remove(meleeNpc.id);
+            }
             if(npc!=null){
                 world.npcLifecycle().unregisterExact(npc);
                 world.npcs().remove(npc.id);
