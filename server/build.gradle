@@ -14820,3 +14820,19 @@ tasks.register('playableWindStrikeLoopbackTcpSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeLoopbackTcpSmoke')
 }
+
+
+// P5.28: optional LocalLab-only recovery cadence, attached to exact
+// WorldPlayer generation and shared across all settlement wrappers.
+// Three-tick fixture timing is not claimed to be original SpawnPK.
+tasks.register('playableWindStrikeRecoveryCadenceSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Player-owned LocalLab recovery, backpressure retry and generation ABA.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeRecoveryCadenceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeRecoveryCadenceSmoke')
+}
