@@ -115,9 +115,47 @@ final class LocalSpellTargetHandler {
         this.combat=java.util.Objects.requireNonNull(combat,"combat");
     }
 
+    /**
+     * Compatibility entry for hand-constructed semantic requests.
+     * Never authorizes the isolated P5.25 fixture: that privilege
+     * requires the exact-current typed opcode-131 transport path.
+     */
     String handle(
         SpellTargetRequest req,
         ServerPacketWriter serverPackets
+    )throws IOException{
+        return handleInternally(req,serverPackets,false);
+    }
+
+    /**
+     * Production dispatcher uses the typed ClientPacketProbe result.
+     * A source-only opted-in handler may run its isolated fixture only
+     * if both the decoded request AND transport metadata match the
+     * recovered pinned-client NPC spell writer.
+     */
+    String handle(
+        SpellTargetClientRequest req,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        if(req==null)return null;
+        ClientRequestMetadata meta=req.metadata();
+        SpellTargetRequest target=req.request();
+        boolean exactNpcSpell=meta!=null&&
+            meta.opcode==131&&
+            target.opcode==131&&
+            target.kind==SpellTargetRequest.Kind.NPC&&
+            meta.provenance==
+                ClientRequestProvenance.EXACT_CURRENT_CLIENT&&
+            "FIXED4_NPC_LE_A_SPELL_BE_A".equals(meta.schema)&&
+            "PINNED_CLIENT_SPELL_ON_NPC_WRITER".equals(meta.source);
+        return handleInternally(
+            target,serverPackets,exactNpcSpell);
+    }
+
+    private String handleInternally(
+        SpellTargetRequest req,
+        ServerPacketWriter serverPackets,
+        boolean exactNpcSpell
     )throws IOException{
         if(req==null)return null;
         if(canonicalWorld==null)
@@ -135,7 +173,7 @@ final class LocalSpellTargetHandler {
                 ()->{
                     synchronized(lifecycleOwner.mutationLock()){
                         response[0]=handleWithCanonicalNpcLease(
-                            req,serverPackets);
+                            req,serverPackets,exactNpcSpell);
                     }
                 }
             );
@@ -157,7 +195,8 @@ final class LocalSpellTargetHandler {
      */
     private String handleWithCanonicalNpcLease(
         SpellTargetRequest req,
-        ServerPacketWriter serverPackets
+        ServerPacketWriter serverPackets,
+        boolean exactNpcSpell
     )throws IOException{
         if(req.kind!=SpellTargetRequest.Kind.NPC)
             return handleCurrent(req,serverPackets);
@@ -211,6 +250,7 @@ final class LocalSpellTargetHandler {
                             // isolatedWindStrike null, preserving current
                             // original-client behavior and routing.
                             if(isolatedWindStrike!=null&&
+                               exactNpcSpell&&
                                req.spellWidget==
                                    LocalLabWindStrikeRuneTransaction
                                        .WIND_STRIKE_WIDGET){
