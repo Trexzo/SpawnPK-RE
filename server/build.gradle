@@ -14869,6 +14869,17 @@ tasks.named('build') {
 }
 
 
+// P5.31: isolate the historical socket prayer/magic integration test
+// so modern canonical lifecycle refusal is exercised on both platforms.
+tasks.register('playablePrayerMagicStyleSocketRegression', JavaExec) {
+    group = 'verification'
+    description = 'Post-login TCP prayer/style/spell lifecycle refusal and ISAAC alignment.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PrayerMagicStyleRuntimeIntegrationTest')
+}
+
 // P5.31: explicit source-only acceptance lane for P5.16-P5.30
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
@@ -14895,9 +14906,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('canonicalNpcAttackClickRegression'),
         tasks.named('canonicalNpcAttackOwnershipRaceRegression'),
         tasks.named('canonicalNpcAttackSpatialAtomicityRegression'),
-        tasks.named('playableSharedPvmMeleeMagicGateSmoke')
+        tasks.named('playableSharedPvmMeleeMagicGateSmoke'),
+        tasks.named('playablePrayerMagicStyleSocketRegression')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=20 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=21 originalClientGui=false productionMagicOff=true')
     }
 }
