@@ -88,20 +88,29 @@ final class LocalLabWindStrikeHitWitness {
                     WorldNpc npc=world.npcs().byId(npcId);
                     if(npc==null||npc.definitionId!=npcDefinitionId)
                         return;
-                    world.npcs().withCurrentMutationOwnershipIfCurrent(
-                        npc,()->{
-                            synchronized(world.npcLifecycle()){
-                                NpcLifecycleService.Snapshot now=
-                                    world.npcLifecycle().get(npcId);
-                                checked[0]=
-                                    now!=null&&now.dead()&&
-                                    now.hitpoints==0&&
-                                    now.definitionId==npcDefinitionId&&
-                                    now.deathTick==deathTick&&
-                                    now.registrationIdentity==
-                                        npcRegistrationIdentity;
-                            }
-                        });
+                    try{
+                        world.npcs().withCurrentMutationOwnershipIfCurrent(
+                            npc,()->{
+                                synchronized(world.npcLifecycle()){
+                                    NpcLifecycleService.Snapshot now=
+                                        world.npcLifecycle().get(npcId);
+                                    checked[0]=
+                                        now!=null&&now.dead()&&
+                                        now.hitpoints==0&&
+                                        now.definitionId==npcDefinitionId&&
+                                        now.deathTick==deathTick&&
+                                        now.registrationIdentity==
+                                            npcRegistrationIdentity;
+                                }
+                            });
+                    }catch(Exception failure){
+                        // OwnedPlayerIoAction is checked-IOException only.
+                        // Any failed NPC ownership callback must be
+                        // treated as a denied observation, not a grant.
+                        throw new IOException(
+                            "P533_NPC_LETHAL_WITNESS_REVALIDATION_FAILED",
+                            failure);
+                    }
                 });
             return owner&&checked[0];
         }catch(IOException|RuntimeException failure){
