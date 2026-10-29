@@ -77,7 +77,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "WINDOWS_PVM_SOURCE_REGRESSION_FAILED exitCode=$LASTEXITCODE"
           }
-          Write-Host "SPK_WINDOWS_PVM_SOURCE_REGRESSION_PASS tasks=23 defaultLocalSessionStillOff=true originalClientGui=false"
+          Write-Host "SPK_WINDOWS_PVM_SOURCE_REGRESSION_PASS tasks=24 defaultLocalSessionStillOff=true originalClientGui=false"
 
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
