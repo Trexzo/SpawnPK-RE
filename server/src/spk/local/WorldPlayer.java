@@ -206,6 +206,22 @@ final class WorldPlayer {
         }
     }
 
+    /**
+     * Source-only P5.32 action interval, including the P5.28 optional
+     * custom spell policy. No original SpawnPK magic cadence inferred.
+     * Caller retains the exact World + player generation ownership.
+     */
+    int localLabWindStrikeEffectiveRecoveryTicks(
+        World expectedWorld,long expectedGeneration
+    ){
+        synchronized(mutationLock){
+            return localLabWindStrikeRecoveryWorld==expectedWorld&&
+                localLabWindStrikeRecoveryGeneration==
+                    expectedGeneration
+                ?localLabWindStrikeRecoveryTicks:1;
+        }
+    }
+
     // Invoked only AFTER successful queue admission, canonical NPC HP
     // change and exact inventory semantic postimage commit.
     void markLocalLabWindStrikeSettled(
