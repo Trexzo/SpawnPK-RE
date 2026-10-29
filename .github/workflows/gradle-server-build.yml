@@ -44,8 +44,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash server/gradlew --no-daemon playablePvmChainSmoke
-          echo "SPK_LINUX_PVM_SOURCE_REGRESSION_PASS originalClientGui=false fullReleaseGateUnchanged=true"
+          # Keep the strict persistent-account socket regression on
+          # Linux, where the required ancestry/link-count evidence is
+          # available. Windows must still fail closed on unsupported
+          # account filesystem providers.
+          bash server/gradlew --no-daemon playablePvmChainSmoke playablePrayerMagicStyleSocketRegression
+          echo "SPK_LINUX_PVM_SOURCE_REGRESSION_PASS crossPlatformTasks=22 persistentSocketLinux=true originalClientGui=false fullReleaseGateUnchanged=true"
 
   build:
     runs-on: ubuntu-latest
