@@ -14880,7 +14880,23 @@ tasks.register('playablePrayerMagicStyleSocketRegression', JavaExec) {
     mainClass.set('spk.local.PrayerMagicStyleRuntimeIntegrationTest')
 }
 
-// P5.31: explicit source-only acceptance lane for P5.16-P5.30
+
+
+// P5.32: known LocalLab basic-weapon cadence and explicit source-only
+// spell policy share one recoverable per-player PvM admission window.
+tasks.register('playableSharedPvmRecoveryWindowSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Actual canonical melee hit blocks early Wind Strike and custom 3-tick spell blocks real melee.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableSharedPvmRecoveryWindowTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableSharedPvmRecoveryWindowSmoke')
+}
+
+// P5.31/P5.32: explicit source-only acceptance lane for P5.16-P5.32
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -14908,9 +14924,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('canonicalNpcAttackSpatialAtomicityRegression'),
         tasks.named('playableSharedPvmMeleeMagicGateSmoke'),
         tasks.named('g1915ClosedWorldDeadNpcRetryVeto'),
-        tasks.named('g1916OpenWorldDeadNpcRetryControl')
+        tasks.named('g1916OpenWorldDeadNpcRetryControl'),
+        tasks.named('playableSharedPvmRecoveryWindowSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=22 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=23 originalClientGui=false productionMagicOff=true')
     }
 }
