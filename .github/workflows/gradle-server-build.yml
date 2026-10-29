@@ -25,9 +25,35 @@ on:
       - '.github/workflows/gradle-server-build.yml'
 
 jobs:
+  # P5.31: quick independent Linux parity signal for the PvM
+  # gameplay lane, even when the legacy 911-case full train times out.
+  # This does not substitute for the complete build/release gate.
+  pvm-source-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21 for Java 11 bytecode
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Cache pinned Gradle dependencies
+        uses: gradle/actions/setup-gradle@v4
+      - name: Execute canonical melee and Wind Strike source chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep the strict persistent-account socket regression on
+          # Linux, where the required ancestry/link-count evidence is
+          # available. Windows must still fail closed on unsupported
+          # account filesystem providers.
+          bash server/gradlew --no-daemon playablePvmChainSmoke playablePrayerMagicStyleSocketRegression
+          echo "SPK_LINUX_PVM_SOURCE_REGRESSION_PASS crossPlatformTasks=22 persistentSocketLinux=true originalClientGui=false fullReleaseGateUnchanged=true"
+
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 

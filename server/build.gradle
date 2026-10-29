@@ -14852,3 +14852,65 @@ tasks.register('playableWindStrikeAttackLifecycleSmoke', JavaExec) {
 tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeAttackLifecycleSmoke')
 }
+
+
+// P5.30: explicitly opted-in shared basic-attack + Wind Strike
+// one-owner action reservation. Real LocalSession remains default OFF.
+tasks.register('playableSharedPvmMeleeMagicGateSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Cross-style in-flight exclusion, same-tick commit and generation isolation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableSharedPvmMeleeMagicGateTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableSharedPvmMeleeMagicGateSmoke')
+}
+
+
+// P5.31: isolate the historical socket prayer/magic integration test
+// so modern canonical lifecycle refusal is exercised on both platforms.
+tasks.register('playablePrayerMagicStyleSocketRegression', JavaExec) {
+    group = 'verification'
+    description = 'Post-login TCP prayer/style/spell lifecycle refusal and ISAAC alignment.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PrayerMagicStyleRuntimeIntegrationTest')
+}
+
+// P5.31: explicit source-only acceptance lane for P5.16-P5.30
+// target/caster safety, Wind Strike and the canonical melee boundary.
+// Full Linux Gradle build is still a separate, stronger release gate.
+tasks.register('playablePvmChainSmoke') {
+    group = 'verification'
+    description = 'Source-only canonical PvM and Wind Strike admission chain, including shared melee/magic action gating.'
+    dependsOn (
+        tasks.named('playableDeadCasterSpellFenceSmoke'),
+        tasks.named('playableDeadDirectSpellFenceSmoke'),
+        tasks.named('playableMagicTargetPreflightSmoke'),
+        tasks.named('playableCanonicalSpellTargetOwnershipSmoke'),
+        tasks.named('playableTargetedMagicWorldFenceSmoke'),
+        tasks.named('playableCanonicalSpellNpcLeaseSmoke'),
+        tasks.named('playableWindStrikeRuneTransactionSmoke'),
+        tasks.named('playableWindStrikeWorldOwnershipSmoke'),
+        tasks.named('playableWindStrikeNpcPreflightSmoke'),
+        tasks.named('playableWindStrikeNpcSettlementSmoke'),
+        tasks.named('playableWindStrikeCollisionCorridorSmoke'),
+        tasks.named('playableWindStrikeTypedHandlerBridgeSmoke'),
+        tasks.named('playableWindStrikeNativeOpcode131CodecSmoke'),
+        tasks.named('playableWindStrikeLoopbackTcpSmoke'),
+        tasks.named('playableWindStrikeRecoveryCadenceSmoke'),
+        tasks.named('playableWindStrikeAttackLifecycleSmoke'),
+        tasks.named('canonicalNpcAttackClickRegression'),
+        tasks.named('canonicalNpcAttackOwnershipRaceRegression'),
+        tasks.named('canonicalNpcAttackSpatialAtomicityRegression'),
+        tasks.named('playableSharedPvmMeleeMagicGateSmoke'),
+        tasks.named('g1915ClosedWorldDeadNpcRetryVeto'),
+        tasks.named('g1916OpenWorldDeadNpcRetryControl')
+    )
+    doLast {
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=22 originalClientGui=false productionMagicOff=true')
+    }
+}
