@@ -348,7 +348,20 @@ final class LocalLabWindStrikeNpcSettlement {
                             pvmTicket,
                             player.localLabWindStrikeEffectiveRecoveryTicks(
                                 world,expectedGeneration));
+                        // P5.33: only the now committed canonical
+                        // NPC/rune/tick transaction may create evidence.
+                        // Store it on the player so sibling wrappers
+                        // observe the same actual last hit; no XP,
+                        // kill record, loot or automatic finalization.
+                        LocalLabWindStrikeHitWitness evidence=
+                            LocalLabWindStrikeHitWitness
+                                .fromCommittedSettlement(
+                                    world,player,expectedGeneration,
+                                    canonical,npc.registrationIdentity,
+                                    damage);
                         lifecycle.hitCommitted(ticket);
+                        player.recordLocalLabWindStrikeAcceptedHit(
+                            evidence);
 
                         response[0]="LOCAL_LAB_WIND_STRIKE_NPC_SETTLED"+
                             " npc="+id+

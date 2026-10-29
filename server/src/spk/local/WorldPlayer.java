@@ -50,6 +50,12 @@ final class WorldPlayer {
     private World localLabWindStrikeLastWorld;
     private long localLabWindStrikeLastGeneration=-1L;
     private long localLabWindStrikeLastTick=-1L;
+    // P5.33: immutable read-only last source hit, including real
+    // canonical NPC lifecycle identity for lethal observations.
+    // Historical evidence survives retirement for diagnostics but
+    // MUST revalidate current World/player/NPC ownership before use.
+    private LocalLabWindStrikeHitWitness
+        localLabWindStrikeLastAcceptedHit;
     // P5.28 opt-in, source-only recovery policy. One immutable policy
     // per World+player-generation, shared by every settlement wrapper.
     // Defaults to the preexisting one-hit-per-tick behaviour unless
@@ -239,6 +245,28 @@ final class WorldPlayer {
             localLabWindStrikeLastWorld=expectedWorld;
             localLabWindStrikeLastGeneration=generation;
             localLabWindStrikeLastTick=tick;
+        }
+    }
+
+    /**
+     * Publish only after an actual joint Wind Strike transaction
+     * has completed. This intentionally does not mutate PvM records,
+     * rewards or XP. Caller holds source player mutation ownership.
+     */
+    void recordLocalLabWindStrikeAcceptedHit(
+        LocalLabWindStrikeHitWitness witness
+    ){
+        synchronized(mutationLock){
+            localLabWindStrikeLastAcceptedHit=
+                java.util.Objects.requireNonNull(witness,"witness");
+        }
+    }
+
+    /** Historic observation; NOT a grant-authorization by itself. */
+    LocalLabWindStrikeHitWitness
+        lastLocalLabWindStrikeAcceptedHit(){
+        synchronized(mutationLock){
+            return localLabWindStrikeLastAcceptedHit;
         }
     }
 
