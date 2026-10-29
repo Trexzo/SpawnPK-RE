@@ -342,7 +342,12 @@ final class LocalLabWindStrikeNpcSettlement {
                         bank.replaceInventorySemantic(postIds,postQty);
                         player.markLocalLabWindStrikeSettled(
                             world,expectedGeneration,tick);
-                        shared.committed(pvmTicket);
+                        // P5.32: the optional spell recovery policy
+                        // is the source-only cross-style interval.
+                        shared.committed(
+                            pvmTicket,
+                            player.localLabWindStrikeEffectiveRecoveryTicks(
+                                world,expectedGeneration));
                         lifecycle.hitCommitted(ticket);
 
                         response[0]="LOCAL_LAB_WIND_STRIKE_NPC_SETTLED"+
