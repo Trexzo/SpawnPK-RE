@@ -55,6 +55,9 @@ final class LocalLabSharedPvmActionGate {
     private boolean faulted;
     private boolean hasCommittedTick;
     private long lastCommittedTick=-1L;
+    // P5.32: the committing style's *known source-policy* recovery
+    // interval, carried across melee and magic by this opt-in gate.
+    private int lastCommittedRecoveryTicks=1;
 
     /**
      * Caller MUST have verified exact World/player ownership. A new
@@ -75,6 +78,7 @@ final class LocalLabSharedPvmActionGate {
         faulted=false;
         hasCommittedTick=false;
         lastCommittedTick=-1L;
+        lastCommittedRecoveryTicks=1;
     }
 
     synchronized Admission begin(
@@ -99,6 +103,11 @@ final class LocalLabSharedPvmActionGate {
             if(tick==lastCommittedTick)
                 return Admission.blocked(
                     "REJECTED_SHARED_PVM_ACTION_SAME_TICK");
+            // Both ticks are nonnegative and monotonic here.
+            // Avoid adding to lastCommittedTick near Long.MAX_VALUE.
+            if(tick-lastCommittedTick<lastCommittedRecoveryTicks)
+                return Admission.blocked(
+                    "REJECTED_SHARED_PVM_ACTION_RECOVERING");
         }
         Ticket ticket=new Ticket(world,generation,kind,tick);
         active=ticket;
@@ -135,10 +144,23 @@ final class LocalLabSharedPvmActionGate {
         ticket.confirmedPreDamageRejection=true;
     }
 
-    /** Only call when this specific action's HP/state has committed. */
+    /** Compatibility for existing one-tick source fixtures. */
     synchronized void committed(Ticket ticket){
-        if(ticket==null)return;
+        committed(ticket,1);
+    }
+
+    /**
+     * Only after source-side HP/rune semantics commit, record the exact
+     * duration asserted by THAT action's existing LocalLab policy.
+     * Never let a declined or uncertain attack extend the timer.
+     * This is not an original SpawnPK attack interval or animation.
+     */
+    synchronized void committed(Ticket ticket,int recoveryTicks){
+        if(ticket==null)return; // Default OFF, including production.
         requireActive(ticket);
+        if(recoveryTicks<1||recoveryTicks>64)
+            throw new IllegalArgumentException(
+                "P532_INVALID_SHARED_SOURCE_RECOVERY_TICKS");
         if(ticket.committed||ticket.confirmedPreDamageRejection)
             throw new IllegalStateException(
                 "P530_SHARED_PVM_DOUBLE_OR_REJECTED_COMMIT");
@@ -148,6 +170,7 @@ final class LocalLabSharedPvmActionGate {
         ticket.committed=true;
         hasCommittedTick=true;
         lastCommittedTick=ticket.tick;
+        lastCommittedRecoveryTicks=recoveryTicks;
     }
 
     /**
