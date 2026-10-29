@@ -5,13 +5,16 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
 
-/** End-to-end socket certification for v5.10 Prayer/Magic/Combat Style activation. */
+/** End-to-end socket regression for v5.10 Prayer/Magic/Combat Style.
+ * NPC spells must respect later canonical World lifecycle admission.
+ */
 public final class PrayerMagicStyleRuntimeIntegrationTest {
     public static void main(String[] args) throws Exception {
         PrintStream originalOut=System.out;
         ByteArrayOutputStream capturedBytes=new ByteArrayOutputStream();
         PrintStream capture=new PrintStream(new TeeOutputStream(originalOut,capturedBytes),true,"UTF-8");
         System.setOut(capture);
+        try{
         InetAddress loop=InetAddress.getByName("127.0.0.1");
         try(ServerSocket ss=new ServerSocket(0,1,loop)){
             ExecutorService ex=Executors.newSingleThreadExecutor();
@@ -19,6 +22,7 @@ public final class PrayerMagicStyleRuntimeIntegrationTest {
                 try { new LocalSession(ss.accept(),true,true).run(); }
                 catch(IOException e){ throw new RuntimeException(e); }
             });
+            try{
             try(Socket s=new Socket(loop,ss.getLocalPort())){
                 s.setSoTimeout(5000);
                 InputStream in=s.getInputStream(); OutputStream out=s.getOutputStream();
@@ -71,14 +75,16 @@ public final class PrayerMagicStyleRuntimeIntegrationTest {
                 send103(out,c2s,"item 558 5");
                 expectEventuallyVarShort(in,s2c,53);
 
-                // This packet arrives after bootstrap has fully completed. Scene103/def7605 is
-                // present in the exact current WORLD-R7 bootstrap, so successful routing can be
-                // distinguished from an absent-target rejection without inventing spell effects.
+                // Scene103/def7605 is projected by the exact bootstrap,
+                // but it has no live registered canonical NPC lifecycle.
+                // P5.19 admission MUST reject it without inventing hit,
+                // rune cost or server authority. This packet still must
+                // preserve subsequent client ISAAC framing.
                 send131(out,c2s,103,1152);
                 waitForLog(capturedBytes,
-                    "result=TARGET_NPC_VISIBLE def=7605 effect=UNIMPLEMENTED_SERVER_AUTHORITY",
+                    "result=REJECTED_CANONICAL_NPC_NOT_ALIVE magicStateUnchanged=true",
                     3000L,
-                    "spell route completion");
+                    "canonical NPC lifecycle spell refusal");
 
                 // Alignment proof after the spell: toggle the active curse back off and require
                 // the exact config response. If C2S131 were left pending/misaligned, this fails.
@@ -87,15 +93,24 @@ public final class PrayerMagicStyleRuntimeIntegrationTest {
                 require((curseOff[2]&255)==0,"post-spell curse toggle did not publish config83=0");
             }
             try{server.get(2,TimeUnit.SECONDS);}catch(Exception ignored){}
-            ex.shutdownNow();
+            }finally{
+                // The old assertion failed before ex.shutdownNow(),
+                // leaking the session executor and hanging Gradle until
+                // the 30-minute CI timeout. Cleanup must run even when
+                // a native spell/packet assertion fails.
+                server.cancel(true);
+                ex.shutdownNow();
+            }
         }
         capture.flush();
         String logs=capturedBytes.toString("UTF-8");
         require(logs.contains("V510_MAGIC_TARGET SpellTargetRequest{opcode=131,kind=NPC,spell=1152,targetIndex=103"),"continuous-loop spell route log missing");
-        require(logs.contains("validation=ACCEPTED_CLIENT_VISIBLE_REQUIREMENTS spell=Wind strike"),"Wind Strike visible-requirement acceptance missing");
-        require(logs.contains("result=TARGET_NPC_VISIBLE def=7605 effect=UNIMPLEMENTED_SERVER_AUTHORITY"),"visible NPC spell routing result missing");
-        System.setOut(originalOut);
-        System.out.println("V510_PRAYER_MAGIC_STYLE_RUNTIME_INTEGRATION_PASS normalPrayer=5609/varp83 curses=22503/varp83 style=785/varp43=1 spell=1152/C2S131/scene103 acceptedRouter=true postSpellAligned=true");
+        require(logs.contains("result=REJECTED_CANONICAL_NPC_NOT_ALIVE magicStateUnchanged=true"),"unregistered canonical NPC was not rejected");
+        require(!logs.contains("result=TARGET_NPC_VISIBLE def=7605 effect=UNIMPLEMENTED_SERVER_AUTHORITY"),"phantom canonical NPC spell accepted");
+        }finally{
+            System.setOut(originalOut);
+        }
+        System.out.println("V510_PRAYER_MAGIC_STYLE_RUNTIME_INTEGRATION_PASS normalPrayer=5609/varp83 curses=22503/varp83 style=785/varp43=1 spell=1152/C2S131/scene103 canonicalNpcLifecycleMissingDenied=true postSpellAligned=true");
     }
 
     private static void send185(OutputStream out,IsaacCipher c,int widget)throws IOException{
