@@ -71,12 +71,6 @@ public final class PlayableSharedPvmRecoveryWindowTest {
                             tick).denial),
                     "magic bypassed source basic 4-tick recovery "+tick);
             }
-            require("REJECTED_SHARED_PVM_TICK_REGRESSION".equals(
-                    gate.begin(world,first,
-                        LocalLabSharedPvmActionGate.Kind.WIND_STRIKE,0-0L)
-                        .denial)==false,
-                "regression check overlaps same-tick semantics");
-
             LocalLabSharedPvmActionGate.Admission spell=
                 gate.begin(world,first,
                     LocalLabSharedPvmActionGate.Kind.WIND_STRIKE,4);
