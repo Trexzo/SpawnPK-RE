@@ -14907,9 +14907,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('canonicalNpcAttackOwnershipRaceRegression'),
         tasks.named('canonicalNpcAttackSpatialAtomicityRegression'),
         tasks.named('playableSharedPvmMeleeMagicGateSmoke'),
-        tasks.named('playablePrayerMagicStyleSocketRegression')
+        tasks.named('g1915ClosedWorldDeadNpcRetryVeto'),
+        tasks.named('g1916OpenWorldDeadNpcRetryControl')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=21 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=22 originalClientGui=false productionMagicOff=true')
     }
 }
