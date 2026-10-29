@@ -173,6 +173,16 @@ final class LocalLabSharedPvmActionGate {
         return installedWorld==world&&installedGeneration==generation;
     }
 
+    /**
+     * Read-only optimization for the default-OFF canonical click path.
+     * Without an installed policy the historical World-closed gate
+     * must run BEFORE the generation supplier is evaluated.
+     * The actual opt-in generation still gets checked by begin().
+     */
+    synchronized boolean installedForWorld(World world){
+        return installedWorld==world;
+    }
+
     private void requireActive(Ticket ticket){
         if(active!=ticket||
            ticket.world!=installedWorld||
