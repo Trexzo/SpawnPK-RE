@@ -374,6 +374,14 @@ final class LocalCanonicalNpcAttackHandler {
 
                 LocalLabSharedPvmActionGate shared=
                     player.localLabSharedPvmActionGate();
+                // Preserve historical default-OFF ordering: in a
+                // closed World the handler must return WORLD_CLOSED
+                // without reading the session generation supplier.
+                // Real source-opt-in policies still check exact
+                // World+generation in begin() before any damage.
+                if(!shared.installedForWorld(world))
+                    return handleUnderPlayerCadence(
+                        action,clicked,writer,null);
                 LocalLabSharedPvmActionGate.Admission pvm=
                     shared.begin(
                         world,generationSupplier.getAsLong(),
