@@ -1010,8 +1010,11 @@ final class LocalCanonicalNpcAttackHandler {
         // This semantic hit is already committed, before packet-65
         // presentation and lethal finalization can fail. Preserve
         // same-tick cross-style exclusion after output errors.
+        // P5.32: reuse the already derived LocalLab weapon cadence
+        // across styles. A magic spell on the next tick cannot bypass
+        // an active basic attack's recovery when explicitly opted in.
         player.localLabSharedPvmActionGate()
-            .committed(pvmTicket);
+            .committed(pvmTicket,hit.nextAttackDelayTicks);
 
         // Type 1 is explicit LocalLab basic-hit compatibility. It is not a
         // SpawnPK max-hit or original damage-family claim.
