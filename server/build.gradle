@@ -14956,7 +14956,22 @@ tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeRestartReviewFenceSmoke')
 }
 
-// P5.31-P5.36: explicit source-only acceptance lane for P5.16-P5.36
+// P5.37: explicitly prove that successful source kill receipts,
+// replay and restart-review refusal cannot mint XP, inventory
+// items, ground loot or unsolicited packets. Original rewards unknown.
+tasks.register('playableSourceKillRewardSeparationSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Source-only kill receipts never grant XP, items, ground loot or extra packets.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableSourceKillRewardSeparationTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableSourceKillRewardSeparationSmoke')
+}
+
+// P5.31-P5.37: explicit source-only acceptance lane for P5.16-P5.37
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -14989,9 +15004,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('playableWindStrikeLethalWitnessSmoke'),
         tasks.named('playableWindStrikeLethalRecordSmoke'),
         tasks.named('playableWindStrikeSourceDeathCollisionSmoke'),
-        tasks.named('playableWindStrikeRestartReviewFenceSmoke')
+        tasks.named('playableWindStrikeRestartReviewFenceSmoke'),
+        tasks.named('playableSourceKillRewardSeparationSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=27 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=28 originalClientGui=false productionMagicOff=true')
     }
 }
