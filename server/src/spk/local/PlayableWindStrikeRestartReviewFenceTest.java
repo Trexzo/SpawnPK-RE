@@ -246,6 +246,28 @@ public final class PlayableWindStrikeRestartReviewFenceTest {
             require(freshRecords.receiptCount()==0&&
                 freshRecords.snapshot(resumed.owner).kills==3,
                 "corrupt marker produced source positive settlement");
+
+            // A legacy policy may still record its own kill after
+            // the corrupt source marker was loaded. The historical
+            // counter update must NEVER delete the malformed marker
+            // and thus accidentally enable source grants again.
+            PvmRecordService.Receipt oldPolicy=
+                freshRecords.recordIfCurrent(
+                    resumed.owner,resumed.generation,
+                    resumed.npc.id,resumed.world.clock().tick()+1);
+            require(oldPolicy.applied&&oldPolicy.kills==4&&
+                "invalid-proof".equals(
+                    resumed.owner.snapshotExtensions()
+                        .namespace(PvmRecordService.NAMESPACE)
+                        .get(PvmRecordService.SOURCE_RESTART_REVIEW_KEY)),
+                "legacy writer erased corrupted negative source marker");
+            rejected(
+                freshRecords.recordSourceWindStrikeLethalIfCurrent(
+                    restartDeath),
+                "INVALID_SOURCE_RESTART_MARKER");
+            require(freshRecords.receiptCount()==1&&
+                freshRecords.snapshot(resumed.owner).kills==4,
+                "legacy record changed source invalid-marker denial");
         }finally{
             resumed.close();
         }
@@ -258,6 +280,7 @@ public final class PlayableWindStrikeRestartReviewFenceTest {
             " snapshotCodecRetainsSourceReviewMarker=true"+
             " newWorldLoadedCountWithoutProofDenied=true"+
             " corruptedMarkerDenied=true"+
+            " legacyAfterCorruptMarkerPreservesDenial=true"+
             " zeroNewSourceReceiptsOnRestart=true"+
             " noXpLootOrOriginalServerPolicyClaim=true"+
             " trueCrashDurabilityNotProven=true");
