@@ -8,6 +8,14 @@ final class PvmRecordService {
     static final String NAMESPACE=
         "pvm-record";
     static final String VERSION="1";
+    // P5.36 persistent NEGATIVE-ONLY witness: this source-only
+    // history cannot be reconstructed from the ordinary kill counter.
+    // If a snapshot carrying this bit is restored without matching
+    // in-JVM current-session provenance, require manual review.
+    // It is not a durable grant, a receipt or a filesystem save ACK.
+    static final String SOURCE_RESTART_REVIEW_KEY=
+        "source-restart-review-required";
+    static final String SOURCE_RESTART_REVIEW_VALUE="true";
 
     static final class Snapshot {
         final long kills;
@@ -154,6 +162,22 @@ final class PvmRecordService {
         EntityId npcId,
         long deathTick
     ){
+        return recordIfCurrentInternal(
+            player,expectedGeneration,npcId,deathTick,false);
+    }
+
+    /**
+     * Preserve the historical public source API. Only the explicitly
+     * reviewed source path sets the persistent negative-only marker
+     * in the SAME snapshot-extension replacement as the kill count.
+     */
+    private Receipt recordIfCurrentInternal(
+        WorldPlayer player,
+        long expectedGeneration,
+        EntityId npcId,
+        long deathTick,
+        boolean sourceOnly
+    ){
         Objects.requireNonNull(
             player,
             "player"
@@ -245,6 +269,17 @@ final class PvmRecordService {
                             "kills",
                             Long.toString(next)
                         );
+                        // Do not erase existing source negative
+                        // evidence if a legacy NPC policy later
+                        // increments the same normal kill counter.
+                        // A new source grant writes marker+count in
+                        // ONE namespace postimage; no separate update.
+                        if(sourceOnly||
+                           SOURCE_RESTART_REVIEW_VALUE.equals(
+                               current.get(SOURCE_RESTART_REVIEW_KEY)))
+                            replacement.put(
+                                SOURCE_RESTART_REVIEW_KEY,
+                                SOURCE_RESTART_REVIEW_VALUE);
 
                         player.snapshotExtensions()
                             .replaceNamespace(
@@ -411,15 +446,56 @@ final class PvmRecordService {
                                                     "P535_SOURCE_RECEIPT_PROOF_WITHOUT_RECORD");
                                             }
 
+                                            // A snapshot may have
+                                            // been restored after a JVM
+                                            // restart: the persisted
+                                            // counter/negative marker is
+                                            // NOT a retained, durable
+                                            // identity for each NPC death.
+                                            // The current World must
+                                            // have its own SOURCE proof
+                                            // for this exact player and
+                                            // session generation before
+                                            // granting an additional
+                                            // source kill. Existing P5.35
+                                            // same-key collision/replay
+                                            // checks run FIRST above.
+                                            if(prior==null){
+                                                SortedMap<String,String> ext=
+                                                    owner.snapshotExtensions()
+                                                        .namespace(NAMESPACE);
+                                                String marker=ext.get(
+                                                    SOURCE_RESTART_REVIEW_KEY);
+                                                if(marker!=null){
+                                                    if(!SOURCE_RESTART_REVIEW_VALUE
+                                                            .equals(marker)){
+                                                        result[0]=Receipt.rejected(
+                                                            "INVALID_SOURCE_RESTART_MARKER",
+                                                            id,deathTick,0L);
+                                                        return;
+                                                    }
+                                                    if(!sourceProofForOwnerGeneration(
+                                                            owner,witness.generation)){
+                                                        result[0]=Receipt.rejected(
+                                                            "SOURCE_RESTART_REVIEW_REQUIRED",
+                                                            id,deathTick,0L);
+                                                        return;
+                                                    }
+                                                }
+                                            }
+
                                             // Existing idempotent legacy
                                             // mutation remains the ONLY
                                             // counter/receipt writer.
+                                            // A SOURCE mark is included
+                                            // in the same snapshot write.
                                             // All owner, registry and
                                             // lifecycle locks stay held
                                             // during proof+record commit.
-                                            Receipt receipt=recordIfCurrent(
-                                                owner,witness.generation,
-                                                id,deathTick);
+                                            Receipt receipt=
+                                                recordIfCurrentInternal(
+                                                    owner,witness.generation,
+                                                    id,deathTick,true);
                                             if(prior==null){
                                                 if(!receipt.applied){
                                                     if(receipt.replayed)
@@ -459,6 +535,24 @@ final class PvmRecordService {
 
         return Objects.requireNonNull(
             result[0],"P534_SOURCE_KILL_RECORD_MISSING_RESULT");
+    }
+
+    /**
+     * The source companion map is purely in-memory; only records
+     * actually committed in THIS World and exact player generation
+     * count as an active source chain. A restored counter and marker
+     * without companions cannot authorize a post-restart grant.
+     */
+    private boolean sourceProofForOwnerGeneration(
+        WorldPlayer player,long generation
+    ){
+        for(SourceDeathReceipt source:sourceDeathReceipts.values()){
+            if(source.witness.world==world&&
+               source.witness.attacker==player&&
+               source.witness.generation==generation)
+                return true;
+        }
+        return false;
     }
 
     Snapshot snapshot(
