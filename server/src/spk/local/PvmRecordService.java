@@ -274,12 +274,21 @@ final class PvmRecordService {
                         // increments the same normal kill counter.
                         // A new source grant writes marker+count in
                         // ONE namespace postimage; no separate update.
-                        if(sourceOnly||
-                           SOURCE_RESTART_REVIEW_VALUE.equals(
-                               current.get(SOURCE_RESTART_REVIEW_KEY)))
+                        String retainedMarker=current.get(
+                            SOURCE_RESTART_REVIEW_KEY);
+                        if(sourceOnly){
                             replacement.put(
                                 SOURCE_RESTART_REVIEW_KEY,
                                 SOURCE_RESTART_REVIEW_VALUE);
+                        }else if(retainedMarker!=null){
+                            // Preserve even an INVALID marker in the
+                            // legacy writer. Silently deleting corrupt
+                            // negative evidence would let a later
+                            // source grant bypass mandatory review.
+                            replacement.put(
+                                SOURCE_RESTART_REVIEW_KEY,
+                                retainedMarker);
+                        }
 
                         player.snapshotExtensions()
                             .replaceNamespace(
