@@ -14971,7 +14971,21 @@ tasks.named('build') {
     dependsOn tasks.named('playableSourceKillRewardSeparationSmoke')
 }
 
-// P5.31-P5.37: explicit source-only acceptance lane for P5.16-P5.37
+// P5.38: both real canonical mixed-style lethal orders must keep
+// NPC kill attribution and XP/loot separate from source-only hit masks.
+tasks.register('playableMixedStyleLethalRewardBoundarySmoke', JavaExec) {
+    group = 'verification'
+    description = 'Melee then lethal spell, and spell then lethal melee: source last-hit evidence and reward exclusion.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableMixedStyleLethalRewardBoundaryTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableMixedStyleLethalRewardBoundarySmoke')
+}
+
+// P5.31-P5.38: explicit source-only acceptance lane for P5.16-P5.38
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -15005,9 +15019,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('playableWindStrikeLethalRecordSmoke'),
         tasks.named('playableWindStrikeSourceDeathCollisionSmoke'),
         tasks.named('playableWindStrikeRestartReviewFenceSmoke'),
-        tasks.named('playableSourceKillRewardSeparationSmoke')
+        tasks.named('playableSourceKillRewardSeparationSmoke'),
+        tasks.named('playableMixedStyleLethalRewardBoundarySmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=28 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=29 originalClientGui=false productionMagicOff=true')
     }
 }
