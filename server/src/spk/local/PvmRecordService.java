@@ -271,6 +271,125 @@ final class PvmRecordService {
         return committed;
     }
 
+    /**
+     * P5.34 EXPLICIT source-only, post-settlement LocalLab transition.
+     * Never called by normal LocalSession or the Wind Strike handler.
+     *
+     * Unlike the historical recordIfCurrent(player,generation,id,tick),
+     * this requires an actual P5.33 committed lethal-hit object. The
+     * *same* current World/player/NPC/lifecycle locks cover the final
+     * witness check and the existing record mutation, closing the
+     * read-only-check -> independent-record time-of-check gap.
+     *
+     * Existing in-JVM recordIfCurrent remains the only kill-counter
+     * mutation primitive. No loot/XP is published; no disk transaction.
+     */
+    synchronized Receipt recordSourceWindStrikeLethalIfCurrent(
+        LocalLabWindStrikeHitWitness witness
+    ){
+        Objects.requireNonNull(witness,"witness");
+        EntityId id=witness.npcId;
+        long deathTick=witness.deathTick;
+
+        if(witness.world!=world)
+            return Receipt.rejected(
+                "FOREIGN_WORLD",id,deathTick,0L);
+        if(!witness.newlyDied||
+           witness.appliedDamage!=
+               LocalLabWindStrikeNpcSettlement.DAMAGE||
+           witness.hitpointsAfter!=0||
+           deathTick<0L||
+           witness.worldTick!=deathTick)
+            return Receipt.rejected(
+                "NOT_COMMITTED_LETHAL_SOURCE_HIT",
+                id,deathTick,0L);
+
+        final WorldPlayer owner=witness.attacker;
+        final Receipt[] result={null};
+        try{
+            boolean accepted=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    owner,witness.generation,()->{
+                        // Merely retaining a historical immutable
+                        // witness is insufficient. This exact object
+                        // must still be the player-owned LAST
+                        // successfully committed source hit.
+                        if(owner.lastLocalLabWindStrikeAcceptedHit()
+                                !=witness){
+                            result[0]=Receipt.rejected(
+                                "NOT_CURRENT_SOURCE_HIT",
+                                id,deathTick,0L);
+                            return;
+                        }
+
+                        WorldNpc npc=world.npcs().byId(id);
+                        if(npc==null||
+                           npc.definitionId!=witness.npcDefinitionId){
+                            result[0]=Receipt.rejected(
+                                "STALE_CANONICAL_NPC",
+                                id,deathTick,0L);
+                            return;
+                        }
+
+                        boolean npcOwned=
+                            world.npcs()
+                                .withCurrentMutationOwnershipIfCurrent(
+                                    npc,()->{
+                                        synchronized(world.npcLifecycle()){
+                                            NpcLifecycleService.Snapshot now=
+                                                world.npcLifecycle().get(id);
+                                            if(now==null||!now.dead()||
+                                               now.hitpoints!=0||
+                                               now.definitionId!=
+                                                   witness.npcDefinitionId||
+                                               now.registrationIdentity!=
+                                                   witness.npcRegistrationIdentity||
+                                               now.deathTick!=deathTick){
+                                                result[0]=Receipt.rejected(
+                                                    "STALE_NPC_DEATH_REGISTRATION",
+                                                    id,deathTick,0L);
+                                                return;
+                                            }
+
+                                            // All locks remain held while
+                                            // the unchanged legacy record
+                                            // primitive appends to the
+                                            // in-JVM receipt ledger and
+                                            // player snapshot namespace.
+                                            // Reentrant monitors retain
+                                            // one atomic critical section
+                                            // against NPC registration
+                                            // ABA and player logout.
+                                            result[0]=recordIfCurrent(
+                                                owner,witness.generation,
+                                                id,deathTick);
+                                        }
+                                    }
+                                );
+
+                        if(!npcOwned)
+                            result[0]=Receipt.rejected(
+                                "STALE_CANONICAL_NPC",
+                                id,deathTick,0L);
+                    }
+                );
+
+            if(!accepted)
+                return Receipt.rejected(
+                    "STALE_PLAYER_GENERATION",
+                    id,deathTick,0L);
+        }catch(Exception failure){
+            // A failure could have followed a semantic record write.
+            // Do not mislabel an UNKNOWN outcome as retryable.
+            throw new IllegalStateException(
+                "P534_SOURCE_KILL_RECORD_OUTCOME_UNCERTAIN",
+                failure);
+        }
+
+        return Objects.requireNonNull(
+            result[0],"P534_SOURCE_KILL_RECORD_MISSING_RESULT");
+    }
+
     Snapshot snapshot(
         WorldPlayer player
     ){
