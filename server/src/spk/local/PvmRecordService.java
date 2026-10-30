@@ -119,6 +119,27 @@ final class PvmRecordService {
     private final LinkedHashMap<KillIdentity,Receipt>
         receipts=new LinkedHashMap<>();
 
+    /**
+     * P5.35: source-ONLY in-memory companion proof for records that
+     * passed the P5.34 Wind Strike lethal witness admission. The
+     * legacy receipt key is deliberately UNCHANGED. The same NPC ID
+     * and World tick may correspond to a different NPC registration
+     * (ABA); in that case REJECT, never call it a valid replay or
+     * award again. No persisted durable registration identity.
+     */
+    private static final class SourceDeathReceipt {
+        final Object registrationIdentity;
+        final LocalLabWindStrikeHitWitness witness;
+
+        SourceDeathReceipt(LocalLabWindStrikeHitWitness witness){
+            this.witness=Objects.requireNonNull(witness,"witness");
+            this.registrationIdentity=witness.npcRegistrationIdentity;
+        }
+    }
+
+    private final LinkedHashMap<KillIdentity,SourceDeathReceipt>
+        sourceDeathReceipts=new LinkedHashMap<>();
+
     PvmRecordService(World world){
         this.world=
             Objects.requireNonNull(
@@ -351,18 +372,68 @@ final class PvmRecordService {
                                                 return;
                                             }
 
-                                            // All locks remain held while
-                                            // the unchanged legacy record
-                                            // primitive appends to the
-                                            // in-JVM receipt ledger and
-                                            // player snapshot namespace.
-                                            // Reentrant monitors retain
-                                            // one atomic critical section
-                                            // against NPC registration
-                                            // ABA and player logout.
-                                            result[0]=recordIfCurrent(
+                                            // The legacy map is keyed
+                                            // only by NPC ID+death tick.
+                                            // A genuine *new* NPC life
+                                            // can die on the SAME tick,
+                                            // especially after forced
+                                            // re-registration. Its old
+                                            // receipt is NOT a replay
+                                            // of this new hit.
+                                            KillIdentity key=
+                                                new KillIdentity(id,deathTick);
+                                            Receipt prior=receipts.get(key);
+                                            SourceDeathReceipt proof=
+                                                sourceDeathReceipts.get(key);
+
+                                            if(prior!=null){
+                                                if(proof==null){
+                                                    result[0]=Receipt.rejected(
+                                                        "SOURCE_DEATH_RECEIPT_UNATTRIBUTED",
+                                                        id,deathTick,prior.kills);
+                                                    return;
+                                                }
+                                                if(proof.registrationIdentity!=
+                                                        witness.npcRegistrationIdentity){
+                                                    result[0]=Receipt.rejected(
+                                                        "SOURCE_DEATH_LIFETIME_COLLISION",
+                                                        id,deathTick,prior.kills);
+                                                    return;
+                                                }
+                                                if(proof.witness!=witness){
+                                                    result[0]=Receipt.rejected(
+                                                        "SOURCE_DEATH_WITNESS_COLLISION",
+                                                        id,deathTick,prior.kills);
+                                                    return;
+                                                }
+                                            }else if(proof!=null){
+                                                throw new IllegalStateException(
+                                                    "P535_SOURCE_RECEIPT_PROOF_WITHOUT_RECORD");
+                                            }
+
+                                            // Existing idempotent legacy
+                                            // mutation remains the ONLY
+                                            // counter/receipt writer.
+                                            // All owner, registry and
+                                            // lifecycle locks stay held
+                                            // during proof+record commit.
+                                            Receipt receipt=recordIfCurrent(
                                                 owner,witness.generation,
                                                 id,deathTick);
+                                            if(prior==null){
+                                                if(!receipt.applied){
+                                                    if(receipt.replayed)
+                                                        throw new IllegalStateException(
+                                                            "P535_UNEXPECTED_SOURCE_REPLAY_WITHOUT_PROOF");
+                                                }else{
+                                                    sourceDeathReceipts.put(
+                                                        key,new SourceDeathReceipt(witness));
+                                                }
+                                            }else if(!receipt.replayed){
+                                                throw new IllegalStateException(
+                                                    "P535_MATCHED_PROOF_BUT_NOT_REPLAY");
+                                            }
+                                            result[0]=receipt;
                                         }
                                     }
                                 );
