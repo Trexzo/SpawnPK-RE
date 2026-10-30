@@ -14912,7 +14912,22 @@ tasks.named('build') {
     dependsOn tasks.named('playableWindStrikeLethalWitnessSmoke')
 }
 
-// P5.31-P5.33: explicit source-only acceptance lane for P5.16-P5.33
+
+// P5.34: explicit source-only lethal Wind Strike evidence transition
+// into the existing in-JVM PvM record. This does NOT award XP/loot.
+tasks.register('playableWindStrikeLethalRecordSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Lethal source hit grants one PvM record only with current NPC life and WorldPlayer ownership.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWindStrikeLethalRecordTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWindStrikeLethalRecordSmoke')
+}
+
+// P5.31-P5.34: explicit source-only acceptance lane for P5.16-P5.34
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -14942,9 +14957,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('g1915ClosedWorldDeadNpcRetryVeto'),
         tasks.named('g1916OpenWorldDeadNpcRetryControl'),
         tasks.named('playableSharedPvmRecoveryWindowSmoke'),
-        tasks.named('playableWindStrikeLethalWitnessSmoke')
+        tasks.named('playableWindStrikeLethalWitnessSmoke'),
+        tasks.named('playableWindStrikeLethalRecordSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=24 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=25 originalClientGui=false productionMagicOff=true')
     }
 }
