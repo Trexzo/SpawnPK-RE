@@ -179,8 +179,10 @@ public final class PlayableSourceWorldPreMoveRaceTest {
                         "unverifiable source directory incorrectly admitted "+
                         rejected);
                 }
-                require(!Files.exists(accountFile),
-                    "World published image despite unsafe ancestry");
+                require(!Files.exists(accountFile)&&
+                    callbackCount.get()==0&&pending.get()==null,
+                    "unsafe ancestry reached publication hook or "+
+                    "published an account image");
                 System.out.println(
                     "P547_SOURCE_WORLD_PREMOVE_ANCESTRY_NEGATIVE_PASS"+
                     " requiredDirectoryFileKeyUnavailable=true"+
