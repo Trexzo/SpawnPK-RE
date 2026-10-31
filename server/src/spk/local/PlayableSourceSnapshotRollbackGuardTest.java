@@ -187,7 +187,7 @@ public final class PlayableSourceSnapshotRollbackGuardTest {
         throws Exception{
         World world=World.isolatedForTest(600L);
         WorldNpc npc=null;
-        Actor original=null,rolledBack=null,racedCopy=null;
+        Actor original=null,rolledBack=null,racedCopy=null,unrelated=null;
         long renamedGeneration=-1L;
         String account="p545-rollback-"+round;
         try{
@@ -326,7 +326,42 @@ public final class PlayableSourceSnapshotRollbackGuardTest {
                 rolledBack.packets.bytes()==0&&
                 racedCopy.packets.bytes()==0,
                 "record or snapshot wrote unexpected gameplay packets");
+
+            // Negative control: this guard is account-scoped, NOT a
+            // blanket World-wide ban. Another newly registered real
+            // player with a different canonical username must still
+            // be eligible for its FIRST legitimate source receipt.
+            world.clock().advance();
+            check(world.npcLifecycle().unregisterExact(npc),
+                "third NPC life failed retirement for unrelated account");
+            NpcLifecycleService.Snapshot life4=
+                world.npcLifecycle().register(
+                    npc,1,"CUSTOM_LOCALLAB_P545_OTHER_ACCOUNT_LIFE");
+            unrelated=new Actor(
+                world,npc,"p545-unrelated-"+round,null);
+            unrelated.seedRunes(2);
+            int[] unrelatedXp=unrelated.xp();
+            LocalLabWindStrikeHitWitness fourth=
+                unrelated.lethal(
+                    world,npc,life4.registrationIdentity);
+            PvmRecordService.Receipt other=
+                records.recordSourceWindStrikeLethalIfCurrent(fourth);
+            check(other.applied&&!other.replayed&&
+                other.kills==1&&
+                records.recordSourceWindStrikeLethalIfCurrent(fourth)
+                    .replayed&&
+                records.receiptCount()==2&&
+                records.snapshot(unrelated.player).kills==1&&
+                records.snapshot(racedCopy.player).kills==
+                    kills(observed)&&
+                records.snapshot(original.player).kills==1,
+                "unrelated account's first real source record was blocked");
+            unrelated.noExtraRewards(
+                unrelatedXp,"unrelated account first source receipt");
+            check(world.groundItems().snapshot().isEmpty(),
+                "unrelated source grant added phantom ground loot");
         }finally{
+            if(unrelated!=null)unrelated.close(world);
             if(racedCopy!=null)racedCopy.close(world);
             if(rolledBack!=null)rolledBack.close(world);
             if(original!=null){
@@ -358,6 +393,7 @@ public final class PlayableSourceSnapshotRollbackGuardTest {
             " deterministicMissingMarkerRestoreDenied=true"+
             " sourceAccountNameFrozenAcrossWorldPlayerRename=true"+
             " concurrentPreOrPostCreditRestoreSafelyDenied=true"+
+            " unrelatedAccountFirstSourceReceiptStillAllowed=true"+
             " sourceReceiptCountNeverDuplicated=true"+
             " noUnreviewedCombatXpLootOrPackets=true"+
             " onDiskCrashDurabilityAndCrossJvmLeaseUnproven=true");
