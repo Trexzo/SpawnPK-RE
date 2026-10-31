@@ -15111,7 +15111,21 @@ tasks.named('build') {
     dependsOn tasks.named('playableSourceWorldPreMoveRaceSmoke')
 }
 
-// P5.31-P5.47: explicit source-only acceptance lane for P5.16-P5.47
+// P5.48: malformed persisted source marker must not be
+// preserved/replaced by an apparently successful World account save.
+tasks.register('playableSourceInvalidDiskMarkerGuardSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Malformed existing source marker and count are negative-only World file publication vetoes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableSourceInvalidDiskMarkerGuardTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableSourceInvalidDiskMarkerGuardSmoke')
+}
+
+// P5.31-P5.48: explicit source-only acceptance lane for P5.16-P5.48
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -15155,9 +15169,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('playableConcurrentReconnectOwnershipSmoke'),
         tasks.named('playableSourceSnapshotRollbackGuardSmoke'),
         tasks.named('playableSourceWorldFileMonotonicGuardSmoke'),
-        tasks.named('playableSourceWorldPreMoveRaceSmoke')
+        tasks.named('playableSourceWorldPreMoveRaceSmoke'),
+        tasks.named('playableSourceInvalidDiskMarkerGuardSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=38 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=39 originalClientGui=false productionMagicOff=true')
     }
 }
