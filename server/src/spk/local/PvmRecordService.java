@@ -138,11 +138,43 @@ final class PvmRecordService {
     private static final class SourceDeathReceipt {
         final Object registrationIdentity;
         final LocalLabWindStrikeHitWitness witness;
+        // P5.45: freeze the canonical account name when the source
+        // receipt is committed. WorldPlayer.username is mutable
+        // across later deregistration and registration generations.
+        // This in-JVM provenance is NOT an account-wide disk lease.
+        final String accountName;
 
         SourceDeathReceipt(LocalLabWindStrikeHitWitness witness){
             this.witness=Objects.requireNonNull(witness,"witness");
             this.registrationIdentity=witness.npcRegistrationIdentity;
+            this.accountName=canonicalSourceAccountName(
+                witness.attacker.username());
         }
+    }
+
+    private static String canonicalSourceAccountName(String name){
+        if(name==null||name.trim().isEmpty())
+            throw new IllegalStateException(
+                "P545_MISSING_SOURCE_ACCOUNT_IDENTITY");
+        return name.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * A prior source receipt in THIS World proves that a previous
+     * source-only snapshot write included the negative review marker.
+     * If a subsequently loaded/rolled-back account snapshot omits
+     * it, do not silently reinterpret that account as a first-ever
+     * source kill. This check does not replace durable persistence.
+     *
+     * Only already committed source receipts count here: a failed
+     * or legacy-only record cannot invent a source-history marker.
+     */
+    private boolean sourceReceiptExistsForAccount(String username){
+        String key=canonicalSourceAccountName(username);
+        for(SourceDeathReceipt source:sourceDeathReceipts.values())
+            if(key.equals(source.accountName))
+                return true;
+        return false;
     }
 
     private final LinkedHashMap<KillIdentity,SourceDeathReceipt>
@@ -475,6 +507,21 @@ final class PvmRecordService {
                                                         .namespace(NAMESPACE);
                                                 String marker=ext.get(
                                                     SOURCE_RESTART_REVIEW_KEY);
+                                                if(marker==null&&
+                                                   sourceReceiptExistsForAccount(
+                                                       owner.username())){
+                                                    // A concurrent snapshot
+                                                    // capture can precede
+                                                    // this World's applied
+                                                    // source receipt. Restoring
+                                                    // that stale snapshot
+                                                    // must NOT erase existing
+                                                    // source account history.
+                                                    result[0]=Receipt.rejected(
+                                                        "SOURCE_ACCOUNT_SNAPSHOT_ROLLBACK",
+                                                        id,deathTick,0L);
+                                                    return;
+                                                }
                                                 if(marker!=null){
                                                     if(!SOURCE_RESTART_REVIEW_VALUE
                                                             .equals(marker)){
