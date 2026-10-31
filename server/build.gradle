@@ -15027,7 +15027,21 @@ tasks.named('build') {
     dependsOn tasks.named('playableConcurrentLethalSingleWinnerSmoke')
 }
 
-// P5.31-P5.41: explicit source-only acceptance lane for P5.16-P5.41
+// P5.42: exact source kill records must serialize with both NPC
+// registration retirement and player generation retirement.
+tasks.register('playableConcurrentSourceReceiptRetirementSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Two-thread source kill receipt vs duplicate/retired NPC life/retired WorldPlayer ownership.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableConcurrentSourceReceiptRetirementTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableConcurrentSourceReceiptRetirementSmoke')
+}
+
+// P5.31-P5.42: explicit source-only acceptance lane for P5.16-P5.42
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -15065,9 +15079,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('playableMixedStyleLethalRewardBoundarySmoke'),
         tasks.named('playableMultiPlayerLethalSourceOwnershipSmoke'),
         tasks.named('playableCrossPlayerNpcLifeCollisionSmoke'),
-        tasks.named('playableConcurrentLethalSingleWinnerSmoke')
+        tasks.named('playableConcurrentLethalSingleWinnerSmoke'),
+        tasks.named('playableConcurrentSourceReceiptRetirementSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=32 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=33 originalClientGui=false productionMagicOff=true')
     }
 }
