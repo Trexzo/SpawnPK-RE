@@ -4,6 +4,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.LinkOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Optional;
@@ -137,6 +139,27 @@ public final class PlayableSourceWorldFileMonotonicGuardTest {
         }
     }
 
+    /**
+     * G21.171 requires a non-null directory fileKey on EVERY selected
+     * account ancestor. Some Windows Java filesystem providers return
+     * null even for ordinary real directories. Do not claim positive
+     * World-save acceptance on a provider that cannot prove ancestry;
+     * assert its existing fail-closed refusal without weakening it.
+     */
+    private static boolean lacksRequiredDirectoryFileKey(
+        Path selectedAccount
+    )throws IOException{
+        for(Path directory=selectedAccount.getParent();
+                directory!=null;directory=directory.getParent()){
+            BasicFileAttributes attrs=Files.readAttributes(
+                directory,BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+            if(attrs.fileKey()==null)
+                return true;
+        }
+        return false;
+    }
+
     private static String marker(PlayerSnapshot snapshot){
         return snapshot.value(
             "extension."+PvmRecordService.NAMESPACE+"."+
@@ -213,6 +236,33 @@ public final class PlayableSourceWorldFileMonotonicGuardTest {
                 PvmRecordService.SOURCE_RESTART_REVIEW_VALUE
                     .equals(marker(one)),
                 "first real source receipt lacked negative account mark");
+            if(lacksRequiredDirectoryFileKey(accountFile)){
+                // Capability-negative Windows/other-provider lane.
+                // Exercise the REAL World save and require strict
+                // G21.171 denial with no account postimage at all.
+                // Linux/fileKey-capable providers still run every
+                // positive two-kill publication scenario below.
+                try{
+                    repository.saveForWorld(one);
+                    throw new AssertionError(
+                        "P546 World save bypassed absent ancestor fileKey");
+                }catch(IOException unsupported){
+                    check(unsupported.toString().contains(
+                            "G21.171 WORLD_TEMP_ANCESTRY_UNSAFE_NO_AUTHORITY"),
+                        "unverifiable directory allowed different failure "+
+                            unsupported);
+                }
+                check(!Files.exists(accountFile),
+                    "unverifiable ancestor still published account image");
+                System.out.println(
+                    "P546_WORLD_SOURCE_FILE_ANCESTRY_NEGATIVE_PASS"+
+                    " requiredDirectoryFileKeyUnavailable=true"+
+                    " actualWorldSaveRefusedG21171=true"+
+                    " noAccountPostimagePublished=true"+
+                    " noPositiveWorldSaveCertificationOnThisProvider=true");
+                return;
+            }
+
             repository.saveForWorld(one);
             checkDisk(repository,account,1L);
 
