@@ -15097,7 +15097,21 @@ tasks.named('build') {
     dependsOn tasks.named('playableSourceWorldFileMonotonicGuardSmoke')
 }
 
-// P5.31-P5.46: explicit source-only acceptance lane for P5.16-P5.46
+// P5.47: force a newer source account postimage to appear
+// at the existing G21.39 pre-ATOMIC_MOVE World publication cutpoint.
+tasks.register('playableSourceWorldPreMoveRaceSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Late World save pre-move source marker/count drift is vetoed without replacing injected newer account bytes.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableSourceWorldPreMoveRaceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableSourceWorldPreMoveRaceSmoke')
+}
+
+// P5.31-P5.47: explicit source-only acceptance lane for P5.16-P5.47
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -15140,9 +15154,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('playableReconnectSourceProofFenceSmoke'),
         tasks.named('playableConcurrentReconnectOwnershipSmoke'),
         tasks.named('playableSourceSnapshotRollbackGuardSmoke'),
-        tasks.named('playableSourceWorldFileMonotonicGuardSmoke')
+        tasks.named('playableSourceWorldFileMonotonicGuardSmoke'),
+        tasks.named('playableSourceWorldPreMoveRaceSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=37 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=38 originalClientGui=false productionMagicOff=true')
     }
 }
