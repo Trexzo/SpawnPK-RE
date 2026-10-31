@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.LinkOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Properties;
@@ -31,6 +33,19 @@ public final class PlayableSourceWorldPreMoveRaceTest {
     private static void require(boolean yes,String why){
         if(!yes)throw new AssertionError(
             "P547_SOURCE_WORLD_PREMOVE "+why);
+    }
+
+    private static boolean lacksRequiredDirectoryFileKey(
+        Path selectedAccount
+    )throws IOException{
+        for(Path directory=selectedAccount.getParent();
+                directory!=null;directory=directory.getParent()){
+            BasicFileAttributes attributes=Files.readAttributes(
+                directory,BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+            if(attributes.fileKey()==null)return true;
+        }
+        return false;
     }
 
     private static PlayerSnapshot snapshot(
@@ -149,6 +164,31 @@ public final class PlayableSourceWorldPreMoveRaceTest {
         PlayerSnapshot invalidMarker=snapshot(name,"2","invalid-marker");
         PlayerSnapshot invalidCount=snapshot(name,"not-a-number",valid);
         try{
+            if(lacksRequiredDirectoryFileKey(accountFile)){
+                // The G21.171 production refusal is the only valid
+                // result if this filesystem cannot prove normal
+                // directory identity. Do not silently bypass it, and
+                // do not claim that the injected positive races ran.
+                try{
+                    ordinary.saveForWorld(empty);
+                    throw new AssertionError(
+                        "World publication bypassed absent ancestor fileKey");
+                }catch(IOException rejected){
+                    require(rejected.toString().contains(
+                            "G21.171 WORLD_TEMP_ANCESTRY_UNSAFE_NO_AUTHORITY"),
+                        "unverifiable source directory incorrectly admitted "+
+                        rejected);
+                }
+                require(!Files.exists(accountFile),
+                    "World published image despite unsafe ancestry");
+                System.out.println(
+                    "P547_SOURCE_WORLD_PREMOVE_ANCESTRY_NEGATIVE_PASS"+
+                    " requiredDirectoryFileKeyUnavailable=true"+
+                    " actualWorldSaveRefusedG21171=true"+
+                    " noAccountPostimagePublished=true"+
+                    " positiveCutpointRacesNotCertifiedOnThisProvider=true");
+                return;
+            }
             ordinary.saveForWorld(empty);
             require(ordinary.load(name).isPresent(),
                 "initial source-free World image not persisted");
