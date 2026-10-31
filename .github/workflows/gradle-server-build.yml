@@ -49,7 +49,7 @@ jobs:
           # available. Windows must still fail closed on unsupported
           # account filesystem providers.
           bash server/gradlew --no-daemon playablePvmChainSmoke playablePrayerMagicStyleSocketRegression
-          echo "SPK_LINUX_PVM_SOURCE_REGRESSION_PASS crossPlatformTasks=36 persistentSocketLinux=true originalClientGui=false fullReleaseGateUnchanged=true"
+          echo "SPK_LINUX_PVM_SOURCE_REGRESSION_PASS crossPlatformTasks=37 persistentSocketLinux=true originalClientGui=false fullReleaseGateUnchanged=true"
 
   build:
     runs-on: ubuntu-latest
