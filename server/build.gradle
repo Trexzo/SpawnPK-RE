@@ -15013,7 +15013,21 @@ tasks.named('build') {
     dependsOn tasks.named('playableCrossPlayerNpcLifeCollisionSmoke')
 }
 
-// P5.31-P5.40: explicit source-only acceptance lane for P5.16-P5.40
+// P5.41: actual two-thread canonical PvM last-hit contention must
+// admit only one death, retaining the exact winning source owner.
+tasks.register('playableConcurrentLethalSingleWinnerSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Two-thread melee/spell and spell/spell races: single canonical NPC death and owner-bound record.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableConcurrentLethalSingleWinnerTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableConcurrentLethalSingleWinnerSmoke')
+}
+
+// P5.31-P5.41: explicit source-only acceptance lane for P5.16-P5.41
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -15050,9 +15064,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('playableSourceKillRewardSeparationSmoke'),
         tasks.named('playableMixedStyleLethalRewardBoundarySmoke'),
         tasks.named('playableMultiPlayerLethalSourceOwnershipSmoke'),
-        tasks.named('playableCrossPlayerNpcLifeCollisionSmoke')
+        tasks.named('playableCrossPlayerNpcLifeCollisionSmoke'),
+        tasks.named('playableConcurrentLethalSingleWinnerSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=31 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=32 originalClientGui=false productionMagicOff=true')
     }
 }
