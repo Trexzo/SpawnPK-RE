@@ -180,7 +180,14 @@ public final class PlayableSourceWorldFileMonotonicGuardTest {
 
     public static void main(String[] args)throws Exception{
         check(args.length==0,"unexpected arguments");
+        // The default Windows runner TEMP path may include a
+        // redirected short-name junction (RUNNER~1). World saves
+        // correctly fail G21.171 on that unsafe ancestor. Allocate
+        // the fixture under Gradle's actual repository working dir
+        // instead; NEVER weaken the production NOFOLLOW ancestry gate.
         Path temp=Files.createTempDirectory(
+            Path.of(System.getProperty("user.dir"))
+                .toAbsolutePath().normalize(),
             "spk-p546-source-monotonic-");
         String account="p546-world-source-account";
         Path accountFile=temp.resolve(account+".properties");
