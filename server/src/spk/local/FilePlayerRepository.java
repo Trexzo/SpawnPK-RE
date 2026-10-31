@@ -1528,6 +1528,17 @@ final class FilePlayerRepository
         String oldMarker=previous.get().value(markerKey);
         if(oldMarker==null)return;
 
+        // P5.48: a persisted malformed source marker is negative
+        // evidence, never a trusted baseline to carry forward.
+        // Even an identically malformed candidate cannot normalize
+        // or bless it through an ordinary World save. Require
+        // explicit review; do not edit or discard existing bytes.
+        if(!PvmRecordService.SOURCE_RESTART_REVIEW_VALUE
+                .equals(oldMarker))
+            throw new IOException(
+                "P548_WORLD_SAVE_SOURCE_EXISTING_MARKER_INVALID_NO_MOVE"+
+                " account="+username);
+
         String nextMarker=offered.value(markerKey);
         if(!oldMarker.equals(nextMarker))
             throw new IOException(
