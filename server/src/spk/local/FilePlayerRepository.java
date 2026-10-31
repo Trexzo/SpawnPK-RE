@@ -1500,6 +1500,63 @@ final class FilePlayerRepository
     }
 
     /**
+     * P5.46 source-only negative file postimage admission.
+     *
+     * A World-owned snapshot captured BEFORE an explicit source kill
+     * receipt may be queued and offered for publication AFTER the
+     * account file has already recorded the receipt's durable-negative
+     * review marker and larger numeric kill counter. Such a snapshot
+     * cannot replace that newer on-disk negative state.
+     *
+     * Call under the existing cooperating G21.39 publication lock,
+     * immediately before its ATOMIC_MOVE. This is NOT a durable
+     * receipt/FSYNC, an exclusion of uncooperative RAW writers, or a
+     * cross-JVM owner epoch.
+     */
+    private void requireNoSourceRecordPostimageRegression(
+        String username,Path file,PlayerSnapshot offered
+    )throws IOException{
+        Optional<PlayerSnapshot> previous=loadExactFile(
+            username,file,true,null,
+            RESTART_WITNESS_MAX_ACCOUNT_BYTES);
+        if(!previous.isPresent())return;
+
+        String prefix=
+            "extension."+PvmRecordService.NAMESPACE+".";
+        String markerKey=prefix+
+            PvmRecordService.SOURCE_RESTART_REVIEW_KEY;
+        String oldMarker=previous.get().value(markerKey);
+        if(oldMarker==null)return;
+
+        String nextMarker=offered.value(markerKey);
+        if(!oldMarker.equals(nextMarker))
+            throw new IOException(
+                "P546_WORLD_SAVE_SOURCE_MARKER_REGRESSION_NO_MOVE"+
+                " account="+username);
+
+        String countKey=prefix+"kills";
+        final long prior;
+        final long incoming;
+        try{
+            String priorRaw=previous.get().value(countKey);
+            String incomingRaw=offered.value(countKey);
+            if(priorRaw==null||incomingRaw==null)
+                throw new NumberFormatException(
+                    "source-marked kill counter absent");
+            prior=Long.parseLong(priorRaw);
+            incoming=Long.parseLong(incomingRaw);
+        }catch(NumberFormatException invalid){
+            throw new IOException(
+                "P546_WORLD_SAVE_SOURCE_COUNT_UNPROVEN_NO_MOVE"+
+                " account="+username,invalid);
+        }
+        if(prior<0L||incoming<prior)
+            throw new IOException(
+                "P546_WORLD_SAVE_SOURCE_COUNT_REGRESSION_NO_MOVE"+
+                " account="+username);
+    }
+
+    /**
      * Only the production WorldPlayerPersistence normal save path uses
      * this guarded entry point. Legacy/manual/forensic direct save() is
      * intentionally unchanged and MUST NOT be used as an admitted World
@@ -1827,6 +1884,14 @@ final class FilePlayerRepository
                             LocalFinalSaveNegativeWitness
                                 .requireSingleObservedLink(tmp,
                                     "G21.367 WORLD_TEMP_ALIAS_PREMOVE_NEGATIVE");
+                        // P5.46: while holding the same cooperative
+                        // account publication lock, refuse an older
+                        // World snapshot that would erase a retained
+                        // source receipt's negative marker/count.
+                        // This is a pre-rename veto, NOT proof that
+                        // an uncooperative RAW writer cannot race us.
+                        requireNoSourceRecordPostimageRegression(
+                            worldAccount,file,snapshot);
                         // R110: a nonparticipating writer can create
                         // detached LAB evidence INSIDE the guarded
                         // publication callback, after R109's earlier
