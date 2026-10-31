@@ -77,7 +77,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "WINDOWS_PVM_SOURCE_REGRESSION_FAILED exitCode=$LASTEXITCODE"
           }
-          Write-Host "SPK_WINDOWS_PVM_SOURCE_REGRESSION_PASS tasks=39 defaultLocalSessionStillOff=true originalClientGui=false"
+          Write-Host "SPK_WINDOWS_PVM_SOURCE_REGRESSION_PASS tasks=40 defaultLocalSessionStillOff=true originalClientGui=false"
+
+      - name: Record G21.171 World ancestry provider identity (negative is not positive)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./server/gradlew.bat --no-daemon playableWorldAncestryProviderEvidenceSmoke | Tee-Object -FilePath windows-world-ancestry-full-log.txt
+          if ($LASTEXITCODE -ne 0) {
+            throw "WINDOWS_WORLD_ANCESTRY_PROVIDER_EVIDENCE_FAILED exitCode=$LASTEXITCODE"
+          }
+          $evidence = @(Get-Content windows-world-ancestry-full-log.txt | Where-Object { $_ -match 'P549_' })
+          if (-not ($evidence | Where-Object { $_ -match 'P549_WORLD_ANCESTRY_EVIDENCE_PASS' })) {
+            throw "WINDOWS_WORLD_ANCESTRY_PROVIDER_REPORT_MISSING"
+          }
+          $evidence | Set-Content -Path windows-world-ancestry-evidence.txt
+          Write-Host "SPK_WINDOWS_WORLD_ANCESTRY_EVIDENCE_RECORDED positiveAndNegativeOutcomesSeparated=true"
 
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
@@ -109,6 +124,15 @@ jobs:
         with:
           name: windows-negative-release-boundary
           path: windows-source-release-boundary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload World ancestry provider identity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-world-ancestry-provider-evidence
+          path: windows-world-ancestry-evidence.txt
           if-no-files-found: warn
           retention-days: 14
 
