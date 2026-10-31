@@ -15125,7 +15125,21 @@ tasks.named('build') {
     dependsOn tasks.named('playableSourceInvalidDiskMarkerGuardSmoke')
 }
 
-// P5.31-P5.48: explicit source-only acceptance lane for P5.16-P5.48
+// P5.49: on every filesystem provider, distinguish a genuine
+// World account file roundtrip from G21.171 negative-only denial.
+tasks.register('playableWorldAncestryProviderEvidenceSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Inspect exact World account parent fileKey capability, reject unsafe directory ancestry, and report positive vs negative evidence.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.PlayableWorldAncestryProviderEvidenceTest')
+}
+tasks.named('build') {
+    dependsOn tasks.named('playableWorldAncestryProviderEvidenceSmoke')
+}
+
+// P5.31-P5.49: explicit source-only acceptance lane for P5.16-P5.49
 // target/caster safety, Wind Strike and the canonical melee boundary.
 // Full Linux Gradle build is still a separate, stronger release gate.
 tasks.register('playablePvmChainSmoke') {
@@ -15170,9 +15184,10 @@ tasks.register('playablePvmChainSmoke') {
         tasks.named('playableSourceSnapshotRollbackGuardSmoke'),
         tasks.named('playableSourceWorldFileMonotonicGuardSmoke'),
         tasks.named('playableSourceWorldPreMoveRaceSmoke'),
-        tasks.named('playableSourceInvalidDiskMarkerGuardSmoke')
+        tasks.named('playableSourceInvalidDiskMarkerGuardSmoke'),
+        tasks.named('playableWorldAncestryProviderEvidenceSmoke')
     )
     doLast {
-        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=39 originalClientGui=false productionMagicOff=true')
+        logger.lifecycle('SPK_PVM_CHAIN_SMOKE_PASS tasks=40 originalClientGui=false productionMagicOff=true')
     }
 }
