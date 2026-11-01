@@ -22,7 +22,7 @@ public static class SpkP550DirectoryId
     const uint ATTR_REPARSE_POINT = 0x00000400;
 
     [StructLayout(LayoutKind.Sequential)]
-    struct Information
+    internal struct Information
     {
         internal uint attributes, creationLow, creationHigh,
             accessLow, accessHigh, writeLow, writeHigh,
