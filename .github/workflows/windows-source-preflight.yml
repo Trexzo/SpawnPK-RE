@@ -9,6 +9,7 @@ on:
       - 'scripts/Assert-WindowsSourceReleaseBoundary.ps1'
       - 'scripts/Test-WindowsSourceReleaseBoundary.ps1'
       - 'scripts/Test-WindowsNativeDirectoryIdentity.ps1'
+      - 'scripts/Test-WindowsFileId128.ps1'
       - 'tools/verification/FilesystemLinkCountProbe.java'
       - '.github/workflows/windows-source-preflight.yml'
   workflow_dispatch:
@@ -131,6 +132,39 @@ jobs:
           }
           Write-Host "SPK_WINDOWS_NATIVE_DIRECTORY_IDENTITY_EVIDENCE_PASS nativeIdObservationOnly=true positiveWorldSaveCertified=false"
 
+      # P5.51: observe complete 128-bit FileIdInfo including when a
+      # native directory handle survives a rename. No authority grant.
+      - name: Verify Win32 FileIdInfo 128-bit identity and held-handle continuity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-WindowsFileId128.ps1 -OutputPath windows-fileid128-evidence.json
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "P551_FILEID128_PROBE_FAILED exitCode=$LASTEXITCODE"
+          }
+          if (-not (Test-Path -LiteralPath windows-fileid128-evidence.json)) {
+            throw "P551_FILEID128_REPORT_MISSING"
+          }
+          $e = Get-Content -Raw -LiteralPath windows-fileid128-evidence.json | ConvertFrom-Json
+          if ($e.type -cne "SPK_P551_FILEID128_CAPABILITY_ONLY" -or
+              $e.fileId128Available -ne $true -or
+              $e.ancestorIdsAvailable -ne $true -or
+              $e.ancestorCount -lt 4 -or
+              $e.reopenStable -ne $true -or
+              $e.distinctDirectoryIds -ne $true -or
+              $e.originalHandleStableAfterRename -ne $true -or
+              $e.renamedNameRetainsId -ne $true -or
+              $e.replacementAtSamePathDifferentId -ne $true -or
+              $e.regularFileNotDirectory -ne $true -or
+              ($e.symlinkFixtureSupported -and -not $e.symlinkIsReparse) -or
+              $e.positiveWindowsWorldSaveCertified -ne $false -or
+              $e.nativeWriterFenceIntegrated -ne $false -or
+              $e.crossJvmOwnerLeaseCertified -ne $false -or
+              $e.crashDurabilityCertified -ne $false) {
+            throw "P551_FILEID128_UNSAFE_OR_OVERCLAIMED_REPORT"
+          }
+          Write-Host "P551_WINDOWS_FILEID128_EVIDENCE_RECORDED 128bitHandleIdentityOnly=true worldSaveAuthority=false"
+
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
         run: |
@@ -161,6 +195,15 @@ jobs:
         with:
           name: windows-negative-release-boundary
           path: windows-source-release-boundary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload 128-bit Win32 FileIdInfo evidence (non-authorizing)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-fileid128-capability-evidence
+          path: windows-fileid128-evidence.json
           if-no-files-found: warn
           retention-days: 14
 
