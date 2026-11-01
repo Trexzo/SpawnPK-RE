@@ -23,6 +23,47 @@ jobs:
       - name: Check out proposed source
         uses: actions/checkout@v4
 
+      # P5.53: bounded *test-only* actual file relocation relative
+      # to a held Win32 destination-directory HANDLE, not path text.
+      # Neither World account files nor release authorization touched.
+      - name: Verify held-root handle-relative Win32 file move under changed pathname
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-WindowsHandleRelativeRename.ps1 -OutputPath windows-handle-relative-rename-evidence.json
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "P553_HANDLE_RELATIVE_RENAME_TEST_FAILED exitCode=$LASTEXITCODE"
+          }
+          if (-not (Test-Path -LiteralPath windows-handle-relative-rename-evidence.json)) {
+            throw "P553_HANDLE_RELATIVE_RENAME_REPORT_MISSING"
+          }
+          $e = Get-Content -Raw -LiteralPath windows-handle-relative-rename-evidence.json | ConvertFrom-Json
+          if ($e.type -cne "SPK_P553_HANDLE_RELATIVE_RENAME_TEST_ONLY" -or
+              $e.fullPathNullRootBaselineSucceeded -ne $true -or
+              $e.fullPathNullRootBytesVerified -ne $true -or
+              $e.heldDirectoryIdentityStableAcrossPathReplacement -ne $true -or
+              -not (
+                ($e.rootedMoveSupported -eq $true -and
+                 $e.rootedTargetMovedIntoRetiredDirectory -eq $true -and
+                 $e.rootedMoveDeniedWin32Error87 -eq $false) -or
+                ($e.rootedMoveSupported -eq $false -and
+                 $e.rootedMoveDeniedWin32Error87 -eq $true -and
+                 $e.rootedUnsupportedAttemptNoMove -eq $true -and
+                 $e.unsupportedRootAfterPathSwapStillDenied -eq $true)
+              ) -or
+              $e.newlyRecreatedPathNotWritten -ne $true -or
+              $e.decoyFileUnmodified -ne $true -or
+              $e.existingTargetRejectedWithoutReplacement -ne $true -or
+              $e.sourcePreservedOnRejection -ne $true -or
+              $e.originalJavaG21171Unmodified -ne $true -or
+              $e.productionWorldSaveCertified -ne $false -or
+              $e.nativeWriterIntegrated -ne $false -or
+              $e.externalRawWriterAtomicFenceCertified -ne $false -or
+              $e.crashDurabilityCertified -ne $false) {
+            throw "P553_HANDLE_RELATIVE_RENAME_UNSAFE_OR_OVERCLAIMED"
+          }
+          Write-Host "P553_WINDOWS_ROOT_DIRECTORY_CAPABILITY_EVIDENCE_PASS nullRootRoundTrip=true rootedSuccessOrStrictUnsupported=true productionWorldSave=false"
+
       - name: Set up JDK 21 for Java 11 target
         uses: actions/setup-java@v4
         with:
@@ -170,47 +211,6 @@ jobs:
             throw "P551_FILEID128_UNSAFE_OR_OVERCLAIMED_REPORT"
           }
           Write-Host "P552_WINDOWS_TWO_LEVEL_FILEID128_EVIDENCE_RECORDED stagedRounds=8 parentAndLeafChecked=true positiveWorldSaveCertified=false"
-
-      # P5.53: bounded *test-only* actual file relocation relative
-      # to a held Win32 destination-directory HANDLE, not path text.
-      # Neither World account files nor release authorization touched.
-      - name: Verify held-root handle-relative Win32 file move under changed pathname
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          & ./scripts/Test-WindowsHandleRelativeRename.ps1 -OutputPath windows-handle-relative-rename-evidence.json
-          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-            throw "P553_HANDLE_RELATIVE_RENAME_TEST_FAILED exitCode=$LASTEXITCODE"
-          }
-          if (-not (Test-Path -LiteralPath windows-handle-relative-rename-evidence.json)) {
-            throw "P553_HANDLE_RELATIVE_RENAME_REPORT_MISSING"
-          }
-          $e = Get-Content -Raw -LiteralPath windows-handle-relative-rename-evidence.json | ConvertFrom-Json
-          if ($e.type -cne "SPK_P553_HANDLE_RELATIVE_RENAME_TEST_ONLY" -or
-              $e.fullPathNullRootBaselineSucceeded -ne $true -or
-              $e.fullPathNullRootBytesVerified -ne $true -or
-              $e.heldDirectoryIdentityStableAcrossPathReplacement -ne $true -or
-              -not (
-                ($e.rootedMoveSupported -eq $true -and
-                 $e.rootedTargetMovedIntoRetiredDirectory -eq $true -and
-                 $e.rootedMoveDeniedWin32Error87 -eq $false) -or
-                ($e.rootedMoveSupported -eq $false -and
-                 $e.rootedMoveDeniedWin32Error87 -eq $true -and
-                 $e.rootedUnsupportedAttemptNoMove -eq $true -and
-                 $e.unsupportedRootAfterPathSwapStillDenied -eq $true)
-              ) -or
-              $e.newlyRecreatedPathNotWritten -ne $true -or
-              $e.decoyFileUnmodified -ne $true -or
-              $e.existingTargetRejectedWithoutReplacement -ne $true -or
-              $e.sourcePreservedOnRejection -ne $true -or
-              $e.originalJavaG21171Unmodified -ne $true -or
-              $e.productionWorldSaveCertified -ne $false -or
-              $e.nativeWriterIntegrated -ne $false -or
-              $e.externalRawWriterAtomicFenceCertified -ne $false -or
-              $e.crashDurabilityCertified -ne $false) {
-            throw "P553_HANDLE_RELATIVE_RENAME_UNSAFE_OR_OVERCLAIMED"
-          }
-          Write-Host "P553_WINDOWS_ROOT_DIRECTORY_CAPABILITY_EVIDENCE_PASS nullRootRoundTrip=true rootedSuccessOrStrictUnsupported=true productionWorldSave=false"
 
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
