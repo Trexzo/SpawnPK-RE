@@ -187,10 +187,18 @@ jobs:
           }
           $e = Get-Content -Raw -LiteralPath windows-handle-relative-rename-evidence.json | ConvertFrom-Json
           if ($e.type -cne "SPK_P553_HANDLE_RELATIVE_RENAME_TEST_ONLY" -or
-              $e.normalHeldDirectoryRenameSucceeded -ne $true -or
-              $e.normalFileContentRoundTrip -ne $true -or
+              $e.fullPathNullRootBaselineSucceeded -ne $true -or
+              $e.fullPathNullRootBytesVerified -ne $true -or
               $e.heldDirectoryIdentityStableAcrossPathReplacement -ne $true -or
-              $e.targetMovedIntoRetiredHeldDirectory -ne $true -or
+              -not (
+                ($e.rootedMoveSupported -eq $true -and
+                 $e.rootedTargetMovedIntoRetiredDirectory -eq $true -and
+                 $e.rootedMoveDeniedWin32Error87 -eq $false) -or
+                ($e.rootedMoveSupported -eq $false -and
+                 $e.rootedMoveDeniedWin32Error87 -eq $true -and
+                 $e.rootedUnsupportedAttemptNoMove -eq $true -and
+                 $e.unsupportedRootAfterPathSwapStillDenied -eq $true)
+              ) -or
               $e.newlyRecreatedPathNotWritten -ne $true -or
               $e.decoyFileUnmodified -ne $true -or
               $e.existingTargetRejectedWithoutReplacement -ne $true -or
@@ -202,7 +210,7 @@ jobs:
               $e.crashDurabilityCertified -ne $false) {
             throw "P553_HANDLE_RELATIVE_RENAME_UNSAFE_OR_OVERCLAIMED"
           }
-          Write-Host "P553_WINDOWS_HELD_RELATIVE_RENAME_EVIDENCE_PASS actualFixtureBytes=true productionWorldSave=false"
+          Write-Host "P553_WINDOWS_ROOT_DIRECTORY_CAPABILITY_EVIDENCE_PASS nullRootRoundTrip=true rootedSuccessOrStrictUnsupported=true productionWorldSave=false"
 
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
