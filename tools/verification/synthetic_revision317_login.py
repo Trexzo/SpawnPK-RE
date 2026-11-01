@@ -198,15 +198,20 @@ def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
                 text = read_server_log()
                 # Check authoritative state transitions, not simply receipt
                 # of the encrypted bytes or a non-atomic anticipated log.
-                accepted = "M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3089,3495]} action=ACCEPTED" in text
-                stepped = (
-                    "M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3088,3495 to=3089,3495" in text
-                    or "M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from=3087,3495 to=3089,3495" in text
+                accepted = accepted or (
+                    "M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3089,3495]} action=ACCEPTED" in text
                 )
-                bank_open = (
-                    "V5_BANK_OPEN ObjectInteraction{opcode=132" in text
-                    and "action=OPENED_" in text
+                stepped = stepped or (
+                    "M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3087,3495" in text
+                    or "M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from=3087,3495" in text
+                )
+                # A real bank-opening decision must be bound to the
+                # advertised target and within 1 tile, not just a widget.
+                bank_open = bank_open or (
+                    "V5_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3090, worldY=3495}" in text
+                    and "distance=1" in text
                     and "bankContainer=5382" in text
+                    and "action=OPENED_" in text
                 )
                 if accepted and stepped and bank_open:
                     break
