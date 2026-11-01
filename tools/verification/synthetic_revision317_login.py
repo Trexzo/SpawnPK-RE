@@ -146,9 +146,12 @@ def rejected_revision(host: str = HOST, port: int = PORT) -> None:
 def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
                                  walk_bank: bool = False,
                                  read_server_log=None,
-                                 bank_roundtrip: bool = False) -> dict:
+                                 bank_roundtrip: bool = False,
+                                 wire_inventory: bool = False) -> dict:
     if bank_roundtrip and not walk_bank:
         raise ValueError("bank roundtrip requires movement-to-bank test")
+    if wire_inventory and not bank_roundtrip:
+        raise ValueError("wire parity requires bank roundtrip")
     with socket.create_connection((host, port), timeout=5) as sock:
         sock.settimeout(8)
         seeds = _begin(sock, revision=317)
@@ -185,6 +188,12 @@ def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
         if energy[0] > 100 or b"%" not in run_text:
             raise AssertionError("missing run-energy/bootstrap widget")
         if walk_bank:
+            if wire_inventory:
+                from synthetic_s2c_bank import (
+                    decode_container53, next_server_frame, require_bank_pair,
+                )
+                wire_overlay = False
+                wire_bank = {}
             if read_server_log is None:
                 raise ValueError("movement/bank proof requires an isolated server log reader")
             # Pinned v308 walk serializer: LE short-A X, LE Y, negated run.
@@ -227,21 +236,42 @@ def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
                     and "bankContainer=5382" in text
                     and "action=OPENED_" in text
                 )
-                if accepted and stepped and bank_open:
+                if (accepted and stepped and bank_open and
+                        (not wire_inventory or
+                         (wire_overlay and 5382 in wire_bank and 5064 in wire_bank))):
                     break
-                # The real server may emit scene/bootstrap updates before the
-                # bank overlay; drain inbound bytes to avoid producer blocking.
-                sock.settimeout(0.3)
-                try:
-                    if not sock.recv(65536):
-                        raise AssertionError("server closed before movement/bank evidence")
-                except socket.timeout:
-                    pass
+                # When checking wire parity, drain complete ISAAC frames.
+                # Never consume an arbitrary recv buffer that would discard
+                # stream boundaries/cipher state before packet53 inspection.
+                if wire_inventory:
+                    frame = next_server_frame(sock, s2c, read_exact)
+                    if frame is not None:
+                        opcode, payload = frame
+                        if opcode == 248 and payload == bytes([
+                            5292 >> 8, (5292 + 128) & 255,
+                            5063 >> 8, 5063 & 255,
+                        ]):
+                            wire_overlay = True
+                        elif opcode == 53 and wire_overlay:
+                            widget, slots = decode_container53(payload)
+                            if widget in (5382, 5064):
+                                wire_bank[widget] = slots
+                else:
+                    sock.settimeout(0.3)
+                    try:
+                        if not sock.recv(65536):
+                            raise AssertionError("server closed before movement/bank evidence")
+                    except socket.timeout:
+                        pass
             if not (accepted and stepped and bank_open):
                 raise AssertionError(
                     "movement/bank proof incomplete; "
                     f"accepted={accepted} stepped={stepped} bank_open={bank_open}"
                 )
+            if wire_inventory:
+                if not wire_overlay:
+                    raise AssertionError("S2C248 bank overlay missing")
+                require_bank_pair(wire_bank, 100_000, (-1, 0))
             if bank_roundtrip:
                 # A rejected item mismatch must not grant currency. Then
                 # withdraw 995x1 to inventory, deposit it back, and attempt
@@ -253,10 +283,12 @@ def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
                     (5064, 0, 995, "result=STORE_OK amount=1 stackable=true inventorySlotPreserved=true bankOccupied=7 inventoryOccupied=0"),
                     (5064, 0, 995, "result=REJECTED_INVENTORY_SLOT"),
                 )
-                for widget, slot, item, expected in cases:
+                wire_changes = 0
+                for action_index, (widget, slot, item, expected) in enumerate(cases):
                     sock.sendall(bank_action_145(c2s, widget, slot, item))
                     cutoff = time.monotonic() + 10
                     passed = False
+                    latest_pair = {}
                     while time.monotonic() < cutoff:
                         lines = read_server_log().splitlines()
                         # Match the expected bank action on the same log
@@ -268,20 +300,44 @@ def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
                             and expected in line
                             for line in lines
                         )
-                        if passed:
+                        if passed and (not wire_inventory or action_index in (0, 3) or
+                                       (5382 in latest_pair and 5064 in latest_pair)):
                             break
-                        sock.settimeout(0.3)
-                        try:
-                            if not sock.recv(65536):
-                                raise AssertionError(
-                                    f"server closed during bank action widget={widget}"
-                                )
-                        except socket.timeout:
-                            pass
+                        if wire_inventory:
+                            frame = next_server_frame(sock, s2c, read_exact)
+                            if frame is not None and frame[0] == 53:
+                                reported_widget, slots = decode_container53(frame[1])
+                                if reported_widget in (5382, 5064):
+                                    if action_index in (0, 3):
+                                        raise AssertionError(
+                                            "invalid or stale bank request published container53"
+                                        )
+                                    latest_pair[reported_widget] = slots
+                        else:
+                            sock.settimeout(0.3)
+                            try:
+                                if not sock.recv(65536):
+                                    raise AssertionError(
+                                        f"server closed during bank action widget={widget}"
+                                    )
+                            except socket.timeout:
+                                pass
                     if not passed:
                         raise AssertionError(
                             f"bank action not confirmed widget={widget} item={item} expected={expected}"
                         )
+                    if wire_inventory and action_index in (1, 2):
+                        if len(latest_pair) != 2:
+                            raise AssertionError(
+                                "server log claimed mutation but S2C53 pair not observed"
+                            )
+                        if action_index == 1:
+                            require_bank_pair(latest_pair, 99_999, (995, 1))
+                        else:
+                            require_bank_pair(latest_pair, 100_000, (-1, 0))
+                        wire_changes += 1
+                if wire_inventory and wire_changes != 2:
+                    raise AssertionError("missing positive S2C53 bank mutation updates")
         return {
             "result": ("SYNTHETIC_REV317_BANK_ROUNDTRIP_PASS" if bank_roundtrip
                        else "SYNTHETIC_REV317_WALK_BANK_PASS" if walk_bank
@@ -291,6 +347,8 @@ def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
             "bank_negative_mismatch_observed": bank_roundtrip,
             "bank_withdraw_deposit_observed": bank_roundtrip,
             "bank_stale_deposit_refused": bank_roundtrip,
+            "s2c53_bank_inventory_parity": wire_inventory,
+            "s2c53_positive_mutation_pairs": 2 if wire_inventory else 0,
             "revision": 317,
             "client_config_fixture": 308,
             "s2c_first_five": [249, 73, 81, 110, 126],

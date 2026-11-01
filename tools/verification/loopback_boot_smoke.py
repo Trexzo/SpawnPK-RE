@@ -75,11 +75,14 @@ def tail_log(path: Path, limit: int = 2800) -> str:
 
 def run_smoke(jar: Path, java: str, startup_timeout: float,
               synthetic_login: bool = False, walk_bank: bool = False,
-              bank_roundtrip: bool = False) -> dict:
+              bank_roundtrip: bool = False,
+              wire_inventory: bool = False) -> dict:
     if walk_bank and not synthetic_login:
         raise SmokeFailure('walk_bank requires synthetic_login')
     if bank_roundtrip and not walk_bank:
         raise SmokeFailure('bank_roundtrip requires walk_bank')
+    if wire_inventory and not bank_roundtrip:
+        raise SmokeFailure('wire_inventory requires bank_roundtrip')
     jar = jar.expanduser().resolve(strict=True)
     if not jar.is_file():
         raise SmokeFailure("JAR path is not a regular file")
@@ -156,6 +159,7 @@ def run_smoke(jar: Path, java: str, startup_timeout: float,
                                         walk_bank=walk_bank,
                                         read_server_log=lambda: tail_log(log_path, 65000),
                                         bank_roundtrip=bank_roundtrip,
+                                        wire_inventory=wire_inventory,
                                     )
                                     cutoff = time.monotonic() + 10
                                     while True:
@@ -171,6 +175,7 @@ def run_smoke(jar: Path, java: str, startup_timeout: float,
                                     raise SmokeFailure(f"synthetic revision317 wire probe failed: {exc}") from exc
                             return {
                                 "result": (
+                                    "BOOT_AND_S2C53_BANK_WIRE_PASS" if wire_inventory else
                                     "BOOT_AND_SYNTHETIC_BANK_ROUNDTRIP_PASS" if bank_roundtrip else
                                     "BOOT_AND_SYNTHETIC_WALK_BANK_PASS" if walk_bank else
                                     "BOOT_AND_SYNTHETIC_LOGIN_PASS" if synthetic_login else
@@ -179,6 +184,7 @@ def run_smoke(jar: Path, java: str, startup_timeout: float,
                                 "synthetic_authoritative_walk_tested": walk_bank,
                                 "synthetic_bank_open_tested": walk_bank,
                                 "synthetic_bank_roundtrip_tested": bank_roundtrip,
+                                "s2c53_bank_wire_tested": wire_inventory,
                                 "synthetic_revision317": login_receipt if synthetic_login else None,
                                 "synthetic_invalid_revision_denied": synthetic_login,
                                 "synthetic_world_unregister_observed": synthetic_login,
@@ -234,12 +240,14 @@ def main(argv=None) -> int:
                         help="with --synthetic-login, test movement and bank using isolated JVM")
     parser.add_argument("--bank-roundtrip", action="store_true",
                         help="also exercise invalid item, coin withdrawal, deposit and stale retry")
+    parser.add_argument("--wire-inventory", action="store_true",
+                        help="decode exact S2C53 inventory/bank pairs after transactions")
     args = parser.parse_args(argv)
     try:
         print(json.dumps(
             run_smoke(args.jar, args.java, args.startup_timeout,
                       args.synthetic_login, args.walk_bank,
-                      args.bank_roundtrip),
+                      args.bank_roundtrip, args.wire_inventory),
             indent=2, sort_keys=True,
         ))
         return 0
