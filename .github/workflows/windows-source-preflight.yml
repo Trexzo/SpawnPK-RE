@@ -8,6 +8,7 @@ on:
       - 'scripts/Test-WindowsClientEvidenceContract.ps1'
       - 'scripts/Assert-WindowsSourceReleaseBoundary.ps1'
       - 'scripts/Test-WindowsSourceReleaseBoundary.ps1'
+      - 'scripts/Test-WindowsNativeDirectoryIdentity.ps1'
       - 'tools/verification/FilesystemLinkCountProbe.java'
       - '.github/workflows/windows-source-preflight.yml'
   workflow_dispatch:
@@ -94,6 +95,42 @@ jobs:
           $evidence | Set-Content -Path windows-world-ancestry-evidence.txt
           Write-Host "SPK_WINDOWS_WORLD_ANCESTRY_EVIDENCE_RECORDED positiveAndNegativeOutcomesSeparated=true"
 
+      # P5.50: Win32 handle-level identity exists independently of
+      # Java BasicFileAttributes.fileKey, but is NOT yet wired into
+      # World ownership or filesystem admission.
+      - name: Observe native Win32 directory IDs and pathname replacement (not World-save approval)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-WindowsNativeDirectoryIdentity.ps1 -OutputPath windows-native-directory-id-evidence.json
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "WINDOWS_NATIVE_DIRECTORY_IDENTITY_PROBE_FAILED exitCode=$LASTEXITCODE"
+          }
+          if (-not (Test-Path -LiteralPath windows-native-directory-id-evidence.json)) {
+            throw "WINDOWS_NATIVE_DIRECTORY_IDENTITY_REPORT_MISSING"
+          }
+          $evidence = Get-Content -Raw -LiteralPath windows-native-directory-id-evidence.json | ConvertFrom-Json
+          if ($evidence.type -cne "SPK_P550_WIN32_DIRECTORY_IDENTITY_CAPABILITY_ONLY" -or
+              $evidence.nativeDirectoryIdentityAvailable -ne $true -or
+              $evidence.allSelectedAncestorsHaveNativeIdentity -ne $true -or
+              $evidence.observedNativeAncestorCount -lt 4 -or
+              $evidence.reopenStable -ne $true -or
+              $evidence.distinctDirectoriesHaveDistinctIds -ne $true -or
+              $evidence.renamedDirectoryPreservesId -ne $true -or
+              $evidence.samePathReplacementChangesId -ne $true -or
+              $evidence.ordinaryFileNotDirectory -ne $true -or
+              $evidence.productionG21171Unchanged -ne $true -or
+              $evidence.positiveWindowsWorldSaveCertified -ne $false -or
+              $evidence.nativeIdentityFencingIntegrated -ne $false -or
+              $evidence.crashDurabilityCertified -ne $false) {
+            throw "WINDOWS_NATIVE_DIRECTORY_IDENTITY_INVALID_OR_OVERCLAIMED"
+          }
+          if ($evidence.symlinkCreationSupported -and
+              -not $evidence.symlinkReparseObserved) {
+            throw "WINDOWS_NATIVE_DIRECTORY_IDENTITY_SYMLINK_NEGATIVE_FAILED"
+          }
+          Write-Host "SPK_WINDOWS_NATIVE_DIRECTORY_IDENTITY_EVIDENCE_PASS nativeIdObservationOnly=true positiveWorldSaveCertified=false"
+
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
         run: |
@@ -124,6 +161,15 @@ jobs:
         with:
           name: windows-negative-release-boundary
           path: windows-source-release-boundary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Win32 native directory ID capability proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-directory-id-evidence
+          path: windows-native-directory-id-evidence.json
           if-no-files-found: warn
           retention-days: 14
 
