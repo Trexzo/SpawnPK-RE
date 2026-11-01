@@ -132,7 +132,13 @@ public static class SpkP554NtRename
         int rootOffset=IntPtr.Size==8?8:4;
         int lenOffset=rootOffset+IntPtr.Size;
         int nameOffset=lenOffset+4;
-        int total=nameOffset+name.Length+2;
+        // WDK FILE_RENAME_INFORMATION minimum buffer includes the
+        // full struct (24 bytes on x64, 16 on x86) in addition to
+        // the variable filename. Avoid a false INVALID_PARAMETER
+        // from an undersized caller-owned input buffer.
+        int structSize=IntPtr.Size==8?24:16;
+        int total=Math.Max(structSize+name.Length,
+            nameOffset+name.Length+2);
         IntPtr buffer=Marshal.AllocHGlobal(total);
         IntPtr io=Marshal.AllocHGlobal(2*IntPtr.Size);
         try
