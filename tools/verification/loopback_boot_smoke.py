@@ -73,7 +73,10 @@ def tail_log(path: Path, limit: int = 2800) -> str:
         return source.read().decode("utf-8", "replace")[-limit:]
 
 
-def run_smoke(jar: Path, java: str, startup_timeout: float, synthetic_login: bool = False) -> dict:
+def run_smoke(jar: Path, java: str, startup_timeout: float,
+              synthetic_login: bool = False, walk_bank: bool = False) -> dict:
+    if walk_bank and not synthetic_login:
+        raise SmokeFailure('walk_bank requires synthetic_login')
     jar = jar.expanduser().resolve(strict=True)
     if not jar.is_file():
         raise SmokeFailure("JAR path is not a regular file")
@@ -94,6 +97,8 @@ def run_smoke(jar: Path, java: str, startup_timeout: float, synthetic_login: boo
         cmd = [java, f"-Duser.home={root}", "-jar", str(jar)]
         if synthetic_login:
             cmd.append("--bootstrap")
+        if walk_bank:
+            cmd.append("--movement")
         try:
             with log_path.open("w+b") as log:
                 process = subprocess.Popen(
@@ -144,7 +149,10 @@ def run_smoke(jar: Path, java: str, startup_timeout: float, synthetic_login: boo
                                         if time.monotonic() >= cutoff:
                                             raise SmokeFailure("invalid revision denial not observed in server log")
                                         time.sleep(0.1)
-                                    login_receipt = accepted_login_and_bootstrap()
+                                    login_receipt = accepted_login_and_bootstrap(
+                                        walk_bank=walk_bank,
+                                        read_server_log=lambda: tail_log(log_path, 65000),
+                                    )
                                     cutoff = time.monotonic() + 10
                                     while True:
                                         session_log = tail_log(log_path, 18000)
@@ -158,7 +166,13 @@ def run_smoke(jar: Path, java: str, startup_timeout: float, synthetic_login: boo
                                 except (AssertionError, OSError) as exc:
                                     raise SmokeFailure(f"synthetic revision317 wire probe failed: {exc}") from exc
                             return {
-                                "result": "BOOT_AND_SYNTHETIC_LOGIN_PASS" if synthetic_login else "BOOT_ONLY_PASS",
+                                "result": (
+                                    "BOOT_AND_SYNTHETIC_WALK_BANK_PASS" if walk_bank else
+                                    "BOOT_AND_SYNTHETIC_LOGIN_PASS" if synthetic_login else
+                                    "BOOT_ONLY_PASS"
+                                ),
+                                "synthetic_authoritative_walk_tested": walk_bank,
+                                "synthetic_bank_open_tested": walk_bank,
                                 "synthetic_revision317": login_receipt if synthetic_login else None,
                                 "synthetic_invalid_revision_denied": synthetic_login,
                                 "synthetic_world_unregister_observed": synthetic_login,
@@ -210,10 +224,13 @@ def main(argv=None) -> int:
     parser.add_argument("--startup-timeout", type=float, default=20)
     parser.add_argument("--synthetic-login", action="store_true",
                         help="test revision-317 ISAAC wire bootstrap; NOT original GUI")
+    parser.add_argument("--walk-bank", action="store_true",
+                        help="with --synthetic-login, test movement and bank using isolated JVM")
     args = parser.parse_args(argv)
     try:
         print(json.dumps(
-            run_smoke(args.jar, args.java, args.startup_timeout, args.synthetic_login),
+            run_smoke(args.jar, args.java, args.startup_timeout,
+                      args.synthetic_login, args.walk_bank),
             indent=2, sort_keys=True,
         ))
         return 0

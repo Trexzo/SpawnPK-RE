@@ -56,3 +56,6 @@ jobs:
 
       - name: Synthetic revision317 login + ISAAC bootstrap against actual server JAR
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30 --synthetic-login
+
+      - name: Synthetic client walk to bank through actual JVM authoritative World ticks
+        run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30 --synthetic-login --walk-bank
