@@ -73,7 +73,7 @@ def tail_log(path: Path, limit: int = 2800) -> str:
         return source.read().decode("utf-8", "replace")[-limit:]
 
 
-def run_smoke(jar: Path, java: str, startup_timeout: float) -> dict:
+def run_smoke(jar: Path, java: str, startup_timeout: float, synthetic_login: bool = False) -> dict:
     jar = jar.expanduser().resolve(strict=True)
     if not jar.is_file():
         raise SmokeFailure("JAR path is not a regular file")
@@ -92,6 +92,8 @@ def run_smoke(jar: Path, java: str, startup_timeout: float) -> dict:
         root = Path(home)
         log_path = root / "server.log"
         cmd = [java, f"-Duser.home={root}", "-jar", str(jar)]
+        if synthetic_login:
+            cmd.append("--bootstrap")
         try:
             with log_path.open("w+b") as log:
                 process = subprocess.Popen(
@@ -130,8 +132,36 @@ def run_smoke(jar: Path, java: str, startup_timeout: float) -> dict:
                                 raise SmokeFailure(
                                     "server exited immediately after sockets became ready"
                                 )
+                            login_receipt = {}
+                            if synthetic_login:
+                                from synthetic_revision317_login import (
+                                    accepted_login_and_bootstrap, rejected_revision,
+                                )
+                                try:
+                                    rejected_revision()
+                                    cutoff = time.monotonic() + 3
+                                    while "expected protocol revision 317, got 316" not in tail_log(log_path, 12000):
+                                        if time.monotonic() >= cutoff:
+                                            raise SmokeFailure("invalid revision denial not observed in server log")
+                                        time.sleep(0.1)
+                                    login_receipt = accepted_login_and_bootstrap()
+                                    cutoff = time.monotonic() + 10
+                                    while True:
+                                        session_log = tail_log(log_path, 18000)
+                                        if ("V512_WORLD_REGISTER playerId=" in session_log
+                                                and "LOGIN_SUCCESS_LOCAL" in session_log
+                                                and "V512_WORLD_UNREGISTER playerId=" in session_log):
+                                            break
+                                        if process.poll() is not None or time.monotonic() >= cutoff:
+                                            raise SmokeFailure("synthetic session registration/unregister not observed")
+                                        time.sleep(0.2)
+                                except (AssertionError, OSError) as exc:
+                                    raise SmokeFailure(f"synthetic revision317 wire probe failed: {exc}") from exc
                             return {
-                                "result": "BOOT_ONLY_PASS",
+                                "result": "BOOT_AND_SYNTHETIC_LOGIN_PASS" if synthetic_login else "BOOT_ONLY_PASS",
+                                "synthetic_revision317": login_receipt if synthetic_login else None,
+                                "synthetic_invalid_revision_denied": synthetic_login,
+                                "synthetic_world_unregister_observed": synthetic_login,
                                 "jar_sha256": artifact_sha,
                                 "loopback_game_port": GAME_PORT,
                                 "loopback_aux_port": AUX_PORT,
@@ -178,10 +208,12 @@ def main(argv=None) -> int:
         "--java", default="java", help="JDK/JRE executable (default: java)"
     )
     parser.add_argument("--startup-timeout", type=float, default=20)
+    parser.add_argument("--synthetic-login", action="store_true",
+                        help="test revision-317 ISAAC wire bootstrap; NOT original GUI")
     args = parser.parse_args(argv)
     try:
         print(json.dumps(
-            run_smoke(args.jar, args.java, args.startup_timeout),
+            run_smoke(args.jar, args.java, args.startup_timeout, args.synthetic_login),
             indent=2, sort_keys=True,
         ))
         return 0
