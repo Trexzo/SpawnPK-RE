@@ -115,6 +115,14 @@ $report=[ordered]@{
     originalHandleStableAfterRename=$false
     renamedNameRetainsId=$false
     replacementAtSamePathDifferentId=$false
+    # P5.52 two-level delayed World-save admission analog:
+    # a preflighted parent and child must BOTH still be the
+    # same native objects when their exact paths are reopened.
+    twoLevelCutpointRounds=0
+    unchangedTwoLevelChainAccepted=$false
+    staleChildPathRejectedWithParentStable=$false
+    staleParentPathRejectedAfterReplacement=$false
+    originalHeldIdsStableThroughBothReplacements=$false
     regularFileNotDirectory=$false
     symlinkFixtureSupported=$false
     symlinkIsReparse=$false
@@ -167,6 +175,86 @@ try {
         $report.replacementAtSamePathDifferentId=
             -not [SpkP551FileId128]::Same($first,$replacement)
     } finally { $held.Dispose() }
+    # P5.52: two independent rename/replacement cutpoints per
+    # isolated pair of nested directories. This is a deterministic
+    # NEGATIVE admission simulation, not a real World file write,
+    # and cannot fence another process after the final observation.
+    for ($round=0; $round -lt 8; $round++) {
+        $cut=Join-Path $root ("two-level-"+$round)
+        $account=Join-Path $cut "account"
+        $leaf=Join-Path $account "snapshot"
+        New-Item -ItemType Directory -Path $cut | Out-Null
+        New-Item -ItemType Directory -Path $account | Out-Null
+        New-Item -ItemType Directory -Path $leaf | Out-Null
+        $cutBaseline=[SpkP551FileId128]::Observe($cut)
+        $parentHeld=[SpkP551FileId128]::Open($account)
+        $leafHeld=[SpkP551FileId128]::Open($leaf)
+        try {
+            $parentBaseline=$parentHeld.Read()
+            $leafBaseline=$leafHeld.Read()
+            # Positive control: existing native path still points
+            # to the same two genuine open objects, not just text.
+            if (-not [SpkP551FileId128]::Same(
+                    $parentBaseline,[SpkP551FileId128]::Observe($account)) -or
+                -not [SpkP551FileId128]::Same(
+                    $leafBaseline,[SpkP551FileId128]::Observe($leaf))) {
+                throw ("P552_UNCHANGED_CHAIN_NOT_SAME round="+$round)
+            }
+            $report.unchangedTwoLevelChainAccepted=$true
+
+            # First cutpoint: mutate only the leaf at its previous
+            # exact pathname. Parent handle/path remain identical.
+            $retiredLeaf=Join-Path $account "snapshot-retired"
+            Move-Item -LiteralPath $leaf -Destination $retiredLeaf -ErrorAction Stop
+            New-Item -ItemType Directory -Path $leaf | Out-Null
+            $newLeaf=[SpkP551FileId128]::Observe($leaf)
+            if (-not [SpkP551FileId128]::Same(
+                    $parentBaseline,$parentHeld.Read()) -or
+                -not [SpkP551FileId128]::Same(
+                    $parentBaseline,[SpkP551FileId128]::Observe($account)) -or
+                -not [SpkP551FileId128]::Same(
+                    $leafBaseline,$leafHeld.Read()) -or
+                [SpkP551FileId128]::Same($leafBaseline,$newLeaf)) {
+                throw ("P552_STALE_CHILD_NOT_FENCED round="+$round)
+            }
+            $report.staleChildPathRejectedWithParentStable=$true
+
+            # Dispose the retired descendant's handle before
+            # renaming the nonempty parent directory on Windows.
+            $leafHeld.Dispose()
+            $leafHeld=$null
+
+            # Second cutpoint: replace the parent at the exact
+            # prior account path while the old parent handle stays
+            # open. A child-only comparison cannot authorize now.
+            $retiredParent=Join-Path $cut "account-retired"
+            Move-Item -LiteralPath $account -Destination $retiredParent -ErrorAction Stop
+            New-Item -ItemType Directory -Path $account | Out-Null
+            New-Item -ItemType Directory -Path $leaf | Out-Null
+            $newParent=[SpkP551FileId128]::Observe($account)
+            $replacementChild=[SpkP551FileId128]::Observe($leaf)
+            if (-not [SpkP551FileId128]::Same(
+                    $parentBaseline,$parentHeld.Read()) -or
+                [SpkP551FileId128]::Same($parentBaseline,$newParent) -or
+                [SpkP551FileId128]::Same($leafBaseline,$replacementChild) -or
+                -not [SpkP551FileId128]::Same(
+                    $cutBaseline,[SpkP551FileId128]::Observe($cut))) {
+                throw ("P552_STALE_PARENT_NOT_FENCED round="+$round)
+            }
+            $report.staleParentPathRejectedAfterReplacement=$true
+            $report.originalHeldIdsStableThroughBothReplacements=$true
+            $report.twoLevelCutpointRounds++
+        } finally {
+            if ($null -ne $leafHeld) { $leafHeld.Dispose() }
+            $parentHeld.Dispose()
+        }
+    }
+    Write-Host ("P552_TWO_LEVEL_FILEID128_CUTPOINT_PASS rounds="+
+        $report.twoLevelCutpointRounds+
+        " unchangedChainAccepted=true staleLeafRejected=true"+
+        " staleParentRejected=true heldIdsStable=true"+
+        " realWorldSaveNotAttempted=true atomicRawWriterFenceNotProven=true")
+
     $plain=Join-Path $root "plain-file"
     [IO.File]::WriteAllBytes($plain,[byte[]](1,2,3,4))
     $file=[SpkP551FileId128]::Observe($plain)
@@ -190,6 +278,11 @@ try {
         -not $report.originalHandleStableAfterRename -or
         -not $report.renamedNameRetainsId -or
         -not $report.replacementAtSamePathDifferentId -or
+        $report.twoLevelCutpointRounds -ne 8 -or
+        -not $report.unchangedTwoLevelChainAccepted -or
+        -not $report.staleChildPathRejectedWithParentStable -or
+        -not $report.staleParentPathRejectedAfterReplacement -or
+        -not $report.originalHeldIdsStableThroughBothReplacements -or
         -not $report.regularFileNotDirectory -or
         ($report.symlinkFixtureSupported -and -not $report.symlinkIsReparse)) {
         throw "P551_FILEID128_CAPABILITY_NEGATIVE"

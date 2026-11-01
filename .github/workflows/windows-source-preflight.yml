@@ -155,6 +155,11 @@ jobs:
               $e.originalHandleStableAfterRename -ne $true -or
               $e.renamedNameRetainsId -ne $true -or
               $e.replacementAtSamePathDifferentId -ne $true -or
+              $e.twoLevelCutpointRounds -ne 8 -or
+              $e.unchangedTwoLevelChainAccepted -ne $true -or
+              $e.staleChildPathRejectedWithParentStable -ne $true -or
+              $e.staleParentPathRejectedAfterReplacement -ne $true -or
+              $e.originalHeldIdsStableThroughBothReplacements -ne $true -or
               $e.regularFileNotDirectory -ne $true -or
               ($e.symlinkFixtureSupported -and -not $e.symlinkIsReparse) -or
               $e.positiveWindowsWorldSaveCertified -ne $false -or
@@ -163,7 +168,7 @@ jobs:
               $e.crashDurabilityCertified -ne $false) {
             throw "P551_FILEID128_UNSAFE_OR_OVERCLAIMED_REPORT"
           }
-          Write-Host "P551_WINDOWS_FILEID128_EVIDENCE_RECORDED 128bitHandleIdentityOnly=true worldSaveAuthority=false"
+          Write-Host "P552_WINDOWS_TWO_LEVEL_FILEID128_EVIDENCE_RECORDED stagedRounds=8 parentAndLeafChecked=true positiveWorldSaveCertified=false"
 
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
