@@ -59,3 +59,6 @@ jobs:
 
       - name: Synthetic client walk to bank through actual JVM authoritative World ticks
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30 --synthetic-login --walk-bank
+
+      - name: Synthetic bank mismatch, coin withdraw, deposit and stale retry
+        run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30 --synthetic-login --walk-bank --bank-roundtrip
