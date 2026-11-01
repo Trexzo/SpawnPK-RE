@@ -82,6 +82,17 @@ class Isaac:
         return self.results[self.count]
 
 
+def bank_action_145(cipher: Isaac, widget: int, slot: int, item: int) -> bytes:
+    """Pinned three BE-A u16 action fields, ISAAC-encrypted opcode 145."""
+    if any(v < 0 or v > 0xFFFF for v in (widget, slot, item)):
+        raise ValueError("bank action field outside u16")
+    def be_a(v):
+        return bytes([v >> 8, (v + 128) & 255])
+    return bytes([(145 + cipher.next_int()) & 255]) + (
+        be_a(widget) + be_a(slot) + be_a(item)
+    )
+
+
 def read_exact(sock: socket.socket, size: int) -> bytes:
     value = bytearray()
     while len(value) < size:
@@ -134,7 +145,10 @@ def rejected_revision(host: str = HOST, port: int = PORT) -> None:
 
 def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
                                  walk_bank: bool = False,
-                                 read_server_log=None) -> dict:
+                                 read_server_log=None,
+                                 bank_roundtrip: bool = False) -> dict:
+    if bank_roundtrip and not walk_bank:
+        raise ValueError("bank roundtrip requires movement-to-bank test")
     with socket.create_connection((host, port), timeout=5) as sock:
         sock.settimeout(8)
         seeds = _begin(sock, revision=317)
@@ -228,11 +242,55 @@ def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
                     "movement/bank proof incomplete; "
                     f"accepted={accepted} stepped={stepped} bank_open={bank_open}"
                 )
+            if bank_roundtrip:
+                # A rejected item mismatch must not grant currency. Then
+                # withdraw 995x1 to inventory, deposit it back, and attempt
+                # the stale deposit again. All four requests are normal,
+                # ISAAC-encrypted C2S145, not direct in-memory test calls.
+                cases = (
+                    (5382, 0, 996, "REJECTED_BANK_ITEM_MISMATCH expected=995"),
+                    (5382, 0, 995, "result=WITHDRAW_OK amount=1 requested=1 stackable=true bankOccupied=7 inventoryOccupied=1"),
+                    (5064, 0, 995, "result=STORE_OK amount=1 stackable=true inventorySlotPreserved=true bankOccupied=7 inventoryOccupied=0"),
+                    (5064, 0, 995, "result=REJECTED_INVENTORY_SLOT"),
+                )
+                for widget, slot, item, expected in cases:
+                    sock.sendall(bank_action_145(c2s, widget, slot, item))
+                    cutoff = time.monotonic() + 10
+                    passed = False
+                    while time.monotonic() < cutoff:
+                        lines = read_server_log().splitlines()
+                        # Match the expected bank action on the same log
+                        # line as the specific widget/item request. Never
+                        # count an unrelated bank operation.
+                        passed = any(
+                            "V522_BANK_ITEM_ACTION" in line
+                            and f"widgetId={widget}, slot={slot}, itemId={item}" in line
+                            and expected in line
+                            for line in lines
+                        )
+                        if passed:
+                            break
+                        sock.settimeout(0.3)
+                        try:
+                            if not sock.recv(65536):
+                                raise AssertionError(
+                                    f"server closed during bank action widget={widget}"
+                                )
+                        except socket.timeout:
+                            pass
+                    if not passed:
+                        raise AssertionError(
+                            f"bank action not confirmed widget={widget} item={item} expected={expected}"
+                        )
         return {
-            "result": ("SYNTHETIC_REV317_WALK_BANK_PASS" if walk_bank
+            "result": ("SYNTHETIC_REV317_BANK_ROUNDTRIP_PASS" if bank_roundtrip
+                       else "SYNTHETIC_REV317_WALK_BANK_PASS" if walk_bank
                        else "SYNTHETIC_REV317_LOGIN_BOOTSTRAP_PASS"),
             "authoritative_walk_observed": walk_bank,
             "bank_open_observed": walk_bank,
+            "bank_negative_mismatch_observed": bank_roundtrip,
+            "bank_withdraw_deposit_observed": bank_roundtrip,
+            "bank_stale_deposit_refused": bank_roundtrip,
             "revision": 317,
             "client_config_fixture": 308,
             "s2c_first_five": [249, 73, 81, 110, 126],
