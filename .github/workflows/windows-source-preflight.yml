@@ -10,6 +10,7 @@ on:
       - 'scripts/Test-WindowsSourceReleaseBoundary.ps1'
       - 'scripts/Test-WindowsNativeDirectoryIdentity.ps1'
       - 'scripts/Test-WindowsFileId128.ps1'
+      - 'scripts/Test-WindowsHandleRelativeRename.ps1'
       - 'tools/verification/FilesystemLinkCountProbe.java'
       - '.github/workflows/windows-source-preflight.yml'
   workflow_dispatch:
@@ -170,6 +171,39 @@ jobs:
           }
           Write-Host "P552_WINDOWS_TWO_LEVEL_FILEID128_EVIDENCE_RECORDED stagedRounds=8 parentAndLeafChecked=true positiveWorldSaveCertified=false"
 
+      # P5.53: bounded *test-only* actual file relocation relative
+      # to a held Win32 destination-directory HANDLE, not path text.
+      # Neither World account files nor release authorization touched.
+      - name: Verify held-root handle-relative Win32 file move under changed pathname
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-WindowsHandleRelativeRename.ps1 -OutputPath windows-handle-relative-rename-evidence.json
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "P553_HANDLE_RELATIVE_RENAME_TEST_FAILED exitCode=$LASTEXITCODE"
+          }
+          if (-not (Test-Path -LiteralPath windows-handle-relative-rename-evidence.json)) {
+            throw "P553_HANDLE_RELATIVE_RENAME_REPORT_MISSING"
+          }
+          $e = Get-Content -Raw -LiteralPath windows-handle-relative-rename-evidence.json | ConvertFrom-Json
+          if ($e.type -cne "SPK_P553_HANDLE_RELATIVE_RENAME_TEST_ONLY" -or
+              $e.normalHeldDirectoryRenameSucceeded -ne $true -or
+              $e.normalFileContentRoundTrip -ne $true -or
+              $e.heldDirectoryIdentityStableAcrossPathReplacement -ne $true -or
+              $e.targetMovedIntoRetiredHeldDirectory -ne $true -or
+              $e.newlyRecreatedPathNotWritten -ne $true -or
+              $e.decoyFileUnmodified -ne $true -or
+              $e.existingTargetRejectedWithoutReplacement -ne $true -or
+              $e.sourcePreservedOnRejection -ne $true -or
+              $e.originalJavaG21171Unmodified -ne $true -or
+              $e.productionWorldSaveCertified -ne $false -or
+              $e.nativeWriterIntegrated -ne $false -or
+              $e.externalRawWriterAtomicFenceCertified -ne $false -or
+              $e.crashDurabilityCertified -ne $false) {
+            throw "P553_HANDLE_RELATIVE_RENAME_UNSAFE_OR_OVERCLAIMED"
+          }
+          Write-Host "P553_WINDOWS_HELD_RELATIVE_RENAME_EVIDENCE_PASS actualFixtureBytes=true productionWorldSave=false"
+
       - name: Probe strict Java unix:nlink capability (not a pass assertion)
         shell: pwsh
         run: |
@@ -200,6 +234,15 @@ jobs:
         with:
           name: windows-negative-release-boundary
           path: windows-source-release-boundary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Win32 held-directory relative file move evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-handle-relative-rename-evidence
+          path: windows-handle-relative-rename-evidence.json
           if-no-files-found: warn
           retention-days: 14
 
