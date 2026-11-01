@@ -11,6 +11,7 @@ on:
       - 'scripts/Test-WindowsNativeDirectoryIdentity.ps1'
       - 'scripts/Test-WindowsFileId128.ps1'
       - 'scripts/Test-WindowsHandleRelativeRename.ps1'
+      - 'scripts/Test-WindowsNtRelativeRename.ps1'
       - 'tools/verification/FilesystemLinkCountProbe.java'
       - '.github/workflows/windows-source-preflight.yml'
   workflow_dispatch:
@@ -22,6 +23,45 @@ jobs:
     steps:
       - name: Check out proposed source
         uses: actions/checkout@v4
+
+      # P5.54: native NTSTATUS, not a fallback authorization.
+      # Isolated staged files only; no Java World account publisher.
+      - name: Probe isolated NtSetInformationFile root-handle relative rename
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/Test-WindowsNtRelativeRename.ps1 -OutputPath windows-nt-relative-rename-evidence.json
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw "P554_NT_RENAME_PROBE_FAILED exitCode=$LASTEXITCODE"
+          }
+          if (-not (Test-Path -LiteralPath windows-nt-relative-rename-evidence.json)) {
+            throw "P554_NT_RENAME_REPORT_MISSING"
+          }
+          $e = Get-Content -Raw -LiteralPath windows-nt-relative-rename-evidence.json | ConvertFrom-Json
+          if ($e.type -cne 'SPK_P554_NT_RELATIVE_RENAME_CAPABILITY_ONLY' -or
+              $e.normalWindowsMoveControl -ne $true -or
+              $e.sameDirectoryNativeIdentityObserved -ne $true -or
+              $e.retiredHandleIdStillOriginal -ne $true -or
+              $e.recreatedDirectoryHasDifferentId -ne $true -or
+              $e.replacementPathUnchanged -ne $true -or
+              -not (
+                ($e.ntRelativeMoveSupported -eq $true -and
+                 $e.successfulRootedMoveLandedInRetiredDirectory -eq $true -and
+                 $e.existingTargetDeniedWithoutOverwrite -eq $true -and
+                 $e.existingTargetSourcePreserved -eq $true) -or
+                ($e.ntRelativeMoveSupported -eq $false -and
+                 $e.rejectedRelativeMovePreservedSource -eq $true -and
+                 $e.unsupportedRootedMoveAfterSwapPreservedSource -eq $true)
+              ) -or
+              $e.originalJavaG21171Unmodified -ne $true -or
+              $e.productionWorldSaveCertified -ne $false -or
+              $e.nativeWorldWriterIntegrated -ne $false -or
+              $e.crossJvmLeaseCertified -ne $false -or
+              $e.atomicExternalRawWriterFenceCertified -ne $false -or
+              $e.crashDurabilityCertified -ne $false) {
+            throw "P554_NT_ROOT_DIRECTORY_UNSAFE_OR_OVERCLAIMED"
+          }
+          Write-Host "P554_NT_ROOT_DIRECTORY_EVIDENCE_PASS nativeWin32ProbeOnly=true productionWorldSave=false"
 
       # P5.53: bounded *test-only* actual file relocation relative
       # to a held Win32 destination-directory HANDLE, not path text.
@@ -242,6 +282,15 @@ jobs:
         with:
           name: windows-negative-release-boundary
           path: windows-source-release-boundary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload isolated native NT root-relative rename probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-nt-relative-rename-evidence
+          path: windows-nt-relative-rename-evidence.json
           if-no-files-found: warn
           retention-days: 14
 
