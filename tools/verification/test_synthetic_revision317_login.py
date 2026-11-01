@@ -2,7 +2,7 @@
 import struct
 import unittest
 
-from synthetic_revision317_login import Isaac, login_body, u32
+from synthetic_revision317_login import Isaac, bank_action_145, login_body, u32
 
 
 class SyntheticRevision317FixtureTests(unittest.TestCase):
@@ -24,6 +24,23 @@ class SyntheticRevision317FixtureTests(unittest.TestCase):
     def test_rejected_revision_fixture_not_admitted_as_valid(self):
         frame, _ = login_body(0x0123456789ABCDEF, revision=316)
         self.assertEqual(struct.unpack(">H", frame[3:5])[0], 316)
+
+    def test_bank_action_bea_fixture_and_cipher_progress(self):
+        cipher = Isaac((1, 2, 3, 4))
+        verifier = Isaac((1, 2, 3, 4))
+        raw = bank_action_145(cipher, 5382, 0, 995)
+        self.assertEqual(raw, bytes([
+            (145 + verifier.next_int()) & 255,
+            5382 >> 8, (5382 + 128) & 255,
+            0, 128,
+            995 >> 8, (995 + 128) & 255,
+        ]))
+        self.assertEqual(len(raw), 7)
+        self.assertNotEqual(raw[0], bank_action_145(cipher, 5382, 0, 995)[0])
+        with self.assertRaises(ValueError):
+            bank_action_145(cipher, -1, 0, 995)
+        with self.assertRaises(ValueError):
+            bank_action_145(cipher, 5382, 0, 65536)
 
     def test_isaac_seed_determinism_and_256_word_refill(self):
         seeds = (1, 2, 3, 4)
