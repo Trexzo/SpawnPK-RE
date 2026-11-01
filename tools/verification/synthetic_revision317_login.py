@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import socket
 import struct
+import time
 
 HOST = "127.0.0.1"
 PORT = 43594
@@ -131,7 +132,9 @@ def rejected_revision(host: str = HOST, port: int = PORT) -> None:
             raise AssertionError("server admitted unsupported protocol revision 316")
 
 
-def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT) -> dict:
+def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT,
+                                 walk_bank: bool = False,
+                                 read_server_log=None) -> dict:
     with socket.create_connection((host, port), timeout=5) as sock:
         sock.settimeout(8)
         seeds = _begin(sock, revision=317)
@@ -167,8 +170,64 @@ def accepted_login_and_bootstrap(host: str = HOST, port: int = PORT) -> dict:
             raise AssertionError("missing local appearance update")
         if energy[0] > 100 or b"%" not in run_text:
             raise AssertionError("missing run-energy/bootstrap widget")
+        if walk_bank:
+            if read_server_log is None:
+                raise ValueError("movement/bank proof requires an isolated server log reader")
+            # Pinned v308 walk serializer: LE short-A X, LE Y, negated run.
+            # From HOME 3087,3495 to 3089,3495 is exactly two east tiles.
+            walk = bytes([
+                (3089 + 128) & 255, 3089 >> 8,
+                3495 & 255, 3495 >> 8,
+                0,
+            ])
+            # The object writer is (X LE-A, objectId BE, Y BE-A).
+            obj = bytes([
+                (3090 + 128) & 255, 3090 >> 8,
+                26972 >> 8, 26972 & 255,
+                3495 >> 8, (3495 + 128) & 255,
+            ])
+            sock.sendall(
+                bytes([(164 + c2s.next_int()) & 255, len(walk)]) + walk
+                + bytes([(132 + c2s.next_int()) & 255]) + obj
+            )
+            deadline = time.monotonic() + 15
+            accepted = False
+            stepped = False
+            bank_open = False
+            while time.monotonic() < deadline:
+                text = read_server_log()
+                # Check authoritative state transitions, not simply receipt
+                # of the encrypted bytes or a non-atomic anticipated log.
+                accepted = "M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3089,3495]} action=ACCEPTED" in text
+                stepped = (
+                    "M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3088,3495 to=3089,3495" in text
+                    or "M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from=3087,3495 to=3089,3495" in text
+                )
+                bank_open = (
+                    "V5_BANK_OPEN ObjectInteraction{opcode=132" in text
+                    and "action=OPENED_" in text
+                    and "bankContainer=5382" in text
+                )
+                if accepted and stepped and bank_open:
+                    break
+                # The real server may emit scene/bootstrap updates before the
+                # bank overlay; drain inbound bytes to avoid producer blocking.
+                sock.settimeout(0.3)
+                try:
+                    if not sock.recv(65536):
+                        raise AssertionError("server closed before movement/bank evidence")
+                except socket.timeout:
+                    pass
+            if not (accepted and stepped and bank_open):
+                raise AssertionError(
+                    "movement/bank proof incomplete; "
+                    f"accepted={accepted} stepped={stepped} bank_open={bank_open}"
+                )
         return {
-            "result": "SYNTHETIC_REV317_LOGIN_BOOTSTRAP_PASS",
+            "result": ("SYNTHETIC_REV317_WALK_BANK_PASS" if walk_bank
+                       else "SYNTHETIC_REV317_LOGIN_BOOTSTRAP_PASS"),
+            "authoritative_walk_observed": walk_bank,
+            "bank_open_observed": walk_bank,
             "revision": 317,
             "client_config_fixture": 308,
             "s2c_first_five": [249, 73, 81, 110, 126],
