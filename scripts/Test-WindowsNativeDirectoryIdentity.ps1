@@ -89,6 +89,8 @@ $report = [ordered]@{
     type = "SPK_P550_WIN32_DIRECTORY_IDENTITY_CAPABILITY_ONLY"
     probeApi = "CreateFileW_NOFOLLOW_GetFileInformationByHandle"
     nativeDirectoryIdentityAvailable = $false
+    allSelectedAncestorsHaveNativeIdentity = $false
+    observedNativeAncestorCount = 0
     reopenStable = $false
     distinctDirectoriesHaveDistinctIds = $false
     renamedDirectoryPreservesId = $false
@@ -115,6 +117,33 @@ try {
         throw "P550_NATIVE_DIRECTORY_ID_UNAVAILABLE"
     }
     $report.nativeDirectoryIdentityAvailable = $true
+
+    # P5.49 showed Java fileKey is null for EVERY directory
+    # from the workspace to D:\\ on Windows. Independently inspect
+    # those exact native parent paths, not only our two test leaves.
+    # Handle identity is a capability observation, not a lease.
+    $cursor = [IO.Path]::GetFullPath($a)
+    $depth = 0
+    while ($true) {
+        $parentToken = [SpkP550DirectoryId]::ObserveNoFollow($cursor)
+        if (-not $parentToken.Available -or
+            -not $parentToken.Directory -or $parentToken.Reparse) {
+            throw ("P550_NATIVE_ANCESTOR_ID_UNAVAILABLE_OR_REDIRECTED depth=" +
+                $depth + " path=" + $cursor)
+        }
+        Write-Host ("P550_NATIVE_ANCESTOR_OBSERVED depth=" + $depth +
+            " path=" + $cursor +
+            " handleIdAvailable=true directory=true reparse=false")
+        $depth++
+        $parentDir = [IO.Directory]::GetParent($cursor)
+        if ($null -eq $parentDir) { break }
+        $cursor = $parentDir.FullName
+    }
+    $report.observedNativeAncestorCount = $depth
+    $report.allSelectedAncestorsHaveNativeIdentity = ($depth -ge 4)
+    if (-not $report.allSelectedAncestorsHaveNativeIdentity) {
+        throw "P550_NATIVE_ANCESTRY_EVIDENCE_INCOMPLETE"
+    }
     $report.reopenStable = [SpkP550DirectoryId]::Same($first,$again)
     $report.distinctDirectoriesHaveDistinctIds =
         -not [SpkP550DirectoryId]::Same($first,$other)
@@ -168,6 +197,8 @@ try {
         Set-Content -LiteralPath $output -Encoding utf8
     Write-Host ("P550_WIN32_NATIVE_DIRECTORY_IDENTITY_PASS" +
         " nativeIdAvailable=true" +
+        " allAncestorsHaveNativeIds=" + $report.allSelectedAncestorsHaveNativeIdentity.ToString().ToLowerInvariant() +
+        " ancestorCount=" + $report.observedNativeAncestorCount +
         " reopenStable=" + $report.reopenStable.ToString().ToLowerInvariant() +
         " distinctDirectories=true" +
         " renamePreservesId=" + $report.renamedDirectoryPreservesId.ToString().ToLowerInvariant() +
