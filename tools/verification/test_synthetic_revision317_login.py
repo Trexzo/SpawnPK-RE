@@ -36,7 +36,8 @@ class SyntheticRevision317FixtureTests(unittest.TestCase):
             995 >> 8, (995 + 128) & 255,
         ]))
         self.assertEqual(len(raw), 7)
-        self.assertNotEqual(raw[0], bank_action_145(cipher, 5382, 0, 995)[0])
+        second = bank_action_145(cipher, 5382, 0, 995)
+        self.assertEqual(second[0], (145 + verifier.next_int()) & 255)
         with self.assertRaises(ValueError):
             bank_action_145(cipher, -1, 0, 995)
         with self.assertRaises(ValueError):
