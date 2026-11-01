@@ -140,28 +140,37 @@ public static class SpkP553HandleRelativeRename
     public static int MoveSourceRelativeToHeldDirectory(
         string source,HeldDirectory destination,string leafName)
     {
-        // Restrict this test to a single basename. No path separators
-        // are allowed in the relative FILE_RENAME_INFO FileName.
         if(String.IsNullOrEmpty(leafName) || leafName=="." || leafName==".." ||
             leafName.IndexOfAny(new[]{'/', '\\', ':'})>=0)
             throw new ArgumentException("P553_UnsafeRelativeLeaf");
-        byte[] utf16=Encoding.Unicode.GetBytes(leafName);
+        return RenameInternal(source,destination.Raw,leafName);
+    }
+
+    public static int MoveSourceAbsoluteWithNullRoot(
+        string source,string absoluteTarget)
+    {
+        if(!Path.IsPathRooted(absoluteTarget))
+            throw new ArgumentException("P553_FullPathRequiredForNullRoot");
+        return RenameInternal(source,IntPtr.Zero,absoluteTarget);
+    }
+
+    static int RenameInternal(string source,IntPtr rootDirectory,string name)
+    {
+        // A/B compares the exact SAME FileRenameInfo layout and file
+        // operation, changing ONLY root handle + corresponding name.
+        byte[] utf16=Encoding.Unicode.GetBytes(name);
         int rootOffset=IntPtr.Size==8?8:4;
-        int nameLenOffset=rootOffset+IntPtr.Size;
-        int nameOffset=nameLenOffset+4;
+        int lengthOffset=rootOffset+IntPtr.Size;
+        int nameOffset=lengthOffset+4;
         int size=nameOffset+utf16.Length+2;
         IntPtr mem=Marshal.AllocHGlobal(size);
         try
         {
-            // FILE_RENAME_INFO flags are zero: NEVER replace an
-            // existing destination in this diagnostic.
             Marshal.Copy(new byte[size],0,mem,size);
-            Marshal.WriteInt32(mem,0,0);
-            Marshal.WriteIntPtr(mem,rootOffset,destination.Raw);
-            Marshal.WriteInt32(mem,nameLenOffset,utf16.Length);
+            Marshal.WriteInt32(mem,0,0); // ReplaceIfExists = false.
+            Marshal.WriteIntPtr(mem,rootOffset,rootDirectory);
+            Marshal.WriteInt32(mem,lengthOffset,utf16.Length);
             Marshal.Copy(utf16,0,IntPtr.Add(mem,nameOffset),utf16.Length);
-
-            // A DELETE-right file handle is necessary for rename.
             using(SafeFileHandle h=Open(source,
                 DELETE_ACCESS|FILE_READ_ATTRIBUTES,0))
             {
@@ -180,10 +189,14 @@ New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
 $report=[ordered]@{
     formatVersion=1
     type="SPK_P553_HANDLE_RELATIVE_RENAME_TEST_ONLY"
-    normalHeldDirectoryRenameSucceeded=$false
-    normalFileContentRoundTrip=$false
+    fullPathNullRootBaselineSucceeded=$false
+    fullPathNullRootBytesVerified=$false
+    rootedMoveSupported=$false
+    rootedMoveDeniedWin32Error87=$false
+    rootedUnsupportedAttemptNoMove=$false
     heldDirectoryIdentityStableAcrossPathReplacement=$false
-    targetMovedIntoRetiredHeldDirectory=$false
+    rootedTargetMovedIntoRetiredDirectory=$false
+    unsupportedRootAfterPathSwapStillDenied=$false
     newlyRecreatedPathNotWritten=$false
     decoyFileUnmodified=$false
     existingTargetRejectedWithoutReplacement=$false
@@ -199,30 +212,66 @@ try {
     $account=Join-Path $root "account"
     New-Item -ItemType Directory -Path $stage | Out-Null
     New-Item -ItemType Directory -Path $account | Out-Null
-    $source1=Join-Path $stage "source-1.bin"
-    $payload1=[Text.Encoding]::UTF8.GetBytes("P553-normal-payload")
+
+    # A/B baseline: documented commonplace Win32 form uses
+    # RootDirectory=NULL and a FULL absolute target pathname.
+    $source1=Join-Path $stage "baseline-source.bin"
+    $baseline=Join-Path $account "baseline.bin"
+    $payload1=[Text.Encoding]::UTF8.GetBytes("P553-absolute-baseline")
     [IO.File]::WriteAllBytes($source1,$payload1)
+    $result=[SpkP553HandleRelativeRename]::MoveSourceAbsoluteWithNullRoot(
+        $source1,$baseline)
+    if($result -ne 0) {
+        throw ("P553_NULL_ROOT_BASELINE_FAILED win32="+$result)
+    }
+    $report.fullPathNullRootBaselineSucceeded=
+        (Test-Path -LiteralPath $baseline) -and
+        -not (Test-Path -LiteralPath $source1)
+    $report.fullPathNullRootBytesVerified=
+        [Convert]::ToBase64String([IO.File]::ReadAllBytes($baseline)) -ceq
+        [Convert]::ToBase64String($payload1)
+    if(-not $report.fullPathNullRootBaselineSucceeded -or
+        -not $report.fullPathNullRootBytesVerified) {
+        throw "P553_NULL_ROOT_POSITIVE_CONTROL_FAILED"
+    }
+
+    # Change ONLY the RootDirectory/name form: non-NULL held
+    # directory root plus relative SINGLE leaf. A documented API
+    # can still return ERROR_INVALID_PARAMETER 87 on the provider.
     $held=[SpkP553HandleRelativeRename]::HoldDirectory($account)
     try {
         $originalId=$held.Id()
-        $code=[SpkP553HandleRelativeRename]::MoveSourceRelativeToHeldDirectory(
-            $source1,$held,"normal.bin")
-        if($code -ne 0){throw ("P553_NORMAL_RELATIVE_RENAME_FAILED win32="+$code)}
-        $normal=Join-Path $account "normal.bin"
-        $report.normalHeldDirectoryRenameSucceeded=
-            (Test-Path -LiteralPath $normal) -and
-            -not (Test-Path -LiteralPath $source1)
-        $report.normalFileContentRoundTrip=
-            [Convert]::ToBase64String([IO.File]::ReadAllBytes($normal)) -ceq
-            [Convert]::ToBase64String($payload1)
-        if(-not $report.normalHeldDirectoryRenameSucceeded -or
-            -not $report.normalFileContentRoundTrip) {
-            throw "P553_NORMAL_POSITIVE_ROUNDTRIP_MISSING"
+        $source2=Join-Path $stage "rooted-source.bin"
+        $payload2=[Text.Encoding]::UTF8.GetBytes("P553-rooted-candidate")
+        [IO.File]::WriteAllBytes($source2,$payload2)
+        $rootedPath=Join-Path $account "rooted.bin"
+        $rootCode=[SpkP553HandleRelativeRename]::MoveSourceRelativeToHeldDirectory(
+            $source2,$held,"rooted.bin")
+        if($rootCode -eq 0) {
+            $report.rootedMoveSupported=
+                (Test-Path -LiteralPath $rootedPath) -and
+                -not (Test-Path -LiteralPath $source2) -and
+                ([Convert]::ToBase64String(
+                    [IO.File]::ReadAllBytes($rootedPath)) -ceq
+                    [Convert]::ToBase64String($payload2))
+            if(-not $report.rootedMoveSupported) {
+                throw "P553_ROOTED_MOVE_RETURNED_SUCCESS_WITHOUT_BYTES"
+            }
+        } elseif ($rootCode -eq 87) {
+            $report.rootedMoveDeniedWin32Error87=$true
+            $report.rootedUnsupportedAttemptNoMove=
+                (Test-Path -LiteralPath $source2) -and
+                -not (Test-Path -LiteralPath $rootedPath)
+            if(-not $report.rootedUnsupportedAttemptNoMove) {
+                throw "P553_ERROR87_ALREADY_MUTATED_FILES"
+            }
+        } else {
+            throw ("P553_ROOT_DIRECTORY_UNCLASSIFIED_WIN32_ERROR="+$rootCode)
         }
 
-        # The account pathname now moves while its genuine directory
-        # handle is still held. Publish a second file relative to the
-        # HELD directory, not the replacement pathname.
+        # Delayed pathname replacement with the original directory
+        # handle still open. No write can be called authoritative
+        # merely because a stale path string still exists.
         $retired=Join-Path $root "account-retired"
         Move-Item -LiteralPath $account -Destination $retired -ErrorAction Stop
         $report.heldDirectoryIdentityStableAcrossPathReplacement=
@@ -230,65 +279,111 @@ try {
             $originalId.Same(
                 [SpkP553HandleRelativeRename]::ObserveDirectory($retired))
         New-Item -ItemType Directory -Path $account | Out-Null
+        if($originalId.Same(
+            [SpkP553HandleRelativeRename]::ObserveDirectory($account))) {
+            throw "P553_PATH_REPLACEMENT_NOT_DETECTED"
+        }
         $decoy=Join-Path $account "decoy.bin"
         [IO.File]::WriteAllBytes($decoy,[Text.Encoding]::UTF8.GetBytes("P553-decoy"))
         $decoyBefore=[Convert]::ToBase64String([IO.File]::ReadAllBytes($decoy))
-        if($originalId.Same(
-            [SpkP553HandleRelativeRename]::ObserveDirectory($account))) {
-            throw "P553_REPLACEMENT_SAME_NATIVE_DIRECTORY_ID"
+
+        $source3=Join-Path $stage "cutpoint-source.bin"
+        $payload3=[Text.Encoding]::UTF8.GetBytes("P553-actual-held-dest")
+        [IO.File]::WriteAllBytes($source3,$payload3)
+        $cutpointCode=[SpkP553HandleRelativeRename]::MoveSourceRelativeToHeldDirectory(
+            $source3,$held,"held-only.bin")
+        $retiredTarget=Join-Path $retired "held-only.bin"
+        $newPathTarget=Join-Path $account "held-only.bin"
+        if($report.rootedMoveSupported) {
+            if($cutpointCode -ne 0) {
+                throw ("P553_ROOTED_SUPPORTED_BUT_CUTPOINT_FAILED win32="+$cutpointCode)
+            }
+            $report.rootedTargetMovedIntoRetiredDirectory=
+                (Test-Path -LiteralPath $retiredTarget) -and
+                -not (Test-Path -LiteralPath $source3) -and
+                ([Convert]::ToBase64String(
+                    [IO.File]::ReadAllBytes($retiredTarget)) -ceq
+                    [Convert]::ToBase64String($payload3))
+            if(-not $report.rootedTargetMovedIntoRetiredDirectory) {
+                throw "P553_ROOTED_CUTPOINT_WRONG_DESTINATION"
+            }
+        } else {
+            # This is the Windows runner's expected negative lane:
+            # the API refuses a non-NULL RootDirectory. Do NOT
+            # switch to an absolute mutable pathname after the
+            # path has been replaced; that could target a decoy.
+            $report.unsupportedRootAfterPathSwapStillDenied=
+                $cutpointCode -eq 87 -and
+                (Test-Path -LiteralPath $source3) -and
+                -not (Test-Path -LiteralPath $retiredTarget)
+            if(-not $report.unsupportedRootAfterPathSwapStillDenied) {
+                throw ("P553_ROOTED_NEGATIVE_CUTPOINT_UNSAFE win32="+$cutpointCode)
+            }
         }
-        $source2=Join-Path $stage "source-2.bin"
-        $payload2=[Text.Encoding]::UTF8.GetBytes("P553-held-relative-payload")
-        [IO.File]::WriteAllBytes($source2,$payload2)
-        $code=[SpkP553HandleRelativeRename]::MoveSourceRelativeToHeldDirectory(
-            $source2,$held,"held-only.bin")
-        if($code -ne 0){throw ("P553_HELD_RELATIVE_RENAME_FAILED win32="+$code)}
-        $heldTarget=Join-Path $retired "held-only.bin"
-        $report.targetMovedIntoRetiredHeldDirectory=
-            (Test-Path -LiteralPath $heldTarget) -and
-            -not (Test-Path -LiteralPath $source2) -and
-            ([Convert]::ToBase64String(
-                [IO.File]::ReadAllBytes($heldTarget)) -ceq
-                [Convert]::ToBase64String($payload2))
         $report.newlyRecreatedPathNotWritten=
-            -not (Test-Path -LiteralPath (Join-Path $account "held-only.bin"))
+            -not (Test-Path -LiteralPath $newPathTarget)
         $report.decoyFileUnmodified=
             ([Convert]::ToBase64String([IO.File]::ReadAllBytes($decoy)) -ceq
-            $decoyBefore)
+                $decoyBefore)
         if(-not $report.heldDirectoryIdentityStableAcrossPathReplacement -or
-            -not $report.targetMovedIntoRetiredHeldDirectory -or
             -not $report.newlyRecreatedPathNotWritten -or
             -not $report.decoyFileUnmodified) {
-            throw "P553_PATH_REPLACEMENT_REDIRECT_OR_IDENTITY_BROKEN"
+            throw "P553_REPLACED_PATH_TARGET_OR_DECOY_CHANGED"
         }
 
-        # Existing destination with ReplaceIfExists=FALSE must reject
-        # without corrupting either the staged or published file.
-        $source3=Join-Path $stage "source-3.bin"
-        [IO.File]::WriteAllBytes($source3,[Text.Encoding]::UTF8.GetBytes("P553-should-not-move"))
-        $normalBefore=[Convert]::ToBase64String(
-            [IO.File]::ReadAllBytes((Join-Path $retired "normal.bin")))
-        $conflict=[SpkP553HandleRelativeRename]::MoveSourceRelativeToHeldDirectory(
-            $source3,$held,"normal.bin")
+        # Occupied destination on the ordinary supported NULL-root
+        # form must still deny a replacement, retaining both bytes.
+        $source4=Join-Path $stage "occupied-source.bin"
+        [IO.File]::WriteAllBytes(
+            $source4,[Text.Encoding]::UTF8.GetBytes("P553-do-not-replace"))
+        $retiredBaseline=Join-Path $retired "baseline.bin"
+        $before=[Convert]::ToBase64String(
+            [IO.File]::ReadAllBytes($retiredBaseline))
+        $occupied=[SpkP553HandleRelativeRename]::MoveSourceAbsoluteWithNullRoot(
+            $source4,$retiredBaseline)
         $report.existingTargetRejectedWithoutReplacement=
-            $conflict -ne 0 -and
+            $occupied -ne 0 -and
             ([Convert]::ToBase64String(
-                [IO.File]::ReadAllBytes((Join-Path $retired "normal.bin"))) -ceq
-                $normalBefore)
-        $report.sourcePreservedOnRejection=Test-Path -LiteralPath $source3
+                [IO.File]::ReadAllBytes($retiredBaseline)) -ceq $before)
+        $report.sourcePreservedOnRejection=Test-Path -LiteralPath $source4
         if(-not $report.existingTargetRejectedWithoutReplacement -or
             -not $report.sourcePreservedOnRejection) {
-            throw ("P553_EXISTING_TARGET_REPLACE_NOT_DENIED win32="+$conflict)
+            throw ("P553_OCCUPIED_TARGET_REPLACED win32="+$occupied)
         }
     } finally { $held.Dispose() }
 
+    # Both provider branches are real, not simulated. A positive
+    # root-handle report requires BOTH handle-relative moves.
+    # An unsupported root report requires BOTH strict error-87
+    # refusals without any disk changes, plus NULL-root baseline.
+    if(-not $report.heldDirectoryIdentityStableAcrossPathReplacement -or
+        -not $report.decoyFileUnmodified -or
+        -not $report.newlyRecreatedPathNotWritten -or
+        -not $report.fullPathNullRootBytesVerified -or
+        -not $report.existingTargetRejectedWithoutReplacement -or
+        -not $report.sourcePreservedOnRejection -or
+        -not (
+            ($report.rootedMoveSupported -and
+                $report.rootedTargetMovedIntoRetiredDirectory -and
+                -not $report.rootedMoveDeniedWin32Error87) -or
+            ($report.rootedMoveDeniedWin32Error87 -and
+                $report.rootedUnsupportedAttemptNoMove -and
+                $report.unsupportedRootAfterPathSwapStillDenied -and
+                -not $report.rootedMoveSupported)
+        )) {
+        throw "P553_PROVIDER_CAPABILITY_NOT_PROVEN"
+    }
     $report | ConvertTo-Json -Depth 4 |
         Set-Content -LiteralPath ([IO.Path]::GetFullPath($OutputPath)) -Encoding utf8
-    Write-Host ("P553_HANDLE_RELATIVE_RENAME_PASS "+
-        "normalRealFileMove=true heldDirectorySurvivedPathReplace=true "+
-        "relativeTargetBoundToHeldDirectory=true sameTextNewPathNotWritten=true "+
-        "existingDestinationRejected=true sourcePreserved=true "+
-        "productionWorldSaveCertified=false externalRawWriterAtomicFenceCertified=false")
+    Write-Host ("P553_ROOT_DIRECTORY_CAPABILITY_PASS"+
+        " nullRootFullPathRoundTrip=true"+
+        " rootedRelativeSupported="+$report.rootedMoveSupported.ToString().ToLowerInvariant()+
+        " rootedWin32Error87="+$report.rootedMoveDeniedWin32Error87.ToString().ToLowerInvariant()+
+        " unchangedHeldDirectoryId=true"+
+        " recreatedPathUnmodified=true"+
+        " noOverwriteExisting=true"+
+        " productionWorldSaveCertified=false"+
+        " atomicExternalWriterFenceCertified=false")
 } finally {
     if(Test-Path -LiteralPath $root) {
         Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop
