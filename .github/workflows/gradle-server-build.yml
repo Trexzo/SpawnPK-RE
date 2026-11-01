@@ -7,6 +7,8 @@ on:
       - 'scripts/Build-Server.ps1'
       - 'RUN_REPO_SELFTEST.ps1'
       - 'RUN_V5185_FULL_SELFTEST.ps1'
+      - 'tools/verification/loopback_boot_smoke.py'
+      - 'tools/verification/test_loopback_boot_smoke.py'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
@@ -16,6 +18,8 @@ on:
       - 'scripts/Build-Server.ps1'
       - 'RUN_REPO_SELFTEST.ps1'
       - 'RUN_V5185_FULL_SELFTEST.ps1'
+      - 'tools/verification/loopback_boot_smoke.py'
+      - 'tools/verification/test_loopback_boot_smoke.py'
       - '.github/workflows/gradle-server-build.yml'
 
 jobs:
@@ -33,3 +37,15 @@ jobs:
 
       - name: Build and verify Java 11 bytecode
         run: bash server/gradlew --no-daemon clean build
+
+      - name: Set up supported runtime JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Unit-test isolated server boot probe
+        run: python3 -m unittest discover -s tools/verification -p 'test_loopback_boot_smoke.py' -v
+
+      - name: Boot actual server JAR in isolated loopback profile
+        run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30
