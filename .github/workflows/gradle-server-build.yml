@@ -9,6 +9,8 @@ on:
       - 'RUN_V5185_FULL_SELFTEST.ps1'
       - 'tools/verification/loopback_boot_smoke.py'
       - 'tools/verification/test_loopback_boot_smoke.py'
+      - 'tools/verification/synthetic_revision317_login.py'
+      - 'tools/verification/test_synthetic_revision317_login.py'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
@@ -45,7 +47,12 @@ jobs:
           java-version: '17'
 
       - name: Unit-test isolated server boot probe
-        run: python3 -m unittest discover -s tools/verification -p 'test_loopback_boot_smoke.py' -v
+        run: |
+          python3 -m unittest discover -s tools/verification -p 'test_loopback_boot_smoke.py' -v
+          python3 -m unittest discover -s tools/verification -p 'test_synthetic_revision317_login.py' -v
 
       - name: Boot actual server JAR in isolated loopback profile
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30
+
+      - name: Synthetic revision317 login + ISAAC bootstrap against actual server JAR
+        run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30 --synthetic-login
