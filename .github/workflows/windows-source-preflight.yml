@@ -112,6 +112,8 @@ jobs:
           $evidence = Get-Content -Raw -LiteralPath windows-native-directory-id-evidence.json | ConvertFrom-Json
           if ($evidence.type -cne "SPK_P550_WIN32_DIRECTORY_IDENTITY_CAPABILITY_ONLY" -or
               $evidence.nativeDirectoryIdentityAvailable -ne $true -or
+              $evidence.allSelectedAncestorsHaveNativeIdentity -ne $true -or
+              $evidence.observedNativeAncestorCount -lt 4 -or
               $evidence.reopenStable -ne $true -or
               $evidence.distinctDirectoriesHaveDistinctIds -ne $true -or
               $evidence.renamedDirectoryPreservesId -ne $true -or
