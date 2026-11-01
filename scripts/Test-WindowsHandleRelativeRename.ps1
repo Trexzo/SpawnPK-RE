@@ -162,7 +162,14 @@ public static class SpkP553HandleRelativeRename
         int rootOffset=IntPtr.Size==8?8:4;
         int lengthOffset=rootOffset+IntPtr.Size;
         int nameOffset=lengthOffset+4;
-        int size=nameOffset+utf16.Length+2;
+        // Allocate at least full native struct size PLUS the
+        // variable Unicode filename, not only FIELD_OFFSET+length.
+        // Keep a trailing UTF-16 NUL as well, although length
+        // excludes it. This avoids misdiagnosing an undersized
+        // buffer as unsupported RootDirectory API behavior.
+        int structSize=IntPtr.Size==8?24:16;
+        int size=Math.Max(structSize+utf16.Length,
+            nameOffset+utf16.Length+2);
         IntPtr mem=Marshal.AllocHGlobal(size);
         try
         {
