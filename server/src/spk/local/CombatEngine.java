@@ -192,7 +192,7 @@ final class CombatEngine {
             return "REJECTED_COMBAT_TARGET_"+validity.reason+
                 " detail="+validity.detail;
         CombatTargetRepository.Target target=
-            CombatTargetRepository.forDefinition(npc.definitionId);
+            CombatTargetRepository.forNpc(npc);
         CombatWeaponProfile weapon=CombatWeaponRepository.resolve(weaponId);
         int range=weapon!=null&&weapon.attackRange>0?weapon.attackRange:1;
         int dist=LocalSession.chebyshev(movement.x(),movement.y(),npc.x,npc.y);
@@ -322,7 +322,11 @@ final class CombatEngine {
             actorPublication.actorGfxPublished;
         CombatDamageRules.Result calculatedDamage=null;
         CombatSystemHooks.Snapshot hookSnapshot=null;
-        int damage=0,hitType=-1,hp=DUMMY_HP_MAX;
+        int damage=0,hitType=-1;
+        int hpMax=target.localLabMortalFixture()
+            ?LocalLabMortalNpcFixture.MAX_HP
+            :DUMMY_HP_MAX;
+        int hp=hpMax;
         if(mechanicsResolved){
             hookSnapshot=
                 systemHooks.beforeDamage(
@@ -348,6 +352,8 @@ final class CombatEngine {
                 damage,
                 calculatedDamage.maxHitReference
             );
+            if(target.localLabMortalFixture())
+                hp=Math.max(0,target.localLabMortalHp()-damage);
 
             CombatHitScheduler.ScheduledHit scheduled=
                 CombatHitScheduler.schedule(
@@ -358,7 +364,7 @@ final class CombatEngine {
                         damage,
                         hitType,
                         hp,
-                        DUMMY_HP_MAX,
+                        hpMax,
                         targetGfx,
                         calculatedDamage.authority,
                         calculatedDamage.formula,
