@@ -862,6 +862,49 @@ final class NpcRegistry {
             " ownerPlayerIndex="+e.ownerPlayerIndex+" devOwned="+devOwnedSceneIndexes.contains(sceneIndex);
     }
 
+    /**
+     * R6 test-only actor. A new packet-65 add after the ordinary HOME
+     * bootstrap avoids altering pinned HOME NPC order or production metadata.
+     */
+    String spawnLocalLabMortalFixture(
+        MovementState movement,
+        ServerPacketWriter writer
+    )throws IOException{
+        if(!LocalLabMortalNpcFixture.enabled())
+            return "R6_MORTAL_NPC_DISABLED";
+
+        int scene=allocateDevSceneIndex();
+        int x=movement.x()+1;
+        int y=movement.y();
+        if(scene<0||!MovementState.insideLoadedRegion(x,y))
+            throw new IllegalStateException("R6 fixture cannot spawn");
+
+        NpcEntity npc=new NpcEntity(
+            scene,
+            LocalLabMortalNpcFixture.NPC_DEFINITION,
+            x,y
+        );
+        npc.enableLocalLabMortalFixture();
+        writer.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retains(),
+                Collections.singletonList(npc),
+                movement.x(),
+                movement.y()
+            )
+        );
+        visible.add(npc);
+        devOwnedSceneIndexes.add(scene);
+        assertUniqueSceneIndexes();
+        return "R6_MORTAL_NPC_BOOTSTRAP scene="+scene+
+            " def="+npc.definitionId+
+            " world="+x+","+y+
+            " hp="+npc.localLabMortalHp()+
+            " loot=995x1"+
+            " authority=CUSTOM_LOCALLAB_OPT_IN_FIXTURE";
+    }
+
     String devSpawnNpc(int npcId,int dx,int dy,MovementState movement,ServerPacketWriter w)throws IOException{
         if(npcId<0||npcId>16383) return "DEV_NPC_SPAWN_REJECTED npcId=0..16383";
         if(dx<-16||dx>15||dy<-16||dy>15) return "DEV_NPC_SPAWN_REJECTED offsets=-16..15";
