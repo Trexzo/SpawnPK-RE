@@ -12,12 +12,20 @@ final class NpcEntity {
     // Opt-in R6 localhost playability fixture only; -1 means an ordinary NPC.
     // This never changes canonical HOME NPCs or historical max-hit dummies.
     private int localLabMortalHp=-1;
+    private int localLabMortalMaxHp=-1;
     boolean localLabMortalFixture(){return localLabMortalHp>=0;}
     int localLabMortalHp(){return localLabMortalHp;}
+    int localLabMortalMaxHp(){return localLabMortalMaxHp;}
     void enableLocalLabMortalFixture(){
+        enableLocalLabMortalFixture(LocalLabMortalNpcFixture.maxHp());
+    }
+    void enableLocalLabMortalFixture(int maxHp){
         if(localLabMortalHp>=0)
             throw new IllegalStateException("mortal fixture already enabled");
-        localLabMortalHp=LocalLabMortalNpcFixture.MAX_HP;
+        if(maxHp<1||maxHp>255)
+            throw new IllegalArgumentException("fixture maxHP must be 1..255");
+        localLabMortalHp=maxHp;
+        localLabMortalMaxHp=maxHp;
     }
     int applyLocalLabMortalDamage(int amount){
         if(localLabMortalHp<0||amount<=0)

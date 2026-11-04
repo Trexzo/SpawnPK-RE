@@ -20,6 +20,13 @@ final class NpcRegistry {
     /** Exact-v9.12 follower train: each entry is a tile vacated by the main pet. */
     private final ArrayDeque<int[]> miniTrail=new ArrayDeque<>();
     private final LinkedHashSet<Integer> devOwnedSceneIndexes=new LinkedHashSet<>();
+    // R7 only: per-session fixture generations never reuse a retired scene
+    // index, so a delayed old C2S72 cannot strike a later respawn.
+    private int r7LastAssignedScene=16383;
+    private long r7RespawnDueTick=-1L;
+    private int r7PreviousScene=-1;
+    private int r7ScheduledDeaths;
+
     private final DevAuthorityWorkbench dev;
     private final WorldPetNpcService worldPets;
     private final EntityId canonicalOwnerId;
@@ -67,7 +74,7 @@ final class NpcRegistry {
 
     void bootstrap(ServerPacketWriter w,MovementState movement,PetState petState) throws IOException {
         canonicalRemoveAll();
-        visible.clear(); ownerTrail.clear(); miniTrail.clear(); devOwnedSceneIndexes.clear(); pet=null; petNativeState=0; miniPet=null; recentOwnerRunning=false; hasLastOwnerAnchor=false; hasMiniTrail=false; lastOwnerFacingDir=6; suppressNextOwnerBreadcrumb=false; petDiscontinuityTicks=0; miniDiscontinuityTicks=0;
+        visible.clear(); ownerTrail.clear(); miniTrail.clear(); devOwnedSceneIndexes.clear(); r7LastAssignedScene=16383; r7RespawnDueTick=-1L; r7PreviousScene=-1; r7ScheduledDeaths=0; pet=null; petNativeState=0; miniPet=null; recentOwnerRunning=false; hasLastOwnerAnchor=false; hasMiniTrail=false; lastOwnerFacingDir=6; suppressNextOwnerBreadcrumb=false; petDiscontinuityTicks=0; miniDiscontinuityTicks=0;
         // Existing home coordinates remain explicitly LOCAL diagnostic placements.
         visible.add(new NpcEntity(BLOOD_FOUNTAIN_INDEX,1799,movement.x()+3,movement.y()+3));
         // Exact definitions, localhost diagnostic placement only.
@@ -85,7 +92,7 @@ final class NpcRegistry {
     void bootstrapHome(ServerPacketWriter w,MovementState movement,PetState petState,HomeWorldRuntimePlan home) throws IOException {
         if(home==null) throw new NullPointerException("home");
         canonicalRemoveAll();
-        visible.clear(); ownerTrail.clear(); miniTrail.clear(); devOwnedSceneIndexes.clear(); pet=null; petNativeState=0; miniPet=null; recentOwnerRunning=false; hasLastOwnerAnchor=false; hasMiniTrail=false; lastOwnerFacingDir=6; suppressNextOwnerBreadcrumb=false; petDiscontinuityTicks=0; miniDiscontinuityTicks=0;
+        visible.clear(); ownerTrail.clear(); miniTrail.clear(); devOwnedSceneIndexes.clear(); r7LastAssignedScene=16383; r7RespawnDueTick=-1L; r7PreviousScene=-1; r7ScheduledDeaths=0; pet=null; petNativeState=0; miniPet=null; recentOwnerRunning=false; hasLastOwnerAnchor=false; hasMiniTrail=false; lastOwnerFacingDir=6; suppressNextOwnerBreadcrumb=false; petDiscontinuityTicks=0; miniDiscontinuityTicks=0;
         List<NpcEntity> world=home.bootstrapNpcs(movement.x(),movement.y());
         for(NpcEntity n:world){
             if(n.sceneIndex==PET_INDEX) throw new IllegalStateException("HOME scene index collides with PET_INDEX");
@@ -873,10 +880,18 @@ final class NpcRegistry {
         if(!LocalLabMortalNpcFixture.enabled())
             return "R6_MORTAL_NPC_DISABLED";
 
-        int scene=allocateDevSceneIndex();
+        int scene;
+        if(LocalLabMortalNpcFixture.lifecycleEnabled()){
+            // Always descend instead of recycling the killed actor's scene.
+            scene=Math.min(16382,r7LastAssignedScene-1);
+            while(scene>=5&&findScene(scene)!=null)scene--;
+            if(scene>=5)r7LastAssignedScene=scene;
+        }else{
+            scene=allocateDevSceneIndex();
+        }
         int x=movement.x()+1;
         int y=movement.y();
-        if(scene<0||!MovementState.insideLoadedRegion(x,y))
+        if(scene<5||!MovementState.insideLoadedRegion(x,y))
             throw new IllegalStateException("R6 fixture cannot spawn");
 
         NpcEntity npc=new NpcEntity(
@@ -903,6 +918,65 @@ final class NpcRegistry {
             " hp="+npc.localLabMortalHp()+
             " loot=995x1"+
             " authority=CUSTOM_LOCALLAB_OPT_IN_FIXTURE";
+    }
+
+    void scheduleLocalLabMortalRespawn(
+        NpcEntity dead,
+        long deathWorldTick
+    ){
+        if(!LocalLabMortalNpcFixture.lifecycleEnabled()||
+           dead==null||
+           !dead.localLabMortalFixture()||
+           dead.localLabMortalHp()!=0||
+           findScene(dead.sceneIndex)!=null||
+           r7RespawnDueTick>=0L)
+            throw new IllegalStateException(
+                "R7 respawn requires one removed lethal practice NPC");
+
+        r7RespawnDueTick=
+            Math.addExact(
+                deathWorldTick,
+                LocalLabMortalNpcFixture.R7_RESPAWN_TICKS
+            );
+        r7PreviousScene=dead.sceneIndex;
+        r7ScheduledDeaths++;
+    }
+
+    String tickLocalLabMortalRespawn(
+        MovementState movement,
+        ServerPacketWriter writer,
+        long worldTick
+    )throws IOException{
+        if(!LocalLabMortalNpcFixture.lifecycleEnabled()||
+           r7RespawnDueTick<0L||
+           worldTick<r7RespawnDueTick)
+            return null;
+
+        if(movement.plane()!=0||
+           !MovementState.insideLoadedRegion(
+               movement.x()+1,movement.y()))
+            return null;
+
+        int previous=r7PreviousScene;
+        long due=r7RespawnDueTick;
+        String spawned=spawnLocalLabMortalFixture(
+            movement,writer);
+        if(!spawned.startsWith(
+                "R6_MORTAL_NPC_BOOTSTRAP scene="))
+            throw new IllegalStateException(
+                "R7 respawn failed "+spawned);
+        int newScene=r7LastAssignedScene;
+        if(newScene>=previous)
+            throw new IllegalStateException(
+                "R7 reused retired NPC scene index");
+        r7RespawnDueTick=-1L;
+        r7PreviousScene=-1;
+        return "R7_MORTAL_NPC_RESPAWN scene="+newScene+
+            " previousScene="+previous+
+            " tick="+worldTick+
+            " dueTick="+due+
+            " generation="+(r7ScheduledDeaths+1)+
+            " "+spawned;
     }
 
     String devSpawnNpc(int npcId,int dx,int dy,MovementState movement,ServerPacketWriter w)throws IOException{

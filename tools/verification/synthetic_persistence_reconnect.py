@@ -54,9 +54,15 @@ def log_tail(path: Path, size=65536) -> str:
 def start_server(java: str, jar: Path, root: Path, account: Path, label: str,
                  fixture_options: tuple[str, ...] = ()):
     # Only a named, explicit LocalLab fixture system-property is admitted.
-    if any(option != "-Dspk.local.r6MortalFixture=true"
-           for option in fixture_options):
-        raise ReconnectFailure("unrecognized isolated JVM fixture option")
+    allowed = {
+        "-Dspk.local.r6MortalFixture=true",
+        "-Dspk.local.r7LifecycleFixture=true",
+    }
+    if (len(set(fixture_options)) != len(fixture_options)
+            or any(option not in allowed for option in fixture_options)
+            or ("-Dspk.local.r7LifecycleFixture=true" in fixture_options
+                and "-Dspk.local.r6MortalFixture=true" not in fixture_options)):
+        raise ReconnectFailure("unrecognized/duplicate/unpaired isolated JVM fixture option")
     if ports_in_use():
         raise ReconnectFailure("fixed loopback ports occupied; no external server touched")
     logfile = root / (label + ".log")
