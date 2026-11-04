@@ -155,21 +155,32 @@ def await_new_generation(sock, s2c, logfile, old_scene):
 
 
 def require_deposit(sock, c2s, s2c):
-    sock.sendall(bank_action_145(c2s, 5064, 0, COIN))
-    widgets = {}
-    deadline = time.monotonic() + 12
-    while time.monotonic() < deadline:
-        frame = next_frame(sock, s2c)
-        if frame is None:
-            continue
-        if frame[0] == 53:
-            widget, slots = decode_container53(frame[1])
-            if widget in (5382, 5064):
-                widgets[widget] = slots
-        if len(widgets) == 2:
-            require_bank_pair(widgets, FINAL_BANK, (-1, 0))
-            return
-    raise ReconnectFailure("R7 two-loot bank deposit missing packet53 pair")
+    # C2S145 is the pinned Deposit-1 action, not Deposit-All.
+    # Requiring both intermediate states catches dropped/duplicated actions
+    # and independently verifies the full two-loot bank delta.
+    for deposited in (1, 2):
+        sock.sendall(bank_action_145(c2s, 5064, 0, COIN))
+        widgets = {}
+        deadline = time.monotonic() + 12
+        while time.monotonic() < deadline:
+            frame = next_frame(sock, s2c)
+            if frame is None:
+                continue
+            if frame[0] == 53:
+                widget, slots = decode_container53(frame[1])
+                if widget in (5382, 5064):
+                    widgets[widget] = slots
+            if len(widgets) == 2:
+                remaining = 2 - deposited
+                require_bank_pair(
+                    widgets, BASE_BANK + deposited,
+                    (COIN, remaining) if remaining else (-1, 0),
+                )
+                break
+        else:
+            raise ReconnectFailure(
+                f"R7 Deposit-1 step {deposited} missing exact S2C53 pair"
+            )
 
 
 def run(jar: Path, java: str):
