@@ -108,7 +108,8 @@ def kill_and_check_loot(sock, c2s, s2c, logfile: Path, scene: int):
          "def=1 hpBefore=10 damage=10 hpAfter=0",
          "dropItem=995 amount=1",
          "authority=CUSTOM_LOCALLAB_OPT_IN_FIXTURE",
-         "M2_HIT_PUBLISHED"),
+         "V56_COMBAT M2_ATTACK_SENT",
+         "damageAuthority=CUSTOM_LOCALLAB"),
         seconds=8,
     )
     return got_spawn
