@@ -447,6 +447,21 @@ final class LocalWorldTickCoordinator {
                 if(fixtureResult!=null)
                     System.out.println(tag+fixtureResult);
 
+                String xpAward=
+                    LocalLabPvmExperience.awardPublishedDamage(
+                        dealt,
+                        overlayTarget,
+                        combatStyles.current(
+                            CombatInterfaceRepository.forWeapon(
+                                equipment.weapon()
+                            )
+                        ),
+                        worldPlayer,
+                        writer
+                    );
+                if(xpAward!=null)
+                    System.out.println(tag+xpAward);
+
                 int baseline=
                     combat.state().context==
                         CombatContext.PLAYER_PVP
