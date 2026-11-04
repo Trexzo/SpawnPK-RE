@@ -51,12 +51,17 @@ def log_tail(path: Path, size=65536) -> str:
         return f.read().decode("utf-8", "replace")
 
 
-def start_server(java: str, jar: Path, root: Path, account: Path, label: str):
+def start_server(java: str, jar: Path, root: Path, account: Path, label: str,
+                 fixture_options: tuple[str, ...] = ()):
+    # Only a named, explicit LocalLab fixture system-property is admitted.
+    if any(option != "-Dspk.local.r6MortalFixture=true"
+           for option in fixture_options):
+        raise ReconnectFailure("unrecognized isolated JVM fixture option")
     if ports_in_use():
         raise ReconnectFailure("fixed loopback ports occupied; no external server touched")
     logfile = root / (label + ".log")
     cmd = [
-        java, f"-Duser.home={root}",
+        java, *fixture_options, f"-Duser.home={root}",
         f"-Dspk.local.accountFile={account}",
         "-jar", str(jar), "--bootstrap", "--movement",
     ]

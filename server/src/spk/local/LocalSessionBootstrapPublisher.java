@@ -251,6 +251,15 @@ final class LocalSessionBootstrapPublisher {
             homeWorld
         );
 
+        if(LocalLabMortalNpcFixture.enabled()){
+            System.out.println(
+                tag+npcs.spawnLocalLabMortalFixture(
+                    movement,
+                    serverPackets
+                )
+            );
+        }
+
         if(petState.active()&&
            petAccessoryState.activeItem()!=0){
             Integer selector=

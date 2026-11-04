@@ -25,6 +25,20 @@ final class CombatTargetRepository {
         PVM_DUMMY_DEF, CombatContext.NPC_PVM, "Max hit dummy (PvM)",
         "V902_CURRENT_NPC_DEFINITION+PRODUCTION_HOME_POSITION");
 
+    private static final Target LOCAL_MORTAL = new Target(
+        LocalLabMortalNpcFixture.NPC_DEFINITION,
+        CombatContext.NPC_PVM,
+        "LocalLab mortal practice NPC",
+        "CUSTOM_LOCALLAB_OPT_IN_FIXTURE_NOT_PRODUCTION_SPAWNPK"
+    );
+
+    static Target forNpc(NpcEntity npc){
+        if(npc==null)return null;
+        return npc.localLabMortalFixture()
+            ?LOCAL_MORTAL
+            :forDefinition(npc.definitionId);
+    }
+
     private CombatTargetRepository() {}
 
     static Target forDefinition(int definitionId) {

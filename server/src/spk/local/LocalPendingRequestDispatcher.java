@@ -1224,8 +1224,9 @@ final class LocalPendingRequestDispatcher {
         return action!=null&&
             action.opcode==72&&
             clicked!=null&&
-            CombatTargetRepository.isCombatDummy(
+            (clicked.localLabMortalFixture() ||
+             CombatTargetRepository.isCombatDummy(
                 clicked.definitionId
-            );
+             ));
     }
 }

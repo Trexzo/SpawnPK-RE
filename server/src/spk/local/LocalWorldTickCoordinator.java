@@ -426,6 +426,20 @@ final class LocalWorldTickCoordinator {
                     "HIT_UPDATE"
                 );
 
+                String fixtureResult=
+                    LocalLabMortalNpcFixture.applyPublishedDamage(
+                        dealt,
+                        overlayTarget,
+                        npcs,
+                        world,
+                        worldPlayer,
+                        scenePublisher,
+                        writer,
+                        worldTick
+                    );
+                if(fixtureResult!=null)
+                    System.out.println(tag+fixtureResult);
+
                 int baseline=
                     combat.state().context==
                         CombatContext.PLAYER_PVP
