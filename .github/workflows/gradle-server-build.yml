@@ -21,6 +21,8 @@ on:
       - 'tools/verification/test_synthetic_mortal_pvm_loot.py'
       - 'tools/verification/synthetic_mortal_respawn.py'
       - 'tools/verification/test_synthetic_mortal_respawn.py'
+      - 'tools/verification/synthetic_pvm_xp_reconnect.py'
+      - 'tools/verification/test_synthetic_pvm_xp_reconnect.py'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
@@ -65,6 +67,7 @@ jobs:
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_ground_take_reconnect.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_mortal_pvm_loot.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_mortal_respawn.py' -v
+          python3 -m unittest discover -s tools/verification -p 'test_synthetic_pvm_xp_reconnect.py' -v
 
       - name: Boot actual server JAR in isolated loopback profile
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30
@@ -92,3 +95,6 @@ jobs:
 
       - name: Real-JVM two 25HP NPC kills, distinct respawn, two loots banked across JVM restart
         run: python3 tools/verification/synthetic_mortal_respawn.py
+
+      - name: Real-JVM six published PvM hits award independent S2C134 Attack XP and survive JVM restart
+        run: python3 tools/verification/synthetic_pvm_xp_reconnect.py

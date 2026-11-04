@@ -37,6 +37,50 @@ OPTIONS = (
 COIN = 995
 BASE_BANK = 100_000
 FINAL_BANK = 100_002
+R8_OPTION = "-Dspk.local.r8PvmXp=true"
+DEFAULT_ATTACK_XP = 13_034_431
+
+
+def decode_skill134(body):
+    if len(body) != 6:
+        raise ReconnectFailure("wrong fixed-size S2C134")
+    skill = body[0]
+    xp = (body[3] << 24) | (body[4] << 16) | (body[1] << 8) | body[2]
+    return skill, xp, body[5]
+
+
+class AttackXpProbe:
+    def __init__(self):
+        self.updates = []
+
+    def observe(self, frame):
+        if frame is None or frame[0] != 134:
+            return
+        skill, xp, current = decode_skill134(frame[1])
+        if skill == 0:
+            if current != 99:
+                raise ReconnectFailure(f"R8 changed current Attack level to {current}")
+            self.updates.append(xp)
+
+    def require_progression(self, before_count, expected_steps):
+        needed = [DEFAULT_ATTACK_XP + 10 * n
+                  for n in expected_steps]
+        got = self.updates[before_count:]
+        if got != needed:
+            raise ReconnectFailure(
+                f"XP S2C134 updates {got}, expected {needed}"
+            )
+
+
+def require_persisted_xp(path, expected):
+    if path.stat().st_size > 100_000:
+        raise ReconnectFailure("oversized account file")
+    seen = []
+    for row in path.read_text(encoding="iso-8859-1").splitlines():
+        if row.startswith("skill.0.xp="):
+            seen.append(row.split("=", 1)[1].strip())
+    if seen != [str(expected)]:
+        raise ReconnectFailure(f"R8 attack XP file mismatch {seen} vs {expected}")
 
 
 def find_initial_actor(logfile: Path):
@@ -56,7 +100,8 @@ def find_initial_actor(logfile: Path):
     raise ReconnectFailure("no R7 25-HP test actor spawned")
 
 
-def await_kill(sock, c2s, s2c, logfile, scene):
+def await_kill(sock, c2s, s2c, logfile, scene, xp_probe=None):
+    before_xp = len(xp_probe.updates) if xp_probe is not None else 0
     sock.sendall(attack_npc72(c2s, scene))
     deadline = time.monotonic() + 24
     ground_spawn = None
@@ -66,6 +111,8 @@ def await_kill(sock, c2s, s2c, logfile, scene):
         if frame is None:
             continue
         op, data = frame
+        if xp_probe is not None:
+            xp_probe.observe(frame)
         if op == 65:
             npc_updates += 1
         elif op == 44:
@@ -83,6 +130,16 @@ def await_kill(sock, c2s, s2c, logfile, scene):
         raise ReconnectFailure(
             f"3-attack death missing scene packets spawn={ground_spawn} updates={npc_updates}"
         )
+    if xp_probe is not None:
+        deadline = time.monotonic() + 6
+        while len(xp_probe.updates) < before_xp + 3 and time.monotonic() < deadline:
+            frame = next_frame(sock, s2c, 0.35)
+            xp_probe.observe(frame)
+        if len(xp_probe.updates) != before_xp + 3:
+            raise ReconnectFailure(
+                f"R8 expected 3 skill134 XP updates, before={before_xp} "
+                f"after={len(xp_probe.updates)}"
+            )
     # The gameplay code, not the fixture driver, must have advanced HP through
     # 25 -> 15 -> 5 -> 0 and removed the actor before creating ground loot.
     wait_log_contains(
@@ -183,7 +240,7 @@ def require_deposit(sock, c2s, s2c):
             )
 
 
-def run(jar: Path, java: str):
+def run(jar: Path, java: str, xp: bool = False):
     jar = jar.expanduser().resolve(strict=True)
     if ports_in_use():
         raise ReconnectFailure("existing loopback server; no external process touched")
@@ -191,22 +248,35 @@ def run(jar: Path, java: str):
         root = Path(temp)
         account = root / "accounts" / "opensrc.properties"
         phases = []
+        xp_phases = []
         for phase in (1, 2):
             process, logfile = start_server(
                 java, jar, root, account, f"r7-{phase}",
-                fixture_options=OPTIONS,
+                fixture_options=OPTIONS + (R8_OPTION,) if xp else OPTIONS,
             )
             try:
                 with socket.create_connection((HOST, PORT), timeout=5) as sock:
                     sock.settimeout(7)
-                    c2s, s2c, first_inv = read_bootstrap_and_inventory(sock)
+                    xp_probe = AttackXpProbe() if xp else None
+                    c2s, s2c, first_inv = read_bootstrap_and_inventory(
+                        sock, on_frame=xp_probe.observe if xp_probe else None
+                    )
+                    if xp:
+                        initial_xp = DEFAULT_ATTACK_XP if phase == 1 else DEFAULT_ATTACK_XP + 60
+                        if xp_probe.updates != [initial_xp]:
+                            raise ReconnectFailure(
+                                f"R8 bootstrap S2C134 {xp_probe.updates}, expected {[initial_xp]}"
+                            )
+                        xp_phases.append({"jvm": phase, "bootstrap_attack_xp": initial_xp})
                     if first_inv[0] != (-1, 0):
                         raise ReconnectFailure("expected empty saved inventory")
                     if phase == 1:
                         old_scene, x1, y1 = find_initial_actor(logfile)
                         first_spawn = await_kill(
-                            sock, c2s, s2c, logfile, old_scene,
+                            sock, c2s, s2c, logfile, old_scene, xp_probe=xp_probe,
                         )
+                        if xp:
+                            xp_probe.require_progression(1, (1, 2, 3))
                         walk_and_take(
                             sock, c2s, s2c, logfile,
                             (x1, y1), 1, first_spawn,
@@ -222,8 +292,10 @@ def run(jar: Path, java: str):
                             logfile, (f"scene={old_scene}",), seconds=2,
                         )
                         second_spawn = await_kill(
-                            sock, c2s, s2c, logfile, new_scene,
+                            sock, c2s, s2c, logfile, new_scene, xp_probe=xp_probe,
                         )
+                        if xp:
+                            xp_probe.require_progression(4, (4, 5, 6))
                         walk_and_take(
                             sock, c2s, s2c, logfile,
                             (x2, y2), 2, second_spawn,
@@ -247,12 +319,26 @@ def run(jar: Path, java: str):
                         phases.append({"jvm": 2, "bank_restored": FINAL_BANK})
                 wait_session_final(logfile, account)
                 require_snapshot(account, FINAL_BANK, 0)
+                if xp:
+                    require_persisted_xp(account, DEFAULT_ATTACK_XP + 60)
+                    xp_phases[-1]["persisted_attack_xp"] = DEFAULT_ATTACK_XP + 60
+                    if phase == 1:
+                        text_log = log_tail(logfile, 150000)
+                        if text_log.count("R8_PVM_XP_GRANTED targetScene=") != 6:
+                            raise ReconnectFailure("R8 must have exactly 6 awarded combat hits")
+                        if "authority=CUSTOM_LOCALLAB_XP_PER_PUBLISHED_DAMAGE_V1" not in text_log:
+                            raise ReconnectFailure("R8 custom XP authority not logged")
+                else:
+                    # The original R7 fixture must not acquire XP when the
+                    # independent R8 opt-in flag is absent.
+                    require_persisted_xp(account, DEFAULT_ATTACK_XP)
                 if phase == 2:
                     wait_log_contains(logfile, ("ACCOUNT_LOADED profile=opensrc",))
             finally:
                 stop_own_server(process, logfile)
         return {
-            "result": "R7_CUSTOM_MULTIHIT_RESPAWN_TWO_LOOT_RECONNECT_PASS",
+            "result": ("R8_CUSTOM_PVM_XP_TWO_LOOT_RECONNECT_PASS" if xp
+                       else "R7_CUSTOM_MULTIHIT_RESPAWN_TWO_LOOT_RECONNECT_PASS"),
             "custom_only": True,
             "nonlethal_hp_25_to_15_to_5": True,
             "lethal_hp_5_to_0": True,
@@ -266,6 +352,10 @@ def run(jar: Path, java: str):
             "crash_durability_tested": False,
             "windows_save_tested": False,
             "phases": phases,
+            "xp_progression": xp_phases if xp else None,
+            "custom_attack_xp_total_gain": 60 if xp else None,
+            "original_spawnpk_xp_rate_tested": False,
+            "xp_current_level_unchanged": bool(xp),
         }
 
 

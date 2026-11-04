@@ -57,11 +57,15 @@ def start_server(java: str, jar: Path, root: Path, account: Path, label: str,
     allowed = {
         "-Dspk.local.r6MortalFixture=true",
         "-Dspk.local.r7LifecycleFixture=true",
+        "-Dspk.local.r8PvmXp=true",
     }
     if (len(set(fixture_options)) != len(fixture_options)
             or any(option not in allowed for option in fixture_options)
             or ("-Dspk.local.r7LifecycleFixture=true" in fixture_options
-                and "-Dspk.local.r6MortalFixture=true" not in fixture_options)):
+                and "-Dspk.local.r6MortalFixture=true" not in fixture_options)
+            or ("-Dspk.local.r8PvmXp=true" in fixture_options
+                and ("-Dspk.local.r7LifecycleFixture=true" not in fixture_options
+                     or "-Dspk.local.r6MortalFixture=true" not in fixture_options))):
         raise ReconnectFailure("unrecognized/duplicate/unpaired isolated JVM fixture option")
     if ports_in_use():
         raise ReconnectFailure("fixed loopback ports occupied; no external server touched")
@@ -180,7 +184,7 @@ def next_frame(sock, cipher, timeout=0.3):
     return next_server_frame(sock, cipher, read_exact, timeout)
 
 
-def read_bootstrap_and_inventory(sock):
+def read_bootstrap_and_inventory(sock, on_frame=None):
     seeds = _begin(sock, revision=317, username="localtest")
     if read_exact(sock, 3) != bytes([2, 205, 0]):
         raise ReconnectFailure("persistent alias login not admitted")
@@ -191,9 +195,13 @@ def read_bootstrap_and_inventory(sock):
         frame = next_frame(sock, s2c, 5)
         if frame is None or frame[0] != expected:
             raise ReconnectFailure(f"wrong initial bootstrap opcode {frame}, wanted {expected}")
+        if on_frame is not None:
+            on_frame(frame)
     deadline = time.monotonic() + 12
     while time.monotonic() < deadline:
         frame = next_frame(sock, s2c)
+        if frame is not None and on_frame is not None:
+            on_frame(frame)
         if frame is not None and frame[0] == 53:
             widget, slots = decode_container53(frame[1])
             if widget == 3214:
