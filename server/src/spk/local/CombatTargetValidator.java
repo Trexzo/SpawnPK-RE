@@ -56,9 +56,7 @@ final class CombatTargetValidator {
             );
 
         CombatTargetRepository.Target target=
-            CombatTargetRepository.forDefinition(
-                npc.definitionId
-            );
+            CombatTargetRepository.forNpc(npc);
 
         if(target==null)
             return Result.reject(
@@ -94,9 +92,7 @@ final class CombatTargetValidator {
             );
 
         CombatTargetRepository.Target target=
-            CombatTargetRepository.forDefinition(
-                npc.definitionId
-            );
+            CombatTargetRepository.forNpc(npc);
 
         if(target==null)
             return Result.reject(
