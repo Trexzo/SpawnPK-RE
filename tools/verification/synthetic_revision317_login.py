@@ -103,12 +103,15 @@ def read_exact(sock: socket.socket, size: int) -> bytes:
     return bytes(value)
 
 
-def login_body(server_seed: int, revision: int = 317) -> tuple[bytes, tuple[int, ...]]:
+def login_body(server_seed: int, revision: int = 317,
+               username: str = "local") -> tuple[bytes, tuple[int, ...]]:
+    if username not in ("local", "localtest"):
+        raise ValueError("unsupported fixture profile")
     seeds = (*SEEDS_HEAD, (server_seed >> 32) & MASK, server_seed & MASK)
     # Exact LocalLab fixture fields. Not an assertion about original client auth.
     inner = (
         b"\x0a" + struct.pack(">4I2I", *seeds, 748878668, 308)
-        + b"local\nlocalpass\nLOCAL-DEVICE\nLOCAL-CLIENT\n"
+        + username.encode("ascii") + b"\nlocalpass\nLOCAL-DEVICE\nLOCAL-CLIENT\n"
     )
     if len(inner) > 255:
         raise AssertionError("inner frame overflow")
@@ -119,13 +122,14 @@ def login_body(server_seed: int, revision: int = 317) -> tuple[bytes, tuple[int,
     return b"\x10" + bytes([len(outer)]) + outer, seeds
 
 
-def _begin(sock: socket.socket, revision: int):
+def _begin(sock: socket.socket, revision: int,
+           username: str = "local"):
     sock.sendall(bytes([14, 7]))
     pre = read_exact(sock, 17)
     if pre[:8] != b"\x00" * 8 or pre[8] != 0:
         raise AssertionError(f"prelogin refused: {pre[:9].hex()}")
     seed = struct.unpack(">Q", pre[9:])[0]
-    login, seeds = login_body(seed, revision)
+    login, seeds = login_body(seed, revision, username)
     sock.sendall(login)
     return seeds
 
