@@ -328,6 +328,10 @@ def run(jar: Path, java: str, xp: bool = False):
                             raise ReconnectFailure("R8 must have exactly 6 awarded combat hits")
                         if "authority=CUSTOM_LOCALLAB_XP_PER_PUBLISHED_DAMAGE_V1" not in text_log:
                             raise ReconnectFailure("R8 custom XP authority not logged")
+                else:
+                    # The original R7 fixture must not acquire XP when the
+                    # independent R8 opt-in flag is absent.
+                    require_persisted_xp(account, DEFAULT_ATTACK_XP)
                 if phase == 2:
                     wait_log_contains(logfile, ("ACCOUNT_LOADED profile=opensrc",))
             finally:
