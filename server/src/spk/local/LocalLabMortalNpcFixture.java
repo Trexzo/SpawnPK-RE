@@ -15,11 +15,22 @@ import java.io.IOException;
 final class LocalLabMortalNpcFixture {
     static final int NPC_DEFINITION=1;
     static final int MAX_HP=10;
+    static final int R7_MAX_HP=25;
+    static final long R7_RESPAWN_TICKS=5L;
     static final int LOOT_ITEM=995;
     static final int LOOT_AMOUNT=1;
 
     static boolean enabled(){
         return Boolean.getBoolean("spk.local.r6MortalFixture");
+    }
+
+    static boolean lifecycleEnabled(){
+        return enabled() &&
+            Boolean.getBoolean("spk.local.r7LifecycleFixture");
+    }
+
+    static int maxHp(){
+        return lifecycleEnabled()?R7_MAX_HP:MAX_HP;
     }
 
     static String applyPublishedDamage(
@@ -84,6 +95,8 @@ final class LocalLabMortalNpcFixture {
             true
         );
         scene.groundSpawn(drop);
+        if(lifecycleEnabled())
+            npcs.scheduleLocalLabMortalRespawn(npc,worldTick);
 
         return "R6_MORTAL_NPC_DEATH scene="+npc.sceneIndex+
             " def="+npc.definitionId+
