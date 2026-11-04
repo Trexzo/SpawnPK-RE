@@ -54,11 +54,13 @@ final class LocalLabPvmExperience {
             // Exactly one XP write after all arithmetic checks. No HP/level
             // mutation, no implicit rewards, no original-server formula.
             player.setXp(skill,after);
-            writer.fixed(
-                134,
-                BootstrapPackets.skill134(skill,after,current)
-            );
         }
+        // Network I/O must not run while owning the canonical player's
+        // mutation lock; the World pulse already serializes packet order.
+        writer.fixed(
+            134,
+            BootstrapPackets.skill134(skill,after,current)
+        );
 
         return "R8_PVM_XP_GRANTED targetScene="+target.sceneIndex+
             " skill="+style.trainedSkills[0]+
