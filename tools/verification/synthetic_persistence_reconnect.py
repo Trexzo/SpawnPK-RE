@@ -24,7 +24,7 @@ from synthetic_revision317_login import (
 from synthetic_s2c_bank import decode_container53, next_server_frame, require_bank_pair
 
 AUX_PORT = 43595
-OVERLAY = bytes([5292 >> 8, (5292 + 128) & 255, 5063 >> 8, 5063])
+OVERLAY = bytes([5292 >> 8, (5292 + 128) & 255, 5063 >> 8, 5063 & 255])
 BOOTSTRAP = (249, 73, 81, 110, 126)
 
 
