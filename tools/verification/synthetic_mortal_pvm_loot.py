@@ -172,8 +172,11 @@ def run(jar: Path, java: str):
                         raise ReconnectFailure(
                             f"phase={phase} unexpected initial inventory={inv[0]}"
                         )
-                    scene = discover_fixture(logfile)
                     if phase == 1:
+                        # The fixture follows the current login position;
+                        # only the first, HOME-initialized JVM must be at
+                        # the pinned combat/loot coordinate.
+                        scene = discover_fixture(logfile)
                         spawn = kill_and_check_loot(sock, c2s, s2c, logfile, scene)
                         go_to_loot_tile(sock, c2s, s2c, logfile)
                         sock.sendall(take_packet(c2s, ITEM, LOOT_X, LOOT_Y))
