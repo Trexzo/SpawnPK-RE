@@ -324,7 +324,7 @@ final class CombatEngine {
         CombatSystemHooks.Snapshot hookSnapshot=null;
         int damage=0,hitType=-1;
         int hpMax=target.localLabMortalFixture()
-            ?LocalLabMortalNpcFixture.MAX_HP
+            ?target.localLabMortalMaxHp()
             :DUMMY_HP_MAX;
         int hp=hpMax;
         if(mechanicsResolved){
@@ -454,7 +454,7 @@ final class CombatEngine {
                 (mechanicsResolved
                     ?hookSnapshot
                     :"NOT_APPLIED")+
-            " hpFixture="+(mechanicsResolved?(hp+"/"+DUMMY_HP_MAX):"UNCHANGED")+
+            " hpFixture="+(mechanicsResolved?(hp+"/"+hpMax):"UNCHANGED")+
             " hitsplatType="+(mechanicsResolved?Integer.toString(hitType):"NONE")+
             " hitsplatVariantMode="+(mechanicsResolved?(devHitVariantAuto?"auto(normal=1,max=6)":"manual"):"NONE")+
             " styleIcon="+(mechanicsResolved?Integer.toString(devHitStyleIcon):"NONE")+
