@@ -361,6 +361,13 @@ final class LocalWorldTickCoordinator {
                 worldTick
             );
 
+        String localLabRespawn=
+            npcs.tickLocalLabMortalRespawn(
+                movement,writer,worldTick
+            );
+        if(localLabRespawn!=null)
+            System.out.println(tag+localLabRespawn);
+
         SharedNpcWorldRelay.syncRemotePets(writer);
 
         if(npcPulse!=null&&
