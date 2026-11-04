@@ -13,6 +13,8 @@ on:
       - 'tools/verification/test_synthetic_revision317_login.py'
       - 'tools/verification/synthetic_s2c_bank.py'
       - 'tools/verification/test_synthetic_s2c_bank.py'
+      - 'tools/verification/synthetic_persistence_reconnect.py'
+      - 'tools/verification/test_synthetic_persistence_reconnect.py'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
@@ -53,6 +55,7 @@ jobs:
           python3 -m unittest discover -s tools/verification -p 'test_loopback_boot_smoke.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_revision317_login.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_s2c_bank.py' -v
+          python3 -m unittest discover -s tools/verification -p 'test_synthetic_persistence_reconnect.py' -v
 
       - name: Boot actual server JAR in isolated loopback profile
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30
@@ -68,3 +71,6 @@ jobs:
 
       - name: Real-JVM ISAAC S2C53 bank/inventory wire parity, before/after transactions
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30 --synthetic-login --walk-bank --bank-roundtrip --wire-inventory
+
+      - name: Persistent account net-change preserved across two fresh Java JVMs
+        run: python3 tools/verification/synthetic_persistence_reconnect.py
