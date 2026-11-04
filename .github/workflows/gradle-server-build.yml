@@ -15,6 +15,8 @@ on:
       - 'tools/verification/test_synthetic_s2c_bank.py'
       - 'tools/verification/synthetic_persistence_reconnect.py'
       - 'tools/verification/test_synthetic_persistence_reconnect.py'
+      - 'tools/verification/synthetic_ground_take_reconnect.py'
+      - 'tools/verification/test_synthetic_ground_take_reconnect.py'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
@@ -56,6 +58,7 @@ jobs:
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_revision317_login.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_s2c_bank.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_persistence_reconnect.py' -v
+          python3 -m unittest discover -s tools/verification -p 'test_synthetic_ground_take_reconnect.py' -v
 
       - name: Boot actual server JAR in isolated loopback profile
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30
@@ -74,3 +77,6 @@ jobs:
 
       - name: Persistent account net-change preserved across two fresh Java JVMs
         run: python3 tools/verification/synthetic_persistence_reconnect.py
+
+      - name: Real-JVM ground Drop/Take, scene S2C44/156 and persistent reconnect
+        run: python3 tools/verification/synthetic_ground_take_reconnect.py
