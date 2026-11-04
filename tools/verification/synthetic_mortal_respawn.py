@@ -105,9 +105,8 @@ def walk_and_take(sock, c2s, s2c, logfile, item_tile, qty_after, spawn):
     deadline = time.monotonic() + 12
     while time.monotonic() < deadline:
         recent = log_tail(logfile, 100000)
-        if f"world={x},{y} queued=0" in recent or (
-            f"result=TAKE_ON_TILE_IMMEDIATE" in recent and qty_after==1
-        ):
+        if (f"M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from={x-1},{y}" in recent
+                or f"M5_AUTHORITATIVE_TICK mode=RUN tiles=1 from={x-1},{y}" in recent):
             break
         next_frame(sock, s2c, 0.15)
     # No need to infer the exact movement finish from a delayed client graphic:
