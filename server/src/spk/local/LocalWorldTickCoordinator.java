@@ -52,6 +52,7 @@ final class LocalWorldTickCoordinator {
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final SessionBridge bridge;
+    private final LocalLabPvmKillOutcomeProducer pvmKillOutcomes;
 
     private long legacyTickCount;
     private long movementTickCount;
@@ -146,6 +147,18 @@ final class LocalWorldTickCoordinator {
         this.petRuntimeCommands=Objects.requireNonNull(
             petRuntimeCommands,"petRuntimeCommands");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
+        this.pvmKillOutcomes=new LocalLabPvmKillOutcomeProducer(
+            outcome->{
+                try{
+                    this.world.domainEvents().publish(outcome);
+                }catch(Exception error){
+                    throw new IllegalStateException(
+                        "R9 World-domain PvM kill delivery failed",
+                        error
+                    );
+                }
+            }
+        );
     }
 
     void tick(
@@ -446,6 +459,23 @@ final class LocalWorldTickCoordinator {
                     );
                 if(fixtureResult!=null)
                     System.out.println(tag+fixtureResult);
+
+                // Only a completed, removed NPC death that has already
+                // spawned its ground loot creates a semantic NPC_KILL.
+                // Emission belongs to the World tick, not C2S72 itself.
+                if(fixtureResult!=null&&
+                   fixtureResult.startsWith(
+                       "R6_MORTAL_NPC_DEATH scene=")){
+                    String killOutcome=
+                        pvmKillOutcomes.publishCompletedDeath(
+                            overlayTarget,
+                            npcs.scene(overlayTarget.sceneIndex)==null,
+                            worldPlayer,
+                            worldTick
+                        );
+                    if(killOutcome!=null)
+                        System.out.println(tag+killOutcome);
+                }
 
                 String xpAward=
                     LocalLabPvmExperience.awardPublishedDamage(
