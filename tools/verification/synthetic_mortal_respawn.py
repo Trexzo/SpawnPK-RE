@@ -240,7 +240,44 @@ def require_deposit(sock, c2s, s2c):
             )
 
 
-def run(jar: Path, java: str, xp: bool = False):
+def verify_outcome_log(logfile: Path, scenes):
+    # Require exactly two typed NPC_KILL facts after real NPC deaths, and
+    # never credit a stale click on the retired scene.
+    logs=log_tail(logfile, 180000)
+    lines=[
+        line for line in logs.splitlines()
+        if "R9_PVM_KILL_OUTCOME_EMITTED type=NPC_KILL " in line
+    ]
+    if len(lines)!=2:
+        raise ReconnectFailure(
+            f"R9 expected two typed PvM kills, observed {len(lines)}"
+        )
+    ticks=[]
+    for line, scene in zip(lines,scenes):
+        expected=(
+            "context=NPC_PVM",
+            f"victim=locallab:npc:def=1:scene={scene}",
+            f"scene={scene} def=1",
+            "delivery=WORLD_DOMAIN_BUS",
+            "authority=CUSTOM_LOCALLAB_PVM_KILL_AFTER_REMOVED_LOOT_V1",
+        )
+        if any(term not in line for term in expected):
+            raise ReconnectFailure(
+                f"R9 invalid generation-bound NPC_KILL fact: {line}"
+            )
+        tick_match=re.search(r"worldTick=(\d+)", line)
+        if tick_match is None:
+            raise ReconnectFailure("R9 missing authoritative event tick")
+        ticks.append(int(tick_match.group(1)))
+    if ticks[1]<=ticks[0]:
+        raise ReconnectFailure("R9 second NPC kill tick did not advance")
+    if "R9_PVM_KILL_OBSERVER_FAILURE_ISOLATED" in logs:
+        raise ReconnectFailure("R9 unexpected event bus failure")
+    return ticks
+
+
+def run(jar: Path, java: str, xp: bool = False,
+        outcomes: bool = False):
     jar = jar.expanduser().resolve(strict=True)
     if ports_in_use():
         raise ReconnectFailure("existing loopback server; no external process touched")
@@ -249,6 +286,7 @@ def run(jar: Path, java: str, xp: bool = False):
         account = root / "accounts" / "opensrc.properties"
         phases = []
         xp_phases = []
+        outcome_phases = []
         for phase in (1, 2):
             process, logfile = start_server(
                 java, jar, root, account, f"r7-{phase}",
@@ -300,6 +338,17 @@ def run(jar: Path, java: str, xp: bool = False):
                             sock, c2s, s2c, logfile,
                             (x2, y2), 2, second_spawn,
                         )
+                        if outcomes:
+                            verify_outcome_log(
+                                logfile, [old_scene, new_scene]
+                            )
+                            outcome_phases.append({
+                                "jvm": 1,
+                                "npc_kill_count": 2,
+                                "verified_scenes": [old_scene,new_scene],
+                                "stale_old_scene_replayed": False,
+                                "authority": "CUSTOM_LOCALLAB_PVM_KILL_AFTER_REMOVED_LOOT_V1",
+                            })
                         if log_tail(logfile, 120000).count(
                             "R6_MORTAL_NPC_DEATH scene="
                         ) != 2:
@@ -356,6 +405,7 @@ def run(jar: Path, java: str, xp: bool = False):
             "custom_attack_xp_total_gain": 60 if xp else None,
             "original_spawnpk_xp_rate_tested": False,
             "xp_current_level_unchanged": bool(xp),
+            "typed_npc_kill_world_events": outcome_phases if outcomes else None,
         }
 
 
