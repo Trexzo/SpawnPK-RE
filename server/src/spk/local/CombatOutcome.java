@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.util.Objects;
+import spk.event.DomainEventBus;
 
 /**
  * Immutable semantic fact emitted after combat resolution.
@@ -8,7 +9,7 @@ import java.util.Objects;
  * This class intentionally contains no packet, client, reward or scoring
  * knowledge. Consumers decide independently whether the fact matters.
  */
-public final class CombatOutcome {
+public final class CombatOutcome implements DomainEventBus.Event {
 
     private final String attacker;
     private final String victim;
