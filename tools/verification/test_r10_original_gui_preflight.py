@@ -7,8 +7,8 @@ import r10_original_gui_preflight as r10
 class PreflightTest(unittest.TestCase):
     def fake_jar(self,path,major=55,resource=True):
         with zipfile.ZipFile(path,"w") as z:
-            z.writestr("spk/local/Main.class",b"\\xca\\xfe\\xba\\xbe\\x00\\x00"+major.to_bytes(2,"big"))
-            if resource:z.writestr("spk/local/equipment_slots.tsv","slot\\tid\\n")
+            z.writestr("spk/local/Main.class",b"\xca\xfe\xba\xbe\x00\x00"+major.to_bytes(2,"big"))
+            if resource:z.writestr("spk/local/equipment_slots.tsv","slot\tid\n")
 
     def test_client_mismatch_and_missing_file(self):
         with tempfile.TemporaryDirectory() as d:
