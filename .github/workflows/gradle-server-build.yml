@@ -25,6 +25,8 @@ on:
       - 'tools/verification/test_synthetic_pvm_xp_reconnect.py'
       - 'tools/verification/synthetic_pvm_outcome_reconnect.py'
       - 'tools/verification/test_synthetic_pvm_outcome_reconnect.py'
+      - 'tools/verification/r10_original_gui_preflight.py'
+      - 'tools/verification/test_r10_original_gui_preflight.py'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
@@ -71,6 +73,7 @@ jobs:
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_mortal_respawn.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_pvm_xp_reconnect.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_pvm_outcome_reconnect.py' -v
+          python3 -m unittest discover -s tools/verification -p 'test_r10_original_gui_preflight.py' -v
 
       - name: Boot actual server JAR in isolated loopback profile
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30
@@ -107,3 +110,19 @@ jobs:
 
       - name: Real-JVM two typed NPC_KILL World outcomes and loot/XP across JVM restart
         run: python3 tools/verification/synthetic_pvm_outcome_reconnect.py
+
+      - name: R10 GUI admission fails closed on absent/unpinned GUI artifacts
+        run: |
+          set +e
+          python3 tools/verification/r10_original_gui_preflight.py \
+            --repo . --source-head "$(git rev-parse HEAD)" \
+            --server-jar server/build/SpawnPKLocalServer.jar \
+            --server-sha256 0000000000000000000000000000000000000000000000000000000000000000 \
+            --original-jar /__r10_unavailable_original_client_v308.jar \
+            --airgap-jar /__r10_unavailable_airgap_v308.jar \
+            --java-exe "$(command -v java)" \
+            --client-home /__r10_unseeded_isolated_home > r10-preflight-ci.json
+          outcome=$?
+          set -e
+          test "$outcome" -eq 2
+          python3 -c 'import json; r=json.load(open("r10-preflight-ci.json")); assert r["result"]=="R10_ORIGINAL_GUI_PREFLIGHT_BLOCKED"; assert not r["launch_performed"]; assert r["existing_processes_stopped"]==0; print("R10_GUI_ADMISSION_NEGATIVE_CONTROL_PASS")'
