@@ -36,6 +36,11 @@ on:
       - 'tools/verification/r13_windows_gui_egress_gate.py'
       - 'tools/verification/r13_prepare_private_jdk.py'
       - 'tools/verification/test_r13_windows_boundary.py'
+      - 'tools/verification/test_r14_windows_shutdown.py'
+      - 'tools/verification/synthetic_persistence_reconnect.py'
+      - 'server/src/spk/local/Main.java'
+      - 'server/src/spk/local/LocalLabTestStdinShutdown.java'
+      - 'server/src/test/java/spk/local/LocalLabTestStdinShutdownTest.java'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
@@ -71,6 +76,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R14 private stdin shutdown guard (Java11 real bytecode)
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.LocalLabTestStdinShutdownTest
+
       - name: R13 owned-child loopback server smoke (exact Git SHA and JAR)
         run: |
           python3 tools/verification/r13_windows_server_smoke.py \
@@ -95,6 +103,7 @@ jobs:
           python3 -m unittest discover -s tools/verification -p 'test_r11_recover_v308_airgap.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_r12_seed_isolated_v308_cache.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_r13_windows_boundary.py' -v
+          python3 -m unittest discover -s tools/verification -p 'test_r14_windows_shutdown.py' -v
 
       - name: Boot actual server JAR in isolated loopback profile
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30
@@ -195,3 +204,58 @@ jobs:
           set -e
           test "$outcome" -eq 2
           python3 -c 'import json; r=json.load(open("r10-preflight-ci.json")); assert r["result"]=="R10_ORIGINAL_GUI_PREFLIGHT_BLOCKED"; assert not r["launch_performed"]; assert r["existing_processes_stopped"]==0; print("R10_GUI_ADMISSION_NEGATIVE_CONTROL_PASS")'
+
+  windows-graceful-persistence:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: R14 Windows build JDK21 / Java11 bytecode
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build original server sources under Windows
+        shell: pwsh
+        run: .\server\gradlew.bat --no-daemon clean build
+
+      - name: Use supported Windows JVM JDK17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Python for isolated two-JVM tester
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: R14 token-only stdin JVM guard on real Windows Java
+        shell: pwsh
+        run: |
+          & "$env:JAVA_HOME\bin\java.exe" -cp "server\build\SpawnPKLocalServer.jar;server\build\classes\java\test" spk.local.LocalLabTestStdinShutdownTest
+          if ($LASTEXITCODE -ne 0) { throw "R14 Windows Java guard failed" }
+
+      - name: R14 owner-only private stdin pipe Python guard
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tools/verification -p 'test_r14_windows_shutdown.py' -v
+          if ($LASTEXITCODE -ne 0) { throw "R14 Windows Python guard failed" }
+
+      - name: R14 actual Windows two-JVM PvM XP loot typed-kill bank reconnect
+        shell: pwsh
+        run: |
+          python tools/verification/synthetic_pvm_outcome_reconnect.py --jar server/build/SpawnPKLocalServer.jar --java "$env:JAVA_HOME\bin\java.exe" > r14-windows-receipt.json
+          if ($LASTEXITCODE -ne 0) { throw "R14 Windows two-JVM gameplay acceptance failed" }
+          $receipt = Get-Content -LiteralPath r14-windows-receipt.json -Raw | ConvertFrom-Json
+          if ($receipt.result -ne "R9_CUSTOM_PVM_TYPED_NPC_KILL_OUTCOME_RECONNECT_PASS" -or
+              $receipt.separate_jvm_count -ne 2 -or
+              $receipt.bank_coins_after_reload -ne 100002 -or
+              $receipt.custom_attack_xp_total_gain -ne 60 -or
+              -not $receipt.windows_save_tested -or
+              -not $receipt.windows_graceful_shutdown_tested -or
+              $receipt.crash_durability_tested -or
+              $receipt.real_gui_tested) { throw "R14 Windows persistence receipt failed independent assertion" }
+          Write-Output "R14_WINDOWS_TWO_JVM_GRACEFUL_PVM_RECONNECT_PASS bank=100002 attackXpGain=60 cleanWindowsSaves=true gui=false crashFsync=false"

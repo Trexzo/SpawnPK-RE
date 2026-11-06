@@ -74,6 +74,13 @@ public final class Main {
             shutdownHook
         );
 
+        // Custom acceptance-only private stdin control. Disabled in normal
+        // server runs; never publishes a network/GUI command endpoint.
+        LocalLabTestStdinShutdown.armFromProperties(
+            System.in,
+            () -> System.exit(0)
+        );
+
         try {
             if (!shutdown.submitAuxiliary(
                     () -> localAux(aux)))

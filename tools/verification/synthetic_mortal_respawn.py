@@ -4,11 +4,13 @@
 Runs one isolated Java JVM with explicitly enabled R6+R7 fixtures, then a
 different JVM using the same *temporary* account. A synthetic revision317
 client validates server-issued S2C44/156/53 and logs for the 3-hit HP lifecycle.
-No original SpawnPK mechanics/GUI, crash recovery or Windows account evidence.
+No original SpawnPK mechanics/GUI or crash recovery; Windows graceful persistence
+only when run on Windows with the private R14 stdin shutdown token.
 """
 from __future__ import annotations
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import socket
@@ -399,7 +401,9 @@ def run(jar: Path, java: str, xp: bool = False,
             "real_gui_tested": False,
             "original_spawnpk_combat_tested": False,
             "crash_durability_tested": False,
-            "windows_save_tested": False,
+            "windows_save_tested": (os.name == "nt"),
+            "windows_graceful_shutdown_tested": (os.name == "nt"),
+            "windows_power_loss_durability_tested": False,
             "phases": phases,
             "xp_progression": xp_phases if xp else None,
             "custom_attack_xp_total_gain": 60 if xp else None,

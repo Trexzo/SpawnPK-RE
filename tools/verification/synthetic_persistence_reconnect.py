@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 from pathlib import Path
 import socket
 import subprocess
@@ -70,17 +71,29 @@ def start_server(java: str, jar: Path, root: Path, account: Path, label: str,
     if ports_in_use():
         raise ReconnectFailure("fixed loopback ports occupied; no external server touched")
     logfile = root / (label + ".log")
+    # A private Windows stdin pipe is the only safe acceptance shutdown
+    # control. subprocess.terminate() on Windows calls TerminateProcess,
+    # bypassing JVM shutdown hooks and clean account-save completion.
+    windows_token = secrets.token_hex(32) if os.name == "nt" else None
+    private_exit_flags = (
+        ("-Dspk.local.acceptance.stdinShutdownEnabled=true",
+         "-Dspk.local.acceptance.stdinShutdownToken=" + windows_token)
+        if windows_token else ()
+    )
     cmd = [
-        java, *fixture_options, f"-Duser.home={root}",
+        java, *fixture_options, *private_exit_flags, f"-Duser.home={root}",
         f"-Dspk.local.accountFile={account}",
         "-jar", str(jar), "--bootstrap", "--movement",
     ]
     with logfile.open("wb") as output:
         process = subprocess.Popen(
-            cmd, cwd=root, stdin=subprocess.DEVNULL,
+            cmd, cwd=root,
+            stdin=subprocess.PIPE if windows_token else subprocess.DEVNULL,
             stdout=output, stderr=subprocess.STDOUT,
             env=os.environ.copy(),
         )
+    if windows_token:
+        process._spk_acceptance_token = windows_token
     deadline = time.monotonic() + 30
     try:
         while time.monotonic() < deadline:
@@ -109,21 +122,51 @@ def start_server(java: str, jar: Path, root: Path, account: Path, label: str,
         raise
 
 
+def request_owned_server_shutdown(process, windows: bool) -> None:
+    """Ask only this exact new test process to run normal JVM hooks.
+
+    Windows Popen.terminate() is TerminateProcess (hard kill), not SIGTERM.
+    The private token is known only to the Popen owner with an exclusive
+    stdin pipe. Production server launch never enables this opt-in reader.
+    """
+    if windows:
+        token = getattr(process, "_spk_acceptance_token", None)
+        if not isinstance(token, str) or len(token) != 64 or (
+            any(c not in "0123456789abcdef" for c in token)
+        ) or process.stdin is None:
+            raise ReconnectFailure("R14 refused private JVM shutdown without owned token/pipe")
+        process.stdin.write((token + "\n").encode("ascii"))
+        process.stdin.flush()
+        process.stdin.close()
+    else:
+        process.terminate()
+
+
 def stop_own_server(process, logfile: Path):
     if process.poll() is not None:
         raise ReconnectFailure(
             f"JVM unexpectedly exited before controlled stop, code={process.returncode}"
         )
-    process.terminate()
     try:
+        request_owned_server_shutdown(process, windows=(os.name == "nt"))
         process.wait(timeout=20)
-    except subprocess.TimeoutExpired as exc:
-        process.kill()
-        process.wait(timeout=5)
-        raise ReconnectFailure("JVM graceful stop exceeded 20s") from exc
+    except (subprocess.TimeoutExpired, OSError, ReconnectFailure) as error:
+        # Only the exact Popen child owned by THIS test may be force-stopped.
+        # Never mass-kill java.exe or affect existing user v312 clients.
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+        raise ReconnectFailure("R14 own JVM graceful shutdown was not acknowledged") from error
+    logs = log_tail(logfile, 14000)
+    if os.name == "nt" and "R14_TEST_ONLY_STDIN_SHUTDOWN_AUTHORIZED" not in logs:
+        raise ReconnectFailure("R14 Windows private stdin shutdown marker missing")
     # This validates orderly shutdown coordination of the test JVM, not
     # atomic-rename/fsync crash consistency of account publication.
-    if "V5123_PERSISTENCE_SHUTDOWN_CLEAN" not in log_tail(logfile, 14000):
+    if "V5123_PERSISTENCE_SHUTDOWN_CLEAN" not in logs:
         raise ReconnectFailure(
             "shutdown did not log clean persistence termination "
             + log_tail(logfile, 3000)
