@@ -21,7 +21,7 @@ import sys
 import tempfile
 import time
 from typing import Any
-from urllib.request import urlopen
+from urllib.request import build_opener, ProxyHandler
 
 from r10_original_gui_preflight import (
     Check, git_identity, java_identity, loopback_ports, server_jar_identity
@@ -86,7 +86,8 @@ def child_listener_owned(pid: int) -> bool | None:
 
 
 def local_versions() -> str:
-    with urlopen(VERSIONS_URL, timeout=1.5) as response:
+    # Explicitly bypass system/CI HTTP proxies for this loopback-only probe.
+    with build_opener(ProxyHandler({})).open(VERSIONS_URL, timeout=1.5) as response:
         if response.status != 200:
             raise ProbeBlocked("R13 AUX unexpected HTTP status")
         body = response.read(16_385)
