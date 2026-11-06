@@ -39,11 +39,11 @@ public final class LocalAccountDirectoryLeaseTest {
             }
 
             Path ready = root.resolve("child-ready");
-            String java = Paths.get(System.getProperty("java.home"), "bin",
+            String javaExecutable = Paths.get(System.getProperty("java.home"), "bin",
                 System.getProperty("os.name", "").toLowerCase().contains("win")
                     ? "java.exe" : "java").toString();
             ownedChild = new ProcessBuilder(
-                java, "-cp", System.getProperty("java.class.path"),
+                javaExecutable, "-cp", System.getProperty("java.class.path"),
                 LocalAccountDirectoryLeaseTest.class.getName(),
                 "--child-hold", account.toString(), ready.toString()
             ).redirectErrorStream(true).start();
