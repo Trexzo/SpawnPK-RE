@@ -43,7 +43,18 @@ class R13OwnedProcessTests(unittest.TestCase):
             fakejar.write_bytes(b"not a signed JAR")
             java=root / "java"
             java.write_bytes(b"java")
-            with mock.patch("subprocess.Popen") as launch:
+            with mock.patch.object(server, "git_identity", return_value=[
+                     server.Check("git", True, "mock")
+                 ]), \
+                 mock.patch.object(server, "server_jar_identity", return_value=[
+                     server.Check("server_sha256_pin", False, "wrong digest")
+                 ]), \
+                 mock.patch.object(server, "java_identity", return_value=
+                     server.Check("java", True, "mock")), \
+                 mock.patch.object(server, "loopback_ports", return_value=[
+                     server.Check("ports", True, "mock")
+                 ]), \
+                 mock.patch.object(server.subprocess, "Popen") as launch:
                 with self.assertRaises(server.ProbeBlocked):
                     server.smoke(repo, "a"*40, fakejar, "0"*64, java, root)
                 launch.assert_not_called()
@@ -97,7 +108,7 @@ class R13ReadOnlyEgressTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="spawnpk-r13-owned-jdk-") as folder:
             root=Path(folder)/"jdk"
             binfolder=root/"bin"
-            binfolder.mkdir()
+            binfolder.mkdir(parents=True)
             exe=binfolder/"java.exe"
             exe.write_bytes(b"private java binary")
             self.assertTrue(egress.basic_private_exe(exe,root).ok)
@@ -108,7 +119,7 @@ class R13ReadOnlyEgressTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="spawnpk-r13-owned-jdk-") as folder:
             root=Path(folder)/"jdk"
             java=root/"bin"/"java.exe"
-            java.parent.mkdir()
+            java.parent.mkdir(parents=True)
             java.write_bytes(b"test")
             ready=egress.GateCheck("firewall",True,"mock")
             denied=egress.GateCheck("firewall",False,"no exact OS rule")
