@@ -27,6 +27,9 @@ on:
       - 'tools/verification/test_synthetic_pvm_outcome_reconnect.py'
       - 'tools/verification/r10_original_gui_preflight.py'
       - 'tools/verification/test_r10_original_gui_preflight.py'
+      - 'tools/runtime/build_v308_local_clients.py'
+      - 'tools/verification/r11_recover_v308_airgap.py'
+      - 'tools/verification/test_r11_recover_v308_airgap.py'
       - '.github/workflows/gradle-server-build.yml'
   push:
     branches:
@@ -74,6 +77,7 @@ jobs:
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_pvm_xp_reconnect.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_synthetic_pvm_outcome_reconnect.py' -v
           python3 -m unittest discover -s tools/verification -p 'test_r10_original_gui_preflight.py' -v
+          python3 -m unittest discover -s tools/verification -p 'test_r11_recover_v308_airgap.py' -v
 
       - name: Boot actual server JAR in isolated loopback profile
         run: python3 tools/verification/loopback_boot_smoke.py --startup-timeout 30
@@ -110,6 +114,20 @@ jobs:
 
       - name: Real-JVM two typed NPC_KILL World outcomes and loot/XP across JVM restart
         run: python3 tools/verification/synthetic_pvm_outcome_reconnect.py
+
+      - name: R11 deterministic v308 patch recipe source-only Walk-here selftest
+        run: python3 tools/runtime/build_v308_local_clients.py --selftest-walk-here
+
+      - name: R11 wrong-original private recovery fails without publishing a client
+        run: |
+          set +e
+          python3 tools/verification/r11_recover_v308_airgap.py \
+            --original-v308 /__r11_invalid_original_v308.jar \
+            --private-parent /tmp > r11-recovery-negative.json 2>&1
+          result=$?
+          set -e
+          test "$result" -eq 2
+          python3 -c 'import json; r=json.load(open("r11-recovery-negative.json")); assert r["result"]=="R11_PRIVATE_V308_AIRGAP_RECONSTRUCTION_BLOCKED"; assert not r["gui_acceptance_performed"]; assert r["existing_processes_stopped"]==0; print("R11_PRIVATE_RECOVERY_NEGATIVE_CONTROL_PASS")'
 
       - name: R10 GUI admission fails closed on absent/unpinned GUI artifacts
         run: |
