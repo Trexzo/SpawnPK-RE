@@ -9,6 +9,7 @@ from unittest import mock
 
 import r13_windows_server_smoke as server
 import r13_windows_gui_egress_gate as egress
+import r13_prepare_private_jdk as jdk
 
 
 class FakeChild:
@@ -93,8 +94,8 @@ class R13ReadOnlyEgressTests(unittest.TestCase):
             self.assertFalse(check.ok)
 
     def test_only_private_exe_within_private_root_is_allowed(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root=Path(folder)
+        with tempfile.TemporaryDirectory(prefix="spawnpk-r13-owned-jdk-") as folder:
+            root=Path(folder)/"jdk"
             binfolder=root/"bin"
             binfolder.mkdir()
             exe=binfolder/"java.exe"
@@ -104,8 +105,8 @@ class R13ReadOnlyEgressTests(unittest.TestCase):
             self.assertFalse(egress.basic_private_exe(outside,root).ok)
 
     def test_egress_audit_requires_every_independent_condition(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root=Path(folder)
+        with tempfile.TemporaryDirectory(prefix="spawnpk-r13-owned-jdk-") as folder:
+            root=Path(folder)/"jdk"
             java=root/"bin"/"java.exe"
             java.parent.mkdir()
             java.write_bytes(b"test")
@@ -133,6 +134,68 @@ class R13ReadOnlyEgressTests(unittest.TestCase):
             if egress.os.name != "nt":
                 self.assertFalse(egress.firewall_record(path, "Some Rule").ok)
 
+
+
+class R13PrivateJdkSnapshotTests(unittest.TestCase):
+    @staticmethod
+    def fake_jdk(root):
+        root.mkdir()
+        for name in jdk.REQUIRED_JDK11:
+            path=root.joinpath(*name.split("/"))
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(("JDK fixture "+name).encode("ascii"))
+        return root
+
+    def test_missing_java11_files_is_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            fake=Path(folder)/"fake-jdk"
+            fake.mkdir()
+            with self.assertRaises(jdk.SnapshotBlocked):
+                jdk.enumerate_jdk(fake)
+
+    def test_private_jdk_snapshot_preserves_source_and_pins_output(self):
+        with tempfile.TemporaryDirectory() as folder:
+            private=Path(folder)/"private-parent"
+            private.mkdir()
+            src=self.fake_jdk(Path(folder)/"source-jdk")
+            original={p.relative_to(src).as_posix(): p.read_bytes()
+                      for p in src.rglob("*") if p.is_file()}
+            with mock.patch.object(jdk,"guard_inputs",return_value=(src,private)),\
+                 mock.patch.object(jdk,"java_version",return_value=11):
+                proof=jdk.make_snapshot(src,private)
+            self.assertEqual(proof["result"],"R13_PRIVATE_JAVA11_SNAPSHOT_PASS")
+            self.assertEqual(proof["jdk_file_count"],len(jdk.REQUIRED_JDK11))
+            self.assertEqual(proof["firewall_rules_changed"],0)
+            self.assertFalse(proof["actual_gui_acceptance"])
+            copied=Path(proof["private_jdk_root"])
+            self.assertEqual(
+                original,{p.relative_to(copied).as_posix():p.read_bytes()
+                          for p in copied.rglob("*") if p.is_file()}
+            )
+            self.assertEqual(
+                original,{p.relative_to(src).as_posix():p.read_bytes()
+                          for p in src.rglob("*") if p.is_file()}
+            )
+
+    def test_snapshot_change_fails_and_only_own_temp_removed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            parent=Path(folder)/"owned-parent"
+            parent.mkdir()
+            src=self.fake_jdk(Path(folder)/"source-jdk")
+            foreign=parent/"user-file.txt"
+            foreign.write_text("preserve")
+            real_hash=jdk.hash_file
+            def corrupted_copy(path):
+                if "spawnpk-r13-owned-jdk-" in str(path):
+                    return "f"*64
+                return real_hash(path)
+            with mock.patch.object(jdk,"guard_inputs",return_value=(src,parent)),\
+                 mock.patch.object(jdk,"hash_file",side_effect=corrupted_copy),\
+                 mock.patch.object(jdk,"java_version",return_value=11):
+                with self.assertRaises(jdk.SnapshotBlocked):
+                    jdk.make_snapshot(src,parent)
+            self.assertEqual(foreign.read_text(),"preserve")
+            self.assertEqual(sorted(x.name for x in parent.iterdir()),["user-file.txt"])
 
 if __name__=="__main__":
     unittest.main()
