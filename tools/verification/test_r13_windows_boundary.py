@@ -77,7 +77,7 @@ class R13OwnedProcessTests(unittest.TestCase):
                  mock.patch.object(server.subprocess, "Popen", return_value=child) as start:
                 receipt=server.smoke(repo,"a"*40,jar,sha,java,root)
             start.assert_called_once()
-            self.assertEqual(receipt["result"],"R13_WINDOWS_LOOPBACK_SERVER_SMOKE_PASS")
+            self.assertEqual(receipt["result"],"R13_OWNED_LOOPBACK_SERVER_SMOKE_PASS")
             self.assertFalse(receipt["original_gui_started"])
             self.assertEqual(receipt["existing_clients_stopped"],0)
             self.assertTrue(child.stopped)
