@@ -71,6 +71,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R13 owned-child loopback server smoke (exact Git SHA and JAR)
+        run: |
+          python3 tools/verification/r13_windows_server_smoke.py \
+            --repo . --source-head "$(git rev-parse HEAD)" \
+            --server-jar server/build/SpawnPKLocalServer.jar \
+            --server-sha256 "$(sha256sum server/build/SpawnPKLocalServer.jar | cut -d' ' -f1)" \
+            --java-exe "$(command -v java)" \
+            --private-parent /tmp
+
       - name: Unit-test isolated server boot probe
         run: |
           python3 -m unittest discover -s tools/verification -p 'test_loopback_boot_smoke.py' -v
@@ -122,15 +131,6 @@ jobs:
 
       - name: Real-JVM two typed NPC_KILL World outcomes and loot/XP across JVM restart
         run: python3 tools/verification/synthetic_pvm_outcome_reconnect.py
-
-      - name: R13 owned-child loopback server smoke (exact Git SHA and JAR)
-        run: |
-          python3 tools/verification/r13_windows_server_smoke.py \
-            --repo . --source-head "$(git rev-parse HEAD)" \
-            --server-jar server/build/SpawnPKLocalServer.jar \
-            --server-sha256 "$(sha256sum server/build/SpawnPKLocalServer.jar | cut -d' ' -f1)" \
-            --java-exe "$(command -v java)" \
-            --private-parent /tmp
 
       - name: R13 private Java11 input negative-control (no runtime copying)
         run: |
