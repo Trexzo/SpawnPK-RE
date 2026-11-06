@@ -30,6 +30,18 @@ public final class Main {
         InetAddress bind = InetAddress.getByName(LOOPBACK);
         if (!bind.isLoopbackAddress()) throw new SecurityException("refusing non-loopback bind: " + bind);
 
+        // A single LocalLab JVM owns both persisted profiles for its full
+        // runtime. Acquire before World starts or any login port is bound.
+        try (LocalAccountDirectoryLease ignored =
+                 LocalAccountDirectoryLease.acquire(AccountStore.accountFile())) {
+            System.out.println("R15_ACCOUNT_DIRECTORY_LEASE_ACQUIRED scope=opensrc,src");
+            runServer(bind, bootstrapFinal, movementFinal);
+        }
+    }
+
+    private static void runServer(
+        InetAddress bind, boolean bootstrapFinal, boolean movementFinal
+    ) throws Exception {
         World world = World.shared();
         world.start();
 
