@@ -20,6 +20,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
 
@@ -60,8 +61,15 @@ def basic_private_exe(exe: Path, private_root: Path) -> GateCheck:
         root = private_root.resolve(strict=True)
         if not actual.is_file() or not root.is_dir() or exe.is_symlink():
             return GateCheck("dedicated_java", False, "Java exe/private root must be regular")
-        if root in Path.home().resolve().parents or root == Path.home().resolve():
-            return GateCheck("dedicated_java", False, "private root must not be OS home")
+        # Only a separately snapshotted JDK in an invocation-owned
+        # temp workspace may be protected by our per-program firewall rule.
+        # A shared JDK under Program Files is NOT a dedicated executable.
+        temp = Path(tempfile.gettempdir()).resolve()
+        if (root.name != "jdk" or
+                not root.parent.name.startswith("spawnpk-r13-owned-jdk-") or
+                root.parent.parent != temp or
+                root.parent.is_symlink()):
+            return GateCheck("dedicated_java", False, "not an R13 invocation-owned private JDK snapshot")
         if not actual.is_relative_to(root) or actual.name.lower() not in ("java.exe", "javaw.exe"):
             return GateCheck("dedicated_java", False, "Java executable must be inside owned private JDK")
     except (OSError, ValueError):
