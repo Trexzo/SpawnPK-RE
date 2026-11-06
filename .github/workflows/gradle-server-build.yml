@@ -76,6 +76,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R15 OS file lock excludes two independent JVM account owners
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.LocalAccountDirectoryLeaseTest
+
       - name: R14 private stdin shutdown guard (Java11 real bytecode)
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.LocalLabTestStdinShutdownTest
 
