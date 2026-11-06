@@ -34,6 +34,7 @@ on:
       - 'tools/verification/test_r12_seed_isolated_v308_cache.py'
       - 'tools/verification/r13_windows_server_smoke.py'
       - 'tools/verification/r13_windows_gui_egress_gate.py'
+      - 'tools/verification/r13_prepare_private_jdk.py'
       - 'tools/verification/test_r13_windows_boundary.py'
       - '.github/workflows/gradle-server-build.yml'
   push:
@@ -130,6 +131,17 @@ jobs:
             --server-sha256 "$(sha256sum server/build/SpawnPKLocalServer.jar | cut -d' ' -f1)" \
             --java-exe "$(command -v java)" \
             --private-parent /tmp
+
+      - name: R13 private Java11 input negative-control (no runtime copying)
+        run: |
+          set +e
+          python3 tools/verification/r13_prepare_private_jdk.py \
+            --source-jdk /__r13_nonexistent_java11 \
+            --private-parent /tmp > r13-private-jdk-negative.json 2>&1
+          result=$?
+          set -e
+          test "$result" -eq 2
+          python3 -c 'import json; r=json.load(open("r13-private-jdk-negative.json")); assert r["result"]=="R13_PRIVATE_JAVA11_SNAPSHOT_BLOCKED"; assert r["client_processes_started"]==0; assert r["existing_client_processes_stopped"]==0; print("R13_PRIVATE_JDK_NEGATIVE_CONTROL_PASS")'
 
       - name: R13 deny OS GUI launch without dedicated private JDK/firewall rule
         run: |
