@@ -114,7 +114,6 @@ def smoke(repo: Path, head: str, jar: Path, sha: str, java: Path,
 
     owned = Path(tempfile.mkdtemp(prefix="spawnpk-r13-owned-server-", dir=str(parent)))
     child: subprocess.Popen | None = None
-    own_termination = False
     try:
         home = owned / "server-user-home"
         home.mkdir()
@@ -154,8 +153,9 @@ def smoke(repo: Path, head: str, jar: Path, sha: str, java: Path,
             raise ProbeBlocked("R13 checkout changed during live smoke")
 
         receipt = {
-            "result": "R13_WINDOWS_LOOPBACK_SERVER_SMOKE_PASS",
+            "result": "R13_OWNED_LOOPBACK_SERVER_SMOKE_PASS",
             "head": head.lower(),
+        "platform": sys.platform,
             "server_sha256": sha.lower(),
             "game_listener": "127.0.0.1:43594",
             "aux_listener": "127.0.0.1:43595",
@@ -178,7 +178,6 @@ def smoke(repo: Path, head: str, jar: Path, sha: str, java: Path,
             # Only child object created by THIS invocation; never use
             # taskkill /IM java.exe or inspect/stop any other client PID.
             child.terminate()
-            own_termination = True
             try:
                 child.wait(timeout=8)
             except subprocess.TimeoutExpired:
@@ -202,7 +201,7 @@ def main(argv=None) -> int:
         return 0
     except (ProbeBlocked, OSError, ValueError, subprocess.TimeoutExpired) as exc:
         print(json.dumps({
-            "result": "R13_WINDOWS_LOOPBACK_SERVER_SMOKE_BLOCKED",
+            "result": "R13_OWNED_LOOPBACK_SERVER_SMOKE_BLOCKED",
             "error": f"{type(exc).__name__}: {exc}",
             "original_gui_started": False,
             "existing_clients_stopped": 0,
