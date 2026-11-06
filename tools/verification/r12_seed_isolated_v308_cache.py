@@ -191,10 +191,12 @@ def seed(source: Path, home: Path) -> dict[str, Any]:
                 raise SeedError("R12 source/destination SHA mismatch during snapshot")
             copied += expected_size
             digests.append((relative, expected_size, before))
-        # Bounded input recheck after all copying: first-party cache may
-        # change while two v312 clients are active. If it changes, reject.
+        # Recheck source after copying. A fixed digest lookup keeps the
+        # 10k+ entry source scan linear rather than quadratic.
+        # Live v312 clients may change assets during the snapshot; fail closed.
+        verified_digest = {name: value for name, _, value in digests}
         for relative, origin, expected_size in files:
-            expected = next(row[2] for row in digests if row[0] == relative)
+            expected = verified_digest[relative]
             safe_entry(origin, False)
             if origin.stat().st_size != expected_size or sha256(origin) != expected:
                 raise SeedError("R12 live source changed before snapshot finalized")
