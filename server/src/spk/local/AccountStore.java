@@ -76,8 +76,6 @@ final class AccountStore {
 
     static String save(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
         Path file = accountFile();
-        Files.createDirectories(file.getParent());
-
         PlayerSnapshot snapshot =
             new PlayerSnapshot(
                 FORMAT_VERSION,
@@ -103,7 +101,7 @@ final class AccountStore {
         AtomicAccountPublisher.publish(
             file, properties, "SpawnPK LocalLab localhost account state");
 
-                return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()
+        return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()
              +" inventory="+bank.inventorySlots()+" bank="+bank.bankSlots()
              +" runEnabled="+movement.persistentRun()+" runEnergy="+movement.runEnergy()
              +(pet==null?"":" pet="+(pet.active()?(pet.itemId()+"->"+pet.npcId()):"none"))
