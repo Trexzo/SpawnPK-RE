@@ -26,7 +26,7 @@ final class PetAccessoryPersistence {
         AtomicAccountPublisher.publish(p, props, "SpawnPK LocalLab account");
     }
 
-        static int read(Properties props){
+    static int read(Properties props){
         String raw=props==null?"0":props.getProperty(KEY,"0").trim();
         try{return Math.max(0,Integer.parseInt(raw));}catch(NumberFormatException e){return 0;}
     }
