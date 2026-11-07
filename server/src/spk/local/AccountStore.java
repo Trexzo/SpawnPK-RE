@@ -100,23 +100,10 @@ final class AccountStore {
             Instant.now().toString()
         );
 
-        Path tmp = file.resolveSibling(file.getFileName().toString()+".tmp");
-        boolean completed = false;
-        try {
-            try (OutputStream out = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-                properties.store(out, "SpawnPK LocalLab localhost account state");
-            }
-            try {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-            completed = true;
-        } finally {
-            if (!completed) Files.deleteIfExists(tmp);
-        }
+        AtomicAccountPublisher.publish(
+            file, properties, "SpawnPK LocalLab localhost account state");
 
-        return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()
+                return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()
              +" inventory="+bank.inventorySlots()+" bank="+bank.bankSlots()
              +" runEnabled="+movement.persistentRun()+" runEnergy="+movement.runEnergy()
              +(pet==null?"":" pet="+(pet.active()?(pet.itemId()+"->"+pet.npcId()):"none"))
