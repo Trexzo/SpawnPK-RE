@@ -23,15 +23,10 @@ final class PetAccessoryPersistence {
         Properties props=new Properties();
         try(InputStream in=Files.newInputStream(p)){props.load(in);}
         merge(props,itemId);
-        Path tmp=p.resolveSibling(p.getFileName().toString()+".accessory.tmp");
-        try(OutputStream out=Files.newOutputStream(tmp,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE)){
-            props.store(out,"SpawnPK LocalLab account");
-        }
-        try{Files.move(tmp,p,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
-        catch(AtomicMoveNotSupportedException e){Files.move(tmp,p,StandardCopyOption.REPLACE_EXISTING);}
+        AtomicAccountPublisher.publish(p, props, "SpawnPK LocalLab account");
     }
 
-    static int read(Properties props){
+        static int read(Properties props){
         String raw=props==null?"0":props.getProperty(KEY,"0").trim();
         try{return Math.max(0,Integer.parseInt(raw));}catch(NumberFormatException e){return 0;}
     }
