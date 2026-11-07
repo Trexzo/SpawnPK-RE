@@ -88,8 +88,6 @@ final class LocalAccountProfiles {
         if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.save(bank,equipment,movement,pet,player);
 
         Path file=accountFile(u);
-        Files.createDirectories(file.getParent());
-
         PlayerSnapshot snapshot=
             new PlayerSnapshot(
                 FORMAT_VERSION,
@@ -115,7 +113,7 @@ final class LocalAccountProfiles {
         AtomicAccountPublisher.publish(
             file, properties, "SpawnPK LocalLab localhost account state");
 
-                return summary("ACCOUNT_SAVED",file,u,bank,equipment,movement,pet,player);
+        return summary("ACCOUNT_SAVED",file,u,bank,equipment,movement,pet,player);
     }
 
     private static String summary(String verb,Path file,String u,BankState bank,EquipmentState equipment,MovementState movement,PetState pet,PlayerState player){
