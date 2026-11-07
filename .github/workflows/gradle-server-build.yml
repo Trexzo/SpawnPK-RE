@@ -76,6 +76,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R16 fail-closed forced atomic account publication on Java 11 bytecode
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.AtomicAccountPublisherTest
+
       - name: R15 OS file lock excludes two independent JVM account owners
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.LocalAccountDirectoryLeaseTest
 
@@ -207,3 +210,33 @@ jobs:
           set -e
           test "$outcome" -eq 2
           python3 -c 'import json; r=json.load(open("r10-preflight-ci.json")); assert r["result"]=="R10_ORIGINAL_GUI_PREFLIGHT_BLOCKED"; assert not r["launch_performed"]; assert r["existing_processes_stopped"]==0; print("R10_GUI_ADMISSION_NEGATIVE_CONTROL_PASS")'
+
+  r16-atomic-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure Windows JDK 21 for Java 11 bytecode build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build server and all regression fixtures on real Windows
+        shell: pwsh
+        run: |
+          & .\server\gradlew.bat --no-daemon clean build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run tested Java 11 bytecode on Windows JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: R16 Windows forced staging and abrupt-child atomic account test
+        shell: pwsh
+        run: |
+          & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.AtomicAccountPublisherTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

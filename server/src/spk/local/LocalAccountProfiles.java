@@ -88,8 +88,6 @@ final class LocalAccountProfiles {
         if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.save(bank,equipment,movement,pet,player);
 
         Path file=accountFile(u);
-        Files.createDirectories(file.getParent());
-
         PlayerSnapshot snapshot=
             new PlayerSnapshot(
                 FORMAT_VERSION,
@@ -112,18 +110,8 @@ final class LocalAccountProfiles {
             Instant.now().toString()
         );
 
-        Path tmp=file.resolveSibling(file.getFileName().toString()+".tmp");
-        boolean completed=false;
-        try{
-            try(OutputStream out=Files.newOutputStream(tmp,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE)){
-                properties.store(out,"SpawnPK LocalLab localhost account state");
-            }
-            try{Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
-            catch(AtomicMoveNotSupportedException e){Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING);}
-            completed=true;
-        }finally{
-            if(!completed)Files.deleteIfExists(tmp);
-        }
+        AtomicAccountPublisher.publish(
+            file, properties, "SpawnPK LocalLab localhost account state");
 
         return summary("ACCOUNT_SAVED",file,u,bank,equipment,movement,pet,player);
     }

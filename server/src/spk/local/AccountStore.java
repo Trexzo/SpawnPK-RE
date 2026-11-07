@@ -76,8 +76,6 @@ final class AccountStore {
 
     static String save(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
         Path file = accountFile();
-        Files.createDirectories(file.getParent());
-
         PlayerSnapshot snapshot =
             new PlayerSnapshot(
                 FORMAT_VERSION,
@@ -100,21 +98,8 @@ final class AccountStore {
             Instant.now().toString()
         );
 
-        Path tmp = file.resolveSibling(file.getFileName().toString()+".tmp");
-        boolean completed = false;
-        try {
-            try (OutputStream out = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-                properties.store(out, "SpawnPK LocalLab localhost account state");
-            }
-            try {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-            completed = true;
-        } finally {
-            if (!completed) Files.deleteIfExists(tmp);
-        }
+        AtomicAccountPublisher.publish(
+            file, properties, "SpawnPK LocalLab localhost account state");
 
         return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()
              +" inventory="+bank.inventorySlots()+" bank="+bank.bankSlots()

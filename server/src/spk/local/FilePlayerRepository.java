@@ -101,60 +101,11 @@ final class FilePlayerRepository
                 snapshot.username()
             );
 
-        Path parent=file.getParent();
-        if(parent!=null)
-            Files.createDirectories(parent);
-
-        Properties properties=
+        Properties properties =
             snapshot.toLegacyProperties();
-
-        properties.setProperty(
-            "saved.at",
-            Instant.now().toString()
-        );
-
-        Path tmp=
-            file.resolveSibling(
-                file.getFileName().toString()+
-                ".tmp"
-            );
-
-        boolean completed=false;
-
-        try{
-            try(OutputStream output=
-                    Files.newOutputStream(
-                        tmp,
-                        StandardOpenOption.CREATE,
-                        StandardOpenOption.TRUNCATE_EXISTING,
-                        StandardOpenOption.WRITE
-                    )){
-                properties.store(
-                    output,
-                    "SpawnPK LocalLab localhost account state"
-                );
-            }
-
-            try{
-                Files.move(
-                    tmp,
-                    file,
-                    StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.ATOMIC_MOVE
-                );
-            }catch(AtomicMoveNotSupportedException e){
-                Files.move(
-                    tmp,
-                    file,
-                    StandardCopyOption.REPLACE_EXISTING
-                );
-            }
-
-            completed=true;
-        }finally{
-            if(!completed)
-                Files.deleteIfExists(tmp);
-        }
+        properties.setProperty("saved.at", Instant.now().toString());
+        AtomicAccountPublisher.publish(
+            file, properties, "SpawnPK LocalLab localhost account state");
     }
 
     private Path normalizedPath(
