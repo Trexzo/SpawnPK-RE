@@ -226,7 +226,7 @@ jobs:
       - name: Build server and all regression fixtures on real Windows
         shell: pwsh
         run: |
-          & .\\server\\gradlew.bat --no-daemon clean build
+          & .\server\gradlew.bat --no-daemon clean build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run tested Java 11 bytecode on Windows JDK 17
