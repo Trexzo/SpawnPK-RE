@@ -108,7 +108,7 @@ final class FilePlayerRepository
             file, properties, "SpawnPK LocalLab localhost account state");
     }
 
-        private Path normalizedPath(
+    private Path normalizedPath(
         String username
     ){
         Path file=
