@@ -195,6 +195,17 @@ def build_package(values: dict) -> dict:
     if digest(client_dest) != AIRGAP_SHA or digest(server_dest) != values["server_sha"]:
         raise AdmissionDenied("R23 staged client/server copy mismatch")
     shutil.copyfile(values["guest_script"], assets / "guest-preflight.ps1")
+    pins = {
+        "source_head": values["head"],
+        "airgap_sha256": AIRGAP_SHA,
+        "server_jar_sha256": values["server_sha"],
+        "java_sha256": JAVA_SHA,
+        "javaw_sha256": JAVAW_SHA,
+    }
+    (assets / "asset-pins.json").write_text(
+        json.dumps(pins, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     xml = wsb_xml(assets.resolve(), values["jdk"])
     assess_wsb(xml, assets.resolve(), values["jdk"])
     wsb = root / OFFLINE_WSB
