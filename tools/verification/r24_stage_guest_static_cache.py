@@ -101,6 +101,16 @@ def validate_r12_home(home: Path) -> tuple[Path, list[tuple[str, Path, int]]]:
             r12.safe_entry(path, False)
             if relative not in allowed:
                 raise CacheAdmissionDenied("R24 unknown cache file " + relative)
+    # Do not trust a text receipt alone. Independently verify every
+    # selected cache binary and the complete R12 inventory BEFORE staging.
+    checked = []
+    for relative, origin, size in files:
+        r12.safe_entry(origin, False)
+        if origin.stat().st_size != size:
+            raise CacheAdmissionDenied("R24 input file changed size")
+        checked.append((relative, size, r12.sha256(origin)))
+    if inventory(checked) != R12_EXPECTED_INVENTORY:
+        raise CacheAdmissionDenied("R24 source asset bytes differ from R12 pin")
     return home, files
 
 
@@ -227,6 +237,11 @@ def main(argv: list[str] | None = None) -> int:
             args.server_sha256, args.certified_airgap,
             args.private_jdk, args.output_parent,
         )
+        if r23.git(values["repo"], "diff", "--name-only", "HEAD", "--",
+                   "tools/verification/r24_stage_guest_static_cache.py",
+                   "tools/verification/r24_guest_cache_preflight.ps1",
+                   "tools/verification/r12_seed_isolated_v308_cache.py"):
+            raise CacheAdmissionDenied("R24 source or guest preflight modified")
         home, files = validate_r12_home(args.r12_isolated_home)
         if args.plan_only:
             response = {
