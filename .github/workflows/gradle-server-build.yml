@@ -43,6 +43,7 @@ on:
       - 'tools/verification/test_r25_guest_writable_home.py'
       - 'tools/verification/r26_guest_owned_server_smoke.ps1'
       - 'tools/verification/r26_guest_server_package.py'
+      - 'tools/verification/r26_owned_local_server_stdin_smoke.py'
       - 'tools/verification/test_r26_guest_server_package.py'
       - 'tools/verification/r23_guest_preflight.ps1'
       - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
