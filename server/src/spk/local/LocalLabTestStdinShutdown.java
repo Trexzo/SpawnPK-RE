@@ -22,10 +22,15 @@ final class LocalLabTestStdinShutdown {
 
     private LocalLabTestStdinShutdown() {}
 
-    static Thread armFromProperties(InputStream input, Runnable normalJvmExit) {
+    /**
+     * Validate test-only startup arguments BEFORE any World thread or socket
+     * becomes live. The later arm operation performs the same validation.
+     * This method does not start a watcher, read stdin, or call System.exit.
+     */
+    static void validateConfiguration() {
         String flag = System.getProperty(ENABLED, "false");
         if ("false".equals(flag)) {
-            return null;
+            return;
         }
         if (!"true".equals(flag)) {
             throw new IllegalArgumentException("R14 invalid test stdin enable value");
@@ -36,10 +41,17 @@ final class LocalLabTestStdinShutdown {
                 "R14 enabled test stdin shutdown requires 64-hex private token"
             );
         }
+    }
+
+    static Thread armFromProperties(InputStream input, Runnable normalJvmExit) {
+        validateConfiguration();
+        if ("false".equals(System.getProperty(ENABLED, "false"))) {
+            return null;
+        }
         if (input == null || normalJvmExit == null) {
             throw new IllegalArgumentException("R14 missing private stdin or exit callback");
         }
-        return arm(input, token, normalJvmExit);
+        return arm(input, System.getProperty(TOKEN), normalJvmExit);
     }
 
     static Thread arm(InputStream input, String exactToken, Runnable exit) {
