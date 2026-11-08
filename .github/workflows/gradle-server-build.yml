@@ -132,6 +132,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R28 v308 exact login inner-block boundary and identity log redaction
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R28V308LoginFrameBoundaryTest
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.ClientBuildRevision308CompatibilityTest
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.HandshakeIntegrationTest
+
       - name: R19 actual Main malformed-configuration and post-World startup rollback
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.MainStartupRollbackTest
 
@@ -412,6 +418,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: R28 Windows strict v308 login wire framing and old handshake compatibility
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R28V308LoginFrameBoundaryTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & java -cp $cp spk.local.ClientBuildRevision308CompatibilityTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & java -cp $cp spk.local.HandshakeIntegrationTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R16 Windows forced staging and abrupt-child atomic account test
         shell: pwsh
