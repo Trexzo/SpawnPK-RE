@@ -137,6 +137,33 @@ class R26OwnedGuestServerTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, text)
 
+    def test_real_server_log_guard_rejects_missing_graceful_close(self):
+        import r26_owned_local_server_stdin_smoke as server
+        with tempfile.TemporaryDirectory(prefix="r26-log-test-") as d:
+            p = Path(d) / "stdout.log"
+            p.write_text(
+                "R14_TEST_ONLY_STDIN_SHUTDOWN_AUTHORIZED\\n"
+                "V5123_PERSISTENCE_SHUTDOWN_CLEAN\\n", encoding="utf-8"
+            )
+            self.assertTrue(server.log_has(
+                p, "R14_TEST_ONLY_STDIN_SHUTDOWN_AUTHORIZED",
+                "V5123_PERSISTENCE_SHUTDOWN_CLEAN"))
+            self.assertFalse(server.log_has(p, "MISSING_MARKER"))
+
+    def test_real_server_smoke_only_stops_own_child_and_no_gui(self):
+        script = (Path(__file__).resolve().parent /
+                  "r26_owned_local_server_stdin_smoke.py").read_text(
+                      encoding="utf-8")
+        self.assertIn("stdin=subprocess.PIPE", script)
+        self.assertIn("child.stdin.write", script)
+        self.assertIn("child.kill()", script)
+        self.assertIn("ports_released_after_shutdown", script)
+        self.assertIn("R14_TEST_ONLY_STDIN_SHUTDOWN_AUTHORIZED", script)
+        self.assertIn("V5123_PERSISTENCE_SHUTDOWN_CLEAN", script)
+        for forbidden in ("taskkill", "Stop-Process", "shell=True",
+                          "WindowsSandbox.exe", "startfile(", "javaw.exe"):
+            self.assertNotIn(forbidden, script)
+
     def test_host_side_generator_no_unapproved_execution(self):
         source = Path(r26.__file__).read_text(encoding="utf-8")
         for forbidden in (
