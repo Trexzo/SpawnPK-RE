@@ -42,17 +42,27 @@ public final class Main {
     private static void runServer(
         InetAddress bind, boolean bootstrapFinal, boolean movementFinal
     ) throws Exception {
+        // Admit BOTH local listeners as one startup boundary before creating
+        // World or starting its tick/persistence threads. If AUX is occupied,
+        // closing the scope also releases the already-bound game port.
+        try (ServerSocket game = new ServerSocket();
+             ServerSocket aux = new ServerSocket()) {
+            game.bind(new InetSocketAddress(bind, GAME_PORT));
+            aux.bind(new InetSocketAddress(bind, AUX_PORT));
+            serveBoundSockets(game, aux, bootstrapFinal, movementFinal);
+        }
+    }
+
+    private static void serveBoundSockets(
+        ServerSocket game, ServerSocket aux,
+        boolean bootstrapFinal, boolean movementFinal
+    ) throws Exception {
         World world = World.shared();
         world.start();
 
         ExecutorService pool = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "spk-local-session"); t.setDaemon(true); return t;
         });
-
-        ServerSocket game = new ServerSocket();
-        game.bind(new InetSocketAddress(bind, GAME_PORT));
-        ServerSocket aux = new ServerSocket();
-        aux.bind(new InetSocketAddress(bind, AUX_PORT));
 
         System.out.println("SpawnPK Local Lab "+BuildInfo.summary());
         System.out.println("GAME  : " + game.getLocalSocketAddress());
