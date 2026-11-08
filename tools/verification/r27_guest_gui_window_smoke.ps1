@@ -37,7 +37,7 @@ $clientWasStopped=$false
 $serverWasStopped=$false
 $forcedClientStop=$false
 $forcedServerStop=$false
-$home=$null
+$guestHomePath=$null
 
 function Port-Free {
     foreach($port in @(43594,43595)) {
@@ -102,27 +102,27 @@ try {
        -not (Test-Path -LiteralPath $GuestHome -PathType Container)) {
         throw 'R27_BLOCKED: no absolute R25 private guest home'
     }
-    $home=[IO.Path]::GetFullPath($GuestHome).TrimEnd('\')
+    $guestHomePath=[IO.Path]::GetFullPath($GuestHome).TrimEnd('\')
     $temp=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
     if(-not $temp.StartsWith('C:\Users\WDAGUtilityAccount\',
                            [StringComparison]::OrdinalIgnoreCase) -or
        -not [string]::Equals(
-            [IO.Path]::GetDirectoryName($home),$temp,
+            [IO.Path]::GetDirectoryName($guestHomePath),$temp,
             [StringComparison]::OrdinalIgnoreCase) -or
-       -not [IO.Path]::GetFileName($home).StartsWith(
+       -not [IO.Path]::GetFileName($guestHomePath).StartsWith(
             'spawnpk-r25-guesthome-',[StringComparison]::Ordinal)) {
         throw 'R27_BLOCKED: guest HOME not a canonical R25 temporary home'
     }
-    $item=Get-Item -LiteralPath $home -ErrorAction Stop
+    $item=Get-Item -LiteralPath $guestHomePath -ErrorAction Stop
     if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw 'R27_BLOCKED: HOME reparse point not permitted'
     }
 
     $r25=Get-Content -LiteralPath (
-        Join-Path $home 'r25-private-guest-home-receipt.json'
+        Join-Path $guestHomePath 'r25-private-guest-home-receipt.json'
     ) -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
     if($r25.result -cne 'R25_GUEST_PRIVATE_WRITABLE_HOME_PREPARED_NO_GUI' -or
-       $r25.guest_home -cne $home -or
+       $r25.guest_home -cne $guestHomePath -or
        $r25.copied_static_cache_files -ne 10764 -or
        $r25.original_live_user_profile_mapped -cne $false) {
         throw 'R27_BLOCKED: private HOME receipt invalid'
@@ -130,10 +130,10 @@ try {
     # The R26 guest result must come from an actual earlier guest-local
     # server/loopback acceptance, NOT the prior host-only R26 test.
     $r26=Get-Content -LiteralPath (
-        Join-Path $home 'r26-owned-server-smoke-receipt.json'
+        Join-Path $guestHomePath 'r26-owned-server-smoke-receipt.json'
     ) -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
     if($r26.result -cne 'R26_GUEST_OWNED_LOCALLAB_SERVER_LOOPBACK_SMOKE_PASS' -or
-       $r26.guest_home -cne $home -or
+       $r26.guest_home -cne $guestHomePath -or
        $r26.both_ports_released -cne $true -or
        $r26.graphical_client_started -cne $false) {
         throw 'R27_BLOCKED: real R26 guest server receipt missing or invalid'
@@ -176,7 +176,7 @@ try {
     if($ExactApproval -cne $approval) {
         throw 'R27_BLOCKED: exact manual GUI launch approval missing'
     }
-    $name=Join-Path $home 'data\accounts\r27-local-only-synthetic.properties'
+    $name=Join-Path $guestHomePath 'data\accounts\r27-local-only-synthetic.properties'
     if(Test-Path -LiteralPath $name) {
         throw 'R27_BLOCKED: synthetic test account path already exists'
     }
@@ -186,14 +186,14 @@ try {
     try { $rng.GetBytes($random) } finally { $rng.Dispose() }
     $token=([BitConverter]::ToString($random)).Replace('-','').ToLowerInvariant()
     $serverArgs=(
-        '"-Duser.home='+$home+'" '+
+        '"-Duser.home='+$guestHomePath+'" '+
         '-Djava.net.preferIPv4Stack=true '+
         '"-Dspk.local.accountFile='+$name+'" '+
         '-Dspk.local.acceptance.stdinShutdownEnabled=true '+
         '-Dspk.local.acceptance.stdinShutdownToken='+$token+' '+
         '-jar "'+$serverJar+'" --bootstrap --movement'
     )
-    $server=Start-PrivateJava $serverArgs $home $true
+    $server=Start-PrivateJava $serverArgs $guestHomePath $true
     $serverStarted=$true
     $deadline=[DateTime]::UtcNow.AddSeconds(25)
     while([DateTime]::UtcNow -lt $deadline) {
@@ -217,10 +217,10 @@ try {
     # Guice bootstrap creates the Swing UI. No command-line switches,
     # login credentials, updater URL or external host are passed to it.
     $clientArgs=(
-        '"-Duser.home='+$home+'" -Djava.awt.headless=false '+
+        '"-Duser.home='+$guestHomePath+'" -Djava.awt.headless=false '+
         '-Djava.net.preferIPv4Stack=true -jar "'+$clientJar+'"'
     )
-    $client=Start-PrivateJava $clientArgs $home $false
+    $client=Start-PrivateJava $clientArgs $guestHomePath $false
     $clientStarted=$true
     $deadline=[DateTime]::UtcNow.AddSeconds($ObserveSeconds)
     while([DateTime]::UtcNow -lt $deadline) {
