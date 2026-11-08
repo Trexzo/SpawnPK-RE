@@ -153,10 +153,18 @@ class R24StaticCacheTests(unittest.TestCase):
                     len(manifest["file_entries"]), len(files))
                 self.assertTrue(
                     (work / "assets" / "guest-cache-preflight.ps1").is_file())
-                xml = (work / r23.OFFLINE_WSB).read_text(encoding="utf-8")
+                wsb = work / "SpawnPK-R24-NetworkDisabled-StaticCache-REVIEW-ONLY.wsb"
+                xml = wsb.read_text(encoding="utf-8")
                 r23.assess_wsb(xml, work / "assets", jdk)
                 self.assertNotIn("<LogonCommand>", xml)
                 self.assertIn("<Networking>Disable</Networking>", xml)
+                self.assertFalse(receipt["real_user_profile_or_live_cache_mapped"])
+                self.assertNotIn("user_profile_or_cache_mapped", receipt)
+                self.assertEqual(
+                    receipt["wsb_sha256"], r23.digest(wsb))
+                self.assertEqual(
+                    receipt["static_cache_manifest_sha256"],
+                    r23.digest(work / "assets" / r24.MANIFEST_NAME))
 
     def test_source_does_not_spawn_game_or_mutate_firewall(self):
         source = Path(r24.__file__).read_text(encoding="utf-8")
