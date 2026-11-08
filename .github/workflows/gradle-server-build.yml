@@ -280,8 +280,14 @@ jobs:
           $guest = (Resolve-Path 'tools/verification/r23_guest_preflight.ps1').Path
           [void][System.Management.Automation.Language.Parser]::ParseFile($guest, [ref]$tokens, [ref]$issues)
           if ($issues.Count -gt 0) { throw ($issues | Out-String) }
+          # PowerShell 7 with native-error preference Stop can abort a
+          # job on an INTENTIONALLY nonzero child exit. Capture and verify.
+          $PSNativeCommandUseErrorActionPreference = $false
           & powershell.exe -NoProfile -NonInteractive -File $guest
-          if ($LASTEXITCODE -ne 2) { throw 'R23 guest preflight did not deny running on Windows host' }
+          $guestExit = $LASTEXITCODE
+          if ($guestExit -ne 2) { throw 'R23 guest preflight did not deny running on Windows host' }
+          # GitHub's pwsh shell exits with the last native exit code unless reset.
+          $global:LASTEXITCODE = 0
 
       - name: R21 Windows Python dual-exe audit and guarded PowerShell syntax
         shell: pwsh
