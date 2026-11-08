@@ -76,6 +76,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R17 real killed-JVM owner recovery across both account profiles
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.AccountCrashLeaseRecoveryTest
+
       - name: R16 fail-closed forced atomic account publication on Java 11 bytecode
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.AtomicAccountPublisherTest
 
@@ -239,4 +242,10 @@ jobs:
         shell: pwsh
         run: |
           & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.AtomicAccountPublisherTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R17 Windows real killed-JVM lease restart and both-profile saves
+        shell: pwsh
+        run: |
+          & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.AccountCrashLeaseRecoveryTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
