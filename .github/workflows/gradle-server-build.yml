@@ -33,6 +33,9 @@ on:
       - 'tools/verification/test_r21_dual_java_egress_gate.py'
       - 'tools/verification/r22_v308_classfile_native_egress_inventory.py'
       - 'tools/verification/test_r22_v308_classfile_native_egress_inventory.py'
+      - 'tools/verification/r23_windows_sandbox_offline_package.py'
+      - 'tools/verification/test_r23_windows_sandbox_offline_package.py'
+      - 'tools/verification/r23_guest_preflight.ps1'
       - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
       - 'tools/runtime/build_v308_local_clients.py'
       - 'tools/verification/r11_recover_v308_airgap.py'
@@ -81,6 +84,9 @@ jobs:
 
       - name: R22 synthetic bytecode native/process egress inventory negative controls
         run: python tools/verification/test_r22_v308_classfile_native_egress_inventory.py
+
+      - name: R23 no-network Windows Sandbox package and mapping negative controls
+        run: python tools/verification/test_r23_windows_sandbox_offline_package.py
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -263,6 +269,25 @@ jobs:
         run: |
           & python tools/verification/test_r22_v308_classfile_native_egress_inventory.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R23 Windows no-network package and guest preflight script syntax
+        shell: pwsh
+        run: |
+          & python tools/verification/test_r23_windows_sandbox_offline_package.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $tokens = $null
+          $issues = $null
+          $guest = (Resolve-Path 'tools/verification/r23_guest_preflight.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile($guest, [ref]$tokens, [ref]$issues)
+          if ($issues.Count -gt 0) { throw ($issues | Out-String) }
+          # PowerShell 7 with native-error preference Stop can abort a
+          # job on an INTENTIONALLY nonzero child exit. Capture and verify.
+          $PSNativeCommandUseErrorActionPreference = $false
+          & powershell.exe -NoProfile -NonInteractive -File $guest
+          $guestExit = $LASTEXITCODE
+          if ($guestExit -ne 2) { throw 'R23 guest preflight did not deny running on Windows host' }
+          # GitHub's pwsh shell exits with the last native exit code unless reset.
+          $global:LASTEXITCODE = 0
 
       - name: R21 Windows Python dual-exe audit and guarded PowerShell syntax
         shell: pwsh
