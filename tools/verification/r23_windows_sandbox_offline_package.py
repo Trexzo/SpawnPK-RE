@@ -173,14 +173,20 @@ def assess_wsb(xml: str, expected_assets: Path, expected_jdk: Path) -> None:
     folders = tree.findall("./MappedFolders/MappedFolder")
     if len(folders) != 2:
         raise AdmissionDenied("R23 expected two read-only mappings")
-    expected = ((str(expected_assets), GUEST_ASSETS),
-                (str(expected_jdk), GUEST_JDK))
+    expected = ((expected_assets.resolve(strict=False), GUEST_ASSETS),
+                (expected_jdk.resolve(strict=False), GUEST_JDK))
     for item, (host, guest) in zip(folders, expected):
         fields = {x.tag: x.text for x in item}
-        if fields != {
-            "HostFolder": host, "SandboxFolder": guest, "ReadOnly": "true"
-        }:
+        if set(fields) != {"HostFolder", "SandboxFolder", "ReadOnly"}:
+            raise AdmissionDenied("R23 unsafe host-folder mapping keys")
+        if fields.get("SandboxFolder") != guest or fields.get("ReadOnly") != "true":
             raise AdmissionDenied("R23 unsafe host-folder mapping")
+        # Windows normalizes root/volume spelling during Path.resolve().
+        # Resolve both the emitted XML host path and the expected path,
+        # rather than comparing their potentially different source spelling.
+        candidate = Path(fields["HostFolder"]).resolve(strict=False)
+        if candidate != host:
+            raise AdmissionDenied("R23 host-folder mapping changed")
 
 
 def build_package(values: dict) -> dict:
