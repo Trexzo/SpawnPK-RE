@@ -27,6 +27,11 @@ public final class Main {
         if (movement && !bootstrap) throw new IllegalArgumentException("--movement requires --bootstrap");
         final boolean bootstrapFinal = bootstrap;
         final boolean movementFinal = movement;
+
+        // Reject malformed acceptance-only stdin control before creating a
+        // World, binding ports, or acquiring the account directory lease.
+        LocalLabTestStdinShutdown.validateConfiguration();
+
         InetAddress bind = InetAddress.getByName(LOOPBACK);
         if (!bind.isLoopbackAddress()) throw new SecurityException("refusing non-loopback bind: " + bind);
 
@@ -57,60 +62,63 @@ public final class Main {
         ServerSocket game, ServerSocket aux,
         boolean bootstrapFinal, boolean movementFinal
     ) throws Exception {
+        // R18 has already acquired both localhost listeners. Construct the
+        // shutdown coordinator BEFORE starting the World so all resources
+        // have a cleanup owner even if early initialization later fails.
         World world = World.shared();
-        world.start();
-
         ExecutorService pool = Executors.newCachedThreadPool(r -> {
-            Thread t = new Thread(r, "spk-local-session"); t.setDaemon(true); return t;
+            Thread t = new Thread(r, "spk-local-session");
+            t.setDaemon(true);
+            return t;
         });
-
-        System.out.println("SpawnPK Local Lab "+BuildInfo.summary());
-        System.out.println("GAME  : " + game.getLocalSocketAddress());
-        System.out.println("AUX   : " + aux.getLocalSocketAddress() + " (loopback HTTP/cache guard)");
-        System.out.println("GUARD : loopback-only; no code path dials a remote host");
-        System.out.println("M4    : certified bootstrap=" + bootstrapFinal + " (default false)");
-        System.out.println("M5    : authoritative movement=" + movementFinal + " (600 ms server tick)");
-        System.out.println("ENGINE: one shared World + one authoritative WorldPulse; command migration staged by subsystem");
-        System.out.println("PULSE : " + world.metrics());
-        System.out.println("ITEMS : "+ItemDefinitionRepository.count()+" current client-known ids; ::item / ::tabitem <id> [amount]");
-        System.out.println("SPAWN : packet71 shortcut 0 -> native root 67027 on sidebar tab "+BootstrapPackets.SPAWN_TAB_INDEX);
-
         LocalServerShutdownCoordinator shutdown =
-            new LocalServerShutdownCoordinator(
-                world,
-                pool,
-                game,
-                aux
-            );
-
-        Thread shutdownHook =
-            new Thread(
-                shutdown::close,
-                "spk-local-shutdown"
-            );
-
-        Runtime runtime =
-            Runtime.getRuntime();
-
-        runtime.addShutdownHook(
-            shutdownHook
-        );
-
-        // Custom acceptance-only private stdin control. Disabled in normal
-        // server runs; never publishes a network/GUI command endpoint.
-        LocalLabTestStdinShutdown.armFromProperties(
-            System.in,
-            () -> System.exit(0)
-        );
+            new LocalServerShutdownCoordinator(world, pool, game, aux);
+        Thread shutdownHook = new Thread(
+            shutdown::close, "spk-local-shutdown");
+        Runtime runtime = Runtime.getRuntime();
+        boolean hookInstalled = false;
 
         try {
-            if (!shutdown.submitAuxiliary(
-                    () -> localAux(aux)))
+            runtime.addShutdownHook(shutdownHook);
+            hookInstalled = true;
+            world.start();
+
+            // Deliberately test-only fault injection. It is not a network
+            // command and only the owner of the Java invocation can enable
+            // this property. The failure proves the actual World thread is
+            // closed while sockets and the R15 directory lease are released.
+            if (Boolean.getBoolean(
+                    "spk.local.acceptance.injectFailureAfterWorldStart")) {
+                System.out.println(
+                    "R19_TEST_ONLY_POST_WORLD_START_FAILURE_INJECTED");
+                throw new IllegalStateException(
+                    "R19_TEST_ONLY_POST_WORLD_START_FAILURE");
+            }
+
+            System.out.println("SpawnPK Local Lab " + BuildInfo.summary());
+            System.out.println("GAME  : " + game.getLocalSocketAddress());
+            System.out.println("AUX   : " + aux.getLocalSocketAddress() +
+                " (loopback HTTP/cache guard)");
+            System.out.println("GUARD : loopback-only; no code path dials a remote host");
+            System.out.println("M4    : certified bootstrap=" + bootstrapFinal + " (default false)");
+            System.out.println("M5    : authoritative movement=" + movementFinal + " (600 ms server tick)");
+            System.out.println("ENGINE: one shared World + one authoritative WorldPulse; command migration staged by subsystem");
+            System.out.println("PULSE : " + world.metrics());
+            System.out.println("ITEMS : " + ItemDefinitionRepository.count() +
+                " current client-known ids; ::item / ::tabitem <id> [amount]");
+            System.out.println("SPAWN : packet71 shortcut 0 -> native root 67027 on sidebar tab " +
+                BootstrapPackets.SPAWN_TAB_INDEX);
+
+            // Custom acceptance-only private stdin control. Disabled in
+            // ordinary server runs; never exposes any network command.
+            LocalLabTestStdinShutdown.armFromProperties(
+                System.in, () -> System.exit(0));
+
+            if (!shutdown.submitAuxiliary(() -> localAux(aux)))
                 return;
 
             while (!shutdown.closing()) {
                 Socket s;
-
                 try {
                     s = game.accept();
                 } catch (SocketException error) {
@@ -127,20 +135,18 @@ public final class Main {
                 if (!shutdown.submitSession(
                         s,
                         new LocalSession(
-                            s,
-                            bootstrapFinal,
-                            movementFinal,
-                            world
-                        )))
+                            s, bootstrapFinal, movementFinal, world)))
                     break;
             }
         } finally {
-            MainShutdownFinalizer.run(
-                shutdown::close,
-                ()->runtime.removeShutdownHook(
-                    shutdownHook
-                )
-            );
+            if (hookInstalled) {
+                MainShutdownFinalizer.run(
+                    shutdown::close,
+                    () -> runtime.removeShutdownHook(shutdownHook));
+            } else {
+                // A failed hook installation still owns a World and pool.
+                shutdown.close();
+            }
         }
     }
 
