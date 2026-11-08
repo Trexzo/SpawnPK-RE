@@ -79,6 +79,7 @@ try {
     Write-Output 'R23_GUEST_PREFLIGHT_ONLY_NO_GAME_STARTED'
     exit 0
 } catch {
-    Write-Error ('R23_GUEST_PREFLIGHT_BLOCKED: ' + $_.Exception.Message)
+    # Preserve a stable exit code even with ErrorActionPreference=Stop.
+    Write-Output ('R23_GUEST_PREFLIGHT_BLOCKED: ' + $_.Exception.Message)
     exit 2
 }
