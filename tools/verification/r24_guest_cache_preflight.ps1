@@ -79,7 +79,7 @@ try {
             throw 'R24_BLOCKED: cache file digest mismatch'
         }
         $sum+=$size
-        [void]$contents.Append($relative+[char]0+$size+[char]0+$pin+`"`n`")
+        [void]$contents.Append($relative+[char]0+[string]$size+[char]0+$pin+[char]10)
     }
     if ($sum -ne $expectedBytes) {
         throw 'R24_BLOCKED: cache byte count mismatch'
