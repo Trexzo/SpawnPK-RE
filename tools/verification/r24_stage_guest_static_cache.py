@@ -186,6 +186,15 @@ def append_static_cache(
             wsb_path.read_text(encoding="utf-8"),
             assets.resolve(), values["jdk"],
         )
+        r24_wsb = parent_root / "SpawnPK-R24-NetworkDisabled-StaticCache-REVIEW-ONLY.wsb"
+        if r24_wsb.exists():
+            raise CacheAdmissionDenied("R24 output WSB already exists")
+        wsb_path.rename(r24_wsb)
+        receipt["sandbox_configuration"] = str(r24_wsb)
+        # R23's legacy field describes a package WITHOUT any mapped cache.
+        # R24 now maps an isolated static-cache COPY, never the real one.
+        # Do not inherit the misleading cache-is-not-mapped boolean.
+        receipt.pop("user_profile_or_cache_mapped", None)
         receipt.update({
             "result": "R24_STATIC_GAME_CACHE_SANDBOX_PACKAGE_PREPARED_NO_LAUNCH",
             "r12_cache_source": str(r12_home),
@@ -194,7 +203,12 @@ def append_static_cache(
             "static_cache_inventory_sha256": R12_EXPECTED_INVENTORY,
             "static_cache_copy_included": True,
             "real_player_home_mapped": False,
+            "real_user_profile_or_live_cache_mapped": False,
             "cache_mapped_readonly": True,
+            "wsb_sha256": r23.digest(r24_wsb),
+            "static_cache_manifest_sha256": r23.digest(assets / MANIFEST_NAME),
+            "guest_cache_preflight_sha256": r23.digest(
+                assets / "guest-cache-preflight.ps1"),
             "guest_cache_preflight": (
                 r23.GUEST_ASSETS + r"\guest-cache-preflight.ps1"),
             "opaque_binary_content_privacy_certified": False,
