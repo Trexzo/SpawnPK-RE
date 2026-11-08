@@ -41,8 +41,10 @@ try {
     # With Networking=Disable, a fresh sandbox should have no connected
     # routable interface or default route. The OS result takes priority.
     $up = @(Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' })
-    $ipv4default = @(Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue)
-    $ipv6default = @(Get-NetRoute -AddressFamily IPv6 -DestinationPrefix '::/0' -ErrorAction SilentlyContinue)
+    # Fail closed if routing table inspection itself fails. Never mistake
+    # a swallowed access/error condition for an empty default-route table.
+    $ipv4default = @(Get-NetRoute -AddressFamily IPv4 -ErrorAction Stop | Where-Object { $_.DestinationPrefix -eq '0.0.0.0/0' })
+    $ipv6default = @(Get-NetRoute -AddressFamily IPv6 -ErrorAction Stop | Where-Object { $_.DestinationPrefix -eq '::/0' })
     if ($up.Count -gt 0 -or $ipv4default.Count -gt 0 -or $ipv6default.Count -gt 0) {
         throw 'R23_BLOCKED: guest has an active adapter or default route'
     }
