@@ -78,11 +78,15 @@ def safe_private_parent(root: Path, repo: Path) -> Path:
     if not root.is_absolute() or not root.is_dir() or root.is_symlink():
         raise AdmissionDenied("R20 private parent must be a real absolute directory")
     canonical = root.resolve(strict=True)
-    if canonical == Path.home().resolve() or canonical == repo:
+    # pathlib on Windows may change path spelling/case when resolving paths,
+    # so compare resolved paths on both sides of all containment checks.
+    resolved_repo = repo.resolve(strict=True)
+    if canonical == Path.home().resolve() or canonical == resolved_repo:
         raise AdmissionDenied("R20 cannot use user home or repository as private parent")
-    if str(canonical) == canonical.anchor or repo in canonical.parents:
+    if str(canonical) == canonical.anchor or resolved_repo in canonical.parents:
         raise AdmissionDenied("R20 private parent must be outside repository subtree")
-    # A temporary parent may be an ancestor of the isolated repository.\n    # Existing parent components can redirect paths, especially on Windows
+    # A temporary parent may be an ancestor of the isolated repository.
+    # Existing parent components can redirect paths, especially on Windows
     # junctions. Reject observable symlinks; not a race-free sandbox.
     for part in (root, *root.parents):
         if part.is_symlink():
