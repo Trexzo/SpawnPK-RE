@@ -25,7 +25,7 @@ import tempfile
 import time
 
 from r13_windows_server_smoke import (
-    check_inputs, child_listener_owned, local_versions, ping_game,
+    ProbeBlocked, check_inputs, child_listener_owned, local_versions, ping_game,
 )
 from r10_original_gui_preflight import loopback_ports
 
@@ -182,8 +182,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(record, indent=2, sort_keys=True))
         return 0
-    except (OwnedServerDenied, OSError, ValueError, subprocess.TimeoutExpired,
-            subprocess.SubprocessError) as exc:
+    except (OwnedServerDenied, ProbeBlocked, OSError, ValueError,
+            subprocess.TimeoutExpired, subprocess.SubprocessError) as exc:
         print(json.dumps({
             "result": "R26_OWNED_REAL_LOCALLAB_STDIN_LOOPBACK_BLOCKED",
             "error": str(exc),
