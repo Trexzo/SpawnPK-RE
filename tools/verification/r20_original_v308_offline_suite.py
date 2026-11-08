@@ -286,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
                 "manifest_count": len(names),
                 "client_sha256": ORIGINAL_V308_SHA256,
                 "server_jar_sha256": args.server_sha256,
-                "new_java_processes_started": 0,
+                "test_jvms_started": 0,\n                "java_version_probe_invoked": True,
             }, sort_keys=True, indent=2))
             return 0
         result = run_suite(
