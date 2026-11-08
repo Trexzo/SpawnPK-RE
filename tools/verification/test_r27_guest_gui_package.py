@@ -135,6 +135,11 @@ class R27GuestGuiPackageTests(unittest.TestCase):
             "R27_GUEST_GUI_WINDOW_AND_OWNED_PROCESS_CLEANUP_PASS",
         ):
             self.assertIn(required, script)
+        import re
+        # PowerShell's built-in $HOME and $PID are readonly; assign to
+        # dedicated variables in manual guest scripts instead.
+        self.assertIsNone(re.search(r"\\$home\\b", script, re.IGNORECASE))
+        self.assertIsNone(re.search(r"\\$pid\\b", script, re.IGNORECASE))
         for disallowed in (
             "Stop-Process", "taskkill", "New-NetFirewallRule",
             "Enable-WindowsOptionalFeature", "Invoke-WebRequest",
