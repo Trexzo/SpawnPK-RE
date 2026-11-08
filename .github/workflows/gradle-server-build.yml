@@ -76,6 +76,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R19 actual Main malformed-configuration and post-World startup rollback
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.MainStartupRollbackTest
+
       - name: R18 real Main JVM two-port fail-closed admission and clean restart
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.MainTwoPortStartupBoundaryTest
 
@@ -257,4 +260,10 @@ jobs:
         shell: pwsh
         run: |
           & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.MainTwoPortStartupBoundaryTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R19 Windows actual Main preflight refusal and post-World cleanup
+        shell: pwsh
+        run: |
+          & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.MainStartupRollbackTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
