@@ -66,8 +66,9 @@ class R27GuestGuiPackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="r27-pkg-test-") as td:
             base, script, jdk, assets = self.fixture(Path(td))
             clienthash = r23.digest(assets / "client-airgap.jar")
+            audit = {**GOOD_AUDIT, "certified_airgap_v308_sha256": clienthash}
             with mock.patch.object(r27.r27, "AIRGAP_SHA", clienthash):
-                record = r27.extend_package(base, script, jdk, GOOD_AUDIT)
+                record = r27.extend_package(base, script, jdk, audit)
             self.assertEqual(
                 record["result"],
                 "R27_OFFLINE_V308_GUI_WINDOW_TRIAL_PACKAGE_PREPARED_NO_LAUNCH")
