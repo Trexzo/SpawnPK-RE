@@ -127,6 +127,13 @@ try {
         # No overwrite: each target must be newly created in our own tree.
         [IO.File]::Copy($origin.FullName, $canonical, $false)
         $copy = Get-Item -LiteralPath $canonical -ErrorAction Stop
+        # The source is a read-only mapped host asset. Windows CopyFile may
+        # preserve its ReadOnly attribute; the guest profile must be writable.
+        $copy.IsReadOnly = $false
+        $copy = Get-Item -LiteralPath $canonical -ErrorAction Stop
+        if ($copy.IsReadOnly) {
+            throw 'R25_BLOCKED: copied guest cache remains read-only'
+        }
         if ($copy.PSIsContainer -or
             ($copy.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
             [long]$copy.Length -ne $size) {
