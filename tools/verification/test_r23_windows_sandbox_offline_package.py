@@ -127,6 +127,9 @@ class R23OfflineSandboxPackageTests(unittest.TestCase):
             "TcpListener", "TcpClient", "Get-FileHash", "asset-pins.json",
         ):
             self.assertIn(required, script)
+        self.assertIn("Get-NetRoute -AddressFamily IPv4 -ErrorAction Stop", script)
+        self.assertIn("Get-NetRoute -AddressFamily IPv6 -ErrorAction Stop", script)
+        self.assertNotIn("-ErrorAction SilentlyContinue", script)
 
     def test_package_tool_does_not_spawn_sandbox_or_modify_host_firewall(self):
         script = Path(r23.__file__).read_text(encoding="utf-8")
