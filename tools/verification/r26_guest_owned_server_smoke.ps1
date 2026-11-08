@@ -37,13 +37,13 @@ function Test-PortsFree {
     }
 }
 
-function Get-OwnedListeners([int]$pid) {
+function Get-OwnedListeners([int]$ownedPid) {
     $rows=@(Get-NetTCPConnection -State Listen -ErrorAction Stop |
         Where-Object { $_.LocalPort -in @(43594,43595) -and
                         $_.LocalAddress -eq '127.0.0.1' })
     if($rows.Count -ne 2) { return $false }
     foreach($row in $rows) {
-        if($row.OwningProcess -ne $pid) { return $false }
+        if($row.OwningProcess -ne $ownedPid) { return $false }
     }
     return (@($rows | Select-Object -ExpandProperty LocalPort -Unique).Count -eq 2)
 }
@@ -249,7 +249,7 @@ try {
         aux_listener='127.0.0.1:43595'
         both_listeners_owned_by_test_child=$true
         aux_http_versions_verified=$true
-        game_tcp_handshake_verified=$true
+        game_tcp_connect_verified=$true
         private_stdin_shutdown_authorized=$shutdownAuthorized
         owned_server_exit_code=$proc.ExitCode
         both_ports_released=$true
