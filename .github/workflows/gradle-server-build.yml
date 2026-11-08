@@ -29,6 +29,9 @@ on:
       - 'tools/verification/test_r10_original_gui_preflight.py'
       - 'tools/verification/r20_original_v308_offline_suite.py'
       - 'tools/verification/test_r20_original_v308_offline_suite.py'
+      - 'tools/verification/r21_windows_dual_java_egress_gate.py'
+      - 'tools/verification/test_r21_dual_java_egress_gate.py'
+      - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
       - 'tools/runtime/build_v308_local_clients.py'
       - 'tools/verification/r11_recover_v308_airgap.py'
       - 'tools/verification/test_r11_recover_v308_airgap.py'
@@ -70,6 +73,9 @@ jobs:
 
       - name: R20 sealed v308 offline runner and negative-control unit tests
         run: python tools/verification/test_r20_original_v308_offline_suite.py
+
+      - name: R21 dual Java and Javaw exact egress negative controls
+        run: python tools/verification/test_r21_dual_java_egress_gate.py
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -246,6 +252,17 @@ jobs:
         run: |
           & python tools/verification/test_r20_original_v308_offline_suite.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R21 Windows Python dual-exe audit and guarded PowerShell syntax
+        shell: pwsh
+        run: |
+          & python tools/verification/test_r21_dual_java_egress_gate.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $tokens = $null
+          $issues = $null
+          $scriptPath = (Resolve-Path 'tools/verification/r21_plan_or_install_private_java_firewall.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$issues)
+          if ($issues.Count -gt 0) { throw ($issues | Out-String) }
 
       - name: Configure Windows JDK 21 for Java 11 bytecode build
         uses: actions/setup-java@v4
