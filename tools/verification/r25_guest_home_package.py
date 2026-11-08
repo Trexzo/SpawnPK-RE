@@ -50,6 +50,11 @@ def extend_package(base: dict[str, Any], source: Path,
         "R24_STATIC_GAME_CACHE_SANDBOX_PACKAGE_PREPARED_NO_LAUNCH"
     ) or base.get("static_cache_inventory_sha256") != r24.R12_EXPECTED_INVENTORY:
         raise R25Denied("R25 requires completed R24 cache package")
+    if base.get("user_profile_or_cache_mapped") is True:
+        raise R25Denied("R25 refuses any mapped user profile or live cache")
+    # Older R23 receipts used an ambiguous cache field. R24 maps a
+    # verified isolated COPY, never a live user cache; use explicit keys.
+    base.pop("user_profile_or_cache_mapped", None)
     manifest = assets / r24.MANIFEST_NAME
     if (not manifest.is_file() or
             r23.digest(manifest) != base.get("static_cache_manifest_sha256")):
