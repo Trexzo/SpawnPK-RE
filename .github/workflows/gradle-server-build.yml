@@ -76,6 +76,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R18 real Main JVM two-port fail-closed admission and clean restart
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.MainTwoPortStartupBoundaryTest
+
       - name: R17 real killed-JVM owner recovery across both account profiles
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.AccountCrashLeaseRecoveryTest
 
@@ -248,4 +251,10 @@ jobs:
         shell: pwsh
         run: |
           & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.AccountCrashLeaseRecoveryTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R18 Windows real Main JVM two-port admission and clean restart
+        shell: pwsh
+        run: |
+          & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.MainTwoPortStartupBoundaryTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
