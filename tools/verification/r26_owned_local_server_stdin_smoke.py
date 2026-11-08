@@ -100,6 +100,7 @@ def verify_owned_session(repo: Path, head: str, jar: Path, server_sha: str,
             raise OwnedServerDenied("R26 expected startup/lease logs missing")
         if hashlib.sha256(jar.read_bytes()).hexdigest() != server_sha:
             raise OwnedServerDenied("R26 pinned JAR mutated during smoke")
+        listeners_owned_before_shutdown = child_listener_owned(child.pid)
         assert child.stdin is not None
         child.stdin.write((token + "\n").encode("ascii"))
         child.stdin.flush()
@@ -124,7 +125,7 @@ def verify_owned_session(repo: Path, head: str, jar: Path, server_sha: str,
             "aux_listener": "127.0.0.1:43595",
             "aux_versions_sha256": response_sha,
             "owned_child_pid": child.pid,
-            "owner_listener_check": child_listener_owned(child.pid),
+            "owner_listener_check_before_shutdown": listeners_owned_before_shutdown,
             "graceful_stdin_token_shutdown": True,
             "persistence_shutdown_clean_log": True,
             "ports_released_after_shutdown": True,
