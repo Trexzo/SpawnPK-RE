@@ -831,7 +831,7 @@ final class LocalSession implements Runnable {
             // and the client boolean flag. 205 passes both current privileged gate families
             // used by the native Spawn Tab/debug surfaces; server authority remains LOCAL only.
             LocalLoginTransport.writeLoginSuccess(out);
-            System.out.println(tag + "LOGIN_SUCCESS_LOCAL rank=205 localDevAuthority=true flag=false account="+username+" loginAlias="+loginAlias+" persistent="+persistentAccount+" at " + Instant.now());
+            System.out.println(tag + "LOGIN_SUCCESS_LOCAL rank=205 localDevAuthority=true flag=false account="+LocalLoginAliasPolicy.redactForLog(username)+" loginAlias="+LocalLoginAliasPolicy.redactForLog(loginAlias)+" persistent="+persistentAccount+" at " + Instant.now());
 
             socket.setSoTimeout(5_000);
             try {

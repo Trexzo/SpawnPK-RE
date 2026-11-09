@@ -46,6 +46,9 @@ final class LocalLoginTransport {
         System.out.println(tag+frame);
         if(frame.revision!=PROTOCOL_REVISION)
             throw new IOException("expected protocol revision 317, got "+frame.revision);
+        // Fail closed before LocalSession chooses a profile, registers a
+        // WorldPlayer or publishes any game bootstrap packets.
+        LocalLoginAliasPolicy.requireValid(frame.username);
         return frame;
     }
 
