@@ -133,6 +133,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R31OriginalV308LoginWireCodecTest
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R31Windows1252RealLoopbackLoginTest
+
       - name: R30 22 client fixtures and opt-in v308 username hash parity
         run: |
           python tools/verification/test_r30_prelogin_fixture_migration.py
@@ -429,6 +434,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: R31 Windows original v308 login BigInteger/codec real TCP checks
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R31OriginalV308LoginWireCodecTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & java -cp $cp spk.local.R31Windows1252RealLoopbackLoginTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R30 Windows original-client username hash migration and strict opt-in
         shell: pwsh
