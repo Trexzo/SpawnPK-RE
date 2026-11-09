@@ -2,10 +2,29 @@
 import struct
 import unittest
 
-from synthetic_revision317_login import Isaac, bank_action_145, login_body, u32
+from synthetic_revision317_login import Isaac, bank_action_145, login_body, u32, v308_username_hash5
 
 
 class SyntheticRevision317FixtureTests(unittest.TestCase):
+    def test_v308_prelogin_real_username_hash5_vectors(self):
+        self.assertEqual(v308_username_hash5("local"), 2)
+        self.assertEqual(v308_username_hash5("localtest"), 29)
+        self.assertEqual(v308_username_hash5("myau"), 10)
+        self.assertEqual(v308_username_hash5("opensrc"), 12)
+        self.assertEqual(v308_username_hash5("spawnpk"), 24)
+        self.assertEqual(v308_username_hash5("ab😀cd"), 27)
+        self.assertEqual(v308_username_hash5("LocalTest"), 29)
+        self.assertEqual(v308_username_hash5("LOCAL"), 2)
+        self.assertEqual(v308_username_hash5(""), 0)
+        self.assertEqual(v308_username_hash5("___"), 0)
+        self.assertEqual(v308_username_hash5("local  "), 2)
+        self.assertEqual(v308_username_hash5("abcdefghijkl_ignored"),
+                         v308_username_hash5("abcdefghijkl"))
+        for name in ("local", "localtest", "123456789012", "A", "z", ""):
+            self.assertIn(v308_username_hash5(name), range(32))
+        with self.assertRaises(TypeError):
+            v308_username_hash5(None)
+
     def test_login_frame_lengths_and_revision(self):
         frame, seeds = login_body(0x0123456789ABCDEF)
         self.assertEqual(seeds, (

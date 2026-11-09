@@ -103,6 +103,32 @@ def read_exact(sock: socket.socket, size: int) -> bytes:
     return bytes(value)
 
 
+def v308_username_hash5(username: str) -> int:
+    """Exact v308 rs.O.a(name) base37, then (long >> 16) & 31.
+
+    Do not use this as authentication; it is a five-bit prelogin
+    routing value. The full login username remains in the inner block.
+    """
+    if not isinstance(username, str):
+        raise TypeError("prelogin name must be a string")
+    value = 0
+    # The original Java rs.O loop reads up to 12 UTF-16 *code units*
+    # via String.charAt(), not 12 Unicode code points.
+    units = username.encode("utf-16-be", errors="surrogatepass")
+    for i in range(0, min(len(units), 24), 2):
+        code = (units[i] << 8) | units[i + 1]
+        value *= 37
+        if 65 <= code <= 90:
+            value += code - 65 + 1
+        elif 97 <= code <= 122:
+            value += code - 97 + 1
+        elif 48 <= code <= 57:
+            value += code - 48 + 27
+    while value and value % 37 == 0:
+        value //= 37
+    return (value >> 16) & 31
+
+
 def login_body(server_seed: int, revision: int = 317,
                username: str = "local") -> tuple[bytes, tuple[int, ...]]:
     if username not in ("local", "localtest"):
@@ -124,7 +150,7 @@ def login_body(server_seed: int, revision: int = 317,
 
 def _begin(sock: socket.socket, revision: int,
            username: str = "local"):
-    sock.sendall(bytes([14, 7]))
+    sock.sendall(bytes([14, v308_username_hash5(username)]))
     pre = read_exact(sock, 17)
     if pre[:8] != b"\x00" * 8 or pre[8] != 0:
         raise AssertionError(f"prelogin refused: {pre[:9].hex()}")
