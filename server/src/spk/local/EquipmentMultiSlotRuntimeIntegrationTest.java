@@ -18,7 +18,7 @@ public final class EquipmentMultiSlotRuntimeIntegrationTest {
             Future<?> server=ex.submit(()->{try{new LocalSession(ss.accept(),true,true).run();}catch(IOException e){throw new RuntimeException(e);}});
             try(Socket s=new Socket(loop,ss.getLocalPort())){
                 s.setSoTimeout(5000);InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();
-                out.write(14);out.write(7);out.flush();byte[] pre=Binary.readExactly(in,9);if((pre[8]&255)!=0)throw new AssertionError();
+                out.write(14);out.write(V308PreloginNameHash.hash5("local"));out.flush();byte[] pre=Binary.readExactly(in,9);if((pre[8]&255)!=0)throw new AssertionError();
                 long seed=Binary.i64(Binary.readExactly(in,8),0);int[] seeds={0x01020304,0x11223344,(int)(seed>>>32),(int)seed};
                 byte[] lp=loginPayload(seeds);out.write(16);out.write(lp.length);out.write(lp);out.flush();
                 byte[] login=Binary.readExactly(in,3);if((login[0]&255)!=2||(login[1]&255)!=205||(login[2]&255)!=0)throw new AssertionError("rank triplet="+Arrays.toString(login));
