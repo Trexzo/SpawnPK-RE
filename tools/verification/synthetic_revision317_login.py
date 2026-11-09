@@ -112,14 +112,18 @@ def v308_username_hash5(username: str) -> int:
     if not isinstance(username, str):
         raise TypeError("prelogin name must be a string")
     value = 0
-    for char in username[:12]:
+    # The original Java rs.O loop reads up to 12 UTF-16 *code units*
+    # via String.charAt(), not 12 Unicode code points.
+    units = username.encode("utf-16-be", errors="surrogatepass")
+    for i in range(0, min(len(units), 24), 2):
+        code = (units[i] << 8) | units[i + 1]
         value *= 37
-        if "A" <= char <= "Z":
-            value += ord(char) - ord("A") + 1
-        elif "a" <= char <= "z":
-            value += ord(char) - ord("a") + 1
-        elif "0" <= char <= "9":
-            value += ord(char) - ord("0") + 27
+        if 65 <= code <= 90:
+            value += code - 65 + 1
+        elif 97 <= code <= 122:
+            value += code - 97 + 1
+        elif 48 <= code <= 57:
+            value += code - 48 + 27
     while value and value % 37 == 0:
         value //= 37
     return (value >> 16) & 31
