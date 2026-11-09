@@ -157,7 +157,7 @@ final class LocalSessionPlayerInitializer {
             tag+"V512_WORLD_REGISTER playerId="+
             worldPlayer.id()+
             " generation="+generation+
-            " username="+username+
+            " username="+LocalLoginAliasPolicy.redactForLog(username)+
             " members="+world.players().size()+
             " worldIdentity="+System.identityHashCode(world)
         );
