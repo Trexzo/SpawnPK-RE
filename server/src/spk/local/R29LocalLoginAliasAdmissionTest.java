@@ -46,8 +46,9 @@ public final class R29LocalLoginAliasAdmissionTest {
             }catch(IOException expected){
                 check(expected.getMessage().startsWith("invalid local login alias"),
                       "structured refusal");
-                check(!expected.getMessage().contains(invalid),
-                      "bad alias echoed in IOException");
+                if(!invalid.isEmpty())
+                    check(!expected.getMessage().contains(invalid),
+                          "bad alias echoed in IOException");
             }
         }
 
