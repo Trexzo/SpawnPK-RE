@@ -15,7 +15,7 @@ public final class BankRuntimeIntegrationTest {
             Future<?> server=ex.submit(()->{try{new LocalSession(ss.accept(),true,true).run();}catch(IOException e){throw new RuntimeException(e);}});
             try(Socket s=new Socket(loop,ss.getLocalPort())) {
                 s.setSoTimeout(5000); InputStream in=s.getInputStream(); OutputStream out=s.getOutputStream();
-                out.write(14);out.write(7);out.flush();
+                out.write(14);out.write(V308PreloginNameHash.hash5("local"));out.flush();
                 byte[] prefix=Binary.readExactly(in,9);if((prefix[8]&255)!=0)throw new AssertionError("prelogin");
                 long seed=Binary.i64(Binary.readExactly(in,8),0);
                 int[] seeds={0x01020304,0x11223344,(int)(seed>>>32),(int)seed};
