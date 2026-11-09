@@ -103,6 +103,28 @@ def read_exact(sock: socket.socket, size: int) -> bytes:
     return bytes(value)
 
 
+def v308_username_hash5(username: str) -> int:
+    """Exact v308 rs.O.a(name) base37, then (long >> 16) & 31.
+
+    Do not use this as authentication; it is a five-bit prelogin
+    routing value. The full login username remains in the inner block.
+    """
+    if not isinstance(username, str):
+        raise TypeError("prelogin name must be a string")
+    value = 0
+    for char in username[:12]:
+        value *= 37
+        if "A" <= char <= "Z":
+            value += ord(char) - ord("A") + 1
+        elif "a" <= char <= "z":
+            value += ord(char) - ord("a") + 1
+        elif "0" <= char <= "9":
+            value += ord(char) - ord("0") + 27
+    while value and value % 37 == 0:
+        value //= 37
+    return (value >> 16) & 31
+
+
 def login_body(server_seed: int, revision: int = 317,
                username: str = "local") -> tuple[bytes, tuple[int, ...]]:
     if username not in ("local", "localtest"):
@@ -124,7 +146,7 @@ def login_body(server_seed: int, revision: int = 317,
 
 def _begin(sock: socket.socket, revision: int,
            username: str = "local"):
-    sock.sendall(bytes([14, 7]))
+    sock.sendall(bytes([14, v308_username_hash5(username)]))
     pre = read_exact(sock, 17)
     if pre[:8] != b"\x00" * 8 or pre[8] != 0:
         raise AssertionError(f"prelogin refused: {pre[:9].hex()}")
