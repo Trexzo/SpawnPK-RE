@@ -13,15 +13,21 @@ GRADLE_BIN="${GRADLE_HOME_LOCAL}/bin/gradle"
 if [ ! -x "$GRADLE_BIN" ]; then
   mkdir -p "$CACHE_ROOT"
   if [ ! -f "$ZIP" ]; then
-    echo "Downloading Gradle ${GRADLE_VERSION}..."
+    echo "Downloading Gradle ${GRADLE_VERSION} (bounded retry, SHA-pinned)..."
+    PART="${ZIP}.part-$"
+    # Avoid accepting a partial 5xx response as a cached distribution.
+    # Keep the existing exact SHA-256 verification below unchanged.
+    trap 'rm -f "$PART"' EXIT HUP INT TERM
     if command -v curl >/dev/null 2>&1; then
-      curl -fL "$DIST_URL" -o "$ZIP"
+      curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 180 "$DIST_URL" -o "$PART"
     elif command -v wget >/dev/null 2>&1; then
-      wget -O "$ZIP" "$DIST_URL"
+      wget --tries=6 --timeout=30 -O "$PART" "$DIST_URL"
     else
       echo "curl or wget is required to bootstrap Gradle." >&2
       exit 1
     fi
+    mv "$PART" "$ZIP"
+    trap - EXIT HUP INT TERM
   fi
 
   if command -v sha256sum >/dev/null 2>&1; then
