@@ -50,11 +50,10 @@ class R30FixtureMigrationTests(unittest.TestCase):
                 value=user if user=="user" else '"'+user+'"'
                 expected="out.write(V308PreloginNameHash.hash5("+value+"))"
                 self.assertEqual(content.count(expected),1)
+                compact="".join(content.split())
                 self.assertTrue(
-                    bool(re.search(
-                        r"out\\s*\\.\\s*write\\s*\\(\\s*(?:14|LocalLoginTransport\\.PRELOGIN_REQUEST)\\s*\\)",
-                        content,
-                    )),
+                    "out.write(14)" in compact
+                    or "out.write(LocalLoginTransport.PRELOGIN_REQUEST)" in compact,
                     "fixture must send prelogin request 14"
                 )
                 if user!="user":
