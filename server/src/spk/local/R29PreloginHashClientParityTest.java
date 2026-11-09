@@ -27,6 +27,8 @@ public final class R29PreloginHashClientParityTest {
         eq(10, V308PreloginNameHash.hash5("myau"), "myau hash5");
         eq(12, V308PreloginNameHash.hash5("opensrc"), "opensrc hash5");
         eq(24, V308PreloginNameHash.hash5("spawnpk"), "spawnpk hash5");
+        eq(27, V308PreloginNameHash.hash5("ab\uD83D\uDE00cd"),
+           "Java UTF-16 surrogate code-unit parity");
         eq(2, V308PreloginNameHash.hash5("LOCAL"), "ASCII uppercase");
         eq(29, V308PreloginNameHash.hash5("LocalTest"), "case folding");
         eq(0, V308PreloginNameHash.hash5(""), "empty hash5");
