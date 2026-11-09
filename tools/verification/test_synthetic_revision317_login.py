@@ -12,6 +12,7 @@ class SyntheticRevision317FixtureTests(unittest.TestCase):
         self.assertEqual(v308_username_hash5("myau"), 10)
         self.assertEqual(v308_username_hash5("opensrc"), 12)
         self.assertEqual(v308_username_hash5("spawnpk"), 24)
+        self.assertEqual(v308_username_hash5("ab😀cd"), 27)
         self.assertEqual(v308_username_hash5("LocalTest"), 29)
         self.assertEqual(v308_username_hash5("LOCAL"), 2)
         self.assertEqual(v308_username_hash5(""), 0)
