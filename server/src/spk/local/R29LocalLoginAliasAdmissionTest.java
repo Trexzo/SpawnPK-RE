@@ -105,8 +105,9 @@ public final class R29LocalLoginAliasAdmissionTest {
                     }catch(IOException expected){
                         if(!expected.getMessage().startsWith("invalid local login alias"))
                             throw new AssertionError("unexpected wire parse failure",expected);
-                        check(!expected.getMessage().contains(alias),
-                              "invalid alias leaked into wire exception");
+                        if(!alias.isEmpty())
+                            check(!expected.getMessage().contains(alias),
+                                  "invalid alias leaked into wire exception");
                         return false;
                     }
                 }
