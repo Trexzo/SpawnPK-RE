@@ -23,7 +23,7 @@ public final class BootstrapRuntimeIntegrationTest {
                 InputStream in = s.getInputStream();
                 OutputStream out = s.getOutputStream();
 
-                out.write(14); out.write(7); out.flush();
+                out.write(14); out.write(V308PreloginNameHash.hash5("local")); out.flush();
                 byte[] prefix = Binary.readExactly(in, 9);
                 if ((prefix[8] & 0xff) != 0) throw new AssertionError("prelogin status != 0");
                 long serverSeed = Binary.i64(Binary.readExactly(in, 8), 0);
