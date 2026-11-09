@@ -22,7 +22,7 @@ public final class PrayerMagicStyleRuntimeIntegrationTest {
             try(Socket s=new Socket(loop,ss.getLocalPort())){
                 s.setSoTimeout(5000);
                 InputStream in=s.getInputStream(); OutputStream out=s.getOutputStream();
-                out.write(14);out.write(7);out.flush();
+                out.write(14);out.write(V308PreloginNameHash.hash5("local"));out.flush();
                 byte[] hs=Binary.readExactly(in,9); require((hs[8]&255)==0,"handshake status");
                 long serverSeed=Binary.i64(Binary.readExactly(in,8),0);
                 int[] seeds={0x01020304,0x11223344,(int)(serverSeed>>>32),(int)serverSeed};
