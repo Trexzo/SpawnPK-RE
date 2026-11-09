@@ -20,6 +20,15 @@ final class LocalLoginTransport {
     static final int LOCAL_DEV_RANK = 205;
 
     static LoginFrame readLogin(Socket socket,InputStream in,OutputStream out,String tag)throws IOException{
+        // Disabled by default until authentic v308 GUI login acceptance.
+        // Use -Dspk.local.prelogin.enforceUsernameHash=true only for
+        // explicitly selected isolated LocalLab protocol tests.
+        return readLogin(socket,in,out,tag,
+            Boolean.getBoolean("spk.local.prelogin.enforceUsernameHash"));
+    }
+
+    static LoginFrame readLogin(Socket socket,InputStream in,OutputStream out,
+                                String tag,boolean enforceUsernameHash)throws IOException{
         if(!socket.getInetAddress().isLoopbackAddress())
             throw new SecurityException("non-loopback peer refused");
 
@@ -53,6 +62,13 @@ final class LocalLoginTransport {
         System.out.println(tag+frame);
         if(frame.revision!=PROTOCOL_REVISION)
             throw new IOException("expected protocol revision 317, got "+frame.revision);
+        // rs.Client.a(username,password,boolean) computes its first
+        // prelogin hash5 from aload_1 and later serializes that SAME
+        // aload_1 as the first inner NL string. Do not log either
+        // the username or the received/expected hash on a mismatch.
+        // This is a protocol-fidelity check, NOT authentication.
+        if(enforceUsernameHash && userHash5!=V308PreloginNameHash.hash5(frame.username))
+            throw new IOException("v308 prelogin username hash5 mismatch");
         return frame;
     }
 
