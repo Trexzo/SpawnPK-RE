@@ -57,8 +57,8 @@ public final class R29PreloginHashClientParityTest {
         // Preserve compatibility pending a separate migration of *all*
         // historical socket fixture producers.
         valid("local", 7, 16);
-        invalid(14, 32, "hash");
-        invalid(14, 255, "hash");
+        invalid(14, 32, "userHash5");
+        invalid(14, 255, "userHash5");
         invalid(15, 2, "prelogin");
         System.out.println("R29_V308_PRELOGIN_NAME_HASH_CLIENT_PARITY_PASS"
                 + " assertions=" + assertions
