@@ -74,8 +74,18 @@ public final class R29LocalLoginAliasAdmissionTest {
             System.setOut(new PrintStream(diagnostic,true,"UTF-8"));
             LocalAccountLifecycle.Selection selected=
                 LocalAccountLifecycle.select(world,SENTINEL,"[r29-test] ");
-            check(SENTINEL.equals(selected.username),"alias selection preserved");
+            check(SENTINEL.toLowerCase(java.util.Locale.ROOT).equals(selected.username),
+                  "normal LocalLab alias canonicalized without privilege");
             check(!selected.persistent,"nonpersistent alias stays nonpersistent");
+
+            // Exercise the legacy normalization-diagnostic branch directly,
+            // without network or World registration. Transport admission
+            // separately rejects this whitespace-padded wire alias.
+            LocalAccountLifecycle.Selection trimmed=
+                LocalAccountLifecycle.select(world," "+SENTINEL+" ","[r29-test] ");
+            check(trimmed.username.equals(selected.username),
+                  "legacy selection normalization preserved");
+            check(!trimmed.persistent,"trimmed alias did not gain persistence");
         }finally{
             System.setOut(prior);
             world.close();
