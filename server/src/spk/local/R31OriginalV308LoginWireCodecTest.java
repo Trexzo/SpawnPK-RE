@@ -143,9 +143,9 @@ public final class R31OriginalV308LoginWireCodecTest {
         }
     }
 
-    private static byte[] packet(String user,String pass,String device,
-                                 String client,Charset charset,int build,
-                                 int loginType)throws IOException {
+    static byte[] packet(String user,String pass,String device,
+                         String client,Charset charset,int build,
+                         int loginType)throws IOException {
         byte[] inner=inner(user,pass,device,client,charset,build);
         byte[] block=bigIntegerLengthEncode(inner);
         ByteArrayOutputStream buf=new ByteArrayOutputStream();
