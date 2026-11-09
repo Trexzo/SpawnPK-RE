@@ -193,7 +193,7 @@ public final class ClientBuildRevision308CompatibilityTest {
         out.write(
             LocalLoginTransport.PRELOGIN_REQUEST
         );
-        out.write(7);
+        out.write(V308PreloginNameHash.hash5("local"));
         out.flush();
 
         byte[] prefix=
