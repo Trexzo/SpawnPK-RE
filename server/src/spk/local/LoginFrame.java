@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -27,7 +28,28 @@ final class LoginFrame {
         this.trailingClientId = trailingClientId;
     }
 
+    private static final Charset WINDOWS_1252 = Charset.forName("windows-1252");
+    private static final String WINDOWS_1252_OPT_IN =
+        "spk.local.login.decodeWindows1252";
+
     static LoginFrame parse(int loginType, byte[] payload) throws IOException {
+        // Genuine v308 rs/x/e.a(String) uses String.getBytes() with the
+        // CLIENT JVM default charset. On the verified private Windows JDK11
+        // this is Cp1252. Keep ISO-8859-1 as the legacy LocalLab default
+        // until actual original v308 GUI login acceptance; opt-in only.
+        Charset wire = Boolean.getBoolean(WINDOWS_1252_OPT_IN)
+            ? WINDOWS_1252 : StandardCharsets.ISO_8859_1;
+        return parse(loginType, payload, wire);
+    }
+
+    static LoginFrame parse(int loginType, byte[] payload, Charset wireCharset) throws IOException {
+        // Arbitrary charset names could silently replacement-decode broken
+        // identifiers. This LocalLab wire mode intentionally supports only
+        // the original legacy byte mapping and pinned Windows Cp1252.
+        if (wireCharset == null ||
+            !(StandardCharsets.ISO_8859_1.equals(wireCharset) ||
+              WINDOWS_1252.equals(wireCharset)))
+            throw new IOException("unsupported v308 login string wire charset");
         if (loginType != 16 && loginType != 18) throw new IOException("unexpected login type " + loginType);
         // v308 login = 4-byte header + 9 CRC32s + one length byte,
         // then marker 10, 4 ISAAC seeds, 2 config ints and 4 NL strings.
@@ -53,10 +75,10 @@ final class LoginFrame {
         int cfg1 = Binary.i32(payload, p); p += 4;
         int cfg2 = Binary.i32(payload, p); p += 4;
         Binary.Cursor c = new Binary.Cursor(p);
-        String username = readNlWithin(payload, c, innerEnd);
-        String password = readNlWithin(payload, c, innerEnd);
-        String device = readNlWithin(payload, c, innerEnd);
-        String trailing = readNlWithin(payload, c, innerEnd);
+        String username = readNlWithin(payload, c, innerEnd, wireCharset);
+        String password = readNlWithin(payload, c, innerEnd, wireCharset);
+        String device = readNlWithin(payload, c, innerEnd, wireCharset);
+        String trailing = readNlWithin(payload, c, innerEnd, wireCharset);
         if (c.pos != innerEnd) throw new IOException("extra bytes after fourth login string");
 
         return new LoginFrame(loginType, revision, memoryFlag, checksums, seeds, cfg1, cfg2,
@@ -68,12 +90,12 @@ final class LoginFrame {
      * inner block. The earlier Binary.readNlString(payload,cursor) could
      * accidentally consume terminators in bytes beyond that boundary.
      */
-    private static String readNlWithin(byte[] payload, Binary.Cursor c, int limit) throws IOException {
+    private static String readNlWithin(byte[] payload, Binary.Cursor c, int limit, Charset wireCharset) throws IOException {
         int start = c.pos;
         if (start >= limit) throw new IOException("missing newline login field");
         while (c.pos < limit && payload[c.pos] != 10) c.pos++;
         if (c.pos >= limit) throw new IOException("unterminated newline login field");
-        String value = new String(payload, start, c.pos - start, StandardCharsets.ISO_8859_1);
+        String value = new String(payload, start, c.pos - start, wireCharset);
         c.pos++;
         return value;
     }
