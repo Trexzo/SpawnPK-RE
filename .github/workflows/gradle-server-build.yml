@@ -132,6 +132,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R29 exact v308 prelogin username hash / socket-negative controls
+        run: |
+          python tools/verification/test_synthetic_revision317_login.py
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R29PreloginHashClientParityTest
+
       - name: R28 v308 exact login inner-block boundary and identity log redaction
         run: |
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R28V308LoginFrameBoundaryTest
@@ -418,6 +423,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: R29 Windows exact v308 prelogin hash and real localhost rejection
+        shell: pwsh
+        run: |
+          & python tools/verification/test_synthetic_revision317_login.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.R29PreloginHashClientParityTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R28 Windows strict v308 login wire framing and old handshake compatibility
         shell: pwsh
