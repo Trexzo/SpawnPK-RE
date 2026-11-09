@@ -14,7 +14,7 @@ final class LocalAccountLifecycle {
         boolean persistent=LocalAccountProfiles.isPersistent(username);
 
         if(!username.equalsIgnoreCase(loginAlias) && !loginAlias.equalsIgnoreCase("localtest"))
-            System.out.println(tag+"V5123_LOCAL_PROFILE_ALIAS loginAlias="+loginAlias+" selected="+username+" reason="+
+            System.out.println(tag+"V5123_LOCAL_PROFILE_ALIAS loginAlias="+LocalLoginAliasPolicy.redactForLog(loginAlias)+" selected="+LocalLoginAliasPolicy.redactForLog(username)+" reason="+
                 (username.equalsIgnoreCase(LocalAccountProfiles.SECONDARY)?"PRIMARY_ALREADY_ONLINE":"CANONICAL_ALIAS"));
         else if(username.equalsIgnoreCase(LocalAccountProfiles.SECONDARY))
             System.out.println(tag+"V5123_LOCAL_PROFILE_ALIAS loginAlias="+loginAlias+" selected=src reason=PRIMARY_ALREADY_ONLINE");
