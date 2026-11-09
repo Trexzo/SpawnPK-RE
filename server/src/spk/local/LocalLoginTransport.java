@@ -30,6 +30,13 @@ final class LocalLoginTransport {
         int userHash5=pre[1]&0xff;
         if(requestType!=PRELOGIN_REQUEST)
             throw new IOException("expected prelogin 14, got "+requestType);
+        // Original v308 rs.Client calculates (base37(username) >> 16) & 31.
+        // Values above 31 cannot occur in an unmodified v308 prelogin and
+        // are rejected before the server sends its 17-byte prelogin reply.
+        // Do not enforce equality with username here yet: older fixture
+        // clients used hash 7 regardless of their synthetic login alias.
+        if(userHash5>31)
+            throw new IOException("invalid v308 prelogin userHash5 outside 0..31");
         System.out.println(tag+"prelogin ok type=14 userHash5="+userHash5);
 
         out.write(new byte[8]);
