@@ -11,6 +11,7 @@ on:
       - 'tools/verification/test_loopback_boot_smoke.py'
       - 'tools/verification/synthetic_revision317_login.py'
       - 'tools/verification/test_synthetic_revision317_login.py'
+      - 'tools/verification/test_r30_prelogin_fixture_migration.py'
       - 'tools/verification/synthetic_s2c_bank.py'
       - 'tools/verification/test_synthetic_s2c_bank.py'
       - 'tools/verification/synthetic_persistence_reconnect.py'
@@ -131,6 +132,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: R30 22 client fixtures and opt-in v308 username hash parity
+        run: |
+          python tools/verification/test_r30_prelogin_fixture_migration.py
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R30OptionalStrictPreloginNameHashTest
 
       - name: R29 exact v308 prelogin username hash / socket-negative controls
         run: |
@@ -423,6 +429,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: R30 Windows original-client username hash migration and strict opt-in
+        shell: pwsh
+        run: |
+          & python tools/verification/test_r30_prelogin_fixture_migration.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.R30OptionalStrictPreloginNameHashTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R29 Windows exact v308 prelogin hash and real localhost rejection
         shell: pwsh
