@@ -18,7 +18,7 @@ public final class LogoutButtonIntegrationTest {
             Future<?> accept=ex.submit(()->{try{Socket s=server.accept();new LocalSession(s,false,false,world).run();}catch(IOException e){throw new RuntimeException(e);}});
             try(Socket s=new Socket(loop,server.getLocalPort())){
                 s.setSoTimeout(5000); InputStream in=s.getInputStream(); OutputStream out=s.getOutputStream();
-                out.write(14);out.write(7);out.flush(); byte[] pre=Binary.readExactly(in,9); if((pre[8]&255)!=0)throw new AssertionError("prelogin"); long seed=Binary.i64(Binary.readExactly(in,8),0);
+                out.write(14);out.write(V308PreloginNameHash.hash5("opensrc"));out.flush(); byte[] pre=Binary.readExactly(in,9); if((pre[8]&255)!=0)throw new AssertionError("prelogin"); long seed=Binary.i64(Binary.readExactly(in,8),0);
                 int[] seeds={0x01020304,0x11223344,(int)(seed>>>32),(int)seed}; byte[] login=loginPayload(seeds,"opensrc"); out.write(16);out.write(login.length);out.write(login);out.flush();
                 byte[] ok=Binary.readExactly(in,3); if((ok[0]&255)!=2)throw new AssertionError("login="+(ok[0]&255));
                 IsaacCipher c2s=new IsaacCipher(seeds.clone());
