@@ -64,7 +64,8 @@ class R30FixtureMigrationTests(unittest.TestCase):
                     self.assertTrue(
                         "loginPayload(seeds,user)" in content
                         or "loginPayload(seeds, user)" in content
-                        or "loginPayload(seeds,user)" in content.replace("\n",""),
+                        or "m.invoke(null,seeds,user)" in content
+                        or "m.invoke(null, seeds, user)" in content,
                         "dynamic hash uses same user variable as login payload"
                     )
 
