@@ -196,7 +196,7 @@ public final class TypedRequestWorldInboxSocketTest {
         OutputStream out=socket.getOutputStream();
 
         out.write(14);
-        out.write(7);
+        out.write(V308PreloginNameHash.hash5(user));
         out.flush();
 
         byte[] pre=Binary.readExactly(in,9);

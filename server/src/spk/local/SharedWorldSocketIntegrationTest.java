@@ -42,7 +42,7 @@ public final class SharedWorldSocketIntegrationTest {
 
     private static Client login(InetAddress host,int port,String user)throws Exception{
         Socket s=new Socket(host,port);s.setSoTimeout(5000);InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();
-        out.write(14);out.write(7);out.flush();
+        out.write(14);out.write(V308PreloginNameHash.hash5(user));out.flush();
         byte[] pre=Binary.readExactly(in,9);if((pre[8]&255)!=0)throw new AssertionError("prelogin response");
         long seed=Binary.i64(Binary.readExactly(in,8),0);
         int[] seeds={0x01020304,0x11223344,(int)(seed>>>32),(int)seed};
