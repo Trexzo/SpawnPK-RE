@@ -36,9 +36,9 @@ public final class R31OriginalV308LoginWireCodecTest {
             check((ascii[2] & 255)==255,"outer 255");
             check((ascii[3] & 255)==1 && (ascii[4] & 255)==61,
                   "short 317 byte order");
-            check((ascii[41] & 255)==ascii.length-43,
+            check((ascii[42] & 255)==ascii.length-43,
                   "BigInteger inner length prefix");
-            check((ascii[42] & 255)==10,"inner marker remains 10");
+            check((ascii[43] & 255)==10,"inner marker remains 10");
             LoginFrame defaultAscii = LoginFrame.parse(16,
                     Arrays.copyOfRange(ascii,2,ascii.length));
             eq("local",defaultAscii.username,"default ISO ASCII");
