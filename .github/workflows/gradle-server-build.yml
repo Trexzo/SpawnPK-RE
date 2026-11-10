@@ -138,6 +138,9 @@ jobs:
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R32FirstWidgetAdmissionTest
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R32FirstWidgetLocalSessionSocketTest
 
+      - name: R33 no World/account before first v308 widget, including EOF and idle timeout
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R33FirstWidgetWorldAdmissionTest
+
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R31OriginalV308LoginWireCodecTest
@@ -447,6 +450,13 @@ jobs:
           & java -cp $cp spk.local.R32FirstWidgetAdmissionTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & java -cp $cp spk.local.R32FirstWidgetLocalSessionSocketTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R33 Windows real LocalSession pre-widget World admission and timeout regression
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R33FirstWidgetWorldAdmissionTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
