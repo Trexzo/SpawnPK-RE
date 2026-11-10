@@ -76,7 +76,7 @@ final class LocalSessionPlayerInitializer {
         boolean persistentAccount=account.persistent;
 
         LocalAccountLifecycle.LoadResult accountLoad=
-            LocalAccountLifecycle.load(
+            LocalAccountLifecycle.loadStrict(
                 account,
                 worldPlayer,
                 persistence,
