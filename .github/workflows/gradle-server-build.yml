@@ -141,6 +141,9 @@ jobs:
       - name: R33 no World/account before first v308 widget, including EOF and idle timeout
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R33FirstWidgetWorldAdmissionTest
 
+      - name: R34 persistent profile failure must not register or save defaults
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R34PersistentLoadAdmissionTest
+
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R31OriginalV308LoginWireCodecTest
@@ -457,6 +460,13 @@ jobs:
         run: |
           $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
           & java -cp $cp spk.local.R33FirstWidgetWorldAdmissionTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R34 Windows corrupt profile and repository error fail-closed socket regression
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R34PersistentLoadAdmissionTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks

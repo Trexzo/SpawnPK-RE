@@ -58,6 +58,32 @@ final class LocalAccountLifecycle {
         IntPredicate accessoryAllowed,
         String tag
     ){
+        return loadFromPersistence(
+            selection,player,persistence,accessoryAllowed,tag,false
+        );
+    }
+
+    /** Real LocalSession must not save defaults over an unreadable profile. */
+    static LoadResult loadStrict(
+        Selection selection,
+        WorldPlayer player,
+        WorldPlayerPersistence persistence,
+        IntPredicate accessoryAllowed,
+        String tag
+    ){
+        return loadFromPersistence(
+            selection,player,persistence,accessoryAllowed,tag,true
+        );
+    }
+
+    private static LoadResult loadFromPersistence(
+        Selection selection,
+        WorldPlayer player,
+        WorldPlayerPersistence persistence,
+        IntPredicate accessoryAllowed,
+        String tag,
+        boolean failClosed
+    ){
         return loadSnapshot(
             selection,
             player,
@@ -65,9 +91,7 @@ final class LocalAccountLifecycle {
                 @Override public java.util.Optional<PlayerSnapshot> load(
                     String username
                 )throws java.io.IOException{
-                    return persistence.load(
-                        username
-                    );
+                    return persistence.load(username);
                 }
 
                 @Override public String name(){
@@ -75,7 +99,8 @@ final class LocalAccountLifecycle {
                 }
             },
             accessoryAllowed,
-            tag
+            tag,
+            failClosed
         );
     }
 
@@ -85,6 +110,17 @@ final class LocalAccountLifecycle {
         SnapshotSource source,
         IntPredicate accessoryAllowed,
         String tag
+    ){
+        return loadSnapshot(selection,player,source,accessoryAllowed,tag,false);
+    }
+
+    private static LoadResult loadSnapshot(
+        Selection selection,
+        WorldPlayer player,
+        SnapshotSource source,
+        IntPredicate accessoryAllowed,
+        String tag,
+        boolean failClosed
     ){
         if(!selection.persistent)
             return new LoadResult(0,false);
@@ -150,6 +186,19 @@ final class LocalAccountLifecycle {
                 true
             );
         }catch(Throwable e){
+            if(failClosed){
+                // The saved file may exist but be corrupt/unreadable. A live
+                // session that proceeded with defaults could overwrite it on
+                // disconnect. Do not register this player or save its state.
+                System.err.println(tag+
+                    "R34_ACCOUNT_LOAD_REJECTED action=NO_WORLD_NO_SAVE"+
+                    " failureType="+e.getClass().getSimpleName());
+                if(e instanceof Error)throw (Error)e;
+                throw new IllegalStateException(
+                    "persistent profile load failed; World admission refused",e
+                );
+            }
+            // Preserve historical test-only compatibility semantics.
             System.err.println(
                 tag+
                 "V5123_ACCOUNT_LOAD_FAILED"+
