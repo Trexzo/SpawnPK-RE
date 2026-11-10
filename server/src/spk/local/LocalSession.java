@@ -802,13 +802,6 @@ final class LocalSession implements Runnable {
             System.out.println(tag + frame);
             if (frame.revision != 317) throw new IOException("expected protocol revision 317, got " + frame.revision);
 
-            LocalSessionPlayerInitializer.Result playerInit=
-                playerInitializer.initialize(loginAlias,tag);
-            username=playerInit.username;
-            persistentAccount=playerInit.persistentAccount;
-            worldPlayerGeneration=playerInit.worldPlayerGeneration;
-            worldRegistered=true;
-
             LocalLoginTransport.Ciphers loginCiphers=
                 LocalLoginTransport.ciphers(frame);
             outboundPackets = new OutboundPacketQueue();
@@ -831,12 +824,26 @@ final class LocalSession implements Runnable {
             // and the client boolean flag. 205 passes both current privileged gate families
             // used by the native Spawn Tab/debug surfaces; server authority remains LOCAL only.
             LocalLoginTransport.writeLoginSuccess(out);
-            System.out.println(tag + "LOGIN_SUCCESS_LOCAL rank=205 localDevAuthority=true flag=false account="+username+" loginAlias="+loginAlias+" persistent="+persistentAccount+" at " + Instant.now());
 
             socket.setSoTimeout(5_000);
             try {
                 int first = clientPackets.readFirst185();
-                if (first == 185 && bootstrap) {
+                if (first != 185) {
+                    // EOF is not a successful initial v308 acknowledgement.
+                    // Never create a WorldPlayer or persist an account without it.
+                    throw new EOFException("missing original v308 first-widget acknowledgement");
+                }
+                // Admission is intentionally after exact first-widget validation:
+                // invalid, truncated, missing or timed-out packets may have
+                // received login result=2 but must never join the World.
+                LocalSessionPlayerInitializer.Result playerInit=
+                    playerInitializer.initialize(loginAlias,tag);
+                username=playerInit.username;
+                persistentAccount=playerInit.persistentAccount;
+                worldPlayerGeneration=playerInit.worldPlayerGeneration;
+                worldRegistered=true;
+                System.out.println(tag + "LOGIN_SUCCESS_LOCAL rank=205 localDevAuthority=true flag=false persistent="+persistentAccount+" at " + Instant.now());
+                if (bootstrap) {
                     bootstrapPublisher.publish(
                         serverPackets,
                         scenePublisher,
@@ -876,8 +883,10 @@ final class LocalSession implements Runnable {
                         if(logoutRequested) break;
                     }
                 } catch (SocketTimeoutException ignored) {}
-            } catch (SocketTimeoutException ignored) {
-                System.out.println(tag + "no post-login packet within 5s; keeping local session open");
+            } catch (SocketTimeoutException timeout) {
+                // R32 validated malformed first opcodes, but an idle connection
+                // could still enter the World and attach a tick target.
+                throw new IOException("original v308 first widget admission timed out", timeout);
             }
 
             if(logoutRequested){
