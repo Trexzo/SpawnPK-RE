@@ -147,6 +147,9 @@ jobs:
       - name: R35 distinguish missing account from directory/symlink path
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R35AccountFilePathAdmissionTest
 
+      - name: R36 v308-shaped first World tick movement and clean disconnect
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R36V308FirstWorldTickLoopbackTest
+
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R31OriginalV308LoginWireCodecTest
@@ -477,6 +480,13 @@ jobs:
         run: |
           $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
           & java -cp $cp spk.local.R35AccountFilePathAdmissionTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R36 Windows first World game-cycle socket regression
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R36V308FirstWorldTickLoopbackTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
