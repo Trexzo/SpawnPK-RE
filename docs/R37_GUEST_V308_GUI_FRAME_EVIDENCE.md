@@ -32,6 +32,8 @@ launch approval and must not be invoked on the host:
 During an already authorized guest client/server trial, R37:
 1. Obtains the owned Java child's `MainWindowHandle`; refuses missing,
    invisible or non-child-PID windows using `GetWindowThreadProcessId`.
+   Requires that exact window to be foreground using `GetForegroundWindow`,
+   otherwise `CopyFromScreen` could capture another overlapping guest window.
 2. Requires a plausible rectangular window size (360×220 through
    4096×4096 pixels); copies only that guest window's screen rectangle
    to a new bitmap.
