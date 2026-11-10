@@ -32,6 +32,13 @@ import java.nio.charset.StandardCharsets;
  * Opcodes outside the exact-current-client authority set still pause fail-closed.
  */
 final class ClientPacketProbe {
+    /**
+     * Exact original v308 rs.Client post-login writer:
+     *   fv.a(185); fv.d(912) before ordinary game packet handling.
+     * A later generic widget action 185 may have ANY widget ID; this
+     * constant applies only to the FIRST client->server packet.
+     */
+    static final int LOGIN_BOOTSTRAP_WIDGET = 912;
     private final InputStream in;
     private final IsaacCipher cipher;
     private final String tag;
@@ -75,7 +82,17 @@ final class ClientPacketProbe {
         }
         byte[] body = Binary.readExactly(in, 2);
         int widget = Binary.u16(body, 0);
-        System.out.printf("%sCLIENT_PACKET seq=%d opcode=185 len=2 widget=%d expectedWidget=912%n",
+        // Earlier code *printed* expectedWidget=912 yet returned 185
+        // for any two-byte widget. LocalSession then published bootstrap
+        // packets and attached a World tick target. A malformed initial
+        // action is not an original v308 login-success acknowledgement.
+        if (widget != LOGIN_BOOTSTRAP_WIDGET) {
+            aligned = false;
+            System.out.printf("%sCLIENT_FIRST_WIDGET_REJECTED seq=%d opcode=185 widget=%d expectedWidget=%d%n",
+                              tag, decodedCount, widget, LOGIN_BOOTSTRAP_WIDGET);
+            throw new IOException("unexpected original v308 first login widget");
+        }
+        System.out.printf("%sCLIENT_PACKET seq=%d opcode=185 len=2 widget=%d schema=EXACT_V308_INITIAL_WIDGET%n",
                           tag, decodedCount, widget);
         return opcode;
     }
