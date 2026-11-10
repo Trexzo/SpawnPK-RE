@@ -50,6 +50,8 @@ class R37GuestFrameEvidenceTests(unittest.TestCase):
             "GetWindowThreadProcessId",
             "IsWindowVisible",
             "GetWindowRect",
+            "GetForegroundWindow",
+            "client window not foreground",
             "$owner -ne [uint32]$child.Id",
             "r37-v308-guest-window.png",
             "Join-Path $privateHome",
