@@ -69,6 +69,8 @@ public static class R37WindowNative {
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
 }
 '@ -ErrorAction Stop
     $handle=$child.MainWindowHandle
@@ -77,6 +79,12 @@ public static class R37WindowNative {
     if($owner -ne [uint32]$child.Id -or
        -not [R37WindowNative]::IsWindowVisible($handle)) {
         throw 'R37_BLOCKED: window visible/owner PID not verified'
+    }
+    # CopyFromScreen captures the composed display, not an occluded
+    # back-buffer; reject an unfocused window rather than capture another
+    # program that happens to overlap the target rectangle.
+    if([R37WindowNative]::GetForegroundWindow() -ne $handle) {
+        throw 'R37_BLOCKED: client window not foreground; user should focus it inside guest'
     }
     $rect=[R37WindowNative+RECT]::new()
     if(-not [R37WindowNative]::GetWindowRect($handle,[ref]$rect)) {
