@@ -78,13 +78,24 @@ public final class R32FirstWidgetLocalSessionSocketTest {
                     }
                 });
                 try(Socket client=new Socket(local,ss.getLocalPort())) {
-                    client.setSoTimeout(5000);
+                    // Initial full LocalSession dependency initialization can
+                    // take longer on the first cold Java11 JVM than a bare
+                    // LocalLoginTransport; preserve strict bounded admission.
+                    client.setSoTimeout(15000);
                     InputStream input=client.getInputStream();
                     OutputStream out=client.getOutputStream();
                     out.write(14);
                     out.write(V308PreloginNameHash.hash5("local"));
                     out.flush();
-                    byte[] pre=Binary.readExactly(input,17);
+                    byte[] pre;
+                    try {
+                        pre=Binary.readExactly(input,17);
+                    } catch(java.net.SocketTimeoutException timeout) {
+                        // Surface an asynchronous server-constructor failure
+                        // instead of disguising it as a protocol timeout.
+                        if(session.isDone())session.get(2,TimeUnit.SECONDS);
+                        throw new AssertionError("R32 prelogin timeout while server worker still initializing",timeout);
+                    }
                     for(int i=0;i<9;i++)check(pre[i]==0,
                                               "prelogin status byte");
                     long serverSeed=Binary.i64(pre,9);
