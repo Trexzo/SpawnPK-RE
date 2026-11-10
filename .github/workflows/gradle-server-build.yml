@@ -144,6 +144,9 @@ jobs:
       - name: R34 persistent profile failure must not register or save defaults
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R34PersistentLoadAdmissionTest
 
+      - name: R35 distinguish missing account from directory/symlink path
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R35AccountFilePathAdmissionTest
+
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R31OriginalV308LoginWireCodecTest
@@ -467,6 +470,13 @@ jobs:
         run: |
           $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
           & java -cp $cp spk.local.R34PersistentLoadAdmissionTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R35 Windows account path admission and strict world refusal
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R35AccountFilePathAdmissionTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
