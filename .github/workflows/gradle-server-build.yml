@@ -133,6 +133,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: R32 original v308 first ISAAC185 widget912 admission and socket World bootstrap gating
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R32FirstWidgetAdmissionTest
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R32FirstWidgetLocalSessionSocketTest
+
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R31OriginalV308LoginWireCodecTest
@@ -434,6 +439,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: R32 Windows exact original initial widget admission and real LocalSession TCP checks
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R32FirstWidgetAdmissionTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & java -cp $cp spk.local.R32FirstWidgetLocalSessionSocketTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
         shell: pwsh
