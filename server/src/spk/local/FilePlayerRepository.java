@@ -41,14 +41,35 @@ final class FilePlayerRepository
     )throws IOException{
         Path file=normalizedPath(username);
 
-        if(!Files.isRegularFile(file))
+        // A non-regular path is NOT an absent saved account. Treating
+        // unreadable files, directories or broken symlinks as "new" allows
+        // normal login/logout to replace an existing snapshot with defaults.
+        // Match the publisher's no-symlink-ancestor policy during reads.
+        for(Path ancestor=file.getParent();ancestor!=null;
+                ancestor=ancestor.getParent()){
+            if(Files.isSymbolicLink(ancestor))
+                throw new IOException(
+                    "R35_ACCOUNT_PATH_REJECTED symlink ancestor");
+        }
+
+        final java.nio.file.attribute.BasicFileAttributes attributes;
+        try{
+            attributes=Files.readAttributes(
+                file,
+                java.nio.file.attribute.BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS
+            );
+        }catch(NoSuchFileException absent){
+            // Only an actually absent path may get new-account defaults.
             return Optional.empty();
+        }
+        if(!attributes.isRegularFile())
+            throw new IOException(
+                "R35_ACCOUNT_PATH_REJECTED existing path not a regular file");
 
-        Properties properties=
-            new Properties();
-
-        try(InputStream input=
-                Files.newInputStream(file)){
+        Properties properties=new Properties();
+        try(InputStream input=Files.newInputStream(
+                file,LinkOption.NOFOLLOW_LINKS)){
             properties.load(input);
         }
 
