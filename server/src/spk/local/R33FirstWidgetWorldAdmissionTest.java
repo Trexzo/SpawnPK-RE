@@ -24,7 +24,7 @@ import java.util.stream.Stream;
  * No original JAR, account credentials or external network, with a private
  * temporary FilePlayerRepository and no owner account/Windows firewall I/O.
  */
-public final class R33FirstWidgetLocalSessionSocketTest {
+public final class R33FirstWidgetWorldAdmissionTest {
     private static int assertions;
 
     public static void main(String[] args) throws Exception {
@@ -119,7 +119,7 @@ public final class R33FirstWidgetLocalSessionSocketTest {
                     // The original R32 code registered a player *before*
                     // reading any first widget. This assertion catches even
                     // transient early registration, not just final cleanup.
-                    check(world.players().isEmpty(),
+                    check(world.players().size()==0,
                           "no WorldPlayer before verified first widget");
                     check(world.tickTargetsSnapshot().isEmpty(),
                           "no world tick target before admission");
@@ -199,5 +199,5 @@ public final class R33FirstWidgetLocalSessionSocketTest {
         if(!passed)throw new AssertionError("R33 "+message);
     }
 
-    private R33FirstWidgetLocalSessionSocketTest(){}
+    private R33FirstWidgetWorldAdmissionTest(){}
 }
