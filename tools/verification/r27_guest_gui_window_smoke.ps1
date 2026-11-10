@@ -14,6 +14,7 @@ A GUI window is NOT proof of protocol login, graphics correctness or gameplay.
 param(
     [Parameter(Mandatory=$true)][string]$GuestHome,
     [switch]$Launch,
+    [switch]$CaptureFrame,
     [string]$ExactApproval='',
     [ValidateRange(10,120)][int]$ObserveSeconds=45
 )
@@ -38,7 +39,105 @@ $serverWasStopped=$false
 $forcedClientStop=$false
 $forcedServerStop=$false
 $guestHomePath=$null
+$frameSaved=$false
+$framePath=$null
+$frameSha=$null
+$frameColours=0
+$capturedWindowTitle=''
 
+
+# R37: evidence-only capture, within an independently verified Windows Sandbox
+# guest, of the exact GUI window owned by this invocation's Java child.
+# PInvoke is used solely for WINDOW ownership/geometry, not input or hooks.
+function Capture-GuestOwnedClientWindow([Diagnostics.Process]$child,
+                                        [string]$privateHome) {
+    $child.Refresh()
+    if($child.HasExited -or $child.MainWindowHandle -eq [IntPtr]::Zero) {
+        throw 'R37_BLOCKED: no live owned client window to capture'
+    }
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class R37WindowNative {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint owner);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+}
+'@ -ErrorAction Stop
+    $handle=$child.MainWindowHandle
+    $owner=[uint32]0
+    [void][R37WindowNative]::GetWindowThreadProcessId($handle,[ref]$owner)
+    if($owner -ne [uint32]$child.Id -or
+       -not [R37WindowNative]::IsWindowVisible($handle)) {
+        throw 'R37_BLOCKED: window visible/owner PID not verified'
+    }
+    # CopyFromScreen captures the composed display, not an occluded
+    # back-buffer; reject an unfocused window rather than capture another
+    # program that happens to overlap the target rectangle.
+    if([R37WindowNative]::GetForegroundWindow() -ne $handle) {
+        throw 'R37_BLOCKED: client window not foreground; user should focus it inside guest'
+    }
+    $rect=[R37WindowNative+RECT]::new()
+    if(-not [R37WindowNative]::GetWindowRect($handle,[ref]$rect)) {
+        throw 'R37_BLOCKED: owned client window rectangle not readable'
+    }
+    $width=[int]($rect.Right-$rect.Left)
+    $height=[int]($rect.Bottom-$rect.Top)
+    if($width -lt 360 -or $height -lt 220 -or
+       $width -gt 4096 -or $height -gt 4096) {
+        throw 'R37_BLOCKED: owned GUI window implausibly sized'
+    }
+    Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+    $file=Join-Path $privateHome 'r37-v308-guest-window.png'
+    if(Test-Path -LiteralPath $file) {
+        throw 'R37_BLOCKED: would overwrite an existing guest screenshot'
+    }
+    $bitmap=[Drawing.Bitmap]::new($width,$height)
+    $graphics=$null
+    try {
+        $graphics=[Drawing.Graphics]::FromImage($bitmap)
+        $graphics.CopyFromScreen(
+            $rect.Left,$rect.Top,0,0,
+            [Drawing.Size]::new($width,$height)
+        )
+        # A single solid-colour window is insufficient even as screenshot
+        # evidence. This test does not classify game UI or prove rendering.
+        $colours=[System.Collections.Generic.HashSet[int]]::new()
+        for($y=0;$y -lt 12;$y++){
+            for($x=0;$x -lt 12;$x++){
+                $px=[int][Math]::Floor(($x+0.5)*$width/12)
+                $py=[int][Math]::Floor(($y+0.5)*$height/12)
+                [void]$colours.Add($bitmap.GetPixel($px,$py).ToArgb())
+            }
+        }
+        if($colours.Count -lt 5) {
+            throw 'R37_BLOCKED: captured window appears uniformly blank'
+        }
+        $bitmap.Save($file,[Drawing.Imaging.ImageFormat]::Png)
+    } finally {
+        if($graphics){$graphics.Dispose()}
+        $bitmap.Dispose()
+    }
+    $hash=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+    return @{
+        File=$file
+        Sha256=$hash
+        SampleColourCount=$colours.Count
+        Width=$width
+        Height=$height
+        Title=$child.MainWindowTitle
+        OwnerPid=$child.Id
+    }
+}
 function Port-Free {
     foreach($port in @(43594,43595)) {
         $probe=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,[int]$port)
@@ -170,6 +269,9 @@ try {
     }
     Port-Free
     if(-not $Launch) {
+        if($CaptureFrame){
+            throw 'R37_BLOCKED: frame capture requires explicit -Launch and approval'
+        }
         Write-Output 'R27_GUEST_GUI_LAUNCH_PLAN_PASS_NO_CLIENT_OR_SERVER_STARTED'
         exit 0
     }
@@ -242,6 +344,17 @@ try {
     if($client.HasExited) {
         throw 'R27_BLOCKED: game window child exited during observation'
     }
+    if($CaptureFrame){
+        $evidence=Capture-GuestOwnedClientWindow $client $guestHomePath
+        $framePath=$evidence.File
+        $frameSha=$evidence.Sha256
+        $frameColours=$evidence.SampleColourCount
+        $capturedWindowTitle=$evidence.Title
+        $frameSaved=$true
+        Write-Output ('R37_GUEST_WINDOW_FRAME_CAPTURED sha256='+$frameSha+
+            ' width='+$evidence.Width+' height='+$evidence.Height+
+            ' sampledColors='+$frameColours)
+    }
     Write-Output 'R27_GUEST_ORIGINAL_GUI_TOPLEVEL_WINDOW_OBSERVED'
 } catch {
     Write-Output ('R27_GUEST_GUI_BOOTSTRAP_BLOCKED: '+$_.Exception.Message)
@@ -280,8 +393,36 @@ try {
 }
 # Only a fully observed/clean own-client/server cycle can PASS.
 if($windowSeen -and $clientWasStopped -and $serverWasStopped -and
-   -not $forcedClientStop -and -not $forcedServerStop) {
+   -not $forcedClientStop -and -not $forcedServerStop -and
+   (-not $CaptureFrame -or $frameSaved)) {
     try { Port-Free } catch { exit 2 }
+    if($CaptureFrame){
+        if(-not (Test-Path -LiteralPath $framePath -PathType Leaf)){
+            exit 2
+        }
+        # Only a clean OWNED process exit grants an evidence receipt.
+        $frameReceipt=[ordered]@{
+            result='R37_GUEST_WINDOW_FRAME_EVIDENCE_CAPTURED'
+            guest_home=$guestHomePath
+            screenshot_path=$framePath
+            screenshot_sha256=$frameSha
+            distinct_sample_colours=$frameColours
+            owned_client_window=$true
+            client_window_title=$capturedWindowTitle
+            client_gui_frame_seen=$true
+            original_unmodified_v308_client_started=$false
+            authentic_login_verified=$false
+            original_game_rendering_verified=$false
+            gameplay_verified=$false
+            network_isolation_preflight_passed=$true
+            clean_client_server_shutdown=$true
+        }
+        $receiptFile=Join-Path $guestHomePath 'r37-guest-gui-frame-receipt.json'
+        if(Test-Path -LiteralPath $receiptFile){exit 2}
+        $frameReceipt|ConvertTo-Json -Depth 4|
+            Set-Content -LiteralPath $receiptFile -Encoding UTF8
+        Write-Output 'R37_GUEST_WINDOW_FRAME_EVIDENCE_AND_CLEANUP_PASS'
+    }
     Write-Output 'R27_GUEST_GUI_WINDOW_AND_OWNED_PROCESS_CLEANUP_PASS'
     Write-Output 'R27_NOT_AUTHENTIC_LOGIN_MOVEMENT_OR_GAMEPLAY'
     exit 0

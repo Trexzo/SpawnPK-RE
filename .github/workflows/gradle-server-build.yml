@@ -50,6 +50,7 @@ on:
       - 'tools/verification/r27_guest_gui_window_smoke.ps1'
       - 'tools/verification/r27_guest_gui_package.py'
       - 'tools/verification/test_r27_guest_gui_package.py'
+      - 'tools/verification/test_r37_guest_gui_frame_evidence.py'
       - 'tools/verification/test_r26_guest_server_package.py'
       - 'tools/verification/r23_guest_preflight.ps1'
       - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
@@ -117,6 +118,7 @@ jobs:
         run: |
           python tools/verification/test_r27_v308_gui_bootstrap_audit.py
           python tools/verification/test_r27_guest_gui_package.py
+          python tools/verification/test_r37_guest_gui_frame_evidence.py
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -344,6 +346,8 @@ jobs:
           & python tools/verification/test_r27_v308_gui_bootstrap_audit.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & python tools/verification/test_r27_guest_gui_package.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/verification/test_r37_guest_gui_frame_evidence.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $tokens = $null
           $issues = $null
