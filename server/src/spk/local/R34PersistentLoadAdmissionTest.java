@@ -109,7 +109,7 @@ public final class R34PersistentLoadAdmissionTest {
                     InputStream input=client.getInputStream();
                     OutputStream out=client.getOutputStream();
                     out.write(14);
-                    out.write(V308PreloginNameHash.hash5("local"));
+                    out.write(V308PreloginNameHash.hash5("opensrc"));
                     out.flush();
                     byte[] pre;
                     try {
@@ -184,7 +184,7 @@ public final class R34PersistentLoadAdmissionTest {
         for(int seed:seeds)data.writeInt(seed);
         data.writeInt(748878668);
         data.writeInt(308);
-        for(String text:new String[]{"local","R34_SYNTHETIC_PASSWORD",
+        for(String text:new String[]{"opensrc","R34_SYNTHETIC_PASSWORD",
                                       "R34_SYNTHETIC_DEVICE","R34_SYNTHETIC_CLIENT"}) {
             data.write(text.getBytes(StandardCharsets.ISO_8859_1));
             data.writeByte(10);
