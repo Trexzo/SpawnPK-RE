@@ -75,10 +75,10 @@ final class ClientPacketProbe {
         int opcode = (encoded - cipher.nextInt()) & 0xff;
         decodedCount++;
         if (opcode != 185) {
-            System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d encoded=%d expectedFirst=185; decoder paused%n",
-                              tag, decodedCount, opcode, encoded);
+            System.out.printf("%sCLIENT_FIRST_OPCODE_REJECTED seq=%d opcode=%d expectedFirst=185%n",
+                              tag, decodedCount, opcode);
             aligned = false;
-            return opcode;
+            throw new IOException("unexpected original v308 first login opcode");
         }
         byte[] body = Binary.readExactly(in, 2);
         int widget = Binary.u16(body, 0);
