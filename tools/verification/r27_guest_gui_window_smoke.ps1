@@ -4,9 +4,10 @@ DEFAULT: read-only plan. The -Launch path is enabled only inside an actual
 network-disabled guest, after R23/R24 cache/network/loopback and R25/R26
 guest receipts, with explicit operator approval.
 
-The only objective is to see a REAL v308 GUI top-level window under an
-owned, sandbox-local synthetic LocalLab server. It never logs in, uses real
-credentials, configures Windows Firewall or contacts external networks.
+The default objective is a GUI top-level window, not login. R38 adds a
+SEPARATELY authorized manual-only synthetic login + walk witness entirely
+inside the same network-disabled guest. Never type a real password.
+It does not configure Windows Firewall or contact external networks.
 Only its OWN Java child-process objects may be stopped.
 A GUI window is NOT proof of protocol login, graphics correctness or gameplay.
 #>
@@ -15,6 +16,9 @@ param(
     [Parameter(Mandatory=$true)][string]$GuestHome,
     [switch]$Launch,
     [switch]$CaptureFrame,
+    [switch]$ManualLoginMovement,
+    [string]$ManualApproval='',
+    [ValidateRange(30,240)][int]$ManualProofSeconds=120,
     [string]$ExactApproval='',
     [ValidateRange(10,120)][int]$ObserveSeconds=45
 )
@@ -44,6 +48,17 @@ $framePath=$null
 $frameSha=$null
 $frameColours=0
 $capturedWindowTitle=''
+$serverOutPath=$null
+$serverErrPath=$null
+$serverOutStream=$null
+$serverErrStream=$null
+$serverOutTask=$null
+$serverErrTask=$null
+$manualProof=$null
+$manualVerified=$false
+$manualClientSocketVerified=$false
+$traceCopyComplete=$false
+$manualCaptureApproved='VERIFY R38 GUEST SYNTHETIC LOGIN AND MOVEMENT'
 
 
 # R37: evidence-only capture, within an independently verified Windows Sandbox
@@ -138,6 +153,69 @@ public static class R37WindowNative {
         OwnerPid=$child.Id
     }
 }
+
+# R38: pure, read-only, bounded parser for exact LocalLab 317/v308 first
+# widget, synthetic account admission, first C2S164 route and World tick.
+# A log match alone is not a client-PID attribution or GUI rendering proof.
+function Read-R38LocalGameTrace([string]$logPath) {
+    if(-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+        return @{ Verified=$false; Reason='no log file' }
+    }
+    $info=Get-Item -LiteralPath $logPath -ErrorAction Stop
+    if($info.Length -gt 5242880) {
+        throw 'R38_BLOCKED: owned server log exceeds 5MiB'
+    }
+    $text=[IO.File]::ReadAllText($logPath)
+    $widget=[regex]::Match($text,
+        '(?m)^\[session /127\.0\.0\.1:\d+\] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912\b')
+    $login=[regex]::Match($text,
+        '(?m)^\[session /127\.0\.0\.1:\d+\] LOGIN_SUCCESS_LOCAL rank=205\b[^\r\n]*\bpersistent=true\b')
+    $request=[regex]::Match($text,
+        '(?m)^\[session /127\.0\.0\.1:\d+\] M5_MOVEMENT_REQUEST MovementRequest\{opcode=164,[^\r\n]*\} action=ACCEPTED\b')
+    $walk=[regex]::Match($text,
+        '(?m)^\[world player=(?<player>\d+)\] M5_AUTHORITATIVE_TICK mode=WALK tiles=(?<tiles>\d+) from=(?<x1>\d+),(?<y1>\d+) to=(?<x2>\d+),(?<y2>\d+) dir=(?<direction>\d+)\b')
+    if(-not ($widget.Success -and $login.Success -and
+             $request.Success -and $walk.Success)) {
+        return @{ Verified=$false; Reason='required LocalLab markers not all present' }
+    }
+    if(-not ($widget.Index -lt $login.Index -and
+             $login.Index -lt $request.Index -and
+             $request.Index -lt $walk.Index)) {
+        return @{ Verified=$false; Reason='LocalLab markers out of order' }
+    }
+    $x1=[int]$walk.Groups['x1'].Value
+    $y1=[int]$walk.Groups['y1'].Value
+    $x2=[int]$walk.Groups['x2'].Value
+    $y2=[int]$walk.Groups['y2'].Value
+    $tiles=[int]$walk.Groups['tiles'].Value
+    $distance=[Math]::Max([Math]::Abs($x2-$x1),[Math]::Abs($y2-$y1))
+    if($tiles -lt 1 -or $distance -lt 1 -or $distance -gt 2) {
+        return @{ Verified=$false; Reason='walk coordinates did not advance plausibly' }
+    }
+    return @{
+        Verified=$true
+        Reason='exact guest-owned LocalLab login and walk log sequence'
+        FromX=$x1
+        FromY=$y1
+        ToX=$x2
+        ToY=$y2
+        PlayerId=[int]$walk.Groups['player'].Value
+        Tiles=$tiles
+    }
+}
+
+function Test-R38OwnedClientGameConnection([Diagnostics.Process]$child) {
+    $child.Refresh()
+    if($child.HasExited) { return $false }
+    $connections=@(Get-NetTCPConnection -State Established -ErrorAction Stop |
+        Where-Object {
+            $_.OwningProcess -eq $child.Id -and
+            $_.RemoteAddress -eq '127.0.0.1' -and
+            $_.RemotePort -eq 43594
+        })
+    return $connections.Count -gt 0
+}
+
 function Port-Free {
     foreach($port in @(43594,43595)) {
         $probe=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,[int]$port)
@@ -173,7 +251,8 @@ function Local-Aux {
                 $body.Contains('config_version'))
     } finally { $resp.Dispose() }
 }
-function Start-PrivateJava($arguments, $work, [bool]$pipeStdin) {
+function Start-PrivateJava($arguments, $work, [bool]$pipeStdin,
+                           [bool]$captureOutput=$false) {
     $psi=[Diagnostics.ProcessStartInfo]::new()
     $psi.FileName=$java
     $psi.Arguments=$arguments
@@ -181,9 +260,10 @@ function Start-PrivateJava($arguments, $work, [bool]$pipeStdin) {
     $psi.UseShellExecute=$false
     $psi.CreateNoWindow=$false
     $psi.RedirectStandardInput=$pipeStdin
-    # Inherit output to the guest console; do not risk blocking JVM stdout.
-    $psi.RedirectStandardOutput=$false
-    $psi.RedirectStandardError=$false
+    # R38 server-only opt-in: asynchronously copy BOTH streams into files
+    # under the private guest HOME. Default R27/R37 inherits the console.
+    $psi.RedirectStandardOutput=$captureOutput
+    $psi.RedirectStandardError=$captureOutput
     $psi.EnvironmentVariables['APPDATA']=$work
     $psi.EnvironmentVariables['LOCALAPPDATA']=$work
     $psi.EnvironmentVariables['HOME']=$work
@@ -269,6 +349,9 @@ try {
     }
     Port-Free
     if(-not $Launch) {
+        if($ManualLoginMovement){
+            throw 'R38_BLOCKED: manual login proof requires explicit -Launch and approval'
+        }
         if($CaptureFrame){
             throw 'R37_BLOCKED: frame capture requires explicit -Launch and approval'
         }
@@ -277,6 +360,21 @@ try {
     }
     if($ExactApproval -cne $approval) {
         throw 'R27_BLOCKED: exact manual GUI launch approval missing'
+    }
+    if($ManualLoginMovement -and
+       (-not $CaptureFrame -or
+        $ManualApproval -cne $manualCaptureApproved)) {
+        throw 'R38_BLOCKED: explicit separate synthetic login approval and -CaptureFrame required'
+    }
+    if($ManualLoginMovement) {
+        $serverOutPath=Join-Path $guestHomePath 'r38-local-server-stdout.log'
+        $serverErrPath=Join-Path $guestHomePath 'r38-local-server-stderr.log'
+        $manualReceipt=Join-Path $guestHomePath 'r38-guest-login-walk-receipt.json'
+        if((Test-Path -LiteralPath $serverOutPath) -or
+           (Test-Path -LiteralPath $serverErrPath) -or
+           (Test-Path -LiteralPath $manualReceipt)) {
+            throw 'R38_BLOCKED: prior guest synthetic receipt/log would be overwritten'
+        }
     }
     $name=Join-Path $guestHomePath 'data\accounts\r27-local-only-synthetic.properties'
     if(Test-Path -LiteralPath $name) {
@@ -295,8 +393,20 @@ try {
         '-Dspk.local.acceptance.stdinShutdownToken='+$token+' '+
         '-jar "'+$serverJar+'" --bootstrap --movement'
     )
-    $server=Start-PrivateJava $serverArgs $guestHomePath $true
+    $server=Start-PrivateJava $serverArgs $guestHomePath $true ([bool]$ManualLoginMovement)
     $serverStarted=$true
+    if($ManualLoginMovement) {
+        # FileShare.ReadWrite allows bounded polling; CopyToAsync drains
+        # Java stdout/stderr without blocking the server child.
+        $serverOutStream=[IO.File]::Open($serverOutPath,
+            [IO.FileMode]::CreateNew,[IO.FileAccess]::Write,
+            [IO.FileShare]::ReadWrite)
+        $serverErrStream=[IO.File]::Open($serverErrPath,
+            [IO.FileMode]::CreateNew,[IO.FileAccess]::Write,
+            [IO.FileShare]::ReadWrite)
+        $serverOutTask=$server.StandardOutput.BaseStream.CopyToAsync($serverOutStream)
+        $serverErrTask=$server.StandardError.BaseStream.CopyToAsync($serverErrStream)
+    }
     $deadline=[DateTime]::UtcNow.AddSeconds(25)
     while([DateTime]::UtcNow -lt $deadline) {
         if($server.HasExited) {
@@ -337,8 +447,35 @@ try {
     if(-not $windowSeen) {
         throw 'R27_BLOCKED: no visible GUI top-level window observed'
     }
-    # Do not attempt an account login or automate input. This is a
-    # bounded visible-window smoke, NOT authentic game protocol acceptance.
+    if($ManualLoginMovement) {
+        # No SendKeys, credentials, scripted network packets or input hooks:
+        # only the actual human operator INSIDE the isolated Sandbox guest
+        # can type the disposable opensrc account and walk one tile.
+        Write-Output 'R38_MANUAL_GUEST_ACTION: log in only with synthetic username opensrc and a disposable password, then walk one tile; NEVER use live credentials'
+        $manualDeadline=[DateTime]::UtcNow.AddSeconds($ManualProofSeconds)
+        while([DateTime]::UtcNow -lt $manualDeadline) {
+            $client.Refresh()
+            if($client.HasExited -or $server.HasExited) { break }
+            $manualProof=Read-R38LocalGameTrace $serverOutPath
+            if($manualProof.Verified -and
+               (Test-R38OwnedClientGameConnection $client)) {
+                $manualClientSocketVerified=$true
+                $manualVerified=$true
+                break
+            }
+            Start-Sleep -Milliseconds 300
+        }
+        if(-not $manualVerified) {
+            throw 'R38_BLOCKED: no exact guest client-owned login+walk trace within bounded manual interval'
+        }
+        Write-Output ('R38_GUEST_MANUAL_LOGIN_WALK_OBSERVED from='+
+            $manualProof.FromX+','+$manualProof.FromY+' to='+
+            $manualProof.ToX+','+$manualProof.ToY+
+            ' clientOwnedTcp43594=true')
+    } else {
+        # Default R27 remains a GUI-window smoke, not a login attempt.
+        Write-Output 'R27_GUEST_GUI_WINDOW_ONLY_NO_LOGIN_REQUESTED'
+    }
     Start-Sleep -Seconds 5
     $client.Refresh()
     if($client.HasExited) {
@@ -390,11 +527,30 @@ try {
         } catch { $serverWasStopped=$false }
         $server.Dispose()
     }
+    if($ManualLoginMovement) {
+        # Finish stream draining AFTER owned server exit, before any
+        # verified receipt can be issued. No attempt to read live files.
+        try {
+            if($serverOutTask){[void]$serverOutTask.Wait(5000)}
+            if($serverErrTask){[void]$serverErrTask.Wait(5000)}
+            $traceCopyComplete=(
+                $serverOutTask -ne $null -and $serverOutTask.IsCompleted -and
+                -not $serverOutTask.IsFaulted -and
+                $serverErrTask -ne $null -and $serverErrTask.IsCompleted -and
+                -not $serverErrTask.IsFaulted
+            )
+        } catch { $traceCopyComplete=$false }
+        if($serverOutStream){$serverOutStream.Dispose()}
+        if($serverErrStream){$serverErrStream.Dispose()}
+    }
 }
 # Only a fully observed/clean own-client/server cycle can PASS.
 if($windowSeen -and $clientWasStopped -and $serverWasStopped -and
    -not $forcedClientStop -and -not $forcedServerStop -and
-   (-not $CaptureFrame -or $frameSaved)) {
+   (-not $CaptureFrame -or $frameSaved) -and
+   (-not $ManualLoginMovement -or
+      ($manualVerified -and $manualClientSocketVerified -and
+       $traceCopyComplete))) {
     try { Port-Free } catch { exit 2 }
     if($CaptureFrame){
         if(-not (Test-Path -LiteralPath $framePath -PathType Leaf)){
@@ -423,8 +579,41 @@ if($windowSeen -and $clientWasStopped -and $serverWasStopped -and
             Set-Content -LiteralPath $receiptFile -Encoding UTF8
         Write-Output 'R37_GUEST_WINDOW_FRAME_EVIDENCE_AND_CLEANUP_PASS'
     }
+    if($ManualLoginMovement) {
+        # Re-parse the finalized owned server stream before publishing.
+        $finalProof=Read-R38LocalGameTrace $serverOutPath
+        if(-not $finalProof.Verified) { exit 2 }
+        $receipt=[ordered]@{
+            result='R38_GUEST_OWNED_V308_DERIVATIVE_MANUAL_LOGIN_WALK_PASS'
+            guest_home=$guestHomePath
+            client_binary='certified-airgap-v308-derivative'
+            unmodified_original_v308_launched=$false
+            real_production_credentials_used=$false
+            actual_gui_login_e2e_verified=$false
+            # Server log and client-owned TCP socket form an operational
+            # guest-local witness, not cryptographic origin proof.
+            guest_local_server_login_marker=true
+            guest_local_server_movement_marker=true
+            guest_client_pid_owns_local_43594_socket=true
+            guest_original_gui_frame_proof_hash=$frameSha
+            movement_from=@($finalProof.FromX,$finalProof.FromY)
+            movement_to=@($finalProof.ToX,$finalProof.ToY)
+            process_cleanup_clean=true
+            network_isolation_guest_preflight_passed=true
+            server_stdout_log_path=$serverOutPath
+            server_stdout_sha256=(Get-FileHash -LiteralPath $serverOutPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            gameplay_feature_completeness_verified=$false
+        }
+        $receiptFile=Join-Path $guestHomePath 'r38-guest-login-walk-receipt.json'
+        if(Test-Path -LiteralPath $receiptFile){exit 2}
+        $receipt|ConvertTo-Json -Depth 4|
+            Set-Content -LiteralPath $receiptFile -Encoding UTF8
+        Write-Output 'R38_GUEST_SYNTHETIC_LOGIN_AND_WALK_EVIDENCE_PASS'
+    }
     Write-Output 'R27_GUEST_GUI_WINDOW_AND_OWNED_PROCESS_CLEANUP_PASS'
-    Write-Output 'R27_NOT_AUTHENTIC_LOGIN_MOVEMENT_OR_GAMEPLAY'
+    if(-not $ManualLoginMovement){
+        Write-Output 'R27_NOT_AUTHENTIC_LOGIN_MOVEMENT_OR_GAMEPLAY'
+    }
     exit 0
 }
 exit 2
