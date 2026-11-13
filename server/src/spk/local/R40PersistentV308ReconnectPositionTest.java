@@ -203,9 +203,7 @@ public final class R40PersistentV308ReconnectPositionTest {
                         "3088,3495 restored by S2C81");
                     check(world.players().size()==1,
                         "one registered player after reconnect");
-                    V5BootstrapTestSupport
-                        .expectNativeSidebarInventoryAndFountain(
-                            againIn,decoder);
+                    consumeReconnectBootstrap(againIn,decoder);
                     byte[] postLoginIdle=
                         expectIdle81SkippingWorld65(againIn,decoder);
                     check(java.util.Arrays.equals(
@@ -248,6 +246,87 @@ public final class R40PersistentV308ReconnectPositionTest {
             +" originalGui=false");
     }
 
+
+    private static void consumeReconnectBootstrap(
+        InputStream in, IsaacCipher cipher
+    ) throws IOException {
+        // The first login already asserts the byte-exact R39 static HOME
+        // NPC set. On reconnect the SAME isolated World keeps advancing
+        // those NPCs: a frozen initial-NPC snapshot is invalid. Verify
+        // the actual native UI and scene sequence, then require a real
+        // nonempty NPC update without assuming initial NPC locations.
+        int[][] sidebars={
+            {CombatInterfaceRepository.forWeapon(
+                new EquipmentState().weapon()),
+                CombatInterfaceRepository.TAB_INDEX},
+            {BootstrapPackets.SKILLS_ROOT,1},
+            {BootstrapPackets.ACHIEVEMENTS_ROOT,
+                BootstrapPackets.ACHIEVEMENTS_INDEX},
+            {BootstrapPackets.INVENTORY_ROOT,3},
+            {BootstrapPackets.EQUIPMENT_ROOT,4},
+            {BootstrapPackets.PRAYER_ROOT,5},
+            {BootstrapPackets.MAGIC_ROOT,6},
+            {BootstrapPackets.CLAN_CHAT_ROOT,7},
+            {BootstrapPackets.FRIENDS_ROOT,8},
+            {BootstrapPackets.IGNORE_ROOT,9},
+            {BootstrapPackets.LOGOUT_ROOT,10},
+            {BootstrapPackets.OPTIONS_ROOT,11},
+            {BootstrapPackets.EMOTES_ROOT,12},
+            {BootstrapPackets.SPAWN_TAB_SHORTCUT_ROOT,
+                BootstrapPackets.SPAWN_TAB_INDEX}
+        };
+        for(int[] item:sidebars){
+            check(java.util.Arrays.equals(
+                V5BootstrapTestSupport.expectFixedBytes(
+                    in,cipher,71,3),
+                BootstrapPackets.sidebar71(item[0],item[1])),
+                "reconnect native tab71 wire exact root="+item[0]);
+        }
+        for(int skill=0;skill<PlayerState.COMBAT_SKILL_COUNT;skill++){
+            check(java.util.Arrays.equals(
+                V5BootstrapTestSupport.expectFixedBytes(
+                    in,cipher,134,6),
+                BootstrapPackets.skill134(
+                    skill,PlayerState.XP_99,99)),
+                "reconnect combat skill134 exact index="+skill);
+        }
+        byte[] inv=V5BootstrapTestSupport.expectVarShort(
+            in,cipher,53);
+        check(Binary.u16(inv,0)==3214 &&
+              Binary.u16(inv,2)==28,
+              "reconnect inventory53 widget/slots");
+        byte[] gear=V5BootstrapTestSupport.expectVarShort(
+            in,cipher,53);
+        check(Binary.u16(gear,0)==EquipmentState.EQUIPMENT_WIDGET &&
+              Binary.u16(gear,2)==EquipmentState.EQUIPMENT_SLOTS,
+              "reconnect equipment53 widget/slots");
+
+        int count=0,base=0;
+        int expected=HomeObjectOverlayRepository.all().size();
+        for(int i=0;i<expected+100 && count<expected;i++){
+            int raw=in.read();
+            if(raw<0)throw new EOFException(
+                "R40 reconnect overlay truncated");
+            int opcode=(raw-cipher.nextInt())&255;
+            if(opcode==85){
+                Binary.readExactly(in,2);
+                base++;
+            }else if(opcode==101){
+                Binary.readExactly(in,2);
+                count++;
+            }else if(opcode==151){
+                Binary.readExactly(in,4);
+                count++;
+            }else throw new AssertionError(
+                "R40 reconnect unexpected scene opcode="+opcode);
+        }
+        check(base>0 && count==expected,
+            "reconnect complete HOME scene 85/101/151 sequence");
+        byte[] npcs=V5BootstrapTestSupport.expectVarShort(
+            in,cipher,65);
+        check(npcs.length>50,
+            "reconnected existing World NPC65 nonempty");
+    }
 
     private static byte[] expectIdle81SkippingWorld65(InputStream in, IsaacCipher c) throws IOException {
         for (int i=0;i<8;i++) {
