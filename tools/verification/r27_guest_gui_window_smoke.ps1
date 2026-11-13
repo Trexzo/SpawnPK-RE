@@ -548,23 +548,24 @@ try {
             }
             $serverWasStopped=$server.HasExited
         } catch { $serverWasStopped=$false }
+        if($ManualLoginMovement) {
+            # Finish draining while the Process.StandardOutput/StandardError
+            # streams still exist. Disposing Process first could tear down
+            # an incomplete CopyToAsync task and lose the final World tick.
+            try {
+                if($serverOutTask){[void]$serverOutTask.Wait(5000)}
+                if($serverErrTask){[void]$serverErrTask.Wait(5000)}
+                $traceCopyComplete=(
+                    $serverOutTask -ne $null -and $serverOutTask.IsCompleted -and
+                    -not $serverOutTask.IsFaulted -and
+                    $serverErrTask -ne $null -and $serverErrTask.IsCompleted -and
+                    -not $serverErrTask.IsFaulted
+                )
+            } catch { $traceCopyComplete=$false }
+            if($serverOutStream){$serverOutStream.Dispose()}
+            if($serverErrStream){$serverErrStream.Dispose()}
+        }
         $server.Dispose()
-    }
-    if($ManualLoginMovement) {
-        # Finish stream draining AFTER owned server exit, before any
-        # verified receipt can be issued. No attempt to read live files.
-        try {
-            if($serverOutTask){[void]$serverOutTask.Wait(5000)}
-            if($serverErrTask){[void]$serverErrTask.Wait(5000)}
-            $traceCopyComplete=(
-                $serverOutTask -ne $null -and $serverOutTask.IsCompleted -and
-                -not $serverOutTask.IsFaulted -and
-                $serverErrTask -ne $null -and $serverErrTask.IsCompleted -and
-                -not $serverErrTask.IsFaulted
-            )
-        } catch { $traceCopyComplete=$false }
-        if($serverOutStream){$serverOutStream.Dispose()}
-        if($serverErrStream){$serverErrStream.Dispose()}
     }
 }
 # Only a fully observed/clean own-client/server cycle can PASS.
