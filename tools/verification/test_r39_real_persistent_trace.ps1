@@ -29,8 +29,7 @@ try{
     $cp=$server+';'+$classes+';'+$resource
     # Java runner produces its own isolated World and ephemeral loopback
     # ServerSocket. This is a test source, NOT client.jar.
-    & $Java -cp $cp spk.local.R39PersistentV308LoginWalkTraceTest *>
-        $log
+    & $Java -cp $cp spk.local.R39PersistentV308LoginWalkTraceTest *> $log
     if($LASTEXITCODE -ne 0) {
         Get-Content -LiteralPath $log -Tail 20
         throw ('R39 LocalSession test failed with Java exit='+$LASTEXITCODE)
