@@ -53,6 +53,8 @@ on:
       - 'tools/verification/test_r37_guest_gui_frame_evidence.py'
       - 'tools/verification/test_r38_guest_manual_login_movement.py'
       - 'tools/verification/test_r38_guest_login_trace.ps1'
+      - 'tools/verification/test_r39_real_persistent_trace.ps1'
+      - 'server/src/spk/local/R39PersistentV308LoginWalkTraceTest.java'
       - 'tools/verification/test_r26_guest_server_package.py'
       - 'tools/verification/r23_guest_preflight.ps1'
       - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
@@ -154,6 +156,9 @@ jobs:
 
       - name: R36 v308-shaped first World tick movement and clean disconnect
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R36V308FirstWorldTickLoopbackTest
+
+      - name: R39 real persistent first World tick and saved profile through LocalSession
+        run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R39PersistentV308LoginWalkTraceTest
 
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
@@ -501,6 +506,12 @@ jobs:
         run: |
           $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
           & java -cp $cp spk.local.R36V308FirstWorldTickLoopbackTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R39 Windows real persistent client-shaped log into R38 proof parser
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -NonInteractive -File tools/verification/test_r39_real_persistent_trace.ps1 -Java java -Repository .
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
