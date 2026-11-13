@@ -165,7 +165,14 @@ function Read-R38LocalGameTrace([string]$logPath) {
     if($info.Length -gt 5242880) {
         throw 'R38_BLOCKED: owned server log exceeds 5MiB'
     }
-    $trace=[IO.File]::ReadAllText($logPath)
+    # File.ReadAllText opens with FileShare.Read only, which conflicts
+    # with our still-open server log writer. Read with explicit
+    # FileShare.ReadWrite while the async CopyToAsync task is active.
+    $reader=[IO.StreamReader]::new([IO.FileStream]::new(
+        $logPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,
+        [IO.FileShare]::ReadWrite))
+    try { $trace=$reader.ReadToEnd() }
+    finally { $reader.Dispose() }
     $widget=[regex]::Match($trace,
         '(?m)^\[session /(?<peer>127\.0\.0\.1:\d+)\] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912\b')
     if(-not $widget.Success) {
@@ -412,12 +419,14 @@ try {
     if($ManualLoginMovement) {
         # FileShare.ReadWrite allows bounded polling; CopyToAsync drains
         # Java stdout/stderr without blocking the server child.
-        $serverOutStream=[IO.File]::Open($serverOutPath,
+        # A 1-byte FileStream buffer makes each bounded async write
+        # visible during the manual proof polling interval.
+        $serverOutStream=[IO.FileStream]::new($serverOutPath,
             [IO.FileMode]::CreateNew,[IO.FileAccess]::Write,
-            [IO.FileShare]::ReadWrite)
-        $serverErrStream=[IO.File]::Open($serverErrPath,
+            [IO.FileShare]::ReadWrite,1,[IO.FileOptions]::Asynchronous)
+        $serverErrStream=[IO.FileStream]::new($serverErrPath,
             [IO.FileMode]::CreateNew,[IO.FileAccess]::Write,
-            [IO.FileShare]::ReadWrite)
+            [IO.FileShare]::ReadWrite,1,[IO.FileOptions]::Asynchronous)
         $serverOutTask=$server.StandardOutput.BaseStream.CopyToAsync($serverOutStream)
         $serverErrTask=$server.StandardError.BaseStream.CopyToAsync($serverErrStream)
     }
