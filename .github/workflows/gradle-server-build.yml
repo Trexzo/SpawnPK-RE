@@ -51,6 +51,8 @@ on:
       - 'tools/verification/r27_guest_gui_package.py'
       - 'tools/verification/test_r27_guest_gui_package.py'
       - 'tools/verification/test_r37_guest_gui_frame_evidence.py'
+      - 'tools/verification/test_r38_guest_manual_login_movement.py'
+      - 'tools/verification/test_r38_guest_login_trace.ps1'
       - 'tools/verification/test_r26_guest_server_package.py'
       - 'tools/verification/r23_guest_preflight.ps1'
       - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
@@ -119,6 +121,7 @@ jobs:
           python tools/verification/test_r27_v308_gui_bootstrap_audit.py
           python tools/verification/test_r27_guest_gui_package.py
           python tools/verification/test_r37_guest_gui_frame_evidence.py
+          python tools/verification/test_r38_guest_manual_login_movement.py
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -349,6 +352,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & python tools/verification/test_r37_guest_gui_frame_evidence.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/verification/test_r38_guest_manual_login_movement.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -NonInteractive -File tools/verification/test_r38_guest_login_trace.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $tokens = $null
           $issues = $null
           $guest = (Resolve-Path 'tools/verification/r27_guest_gui_window_smoke.ps1').Path
@@ -358,6 +365,9 @@ jobs:
           & powershell.exe -NoProfile -NonInteractive -File $guest -GuestHome 'C:\InvalidGuestHome'
           $guestExit = $LASTEXITCODE
           if ($guestExit -ne 2) { throw 'R27 GUI guest script did not deny Windows host execution' }
+          & powershell.exe -NoProfile -NonInteractive -File $guest -GuestHome 'C:\InvalidGuestHome' -Launch -CaptureFrame -ManualLoginMovement -ManualApproval 'VERIFY R38 GUEST SYNTHETIC LOGIN AND MOVEMENT' -ExactApproval 'LAUNCH R27 GUEST V308 GUI WITH LOCAL SERVER'
+          $r38HostExit = $LASTEXITCODE
+          if ($r38HostExit -ne 2) { throw 'R38 manual proof must reject host execution' }
           $global:LASTEXITCODE = 0
 
       - name: R26 Windows owned server smoke package and guest PowerShell denial
