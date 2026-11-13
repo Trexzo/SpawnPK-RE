@@ -60,6 +60,24 @@ try{
     [IO.File]::WriteAllText($path,'no protocol activity')
     Require-R38 (-not (Read-R38LocalGameTrace $path).Verified) 'empty unrelated stdout refused'
 
+    # The real R38 guest process writes stdout while the host-side
+    # parser polls it. Prove that a SHARED OPEN log can be read without
+    # a sharing violation, and that a partial fragment cannot PASS.
+    $openLog=[IO.FileStream]::new($path,[IO.FileMode]::Create,
+        [IO.FileAccess]::Write,[IO.FileShare]::ReadWrite,
+        1,[IO.FileOptions]::Asynchronous)
+    try{
+        $half=[int][Math]::Floor($positive.Length/2)
+        $first=[Text.Encoding]::UTF8.GetBytes($positive.Substring(0,$half))
+        $second=[Text.Encoding]::UTF8.GetBytes($positive.Substring($half))
+        $openLog.Write($first,0,$first.Length)
+        $openLog.Flush()
+        Require-R38 (-not (Read-R38LocalGameTrace $path).Verified) 'live partial stdout fails closed'
+        $openLog.Write($second,0,$second.Length)
+        $openLog.Flush()
+        Require-R38 (Read-R38LocalGameTrace $path).Verified 'live shared stdout read before writer closes'
+    } finally { $openLog.Dispose() }
+
     Write-Output ('R38_SYNTHETIC_LOCAL_SERVER_TRACE_PARSER_PASS assertions='+
                   $assertions+' noJavaLaunched=true onlyOwnedTempFile=true')
 }finally{
