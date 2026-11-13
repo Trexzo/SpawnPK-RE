@@ -165,20 +165,33 @@ function Read-R38LocalGameTrace([string]$logPath) {
     if($info.Length -gt 5242880) {
         throw 'R38_BLOCKED: owned server log exceeds 5MiB'
     }
-    $text=[IO.File]::ReadAllText($logPath)
-    $widget=[regex]::Match($text,
-        '(?m)^\[session /127\.0\.0\.1:\d+\] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912\b')
-    $login=[regex]::Match($text,
-        '(?m)^\[session /127\.0\.0\.1:\d+\] LOGIN_SUCCESS_LOCAL rank=205\b[^\r\n]*\bpersistent=true\b')
-    $request=[regex]::Match($text,
-        '(?m)^\[session /127\.0\.0\.1:\d+\] M5_MOVEMENT_REQUEST MovementRequest\{opcode=164,[^\r\n]*\} action=ACCEPTED\b')
-    $walk=[regex]::Match($text,
-        '(?m)^\[world player=(?<player>\d+)\] M5_AUTHORITATIVE_TICK mode=WALK tiles=(?<tiles>\d+) from=(?<x1>\d+),(?<y1>\d+) to=(?<x2>\d+),(?<y2>\d+) dir=(?<direction>\d+)\b')
-    if(-not ($widget.Success -and $login.Success -and
-             $request.Success -and $walk.Success)) {
-        return @{ Verified=$false; Reason='required LocalLab markers not all present' }
+    $trace=[IO.File]::ReadAllText($logPath)
+    $widget=[regex]::Match($trace,
+        '(?m)^\[session /(?<peer>127\.0\.0\.1:\d+)\] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912\b')
+    if(-not $widget.Success) {
+        return @{ Verified=$false; Reason='no exact first-widget 185/912' }
     }
-    if(-not ($widget.Index -lt $login.Index -and
+    # Bind login and accepted route to exactly the same session endpoint
+    # that sent the first widget. Bind the World tick to that session's
+    # registered WorldPlayer index, not another concurrent guest player.
+    $peer=[regex]::Escape($widget.Groups['peer'].Value)
+    $registered=[regex]::Match($trace,
+        ('(?m)^\[session /'+$peer+'\] V512_WORLD_REGISTER playerId=(?<id>\d+)\b'))
+    if(-not $registered.Success) {
+        return @{ Verified=$false; Reason='no registered WorldPlayer for first-widget peer' }
+    }
+    $login=[regex]::Match($trace,
+        ('(?m)^\[session /'+$peer+'\] LOGIN_SUCCESS_LOCAL rank=205\b[^\r\n]*\bpersistent=true\b'))
+    $request=[regex]::Match($trace,
+        ('(?m)^\[session /'+$peer+'\] M5_MOVEMENT_REQUEST MovementRequest\{opcode=164,[^\r\n]*\} action=ACCEPTED\b'))
+    $player=[regex]::Escape($registered.Groups['id'].Value)
+    $walk=[regex]::Match($trace,
+        ('(?m)^\[world player='+$player+'\] M5_AUTHORITATIVE_TICK mode=WALK tiles=(?<tiles>\d+) from=(?<x1>\d+),(?<y1>\d+) to=(?<x2>\d+),(?<y2>\d+) dir=(?<direction>\d+)\b'))
+    if(-not ($login.Success -and $request.Success -and $walk.Success)) {
+        return @{ Verified=$false; Reason='same-peer login/accepted route/World tick missing' }
+    }
+    if(-not ($widget.Index -lt $registered.Index -and
+             $registered.Index -lt $login.Index -and
              $login.Index -lt $request.Index -and
              $request.Index -lt $walk.Index)) {
         return @{ Verified=$false; Reason='LocalLab markers out of order' }
@@ -194,13 +207,14 @@ function Read-R38LocalGameTrace([string]$logPath) {
     }
     return @{
         Verified=$true
-        Reason='exact guest-owned LocalLab login and walk log sequence'
+        Reason='one guest-owned LocalLab peer first-widget/login/World move sequence'
         FromX=$x1
         FromY=$y1
         ToX=$x2
         ToY=$y2
-        PlayerId=[int]$walk.Groups['player'].Value
+        PlayerId=[int]$registered.Groups['id'].Value
         Tiles=$tiles
+        Peer=$widget.Groups['peer'].Value
     }
 }
 
@@ -448,7 +462,7 @@ try {
         throw 'R27_BLOCKED: no visible GUI top-level window observed'
     }
     if($ManualLoginMovement) {
-        # No SendKeys, credentials, scripted network packets or input hooks:
+        # No automatic input, credentials, scripted packets or input hooks:
         # only the actual human operator INSIDE the isolated Sandbox guest
         # can type the disposable opensrc account and walk one tile.
         Write-Output 'R38_MANUAL_GUEST_ACTION: log in only with synthetic username opensrc and a disposable password, then walk one tile; NEVER use live credentials'
@@ -588,7 +602,7 @@ if($windowSeen -and $clientWasStopped -and $serverWasStopped -and
             guest_home=$guestHomePath
             client_binary='certified-airgap-v308-derivative'
             unmodified_original_v308_launched=$false
-            real_production_credentials_used=$false
+            real_production_credentials_collected_by_harness=$false
             actual_gui_login_e2e_verified=$false
             # Server log and client-owned TCP socket form an operational
             # guest-local witness, not cryptographic origin proof.
