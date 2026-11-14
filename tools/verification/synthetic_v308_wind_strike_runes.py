@@ -85,13 +85,14 @@ def assert_account(account:Path,bank_coins:int,air:int,mind:int,coins:int):
         if "=" not in line or line.startswith("#") or line.startswith("!"):
             continue
         key,value=line.split("=",1)
-        if key in ("inventory.0","inventory.1","inventory.2","bank.0"):
+        if key in ("inventory.0","inventory.1","inventory.2","bank.0","skill.6.xp"):
             props.setdefault(key,[]).append(value.strip())
     want={
         "inventory.0":[f"{AIR},{air},0" if air else ""],
         "inventory.1":[f"{MIND},{mind},0" if mind else ""],
         "inventory.2":[f"{COIN},{coins},0" if coins else ""],
         "bank.0":[f"{COIN},{bank_coins},0"],
+        "skill.6.xp":["13034431"], # Wind Strike custom XP not enabled
     }
     if props!=want:
         raise ReconnectFailure(
