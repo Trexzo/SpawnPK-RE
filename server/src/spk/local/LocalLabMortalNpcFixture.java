@@ -33,6 +33,49 @@ final class LocalLabMortalNpcFixture {
         return lifecycleEnabled()?R7_MAX_HP:MAX_HP;
     }
 
+    /**
+     * R48: reject a predictable lethal fixture conflict *before* any rune
+     * debit, NPC65 hit, HP mutation or ground-item packet. This is a
+     * read-only World-owned check, not a crash-safe transaction guarantee.
+     *
+     * Only the canonical R6 marked actor qualifies. Nonlethal hits do not
+     * need a ground-loot reservation; lethal hits require a real registered
+     * owner, dev-owned scene removal authority, a free owner loot position,
+     * and a schedulable R7 respawn when that test mode is active.
+     */
+    static String preflightConfirmedDamage(
+        int damage,
+        NpcEntity npc,
+        NpcRegistry npcs,
+        World world,
+        WorldPlayer player,
+        long worldTick
+    ){
+        if(!enabled()||npc==null||!npc.localLabMortalFixture()||
+           npc.definitionId!=NPC_DEFINITION||damage<=0)
+            return "R48_REJECTED_NOT_MORTAL_DAMAGE";
+        if(npcs==null||world==null||player==null||
+           !player.registered()||
+           npcs.scene(npc.sceneIndex)!=npc||
+           npc.localLabMortalHp()<=0)
+            return "R48_REJECTED_STALE_OR_UNREGISTERED";
+        if(worldTick<0L)
+            return "R48_REJECTED_NEGATIVE_WORLD_TICK";
+        if(damage<npc.localLabMortalHp())
+            return null;
+        String owner=player.username();
+        if(owner==null||owner.trim().isEmpty())
+            return "R48_REJECTED_NO_LOOT_OWNER";
+        if(!npcs.canRemoveDevOwnedNpc(npc))
+            return "R48_REJECTED_SCENE_NOT_DEV_OWNED";
+        if(world.groundItems().findOwned(
+                LOOT_ITEM,npc.x,npc.y,0,owner)!=null)
+            return "R48_REJECTED_OWNER_LOOT_TILE_OCCUPIED";
+        if(!npcs.canScheduleLocalLabMortalDeath(worldTick))
+            return "R48_REJECTED_R7_RESPAWN_UNSCHEDULABLE";
+        return null;
+    }
+
     static String applyPublishedDamage(
         int damage,
         NpcEntity npc,
@@ -56,9 +99,13 @@ final class LocalLabMortalNpcFixture {
                 "mortal fixture definition mismatch");
 
         final int previousHp=npc.localLabMortalHp();
-        if(previousHp<=0)
-            throw new IllegalStateException(
-                "duplicate lethal fixture hit scene="+npc.sceneIndex);
+        // Recheck at the canonical damage boundary. This protects all callers,
+        // not just the R48 Wind Strike adapter, from leaving an HP=0 actor
+        // or debited inventory after a predictable blocked loot publication.
+        String conflict=preflightConfirmedDamage(
+            damage,npc,npcs,world,player,worldTick);
+        if(conflict!=null)
+            throw new IllegalStateException(conflict);
 
         final int remainingHp=
             npc.applyLocalLabMortalDamage(damage);
