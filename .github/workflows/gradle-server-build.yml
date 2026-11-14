@@ -74,6 +74,7 @@ on:
       - 'server/src/spk/local/R49OutboundPacketTransportFailureTest.java'
       - 'server/src/spk/local/R50TerminalTransportWorldAdmissionTest.java'
       - 'server/src/spk/local/R51AmbiguousAccountStageQuarantineTest.java'
+      - 'server/src/spk/local/R51InterruptedAccountPublisherChild.java'
       - 'server/src/spk/local/AtomicAccountPublisher.java'
       - 'server/src/spk/local/FilePlayerRepository.java'
       - 'tools/verification/synthetic_v308_ambiguous_account_stage_recovery.py'
