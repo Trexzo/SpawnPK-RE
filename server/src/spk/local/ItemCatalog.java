@@ -74,6 +74,8 @@ final class ItemCatalog {
             case 995:  // coins
             case 560:  // death runes
             case 565:  // blood runes
+            case 556:  // client-defined Air rune (R47)
+            case 558:  // client-defined Mind rune (R47)
                 return true;
             default:
                 return false;
@@ -85,6 +87,7 @@ final class ItemCatalog {
         if (b != null) return "CURRENT_CONFIG_EXPLICIT_"+(b?"STACKABLE":"NONSTACKABLE");
         if (isSemanticStackableAmmo(id)) return "CURRENT_ITEM_NAME_AMMO_STACK_RULE";
         if (id==995 || id==560 || id==565) return "LIVE_FIXTURE_KNOWN_STACKABLE";
+        if (id==556 || id==558) return "R47_CLIENT_SPELL_RUNE_STACK_FALLBACK";
         return "UNKNOWN_DEFAULT_NONSTACKABLE";
     }
 

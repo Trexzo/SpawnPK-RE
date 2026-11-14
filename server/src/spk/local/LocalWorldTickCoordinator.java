@@ -654,6 +654,92 @@ final class LocalWorldTickCoordinator {
             " result={"+outcome+"}";
     }
 
+    /**
+     * R47: client-known Wind Strike air/mind requirements as an explicitly
+     * CUSTOM_LOCALLAB test-only rune-spend and practice-NPC damage path.
+     *
+     * Unlike R45's rune-free Air Surge, this consumes exactly one inventory
+     * item556 and one inventory item558 and updates native inventory53.
+     * This does NOT infer the original SpawnPK Wind Strike damage or cost rule.
+     */
+    String castLocalLabMortalWindStrike(
+        NpcEntity npc,
+        SpellDefinitionRepository.Spell spell,
+        BankState bank,
+        ServerPacketWriter writer,
+        long worldTick
+    )throws IOException{
+        if(!LocalLabMortalWindStrikeRunes.enabled())
+            return "R47_REJECTED_RUNE_FIXTURE_DISABLED";
+        if(!worldPlayer.registered()||npc==null||
+           !npc.localLabMortalFixture()||
+           npc.definitionId!=LocalLabMortalNpcFixture.NPC_DEFINITION||
+           npcs.scene(npc.sceneIndex)!=npc||
+           npc.localLabMortalHp()<=0)
+            return "R47_REJECTED_STALE_OR_NONMORTAL_TARGET";
+        if(worldTick<0L)
+            return "R47_REJECTED_NO_WORLD_TICK";
+        if(movement.plane()!=0||!movement.inHomeWindow()||
+           LocalMovementRequestHandler.chebyshev(
+               movement.x(),movement.y(),npc.x,npc.y)>8)
+            return "R47_REJECTED_TARGET_OUT_OF_RANGE";
+        if(r45LastMortalAirSurgeTick!=Long.MIN_VALUE&&
+           worldTick-r45LastMortalAirSurgeTick<2L)
+            return "R47_REJECTED_SHARED_CUSTOM_MAGIC_COOLDOWN";
+
+        // This is deliberately strict: client-visible substitutes or worn
+        // staff may validate a spell, but the R47 experimental spend path
+        // requires *actual inventory* air and mind runes, not inferred rules.
+        LocalLabMortalWindStrikeRunes.Plan cost=
+            LocalLabMortalWindStrikeRunes.plan(bank,spell);
+        if(cost==null)
+            return "R47_REJECTED_EXACT_WIND_STRIKE_RUNE_COST";
+
+        final int before=npc.localLabMortalHp();
+        final int damage=Math.min(10,before); // CUSTOM_LOCALLAB, not original
+        final int after=before-damage;
+
+        // Two-slots plan was fully checked before any inventory mutation.
+        // World owns all game-side mutations; no other player can race the
+        // same local account or target. One normal S2C53 reflects both costs.
+        cost.consume(bank,writer);
+        npcs.sendMask(
+            npc,
+            NpcSyncEncoder.Mask.singleHit(
+                damage,1,after,npc.localLabMortalMaxHp()),
+            writer
+        );
+        String outcome=LocalLabMortalNpcFixture.applyPublishedDamage(
+            damage,npc,npcs,world,worldPlayer,bridge.scenePublisher(),
+            writer,worldTick
+        );
+        if(outcome==null)
+            throw new IllegalStateException(
+                "R47 accepted rune spend without canonical NPC hit");
+        r45LastMortalAirSurgeTick=worldTick;
+        if(outcome.startsWith("R6_MORTAL_NPC_DEATH scene=")){
+            String published=pvmKillOutcomes.publishCompletedDeath(
+                npc,npcs.scene(npc.sceneIndex)==null,
+                worldPlayer,worldTick
+            );
+            if(published==null||
+               !published.startsWith("R9_PVM_KILL_OUTCOME_EMITTED"))
+                throw new IllegalStateException(
+                    "R47 lethal rune spell missed canonical NPC_KILL");
+            System.out.println("[world player="+worldPlayer.id()+
+                "] R47_CUSTOM_MORTAL_WIND_KILL "+published);
+        }
+        return "R47_CUSTOM_MORTAL_WIND_STRIKE_HIT"+
+            " authority="+LocalLabMortalWindStrikeRunes.AUTHORITY+
+            " scene="+npc.sceneIndex+
+            " damage="+damage+
+            " hpBefore="+before+" hpAfter="+after+
+            " runeCost=556x1,558x1"+
+            " worldTick="+worldTick+
+            " originalDamageFormula=false originalRuneCosts=false"+
+            " result={"+outcome+"}";
+    }
+
     private void tickTransientRegion(
         long worldTick,
         long now,

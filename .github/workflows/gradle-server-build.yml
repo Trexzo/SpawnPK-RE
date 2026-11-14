@@ -67,6 +67,10 @@ on:
       - 'tools/verification/synthetic_v308_custom_mortal_magic.py'
       - 'tools/verification/test_r45_custom_mortal_magic.py'
       - 'tools/verification/synthetic_v308_custom_mortal_magic_xp.py'
+      - 'tools/verification/synthetic_v308_wind_strike_runes.py'
+      - 'server/src/spk/local/LocalLabMortalWindStrikeRunes.java'
+      - 'server/src/spk/local/R47LocalLabMortalWindStrikeRunesTest.java'
+      - 'server/src/spk/local/ItemCatalog.java'
       - 'server/src/spk/local/LocalLabMortalMagicExperience.java'
       - 'server/src/spk/local/R46LocalLabMortalMagicExperienceTest.java'
       - 'tools/verification/synthetic_persistence_reconnect.py'
@@ -209,6 +213,11 @@ jobs:
         run: |
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R46LocalLabMortalMagicExperienceTest
           python3 tools/verification/synthetic_v308_custom_mortal_magic_xp.py --jar server/build/SpawnPKLocalServer.jar
+
+      - name: R47 exact Wind Strike rune debit and two real Main JVMs loot-bank-reconnect
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R47LocalLabMortalWindStrikeRunesTest
+          python3 tools/verification/synthetic_v308_wind_strike_runes.py --jar server/build/SpawnPKLocalServer.jar
 
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
@@ -622,6 +631,15 @@ jobs:
           & java -cp $cp spk.local.R46LocalLabMortalMagicExperienceTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & python tools/verification/synthetic_v308_custom_mortal_magic_xp.py --jar server/build/SpawnPKLocalServer.jar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R47 Windows exact Wind Strike runes and real NPC death loot bank restart
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R47LocalLabMortalWindStrikeRunesTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/verification/synthetic_v308_wind_strike_runes.py --jar server/build/SpawnPKLocalServer.jar
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
