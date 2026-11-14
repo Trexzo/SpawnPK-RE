@@ -104,6 +104,15 @@ final class ServerPacketWriter {
         autoFlush();
     }
 
+    /**
+     * R50: prevent new typed World actions after this session's outbound
+     * connection has already failed. Direct in-memory test writers have no
+     * socket queue and remain unchanged.
+     */
+    void requireGameActionAdmission()throws IOException{
+        if(queue!=null)queue.requireGameActionAdmission();
+    }
+
     synchronized void beginBatch(){batchDepth++;}
 
     synchronized void endBatch() throws IOException {
