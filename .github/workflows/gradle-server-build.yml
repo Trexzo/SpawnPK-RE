@@ -66,6 +66,9 @@ on:
       - 'tools/verification/test_r44_guest_review_policy.py'
       - 'tools/verification/synthetic_v308_custom_mortal_magic.py'
       - 'tools/verification/test_r45_custom_mortal_magic.py'
+      - 'tools/verification/synthetic_v308_custom_mortal_magic_xp.py'
+      - 'server/src/spk/local/LocalLabMortalMagicExperience.java'
+      - 'server/src/spk/local/R46LocalLabMortalMagicExperienceTest.java'
       - 'tools/verification/synthetic_persistence_reconnect.py'
       - 'server/src/spk/local/LocalSpellTargetHandler.java'
       - 'server/src/spk/local/LocalWorldTickCoordinator.java'
@@ -201,6 +204,11 @@ jobs:
         run: |
           python3 tools/verification/test_r45_custom_mortal_magic.py
           python3 tools/verification/synthetic_v308_custom_mortal_magic.py --jar server/build/SpawnPKLocalServer.jar
+
+      - name: R46 opt-in Magic XP134 and genuine two-Main-JVM spell bank restart
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R46LocalLabMortalMagicExperienceTest
+          python3 tools/verification/synthetic_v308_custom_mortal_magic_xp.py --jar server/build/SpawnPKLocalServer.jar
 
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
@@ -605,6 +613,15 @@ jobs:
           & python tools/verification/test_r45_custom_mortal_magic.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & python tools/verification/synthetic_v308_custom_mortal_magic.py --jar server/build/SpawnPKLocalServer.jar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R46 Windows native Magic XP134 and two fresh Main JVMs persistent XP
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R46LocalLabMortalMagicExperienceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/verification/synthetic_v308_custom_mortal_magic_xp.py --jar server/build/SpawnPKLocalServer.jar
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
