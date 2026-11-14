@@ -60,7 +60,7 @@ public final class R51AmbiguousAccountStageQuarantineTest {
                 "ambiguous load/save changed canonical");
         require(Arrays.equals(Files.readAllBytes(stage),staged),
                 "ambiguous stage was read/promoted/deleted or modified");
-        require(Files.list(root).count()==2,
+        require(countEntries(root)==2,
                 "unexpected staging sibling created while quarantined");
 
         // Only test-owned recovery evidence is cleared here, after equality
@@ -144,8 +144,14 @@ public final class R51AmbiguousAccountStageQuarantineTest {
         require(observed.get()==1,"active-stage check not exercised");
         require(repo.load("opensrc").isPresent(),
                 "post-replace canonical snapshot not loadable");
-        require(Files.list(root).count()==1,
+        require(countEntries(root)==1,
                 "successful atomic publisher left a stage behind");
+    }
+
+    private static long countEntries(Path directory)throws IOException{
+        try(java.util.stream.Stream<Path> entries=Files.list(directory)){
+            return entries.count();
+        }
     }
 
     private static void expectAmbiguous(IoAction action)throws IOException{
