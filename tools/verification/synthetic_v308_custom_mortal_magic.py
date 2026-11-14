@@ -28,11 +28,26 @@ from synthetic_mortal_pvm_loot import (
     discover_fixture, go_to_loot_tile, deposit_loot,
     ITEM,LOOT_X,LOOT_Y,START_BANK,FINAL_BANK,
 )
+from synthetic_mortal_respawn import decode_skill134
 
 FLAGS=(
     "-Dspk.local.r6MortalFixture=true",
     "-Dspk.local.r45MortalMagic=true",
 )
+R46_XP_FLAG="-Dspk.local.r46MortalMagicXp=true"
+MAGIC_XP_INITIAL=13_034_431
+
+
+def require_magic_xp_snapshot(path:Path,expected:int)->None:
+    rows=[]
+    for line in path.read_text(encoding="iso-8859-1").splitlines():
+        if line.startswith("skill.6.xp="):
+            rows.append(line.split("=",1)[1].strip())
+    if rows != [str(expected)]:
+        raise ReconnectFailure(
+            f"R46 Magic XP persisted file {rows}, expected {[str(expected)]}"
+        )
+
 
 
 def npc_spell131(cipher,scene:int,widget:int)->bytes:
@@ -43,7 +58,7 @@ def npc_spell131(cipher,scene:int,widget:int)->bytes:
                   (widget>>8)&255,(widget+128)&255))
 
 
-def run(jar:Path,java:str)->dict:
+def run(jar:Path,java:str,magic_xp:bool=False)->dict:
     jar=jar.expanduser().resolve(strict=True)
     if not jar.is_file():
         raise ReconnectFailure("R45 exact server JAR missing")
@@ -56,11 +71,33 @@ def run(jar:Path,java:str)->dict:
         for phase in (1,2):
             child,logfile=start_server(java,jar,root,account,
                                        f"r45-real-main-{phase}",
-                                       fixture_options=FLAGS)
+                                       fixture_options=FLAGS+(R46_XP_FLAG,) if magic_xp else FLAGS)
             try:
                 with socket.create_connection((HOST,PORT),timeout=6) as sock:
                     sock.settimeout(8)
-                    c2s,s2c,inventory=read_bootstrap_and_inventory(sock)
+                    magic_updates=[]
+                    def observe_magic(frame):
+                        if frame is None or frame[0]!=134:
+                            return
+                        skill,xp,current=decode_skill134(frame[1])
+                        if skill==6:
+                            if current!=99:
+                                raise ReconnectFailure(
+                                    f"R46 Magic current level changed: {current}"
+                                )
+                            magic_updates.append(xp)
+                    c2s,s2c,inventory=read_bootstrap_and_inventory(
+                        sock,on_frame=observe_magic
+                    )
+                    initial_magic=(
+                        MAGIC_XP_INITIAL+10 if magic_xp and phase==2
+                        else MAGIC_XP_INITIAL
+                    )
+                    if magic_updates != [initial_magic]:
+                        raise ReconnectFailure(
+                            f"R46 bootstrap Magic S2C134 {magic_updates}, "
+                            f"expected {[initial_magic]}"
+                        )
                     if inventory[0] != (-1,0):
                         raise ReconnectFailure("R45 initial inventory not empty")
                     if phase==1:
@@ -90,6 +127,7 @@ def run(jar:Path,java:str)->dict:
                             frame=next_frame(sock,s2c)
                             if frame is None:
                                 continue
+                            observe_magic(frame)
                             op,body=frame
                             if op==65:
                                 observed_hit=True
@@ -115,6 +153,21 @@ def run(jar:Path,java:str)->dict:
                                 + " spawn=" + str(spawn)
                                 + " SERVER_LOG_LAST=" + log_tail(logfile,8500)
                             )
+                        if magic_xp:
+                            deadline=time.monotonic()+8
+                            while len(magic_updates)<2 and time.monotonic()<deadline:
+                                observe_magic(next_frame(sock,s2c,0.3))
+                            if magic_updates != [
+                                    MAGIC_XP_INITIAL,MAGIC_XP_INITIAL+10]:
+                                raise ReconnectFailure(
+                                    f"R46 missing/excess S2C134 Magic XP: {magic_updates}"
+                                )
+                            wait_log_contains(logfile,(
+                                "R46_MAGIC_XP_GRANTED",
+                                "authority=CUSTOM_LOCALLAB_AIR_SURGE_MAGIC_XP_PER_PUBLISHED_DAMAGE_V1",
+                                "skill=MAGIC damage=10",
+                                "currentLevel=99",
+                            ),seconds=8)
                         wait_log_contains(logfile,(
                             "R45_CUSTOM_MORTAL_AIR_SURGE_HIT",
                             "authority=CUSTOM_LOCALLAB_OPT_IN_AIR_SURGE_V1",
@@ -147,14 +200,22 @@ def run(jar:Path,java:str)->dict:
                         open_bank(sock,c2s,s2c,FINAL_BANK,(-1,0))
                 wait_session_final(logfile,account)
                 saved=require_snapshot(account,FINAL_BANK,0)
+                require_magic_xp_snapshot(
+                    account,MAGIC_XP_INITIAL+(10 if magic_xp else 0)
+                )
                 if phase==2:
                     wait_log_contains(logfile,("ACCOUNT_LOADED profile=opensrc",))
                 phases.append({"jvm":phase,"bank_coins":FINAL_BANK,
+                               "magic_xp":MAGIC_XP_INITIAL+(10 if magic_xp else 0),
                                "profile_sha256":saved})
             finally:
                 stop_own_server(child,logfile)
         return {
-            "result":"R45_REAL_JVM_CUSTOM_AIR_SURGE_PVM_LOOT_BANK_RECONNECT_PASS",
+            "result":(
+                "R46_REAL_JVM_CUSTOM_AIR_SURGE_MAGIC_XP_RECONNECT_PASS"
+                if magic_xp else
+                "R45_REAL_JVM_CUSTOM_AIR_SURGE_PVM_LOOT_BANK_RECONNECT_PASS"
+            ),
             "distinct_server_jvms":2,
             "client_style":"synthetic_v308_C2S131",
             "accepted_spell":"Air surge widget19100 rune-free",
@@ -165,6 +226,8 @@ def run(jar:Path,java:str)->dict:
             "duplicate_stale_target_denied":True,
             "take156_bank53_saved_and_reloaded":True,
             "bank_coins_restored":FINAL_BANK,
+            "magic_xp_restored":MAGIC_XP_INITIAL+(10 if magic_xp else 0),
+            "custom_magic_xp_gain":10 if magic_xp else 0,
             "original_spawnpk_damage_or_graphics_proven":False,
             "phases":phases,
         }
