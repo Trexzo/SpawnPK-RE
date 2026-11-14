@@ -1122,14 +1122,22 @@ final class LocalSession implements Runnable {
         ServerPacketWriter serverPackets,
         String tag
     )throws Exception{
+        // R50: reject an already-terminal session before placing another
+        // mutation request on the shared World queue. Recheck inside the
+        // World callback to close the queue-wait race, and once per typed
+        // request inside the dispatcher.
+        serverPackets.requireGameActionAdmission();
         world.submitAndWait(
             worldPlayer,
             worldPlayerGeneration,
-            ()->pendingRequests.drain(
-                clientPackets,
-                serverPackets,
-                tag
-            ),
+            ()->{
+                serverPackets.requireGameActionAdmission();
+                pendingRequests.drain(
+                    clientPackets,
+                    serverPackets,
+                    tag
+                );
+            },
             5_000L
         );
     }
