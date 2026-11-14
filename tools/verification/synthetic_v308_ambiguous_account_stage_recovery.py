@@ -12,6 +12,7 @@ import hashlib
 import json
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 
@@ -80,13 +81,44 @@ def run(jar:Path,java:str)->dict:
         phases.append({"Main_JVM":1,"result":"CANONICAL_SNAPSHOT_SAVED",
                        "canonical_sha256":original_sha})
 
-        # This intentionally resembles an interrupted atomic publisher
-        # *before* atomic replacement. Never inspect/import its contents.
-        stage=account.parent/(".%s.r16-r51-fault-injected.stage"%account.name)
-        staged=b"R51 TEST ONLY: UNPUBLISHED SNAPSHOT BYTES MUST NOT BE READ\n"
-        with stage.open("xb") as output:
-            output.write(staged)
-            output.flush()
+        # A distinct, explicitly private Java fault-injection child executes
+        # the REAL atomic publisher. Its replacement callback is invoked only
+        # after FileChannel.force(true), and abruptly halts THAT child before
+        # atomic move/finally cleanup. Never halt an existing Main server.
+        crash=subprocess.run(
+            [java,"-Dspk.local.r51InterruptPublisherTestOnly=true",
+             "-cp",str(jar),
+             "spk.local.R51InterruptedAccountPublisherChild",str(account)],
+            cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            timeout=20,check=False,
+        )
+        trace=crash.stdout.decode("utf-8","replace")
+        if crash.returncode!=71 or (
+                "R51_TEST_ONLY_FORCED_STAGE_BEFORE_ATOMIC_REPLACE" not in trace):
+            raise ReconnectFailure(
+                "R51 forced-staging child did not halt at exact callback "+
+                f"exit={crash.returncode} tail={trace[-1800:]}"
+            )
+        if sha(account.read_bytes())!=original_sha:
+            raise ReconnectFailure(
+                "R51 exact forced-stage halt changed canonical before move"
+            )
+        prefix="."+account.name+".r16-"
+        matches=[p for p in account.parent.iterdir()
+                 if p.name.startswith(prefix)
+                 and p.name.endswith(".stage")
+                 and len(p.name)>len(prefix)+len(".stage")]
+        if len(matches)!=1:
+            raise ReconnectFailure(
+                f"R51 expected one genuine orphan stage, found {len(matches)}"
+            )
+        stage=matches[0]
+        staged=stage.read_bytes() # Only independent test inspection.
+        if b"r51.uncommitted.test.marker=UNPUBLISHED" not in staged or (
+                b"bank.0=995,100099,0" not in staged):
+            raise ReconnectFailure(
+                "R51 forced stage did not contain expected uncommitted test data"
+            )
         stage_sha=sha(staged)
 
         proc,logfile=start_server(java,jar,root,account,"r51-denied")
@@ -134,6 +166,8 @@ def run(jar:Path,java:str)->dict:
             "result":"R51_REAL_JVM_AMBIGUOUS_STAGE_QUARANTINE_AND_REVIEWED_RESUME_PASS",
             "distinct_real_Main_JVMs":3,
             "orphan_marker_generated_in_disposable_test_directory":True,
+            "true_child_jvm_halted_after_forced_account_stage":True,
+            "test_child_halt_exit_code":71,
             "load_refused_before_world_registration":True,
             "canonical_and_stage_bytes_preserved_during_denial":True,
             "no_automatic_stage_replay_or_cleanup":True,
