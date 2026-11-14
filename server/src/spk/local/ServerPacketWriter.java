@@ -123,6 +123,17 @@ final class ServerPacketWriter {
 
     synchronized void beginBatch(){batchDepth++;}
 
+    /**
+     * R55: discard every unpublished byte belonging to an aborted trade.
+     * On a live queued session fail closed permanently rather than trying
+     * to resume a cipher stream whose pending packets were discarded.
+     */
+    synchronized void abortTradeBatchAfterFailure(Throwable failure){
+        pending.reset();
+        batchDepth=0;
+        if(queue!=null)queue.failClosedAfterTradePublication(failure);
+    }
+
     synchronized void endBatch() throws IOException {
         if(batchDepth<=0)throw new IllegalStateException("no packet batch");
         batchDepth--;
