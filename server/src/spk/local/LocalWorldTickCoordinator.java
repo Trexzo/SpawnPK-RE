@@ -605,6 +605,10 @@ final class LocalWorldTickCoordinator {
         final int hpBefore=npc.localLabMortalHp();
         final int damage=Math.min(10,hpBefore);
         final int hpAfter=hpBefore-damage;
+        // R46 custom Magic XP is independently opt-in. Overflow must be
+        // refused before the confirmed NPC damage/loot transaction begins.
+        LocalLabMortalMagicExperience.preflight(
+            damage,worldPlayer);
         npcs.sendMask(
             npc,
             NpcSyncEncoder.Mask.singleHit(
@@ -631,13 +635,22 @@ final class LocalWorldTickCoordinator {
             System.out.println("[world player="+worldPlayer.id()+
                 "] R45_CUSTOM_MORTAL_MAGIC_KILL "+published);
         }
+        // Exactly the already-published damage can grant optional XP.
+        // Uses the same PlayerState + S2C134 transport as the R8 fixture.
+        String magicXp=LocalLabMortalMagicExperience.awardPublishedDamage(
+            damage,npc,worldPlayer,writer);
+        if(magicXp!=null)
+            System.out.println("[world player="+worldPlayer.id()+
+                "] "+magicXp);
         return "R45_CUSTOM_MORTAL_AIR_SURGE_HIT"+
             " authority=CUSTOM_LOCALLAB_OPT_IN_AIR_SURGE_V1"+
             " scene="+npc.sceneIndex+
             " hpBefore="+hpBefore+" hpAfter="+hpAfter+
             " damage="+damage+" worldTick="+worldTick+
             " runeConsumption=NONE_VISIBLE_REQUIREMENTS"+
-            " originalDamageFormula=false spellXp=NOT_IMPLEMENTED"+
+            " originalDamageFormula=false spellXp="+
+                (magicXp==null?"NOT_APPLIED":"CUSTOM_LOCALLAB_DAMAGE_XP")+
+
             " result={"+outcome+"}";
     }
 
