@@ -113,6 +113,14 @@ final class ServerPacketWriter {
         if(queue!=null)queue.requireGameActionAdmission();
     }
 
+    /**
+     * R54: no-op for direct test output streams; queue-backed live sessions
+     * must retain a conservative budget before multi-packet commit.
+     */
+    void requireTradeCommitHeadroom(int reserveBytes)throws IOException{
+        if(queue!=null)queue.requireCommitHeadroom(reserveBytes);
+    }
+
     synchronized void beginBatch(){batchDepth++;}
 
     synchronized void endBatch() throws IOException {
