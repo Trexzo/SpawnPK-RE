@@ -21,7 +21,7 @@ jobs:
           java-version: '21'
       - name: Build exact Java11-compatible server
         working-directory: server
-        run: ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
       - name: Reject dead counterparty and retain normal successful trades
         working-directory: server
         run: |
