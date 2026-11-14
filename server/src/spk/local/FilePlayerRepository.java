@@ -52,6 +52,12 @@ final class FilePlayerRepository
                     "R35_ACCOUNT_PATH_REJECTED symlink ancestor");
         }
 
+        // R51: a crash may leave a fully forced but unpublished account
+        // staging file adjacent to an older canonical snapshot. Never infer
+        // that the old snapshot is final, nor initialize default state when
+        // canonical is absent but an ambiguous staged save exists.
+        AtomicAccountPublisher.requireNoAmbiguousStage(file);
+
         final java.nio.file.attribute.BasicFileAttributes attributes;
         try{
             attributes=Files.readAttributes(
