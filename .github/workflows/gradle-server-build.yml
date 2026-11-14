@@ -70,6 +70,8 @@ on:
       - 'tools/verification/synthetic_v308_wind_strike_runes.py'
       - 'tools/verification/synthetic_v308_mortal_loot_conflict_recovery.py'
       - 'tools/verification/test_r48_mortal_predebit_policy.py'
+      - 'server/src/spk/local/OutboundPacketQueue.java'
+      - 'server/src/spk/local/R49OutboundPacketTransportFailureTest.java'
       - 'server/src/spk/local/LocalLabMortalNpcFixture.java'
       - 'server/src/spk/local/NpcRegistry.java'
       - 'server/src/spk/local/LocalLabMortalWindStrikeRunes.java'
@@ -227,6 +229,10 @@ jobs:
         run: |
           python3 tools/verification/test_r48_mortal_predebit_policy.py
           python3 tools/verification/synthetic_v308_mortal_loot_conflict_recovery.py --jar server/build/SpawnPKLocalServer.jar
+
+      - name: R49 fault injected outbound socket partial write flush and no-retry
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R49OutboundPacketTransportFailureTest
 
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
@@ -657,6 +663,13 @@ jobs:
           & python tools/verification/test_r48_mortal_predebit_policy.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & python tools/verification/synthetic_v308_mortal_loot_conflict_recovery.py --jar server/build/SpawnPKLocalServer.jar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R49 Windows fault injected socket partial write flush and no-retry
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R49OutboundPacketTransportFailureTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
