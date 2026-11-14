@@ -929,7 +929,8 @@ final class LocalPendingRequestDispatcher {
             tag+
             spellTargetHandler.handle(
                 request,
-                serverPackets
+                serverPackets,
+                bridge.sessionWorldTick()
             )
         );
     }
