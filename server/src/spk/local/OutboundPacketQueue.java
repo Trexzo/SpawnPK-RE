@@ -97,6 +97,23 @@ final class OutboundPacketQueue {
         );
     }
 
+    /**
+     * R50: session/World admission fence. A socket stream that is known
+     * truncated, or a queue that has already overflowed, cannot safely
+     * accept *new* gameplay mutations. This does not roll back earlier
+     * accepted commands or make the final account save transactional.
+     *
+     * This check is intentionally separate from offer(): callers invoke
+     * it before running each typed World request, not after mutating state.
+     */
+    synchronized void requireGameActionAdmission()throws IOException{
+        requireTransportHealthy();
+        if(overflowed)
+            throw new IOException(
+                "outbound queue overflowed; new World actions denied"
+            );
+    }
+
     synchronized boolean transportFailed(){
         return terminalTransportFailure!=null;
     }
