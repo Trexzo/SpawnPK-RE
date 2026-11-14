@@ -16,6 +16,19 @@ final class LocalSpellTargetHandler {
     private final NpcRegistry npcs;
     private final CombatEngine combat;
 
+    /** R45 explicitly opt-in CUSTOM_LOCALLAB effect; default stays fail-closed. */
+    interface MortalSpellEffect {
+        String apply(NpcEntity npc,SpellDefinitionRepository.Spell spell,
+                     ServerPacketWriter writer,long worldTick)throws IOException;
+    }
+    private MortalSpellEffect mortalSpellEffect;
+
+    void setMortalSpellEffect(MortalSpellEffect callback){
+        if(mortalSpellEffect!=null)
+            throw new IllegalStateException("R45 mortal magic already attached");
+        mortalSpellEffect=java.util.Objects.requireNonNull(callback,"callback");
+    }
+
     LocalSpellTargetHandler(
         MagicState magic,
         BankState bank,
@@ -33,6 +46,10 @@ final class LocalSpellTargetHandler {
     }
 
     String handle(SpellTargetRequest req,ServerPacketWriter serverPackets)throws IOException{
+        return handle(req,serverPackets,-1L);
+    }
+
+    String handle(SpellTargetRequest req,ServerPacketWriter serverPackets,long worldTick)throws IOException{
         if(req==null)return null;
 
         MagicState.Check check=magic.target(req,bank,equipment,playerState);
@@ -51,6 +68,16 @@ final class LocalSpellTargetHandler {
             }else if(CombatTargetRepository.isCombatDummy(target.definitionId)){
                 effect=combat.magicFixtureHit(
                     req.targetIndex,check.spell,npcs,serverPackets);
+            }else if(LocalLabMortalNpcFixture.enabled() &&
+                     Boolean.getBoolean("spk.local.r45MortalMagic") &&
+                     target.localLabMortalFixture()){
+                // Only the isolated opt-in mortal NPC can receive this
+                // CUSTOM_LOCALLAB spell. All ordinary SpawnPK NPCs retain
+                // the explicit UNKNOWN_SERVER_AUTHORITY behavior below.
+                effect=mortalSpellEffect==null
+                    ?"R45_REJECTED_NO_WORLD_EFFECT_AUTHORITY"
+                    :mortalSpellEffect.apply(
+                        target,check.spell,serverPackets,worldTick);
             }else{
                 effect="TARGET_NPC_VISIBLE def="+target.definitionId+
                     " effect=UNIMPLEMENTED_SERVER_AUTHORITY";
