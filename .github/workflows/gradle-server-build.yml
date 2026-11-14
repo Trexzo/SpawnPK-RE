@@ -56,6 +56,8 @@ on:
       - 'tools/verification/test_r39_real_persistent_trace.ps1'
       - 'server/src/spk/local/R39PersistentV308LoginWalkTraceTest.java'
       - 'server/src/spk/local/R40PersistentV308ReconnectPositionTest.java'
+      - 'tools/verification/synthetic_v308_position_restart.py'
+      - 'tools/verification/test_r41_two_real_jvm_position_restore.py'
       - 'tools/verification/test_r26_guest_server_package.py'
       - 'tools/verification/r23_guest_preflight.ps1'
       - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
@@ -163,6 +165,11 @@ jobs:
 
       - name: R40 same persistent profile reconnect restores authoritative S2C81 position
         run: java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R40PersistentV308ReconnectPositionTest
+
+      - name: R41 two fresh Main JVMs walk and restore exact v308 S2C81 across restart
+        run: |
+          python3 tools/verification/test_r41_two_real_jvm_position_restore.py
+          python3 tools/verification/synthetic_v308_position_restart.py --jar server/build/SpawnPKLocalServer.jar
 
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
@@ -523,6 +530,14 @@ jobs:
         run: |
           $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
           & java -cp $cp spk.local.R40PersistentV308ReconnectPositionTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R41 Windows two clean Main JVM starts with exact v308 position restoration
+        shell: pwsh
+        run: |
+          & python tools/verification/test_r41_two_real_jvm_position_restore.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/verification/synthetic_v308_position_restart.py --jar server/build/SpawnPKLocalServer.jar
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
