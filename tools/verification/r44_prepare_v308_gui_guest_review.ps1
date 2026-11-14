@@ -122,8 +122,8 @@ $pins|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $assetDest 'as
 
 [void](VerifiedHash (Join-Path $assetDest 'client-airgap.jar') $expectedClient)
 [void](VerifiedHash (Join-Path $assetDest 'SpawnPKLocalServer.jar') $newServerSha)
-$assetMapping[0].HostFolder=$assetDest
-$jdkMapping[0].HostFolder=$jdk
+$assetMapping[0].SelectSingleNode('HostFolder').InnerText=[string]$assetDest
+$jdkMapping[0].SelectSingleNode('HostFolder').InnerText=[string]$jdk
 $wsb=Join-Path $dest 'SpawnPK-R44-NetworkDisabled-REVIEW-ONLY.wsb'
 $template.Save($wsb)
 
