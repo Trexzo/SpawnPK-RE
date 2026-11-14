@@ -18,7 +18,7 @@ import time
 from synthetic_revision317_login import HOST,PORT,bank_action_145
 from synthetic_s2c_bank import decode_container53
 from synthetic_ground_take_reconnect import (
-    decode_spawn44,require_scene_step,take_packet,wait_log_contains,
+    decode_spawn44,decode_remove156,take_packet,wait_log_contains,
 )
 from synthetic_persistence_reconnect import (
     ReconnectFailure,ports_in_use,start_server,stop_own_server,
@@ -97,6 +97,33 @@ def assert_account(account:Path,bank_coins:int,air:int,mind:int,coins:int):
         raise ReconnectFailure(
             f"R47 persisted rune/bank slots mismatch {props} expected={want}")
     return hashlib.sha256(account.read_bytes()).hexdigest()
+
+
+def await_coin_take(sock,s2c,air,mind):
+    seen_inventory=False
+    removed=None
+    deadline=time.monotonic()+12
+    while time.monotonic()<deadline:
+        frame=next_frame(sock,s2c)
+        if frame is None:
+            continue
+        op,payload=frame
+        if op==53:
+            widget,slots=decode_container53(payload)
+            if widget==3214:
+                require_inventory(slots,air,mind,1)
+                seen_inventory=True
+        elif op==156:
+            if removed is not None:
+                raise ReconnectFailure("R47 duplicate ground removal")
+            removed=decode_remove156(payload)
+        elif op==44:
+            raise ReconnectFailure("R47 earned ground drop duplicated on Take")
+        if seen_inventory and removed is not None:
+            return removed
+    raise ReconnectFailure(
+        "R47 earned loot Take missing S2C156 and/or inventory53 "
+        f"seenInventory={seen_inventory} removed={removed}")
 
 
 def open_real_bank(sock,c2s,s2c,expected_bank,air,mind,coins):
@@ -238,7 +265,7 @@ def journey(jar:Path,java:str)->dict:
                             raise ReconnectFailure("R47 duplicate earned NPC death")
                         go_to_loot_tile(sock,c2s,s2c,logfile)
                         sock.sendall(take_packet(c2s,COIN,FIXTURE_X,FIXTURE_Y))
-                        removed=require_scene_step(sock,s2c,(COIN,1),156)
+                        removed=await_coin_take(sock,s2c,1,1)
                         if removed!=(COIN,spawn[2]):
                             raise ReconnectFailure("R47 loot Take did not match drop")
                         open_real_bank(sock,c2s,s2c,100000,1,1,1)
