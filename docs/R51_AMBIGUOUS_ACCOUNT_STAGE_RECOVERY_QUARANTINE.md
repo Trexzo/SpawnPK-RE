@@ -115,6 +115,41 @@ CI invokes both test programs on Linux and Windows, followed by inherited
 R50/R49 fault-injection, R48/R47/R46/R45 live-JVM synthetic gameplay
 journeys and all other existing workflow checks.
 
+## Reconciled inherited R17 abrupt-owner recovery contract
+
+The inherited `AccountCrashLeaseRecoveryTest` (R17) already creates a real
+forced-but-unpublished R16 stage, kills only its dedicated child JVM, and
+checks that a second independent JVM can reacquire the shared OS account
+directory lease. Its **former** assertion then unconditionally saved a
+new primary account while that exact orphan remained. R51 intentionally
+rejects this as an ambiguous overwrite.
+
+R51 updates **the test's expected recovery policy**, not the production
+quarantine:
+
+- After killing the exact test-owned publisher, the released directory
+  lease is reacquired normally and the old primary/secondary bytes survive.
+- A second fresh JVM **must receive**
+  `R51_AMBIGUOUS_ACCOUNT_STAGING_DENIED` when trying to overwrite the
+  primary with the unresolved stage still present; the original primary
+  and its forced staged bytes remain unchanged.
+- This same JVM can still publish the unaffected `src.properties`
+  secondary account (new balance 8), proving exact-account isolation.
+- The harness checks it owns exactly one temporary staging entry under
+  its own `spk-r17-crash-restart-*` directory, explicitly removes
+  **only that test-owned entry** after inspection, then starts a third
+  independent JVM that saves primary balance 100003 and secondary 8.
+- The existing R17 success marker remains, and now additionally proves
+  `ambiguousPrimaryDeniedBeforeReview=true`,
+  `secondaryWroteDespitePrimaryQuarantine=true` and
+  `reviewedPrimaryRestartSucceeded=true`.
+
+This resolves a genuine incompatibility between the old R17 expectation
+and R51's conservative recovery policy. No real account stages are cleaned
+automatically. The separate R19 strict port-free check still runs before
+the newly port-intensive R51 acceptance step in CI to prevent transient
+Linux TCP `TIME_WAIT` entries from obscuring R19's listener test.
+
 ## What an actual ambiguous stage would mean
 
 A matching stage is **evidence of an unfinished or concurrent publication**,
