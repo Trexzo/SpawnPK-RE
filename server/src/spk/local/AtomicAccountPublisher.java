@@ -70,6 +70,11 @@ final class AtomicAccountPublisher {
             throw new IOException("R16_ATOMIC_ACCOUNT_PUBLISH_DENIED invalid parent");
         }
         checkTarget(canonical);
+        // R51: a staged file abandoned by an interrupted previous publish
+        // cannot be distinguished from a concurrent writer merely by its
+        // filename or age. Preserve it, and fail closed rather than overwrite
+        // the last canonical account with potentially stale gameplay state.
+        requireNoAmbiguousStage(canonical);
 
         ByteArrayOutputStream encoded = new ByteArrayOutputStream();
         properties.store(encoded, comment);
@@ -104,6 +109,53 @@ final class AtomicAccountPublisher {
                     } else {
                         throw cleanup;
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * R51 account crash-ambiguity gate. Enumerates only adjacent entry NAMES;
+     * it never opens staging contents, assumes a file is abandoned, attempts
+     * a lock, promotes a staged snapshot, or deletes/renames any evidence.
+     *
+     * A leftover .<account>.r16-*.stage can be a write interrupted before
+     * atomic replacement. The canonical account alone does not then prove
+     * which gameplay actions had finished. A normal running repository uses
+     * one serialized I/O worker; other non-cooperative concurrent publishers
+     * are outside this guard's atomicity guarantees.
+     */
+    static void requireNoAmbiguousStage(Path target) throws IOException {
+        Objects.requireNonNull(target, "target");
+        Path canonical = target.toAbsolutePath().normalize();
+        Path parent = canonical.getParent();
+        if(parent==null)
+            throw new IOException(
+                "R51_ACCOUNT_STAGE_PREFLIGHT_DENIED no parent");
+
+        checkNoSymlinkAncestors(parent);
+        if(Files.notExists(parent, LinkOption.NOFOLLOW_LINKS))
+            return;
+        if(!Files.isDirectory(parent, LinkOption.NOFOLLOW_LINKS))
+            throw new IOException(
+                "R51_ACCOUNT_STAGE_PREFLIGHT_DENIED invalid parent");
+
+        final String fileName=canonical.getFileName().toString();
+        final String prefix="."+fileName+".r16-";
+        final String suffix=".stage";
+        try(java.nio.file.DirectoryStream<Path> entries=
+                Files.newDirectoryStream(parent)){
+            for(Path entry:entries){
+                String name=entry.getFileName().toString();
+                // The unique UUID suffix must be nonempty. Exact account
+                // name prevents one profile's staging from blocking another.
+                if(name.startsWith(prefix)&&
+                   name.endsWith(suffix)&&
+                   name.length()>prefix.length()+suffix.length()){
+                    throw new IOException(
+                        "R51_AMBIGUOUS_ACCOUNT_STAGING_DENIED"+
+                        " account="+fileName+
+                        " action=NO_LOAD_NO_SAVE_NO_CLEANUP");
                 }
             }
         }

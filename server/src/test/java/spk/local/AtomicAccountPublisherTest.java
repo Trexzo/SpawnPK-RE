@@ -116,18 +116,56 @@ public final class AtomicAccountPublisherTest {
             if (stageCount(root) < 1) {
                 throw new AssertionError("abrupt child left no staged evidence");
             }
-            // Old abandoned stages cannot block a new unique staging file.
+            // R51: the forced-but-unpublished stage is ambiguous, not proof
+            // of an abandoned writer or permission to overwrite the account.
+            // Check exact fixture ownership and byte stability before refusing.
+            Path interruptedStage;
+            try (Stream<Path> staged = Files.list(root)) {
+                Path[] matches = staged.filter(path ->
+                    path.getFileName().toString().startsWith(".opensrc.properties.r16-")
+                    && path.getFileName().toString().endsWith(".stage"))
+                    .toArray(Path[]::new);
+                if (matches.length != 1) {
+                    throw new AssertionError("expected one test-owned interrupted stage");
+                }
+                interruptedStage = matches[0];
+            }
+            byte[] interruptedBytes = Files.readAllBytes(interruptedStage);
+            try {
+                AtomicAccountPublisher.publish(target, value("after-restart"),
+                    "R51 must refuse ambiguous interrupted account");
+                throw new AssertionError("R51 allowed overwrite before stage review");
+            } catch (IOException expected) {
+                if (!expected.getMessage().contains(
+                        "R51_AMBIGUOUS_ACCOUNT_STAGING_DENIED")) {
+                    throw new AssertionError("unexpected account quarantine failure", expected);
+                }
+            }
+            assertBytes(target, committed, "R51 ambiguous account retained");
+            assertBytes(interruptedStage, interruptedBytes, "R51 stage evidence retained");
+            if (stageCount(root) != 1) {
+                throw new AssertionError("R51 refusal altered staging evidence");
+            }
+
+            // This test alone created the stage and halted its exact child.
+            // Clear only that disposable fixture after the above assertions.
+            // Never auto-clear an operator's real account staging files.
+            Files.delete(interruptedStage);
             AtomicAccountPublisher.publish(target, value("after-restart"),
-                "R16 fresh publisher after interrupted save");
+                "R51 reviewed test-only publisher restart");
             if (!"after-restart".equals(read(target, "balance"))) {
-                throw new AssertionError("restart after interrupted save failed");
+                throw new AssertionError("reviewed restart failed");
+            }
+            if (stageCount(root) != 0) {
+                throw new AssertionError("reviewed restart leaked stage");
             }
             assertBytes(legacyTemp, legacyBytes, "legacy temp after restart");
 
             System.out.println("R16_ACCOUNT_ATOMIC_PUBLISH_INTERRUPT_PASS "
                 + "atomicRequired=true forcedStage=true "
                 + "simulatedAbruptChildExit=true oldAccountPreserved=true "
-                + "uniqueStageRecovery=true legacyTmpUnchanged=true");
+                + "ambiguousOrphanQuarantined=true "
+                + "testOnlyReviewedResumption=true legacyTmpUnchanged=true");
         } finally {
             try (Stream<Path> paths = Files.walk(root)) {
                 paths.sorted(Comparator.reverseOrder()).forEach(path -> {

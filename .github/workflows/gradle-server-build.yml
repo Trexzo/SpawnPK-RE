@@ -73,6 +73,11 @@ on:
       - 'server/src/spk/local/OutboundPacketQueue.java'
       - 'server/src/spk/local/R49OutboundPacketTransportFailureTest.java'
       - 'server/src/spk/local/R50TerminalTransportWorldAdmissionTest.java'
+      - 'server/src/spk/local/R51AmbiguousAccountStageQuarantineTest.java'
+      - 'server/src/spk/local/R51InterruptedAccountPublisherChild.java'
+      - 'server/src/spk/local/AtomicAccountPublisher.java'
+      - 'server/src/spk/local/FilePlayerRepository.java'
+      - 'tools/verification/synthetic_v308_ambiguous_account_stage_recovery.py'
       - 'server/src/spk/local/ServerPacketWriter.java'
       - 'server/src/spk/local/LocalPendingRequestDispatcher.java'
       - 'server/src/spk/local/LocalSession.java'
@@ -408,6 +413,14 @@ jobs:
           set -e
           test "$outcome" -eq 2
           python3 -c 'import json; r=json.load(open("r10-preflight-ci.json")); assert r["result"]=="R10_ORIGINAL_GUI_PREFLIGHT_BLOCKED"; assert not r["launch_performed"]; assert r["existing_processes_stopped"]==0; print("R10_GUI_ADMISSION_NEGATIVE_CONTROL_PASS")'
+
+
+      # R51 starts three TCP servers; run after R19's deliberately strict
+      # SO_REUSEADDR=false bind check to avoid unrelated Linux TIME_WAIT.
+      - name: R51 ambiguous account stage quarantine and three real Main JVMs
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R51AmbiguousAccountStageQuarantineTest
+          python3 tools/verification/synthetic_v308_ambiguous_account_stage_recovery.py --jar server/build/SpawnPKLocalServer.jar
 
   r16-atomic-windows:
     runs-on: windows-latest
@@ -749,4 +762,14 @@ jobs:
         shell: pwsh
         run: |
           & java -cp "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test" spk.local.MainStartupRollbackTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # R51's three genuine server restarts come after the strict R19 port probe.
+      - name: R51 Windows ambiguous account staging refusal and three genuine Main JVMs
+        shell: pwsh
+        run: |
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R51AmbiguousAccountStageQuarantineTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/verification/synthetic_v308_ambiguous_account_stage_recovery.py --jar server/build/SpawnPKLocalServer.jar
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
