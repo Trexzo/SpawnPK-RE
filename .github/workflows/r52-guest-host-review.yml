@@ -49,3 +49,6 @@ jobs:
             throw "R52 fail-closed negative did not pass: $result"
           }
           Write-Output 'R52_MISSING_GUEST_ROOT_FAIL_CLOSED_PASS'
+          # GitHub's pwsh wrapper exits with the last native process code.
+          # The negative command's exit 2 was EXPECTED and fully asserted.
+          exit 0
