@@ -47,17 +47,23 @@ def decoded_player81(payload: bytes) -> dict:
         raise ReconnectFailure("R43 invalid player81 payload")
     bits = BitReader(payload)
     local = bits.read(1)
+    local_motion = ("idle", None)
     if local:
         motion = bits.read(2)
         if motion == 1:
-            bits.read(3); bits.read(1)
+            direction = bits.read(3)
+            bits.read(1)
+            local_motion = ("walk", direction)
         elif motion == 2:
-            bits.read(3); bits.read(3); bits.read(1)
+            d1, d2 = bits.read(3), bits.read(3)
+            bits.read(1)
+            local_motion = ("run", (d1, d2))
         elif motion == 3:
-            bits.read(2); bits.read(1); bits.read(1)
-            bits.read(7); bits.read(7)
+            plane, branch, mask = bits.read(2), bits.read(1), bits.read(1)
+            pos_y, pos_x = bits.read(7), bits.read(7)
+            local_motion = ("teleport", (plane, pos_y, pos_x, branch, mask))
         elif motion == 0:
-            pass  # local mask-only
+            local_motion = ("mask", None)
         else:
             raise ReconnectFailure("R43 unrecognized local movement")
     old = bits.read(8)
@@ -102,7 +108,8 @@ def decoded_player81(payload: bytes) -> dict:
     else:
         raise ReconnectFailure("R43 player81 missing sentinel")
     # Presence of mask tails does not affect the already-framed bit prefix.
-    return {"local": local, "remote_count": old, "existing": existing,
+    return {"local": local, "local_motion": local_motion,
+            "remote_count": old, "existing": existing,
             "added": new, "bits": bits.bits}
 
 
@@ -240,9 +247,17 @@ def journey(jar: Path, java: str) -> dict:
                     deadline = time.monotonic() + 12
                     while time.monotonic() < deadline:
                         frame = next_frame_with_options(second, second_s2c)
-                        if frame is not None and frame == (81,WALK_EAST_81):
-                            second_moved = True
-                            break
+                        if frame is not None and frame[0] == 81:
+                            # Multiplayer 81 packets are a *combined*
+                            # local+remote World snapshot, not the four-byte
+                            # local-only WALK_EAST_81 payload from R36–R42.
+                            # Require exact client bit-level own walking
+                            # direction while allowing the remote track.
+                            own = decoded_player81(frame[1])
+                            if (own["local_motion"] == ("walk", 4)
+                                    and own["remote_count"] == 1):
+                                second_moved = True
+                                break
                     if not second_moved:
                         raise ReconnectFailure("R43 second client's authoritative self-walk missing")
                     see_remote_walk(first, first_s2c)
