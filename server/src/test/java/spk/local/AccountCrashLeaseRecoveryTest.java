@@ -32,6 +32,10 @@ public final class AccountCrashLeaseRecoveryTest {
             restartOwner(Paths.get(args[1]));
             return;
         }
+        if (args.length == 2 && "--restart-owner-quarantined".equals(args[0])) {
+            restartOwnerQuarantined(Paths.get(args[1]));
+            return;
+        }
         if (args.length != 0) throw new IllegalArgumentException("arguments");
 
         Path root = Files.createTempDirectory("spk-r17-crash-restart-");
@@ -81,31 +85,42 @@ public final class AccountCrashLeaseRecoveryTest {
                 if (lease == null) throw new AssertionError("lease not recovered");
             }
 
-            // An independent NEW JVM must acquire the same lease, atomically
-            // publish state for both profiles, then cleanly release the lease.
-            Process successor = child("--restart-owner", primary.toString());
-            try {
-                if (!successor.waitFor(CHILD_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                    successor.destroyForcibly();
-                    throw new AssertionError("restarted owner timed out");
-                }
-                if (successor.exitValue() != 0) {
-                    throw new AssertionError(
-                        "restarted owner exited " + successor.exitValue());
-                }
-            } finally {
-                if (successor.isAlive()) {
-                    successor.destroyForcibly();
-                    successor.waitFor(5, TimeUnit.SECONDS);
-                }
+            // R51 changes the safety contract: a fresh owner may acquire
+            // the released R15 lease, but it must NOT overwrite an account
+            // while a forced-but-unpublished R16 stage remains ambiguous.
+            // The other independent profile is still allowed to publish.
+            Path ambiguousStage = soleTestStage(accounts);
+            byte[] stagedEvidence = Files.readAllBytes(ambiguousStage);
+            runOwnerAndRequireSuccess(
+                "--restart-owner-quarantined", primary);
+            assertBytes(primary, before, "R51 quarantined primary old bytes");
+            assertBytes(ambiguousStage, stagedEvidence,
+                "R51 quarantine must preserve forced stage bytes");
+            if (!"8".equals(read(secondary, "balance"))) {
+                throw new AssertionError(
+                    "R51 secondary account should remain independently writable");
             }
 
+            // This cleanup is permitted ONLY because this very test created
+            // and owns the unique disposable staging file and killed its
+            // exact publisher child. Never do this to real operator files.
+            Files.delete(ambiguousStage);
+            if (stageCount(accounts) != 0) {
+                throw new AssertionError(
+                    "R51 fixture stage remained after explicit test-only review");
+            }
+
+            // Only after that explicit review may another new JVM publish
+            // the primary profile and retain the secondary saved state.
+            runOwnerAndRequireSuccess("--restart-owner", primary);
             if (!"100003".equals(read(primary, "balance"))
                     || !"8".equals(read(secondary, "balance"))) {
-                throw new AssertionError("restarted independent JVM persistence");
+                throw new AssertionError(
+                    "reviewed independent JVM profile publication");
             }
-            if (stageCount(accounts) < 1) {
-                throw new AssertionError("orphan stage was unexpectedly reused");
+            if (stageCount(accounts) != 0) {
+                throw new AssertionError(
+                    "reviewed atomic publication left unexpected stage");
             }
             try (LocalAccountDirectoryLease lease =
                     LocalAccountDirectoryLease.acquire(secondary)) {
@@ -116,7 +131,11 @@ public final class AccountCrashLeaseRecoveryTest {
                 + "crossJvmOwnerDenied=true forcedStagingBeforeCrash=true "
                 + "primaryAndSecondaryOldBytesSurvived=true "
                 + "osLeaseRecoveredAfterKill=true freshJvmReconnected=true "
-                + "twoProfileAtomicSaves=true orphanStageNotReused=true");
+                + "twoProfileAtomicSaves=true "+
+                "ambiguousPrimaryDeniedBeforeReview=true "+
+                "secondaryWroteDespitePrimaryQuarantine=true "+
+                "orphanStagePreservedUntilTestOnlyReview=true "+
+                "reviewedPrimaryRestartSucceeded=true");
         } finally {
             if (crashed != null && crashed.isAlive()) {
                 crashed.destroyForcibly();
@@ -168,6 +187,67 @@ public final class AccountCrashLeaseRecoveryTest {
                 primary.resolveSibling("src.properties"),
                 value("8"), "R17 restarted owner secondary");
         }
+    }
+
+    private static void restartOwnerQuarantined(Path primary) throws Exception {
+        try (LocalAccountDirectoryLease ignored =
+                LocalAccountDirectoryLease.acquire(primary)) {
+            try {
+                AtomicAccountPublisher.publish(primary,
+                    value("100003"), "R51 must deny ambiguous primary save");
+                throw new AssertionError(
+                    "R51 admitted a primary overwrite with a forced orphan stage");
+            } catch (IOException expected) {
+                if (!expected.getMessage().contains(
+                        "R51_AMBIGUOUS_ACCOUNT_STAGING_DENIED")) {
+                    throw new AssertionError(
+                        "unexpected denial of quarantined primary", expected);
+                }
+            }
+            // The R15 directory lease is shared, but the R51 stage check
+            // targets only the exact account file, not adjacent profiles.
+            AtomicAccountPublisher.publish(
+                primary.resolveSibling("src.properties"),
+                value("8"), "R51 unaffected secondary");
+        }
+    }
+
+    private static void runOwnerAndRequireSuccess(
+            String mode, Path primary) throws Exception {
+        Process successor = child(mode, primary.toString());
+        try {
+            if (!successor.waitFor(CHILD_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                successor.destroyForcibly();
+                throw new AssertionError(mode + " timed out");
+            }
+            if (successor.exitValue() != 0) {
+                throw new AssertionError(
+                    mode + " exited " + successor.exitValue());
+            }
+        } finally {
+            if (successor.isAlive()) {
+                successor.destroyForcibly();
+                successor.waitFor(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    private static Path soleTestStage(Path root) throws IOException {
+        Path[] candidates;
+        try (Stream<Path> files = Files.list(root)) {
+            candidates = files.filter(path -> {
+                String name = path.getFileName().toString();
+                return name.startsWith(".opensrc.properties.r16-")
+                    && name.endsWith(".stage");
+            }).toArray(Path[]::new);
+        }
+        if (candidates.length != 1
+                || !candidates[0].getParent().equals(root)
+                || !Files.isRegularFile(candidates[0])) {
+            throw new IOException(
+                "R51 expected exactly one test-owned forced orphan stage");
+        }
+        return candidates[0];
     }
 
     private static void waitForReadyOrFailure(Path ready, Process child)
