@@ -1,0 +1,57 @@
+name: R53 Two-Party Trade Terminal Transport Fence
+
+on:
+  push:
+    branches:
+      - playability/r53-trade-counterparty-transport-commit-fence-20261114
+  pull_request:
+    paths:
+      - server/src/spk/local/TradeService.java
+      - server/src/spk/local/R53TradePartnerTransportFenceTest.java
+      - .github/workflows/r53-trade-transport-fence.yml
+
+jobs:
+  linux-trade-transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build exact Java11-compatible server
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Reject dead counterparty and retain normal successful trades
+        working-directory: server
+        run: |
+          java -cp "build/SpawnPKLocalServer.jar:build/classes/java/test" spk.local.R53TradePartnerTransportFenceTest
+          java -cp "build/SpawnPKLocalServer.jar:build/classes/java/test" spk.local.EngineR4TradeFlowTest
+          java -cp "build/SpawnPKLocalServer.jar:build/classes/java/test" spk.local.TradeServiceGenerationOwnershipFenceTest
+  windows-trade-transport:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build exact Java11-compatible server
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Reject dead counterparty and retain normal successful trades
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp = "build\SpawnPKLocalServer.jar;build\classes\java\test"
+          foreach ($test in @(
+            'spk.local.R53TradePartnerTransportFenceTest',
+            'spk.local.EngineR4TradeFlowTest',
+            'spk.local.TradeServiceGenerationOwnershipFenceTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

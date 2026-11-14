@@ -179,6 +179,24 @@ final class TradeService {
                 );
                 return "TRADE_COMMIT_REJECTED_STALE_OWNER";
             }
+            // R53: the final accept arrives on one player's socket, but
+            // the partner may already have a permanently failed outbound
+            // stream. R50 guards only the submitting session's new requests.
+            // Preflight BOTH writers before any inventory mutation. This
+            // rejects known-dead transports; it cannot roll back a later
+            // write failure or make two account snapshots crash-atomic.
+            try{
+                a.writer.requireGameActionAdmission();
+                b.writer.requireGameActionAdmission();
+            }catch(IOException terminal){
+                cancel0(
+                    state(a.world),
+                    a,
+                    "FINAL_VALIDATION_UNHEALTHY_OUTBOUND",
+                    true
+                );
+                return "TRADE_COMMIT_REJECTED_OUTBOUND_UNHEALTHY";
+            }
             if(!offersAvailable(a,t.offerA)||!offersAvailable(b,t.offerB)){cancel0(state(a.world),a,"FINAL_VALIDATION_MISSING_OFFER",true);return "TRADE_COMMIT_REJECTED_OFFER_CHANGED";}
             if(!canAfterExchange(a.bank,t.offerA,t.offerB)||!canAfterExchange(b.bank,t.offerB,t.offerA)){cancel0(state(a.world),a,"FINAL_VALIDATION_INVENTORY_SPACE",true);return "TRADE_COMMIT_REJECTED_INVENTORY_SPACE";}
             a.writer.beginBatch();b.writer.beginBatch();boolean endedA=false,endedB=false;
