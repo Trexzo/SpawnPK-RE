@@ -132,6 +132,21 @@ final class OutboundPacketQueue {
             );
     }
 
+    /**
+     * R55: once a multi-party trade has failed during packet publication,
+     * pending encrypted stream bytes can be inconsistent with rolled-back
+     * server inventory. Drop queued bytes and permanently refuse new offers.
+     * Already transmitted bytes cannot be withdrawn from the client.
+     */
+    synchronized void failClosedAfterTradePublication(Throwable cause){
+        if(terminalTransportFailure==null)
+            terminalTransportFailure=new IOException(
+                "trade publication failed after transaction began",cause
+            );
+        q.clear();
+        bytes=0;
+    }
+
     synchronized boolean transportFailed(){
         return terminalTransportFailure!=null;
     }

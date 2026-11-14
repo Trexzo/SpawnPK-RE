@@ -430,6 +430,35 @@ final class BankState {
     }
 
 
+    /**
+     * R55: private trade-only inventory checkpoint, captured while the
+     * transaction holds both player mutation locks. Deep copies stacks so
+     * in-place quantity reductions cannot mutate the checkpoint.
+     */
+    Stack[] captureTradeInventory(){
+        Stack[] saved=new Stack[inventory.length];
+        for(int slot=0;slot<inventory.length;slot++){
+            Stack current=inventory[slot];
+            if(current!=null)
+                saved[slot]=new Stack(
+                    current.itemId,current.qty,current.tab
+                );
+        }
+        return saved;
+    }
+
+    /** Restore only inventory; never replace unrelated bank/UI state. */
+    void restoreTradeInventory(Stack[] saved){
+        if(saved==null||saved.length!=inventory.length)
+            throw new IllegalArgumentException("trade inventory checkpoint");
+        for(int slot=0;slot<inventory.length;slot++){
+            Stack original=saved[slot];
+            inventory[slot]=original==null
+                ?null
+                :new Stack(original.itemId,original.qty,original.tab);
+        }
+    }
+
     void restoreAccountState(
         Stack[] nextBank,
         Stack[] nextInventory,

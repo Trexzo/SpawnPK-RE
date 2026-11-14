@@ -1,0 +1,63 @@
+name: R55 Trade Publication Failure Rollback
+
+on:
+  push:
+    branches:
+      - playability/r55-trade-publication-error-state-rollback-20261114
+  pull_request:
+    paths:
+      - server/src/spk/local/TradeService.java
+      - server/src/spk/local/BankState.java
+      - server/src/spk/local/ServerPacketWriter.java
+      - server/src/spk/local/OutboundPacketQueue.java
+      - server/src/spk/local/R55TradePublicationRollbackTest.java
+      - .github/workflows/r55-trade-publication-rollback.yml
+
+jobs:
+  linux-trade-rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and verify Java11 bytecode
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Exercise trade rollback and inherited safety
+        working-directory: server
+        run: |
+          for test in spk.local.R55TradePublicationRollbackTest spk.local.R54TradeOutboundHeadroomFenceTest spk.local.R53TradePartnerTransportFenceTest spk.local.EngineR4TradeFlowTest spk.local.TradeServiceGenerationOwnershipFenceTest; do
+            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
+          done
+
+  windows-trade-rollback:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and verify Java11 bytecode
+        working-directory: server
+        shell: pwsh
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exercise trade rollback and inherited safety
+        working-directory: server
+        shell: pwsh
+        run: |
+          $cp = 'build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R55TradePublicationRollbackTest',
+            'spk.local.R54TradeOutboundHeadroomFenceTest',
+            'spk.local.R53TradePartnerTransportFenceTest',
+            'spk.local.EngineR4TradeFlowTest',
+            'spk.local.TradeServiceGenerationOwnershipFenceTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

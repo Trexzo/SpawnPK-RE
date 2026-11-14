@@ -37,13 +37,29 @@ class R50WorldActionAdmissionPolicy(unittest.TestCase):
     def test_outbound_terminal_and_overflow_block_before_next_mutation(self):
         text=(ROOT/"OutboundPacketQueue.java").read_text(encoding="utf-8")
         start=text.index("synchronized void requireGameActionAdmission()")
-        end=text.index("synchronized boolean transportFailed()",start)
+        # Scope R50's invariant to its own method rather than scanning
+        # later R54/R55 helpers. R55 intentionally clears *failed trade*
+        # bytes in a separate explicit fail-closed path.
+        end=text.index("synchronized void requireCommitHeadroom(",start)
         section=text[start:end]
         assert "requireTransportHealthy()" in section
         assert "if(overflowed)" in section
         assert "throw new IOException(" in section
         assert "q.remove" not in section
         assert "q.clear" not in section
+
+    def test_r55_aborted_trade_explicitly_drops_stale_outbound_bytes(self):
+        text=(ROOT/"OutboundPacketQueue.java").read_text(encoding="utf-8")
+        start=text.index("synchronized void failClosedAfterTradePublication(")
+        end=text.index("synchronized boolean transportFailed()",start)
+        section=text[start:end]
+        assert "terminalTransportFailure" in section
+        assert "q.clear();" in section
+        assert "bytes=0;" in section
+        # R50's normal session guard must still be non-mutating.
+        r50=text[text.index("synchronized void requireGameActionAdmission()"):
+                 text.index("synchronized void requireCommitHeadroom(")]
+        assert "q.clear" not in r50
 
 
 if __name__=="__main__":
