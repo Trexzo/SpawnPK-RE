@@ -60,6 +60,7 @@ def start_server(java: str, jar: Path, root: Path, account: Path, label: str,
         "-Dspk.local.r7LifecycleFixture=true",
         "-Dspk.local.r8PvmXp=true",
         "-Dspk.local.r45MortalMagic=true",
+        "-Dspk.local.r46MortalMagicXp=true",
     }
     if (len(set(fixture_options)) != len(fixture_options)
             or any(option not in allowed for option in fixture_options)
@@ -69,7 +70,10 @@ def start_server(java: str, jar: Path, root: Path, account: Path, label: str,
                 and ("-Dspk.local.r7LifecycleFixture=true" not in fixture_options
                      or "-Dspk.local.r6MortalFixture=true" not in fixture_options))
             or ("-Dspk.local.r45MortalMagic=true" in fixture_options
-                and "-Dspk.local.r6MortalFixture=true" not in fixture_options)):
+                and "-Dspk.local.r6MortalFixture=true" not in fixture_options)
+            or ("-Dspk.local.r46MortalMagicXp=true" in fixture_options
+                and ("-Dspk.local.r6MortalFixture=true" not in fixture_options
+                     or "-Dspk.local.r45MortalMagic=true" not in fixture_options))):
         raise ReconnectFailure("unrecognized/duplicate/unpaired isolated JVM fixture option")
     if ports_in_use():
         raise ReconnectFailure("fixed loopback ports occupied; no external server touched")
