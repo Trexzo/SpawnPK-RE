@@ -72,6 +72,11 @@ on:
       - 'tools/verification/test_r48_mortal_predebit_policy.py'
       - 'server/src/spk/local/OutboundPacketQueue.java'
       - 'server/src/spk/local/R49OutboundPacketTransportFailureTest.java'
+      - 'server/src/spk/local/R50TerminalTransportWorldAdmissionTest.java'
+      - 'server/src/spk/local/ServerPacketWriter.java'
+      - 'server/src/spk/local/LocalPendingRequestDispatcher.java'
+      - 'server/src/spk/local/LocalSession.java'
+      - 'tools/verification/test_r50_world_transport_admission_policy.py'
       - 'server/src/spk/local/LocalLabMortalNpcFixture.java'
       - 'server/src/spk/local/NpcRegistry.java'
       - 'server/src/spk/local/LocalLabMortalWindStrikeRunes.java'
@@ -233,6 +238,11 @@ jobs:
       - name: R49 fault injected outbound socket partial write flush and no-retry
         run: |
           java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R49OutboundPacketTransportFailureTest
+
+      - name: R50 known-failed transport World action admission fence
+        run: |
+          python3 tools/verification/test_r50_world_transport_admission_policy.py
+          java -cp server/build/SpawnPKLocalServer.jar:server/build/classes/java/test spk.local.R50TerminalTransportWorldAdmissionTest
 
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
@@ -670,6 +680,15 @@ jobs:
         run: |
           $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
           & java -cp $cp spk.local.R49OutboundPacketTransportFailureTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R50 Windows known-failed transport World command fence
+        shell: pwsh
+        run: |
+          & python tools/verification/test_r50_world_transport_admission_policy.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $cp = "server/build/SpawnPKLocalServer.jar;server/build/classes/java/test"
+          & java -cp $cp spk.local.R50TerminalTransportWorldAdmissionTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
