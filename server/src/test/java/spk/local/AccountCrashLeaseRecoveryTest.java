@@ -15,8 +15,11 @@ import java.util.stream.Stream;
 /**
  * R17 real-process recovery proof. A separately launched child acquires the
  * R15 OS lease, force-stages an R16 account save, and is killed before rename.
- * The original account must survive; a second child JVM must take ownership
- * and successfully publish a new snapshot without editing the orphan stage.
+ * The original account must survive. After R51, the second child JVM
+ * recovers the OS lease but MUST REFUSE primary-account publication while an
+ * orphan staging file makes its last commit ambiguous. The unaffected secondary
+ * account can still save. Only after explicit review/cleanup of this exact
+ * test-owned stage may a third JVM publish the primary account.
  *
  * All paths live under this test's own freshly created temporary directory.
  */
