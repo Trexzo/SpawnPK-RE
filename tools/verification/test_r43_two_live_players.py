@@ -27,6 +27,20 @@ class R43RemotePlayer81WireNegativeTests(unittest.TestCase):
         self.assertEqual(result["added"],[])
         self.assertEqual(WALK_EAST_81,bytes.fromhex("b001ffc0"))
         self.assertEqual(decoded_player81(WALK_EAST_81)["remote_count"],0)
+        self.assertEqual(decoded_player81(WALK_EAST_81)["local_motion"],("walk",4))
+        # Actual multiplayer publisher merges local WALK and an existing
+        # remote-player track into a *single* S2C81 payload. Requiring
+        # standalone local-only b001ffc0 would be an invalid assertion.
+        combined=packet81(
+            (1,1),(1,2),(4,3),(0,1),  # local walk east
+            (1,8),(0,1),              # one idle existing remote
+            (2047,11)
+        )
+        self.assertNotEqual(combined,WALK_EAST_81)
+        decoded=decoded_player81(combined)
+        self.assertEqual(decoded["local_motion"],("walk",4))
+        self.assertEqual(decoded["remote_count"],1)
+        self.assertEqual(decoded["existing"],[("idle",None)])
 
     def test_remote_add_relative_offsets_and_sentinel(self):
         body=packet81(
