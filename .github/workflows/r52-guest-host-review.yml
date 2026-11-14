@@ -1,0 +1,54 @@
+name: R52 v308 Guest Host Readiness Review
+
+on:
+  push:
+    branches:
+      - playability/r52-v308-guest-host-readiness-review-20261114
+  pull_request:
+    paths:
+      - tools/verification/r52_review_v308_gui_guest_host.ps1
+      - tools/verification/test_r52_host_review_policy.py
+      - .github/workflows/r52-guest-host-review.yml
+
+jobs:
+  linux-no-launch-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Policy checks without client, JDK or guest
+        run: python -m unittest tools/verification/test_r52_host_review_policy.py -v
+
+  windows-parser-and-fail-closed:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell parser and no-launch policy tests
+        shell: pwsh
+        run: |
+          $script = Join-Path $PWD 'tools\verification\r52_review_v308_gui_guest_host.ps1'
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors)
+          if (@($errors).Count -ne 0) { throw "R52 PowerShell syntax errors: $errors" }
+          python -m unittest tools/verification/test_r52_host_review_policy.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Missing guest root is refused without host effects
+        shell: pwsh
+        run: |
+          $script = Join-Path $PWD 'tools\verification\r52_review_v308_gui_guest_host.ps1'
+          $missing = Join-Path $env:RUNNER_TEMP 'r52-does-not-exist'
+          if (Test-Path -LiteralPath $missing) { throw 'expected nonexistent fixture path' }
+          $result = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ReviewRoot $missing -ExpectedSourceHead ('a' * 40) -ExpectedServerSha256 ('b' * 64) | Out-String
+          $code = $LASTEXITCODE
+          $parsed = $result | ConvertFrom-Json
+          if ($code -ne 2 -or $parsed.result -ne 'R52_HOST_READINESS_REVIEW_BLOCKED' -or
+              $parsed.host_mutations -ne $false -or $parsed.graphical_client_started -ne $false) {
+            throw "R52 fail-closed negative did not pass: $result"
+          }
+          Write-Output 'R52_MISSING_GUEST_ROOT_FAIL_CLOSED_PASS'
+          # GitHub's pwsh wrapper exits with the last native process code.
+          # The negative command's exit 2 was EXPECTED and fully asserted.
+          exit 0
