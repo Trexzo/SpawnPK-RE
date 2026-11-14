@@ -587,7 +587,10 @@ final class LocalWorldTickCoordinator {
            npcs.scene(npc.sceneIndex)!=npc||
            npc.localLabMortalHp()<=0)
             return "R45_REJECTED_STALE_OR_NONMORTAL_TARGET";
-        if(worldTick<1L)
+        // Pending C2S131 may be drained on the World owner before the
+        // first 600ms pulse, when the session tick is legitimately zero.
+        // Mortal death/outcome acceptance already permits worldTick=0.
+        if(worldTick<0L)
             return "R45_REJECTED_NOT_ON_LIVE_WORLD_TICK";
         if(movement.plane()!=0||!movement.inHomeWindow()||
            LocalMovementRequestHandler.chebyshev(
