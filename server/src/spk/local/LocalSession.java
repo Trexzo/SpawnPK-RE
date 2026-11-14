@@ -637,8 +637,12 @@ final class LocalSession implements Runnable {
         // R45: attach opt-in NPC spell effects to the already-owned World
         // tick authority, never to a separate ad-hoc combat/loot handler.
         this.spellTargetHandler.setMortalSpellEffect(
-            (npc,spell,writer,tick)->worldTicks.castLocalLabMortalAirSurge(
-                npc,spell,writer,tick));
+            (npc,spell,writer,tick)->
+                spell.widget==LocalLabMortalWindStrikeRunes.WIDGET
+                    ?worldTicks.castLocalLabMortalWindStrike(
+                        npc,spell,bank,writer,tick)
+                    :worldTicks.castLocalLabMortalAirSurge(
+                        npc,spell,writer,tick));
         this.pendingRequests = new LocalPendingRequestDispatcher(
             worldPlayer,
             bank,
