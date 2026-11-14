@@ -111,6 +111,9 @@ def run(jar:Path,java:str)->dict:
                         if not observed_hit or spawn is None:
                             raise ReconnectFailure(
                                 "R45 magic did not publish both NPC65 and loot44"
+                                + " hit=" + str(observed_hit)
+                                + " spawn=" + str(spawn)
+                                + " SERVER_LOG_LAST=" + log_tail(logfile,8500)
                             )
                         wait_log_contains(logfile,(
                             "R45_CUSTOM_MORTAL_AIR_SURGE_HIT",
