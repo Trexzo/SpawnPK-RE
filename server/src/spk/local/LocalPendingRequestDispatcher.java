@@ -184,6 +184,10 @@ final class LocalPendingRequestDispatcher {
             (request=clientPackets
                 .takeTypedRequest())!=null;
         ){
+            // R50: one incoming packet may hold several typed requests.
+            // Recheck *each* request, not just the socket read or World
+            // submission, before its first gameplay/UI mutation.
+            serverPackets.requireGameActionAdmission();
             if(request instanceof
                     RegionLoadAckClientRequest){
                 bridge.handleRegionLoadAck(tag);
