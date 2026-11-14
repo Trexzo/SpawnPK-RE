@@ -1,0 +1,52 @@
+name: R56 Two-Account Split-Save Restart Evidence
+
+on:
+  push:
+    branches:
+      - playability/r56-trade-split-save-restart-evidence-20261114
+  pull_request:
+    paths:
+      - server/src/spk/local/R56TradeSplitSaveRestartEvidenceTest.java
+      - .github/workflows/r56-trade-split-save-evidence.yml
+
+jobs:
+  linux-evidence-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile isolated test using Java11-compatible source
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Confirm four isolated crash-window outcomes
+        working-directory: server
+        run: |
+          java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' spk.local.R56TradeSplitSaveRestartEvidenceTest
+          java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' spk.local.R55TradePublicationRollbackTest
+
+  windows-evidence-only:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile isolated test using Java11-compatible source
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Confirm four isolated crash-window outcomes
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
+          & java -cp $cp spk.local.R56TradeSplitSaveRestartEvidenceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & java -cp $cp spk.local.R55TradePublicationRollbackTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
