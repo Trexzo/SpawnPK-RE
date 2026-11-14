@@ -56,6 +56,7 @@ final class LocalWorldTickCoordinator {
 
     private long legacyTickCount;
     private long movementTickCount;
+    private long r45LastMortalAirSurgeTick=Long.MIN_VALUE;
 
     LocalWorldTickCoordinator(
         boolean movementEnabled,
@@ -555,6 +556,89 @@ final class LocalWorldTickCoordinator {
                 " certification=M4_CERTIFIED M5_WEAPONS_ACTIVE ENGINE_R2_WORLD_PULSE"
             );
         }
+    }
+
+    /**
+     * R45 explicitly opt-in, rune-free CUSTOM_LOCALLAB spell attack on the
+     * R6/R7 mortal practice NPC only. Called on the authoritative World
+     * execution context from the C2S131 pending-request dispatcher.
+     *
+     * This intentionally shares the SAME mortal-HP, ground-loot and PvM
+     * event pipeline as ordinary world-tick melee. It does not implement
+     * unknown original SpawnPK damage formulas, spell XP, graphics or
+     * general NPC spell combat.
+     */
+    String castLocalLabMortalAirSurge(
+        NpcEntity npc,
+        SpellDefinitionRepository.Spell spell,
+        ServerPacketWriter writer,
+        long worldTick
+    )throws IOException{
+        if(!LocalLabMortalNpcFixture.enabled()||
+           !Boolean.getBoolean("spk.local.r45MortalMagic"))
+            return "R45_REJECTED_MAGIC_FIXTURE_DISABLED";
+        if(spell==null||spell.widget!=19100||
+           spell.book!=SpellDefinitionRepository.Book.MODERN||
+           spell.resources.length!=0)
+            return "R45_REJECTED_ONLY_RUNE_FREE_AIR_SURGE";
+        if(!worldPlayer.registered()||
+           npc==null||!npc.localLabMortalFixture()||
+           npc.definitionId!=LocalLabMortalNpcFixture.NPC_DEFINITION||
+           npcs.scene(npc.sceneIndex)!=npc||
+           npc.localLabMortalHp()<=0)
+            return "R45_REJECTED_STALE_OR_NONMORTAL_TARGET";
+        // Pending C2S131 may be drained on the World owner before the
+        // first 600ms pulse, when the session tick is legitimately zero.
+        // Mortal death/outcome acceptance already permits worldTick=0.
+        if(worldTick<0L)
+            return "R45_REJECTED_NOT_ON_LIVE_WORLD_TICK";
+        if(movement.plane()!=0||!movement.inHomeWindow()||
+           LocalMovementRequestHandler.chebyshev(
+               movement.x(),movement.y(),npc.x,npc.y)>8)
+            return "R45_REJECTED_TARGET_OUT_OF_RANGE";
+        if(r45LastMortalAirSurgeTick!=Long.MIN_VALUE &&
+           worldTick-r45LastMortalAirSurgeTick<2L)
+            return "R45_REJECTED_CUSTOM_CAST_COOLDOWN";
+
+        // All checks precede mutation. The spell has *zero* client-visible
+        // rune requirements, so no unknown consumption rule is invented.
+        final int hpBefore=npc.localLabMortalHp();
+        final int damage=Math.min(10,hpBefore);
+        final int hpAfter=hpBefore-damage;
+        npcs.sendMask(
+            npc,
+            NpcSyncEncoder.Mask.singleHit(
+                damage,1,hpAfter,npc.localLabMortalMaxHp()),
+            writer
+        );
+        String outcome=LocalLabMortalNpcFixture.applyPublishedDamage(
+            damage,npc,npcs,world,worldPlayer,bridge.scenePublisher(),
+            writer,worldTick
+        );
+        if(outcome==null)
+            throw new IllegalStateException(
+                "R45 mortal spell lost canonical NPC damage outcome");
+        r45LastMortalAirSurgeTick=worldTick;
+        if(outcome.startsWith("R6_MORTAL_NPC_DEATH scene=")){
+            String published=pvmKillOutcomes.publishCompletedDeath(
+                npc,npcs.scene(npc.sceneIndex)==null,
+                worldPlayer,worldTick
+            );
+            if(published==null||
+               !published.startsWith("R9_PVM_KILL_OUTCOME_EMITTED"))
+                throw new IllegalStateException(
+                    "R45 lethal spell missed canonical NPC_KILL");
+            System.out.println("[world player="+worldPlayer.id()+
+                "] R45_CUSTOM_MORTAL_MAGIC_KILL "+published);
+        }
+        return "R45_CUSTOM_MORTAL_AIR_SURGE_HIT"+
+            " authority=CUSTOM_LOCALLAB_OPT_IN_AIR_SURGE_V1"+
+            " scene="+npc.sceneIndex+
+            " hpBefore="+hpBefore+" hpAfter="+hpAfter+
+            " damage="+damage+" worldTick="+worldTick+
+            " runeConsumption=NONE_VISIBLE_REQUIREMENTS"+
+            " originalDamageFormula=false spellXp=NOT_IMPLEMENTED"+
+            " result={"+outcome+"}";
     }
 
     private void tickTransientRegion(
