@@ -18,12 +18,16 @@ public final class R56TradeSplitSaveRestartEvidenceTest {
     public static void main(String[] args)throws Exception {
         Path root=Files.createTempDirectory("spk-r56-split-save-evidence-");
         try {
-            verifyOneSideSaved(root.resolve("primary-saved"),true);
-            verifyOneSideSaved(root.resolve("secondary-saved"),false);
+            verifySaveOutcome(root.resolve("none-saved"),0);
+            verifySaveOutcome(root.resolve("primary-saved"),1);
+            verifySaveOutcome(root.resolve("secondary-saved"),2);
+            verifySaveOutcome(root.resolve("both-saved"),3);
             System.out.println(
                 "R56_TRADE_SPLIT_SAVE_RESTART_EVIDENCE_PASS "+
+                "noSaveBaselineConservesItems=true "+
                 "primaryOnlyCoinLossAndSharkDuplication=true "+
                 "secondaryOnlyCoinDuplicationAndSharkLoss=true "+
+                "bothSavesConserveItems=true "+
                 "bothCanonicalLoadsSucceed=true "+
                 "realRepositoryAtomicPerFileNotPerTrade=true "+
                 "noLiveAccountsTouched=true "+
@@ -39,7 +43,7 @@ public final class R56TradeSplitSaveRestartEvidenceTest {
         }
     }
 
-    private static void verifyOneSideSaved(Path dir,boolean primarySaved)
+    private static void verifySaveOutcome(Path dir,int savedMask)
             throws Exception{
         Files.createDirectory(dir);
         FilePlayerRepository repo=new FilePlayerRepository(
@@ -95,8 +99,8 @@ public final class R56TradeSplitSaveRestartEvidenceTest {
                     "secondary post-trade server inventory wrong");
             PlayerSnapshot afterA=PlayerSnapshotCodec.capture("opensrc",a);
             PlayerSnapshot afterB=PlayerSnapshotCodec.capture("src",b);
-            if(primarySaved)repo.save(afterA);
-            else repo.save(afterB);
+            if((savedMask&1)!=0)repo.save(afterA);
+            if((savedMask&2)!=0)repo.save(afterB);
 
             // Simulate a new JVM by DISCARDING the live WorldPlayer state.
             // The independent persisted files both parse and load normally.
@@ -107,19 +111,27 @@ public final class R56TradeSplitSaveRestartEvidenceTest {
             int totalSharks=loadedA.bank().inventoryCount(SHARK)+
                 loadedB.bank().inventoryCount(SHARK);
 
-            if(primarySaved){
+            if(savedMask==1){
                 requireInventory(loadedA,999,1);
                 requireInventory(loadedB,0,2);
                 require(totalCoins==999&&totalSharks==3,
                     "primary-only persisted trade should expose 1 lost coin / duplicated shark");
-            }else{
+            }else if(savedMask==2){
                 requireInventory(loadedA,1000,0);
                 requireInventory(loadedB,1,1);
                 require(totalCoins==1001&&totalSharks==1,
                     "secondary-only persisted trade should expose 1 duplicate coin / lost shark");
-            }
-            require(totalCoins!=1000||totalSharks!=2,
-                "test failed to demonstrate torn cross-account save");
+            }else if(savedMask==0){
+                requireInventory(loadedA,1000,0);
+                requireInventory(loadedB,0,2);
+                require(totalCoins==1000&&totalSharks==2,
+                    "neither save should preserve the original inventory sum");
+            }else if(savedMask==3){
+                requireInventory(loadedA,999,1);
+                requireInventory(loadedB,1,1);
+                require(totalCoins==1000&&totalSharks==2,
+                    "both saves should preserve the traded inventory sum");
+            }else throw new AssertionError("unknown saved-mask fixture");
         }finally{
             TradeService.unregister(a);
             TradeService.unregister(b);
