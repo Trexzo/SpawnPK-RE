@@ -605,6 +605,11 @@ final class LocalWorldTickCoordinator {
         final int hpBefore=npc.localLabMortalHp();
         final int damage=Math.min(10,hpBefore);
         final int hpAfter=hpBefore-damage;
+        // R48 checks owner-ground collision and scene/respawn authority
+        // before any hit mask, rune usage, or optional Magic XP mutation.
+        String mortalConflict=LocalLabMortalNpcFixture.preflightConfirmedDamage(
+            damage,npc,npcs,world,worldPlayer,worldTick);
+        if(mortalConflict!=null)return mortalConflict;
         // R46 custom Magic XP is independently opt-in. Overflow must be
         // refused before the confirmed NPC damage/loot transaction begins.
         LocalLabMortalMagicExperience.preflight(
@@ -698,6 +703,12 @@ final class LocalWorldTickCoordinator {
         final int before=npc.localLabMortalHp();
         final int damage=Math.min(10,before); // CUSTOM_LOCALLAB, not original
         final int after=before-damage;
+
+        // R48 predictable lethal-drop failures are rejected before the
+        // R47 two-stack debit and before any server-visible NPC hit.
+        String mortalConflict=LocalLabMortalNpcFixture.preflightConfirmedDamage(
+            damage,npc,npcs,world,worldPlayer,worldTick);
+        if(mortalConflict!=null)return mortalConflict;
 
         // Two-slots plan was fully checked before any inventory mutation.
         // World owns all game-side mutations; no other player can race the
