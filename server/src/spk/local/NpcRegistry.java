@@ -995,6 +995,25 @@ final class NpcRegistry {
         return "DEV_NPC_SPAWN_OK scene="+scene+" npc="+npcId+" world="+wx+","+wy+" persisted=false";
     }
 
+    /**
+     * R48 read-only preflight for the R6/R7 private practice actor. The
+     * confirmed lethal spell must not debit runes or set HP to zero before
+     * proving that dev-owned scene removal is still permitted.
+     */
+    boolean canRemoveDevOwnedNpc(NpcEntity npc){
+        return npc!=null &&
+            findScene(npc.sceneIndex)==npc &&
+            devOwnedSceneIndexes.contains(npc.sceneIndex);
+    }
+
+    /** Check R7 scheduling invariants before irreversible hit publication. */
+    boolean canScheduleLocalLabMortalDeath(long worldTick){
+        return !LocalLabMortalNpcFixture.lifecycleEnabled() ||
+            (r7RespawnDueTick<0L && worldTick>=0L &&
+             worldTick<=Long.MAX_VALUE-
+                LocalLabMortalNpcFixture.R7_RESPAWN_TICKS);
+    }
+
     String devRemoveNpc(int sceneIndex,ServerPacketWriter w)throws IOException{
         if(!devOwnedSceneIndexes.contains(sceneIndex)) return "DEV_NPC_REMOVE_REJECTED scene="+sceneIndex+" reason=NOT_DEV_OWNED";
         NpcEntity target=findScene(sceneIndex);
