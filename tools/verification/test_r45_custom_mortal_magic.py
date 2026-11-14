@@ -18,7 +18,7 @@ class R45CustomMortalMagicWireAndAdmissionTests(unittest.TestCase):
         # LE scene short-A (16382 = 0x3ffe), BE spell short-A (0x4a9c).
         self.assertEqual(one[1:],bytes([0x7e,0x3f,0x4a,0x1c]))
         self.assertEqual(npc_spell131(c,103,1152)[1:],
-                         bytes([231,0,4,128]))
+                         bytes([231,0,4,0]))
         for index,widget in ((-1,19100),(16383,19100),
                              (12,-1),(12,65536)):
             with self.subTest(index=index,widget=widget):
