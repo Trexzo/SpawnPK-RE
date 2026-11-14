@@ -15,7 +15,7 @@ The newly added tools/verification/r44_prepare_v308_gui_guest_review.ps1:
 
 Windows built this staging successfully at:
 
-C:\Users\Felix\AppData\Local\Temp\spawnpk-r44-guest-v308-r43-v2-20261114
+C:\Users\Felix\AppData\Local\Temp\spawnpk-r44-guest-v308-r43-v3-20261114
 
 Review-only configuration:
 
