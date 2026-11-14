@@ -60,6 +60,8 @@ on:
       - 'tools/verification/test_r41_two_real_jvm_position_restore.py'
       - 'tools/verification/synthetic_v308_post_restore_walk.py'
       - 'tools/verification/test_r42_v308_post_restore_walk.py'
+      - 'tools/verification/synthetic_v308_two_live_players.py'
+      - 'tools/verification/test_r43_two_live_players.py'
       - 'tools/verification/test_r26_guest_server_package.py'
       - 'tools/verification/r23_guest_preflight.ps1'
       - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
@@ -177,6 +179,11 @@ jobs:
         run: |
           python3 tools/verification/test_r42_v308_post_restore_walk.py
           python3 tools/verification/synthetic_v308_post_restore_walk.py --jar server/build/SpawnPKLocalServer.jar
+
+      - name: R43 two simultaneous v308-shaped socket clients and real remote World sync
+        run: |
+          python3 tools/verification/test_r43_two_live_players.py
+          python3 tools/verification/synthetic_v308_two_live_players.py --jar server/build/SpawnPKLocalServer.jar
 
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
@@ -553,6 +560,14 @@ jobs:
           & python tools/verification/test_r42_v308_post_restore_walk.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & python tools/verification/synthetic_v308_post_restore_walk.py --jar server/build/SpawnPKLocalServer.jar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R43 Windows two concurrent v308-shaped player sockets and real remote sync
+        shell: pwsh
+        run: |
+          & python tools/verification/test_r43_two_live_players.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/verification/synthetic_v308_two_live_players.py --jar server/build/SpawnPKLocalServer.jar
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
