@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class R51AmbiguousAccountStageQuarantineTest {
     @FunctionalInterface private interface IoAction {
-        void run()throws Exception;
+        void run()throws IOException;
     }
 
     public static void main(String[] args)throws Exception{
@@ -148,7 +148,7 @@ public final class R51AmbiguousAccountStageQuarantineTest {
                 "successful atomic publisher left a stage behind");
     }
 
-    private static void expectAmbiguous(IoAction action)throws Exception{
+    private static void expectAmbiguous(IoAction action)throws IOException{
         try{
             action.run();
         }catch(IOException expected){
