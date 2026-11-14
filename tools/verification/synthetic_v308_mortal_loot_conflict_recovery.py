@@ -174,22 +174,33 @@ def await_real_wind_hit(sock,s2c,logfile,scene:int):
 
 
 def deposit_earned_coins(sock,c2s,s2c):
-    sock.sendall(bank_action_145(c2s,5064,2,COIN))
-    got={}
-    deadline=time.monotonic()+12
-    while time.monotonic()<deadline:
-        frame=next_frame(sock,s2c)
-        if frame is None or frame[0]!=53:
-            continue
-        widget,slots=decode_container53(frame[1])
-        if widget in (5382,5064):
-            got[widget]=slots
-        if len(got)==2:
-            if got[5382][0]!=(COIN,FINAL_BANK):
-                raise ReconnectFailure("R48 bank did not receive two earned coins")
-            require_inventory(got[5064],1,1,0)
-            return
-    raise ReconnectFailure("R48 missing bank53 after two-coin deposit")
+    # Native C2S145 is Deposit-1, not Deposit-All. Two genuinely separate
+    # clicks are required when the recovered owner coin and earned NPC coin
+    # stack together in inventory slot2.
+    for deposited in (1,2):
+        sock.sendall(bank_action_145(c2s,5064,2,COIN))
+        got={}
+        deadline=time.monotonic()+12
+        while time.monotonic()<deadline:
+            frame=next_frame(sock,s2c)
+            if frame is None or frame[0]!=53:
+                continue
+            widget,slots=decode_container53(frame[1])
+            if widget in (5382,5064):
+                got[widget]=slots
+            if len(got)==2:
+                expected_bank=100000+deposited
+                if got[5382][0]!=(COIN,expected_bank):
+                    raise ReconnectFailure(
+                        f"R48 bank wrong after click {deposited}: "
+                        f"{got[5382][0]} wanted {expected_bank}"
+                    )
+                require_inventory(got[5064],1,1,2-deposited)
+                break
+        else:
+            raise ReconnectFailure(
+                f"R48 missing bank/inventory53 for deposit click {deposited}"
+            )
 
 
 def run(jar:Path,java:str)->dict:
