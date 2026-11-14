@@ -1,0 +1,61 @@
+name: R54 Trade Outbound Capacity Preflight
+
+on:
+  push:
+    branches:
+      - playability/r54-trade-outbound-headroom-preflight-20261114
+  pull_request:
+    paths:
+      - server/src/spk/local/OutboundPacketQueue.java
+      - server/src/spk/local/ServerPacketWriter.java
+      - server/src/spk/local/TradeService.java
+      - server/src/spk/local/R54TradeOutboundHeadroomFenceTest.java
+      - .github/workflows/r54-trade-headroom-preflight.yml
+
+jobs:
+  linux-trade-headroom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build Java11-compatible server and test classes
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Validate saturated queue, terminal failure, normal trade, ownership
+        working-directory: server
+        run: |
+          for test in             spk.local.R54TradeOutboundHeadroomFenceTest             spk.local.R53TradePartnerTransportFenceTest             spk.local.EngineR4TradeFlowTest             spk.local.TradeServiceGenerationOwnershipFenceTest; do
+            java -cp "build/SpawnPKLocalServer.jar:build/classes/java/test" "$test"
+          done
+
+  windows-trade-headroom:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build Java11-compatible server and test classes
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate saturated queue, terminal failure, normal trade, ownership
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp = 'build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R54TradeOutboundHeadroomFenceTest',
+            'spk.local.R53TradePartnerTransportFenceTest',
+            'spk.local.EngineR4TradeFlowTest',
+            'spk.local.TradeServiceGenerationOwnershipFenceTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

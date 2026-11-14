@@ -197,6 +197,23 @@ final class TradeService {
                 );
                 return "TRADE_COMMIT_REJECTED_OUTBOUND_UNHEALTHY";
             }
+            // R54: even a healthy queue can already be too full to publish
+            // a trade's multi-packet inventory and close sequence. Refuse a
+            // known low-headroom state before either player's items move.
+            // 64 KiB is deliberately conservative for two 28-slot inventories;
+            // it is NOT a guarantee against later concurrent producers.
+            try{
+                a.writer.requireTradeCommitHeadroom(64*1024);
+                b.writer.requireTradeCommitHeadroom(64*1024);
+            }catch(IOException insufficient){
+                cancel0(
+                    state(a.world),
+                    a,
+                    "FINAL_VALIDATION_OUTBOUND_HEADROOM",
+                    true
+                );
+                return "TRADE_COMMIT_REJECTED_OUTBOUND_HEADROOM";
+            }
             if(!offersAvailable(a,t.offerA)||!offersAvailable(b,t.offerB)){cancel0(state(a.world),a,"FINAL_VALIDATION_MISSING_OFFER",true);return "TRADE_COMMIT_REJECTED_OFFER_CHANGED";}
             if(!canAfterExchange(a.bank,t.offerA,t.offerB)||!canAfterExchange(b.bank,t.offerB,t.offerA)){cancel0(state(a.world),a,"FINAL_VALIDATION_INVENTORY_SPACE",true);return "TRADE_COMMIT_REJECTED_INVENTORY_SPACE";}
             a.writer.beginBatch();b.writer.beginBatch();boolean endedA=false,endedB=false;
