@@ -31,6 +31,16 @@ public final class R47LocalLabMortalWindStrikeRunesTest {
             if(!LocalLabMortalWindStrikeRunes.enabled())
                 throw new AssertionError("r47 exact pairing denied");
 
+            if(!ItemCatalog.isStackable(556)||
+               !ItemCatalog.isStackable(558)||
+               !ItemCatalog.stackabilityEvidence(556).equals(
+                   "R47_CLIENT_SPELL_RUNE_STACK_FALLBACK")||
+               !ItemCatalog.stackabilityEvidence(558).equals(
+                   "R47_CLIENT_SPELL_RUNE_STACK_FALLBACK")||
+               ItemCatalog.isStackable(557))
+                throw new AssertionError(
+                    "R47 rune-only stack fallback widened or missing");
+
             BankState bank=new BankState();
             ByteArrayOutputStream output=new ByteArrayOutputStream();
             ServerPacketWriter writer=new ServerPacketWriter(
