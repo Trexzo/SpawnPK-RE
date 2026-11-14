@@ -114,6 +114,24 @@ final class OutboundPacketQueue {
             );
     }
 
+    /**
+     * R54: conservatively reject a known-near-capacity queue before a
+     * multi-packet, two-player transaction mutates inventory. This is only
+     * a point-in-time headroom check: later concurrent publication or socket
+     * failure can still interrupt the transaction.
+     */
+    synchronized void requireCommitHeadroom(int minimumFreeBytes)
+            throws IOException{
+        requireGameActionAdmission();
+        if(minimumFreeBytes<1||minimumFreeBytes>maxBytes||
+           maxBytes-bytes<minimumFreeBytes)
+            throw new IOException(
+                "outbound queue lacks required pre-commit headroom "+
+                "available="+(maxBytes-bytes)+
+                " reserve="+minimumFreeBytes
+            );
+    }
+
     synchronized boolean transportFailed(){
         return terminalTransportFailure!=null;
     }
