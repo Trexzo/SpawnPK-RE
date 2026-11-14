@@ -77,6 +77,7 @@ if($pins.airgap_sha256 -cne $expectedClient -or
     throw 'R44_REFUSED: original R38 asset provenance mismatched'
 }
 [void](VerifiedHash (Join-Path $source 'client-airgap.jar') $expectedClient)
+[void](VerifiedHash (Join-Path $source 'SpawnPKLocalServer.jar') ([string]$pins.server_jar_sha256))
 [void](VerifiedHash (Join-Path $jdk 'bin\java.exe') $expectedJava)
 $newServerSha=(VerifiedHash $server $ExpectedServerSha256)
 # The static GUI audit refers to the client only: do not rewrite a
