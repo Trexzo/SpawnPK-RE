@@ -58,6 +58,8 @@ on:
       - 'server/src/spk/local/R40PersistentV308ReconnectPositionTest.java'
       - 'tools/verification/synthetic_v308_position_restart.py'
       - 'tools/verification/test_r41_two_real_jvm_position_restore.py'
+      - 'tools/verification/synthetic_v308_post_restore_walk.py'
+      - 'tools/verification/test_r42_v308_post_restore_walk.py'
       - 'tools/verification/test_r26_guest_server_package.py'
       - 'tools/verification/r23_guest_preflight.ps1'
       - 'tools/verification/r21_plan_or_install_private_java_firewall.ps1'
@@ -170,6 +172,11 @@ jobs:
         run: |
           python3 tools/verification/test_r41_two_real_jvm_position_restore.py
           python3 tools/verification/synthetic_v308_position_restart.py --jar server/build/SpawnPKLocalServer.jar
+
+      - name: R42 three Main JVMs restore, resume East walk and restore new position
+        run: |
+          python3 tools/verification/test_r42_v308_post_restore_walk.py
+          python3 tools/verification/synthetic_v308_post_restore_walk.py --jar server/build/SpawnPKLocalServer.jar
 
       - name: R31 original v308 BigInteger wire, Cp1252 and localhost codec parity
         run: |
@@ -538,6 +545,14 @@ jobs:
           & python tools/verification/test_r41_two_real_jvm_position_restore.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & python tools/verification/synthetic_v308_position_restart.py --jar server/build/SpawnPKLocalServer.jar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: R42 Windows three Main JVMs restore, resume walk and restore new position
+        shell: pwsh
+        run: |
+          & python tools/verification/test_r42_v308_post_restore_walk.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/verification/synthetic_v308_post_restore_walk.py --jar server/build/SpawnPKLocalServer.jar
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: R31 Windows original v308 login BigInteger/codec real TCP checks
