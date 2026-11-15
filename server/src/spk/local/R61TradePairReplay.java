@@ -239,9 +239,10 @@ final class R61TradePairReplay {
                 R59TradePairIntentIndex.inspect(journalRoot,account);
             if(result.status!=
                     R59TradePairIntentIndex.Status.BLOCK_INDEXED_PAIR ||
-               !result.transactions.contains(id))
+               result.transactions.size()!=1 ||
+               !id.equals(result.transactions.get(0)))
                 throw new IOException(
-                    "R61_PAIR_DENIED unresolved index does not own both accounts"
+                    "R61_PAIR_DENIED multiple/incorrect pending transactions"
                 );
         }
     }
