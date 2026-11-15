@@ -25,7 +25,7 @@ The R57 PREPARED intent alone never authorizes the simulator to write an account
 `R61TradePairReplay.replayCommitted(journalRoot, accountRoot, payloadRoot, txId, injectFault)` executes entirely under the same R60 OS lock:
 
 - Reads a bounded, versioned COMMIT marker with exact known keys, canonical UUID, ordered accounts and valid digests. An ambiguous R16 stage is refused without cleanup.
-- Requires R59 registry membership for both account names.
+- Requires R59 registry membership for both account names, with **exactly one** pending transaction per participant. A non-cooperative writer that has added a second valid-looking intent for either account forces refusal; membership in the requested transaction alone is insufficient.
 - Reloads **both** stored post-state payload files. Verifies their hashes against COMMIT, then checks that the R57 PREPARED journal identifies precisely that `BOTH_AFTER` pair.
 - Loads **both** canonical account snapshots. A missing, corrupt, unrelated or otherwise unknown state fails closed **before writing either account**.
 - Uses R57's four-state review. For `BOTH_BEFORE`, writes A and B post-state; `ONLY_A_AFTER`, writes B only; `ONLY_B_AFTER`, writes A only; `BOTH_AFTER`, writes nothing. Each write is individually atomic via the existing account repository.
@@ -42,6 +42,7 @@ An interrupted roll-forward can be called again: the next replay sees a valid on
 - An additional **test-owned child JVM is abruptly terminated via `Runtime.halt(91)` immediately after its first individual account publication**, without running Java shutdown hooks or `finally`. The parent observes the exact exit code, confirms one account is old and the other new, then launches another independent JVM which completes the pair. This is a real abrupt JVM exit against disposable files, **not a physical power interruption**.
 - The PREPARED-only path without a COMMIT marker refuses to write accounts. Corrupted post-state payload or unknown canonical gameplay data is rejected without touching the other account. A leftover test-owned COMMIT staging file causes refusal and is preserved until the test harness itself removes its own fixture.
 - Tests assert both participants remain indexed and blocked even after both account files match the post-state.
+- A negative control uses R57/R59 direct offline helpers to add a second, otherwise valid, unresolved transaction involving the first account. R61 refuses to replay the original transaction and preserves both canonical account files byte-for-byte.
 - R60, R59 and R56 inherited tests **PASS** on the connected Windows machine. The dedicated Linux and Windows GitHub workflows include R61 and R55–R60 plus normal trade-flow regressions.
 
 ## Explicit unsolved boundaries
