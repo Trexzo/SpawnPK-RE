@@ -228,6 +228,34 @@ final class R64OfflineSessionOwnership {
         return released;
     }
 
+    /**
+     * R66 authoritative offline event-dispatch seam. This is READ-ONLY.
+     * Only valid while THIS THREAD holds the R60 cross-process OS lock.
+     * It rejects a superseded or released owner, a stale canonical account
+     * generation/hash or any ambiguous/pending R59 trade evidence BEFORE
+     * an in-memory gameplay action is performed.
+     */
+    static void requireActiveOwnerUnderLock(
+        Path journalRoot,Path accountRoot,Path generationRoot,
+        Path sessionRoot,Token expected
+    )throws IOException{
+        Objects.requireNonNull(expected,"expected session");
+        R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
+        validateRoots(journalRoot,accountRoot,generationRoot,sessionRoot);
+        Token recorded=readOwner(
+            recordPath(sessionRoot,expected.username)
+        );
+        requireMatches(recorded,expected);
+        if(recorded.phase!=Phase.ACTIVE)
+            throw new IOException(
+                "R64_SESSION_DENIED inactive owner cannot dispatch event"
+            );
+        R63AccountSaveAdmission.Token canonical=requireAccountReady(
+            journalRoot,accountRoot,generationRoot,recorded.username
+        );
+        requireAccountMatches(recorded.account,canonical);
+    }
+
     /** Passive inspection never authorizes actual player login. */
     static Review inspect(
         Path journalRoot,Path accountRoot,Path generationRoot,
