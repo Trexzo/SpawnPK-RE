@@ -66,15 +66,19 @@ final class LocalLabPvmKillOutcomeProducer {
            !sceneRemoved)
             return "R9_PVM_KILL_OUTCOME_SKIPPED reason=NO_CONFIRMED_REMOVED_DEATH";
 
-        WorldPlayer killer=Objects.requireNonNull(attacker,"attacker");
         OfflineDeathAdmission admission=offlineDeathAdmission;
         if(admission!=null)
-            admission.requireAdmitted(killer);
+            admission.requireAdmitted(
+                Objects.requireNonNull(attacker,"attacker")
+            );
 
-        // Admission must precede deduplication; a denied final/logout
-        // callback must not burn a death scene or emit a forged fact.
+        // An explicitly installed R78 hook checks BEFORE dedup. With
+        // no hook, keep the exact original duplicate-before-null-owner
+        // order; real producer behavior remains source-identical.
         if(!publishedScenes.add(dead.sceneIndex))
             return "R9_PVM_KILL_OUTCOME_DUPLICATE_DENIED scene="+dead.sceneIndex;
+
+        WorldPlayer killer=Objects.requireNonNull(attacker,"attacker");
         String attackerRef=killer.id().toString();
         String victimRef="locallab:npc:def="+dead.definitionId+
             ":scene="+dead.sceneIndex;
