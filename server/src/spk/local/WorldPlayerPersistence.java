@@ -76,15 +76,20 @@ final class WorldPlayerPersistence
         final long tick;
         final PlayerSnapshot snapshot;
         final int petAccessoryItem;
+        // R70: test-only authority captured alongside THIS snapshot,
+        // never re-read or borrowed from a coalesced successor at commit.
+        final R64OfflineSessionOwnership.Token checkpointOwner;
 
         PendingCheckpoint(
             long tick,
             PlayerSnapshot snapshot,
-            int petAccessoryItem
+            int petAccessoryItem,
+            R64OfflineSessionOwnership.Token checkpointOwner
         ){
             this.tick=tick;
             this.snapshot=snapshot;
             this.petAccessoryItem=petAccessoryItem;
+            this.checkpointOwner=checkpointOwner;
         }
     }
 
@@ -119,8 +124,39 @@ final class WorldPlayerPersistence
             long saveSequence,PlayerSnapshot snapshot,
             PlayerRepository repository,boolean checkpoint
         )throws IOException;
+
+        // Backwards compatibility: R69's test gate still rejects every
+        // unbound checkpoint. R70's opt-in gate overrides this method.
+        default void persistCheckpointAtCommit(
+            long saveSequence,PlayerSnapshot snapshot,
+            PlayerRepository repository,
+            R64OfflineSessionOwnership.Token capturedOwner
+        )throws IOException{
+            persistAtCommit(
+                saveSequence,snapshot,repository,true
+            );
+        }
+    }
+    @FunctionalInterface
+    interface OfflineCheckpointOwnerCapture {
+        R64OfflineSessionOwnership.Token captureOwnerForTest(
+            WorldPlayer actor,long generation,PlayerSnapshot snapshot
+        );
     }
     private volatile OfflineIoWriteAdmission offlineWriteAdmission;
+    private volatile OfflineCheckpointOwnerCapture
+        offlineCheckpointOwnerCapture;
+
+    void installOfflineCheckpointOwnerCaptureForTest(
+        OfflineCheckpointOwnerCapture capture
+    ){
+        Objects.requireNonNull(capture,"capture");
+        if(offlineCheckpointOwnerCapture!=null)
+            throw new IllegalStateException(
+                "R70_CHECKPOINT_CAPTURE_DENIED already installed"
+            );
+        offlineCheckpointOwnerCapture=capture;
+    }
 
     void installOfflineIoWriteAdmissionForTest(
         OfflineIoWriteAdmission gate
@@ -734,11 +770,19 @@ final class WorldPlayerPersistence
                         accessoryItem
                     );
 
+                OfflineCheckpointOwnerCapture captureAuthority=
+                    offlineCheckpointOwnerCapture;
+                // Captured on World thread, under actor mutationLock.
+                // This is only a frozen TEST binding, not a filesystem
+                // authorization: R64 revalidates later at worker commit.
+                R64OfflineSessionOwnership.Token ownerAtCapture=
+                    captureAuthority==null?null:
+                        captureAuthority.captureOwnerForTest(
+                            player,generation,snapshot
+                        );
                 pending=
                     new PendingCheckpoint(
-                        tick,
-                        snapshot,
-                        accessoryItem
+                        tick,snapshot,accessoryItem,ownerAtCapture
                     );
 
                 synchronized(checkpointLock){
@@ -939,7 +983,8 @@ final class WorldPlayerPersistence
                 "AUTOSAVE_TICK_"+
                     pending.tick,
                 completion,
-                true
+                true,
+                pending.checkpointOwner
             );
 
             synchronized(checkpointLock){
@@ -1141,6 +1186,20 @@ final class WorldPlayerPersistence
         CompletableFuture<Void> future,
         boolean checkpoint
     ){
+        write(saveSequence,snapshot,petAccessoryItem,tag,reason,
+            future,checkpoint,null);
+    }
+
+    private void write(
+        long saveSequence,
+        PlayerSnapshot snapshot,
+        int petAccessoryItem,
+        String tag,
+        String reason,
+        CompletableFuture<Void> future,
+        boolean checkpoint,
+        R64OfflineSessionOwnership.Token checkpointOwner
+    ){
         try{
             OfflineIoWriteAdmission gate=offlineWriteAdmission;
             if(gate==null){
@@ -1149,9 +1208,16 @@ final class WorldPlayerPersistence
             }else{
                 // R69: the test hook must validate ownership *HERE*,
                 // on the persistence worker, not just at capture time.
-                gate.persistAtCommit(
-                    saveSequence,snapshot,repository,checkpoint
-                );
+                if(checkpoint){
+                    gate.persistCheckpointAtCommit(
+                        saveSequence,snapshot,repository,
+                        checkpointOwner
+                    );
+                }else{
+                    gate.persistAtCommit(
+                        saveSequence,snapshot,repository,false
+                    );
+                }
             }
 
             synchronized(future){
