@@ -183,11 +183,17 @@ public final class R74OfflineReconciliationReviewTest {
         void assertStatus(
             R74OfflineReconciliationReview.Status expected
         )throws Exception{
+            assertOneOf(expected);
+        }
+
+        void assertOneOf(
+            R74OfflineReconciliationReview.Status... allowed
+        )throws Exception{
             Map<String,byte[]> before=allBytes(root);
             R74OfflineReconciliationReview.Review review=
                 reviewer.inspect(USER);
-            require(review.status==expected,
-                "wrong R74 inspection expected="+expected+
+            require(Arrays.asList(allowed).contains(review.status),
+                "wrong R74 inspection expected="+Arrays.toString(allowed)+
                 " actual="+review.status+" reason="+review.reason);
             require(!review.loginAuthorized()&&
                     !review.replayAuthorized()&&
@@ -196,7 +202,7 @@ public final class R74OfflineReconciliationReviewTest {
                     !review.quarantineReleased()&&
                     !review.evidenceModified(),
                 "R74 returned any forbidden authorization");
-            independentInspector(this,expected);
+            independentInspector(this,allowed);
             Map<String,byte[]> after=allBytes(root);
             require(sameBytes(before,after),
                 "read-only inspector modified filesystem evidence");
@@ -223,8 +229,9 @@ public final class R74OfflineReconciliationReviewTest {
             R74OfflineReconciliationReview.Review found=
                 check.inspect(args[6].split(":",2)[0]);
             String expected=args[6].split(":",2)[1];
-            require(expected.equals(found.status.name()),
-                "separate JVM review expected="+expected+
+            require(Arrays.asList(expected.split("\\\\|")).contains(
+                    found.status.name()),
+                "separate JVM review allowed="+expected+
                 " actual="+found.status+" reason="+found.reason);
             require(!found.loginAuthorized()&&
                     !found.recoveryAuthorized()&&
@@ -441,16 +448,28 @@ public final class R74OfflineReconciliationReviewTest {
                 // uninterruptible repository write. A read-only
                 // reconciler MUST fail closed on lock contention,
                 // never bypass the lock to report an optimistic ACK.
-                f.assertStatus(
+                // R60-held writer or incomplete R72 phases may be
+                // observed at different instants by separate JVMs.
+                // Both states remain strictly blocking; never assert
+                // that two independent readers share one race outcome.
+                f.assertOneOf(
                     R74OfflineReconciliationReview.Status
-                        .BLOCK_LOCK_OR_PATH_INDETERMINATE
+                        .BLOCK_LOCK_OR_PATH_INDETERMINATE,
+                    R74OfflineReconciliationReview.Status
+                        .BLOCK_UNACKNOWLEDGED_WRITE
                 );
                 f.persistence.close();
                 require(ticket.completion.isCompletedExceptionally(),
                     "forced close did not reject in-flight save");
-                f.assertStatus(
+                // R60-held writer or incomplete R72 phases may be
+                // observed at different instants by separate JVMs.
+                // Both states remain strictly blocking; never assert
+                // that two independent readers share one race outcome.
+                f.assertOneOf(
                     R74OfflineReconciliationReview.Status
-                        .BLOCK_LOCK_OR_PATH_INDETERMINATE
+                        .BLOCK_LOCK_OR_PATH_INDETERMINATE,
+                    R74OfflineReconciliationReview.Status
+                        .BLOCK_UNACKNOWLEDGED_WRITE
                 );
                 f.repo.release.countDown();
                 awaitPhase(
@@ -475,14 +494,19 @@ public final class R74OfflineReconciliationReviewTest {
     }
 
     private static void independentInspector(
-        Fixture f,R74OfflineReconciliationReview.Status status
+        Fixture f,R74OfflineReconciliationReview.Status... allowed
     )throws Exception{
+        StringBuilder expected=new StringBuilder();
+        for(R74OfflineReconciliationReview.Status status:allowed){
+            if(expected.length()>0)expected.append("|");
+            expected.append(status.name());
+        }
         Process child=new ProcessBuilder(
             javaExe(),"-cp",System.getProperty("java.class.path"),
             "spk.local.R74OfflineReconciliationReviewTest",
             "inspect",f.journal.toString(),f.accounts.toString(),
             f.generations.toString(),f.sessions.toString(),
-            f.evidence.toString(),USER+":"+status.name()
+            f.evidence.toString(),USER+":"+expected
         ).redirectErrorStream(true).start();
         if(!child.waitFor(20L,TimeUnit.SECONDS)){
             child.destroyForcibly();
