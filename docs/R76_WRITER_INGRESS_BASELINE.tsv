@@ -45,7 +45,7 @@ spk/local/MarketplaceService.java|128|repository.save|NONACCOUNT_REVIEWED
 spk/local/PetAccessoryPersistence.java|26|AtomicAccountPublisher.publish|UNFENCED_ACCOUNT
 spk/local/PetDefinitionRepository.java|57|Files.createTempFile|NONACCOUNT_REVIEWED
 spk/local/PetDefinitionRepository.java|58|Files.copy|NONACCOUNT_REVIEWED
-spk/local/R51InterruptedAccountPublisherChild.java|58|AtomicAccountPublisher.publish|NONACCOUNT_REVIEWED
+spk/local/R51InterruptedAccountPublisherChild.java|58|AtomicAccountPublisher.publish|TEST_EVIDENCE_ONLY
 spk/local/R57TradePairJournal.java|143|AtomicAccountPublisher.publish|COOPERATIVE_NO_R73
 spk/local/R59TradePairIntentIndex.java|173|AtomicAccountPublisher.publish|COOPERATIVE_NO_R73
 spk/local/R60TradePairCoordinator.java|174|Files.createFile|NONACCOUNT_REVIEWED
