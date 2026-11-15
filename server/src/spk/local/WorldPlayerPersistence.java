@@ -975,6 +975,85 @@ final class WorldPlayerPersistence
         return io.getQueue().size();
     }
 
+    /**
+     * R73 offline-only queue drain check. A sentinel on the real single IO
+     * executor proves all tasks admitted before the sentinel have finished.
+     * It must never be called from the World execution thread. A timeout
+     * is uncertain, NOT proof that a final save committed.
+     */
+    void awaitOfflineIoDrainForTest(long timeoutMillis)throws IOException{
+        if(timeoutMillis<=0L)
+            throw new IllegalArgumentException(
+                "R73_IO_DRAIN_DENIED invalid timeout"
+            );
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "R73_IO_DRAIN_DENIED cannot block World actor"
+            );
+        final CompletableFuture<Void> reached=new CompletableFuture<>();
+        final Runnable barrier=()->reached.complete(null);
+        final long started=System.nanoTime();
+        final long budget=TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+        boolean queued=false;
+        while(!queued){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new IOException(
+                        "R73_IO_DRAIN_DENIED worker shutdown"
+                    );
+                try{
+                    io.execute(barrier);
+                    queued=true;
+                }catch(RejectedExecutionException busy){
+                    if(io.isShutdown())
+                        throw new IOException(
+                            "R73_IO_DRAIN_DENIED worker shutdown",busy
+                        );
+                    queued=io.getQueue().offer(barrier);
+                }
+            }
+            if(queued)break;
+            long elapsed=System.nanoTime()-started;
+            if(elapsed>=budget)
+                throw new IOException(
+                    "R73_IO_DRAIN_DENIED queue admission timed out"
+                );
+            try{
+                Thread.sleep(1L);
+            }catch(InterruptedException interrupted){
+                Thread.currentThread().interrupt();
+                throw new IOException(
+                    "R73_IO_DRAIN_DENIED interrupted",interrupted
+                );
+            }
+        }
+        long remaining=budget-(System.nanoTime()-started);
+        if(remaining<=0L)
+            throw new IOException(
+                "R73_IO_DRAIN_DENIED completion timed out"
+            );
+        try{
+            reached.get(remaining,TimeUnit.NANOSECONDS);
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            throw new IOException(
+                "R73_IO_DRAIN_DENIED interrupted",interrupted
+            );
+        }catch(TimeoutException timedOut){
+            throw new IOException(
+                "R73_IO_DRAIN_DENIED completion timed out",timedOut
+            );
+        }catch(ExecutionException impossible){
+            throw new IOException(
+                "R73_IO_DRAIN_DENIED completion failed",impossible
+            );
+        }
+    }
+
+    boolean offlineTerminalFenceEnabledForTest(){
+        return offlineTerminalCaptureFence;
+    }
+
     String metrics(){
         return "WorldPlayerPersistence{"+
             "repository="+repositoryName()+
