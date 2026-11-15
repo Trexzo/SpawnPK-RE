@@ -105,6 +105,34 @@ final class WorldPlayerPersistence
 
     private final World world;
     private final PlayerRepository repository;
+    /**
+     * R69 offline test seam. The existing worker continues to call the
+     * repository directly unless an isolated fixture explicitly installs
+     * this hook. LocalSession and World never install it.
+     */
+    @FunctionalInterface
+    interface OfflineSaveAdmission {
+        void withAdmission(PlayerSnapshot snapshot, CheckedSaveWriter writer)
+            throws IOException;
+    }
+
+    @FunctionalInterface
+    interface CheckedSaveWriter {
+        void run() throws IOException;
+    }
+
+    private volatile OfflineSaveAdmission offlineSaveAdmission;
+
+    synchronized void installOfflineSaveAdmissionForTest(
+        OfflineSaveAdmission hook
+    ){
+        if(offlineSaveAdmission!=null)
+            throw new IllegalStateException(
+                "R69_OFFLINE_SAVE_GATE_DENIED already installed"
+            );
+        offlineSaveAdmission=Objects.requireNonNull(hook,"hook");
+    }
+
     private final ThreadPoolExecutor io;
     private final AtomicReference<LoadTask> inFlightLoad=
         new AtomicReference<>();
@@ -1116,7 +1144,11 @@ final class WorldPlayerPersistence
         boolean checkpoint
     ){
         try{
-            repository.save(snapshot);
+            OfflineSaveAdmission gate=offlineSaveAdmission;
+            if(gate==null)
+                repository.save(snapshot);
+            else
+                gate.withAdmission(snapshot,()->repository.save(snapshot));
 
             synchronized(future){
                 if(future.isDone())

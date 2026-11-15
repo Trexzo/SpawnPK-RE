@@ -1,0 +1,65 @@
+name: R69 Offline Persistence IO-Commit Fence
+
+on:
+  push:
+    branches:
+      - playability/r69-offline-persistence-write-fence-20261115
+  pull_request:
+    paths:
+      - server/src/spk/local/WorldPlayerPersistence.java
+      - server/src/spk/local/R69OfflinePersistenceAdmission.java
+      - server/src/spk/local/R69OfflinePersistenceWriteFenceTest.java
+      - .github/workflows/r69-offline-persistence-write-fence.yml
+
+jobs:
+  linux-persistence-io-fence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and verify Java 11 bytecode
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Real deferred IO, dispatcher and inherited owner tests
+        working-directory: server
+        run: |
+          for test in spk.local.R69OfflinePersistenceWriteFenceTest spk.local.R68RealDispatcherAdmissionTest spk.local.R67OfflineDecodedPacketDispatchTest spk.local.R66OfflineGameEventDispatchTest spk.local.R65DeferredSessionSaveDispatchTest spk.local.R64OfflineSessionOwnershipTest spk.local.R63AccountSaveAdmissionTest spk.local.SharedWorldOwnershipTest spk.local.AccountPersistenceTest; do
+            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
+          done
+
+  windows-persistence-io-fence:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and verify Java 11 bytecode
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Real deferred IO, dispatcher and inherited owner tests
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R69OfflinePersistenceWriteFenceTest',
+            'spk.local.R68RealDispatcherAdmissionTest',
+            'spk.local.R67OfflineDecodedPacketDispatchTest',
+            'spk.local.R66OfflineGameEventDispatchTest',
+            'spk.local.R65DeferredSessionSaveDispatchTest',
+            'spk.local.R64OfflineSessionOwnershipTest',
+            'spk.local.R63AccountSaveAdmissionTest',
+            'spk.local.SharedWorldOwnershipTest',
+            'spk.local.AccountPersistenceTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
