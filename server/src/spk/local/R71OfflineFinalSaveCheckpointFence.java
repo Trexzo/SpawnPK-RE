@@ -6,6 +6,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * R71 OFFLINE-ONLY final-save / checkpoint ordering authority.
@@ -32,6 +35,11 @@ final class R71OfflineFinalSaveCheckpointFence
     implements WorldPlayerPersistence.OfflineCheckpointOwnerCapture,
                WorldPlayerPersistence.OfflineIoWriteAdmission {
 
+    static final class Pause {
+        final CountDownLatch arrived=new CountDownLatch(1);
+        final CountDownLatch release=new CountDownLatch(1);
+    }
+
     private static final class FinalSeal {
         final R64OfflineSessionOwnership.Token owner;
         final long sequence;
@@ -52,6 +60,8 @@ final class R71OfflineFinalSaveCheckpointFence
     private final Object sealLock=new Object();
     private final Map<String,FinalSeal> sealedOwners=new HashMap<>();
     private final Map<Long,FinalSeal> queuedFinals=new HashMap<>();
+    private final AtomicReference<Pause> pauseNextCheckpoint=
+        new AtomicReference<>();
     private final AtomicInteger checkpointDenied=new AtomicInteger();
     private final AtomicInteger checkpointCommitted=new AtomicInteger();
     private final AtomicInteger finalCommitted=new AtomicInteger();
@@ -143,6 +153,14 @@ final class R71OfflineFinalSaveCheckpointFence
         manualGate.bindForTest(captured,owner);
     }
 
+    void pauseNextCheckpointForTest(Pause pause){
+        Objects.requireNonNull(pause,"pause");
+        if(!pauseNextCheckpoint.compareAndSet(null,pause))
+            throw new IllegalStateException(
+                "R71_CHECKPOINT_PAUSE_ALREADY_ARMED"
+            );
+    }
+
     private static boolean obsoleteUnderSeal(
         FinalSeal terminal,R64OfflineSessionOwnership.Token captured
     ){
@@ -160,6 +178,24 @@ final class R71OfflineFinalSaveCheckpointFence
     )throws IOException{
         Objects.requireNonNull(snapshot,"snapshot");
         Objects.requireNonNull(repository,"repository");
+        // Test-only deterministic pause BEFORE acquiring sealLock: a
+        // World-thread final-save seal can race with a checkpoint already
+        // in the REAL asynchronous persistence worker.
+        Pause pause=pauseNextCheckpoint.getAndSet(null);
+        if(pause!=null){
+            pause.arrived.countDown();
+            try{
+                if(!pause.release.await(15L,TimeUnit.SECONDS))
+                    throw new IOException(
+                        "R71_CHECKPOINT_PAUSE_TIMEOUT"
+                    );
+            }catch(InterruptedException interrupted){
+                Thread.currentThread().interrupt();
+                throw new IOException(
+                    "R71_CHECKPOINT_PAUSE_INTERRUPTED",interrupted
+                );
+            }
+        }
         synchronized(sealLock){
             if(checkpointOwner==null||
                checkpointOwner.phase!=
