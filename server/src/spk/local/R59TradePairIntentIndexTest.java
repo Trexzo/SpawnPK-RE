@@ -151,6 +151,9 @@ public final class R59TradePairIntentIndexTest {
             }
             status(root,"outsider",R59TradePairIntentIndex.Status
                 .BLOCK_INDETERMINATE_INDEX);
+            expectIOException(()->R59TradePairIntentIndex.publishRevision(
+                root,3L,Arrays.asList(FIRST,SECOND,THIRD)),
+                "existing intent identity drift");
             Files.write(third,thirdBytes); // only test-owned file
             require(Arrays.equals(indexedBytes,Files.readAllBytes(index)),
                 "read-only inspection modified index");
