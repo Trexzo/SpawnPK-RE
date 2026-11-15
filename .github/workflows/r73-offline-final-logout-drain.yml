@@ -1,0 +1,69 @@
+name: R73 Offline Final Logout IO Drain
+
+on:
+  push:
+    branches:
+      - playability/r73-offline-final-logout-drain-20261115
+  pull_request:
+    paths:
+      - server/src/spk/local/WorldPlayerPersistence.java
+      - server/src/spk/local/R72OfflineDurableCaptureOrder.java
+      - server/src/spk/local/R73OfflineFinalLogoutCoordinator.java
+      - server/src/spk/local/R73OfflineFinalLogoutDrainTest.java
+      - .github/workflows/r73-offline-final-logout-drain.yml
+
+jobs:
+  linux-final-logout-drain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build Java 11-compatible server and test classes
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: R73 full logout and inherited persistence acceptance
+        working-directory: server
+        run: |
+          for test in spk.local.R73OfflineFinalLogoutDrainTest spk.local.R72OfflineTerminalAndDurableOrderTest spk.local.R71OfflineSnapshotCaptureOrderTest spk.local.R70OfflineCoordinatedIoCommitTest spk.local.R69OfflinePersistenceWriteFenceTest spk.local.R68RealDispatcherAdmissionTest spk.local.R67OfflineDecodedPacketDispatchTest spk.local.R66OfflineGameEventDispatchTest spk.local.R65DeferredSessionSaveDispatchTest spk.local.R64OfflineSessionOwnershipTest spk.local.R63AccountSaveAdmissionTest spk.local.SharedWorldOwnershipTest; do
+            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
+          done
+
+  windows-final-logout-drain:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build Java 11-compatible server and test classes
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: R73 full logout and inherited persistence acceptance
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R73OfflineFinalLogoutDrainTest',
+            'spk.local.R72OfflineTerminalAndDurableOrderTest',
+            'spk.local.R71OfflineSnapshotCaptureOrderTest',
+            'spk.local.R70OfflineCoordinatedIoCommitTest',
+            'spk.local.R69OfflinePersistenceWriteFenceTest',
+            'spk.local.R68RealDispatcherAdmissionTest',
+            'spk.local.R67OfflineDecodedPacketDispatchTest',
+            'spk.local.R66OfflineGameEventDispatchTest',
+            'spk.local.R65DeferredSessionSaveDispatchTest',
+            'spk.local.R64OfflineSessionOwnershipTest',
+            'spk.local.R63AccountSaveAdmissionTest',
+            'spk.local.SharedWorldOwnershipTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
