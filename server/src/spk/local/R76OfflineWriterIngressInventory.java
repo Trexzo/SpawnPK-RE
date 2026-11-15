@@ -55,14 +55,14 @@ final class R76OfflineWriterIngressInventory {
             "saveIfCurrentUnderLock","saveOwned",
             "saveOwnedUnderLock","replaceOwner",
             "replaceOwnerUnderLock","releaseOwner",
-            "releaseOwnerUnderLock","publish"
+            "releaseOwnerUnderLock"
         )));
     private static final Set<String> UNFENCED_FILES=
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "AccountStore.java","LocalAccountProfiles.java",
             "PetAccessoryPersistence.java","FilePlayerRepository.java",
             "WorldPlayerPersistence.java","LocalAccountLifecycle.java",
-            "World.java"
+            "World.java","AtomicAccountPublisher.java"
         )));
     private static final Set<String> COOPERATIVE_BUT_NO_R73=
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
@@ -72,12 +72,16 @@ final class R76OfflineWriterIngressInventory {
         )));
     private static final Set<String> TEST_EVIDENCE_FILES=
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "R65DeferredSessionSaveDispatch.java",
+            "R69OfflineIoCommitGate.java",
+            "R70OfflineCheckpointAuthority.java",
+            "R71OfflineFinalSaveCheckpointFence.java",
             "R72OfflineInFlightCommitEvidence.java",
             "R73OfflinePendingWriteAdmission.java"
         )));
     private static final Set<String> OTHER_REVIEWED_FILES=
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "AtomicAccountPublisher.java","ConfigHoverPatchTool.java",
+            "R60TradePairCoordinator.java","ConfigHoverPatchTool.java",
             "CustomAssetAuthoringRepository.java",
             "HomeCollisionOverlayRepository.java",
             "HomeLandmarkRepository.java",
