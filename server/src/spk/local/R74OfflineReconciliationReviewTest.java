@@ -437,16 +437,20 @@ public final class R74OfflineReconciliationReviewTest {
             try{
                 require(f.repo.entered.await(10L,TimeUnit.SECONDS),
                     "R74 worker did not block in real repository");
+                // The real worker owns R60 while executing the
+                // uninterruptible repository write. A read-only
+                // reconciler MUST fail closed on lock contention,
+                // never bypass the lock to report an optimistic ACK.
                 f.assertStatus(
                     R74OfflineReconciliationReview.Status
-                        .BLOCK_UNACKNOWLEDGED_WRITE
+                        .BLOCK_LOCK_OR_PATH_INDETERMINATE
                 );
                 f.persistence.close();
                 require(ticket.completion.isCompletedExceptionally(),
                     "forced close did not reject in-flight save");
                 f.assertStatus(
                     R74OfflineReconciliationReview.Status
-                        .BLOCK_UNACKNOWLEDGED_WRITE
+                        .BLOCK_LOCK_OR_PATH_INDETERMINATE
                 );
                 f.repo.release.countDown();
                 awaitPhase(
