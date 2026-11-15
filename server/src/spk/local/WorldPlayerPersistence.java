@@ -106,6 +106,32 @@ final class WorldPlayerPersistence
     private final World world;
     private final PlayerRepository repository;
     private final ThreadPoolExecutor io;
+
+    /**
+     * R69 TEST-ONLY late I/O commit fence. A production World/LocalSession
+     * never installs this. The hook must either make the exact authorized
+     * repository write or throw before writing; it never grants login.
+     * Unbound checkpoints are denied when the hook is explicitly active.
+     */
+    @FunctionalInterface
+    interface OfflineIoWriteAdmission {
+        void persistAtCommit(
+            long saveSequence,PlayerSnapshot snapshot,
+            PlayerRepository repository,boolean checkpoint
+        )throws IOException;
+    }
+    private volatile OfflineIoWriteAdmission offlineWriteAdmission;
+
+    void installOfflineIoWriteAdmissionForTest(
+        OfflineIoWriteAdmission gate
+    ){
+        Objects.requireNonNull(gate,"gate");
+        if(offlineWriteAdmission!=null)
+            throw new IllegalStateException(
+                "R69_IO_GATE_DENIED already installed"
+            );
+        offlineWriteAdmission=gate;
+    }
     private final AtomicReference<LoadTask> inFlightLoad=
         new AtomicReference<>();
     private final AtomicReference<SaveTask> inFlightSave=
@@ -1116,7 +1142,17 @@ final class WorldPlayerPersistence
         boolean checkpoint
     ){
         try{
-            repository.save(snapshot);
+            OfflineIoWriteAdmission gate=offlineWriteAdmission;
+            if(gate==null){
+                // Original, untouched default production commit route.
+                repository.save(snapshot);
+            }else{
+                // R69: the test hook must validate ownership *HERE*,
+                // on the persistence worker, not just at capture time.
+                gate.persistAtCommit(
+                    saveSequence,snapshot,repository,checkpoint
+                );
+            }
 
             synchronized(future){
                 if(future.isDone())
