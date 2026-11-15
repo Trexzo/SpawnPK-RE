@@ -99,6 +99,56 @@ final class WorldEventQueue implements AutoCloseable {
         seq=new AtomicLong();
     private boolean closed;
 
+    /**
+     * R76 OFFLINE ONLY: explicitly owner-tagged event callbacks. Legacy
+     * untagged WorldEventQueue.schedule remains unchanged; ownership
+     * cannot be inferred safely from an arbitrary Runnable closure.
+     */
+    interface OfflineOwnedEventAdmission {
+        boolean permits(EntityId ownerId,long generation);
+        void dispatch(
+            EntityId ownerId,long generation,Runnable task
+        );
+    }
+
+    private volatile OfflineOwnedEventAdmission offlineOwnedEventAdmission;
+
+    synchronized void installOfflineOwnedEventAdmissionForTest(
+        OfflineOwnedEventAdmission gate
+    ){
+        if(gate==null||offlineOwnedEventAdmission!=null||
+           closed||seq.get()!=0L)
+            throw new IllegalStateException(
+                "R76_EVENT_GATE_DENIED invalid or already used"
+            );
+        offlineOwnedEventAdmission=gate;
+    }
+
+    /**
+     * Explicitly tagged test-only event. The World owner/generation
+     * is verified again on dispatch by the installed offline gate.
+     * NEVER silently label untagged legacy events as owner-authorized.
+     */
+    synchronized Handle scheduleOwnedForTest(
+        long tick,EntityId ownerId,long generation,Runnable task
+    ){
+        if(ownerId==null||task==null||generation<=0L)
+            throw new IllegalArgumentException(
+                "R76_EVENT_DENIED missing owner metadata"
+            );
+        OfflineOwnedEventAdmission gate=offlineOwnedEventAdmission;
+        if(gate==null||!gate.permits(ownerId,generation))
+            throw new IllegalStateException(
+                "R76_EVENT_QUIESCED before schedule"
+            );
+        return schedule(tick,()->{
+            // WorldEventQueue.runDue calls this from WorldPulse.
+            // The policy revalidates the exact World generation
+            // under that player's mutation lock before mutation.
+            gate.dispatch(ownerId,generation,task);
+        });
+    }
+
     synchronized Handle schedule(
         long tick,
         Runnable task
