@@ -23,7 +23,7 @@ This is not a real login, active game packet, account or WorldPlayerPersistence 
 
 ### Typed request mutation entrypoints inventoried in the real dispatcher
 
-There are **29 top-level routed typed-request classes** in `LocalPendingRequestDispatcher.acceptTypedRequests` / extracted `routeTypedRequest`:
+There are **27 top-level routed typed-request classes** in `LocalPendingRequestDispatcher.acceptTypedRequests` / extracted `routeTypedRequest`:
 
 - World/session/UI: `RegionLoadAck`, `InterfaceClose`, `DialogueContinue`, `CharacterDesign`, `WidgetAction`, `AmountEntry`, `ContainerDrag`.
 - Inventory and interactions: `DropItem`, `ItemOnItem`, `ItemOnNpc`, `ObjectInteraction`, `PlayerAction`, `NpcAction`, `SpellTarget`, `GenericInteraction`, `Movement`, `ItemContainerAction`, `GroundItem`.
