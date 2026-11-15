@@ -32,6 +32,24 @@ final class R73OfflineFinalLogoutCoordinator {
         WorldPlayerPersistence.CapturedSave finalCapture,
         long timeoutMillis
     )throws Exception{
+        return finish(
+            world,player,generation,gate,finalCapture,
+            timeoutMillis,null
+        );
+    }
+
+    /**
+     * R74 opt-in variant. Ordinary commands have been fenced by the World
+     * actor before this method is called. Only the verified final-release
+     * callback is allowed to bypass that test-only command-admission gate.
+     */
+    static Outcome finish(
+        World world,WorldPlayer player,long generation,
+        R72OfflineDurableCaptureOrder gate,
+        WorldPlayerPersistence.CapturedSave finalCapture,
+        long timeoutMillis,
+        R74OfflineCommandIngressFence commandFence
+    )throws Exception{
         Objects.requireNonNull(world,"world");
         Objects.requireNonNull(player,"player");
         Objects.requireNonNull(gate,"gate");
@@ -101,7 +119,7 @@ final class R73OfflineFinalLogoutCoordinator {
         // Actor callback holds the player mutationLock. The verified
         // owner release runs before the same callback unregisters this
         // exact World generation, cancelling queued actor commands.
-        world.submitAndWait(player,generation,()->{
+        WorldCommandInbox.Action finalRelease=()->{
             if(!persistence.checkpointSuppressed(player.id(),generation))
                 throw new IOException(
                     "R73_LOGOUT_DENIED final capture fence disappeared"
@@ -113,7 +131,19 @@ final class R73OfflineFinalLogoutCoordinator {
                 throw new IOException(
                     "R73_LOGOUT_DENIED release succeeded but actor unregister failed"
                 );
-        },timeoutMillis);
+        };
+        if(commandFence!=null){
+            if(!commandFence.isQuiesced(player,generation))
+                throw new IOException(
+                    "R74_LOGOUT_DENIED World command ingress not quiesced"
+                );
+            finalRelease=commandFence.trustedFinalReleaseForTest(
+                player,generation,finalRelease
+            );
+        }
+        world.submitAndWait(
+            player,generation,finalRelease,timeoutMillis
+        );
 
         R64OfflineSessionOwnership.Token token=released.get();
         if(token==null||

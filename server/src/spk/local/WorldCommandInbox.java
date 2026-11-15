@@ -21,6 +21,32 @@ final class WorldCommandInbox {
             Action action
         )throws Exception;
     }
+
+    /**
+     * R74 offline-only command admission. An isolated World may opt in to
+     * deny ordinary commands after final-save quiescence. The second check
+     * is performed inside the actual player mutationLock at dispatch, not
+     * merely when a command was first queued.
+     */
+    interface OfflineCommandAdmission {
+        boolean permits(
+            WorldPlayer player,long generation,Action action
+        );
+    }
+
+    private volatile OfflineCommandAdmission offlineCommandAdmission;
+
+    synchronized void installOfflineCommandAdmissionForTest(
+        OfflineCommandAdmission admission
+    ){
+        if(offlineCommandAdmission!=null)
+            throw new IllegalStateException(
+                "R74_COMMAND_ADMISSION_DENIED already installed"
+            );
+        offlineCommandAdmission=Objects.requireNonNull(
+            admission,"admission"
+        );
+    }
     private static final int DEFAULT_PER_PLAYER_LIMIT=64;
     private static final int DEFAULT_GLOBAL_LIMIT=2048;
     private final AtomicLong sequence=new AtomicLong();
@@ -192,6 +218,17 @@ final class WorldCommandInbox {
             return f;
         }
 
+        OfflineCommandAdmission gate=offlineCommandAdmission;
+        if(gate!=null&&
+           !gate.permits(player,expectedGeneration,action)){
+            f.completeExceptionally(
+                new CancellationException(
+                    "R74_COMMAND_QUIESCED before enqueue"
+                )
+            );
+            return f;
+        }
+
         int count=
             queuedPerPlayer.getOrDefault(
                 player.id(),
@@ -260,11 +297,29 @@ final class WorldCommandInbox {
                 continue;
             }
             try{
-                boolean executed=
-                    executionOwnership.run(
-                        c.player,
-                        c.generation,
-                        c.action
+                OfflineCommandAdmission gate=
+                    offlineCommandAdmission;
+                // Preserve the original direct callback path when the
+                // opt-in R74 test hook is absent; no lambda allocation
+                // or extra wrapped dispatch in production.
+                boolean executed;
+                if(gate==null)
+                    executed=executionOwnership.run(
+                        c.player,c.generation,c.action
+                    );
+                else
+                    executed=executionOwnership.run(
+                        c.player,c.generation,()->{
+                            // Run-time recheck under the actual player
+                            // mutation lock rejects commands queued
+                            // before final-save quiescence.
+                            if(!gate.permits(
+                                    c.player,c.generation,c.action))
+                                throw new CancellationException(
+                                    "R74_COMMAND_QUIESCED before handler"
+                                );
+                            c.action.run();
+                        }
                     );
 
                 if(!executed)
