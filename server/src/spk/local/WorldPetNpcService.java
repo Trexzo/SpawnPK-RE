@@ -15,6 +15,37 @@ final class WorldPetNpcService {
     }
 
     private final WorldNpcRegistry registry;
+    /**
+     * R75: opt-in test-only owner-mutation gate. Live pet state and
+     * unregister cleanup are unchanged unless a fixture installs it.
+     */
+    @FunctionalInterface
+    interface OfflinePetMutationAdmission {
+        boolean permits(EntityId ownerId);
+    }
+
+    private volatile OfflinePetMutationAdmission offlinePetMutationAdmission;
+
+    synchronized void installOfflinePetMutationAdmissionForTest(
+        OfflinePetMutationAdmission gate
+    ){
+        if(offlinePetMutationAdmission!=null)
+            throw new IllegalStateException(
+                "R75_PET_GATE_DENIED already installed"
+            );
+        offlinePetMutationAdmission=Objects.requireNonNull(
+            gate,"gate"
+        );
+    }
+
+    private void requireOfflinePetMutationAdmission(EntityId ownerId){
+        OfflinePetMutationAdmission gate=offlinePetMutationAdmission;
+        if(gate!=null && !gate.permits(ownerId))
+            throw new IllegalStateException(
+                "R75_PET_QUIESCED owner="+ownerId
+            );
+    }
+
     private final HashMap<EntityId,OwnerActors> byOwner=
         new HashMap<>();
 
@@ -36,6 +67,7 @@ final class WorldPetNpcService {
         if(ownerId==null)
             throw new NullPointerException("ownerId");
 
+        requireOfflinePetMutationAdmission(ownerId);
         WorldNpc.validateSpawnParameters(
             definitionId,
             plane,
@@ -97,6 +129,7 @@ final class WorldPetNpcService {
         if(ownerId==null)
             throw new NullPointerException("ownerId");
 
+        requireOfflinePetMutationAdmission(ownerId);
         WorldNpc.validateSpawnParameters(
             definitionId,
             plane,
@@ -153,6 +186,7 @@ final class WorldPetNpcService {
         int y,
         int plane
     ){
+        requireOfflinePetMutationAdmission(ownerId);
         WorldNpc main=main(ownerId);
         if(main==null)return null;
         main.moveTo(x,y,plane);
@@ -165,6 +199,7 @@ final class WorldPetNpcService {
         int y,
         int plane
     ){
+        requireOfflinePetMutationAdmission(ownerId);
         WorldNpc mini=mini(ownerId);
         if(mini==null)return null;
         mini.moveTo(x,y,plane);
@@ -174,6 +209,7 @@ final class WorldPetNpcService {
     synchronized boolean removeMini(
         EntityId ownerId
     ){
+        requireOfflinePetMutationAdmission(ownerId);
         OwnerActors actors=byOwner.get(ownerId);
         if(actors==null||actors.miniId==null)
             return false;

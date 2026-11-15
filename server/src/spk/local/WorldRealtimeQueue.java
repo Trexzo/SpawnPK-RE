@@ -22,6 +22,30 @@ final class WorldRealtimeQueue implements AutoCloseable {
             Runnable task
         )throws Exception;
     }
+
+    /**
+     * R75 OFFLINE TEST ONLY. Revalidate scheduled realtime actions at
+     * producer admission and under the actual World mutation lock before
+     * callback dispatch. Live/default queue runs its original direct path.
+     */
+    @FunctionalInterface
+    interface OfflineRealtimeAdmission {
+        boolean permits(WorldPlayer player,long generation,Runnable task);
+    }
+
+    private volatile OfflineRealtimeAdmission offlineRealtimeAdmission;
+
+    synchronized void installOfflineRealtimeAdmissionForTest(
+        OfflineRealtimeAdmission policy
+    ){
+        if(offlineRealtimeAdmission!=null)
+            throw new IllegalStateException(
+                "R75_REALTIME_GATE_DENIED already installed"
+            );
+        offlineRealtimeAdmission=Objects.requireNonNull(
+            policy,"policy"
+        );
+    }
     private static final class E implements Comparable<E>{
         final long at,seq; final WorldPlayer owner; final long generation; final Runnable task;
         E(long at,long seq,WorldPlayer owner,long generation,Runnable task){this.at=at;this.seq=seq;this.owner=owner;this.generation=generation;this.task=task;}
@@ -145,6 +169,12 @@ final class WorldRealtimeQueue implements AutoCloseable {
                 throw new IllegalStateException(
                     "world realtime queue closed"
                 );
+            OfflineRealtimeAdmission gate=offlineRealtimeAdmission;
+            if(gate!=null&&!gate.permits(
+                    owner,expectedGeneration,task))
+                throw new IllegalStateException(
+                    "R75_REALTIME_QUIESCED before schedule"
+                );
 
             q.add(
                 new E(
@@ -178,11 +208,26 @@ final class WorldRealtimeQueue implements AutoCloseable {
                    e.generation
                )){
                 try{
-                    executionOwnership.run(
-                        e.owner,
-                        e.generation,
-                        e.task
-                    );
+                    OfflineRealtimeAdmission gate=
+                        offlineRealtimeAdmission;
+                    if(gate==null){
+                        // Retain exact original live execution route.
+                        executionOwnership.run(
+                            e.owner,e.generation,e.task
+                        );
+                    }else{
+                        executionOwnership.run(
+                            e.owner,e.generation,()->{
+                                // The World ownership callback holds
+                                // the real player mutation lock. A task
+                                // queued BEFORE final capture must not
+                                // execute AFTER the R74 quiescence flip.
+                                if(gate.permits(
+                                        e.owner,e.generation,e.task))
+                                    e.task.run();
+                            }
+                        );
+                    }
                 }catch(Throwable t){
                     System.err.println(
                         "[world-realtime] task failed owner="+
