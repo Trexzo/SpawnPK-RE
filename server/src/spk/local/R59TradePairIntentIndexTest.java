@@ -155,6 +155,26 @@ public final class R59TradePairIntentIndexTest {
                 root,3L,Arrays.asList(FIRST,SECOND,THIRD)),
                 "existing intent identity drift");
             Files.write(third,thirdBytes); // only test-owned file
+
+            // A journal can retain the same UUID and two account names
+            // while silently replacing its exact before/after state hashes.
+            // The index must bind the original immutable manifest bytes.
+            Properties hashDrift=new Properties();
+            try(InputStream input=Files.newInputStream(third)){
+                hashDrift.load(input);
+            }
+            hashDrift.setProperty("a.after.sha256",
+                "ffffffffffffffffffffffffffffffff"+
+                "ffffffffffffffffffffffffffffffff");
+            try(OutputStream output=Files.newOutputStream(third)){
+                hashDrift.store(output,"test-owned same-name hash drift");
+            }
+            status(root,"outsider",R59TradePairIntentIndex.Status
+                .BLOCK_INDETERMINATE_INDEX);
+            expectIOException(()->R59TradePairIntentIndex.publishRevision(
+                root,3L,Arrays.asList(FIRST,SECOND,THIRD)),
+                "existing intent digest drift");
+            Files.write(third,thirdBytes); // only test-owned file
             require(Arrays.equals(indexedBytes,Files.readAllBytes(index)),
                 "read-only inspection modified index");
 
