@@ -173,7 +173,7 @@ public final class R71OfflineSnapshotCaptureOrderTest {
             takeover(p);
             SnapshotBytes transferred=p.snapshotBytes();
             world.submitAndWait(player,generation,()->{
-                addItem(player,1334,packets);
+                addItem(player,995,packets);
                 recent.set(world.persistence().captureAndSave(
                     "opensrc",player,generation,0,
                     "[r71] ","STALE_OWNER_AFTER_TAKEOVER"
