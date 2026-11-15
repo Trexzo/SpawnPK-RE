@@ -474,6 +474,17 @@ public final class LocalPendingRequestDispatcherTest {
                     }
                 );
 
+            // R68 opt-in fixture: exercise the ACTUAL typed-request
+            // dispatcher through a test-only R60/R64/R66 owner gate.
+            // Normal LocalSession and default dispatcher runs do not
+            // install this hook or alter production routing.
+            if(args.length==1&&"r68".equals(args[0])){
+                R68RealDispatcherAdmissionTest.runFixture(
+                    dispatcher,player,bank,movement,writer
+                );
+                return;
+            }
+
             int[] probeSeed={5,6,7,8};
             ByteArrayOutputStream typedWire=
                 new ByteArrayOutputStream();
