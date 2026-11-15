@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,8 +78,10 @@ final class R59TradePairIntentIndex {
     }
 
     private static final class Pair {
-        final String a,b;
-        Pair(String a,String b){this.a=a;this.b=b;}
+        final String a,b,manifestDigest;
+        Pair(String a,String b,String manifestDigest){
+            this.a=a;this.b=b;this.manifestDigest=manifestDigest;
+        }
         boolean includes(String account){
             return a.equals(account)||b.equals(account);
         }
@@ -131,7 +135,13 @@ final class R59TradePairIntentIndex {
                (!old.a.equals(p.first)||!old.b.equals(p.second)))
                 throw new IOException(
                     "R59_INDEX_PUBLISH_DENIED existing intent identity drift");
-            complete.put(key,new Pair(p.first,p.second));
+            String manifestDigest=digestManifest(manifest);
+            if(old!=null&&!old.manifestDigest.equals(manifestDigest))
+                throw new IOException(
+                    "R59_INDEX_PUBLISH_DENIED existing intent digest drift");
+            complete.put(key,new Pair(
+                p.first,p.second,manifestDigest
+            ));
         }
 
         // A pending pair must not disappear just because a writer submits
@@ -154,6 +164,8 @@ final class R59TradePairIntentIndex {
             props.setProperty(prefix+"id",e.getKey());
             props.setProperty(prefix+"a",e.getValue().a);
             props.setProperty(prefix+"b",e.getValue().b);
+            props.setProperty(prefix+"sha256",
+                e.getValue().manifestDigest);
         }
         // The R16 publisher rejects ambiguous staging bytes and does an
         // atomic move of forced file bytes. It is NOT an atomic CAS across
@@ -248,12 +260,18 @@ final class R59TradePairIntentIndex {
             expected.add(prefix+"id");
             expected.add(prefix+"a");
             expected.add(prefix+"b");
+            expected.add(prefix+"sha256");
             String raw=p.getProperty(prefix+"id");
             UUID id=canonicalUUID(raw);
             String a=p.getProperty(prefix+"a");
             String b=p.getProperty(prefix+"b");
             checkNames(a,b);
-            if(entries.put(id.toString(),new Pair(a,b))!=null)
+            String manifestDigest=p.getProperty(prefix+"sha256");
+            if(manifestDigest==null||
+               !manifestDigest.matches("[0-9a-f]{64}"))
+                throw new IOException("R59_INDEX_DENIED invalid manifest digest");
+            if(entries.put(id.toString(),
+                new Pair(a,b,manifestDigest))!=null)
                 throw new IOException("R59_INDEX_DENIED duplicate transaction");
         }
         if(!p.stringPropertyNames().equals(expected))
@@ -286,7 +304,8 @@ final class R59TradePairIntentIndex {
                     R57TradePairJournal.readParticipants(file);
                 if(!id.equals(actual.transaction)||
                    !indexed.a.equals(actual.first)||
-                   !indexed.b.equals(actual.second))
+                   !indexed.b.equals(actual.second)||
+                   !indexed.manifestDigest.equals(digestManifest(file)))
                     throw new IOException("R59_INDEX_DENIED manifest conflict");
                 if(!seen.add(key))
                     throw new IOException("R59_INDEX_DENIED duplicate manifest");
@@ -294,6 +313,36 @@ final class R59TradePairIntentIndex {
         }
         if(!seen.equals(index.entries.keySet()))
             throw new IOException("R59_INDEX_DENIED missing indexed intent");
+    }
+
+    /**
+     * Bind the index to exact immutable manifest bytes. This detects
+     * accidental or non-cooperative rewrites between published revisions;
+     * it is NOT authentication against someone who can rewrite both files.
+     */
+    private static String digestManifest(Path file)throws IOException{
+        BasicFileAttributes attributes=Files.readAttributes(
+            file,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS
+        );
+        if(!attributes.isRegularFile()||attributes.size()<=0||
+           attributes.size()>8192)
+            throw new IOException("R59_INDEX_DENIED invalid manifest size/type");
+        byte[] bytes=Files.readAllBytes(file);
+        if(bytes.length!=attributes.size())
+            throw new IOException("R59_INDEX_DENIED changed manifest size");
+        try{
+            MessageDigest sha=MessageDigest.getInstance("SHA-256");
+            byte[] hash=sha.digest(bytes);
+            StringBuilder hex=new StringBuilder(64);
+            for(byte one:hash){
+                int value=one&255;
+                hex.append(Character.forDigit(value>>>4,16));
+                hex.append(Character.forDigit(value&15,16));
+            }
+            return hex.toString();
+        }catch(NoSuchAlgorithmException impossible){
+            throw new IllegalStateException("SHA-256 unavailable",impossible);
+        }
     }
 
     private static UUID canonicalUUID(String raw)throws IOException{
