@@ -1,0 +1,62 @@
+name: R60 Cooperative Cross-Process Pair Index Lock
+
+on:
+  push:
+    branches:
+      - playability/r60-cooperative-cross-process-pair-index-lock-20261115
+  pull_request:
+    paths:
+      - server/src/spk/local/R60TradePairCoordinator.java
+      - server/src/spk/local/R60TradePairCoordinatorTest.java
+      - .github/workflows/r60-cooperative-pair-lock.yml
+
+jobs:
+  linux-cross-process-pair-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build all and verify Java 11 target
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Test independent JVM exclusive lock, crash window and prior regressions
+        working-directory: server
+        run: |
+          for test in spk.local.R60TradePairCoordinatorTest spk.local.R59TradePairIntentIndexTest spk.local.R58TradePairLoginPreflightTest spk.local.R57TradePairJournalReviewTest spk.local.R56TradeSplitSaveRestartEvidenceTest spk.local.R55TradePublicationRollbackTest spk.local.EngineR4TradeFlowTest; do
+            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
+          done
+
+  windows-cross-process-pair-lock:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build all and verify Java 11 target
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test independent JVM exclusive lock, crash window and prior regressions
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R60TradePairCoordinatorTest',
+            'spk.local.R59TradePairIntentIndexTest',
+            'spk.local.R58TradePairLoginPreflightTest',
+            'spk.local.R57TradePairJournalReviewTest',
+            'spk.local.R56TradeSplitSaveRestartEvidenceTest',
+            'spk.local.R55TradePublicationRollbackTest',
+            'spk.local.EngineR4TradeFlowTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
