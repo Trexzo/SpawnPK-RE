@@ -249,6 +249,7 @@ public final class R71OfflineFinalSaveCheckpointFenceTest {
         finalSaveBeatsAlreadyQueuedCheckpoint();
         failedFinalNeverRearmsCheckpoint();
         shutdownDropsQueuedFinalWithoutReusingTicket();
+        backpressureDropsFinalWithoutRearming();
         System.out.println(
             "R71_OFFLINE_FINAL_SAVE_CHECKPOINT_SHUTDOWN_PASS "+
             "realCheckpointQueuedBeforeFinalSealDeniedAtCommit=true "+
@@ -260,6 +261,7 @@ public final class R71OfflineFinalSaveCheckpointFenceTest {
             "droppedShutdownFinalTicketRevoked=true "+
             "forcedShutdownPreservesAccountGenerationAndOwner=true "+
             "cancelledCheckpointNeverReachesRepository=true "+
+            "fullIoQueueRevokesRejectedFinalTicket=true "+
             "noLiveSessionInstallationOrPhysicalPowerLossClaim=true"
         );
     }
@@ -474,6 +476,84 @@ public final class R71OfflineFinalSaveCheckpointFenceTest {
                 loader.shutdownNow();
                 require(loader.awaitTermination(10L,TimeUnit.SECONDS),
                     "test-owned loading caller did not terminate");
+            }
+        }
+    }
+
+    /**
+     * R71 backpressure regression: the real bounded single-worker queue
+     * is full of 64 already-submitted test-only (unbound) saves while its
+     * I/O worker is paused in a repository load. Final save admission
+     * times out BEFORE queueing, and its terminal token must be revoked.
+     * The prior checkpoint seal remains fail-closed throughout.
+     */
+    private static void backpressureDropsFinalWithoutRearming()
+            throws Exception{
+        try(Fixture f=new Fixture("queue-backpressure")){
+            ExecutorService loader=Executors.newSingleThreadExecutor();
+            PausedLoad blocked=new PausedLoad();
+            f.repo.nextLoad.set(blocked);
+            try{
+                Future<Optional<PlayerSnapshot>> loading=
+                    loader.submit(()->f.persistence.load(USER));
+                require(blocked.arrived.await(10L,TimeUnit.SECONDS),
+                    "I/O worker not parked before backpressure test");
+                for(int i=0;
+                    i<WorldPlayerPersistence.MAX_PENDING_WRITES;i++){
+                    // Deliberately no test-owner ticket binding: the
+                    // queued work must never be granted a current token.
+                    WorldPlayerPersistence.CapturedSave captured=
+                        f.captureManual(0);
+                    WorldPlayerPersistence.SaveTicket submitted=
+                        f.persistence.submitCapturedWithBackpressure(
+                            captured,0L
+                        );
+                    require(!submitted.completion.isDone(),
+                        "bounded I/O queue unexpectedly drained");
+                }
+                require(f.persistence.queuedWrites()==
+                        WorldPlayerPersistence.MAX_PENDING_WRITES,
+                    "test-only queue did not reach its real capacity");
+
+                WorldPlayerPersistence.CapturedSave finalA=
+                    f.finalCapture(f.first,560);
+                byte[][] before=f.evidence();
+                WorldPlayerPersistence.SaveTicket denied=
+                    f.persistence.submitCapturedWithBackpressure(
+                        finalA,0L
+                    );
+                Throwable why=failure(denied.completion);
+                require(why instanceof RejectedExecutionException &&
+                        why.getMessage().contains(
+                            "admission timed out"),
+                    "full queue did not reject final-save admission: "+why);
+                require(f.gate.finalsDropped()==1 &&
+                        f.gate.pendingFinalTickets()==0 &&
+                        f.gate.sealedAccountCount()==1 &&
+                        f.gate.finalsCommitted()==0,
+                    "backpressure left a reusable final-save token");
+                require(f.repo.saves.get()==0,
+                    "backpressure queue wrote canonical bytes");
+                f.unchanged(before,"full queue final-save refusal");
+
+                // Shutdown of the original real executor rejects all
+                // 64 queued test tasks; none may be silently promoted
+                // to the current session or alter durable generation.
+                f.persistence.close();
+                require(f.repo.saves.get()==0 &&
+                        f.gate.pendingFinalTickets()==0,
+                    "shutdown of saturated queue wrote or rearmed save");
+                f.unchanged(before,"saturated queue forced shutdown");
+                blocked.release.countDown();
+                try{loading.get(10L,TimeUnit.SECONDS);}
+                catch(ExecutionException ignored){
+                    // In-flight load may be settled as failed at shutdown.
+                }
+            }finally{
+                blocked.release.countDown();
+                loader.shutdownNow();
+                require(loader.awaitTermination(10L,TimeUnit.SECONDS),
+                    "backpressure test loader thread did not terminate");
             }
         }
     }
