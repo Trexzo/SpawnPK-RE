@@ -139,6 +139,25 @@ final class WorldPlayerPersistence
         )throws IOException;
     }
 
+    /**
+     * R74 test-only cooperative shutdown witness. A test gate may refuse
+     * an IO writer blocked before R60 admission even when that writer
+     * deliberately ignores Java thread interruption.
+     *
+     * Calling this callback does NOT mean a real filesystem operation
+     * already in progress was rolled back or physically canceled.
+     */
+    interface OfflineForcedShutdownWitness {
+        void onOfflineForcedShutdownForTest();
+    }
+
+    private void notifyOfflineForcedShutdownForTest(){
+        OfflineSaveAdmission gate=offlineSaveAdmission;
+        if(gate instanceof OfflineForcedShutdownWitness)
+            ((OfflineForcedShutdownWitness)gate)
+                .onOfflineForcedShutdownForTest();
+    }
+
     @FunctionalInterface
     interface CheckedSaveWriter {
         void run() throws IOException;
@@ -1687,6 +1706,7 @@ final class WorldPlayerPersistence
                 );
 
             if(!clean){
+                notifyOfflineForcedShutdownForTest();
                 List<Runnable> dropped=
                     io.shutdownNow();
 
@@ -1740,6 +1760,7 @@ final class WorldPlayerPersistence
         }catch(InterruptedException e){
             Thread.currentThread().interrupt();
 
+            notifyOfflineForcedShutdownForTest();
             List<Runnable> dropped=
                 io.shutdownNow();
 
