@@ -148,69 +148,76 @@ final class R63AccountSaveAdmission {
         Objects.requireNonNull(expected,"expected token");
         Objects.requireNonNull(proposed,"proposed snapshot");
         return R60TradePairCoordinator.withExclusive(
-            journalRoot,false,()->{
-                Check current=inspectUnderLock(
-                    journalRoot,accountRoot,stateRoot,expected.username
-                );
-                if(current.status!=Status.READY_FOR_OTHER_OFFLINE_CHECKS||
-                   current.token==null)
-                    throw new IOException(
-                        "R63_SAVE_DENIED account blocked or indeterminate"
-                    );
-                Token actual=current.token;
-                if(actual.generation!=expected.generation||
-                   actual.journalRevision!=expected.journalRevision||
-                   !actual.snapshotDigest.equals(expected.snapshotDigest))
-                    throw new IOException(
-                        "R63_SAVE_DENIED stale generation/hash/index revision"
-                    );
-                if(!expected.username.equals(proposed.username())||
-                   proposed.version()!=PlayerSnapshot.CURRENT_VERSION)
-                    throw new IOException(
-                        "R63_SAVE_DENIED foreign account/version"
-                    );
-                if(actual.generation==Long.MAX_VALUE)
-                    throw new IOException(
-                        "R63_SAVE_DENIED generation overflow"
-                    );
-                String nextDigest=R57TradePairJournal.digest(proposed);
-                if(nextDigest.equals(actual.snapshotDigest))
-                    throw new IOException(
-                        "R63_SAVE_DENIED unchanged snapshot"
-                    );
-
-                FilePlayerRepository repository=repository(accountRoot);
-                // The pending R16 stage protocol refuses ambiguous
-                // publication. If save succeeds and the ledger update
-                // does not, all subsequent R63 inspections see a digest
-                // mismatch and fail closed. No auto-resync or rollback.
-                repository.save(proposed);
-                PlayerSnapshot saved=loadExisting(
-                    accountRoot,expected.username
-                );
-                if(!nextDigest.equals(
-                        R57TradePairJournal.digest(saved)))
-                    throw new IOException(
-                        "R63_SAVE_DENIED post-save verification failed"
-                    );
-                if(injectAfterAccountSave)
-                    throw new IOException(
-                        "R63_INJECTED_AFTER_CANONICAL_SAVE_BEFORE_LEDGER"
-                    );
-                publishLedger(
-                    ledgerPath(stateRoot,expected.username),
-                    new Ledger(expected.username,
-                        actual.generation+1L,nextDigest)
-                );
-                return new Token(
-                    expected.username,actual.generation+1L,
-                    actual.journalRevision,nextDigest
-                );
-            }
+            journalRoot,false,()->saveIfCurrentUnderLock(
+                journalRoot,accountRoot,stateRoot,expected,proposed,
+                injectAfterAccountSave
+            )
         );
     }
 
-    private static Check inspectUnderLock(
+    /**
+     * R64 composition seam. Caller MUST already hold R60's exclusive
+     * cooperative OS lock throughout session-owner verification, the
+     * account write, ledger advancement and new session record publication.
+     * NEVER invoke without that held lock.
+     */
+    static Token saveIfCurrentUnderLock(
+        Path journalRoot,Path accountRoot,Path stateRoot,
+        Token expected,PlayerSnapshot proposed,boolean injectAfterAccountSave
+    )throws IOException{
+        Objects.requireNonNull(expected,"expected token");
+        Objects.requireNonNull(proposed,"proposed snapshot");
+        Check current=inspectUnderLock(
+            journalRoot,accountRoot,stateRoot,expected.username
+        );
+        if(current.status!=Status.READY_FOR_OTHER_OFFLINE_CHECKS||
+           current.token==null)
+            throw new IOException(
+                "R63_SAVE_DENIED account blocked or indeterminate"
+            );
+        Token actual=current.token;
+        if(actual.generation!=expected.generation||
+           actual.journalRevision!=expected.journalRevision||
+           !actual.snapshotDigest.equals(expected.snapshotDigest))
+            throw new IOException(
+                "R63_SAVE_DENIED stale generation/hash/index revision"
+            );
+        if(!expected.username.equals(proposed.username())||
+           proposed.version()!=PlayerSnapshot.CURRENT_VERSION)
+            throw new IOException(
+                "R63_SAVE_DENIED foreign account/version"
+            );
+        if(actual.generation==Long.MAX_VALUE)
+            throw new IOException("R63_SAVE_DENIED generation overflow");
+        String nextDigest=R57TradePairJournal.digest(proposed);
+        if(nextDigest.equals(actual.snapshotDigest))
+            throw new IOException("R63_SAVE_DENIED unchanged snapshot");
+
+        FilePlayerRepository repository=repository(accountRoot);
+        repository.save(proposed);
+        PlayerSnapshot saved=loadExisting(
+            accountRoot,expected.username
+        );
+        if(!nextDigest.equals(R57TradePairJournal.digest(saved)))
+            throw new IOException(
+                "R63_SAVE_DENIED post-save verification failed"
+            );
+        if(injectAfterAccountSave)
+            throw new IOException(
+                "R63_INJECTED_AFTER_CANONICAL_SAVE_BEFORE_LEDGER"
+            );
+        publishLedger(
+            ledgerPath(stateRoot,expected.username),
+            new Ledger(expected.username,actual.generation+1L,nextDigest)
+        );
+        return new Token(
+            expected.username,actual.generation+1L,
+            actual.journalRevision,nextDigest
+        );
+    }
+
+    /** R64: valid only when the caller already holds R60's OS lock. */
+    static Check inspectUnderLock(
         Path journalRoot,Path accountRoot,Path stateRoot,String account
     )throws IOException{
         validateRoots(journalRoot,accountRoot,stateRoot);
