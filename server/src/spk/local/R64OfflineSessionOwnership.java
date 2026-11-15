@@ -160,8 +160,29 @@ final class R64OfflineSessionOwnership {
         Path sessionRoot,Token expected,PlayerSnapshot next,
         boolean injectAfterLedgerBeforeOwner
     )throws IOException{
+        return saveOwnedUnderLock(
+            journalRoot,accountRoot,generationRoot,sessionRoot,
+            expected,next,injectAfterLedgerBeforeOwner,
+            new FilePlayerRepository(
+                user->accountRoot.toAbsolutePath().normalize()
+                    .resolve(user+".properties")
+            )
+        );
+    }
+
+    /**
+     * R69 isolated worker commit: use the real WorldPlayerPersistence
+     * repository under exactly the same R60 lock as owner and generation
+     * validation. The existing overload remains unchanged.
+     */
+    static Token saveOwnedUnderLock(
+        Path journalRoot,Path accountRoot,Path generationRoot,
+        Path sessionRoot,Token expected,PlayerSnapshot next,
+        boolean injectAfterLedgerBeforeOwner,PlayerRepository commitRepository
+    )throws IOException{
         Objects.requireNonNull(expected,"expected owner");
         Objects.requireNonNull(next,"next snapshot");
+        Objects.requireNonNull(commitRepository,"commitRepository");
         R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
         validateRoots(journalRoot,accountRoot,generationRoot,sessionRoot);
         Token stored=readOwner(recordPath(sessionRoot,expected.username));
@@ -177,7 +198,7 @@ final class R64OfflineSessionOwnership {
         R63AccountSaveAdmission.Token after=
             R63AccountSaveAdmission.saveIfCurrentUnderLock(
                 journalRoot,accountRoot,generationRoot,
-                stored.account,next,false
+                stored.account,next,false,commitRepository
             );
         if(injectAfterLedgerBeforeOwner)
             throw new IOException(
