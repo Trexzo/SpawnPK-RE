@@ -22,15 +22,19 @@ final class WorldPlayerPersistence
 
     static final class SaveTicket {
         final long sequence;
+        /** R71: World-thread snapshot capture order, not IO enqueue order. */
+        final long captureOrdinal;
         final PlayerSnapshot snapshot;
         final CompletableFuture<Void> completion;
 
         SaveTicket(
             long sequence,
+            long captureOrdinal,
             PlayerSnapshot snapshot,
             CompletableFuture<Void> completion
         ){
             this.sequence=sequence;
+            this.captureOrdinal=captureOrdinal;
             this.snapshot=snapshot;
             this.completion=completion;
         }
@@ -74,15 +78,18 @@ final class WorldPlayerPersistence
 
     private static final class PendingCheckpoint {
         final long tick;
+        final long captureOrdinal;
         final PlayerSnapshot snapshot;
         final int petAccessoryItem;
 
         PendingCheckpoint(
             long tick,
+            long captureOrdinal,
             PlayerSnapshot snapshot,
             int petAccessoryItem
         ){
             this.tick=tick;
+            this.captureOrdinal=captureOrdinal;
             this.snapshot=snapshot;
             this.petAccessoryItem=petAccessoryItem;
         }
@@ -114,6 +121,19 @@ final class WorldPlayerPersistence
     interface OfflineSaveAdmission {
         void withAdmission(PlayerSnapshot snapshot, CheckedSaveWriter writer)
             throws IOException;
+    }
+
+    /**
+     * R71 test-only extension. The absolute capture ordinal originates on
+     * the World thread and survives deferred submission and checkpoint
+     * coalescing, rather than being assigned at IO drain.
+     */
+    interface OfflineOrderedSaveAdmission extends OfflineSaveAdmission {
+        void withOrderedAdmission(
+            long captureOrdinal,
+            PlayerSnapshot snapshot,
+            CheckedSaveWriter writer
+        )throws IOException;
     }
 
     @FunctionalInterface
@@ -153,6 +173,18 @@ final class WorldPlayerPersistence
 
     private final AtomicLong sequence=
         new AtomicLong();
+    private final AtomicLong captureOrder=
+        new AtomicLong();
+
+    /** Called while owning the World player's capture mutation lock. */
+    private long nextCaptureOrdinal(){
+        long value=captureOrder.incrementAndGet();
+        if(value<=0L)
+            throw new IllegalStateException(
+                "R71_CAPTURE_ORDER_DENIED ordinal overflow"
+            );
+        return value;
+    }
     private final AtomicLong completed=
         new AtomicLong();
     private final AtomicLong failed=
@@ -397,6 +429,7 @@ final class WorldPlayerPersistence
         );
 
         PlayerSnapshot snapshot;
+        long snapshotCaptureOrdinal;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -416,6 +449,7 @@ final class WorldPlayerPersistence
                     player,
                     petAccessoryItem
                 );
+            snapshotCaptureOrdinal=nextCaptureOrdinal();
         }
 
         long saveSequence=
@@ -427,6 +461,7 @@ final class WorldPlayerPersistence
         return new CapturedSave(
             new SaveTicket(
                 saveSequence,
+                snapshotCaptureOrdinal,
                 snapshot,
                 future
             ),
@@ -454,6 +489,7 @@ final class WorldPlayerPersistence
         );
 
         PlayerSnapshot snapshot;
+        long snapshotCaptureOrdinal;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -484,6 +520,7 @@ final class WorldPlayerPersistence
                         player,
                         petAccessoryItem
                     );
+                snapshotCaptureOrdinal=nextCaptureOrdinal();
             }catch(RuntimeException|Error failure){
                 synchronized(checkpointLock){
                     Long current=
@@ -519,6 +556,7 @@ final class WorldPlayerPersistence
         return new CapturedSave(
             new SaveTicket(
                 saveSequence,
+                snapshotCaptureOrdinal,
                 snapshot,
                 future
             ),
@@ -580,6 +618,7 @@ final class WorldPlayerPersistence
     ){
         return new SaveTask(
             captured.ticket.sequence,
+            captured.ticket.captureOrdinal,
             captured.ticket.snapshot,
             captured.petAccessoryItem,
             captured.tag,
@@ -739,6 +778,7 @@ final class WorldPlayerPersistence
                 pending=
                     new PendingCheckpoint(
                         tick,
+                        nextCaptureOrdinal(),
                         snapshot,
                         accessoryItem
                     );
@@ -935,6 +975,7 @@ final class WorldPlayerPersistence
 
             write(
                 saveSequence,
+                pending.captureOrdinal,
                 pending.snapshot,
                 pending.petAccessoryItem,
                 "[world] ",
@@ -1013,6 +1054,7 @@ final class WorldPlayerPersistence
         implements Runnable {
 
         private final long saveSequence;
+        private final long captureOrdinal;
         private final PlayerSnapshot snapshot;
         private final int petAccessoryItem;
         private final String tag;
@@ -1021,6 +1063,7 @@ final class WorldPlayerPersistence
 
         SaveTask(
             long saveSequence,
+            long captureOrdinal,
             PlayerSnapshot snapshot,
             int petAccessoryItem,
             String tag,
@@ -1028,6 +1071,7 @@ final class WorldPlayerPersistence
             CompletableFuture<Void> future
         ){
             this.saveSequence=saveSequence;
+            this.captureOrdinal=captureOrdinal;
             this.snapshot=snapshot;
             this.petAccessoryItem=petAccessoryItem;
             this.tag=tag;
@@ -1040,6 +1084,7 @@ final class WorldPlayerPersistence
             try{
                 write(
                     saveSequence,
+                    captureOrdinal,
                     snapshot,
                     petAccessoryItem,
                     tag,
@@ -1136,6 +1181,7 @@ final class WorldPlayerPersistence
 
     private void write(
         long saveSequence,
+        long captureOrdinal,
         PlayerSnapshot snapshot,
         int petAccessoryItem,
         String tag,
@@ -1147,6 +1193,10 @@ final class WorldPlayerPersistence
             OfflineSaveAdmission gate=offlineSaveAdmission;
             if(gate==null)
                 repository.save(snapshot);
+            else if(gate instanceof OfflineOrderedSaveAdmission)
+                ((OfflineOrderedSaveAdmission)gate).withOrderedAdmission(
+                    captureOrdinal,snapshot,()->repository.save(snapshot)
+                );
             else
                 gate.withAdmission(snapshot,()->repository.save(snapshot));
 
