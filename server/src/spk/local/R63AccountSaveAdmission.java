@@ -165,8 +165,25 @@ final class R63AccountSaveAdmission {
         Path journalRoot,Path accountRoot,Path stateRoot,
         Token expected,PlayerSnapshot proposed,boolean injectAfterAccountSave
     )throws IOException{
+        return saveIfCurrentUnderLock(
+            journalRoot,accountRoot,stateRoot,expected,proposed,
+            injectAfterAccountSave,repository(accountRoot)
+        );
+    }
+
+    /**
+     * R69 test-only I/O commit seam. Accept the *actual* worker repository
+     * after verifying R63 generation under R60. The caller must own the
+     * matching test-controlled account directory and held OS lock.
+     */
+    static Token saveIfCurrentUnderLock(
+        Path journalRoot,Path accountRoot,Path stateRoot,
+        Token expected,PlayerSnapshot proposed,boolean injectAfterAccountSave,
+        PlayerRepository commitRepository
+    )throws IOException{
         Objects.requireNonNull(expected,"expected token");
         Objects.requireNonNull(proposed,"proposed snapshot");
+        Objects.requireNonNull(commitRepository,"commitRepository");
         R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
         Check current=inspectUnderLock(
             journalRoot,accountRoot,stateRoot,expected.username
@@ -194,8 +211,7 @@ final class R63AccountSaveAdmission {
         if(nextDigest.equals(actual.snapshotDigest))
             throw new IOException("R63_SAVE_DENIED unchanged snapshot");
 
-        FilePlayerRepository repository=repository(accountRoot);
-        repository.save(proposed);
+        commitRepository.save(proposed);
         PlayerSnapshot saved=loadExisting(
             accountRoot,expected.username
         );
