@@ -975,6 +975,124 @@ final class WorldPlayerPersistence
         return io.getQueue().size();
     }
 
+    /**
+     * R73 offline-only queue drain check. A sentinel on the real single IO
+     * executor proves all tasks admitted before the sentinel have finished.
+     * It must never be called from the World execution thread. A timeout
+     * is uncertain, NOT proof that a final save committed.
+     */
+    void awaitOfflineIoDrainForTest(long timeoutMillis)throws IOException{
+        if(timeoutMillis<=0L)
+            throw new IllegalArgumentException(
+                "R73_IO_DRAIN_DENIED invalid timeout"
+            );
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "R73_IO_DRAIN_DENIED cannot block World actor"
+            );
+        final CompletableFuture<Void> reached=new CompletableFuture<>();
+        final Runnable barrier=()->reached.complete(null);
+        final long started=System.nanoTime();
+        final long budget=TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+        boolean queued=false;
+        while(!queued){
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new IOException(
+                        "R73_IO_DRAIN_DENIED worker shutdown"
+                    );
+                try{
+                    io.execute(barrier);
+                    queued=true;
+                }catch(RejectedExecutionException busy){
+                    if(io.isShutdown())
+                        throw new IOException(
+                            "R73_IO_DRAIN_DENIED worker shutdown",busy
+                        );
+                    queued=io.getQueue().offer(barrier);
+                }
+            }
+            if(queued)break;
+            long elapsed=System.nanoTime()-started;
+            if(elapsed>=budget)
+                throw new IOException(
+                    "R73_IO_DRAIN_DENIED queue admission timed out"
+                );
+            try{
+                Thread.sleep(1L);
+            }catch(InterruptedException interrupted){
+                Thread.currentThread().interrupt();
+                throw new IOException(
+                    "R73_IO_DRAIN_DENIED interrupted",interrupted
+                );
+            }
+        }
+        long remaining=budget-(System.nanoTime()-started);
+        if(remaining<=0L)
+            throw new IOException(
+                "R73_IO_DRAIN_DENIED completion timed out"
+            );
+        try{
+            reached.get(remaining,TimeUnit.NANOSECONDS);
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            throw new IOException(
+                "R73_IO_DRAIN_DENIED interrupted",interrupted
+            );
+        }catch(TimeoutException timedOut){
+            throw new IOException(
+                "R73_IO_DRAIN_DENIED completion timed out",timedOut
+            );
+        }catch(ExecutionException impossible){
+            throw new IOException(
+                "R73_IO_DRAIN_DENIED completion failed",impossible
+            );
+        }
+    }
+
+    boolean offlineTerminalFenceEnabledForTest(){
+        return offlineTerminalCaptureFence;
+    }
+
+    /**
+     * R73 deterministic saturation fixture. This runs only when a test
+     * explicitly calls it; no game or LocalSession path references it.
+     * Synthetic no-op tasks are distinguished from real save operations.
+     */
+    void holdOfflineIoWorkerForTest(
+        CountDownLatch entered,CountDownLatch release
+    ){
+        Objects.requireNonNull(entered,"entered");
+        Objects.requireNonNull(release,"release");
+        io.execute(()->{
+            entered.countDown();
+            try{
+                if(!release.await(20L,TimeUnit.SECONDS))
+                    System.err.println(
+                        "[r73] OFFLINE_IO_HOLD_TIMED_OUT"
+                    );
+            }catch(InterruptedException interrupted){
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
+    void fillOfflineIoQueueWithNoopsForTest(){
+        synchronized(io){
+            if(io.isShutdown()||
+               io.getQueue().size()!=0)
+                throw new IllegalStateException(
+                    "R73_QUEUE_FIXTURE_DENIED worker not empty"
+                );
+            for(int i=0;i<MAX_PENDING_WRITES;i++)
+                io.execute(()->{});
+            if(io.getQueue().size()!=MAX_PENDING_WRITES)
+                throw new IllegalStateException(
+                    "R73_QUEUE_FIXTURE_DENIED not saturated"
+                );
+        }
+    }
+
     String metrics(){
         return "WorldPlayerPersistence{"+
             "repository="+repositoryName()+

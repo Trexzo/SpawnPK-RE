@@ -230,6 +230,51 @@ final class R72OfflineDurableCaptureOrder
         });
     }
 
+    /**
+     * R73 OFFLINE ONLY. Called by a World actor after the final save future
+     * succeeded and an IO drain sentinel completed. Revalidates the exact
+     * final snapshot and durable ordinal under R60 before releasing R64.
+     * The marker is intentionally preserved as immutable audit evidence.
+     *
+     * This is not authentication and cannot release another R64 owner.
+     */
+    synchronized R64OfflineSessionOwnership.Token
+        releaseVerifiedFinalForTest(
+            long finalCaptureOrdinal,
+            PlayerSnapshot finalSnapshot
+        )throws IOException{
+        Objects.requireNonNull(finalSnapshot,"final snapshot");
+        if(finalCaptureOrdinal<=0L||
+           !current.username.equals(finalSnapshot.username()))
+            throw new IOException(
+                "R73_FINAL_RELEASE_DENIED missing final capture proof"
+            );
+        return R60TradePairCoordinator.withExclusive(journal,false,()->{
+            R64OfflineSessionOwnership.requireActiveOwnerUnderLock(
+                journal,accounts,generations,sessions,current
+            );
+            validateMarkerRoot(markerRoot,journal,accounts,
+                generations,sessions);
+            Marker committed=read(
+                markerPath(markerRoot,current.username)
+            );
+            committed.requireMatching(current);
+            if(committed.captureOrdinal!=finalCaptureOrdinal||
+               !committed.snapshotDigest.equals(
+                   R57TradePairJournal.digest(finalSnapshot)
+               ))
+                throw new IOException(
+                    "R73_FINAL_RELEASE_DENIED final snapshot not committed"
+                );
+            R64OfflineSessionOwnership.Token released=
+                R64OfflineSessionOwnership.releaseOwnerUnderLock(
+                    journal,accounts,generations,sessions,current
+                );
+            current=released;
+            return released;
+        });
+    }
+
     synchronized R64OfflineSessionOwnership.Token currentToken(){
         return current;
     }
