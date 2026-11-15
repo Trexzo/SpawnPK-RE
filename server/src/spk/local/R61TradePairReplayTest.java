@@ -95,6 +95,60 @@ public final class R61TradePairReplayTest {
             requireSavedPair(hardStop);
             requireBothQuarantined(hardStop);
 
+            // A non-cooperative R59 writer can manually register a
+            // second PREPARED trade involving the SAME first account.
+            // A replay must refuse this ambiguous account ownership even
+            // when the requested transaction remains present in the index.
+            Fixture overlap=fixture(scratch.resolve("overlap-negative"));
+            R61TradePairReplay.publishCommitDecision(
+                overlap.journal,overlap.payloads,ID,
+                overlap.beforeA,overlap.afterA,
+                overlap.beforeB,overlap.afterB
+            );
+            byte[] overlappingBeforeA=Files.readAllBytes(
+                overlap.accounts.resolve("opensrc.properties"));
+            byte[] overlappingBeforeB=Files.readAllBytes(
+                overlap.accounts.resolve("src.properties"));
+            UUID foreignId=UUID.fromString(
+                "77777777-8888-4999-aaaa-bbbbbbbbbbbb");
+            WorldPlayer conflictingA=new WorldPlayer();
+            WorldPlayer conflictingB=new WorldPlayer();
+            PlayerSnapshot firstOld=PlayerSnapshotCodec.capture(
+                "opensrc",conflictingA);
+            PlayerSnapshot otherOld=PlayerSnapshotCodec.capture(
+                "otherb",conflictingB);
+            ServerPacketWriter conflictWriter=new ServerPacketWriter(
+                new OutboundPacketQueue(),
+                new IsaacCipher(new int[]{4,3,2,1})
+            );
+            conflictingA.bank().spawnItem(995,1,conflictWriter);
+            conflictingB.bank().spawnItem(385,1,conflictWriter);
+            R57TradePairJournal.writePrepared(
+                overlap.journal.resolve(
+                    "trade-r57-"+foreignId+".properties"),
+                foreignId,firstOld,
+                PlayerSnapshotCodec.capture("opensrc",conflictingA),
+                otherOld,
+                PlayerSnapshotCodec.capture("otherb",conflictingB)
+            );
+            long overlappedRevision=R59TradePairIntentIndex.publishRevision(
+                overlap.journal,2L,Arrays.asList(ID,foreignId)
+            );
+            require(overlappedRevision==3L,
+                "non-cooperative overlap fixture failed");
+            require(R59TradePairIntentIndex.inspect(
+                overlap.journal,"opensrc").transactions.size()==2,
+                "overlap fixture does not contain two pending pairs");
+            expectIOException(()->R61TradePairReplay.replayCommitted(
+                overlap.journal,overlap.accounts,overlap.payloads,
+                ID,false
+            ));
+            require(Arrays.equals(overlappingBeforeA,Files.readAllBytes(
+                    overlap.accounts.resolve("opensrc.properties"))) &&
+                    Arrays.equals(overlappingBeforeB,Files.readAllBytes(
+                    overlap.accounts.resolve("src.properties"))),
+                "overlapping pair allowed canonical mutation");
+
             Fixture negatives=fixture(scratch.resolve("negative-controls"));
             byte[] initialA=Files.readAllBytes(
                 negatives.accounts.resolve("opensrc.properties"));
@@ -192,6 +246,7 @@ public final class R61TradePairReplayTest {
                 "preparedWithoutCommitNeverPublishes=true "+
                 "damagedPostPayloadAndUnknownCanonicalDenied=true "+
                 "orphanCommitStagePreserved=true "+
+                "overlappingIndexedIntentsDenied=true "+
                 "bothAccountLoginsRemainQuarantined=true "+
                 "noProductionRecoveryHook=true "+
                 "physicalPowerLossDurabilityNotProven=true");
