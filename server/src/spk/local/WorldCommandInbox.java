@@ -21,6 +21,32 @@ final class WorldCommandInbox {
             Action action
         )throws Exception;
     }
+
+    /**
+     * R74 offline-only command admission. An isolated World may opt in to
+     * deny ordinary commands after final-save quiescence. The second check
+     * is performed inside the actual player mutationLock at dispatch, not
+     * merely when a command was first queued.
+     */
+    interface OfflineCommandAdmission {
+        boolean permits(
+            WorldPlayer player,long generation,Action action
+        );
+    }
+
+    private volatile OfflineCommandAdmission offlineCommandAdmission;
+
+    synchronized void installOfflineCommandAdmissionForTest(
+        OfflineCommandAdmission admission
+    ){
+        if(offlineCommandAdmission!=null)
+            throw new IllegalStateException(
+                "R74_COMMAND_ADMISSION_DENIED already installed"
+            );
+        offlineCommandAdmission=Objects.requireNonNull(
+            admission,"admission"
+        );
+    }
     private static final int DEFAULT_PER_PLAYER_LIMIT=64;
     private static final int DEFAULT_GLOBAL_LIMIT=2048;
     private final AtomicLong sequence=new AtomicLong();
@@ -192,6 +218,17 @@ final class WorldCommandInbox {
             return f;
         }
 
+        OfflineCommandAdmission gate=offlineCommandAdmission;
+        if(gate!=null&&
+           !gate.permits(player,expectedGeneration,action)){
+            f.completeExceptionally(
+                new CancellationException(
+                    "R74_COMMAND_QUIESCED before enqueue"
+                )
+            );
+            return f;
+        }
+
         int count=
             queuedPerPlayer.getOrDefault(
                 player.id(),
@@ -264,7 +301,19 @@ final class WorldCommandInbox {
                     executionOwnership.run(
                         c.player,
                         c.generation,
-                        c.action
+                        ()->{
+                            // Revalidate under the player's real mutation
+                            // lock: a queued command can become stale
+                            // AFTER submission and BEFORE execution.
+                            OfflineCommandAdmission gate=
+                                offlineCommandAdmission;
+                            if(gate!=null&&!gate.permits(
+                                    c.player,c.generation,c.action))
+                                throw new CancellationException(
+                                    "R74_COMMAND_QUIESCED before handler"
+                                );
+                            c.action.run();
+                        }
                     );
 
                 if(!executed)
