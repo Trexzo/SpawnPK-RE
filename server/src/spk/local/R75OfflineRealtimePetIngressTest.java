@@ -42,7 +42,7 @@ public final class R75OfflineRealtimePetIngressTest {
             WorldNpc[] main={null};
             world.submitAndWait(owner,generation,()->{
                 main[0]=world.petNpcs().ensureMain(
-                    owner.id(),131,3200,3200,0,0
+                    owner.id(),131,0,3200,3200,0
                 );
                 require(main[0]!=null &&
                     world.petNpcs().ownerActorCount(owner.id())==1,
@@ -89,10 +89,10 @@ public final class R75OfflineRealtimePetIngressTest {
                 owner.id(),x+1,y+1,0
             ),"R75_PET_QUIESCED");
             expectIllegal(()->world.petNpcs().ensureMain(
-                owner.id(),131,x+2,y+2,0,0
+                owner.id(),131,0,x+2,y+2,0
             ),"R75_PET_QUIESCED");
             expectIllegal(()->world.petNpcs().ensureMini(
-                owner.id(),132,x,y,0,0
+                owner.id(),132,0,x,y,0
             ),"R75_PET_QUIESCED");
             expectIllegal(()->world.petNpcs().removeMini(
                 owner.id()
@@ -112,7 +112,7 @@ public final class R75OfflineRealtimePetIngressTest {
                 "R75 unrelated owned realtime callback was blocked");
 
             world.petNpcs().ensureMain(
-                unrelated.id(),135,3300,3300,0,0
+                unrelated.id(),135,0,3300,3300,0
             );
             require(world.petNpcs().ownerActorCount(
                     unrelated.id())==1,
