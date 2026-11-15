@@ -293,6 +293,33 @@ final class R64OfflineSessionOwnership {
         requireAccountMatches(recorded.account,canonical);
     }
 
+    /**
+     * R74 narrow read-only composition under the actual R60 OS lock.
+     * Unlike ordinary inspect(), this retains the validated RELEASED
+     * token for non-authorizing reconciliation of the R72/73 evidence.
+     * Never reacquire R60 inside this method.
+     */
+    static Token requireReleasedOwnerUnderLock(
+        Path journalRoot,Path accountRoot,Path generationRoot,
+        Path sessionRoot,String username
+    )throws IOException{
+        R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
+        validateRoots(journalRoot,accountRoot,
+            generationRoot,sessionRoot);
+        validateUsername(username);
+        R63AccountSaveAdmission.Token canonical=requireAccountReady(
+            journalRoot,accountRoot,generationRoot,username
+        );
+        Token owner=readOwner(recordPath(sessionRoot,username));
+        if(!owner.username.equals(username)||
+           owner.phase!=Phase.RELEASED)
+            throw new IOException(
+                "R74_RELEASED_OWNER_DENIED not a released account"
+            );
+        requireAccountMatches(owner.account,canonical);
+        return owner;
+    }
+
     /** Passive inspection never authorizes actual player login. */
     static Review inspect(
         Path journalRoot,Path accountRoot,Path generationRoot,
