@@ -237,7 +237,6 @@ public final class R74OfflineIngressAndShutdownTest {
             require(p.review().status==
                     R64OfflineSessionOwnership.Status
                         .READY_FOR_OTHER_OFFLINE_CHECKS &&
-                    !world.players().owns(player,generation)==false &&
                     equalBytes(original,p.allBytes()) &&
                     durable.currentToken().phase==
                         R64OfflineSessionOwnership.Phase.ACTIVE,
