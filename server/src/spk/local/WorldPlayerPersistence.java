@@ -1054,6 +1054,45 @@ final class WorldPlayerPersistence
         return offlineTerminalCaptureFence;
     }
 
+    /**
+     * R73 deterministic saturation fixture. This runs only when a test
+     * explicitly calls it; no game or LocalSession path references it.
+     * Synthetic no-op tasks are distinguished from real save operations.
+     */
+    void holdOfflineIoWorkerForTest(
+        CountDownLatch entered,CountDownLatch release
+    ){
+        Objects.requireNonNull(entered,"entered");
+        Objects.requireNonNull(release,"release");
+        io.execute(()->{
+            entered.countDown();
+            try{
+                if(!release.await(20L,TimeUnit.SECONDS))
+                    System.err.println(
+                        "[r73] OFFLINE_IO_HOLD_TIMED_OUT"
+                    );
+            }catch(InterruptedException interrupted){
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
+    void fillOfflineIoQueueWithNoopsForTest(){
+        synchronized(io){
+            if(io.isShutdown()||
+               io.getQueue().size()!=0)
+                throw new IllegalStateException(
+                    "R73_QUEUE_FIXTURE_DENIED worker not empty"
+                );
+            for(int i=0;i<MAX_PENDING_WRITES;i++)
+                io.execute(()->{});
+            if(io.getQueue().size()!=MAX_PENDING_WRITES)
+                throw new IllegalStateException(
+                    "R73_QUEUE_FIXTURE_DENIED not saturated"
+                );
+        }
+    }
+
     String metrics(){
         return "WorldPlayerPersistence{"+
             "repository="+repositoryName()+
