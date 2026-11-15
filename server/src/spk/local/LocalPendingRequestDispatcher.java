@@ -205,15 +205,20 @@ final class LocalPendingRequestDispatcher {
         for(ClientRequest request;
             (request=clientPackets.takeTypedRequest())!=null;){
             serverPackets.requireGameActionAdmission();
+            // The loop variable advances with each decoded request, so
+            // capture a final per-iteration value for the test hook.
+            final ClientRequest currentRequest=request;
             OfflineRequestAdmission gate=offlineAdmission;
             if(gate==null){
-                routeTypedRequest(request,clientPackets,serverPackets,tag);
+                routeTypedRequest(
+                    currentRequest,clientPackets,serverPackets,tag
+                );
             }else{
                 // The test gate holds R60 across both owner recheck
                 // and the actual domain handler dispatch.
                 gate.withAdmission(
-                    request,()->routeTypedRequest(
-                        request,clientPackets,serverPackets,tag
+                    currentRequest,()->routeTypedRequest(
+                        currentRequest,clientPackets,serverPackets,tag
                     )
                 );
             }
