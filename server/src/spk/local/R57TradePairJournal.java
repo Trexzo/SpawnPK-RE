@@ -61,6 +61,28 @@ final class R57TradePairJournal {
         }
     }
 
+    /** R58 read-only participant discovery for an offline login gate.
+     * A PREPARED manifest is never treated as a committed transaction.
+     */
+    static final class Participants {
+        final UUID transaction;
+        final String first;
+        final String second;
+        Participants(UUID id,String a,String b){
+            transaction=id;
+            first=a;
+            second=b;
+        }
+        boolean includes(String username){
+            return first.equals(username)||second.equals(username);
+        }
+    }
+
+    static Participants readParticipants(Path file)throws IOException{
+        Intent intent=read(file);
+        return new Participants(intent.transaction,intent.a,intent.b);
+    }
+
     private static final class Intent {
         final UUID transaction;
         final String a,b,beforeA,afterA,beforeB,afterB;
