@@ -96,6 +96,15 @@ public final class R62TradePairCompletionCertificateTest {
                 candidate(journal,accounts,payloads,complete);
             require(good.indexRevision==2L,
                 "wrong index generation on completed pair");
+            require(Arrays.equals(accountA,Files.readAllBytes(
+                    accounts.resolve("opensrc.properties"))) &&
+                    Arrays.equals(accountB,Files.readAllBytes(
+                    accounts.resolve("src.properties"))) &&
+                    Arrays.equals(index,Files.readAllBytes(
+                    journal.resolve(
+                        R59TradePairIntentIndex.INDEX_FILE
+                    ))),
+                "completion publication mutated canonical account/index bytes");
 
             byte[] originalCertificate=Files.readAllBytes(marker);
             expectIOException(()->R62TradePairCompletionCertificate
