@@ -123,6 +123,14 @@ final class R59TradePairIntentIndex {
                 R57TradePairJournal.readParticipants(manifest);
             if(!id.equals(p.transaction))
                 throw new IOException("R59_INDEX_PUBLISH_DENIED transaction mismatch");
+            // An unresolved intent is immutable in the registry. A later
+            // manifest rewrite must never silently transfer its ownership
+            // to different account names during a revision update.
+            Pair old=previous==null?null:previous.entries.get(key);
+            if(old!=null&&
+               (!old.a.equals(p.first)||!old.b.equals(p.second)))
+                throw new IOException(
+                    "R59_INDEX_PUBLISH_DENIED existing intent identity drift");
             complete.put(key,new Pair(p.first,p.second));
         }
 
