@@ -280,7 +280,7 @@ public final class R72OfflineInFlightCommitEvidenceTest {
                 checkFreshJVM(
                     f.evidence,id,"BLOCK_CANCELLED_UNCERTAIN"
                 );
-                require(f.persistence.completedCount()==0L &&
+                require(f.persistence.metrics().contains("completed=0,") &&
                         f.persistence.failedCount()==1L,
                     "future accounting before late return inconsistent");
 
@@ -317,7 +317,7 @@ public final class R72OfflineInFlightCommitEvidenceTest {
                         account.token.generation==2L,
                     "late worker did not publish account+RELEASED evidence");
                 require(ticket.completion.isCompletedExceptionally()&&
-                        f.persistence.completedCount()==0L &&
+                        f.persistence.metrics().contains("completed=0,") &&
                         f.persistence.failedCount()==1L,
                     "cancelled SaveTicket was resurrected by late completion");
                 checkFreshJVM(
