@@ -167,6 +167,7 @@ final class R63AccountSaveAdmission {
     )throws IOException{
         Objects.requireNonNull(expected,"expected token");
         Objects.requireNonNull(proposed,"proposed snapshot");
+        R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
         Check current=inspectUnderLock(
             journalRoot,accountRoot,stateRoot,expected.username
         );
@@ -220,6 +221,7 @@ final class R63AccountSaveAdmission {
     static Check inspectUnderLock(
         Path journalRoot,Path accountRoot,Path stateRoot,String account
     )throws IOException{
+        R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
         validateRoots(journalRoot,accountRoot,stateRoot);
         validateUsername(account);
         R59TradePairIntentIndex.Result journal=
