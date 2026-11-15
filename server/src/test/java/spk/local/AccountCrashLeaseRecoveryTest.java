@@ -82,9 +82,13 @@ public final class AccountCrashLeaseRecoveryTest {
                 throw new AssertionError("forced staged file disappeared unexpectedly");
             }
 
-            // R15 OS lock must have been released by the dead JVM.
+            // R15 OS lock must become available after the child JVM has
+            // TERMINATED. On Windows the release of its final kernel file
+            // handle can lag waitFor() briefly; poll only this test-owned
+            // lease for a bounded interval, never infer stale lock files
+            // from their age or delete an owner sentinel.
             try (LocalAccountDirectoryLease lease =
-                    LocalAccountDirectoryLease.acquire(primary)) {
+                    acquireReleasedLeaseAfterExit(primary)) {
                 if (lease == null) throw new AssertionError("lease not recovered");
             }
 
@@ -281,6 +285,29 @@ public final class AccountCrashLeaseRecoveryTest {
         System.arraycopy(args, 0, command, 5, args.length);
         return new ProcessBuilder(command)
             .redirectErrorStream(true).start();
+    }
+
+    private static LocalAccountDirectoryLease
+            acquireReleasedLeaseAfterExit(Path account)throws Exception {
+        long deadline=System.nanoTime()+
+            TimeUnit.SECONDS.toNanos(5L);
+        for(;;){
+            try{
+                return LocalAccountDirectoryLease.acquire(account);
+            }catch(IOException stillHeld){
+                // A transient kernel lock release is the ONLY reason to
+                // retry. Path, symlink and permissions failures stay fatal.
+                if(!stillHeld.getMessage().contains(
+                    "already owned by another JVM"))
+                    throw stillHeld;
+                if(System.nanoTime()>=deadline)
+                    throw new IOException(
+                        "R17_POST_EXIT_LEASE_RELEASE_TIMEOUT",
+                        stillHeld
+                    );
+                Thread.sleep(25L);
+            }
+        }
     }
 
     private static void requireLeaseDenied(Path account, String profile)
