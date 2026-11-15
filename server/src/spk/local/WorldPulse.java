@@ -32,6 +32,29 @@ final class WorldPulse implements AutoCloseable,Runnable {
     private long fastCommandsProcessed;
     private long tasksProcessed;
 
+    /**
+     * R76 OFFLINE ONLY: for World-owned periodic callbacks that do not
+     * travel through WorldCommandInbox or WorldRealtimeQueue.
+     * Installed only by an explicitly isolated regression fixture.
+     */
+    @FunctionalInterface
+    interface OfflineTickAdmission {
+        boolean permits(WorldPlayer player,long expectedGeneration);
+    }
+
+    private volatile OfflineTickAdmission offlineTickAdmission;
+
+    synchronized void installOfflineTickAdmissionForTest(
+        OfflineTickAdmission admission
+    ){
+        if(admission==null||offlineTickAdmission!=null||running.get()||
+           world.clock().tick()!=0L)
+            throw new IllegalStateException(
+                "R76_TICK_GATE_DENIED invalid or already started"
+            );
+        offlineTickAdmission=admission;
+    }
+
     WorldPulse(World world,long tickMillis){this.world=world;this.tickMillis=tickMillis;}
 
     synchronized void start(){
@@ -126,12 +149,23 @@ final class WorldPulse implements AutoCloseable,Runnable {
                     continue;
 
                 try{
-                    world.withOpenPlayerMutationOwnershipIfCurrent(
-                        player,
-                        generation,
-                        ()->player.timedEffects()
-                            .tick(tick)
-                    );
+                    OfflineTickAdmission gate=offlineTickAdmission;
+                    if(gate==null){
+                        // Original live callback path remains direct.
+                        world.withOpenPlayerMutationOwnershipIfCurrent(
+                            player,generation,
+                            ()->player.timedEffects().tick(tick)
+                        );
+                    }else{
+                        world.withOpenPlayerMutationOwnershipIfCurrent(
+                            player,generation,()->{
+                                // Gate is checked INSIDE actual player
+                                // mutation lock, not just at snapshot.
+                                if(gate.permits(player,generation))
+                                    player.timedEffects().tick(tick);
+                            }
+                        );
+                    }
                 }catch(Throwable t){
                     System.err.println(
                         "[world] timed-effect tick failed tick="+
@@ -157,14 +191,22 @@ final class WorldPulse implements AutoCloseable,Runnable {
                     continue;
 
                 try{
-                    world.withOpenPlayerMutationOwnershipIfCurrent(
-                        p,
-                        target.ownerGeneration(),
-                        ()->target.onWorldTick(
-                            tick,
-                            nowMillis
-                        )
-                    );
+                    OfflineTickAdmission gate=offlineTickAdmission;
+                    if(gate==null){
+                        // Preserve original direct live target dispatch.
+                        world.withOpenPlayerMutationOwnershipIfCurrent(
+                            p,target.ownerGeneration(),
+                            ()->target.onWorldTick(tick,nowMillis)
+                        );
+                    }else{
+                        world.withOpenPlayerMutationOwnershipIfCurrent(
+                            p,target.ownerGeneration(),()->{
+                                if(gate.permits(
+                                        p,target.ownerGeneration()))
+                                    target.onWorldTick(tick,nowMillis);
+                            }
+                        );
+                    }
                 }catch(Throwable t){
                     System.err.println(
                         "[world] tick target failed tick="+
