@@ -77,6 +77,24 @@ public final class R61TradePairReplayTest {
             requireSavedPair(retry);
             requireBothQuarantined(retry);
 
+            // A DIFFERENT test-owned child JVM is hard-terminated via
+            // Runtime.halt immediately after the first individual atomic
+            // account publication. It runs no finally/save/cleanup hook.
+            // This proves fresh-process replay of an abrupt JVM exit, not
+            // hardware power-loss durability.
+            Fixture hardStop=fixture(scratch.resolve("abrupt-jvm-exit"));
+            R61TradePairReplay.publishCommitDecision(
+                hardStop.journal,hardStop.payloads,ID,
+                hardStop.beforeA,hardStop.afterA,
+                hardStop.beforeB,hardStop.afterB
+            );
+            runWorker(hardStop,"halt");
+            requireReview(hardStop,
+                R57TradePairJournal.State.ONLY_A_AFTER);
+            runWorker(hardStop,"recover");
+            requireSavedPair(hardStop);
+            requireBothQuarantined(hardStop);
+
             Fixture negatives=fixture(scratch.resolve("negative-controls"));
             byte[] initialA=Files.readAllBytes(
                 negatives.accounts.resolve("opensrc.properties"));
@@ -170,6 +188,7 @@ public final class R61TradePairReplayTest {
                 "fourRestartCheckpointsReconciled=true "+
                 "freshJvmReplayAndIdempotentRetry=true "+
                 "interruptedReplayResumesWithoutDuplication=true "+
+                "abruptChildJvmHaltAfterFirstSaveReplayed=true "+
                 "preparedWithoutCommitNeverPublishes=true "+
                 "damagedPostPayloadAndUnknownCanonicalDenied=true "+
                 "orphanCommitStagePreserved=true "+
@@ -323,10 +342,16 @@ public final class R61TradePairReplayTest {
         }
         String output=new String(
             worker.getInputStream().readAllBytes(),StandardCharsets.UTF_8);
-        require(worker.exitValue()==0 &&
-                output.contains("R61_REPLAY_WORKER_PASS"),
-            "fresh JVM replay failed: exit="+worker.exitValue()+
-            " output="+output);
+        if("halt".equals(mode)){
+            require(worker.exitValue()==91,
+                "test worker did not exit via abrupt Runtime.halt: "+
+                "code="+worker.exitValue()+" output="+output);
+        }else{
+            require(worker.exitValue()==0 &&
+                    output.contains("R61_REPLAY_WORKER_PASS"),
+                "fresh JVM replay failed: exit="+worker.exitValue()+
+                " output="+output);
+        }
     }
 
     @FunctionalInterface
@@ -357,20 +382,27 @@ final class R61TradePairReplayWorker {
         Path payloads=Paths.get(args[2]);
         UUID id=UUID.fromString(args[3]);
         boolean interrupt="interrupt".equals(args[4]);
+        boolean halt="halt".equals(args[4]);
         try{
             R61TradePairReplay.Outcome result=
                 R61TradePairReplay.replayCommitted(
-                    journal,accounts,payloads,id,interrupt
+                    journal,accounts,payloads,id,interrupt||halt
                 );
-            if(interrupt)
+            if(interrupt||halt)
                 throw new AssertionError("missing injected publication gap");
             if(!result.bothPostStatesVerified ||
                !result.unresolvedIntentStillBlocksLogin)
                 throw new AssertionError("replay incorrectly marked safe");
         }catch(IOException failure){
-            if(!interrupt||!failure.getMessage().contains(
+            if((!interrupt&&!halt)||!failure.getMessage().contains(
                 "R61_INJECTED_FAILURE_AFTER_FIRST_ACCOUNT"))
                 throw failure;
+            if(halt){
+                // ONLY this explicitly test-owned worker JVM terminates.
+                // Parent JVM and unrelated existing processes remain intact.
+                Runtime.getRuntime().halt(91);
+                throw new AssertionError("Runtime.halt returned");
+            }
         }
         System.out.println("R61_REPLAY_WORKER_PASS mode="+args[4]);
     }
