@@ -69,6 +69,29 @@ final class LocalPendingRequestDispatcher {
     private final LocalMovementRequestHandler movementRequests;
     private final LocalPetRealtimeScheduler petRealtime;
     private final SessionBridge bridge;
+    /**
+     * R68 isolated opt-in only. LocalSession never installs this gate:
+     * the production dispatcher follows its existing execution path.
+     */
+    @FunctionalInterface
+    interface OfflineRequestAdmission {
+        void withAdmission(
+            ClientRequest request,CheckedRequestHandler handler
+        )throws IOException;
+    }
+    @FunctionalInterface
+    interface CheckedRequestHandler {
+        void run()throws IOException;
+    }
+    private OfflineRequestAdmission offlineAdmission;
+
+    void installOfflineAdmissionForTest(OfflineRequestAdmission hook){
+        if(offlineAdmission!=null)
+            throw new IllegalStateException(
+                "R68_OFFLINE_GATE_DENIED already installed"
+            );
+        offlineAdmission=Objects.requireNonNull(hook,"hook");
+    }
 
     LocalPendingRequestDispatcher(
         WorldPlayer worldPlayer,
@@ -179,19 +202,39 @@ final class LocalPendingRequestDispatcher {
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        for(
-            ClientRequest request;
-            (request=clientPackets
-                .takeTypedRequest())!=null;
-        ){
-            // R50: one incoming packet may hold several typed requests.
-            // Recheck *each* request, not just the socket read or World
-            // submission, before its first gameplay/UI mutation.
+        for(ClientRequest request;
+            (request=clientPackets.takeTypedRequest())!=null;){
             serverPackets.requireGameActionAdmission();
+            // The loop variable advances with each decoded request, so
+            // capture a final per-iteration value for the test hook.
+            final ClientRequest currentRequest=request;
+            OfflineRequestAdmission gate=offlineAdmission;
+            if(gate==null){
+                routeTypedRequest(
+                    currentRequest,clientPackets,serverPackets,tag
+                );
+            }else{
+                // The test gate holds R60 across both owner recheck
+                // and the actual domain handler dispatch.
+                gate.withAdmission(
+                    currentRequest,()->routeTypedRequest(
+                        currentRequest,clientPackets,serverPackets,tag
+                    )
+                );
+            }
+        }
+    }
+
+    private void routeTypedRequest(
+        ClientRequest request,
+        ClientPacketProbe clientPackets,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
             if(request instanceof
                     RegionLoadAckClientRequest){
                 bridge.handleRegionLoadAck(tag);
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -209,7 +252,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -227,7 +270,7 @@ final class LocalPendingRequestDispatcher {
                         dialogue.widgetId()+
                         " framingPreserved=true"
                     );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -263,7 +306,7 @@ final class LocalPendingRequestDispatcher {
                         design.design()
                     );
                 }
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -275,14 +318,14 @@ final class LocalPendingRequestDispatcher {
                         widget.widgetId(),
                         serverPackets,
                         tag))
-                    continue;
+                    return;
 
                 uiActions.handleWidget(
                     widget.widgetId(),
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -296,7 +339,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -310,7 +353,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -323,7 +366,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -336,7 +379,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -349,7 +392,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -362,7 +405,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -375,7 +418,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -388,7 +431,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -401,7 +444,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -413,7 +456,7 @@ final class LocalPendingRequestDispatcher {
                     generic.event(),
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -426,7 +469,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -439,7 +482,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -452,7 +495,7 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -466,7 +509,7 @@ final class LocalPendingRequestDispatcher {
                         publicChat
                     )
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -480,7 +523,7 @@ final class LocalPendingRequestDispatcher {
                         privateMessage
                     )
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -494,7 +537,7 @@ final class LocalPendingRequestDispatcher {
                         nameEntry
                     )
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -508,7 +551,7 @@ final class LocalPendingRequestDispatcher {
                         chatMode
                     )
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -522,7 +565,7 @@ final class LocalPendingRequestDispatcher {
                         report
                     )
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -536,7 +579,7 @@ final class LocalPendingRequestDispatcher {
                         social
                     )
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -550,7 +593,7 @@ final class LocalPendingRequestDispatcher {
                         loadout
                     )
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -564,7 +607,7 @@ final class LocalPendingRequestDispatcher {
                         dailyChallenge
                     )
                 );
-                continue;
+                return;
             }
 
             if(request instanceof
@@ -590,7 +633,7 @@ final class LocalPendingRequestDispatcher {
                             " framingPreserved=true"
                         );
 
-                    continue;
+                    return;
                 }
 
                 commandDispatcher.handle(
@@ -603,14 +646,13 @@ final class LocalPendingRequestDispatcher {
                     serverPackets,
                     tag
                 );
-                continue;
+                return;
             }
 
             throw new IOException(
                 "unrouted typed client request "+
                 request
             );
-        }
     }
 
     static String loadoutEditorSaveFailClosedDiagnostic(
