@@ -128,6 +128,39 @@ final class R66OfflineGameEventDispatch {
         return new QueuedEvent(actor,syntheticItemId);
     }
 
+    /**
+     * R67 OFFLINE decoded-request handler bridge. Acquires the same real
+     * OS lock, revalidates the persisted session owner and actor binding
+     * at execution, and only then permits the test handler to run.
+     *
+     * A claimed event ID is consumed BEFORE invoking the handler. A
+     * throwing handler cannot be retried in this dispatcher instance:
+     * fail closed rather than risk double-applying an uncertain action.
+     * This is NOT a production packet handler or durable event journal.
+     */
+    void runVerifiedHandler(
+        Actor actor,UUID eventId,CriticalHook handler
+    )throws IOException{
+        Objects.requireNonNull(actor,"actor");
+        Objects.requireNonNull(eventId,"eventId");
+        Objects.requireNonNull(handler,"handler");
+        R60TradePairCoordinator.withExclusive(journal,false,()->{
+            R64OfflineSessionOwnership.requireActiveOwnerUnderLock(
+                journal,accounts,generations,sessions,actor.owner
+            );
+            if(activeActors.get(actor.owner.username)!=actor)
+                throw new IOException(
+                    "R66_EVENT_DENIED stale actor incarnation"
+                );
+            if(!actor.claimedEvents.add(eventId))
+                throw new IOException(
+                    "R66_EVENT_DENIED duplicate queued event"
+                );
+            handler.run();
+            return null;
+        });
+    }
+
     Outcome dispatch(QueuedEvent event)throws IOException{
         return dispatch(event,()->{});
     }
