@@ -231,6 +231,101 @@ final class R61TradePairReplay {
         });
     }
 
+    /**
+     * R62 read-only completion evidence seam. Caller MUST hold R60's
+     * cooperative OS lock across this method and any completion decision.
+     * Nothing is replayed, saved, retired or admitted here.
+     */
+    static final class VerifiedPair {
+        final UUID id;
+        final String first,second,firstPostHash,secondPostHash;
+        final long indexRevision;
+        VerifiedPair(UUID id,String a,String b,String hashA,
+                     String hashB,long revision){
+            this.id=id;
+            first=a;second=b;
+            firstPostHash=hashA;secondPostHash=hashB;
+            indexRevision=revision;
+        }
+    }
+
+    static VerifiedPair verifyFullyPublishedUnderLock(
+        Path journalRoot,Path accountRoot,Path payloadRoot,UUID id
+    )throws IOException{
+        Objects.requireNonNull(id,"id");
+        Path accounts=checkedDirectory(accountRoot);
+        Path storage=checkedDirectory(payloadRoot);
+        Decision decision=readDecision(decisionPath(storage,id));
+        if(!id.equals(decision.id))
+            throw new IOException(
+                "R62_COMPLETION_DENIED COMMIT transaction mismatch"
+            );
+
+        // Exactly one unresolved pair per participant, pinned to the same
+        // monotonically revisioned R59 index and manifest checksum.
+        R59TradePairIntentIndex.Result firstIndex=
+            R59TradePairIntentIndex.inspect(
+                journalRoot,decision.a
+            );
+        R59TradePairIntentIndex.Result secondIndex=
+            R59TradePairIntentIndex.inspect(
+                journalRoot,decision.b
+            );
+        if(firstIndex.status!=
+                R59TradePairIntentIndex.Status.BLOCK_INDEXED_PAIR ||
+           secondIndex.status!=
+                R59TradePairIntentIndex.Status.BLOCK_INDEXED_PAIR ||
+           firstIndex.transactions.size()!=1||
+           secondIndex.transactions.size()!=1||
+           !id.equals(firstIndex.transactions.get(0))||
+           !id.equals(secondIndex.transactions.get(0))||
+           firstIndex.revision<=0||
+           firstIndex.revision!=secondIndex.revision)
+            throw new IOException(
+                "R62_COMPLETION_DENIED wrong/overlapping pair or revision"
+            );
+
+        Path postDir=checkedDirectory(
+            storage.resolve("trade-"+id.toString())
+        );
+        FilePlayerRepository immutable=new FilePlayerRepository(
+            name->postDir.resolve(name+".properties")
+        );
+        PlayerSnapshot postA=requireDigest(
+            immutable.load(decision.a),decision.a,decision.hashA
+        );
+        PlayerSnapshot postB=requireDigest(
+            immutable.load(decision.b),decision.b,decision.hashB
+        );
+        Path journal=intentPath(journalRoot,id);
+        if(R57TradePairJournal.review(
+                journal,postA,postB).state!=
+                    R57TradePairJournal.State.BOTH_AFTER)
+            throw new IOException(
+                "R62_COMPLETION_DENIED post payload vs intent mismatch"
+            );
+
+        FilePlayerRepository canonical=new FilePlayerRepository(
+            name->accounts.resolve(name+".properties")
+        );
+        PlayerSnapshot currentA=requireDigest(
+            canonical.load(decision.a),decision.a,decision.hashA
+        );
+        PlayerSnapshot currentB=requireDigest(
+            canonical.load(decision.b),decision.b,decision.hashB
+        );
+        if(R57TradePairJournal.review(
+                journal,currentA,currentB).state!=
+                    R57TradePairJournal.State.BOTH_AFTER)
+            throw new IOException(
+                "R62_COMPLETION_DENIED canonical pair not fully published"
+            );
+        return new VerifiedPair(
+            id,decision.a,decision.b,decision.hashA,decision.hashB,
+            firstIndex.revision
+        );
+    }
+
     private static void requirePairIndexed(
         Path journalRoot,UUID id,String a,String b
     )throws IOException{
