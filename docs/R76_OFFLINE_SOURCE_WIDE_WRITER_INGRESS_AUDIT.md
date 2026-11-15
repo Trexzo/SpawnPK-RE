@@ -23,7 +23,7 @@ Risk categories:
 
 - **UNFENCED_ACCOUNT**: real/default or historical account-writing routes and the shared atomic file publisher, including `WorldPlayerPersistence`, `LocalAccountLifecycle`, `FilePlayerRepository`, `AccountStore`, `LocalAccountProfiles`, `PetAccessoryPersistence` and default `World` repository construction
 - **COOPERATIVE_NO_R73**: R57/R59 journal and trade files, R61/R62 trade replay/completion, R63 account generation, R64 owner save/transfer; some acquire R60, but that does **not** imply R73 intent coverage
-- **TEST_EVIDENCE_ONLY**: R65/R69/R70/R71/R72/R73 offline-only authorization/evidence seams, which are not installed by the default runtime
+- **TEST_EVIDENCE_ONLY**: R51 interrupted account-publisher child fixture and R65/R69/R70/R71/R72/R73 offline-only authorization/evidence seams, which are not installed by the default runtime
 - **NONACCOUNT_REVIEWED**: ancillary resource extraction, local developer/config tools, OS lock-file creation and non-account marketplace/UI operations. This category documents their present usage, NOT an assertion that future changes are safe
 - **UNREVIEWED**: any newly discovered sink in an unclassified source file. This category automatically blocks the exact-baseline acceptance even if someone adds its row to the manifest
 
