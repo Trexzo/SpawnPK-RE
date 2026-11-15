@@ -47,6 +47,7 @@ final class WorldPlayerPersistence
         final int petAccessoryItem;
         final String tag;
         final String reason;
+        final boolean finalSnapshot;
         private boolean submitted;
 
         CapturedSave(
@@ -55,7 +56,8 @@ final class WorldPlayerPersistence
             long expectedGeneration,
             int petAccessoryItem,
             String tag,
-            String reason
+            String reason,
+            boolean finalSnapshot
         ){
             this.ticket=ticket;
             this.owner=owner;
@@ -63,6 +65,7 @@ final class WorldPlayerPersistence
             this.petAccessoryItem=petAccessoryItem;
             this.tag=tag;
             this.reason=reason;
+            this.finalSnapshot=finalSnapshot;
         }
 
         synchronized void markSubmitted(){
@@ -165,6 +168,11 @@ final class WorldPlayerPersistence
     private final HashMap<EntityId,Long>
         checkpointSuppressedGenerations=
             new HashMap<>();
+    /** R72: only populated when an isolated test explicitly opts in. */
+    private final HashMap<EntityId,Long> offlineTerminalGenerations=
+        new HashMap<>();
+    private volatile boolean offlineTerminalCaptureFence;
+    private boolean offlineCaptureOrderSeeded;
     private boolean checkpointAbort;
     private PendingCheckpoint activeCheckpoint;
     private CompletableFuture<Void> activeCheckpointCompletion;
@@ -175,6 +183,33 @@ final class WorldPlayerPersistence
         new AtomicLong();
     private final AtomicLong captureOrder=
         new AtomicLong();
+
+    /**
+     * R72 test-only restart seed. A checked durable watermark must be
+     * loaded under R60/R64 before World execution or snapshot capture.
+     */
+    synchronized void seedOfflineCaptureOrderForTest(long committedOrdinal){
+        if(committedOrdinal<0L ||
+           committedOrdinal==Long.MAX_VALUE ||
+           offlineCaptureOrderSeeded ||
+           captureOrder.get()!=0L ||
+           world.pulse().running())
+            throw new IllegalStateException(
+                "R72_CAPTURE_SEED_DENIED started, already seeded or invalid"
+            );
+        offlineCaptureOrderSeeded=true;
+        captureOrder.set(committedOrdinal);
+    }
+
+    synchronized void installOfflineTerminalCaptureFenceForTest(){
+        if(offlineTerminalCaptureFence ||
+           captureOrder.get()!=0L ||
+           world.pulse().running())
+            throw new IllegalStateException(
+                "R72_TERMINAL_FENCE_DENIED already active or started"
+            );
+        offlineTerminalCaptureFence=true;
+    }
 
     /** Called while owning the World player's capture mutation lock. */
     private long nextCaptureOrdinal(){
@@ -443,6 +478,16 @@ final class WorldPlayerPersistence
                     expectedGeneration
                 );
 
+            if(offlineTerminalCaptureFence){
+                synchronized(checkpointLock){
+                    Long terminal=offlineTerminalGenerations.get(player.id());
+                    if(terminal!=null &&
+                       terminal.longValue()==expectedGeneration)
+                        throw new IllegalStateException(
+                            "R72_TERMINAL_CAPTURE_DENIED after final snapshot"
+                        );
+                }
+            }
             snapshot=
                 PlayerSnapshotCodec.capture(
                     username,
@@ -469,7 +514,8 @@ final class WorldPlayerPersistence
             expectedGeneration,
             petAccessoryItem,
             cleanTag(tag),
-            cleanReason(reason)
+            cleanReason(reason),
+            false
         );
     }
 
@@ -506,6 +552,14 @@ final class WorldPlayerPersistence
             Long previousSuppression;
 
             synchronized(checkpointLock){
+                if(offlineTerminalCaptureFence){
+                    Long terminal=offlineTerminalGenerations.get(player.id());
+                    if(terminal!=null &&
+                       terminal.longValue()==expectedGeneration)
+                        throw new IllegalStateException(
+                            "R72_TERMINAL_CAPTURE_DENIED duplicate final"
+                        );
+                }
                 previousSuppression=
                     checkpointSuppressedGenerations.put(
                         player.id(),
@@ -521,6 +575,13 @@ final class WorldPlayerPersistence
                         petAccessoryItem
                     );
                 snapshotCaptureOrdinal=nextCaptureOrdinal();
+                if(offlineTerminalCaptureFence){
+                    synchronized(checkpointLock){
+                        offlineTerminalGenerations.put(
+                            player.id(),expectedGeneration
+                        );
+                    }
+                }
             }catch(RuntimeException|Error failure){
                 synchronized(checkpointLock){
                     Long current=
@@ -564,7 +625,8 @@ final class WorldPlayerPersistence
             expectedGeneration,
             petAccessoryItem,
             cleanTag(tag),
-            cleanReason(reason)
+            cleanReason(reason),
+            true
         );
     }
 
@@ -599,6 +661,23 @@ final class WorldPlayerPersistence
                     captured.expectedGeneration
                 );
 
+            if(offlineTerminalCaptureFence && !captured.finalSnapshot){
+                synchronized(checkpointLock){
+                    Long terminal=offlineTerminalGenerations.get(
+                        captured.owner.id()
+                    );
+                    if(terminal!=null &&
+                       terminal.longValue()==captured.expectedGeneration){
+                        IOException denied=new IOException(
+                            "R72_TERMINAL_SUBMISSION_DENIED older non-final"
+                        );
+                        captured.ticket.completion.completeExceptionally(denied);
+                        throw new IllegalStateException(
+                            denied.getMessage(),denied
+                        );
+                    }
+                }
+            }
             captured.markSubmitted();
         }
 
@@ -846,6 +925,10 @@ final class WorldPlayerPersistence
                 checkpointSuppressedGenerations.remove(
                     playerId
                 );
+            Long finalGeneration=offlineTerminalGenerations.get(playerId);
+            if(finalGeneration!=null &&
+               finalGeneration.longValue()==expectedGeneration)
+                offlineTerminalGenerations.remove(playerId);
         }
     }
 
@@ -1469,6 +1552,7 @@ final class WorldPlayerPersistence
     @Override public void close(){
         synchronized(checkpointLock){
             checkpointSuppressedGenerations.clear();
+            offlineTerminalGenerations.clear();
         }
 
         synchronized(io){
