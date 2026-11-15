@@ -229,7 +229,7 @@ public final class R74OfflineReconciliationReviewTest {
             R74OfflineReconciliationReview.Review found=
                 check.inspect(args[6].split(":",2)[0]);
             String expected=args[6].split(":",2)[1];
-            require(Arrays.asList(expected.split("\\\\|")).contains(
+            require(Arrays.asList(expected.split("\\|")).contains(
                     found.status.name()),
                 "separate JVM review allowed="+expected+
                 " actual="+found.status+" reason="+found.reason);
