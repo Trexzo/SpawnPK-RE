@@ -135,11 +135,17 @@ final class R71OfflineFinalSaveCheckpointFence
             expected,captured.ticket.sequence,digest
         );
         synchronized(sealLock){
-            if(sealedOwners.containsKey(expected.username)||
+            FinalSeal previous=sealedOwners.get(expected.username);
+            if((previous!=null&&
+                expected.epoch<=previous.owner.epoch)||
                queuedFinals.containsKey(sealed.sequence))
                 throw new IOException(
-                    "R71_FINAL_SEAL_DENIED existing terminal seal"
+                    "R71_FINAL_SEAL_DENIED same/older terminal epoch"
                 );
+            // A later explicitly bound session epoch may seal its own
+            // final snapshot. The new seal rejects ALL checkpoints from
+            // the old epochs. Any still-queued earlier final ticket
+            // cannot pass the identity check at its eventual commit.
             sealedOwners.put(expected.username,sealed);
             queuedFinals.put(sealed.sequence,sealed);
         }
