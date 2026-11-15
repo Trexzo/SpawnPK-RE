@@ -538,7 +538,20 @@ public final class R74OfflineReconciliationReviewTest {
             throws IOException{
         Map<String,byte[]> values=new HashMap<>();
         try(java.util.stream.Stream<Path> entries=Files.walk(root)){
-            entries.filter(Files::isRegularFile).forEach(file->{
+            entries.filter(Files::isRegularFile).filter(file->{
+                // R60's OS lock file is a synchronization primitive,
+                // not an account/evidence artifact. Windows correctly
+                // refuses reading it while another JVM owns the lock.
+                // Compare only the five test-owned durable roots.
+                Path relative=root.relativize(file);
+                if(relative.getNameCount()<2)return false;
+                String part=relative.getName(0).toString();
+                return "journal".equals(part)||
+                    "accounts".equals(part)||
+                    "generations".equals(part)||
+                    "sessions".equals(part)||
+                    "evidence".equals(part);
+            }).forEach(file->{
                 try{
                     values.put(root.relativize(file).toString(),
                         Files.readAllBytes(file));
