@@ -257,6 +257,7 @@ public final class R71OfflineFinalSaveCheckpointFenceTest {
             "postFinalCheckpointSuppressionWorks=true "+
             "oldManualCallbackRefusedAfterLogout=true "+
             "explicitNextEpochCheckpointStillCommits=true "+
+            "nextEpochCanSealAndCompleteOwnLogout=true "+
             "failedFinalSealRemainsFailClosed=true "+
             "droppedShutdownFinalTicketRevoked=true "+
             "forcedShutdownPreservesAccountGenerationAndOwner=true "+
@@ -365,6 +366,37 @@ public final class R71OfflineFinalSaveCheckpointFenceTest {
                     "successor checkpoint failed to advance generation");
                 require(f.repo.committed.get()==2,
                     "new owner checkpoint wrote incorrect number of files");
+
+                // A fresh, explicitly validated B generation can also
+                // enter its OWN final logout, even though the prior A
+                // terminal epoch remains sealed. No same/older epoch
+                // may rearm a failed/canceled final ticket.
+                f.gate.bindActorForTest(
+                    f.actor,f.actor.generation(),check.token
+                );
+                WorldPlayerPersistence.CapturedSave finalB=
+                    f.finalCapture(check.token,567);
+                f.persistence.submitCapturedWithBackpressure(
+                    finalB,5_000L
+                ).completion.get(15L,TimeUnit.SECONDS);
+                R64OfflineSessionOwnership.Review bReleased=
+                    R64OfflineSessionOwnership.inspect(
+                        f.journal,f.accounts,f.generations,f.sessions,USER
+                    );
+                R63AccountSaveAdmission.Check afterB=
+                    R63AccountSaveAdmission.inspect(
+                        f.journal,f.accounts,f.generations,USER
+                    );
+                require(bReleased.status==
+                        R64OfflineSessionOwnership.Status.BLOCK_RELEASED &&
+                        afterB.status==
+                            R63AccountSaveAdmission.Status
+                                .READY_FOR_OTHER_OFFLINE_CHECKS &&
+                        afterB.token.generation==4L &&
+                        f.gate.finalsCommitted()==2 &&
+                        f.gate.sealedAccountCount()==1 &&
+                        f.repo.committed.get()==3,
+                    "newer owner final logout was blocked by older seal");
             }finally{
                 waiting.release.countDown();
             }
