@@ -328,11 +328,11 @@ public final class R62TradePairCompletionCertificateTest {
     private static void runWorker(
         Path journal,Path accounts,Path payloads,Path complete,String mode
     )throws Exception{
-        Path java=Paths.get(System.getProperty("java.home"),
+        Path javaExecutable=Paths.get(System.getProperty("java.home"),
             "bin",System.getProperty("os.name").toLowerCase().contains("win")
                 ?"java.exe":"java");
         Process worker=new ProcessBuilder(
-            java.toString(),"-cp",System.getProperty("java.class.path"),
+            javaExecutable.toString(),"-cp",System.getProperty("java.class.path"),
             "spk.local.R62TradePairCompletionWorker",
             journal.toString(),accounts.toString(),
             payloads.toString(),complete.toString(),ID.toString(),mode
