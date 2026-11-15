@@ -297,17 +297,23 @@ final class WorldCommandInbox {
                 continue;
             }
             try{
-                boolean executed=
-                    executionOwnership.run(
-                        c.player,
-                        c.generation,
-                        ()->{
-                            // Revalidate under the player's real mutation
-                            // lock: a queued command can become stale
-                            // AFTER submission and BEFORE execution.
-                            OfflineCommandAdmission gate=
-                                offlineCommandAdmission;
-                            if(gate!=null&&!gate.permits(
+                OfflineCommandAdmission gate=
+                    offlineCommandAdmission;
+                // Preserve the original direct callback path when the
+                // opt-in R74 test hook is absent; no lambda allocation
+                // or extra wrapped dispatch in production.
+                boolean executed;
+                if(gate==null)
+                    executed=executionOwnership.run(
+                        c.player,c.generation,c.action
+                    );
+                else
+                    executed=executionOwnership.run(
+                        c.player,c.generation,()->{
+                            // Run-time recheck under the actual player
+                            // mutation lock rejects commands queued
+                            // before final-save quiescence.
+                            if(!gate.permits(
                                     c.player,c.generation,c.action))
                                 throw new CancellationException(
                                     "R74_COMMAND_QUIESCED before handler"
