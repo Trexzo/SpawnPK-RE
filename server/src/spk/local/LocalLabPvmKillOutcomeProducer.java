@@ -19,6 +19,30 @@ final class LocalLabPvmKillOutcomeProducer {
     private final CombatOutcomeObserver observer;
     private final Set<Integer> publishedScenes=new HashSet<>();
 
+    /**
+     * R78 OFFLINE TEST ONLY. Verify the actual attacker and World
+     * generation before consuming a confirmed NPC-death scene.
+     * The production producer still uses its original direct path.
+     */
+    @FunctionalInterface
+    interface OfflineDeathAdmission {
+        void requireAdmitted(WorldPlayer attacker);
+    }
+
+    private OfflineDeathAdmission offlineDeathAdmission;
+
+    void installOfflineDeathAdmissionForTest(OfflineDeathAdmission hook){
+        if(offlineDeathAdmission!=null||!publishedScenes.isEmpty())
+            throw new IllegalStateException(
+                "R78_DEATH_GATE_DENIED already used"
+            );
+        offlineDeathAdmission=Objects.requireNonNull(hook,"hook");
+    }
+
+    int publishedSceneCountForTest(){
+        return publishedScenes.size();
+    }
+
     LocalLabPvmKillOutcomeProducer(CombatOutcomeObserver observer){
         this.observer=Objects.requireNonNull(observer,"observer");
     }
@@ -42,10 +66,15 @@ final class LocalLabPvmKillOutcomeProducer {
            !sceneRemoved)
             return "R9_PVM_KILL_OUTCOME_SKIPPED reason=NO_CONFIRMED_REMOVED_DEATH";
 
+        WorldPlayer killer=Objects.requireNonNull(attacker,"attacker");
+        OfflineDeathAdmission admission=offlineDeathAdmission;
+        if(admission!=null)
+            admission.requireAdmitted(killer);
+
+        // Admission must precede deduplication; a denied final/logout
+        // callback must not burn a death scene or emit a forged fact.
         if(!publishedScenes.add(dead.sceneIndex))
             return "R9_PVM_KILL_OUTCOME_DUPLICATE_DENIED scene="+dead.sceneIndex;
-
-        WorldPlayer killer=Objects.requireNonNull(attacker,"attacker");
         String attackerRef=killer.id().toString();
         String victimRef="locallab:npc:def="+dead.definitionId+
             ":scene="+dead.sceneIndex;
