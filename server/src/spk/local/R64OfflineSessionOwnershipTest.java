@@ -37,8 +37,55 @@ public final class R64OfflineSessionOwnershipTest {
             FilePlayerRepository repo=repository(accounts);
             PlayerSnapshot original=snapshot("opensrc",995,100);
             repo.save(original);
-            R63AccountSaveAdmission.initializeExisting(
+            R63AccountSaveAdmission.Token firstLedger=
+                R63AccountSaveAdmission.initializeExisting(
+                    journal,accounts,ledger,"opensrc"
+                );
+
+            // R64 exposes R63 composition methods to prevent nested OS
+            // locks. Calls outside the held R60 critical section must
+            // NEVER be able to save or inspect as if authorized.
+            byte[] unguardedBefore=Files.readAllBytes(
+                accounts.resolve("opensrc.properties")
+            );
+            expectDenied(()->R63AccountSaveAdmission.inspectUnderLock(
                 journal,accounts,ledger,"opensrc"
+            ),"R60_LOCK_CONTEXT_DENIED");
+            expectDenied(()->R63AccountSaveAdmission.saveIfCurrentUnderLock(
+                journal,accounts,ledger,firstLedger,
+                bump(original,385),false
+            ),"R60_LOCK_CONTEXT_DENIED");
+            require(Arrays.equals(unguardedBefore,Files.readAllBytes(
+                accounts.resolve("opensrc.properties"))),
+                "unguarded R63 seam changed canonical account");
+            R60TradePairCoordinator.withExclusive(
+                journal,false,()->{
+                    java.util.concurrent.atomic.AtomicReference<Throwable>
+                        threadFailure=
+                            new java.util.concurrent.atomic.AtomicReference<>();
+                    Thread foreign=new Thread(()->{
+                        try{
+                            R63AccountSaveAdmission.inspectUnderLock(
+                                journal,accounts,ledger,"opensrc"
+                            );
+                        }catch(Throwable failed){
+                            threadFailure.set(failed);
+                        }
+                    },"r64-test-foreign-lock-thread");
+                    foreign.start();
+                    try{
+                        foreign.join(1500L);
+                    }catch(InterruptedException interrupted){
+                        Thread.currentThread().interrupt();
+                        throw new IOException("test thread interrupted",interrupted);
+                    }
+                    require(!foreign.isAlive()&&
+                            threadFailure.get() instanceof IOException &&
+                            threadFailure.get().getMessage().contains(
+                                "R60_LOCK_CONTEXT_DENIED"),
+                        "another thread reused the owner thread OS lock");
+                    return null;
+                }
             );
 
             blocked(journal,accounts,ledger,sessions,"opensrc",
@@ -233,6 +280,7 @@ public final class R64OfflineSessionOwnershipTest {
                 "crossJvmLockDeniesSessionReadsAndSaves=true "+
                 "journalRevisionAndPendingPairFailClosed=true "+
                 "hardStoppedAfterLedgerBeforeOwnerBlocksAll=true "+
+                "underLockSeamsRequireHeldCoordinator=true "+
                 "noLiveSessionHookOrAutomaticRepair=true "+
                 "physicalPowerLossDurabilityNotProven=true"
             );
