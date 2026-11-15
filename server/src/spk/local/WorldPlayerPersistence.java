@@ -136,6 +136,10 @@ final class WorldPlayerPersistence
                 saveSequence,snapshot,repository,true
             );
         }
+
+        /** R71: notify only explicitly installed test gates when the
+         * bounded worker drops a queued save, before it can run. */
+        default void onDroppedSaveForTest(long sequence){}
     }
     @FunctionalInterface
     interface OfflineCheckpointOwnerCapture {
@@ -1111,6 +1115,13 @@ final class WorldPlayerPersistence
                     error
                 );
             }
+
+            // A dropped queued final-save ticket must not retain an
+            // executable one-shot authority in the isolated test gate.
+            // The default production hook is null, so this is a no-op.
+            OfflineIoWriteAdmission gate=offlineWriteAdmission;
+            if(gate!=null)
+                gate.onDroppedSaveForTest(saveSequence);
 
             logRejected(
                 snapshot,
