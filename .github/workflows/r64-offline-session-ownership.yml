@@ -6,6 +6,7 @@ on:
       - playability/r64-offline-session-ownership-fence-20261115
   pull_request:
     paths:
+      - server/src/spk/local/R60TradePairCoordinator.java
       - server/src/spk/local/R63AccountSaveAdmission.java
       - server/src/spk/local/R64OfflineSessionOwnership.java
       - server/src/spk/local/R64OfflineSessionOwnershipTest.java
