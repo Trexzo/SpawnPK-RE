@@ -225,7 +225,14 @@ public final class R75OfflineRetirementSafetyAuditTest {
                     byte[] old=Files.readAllBytes(
                         f.accounts.resolve("opensrc.properties")
                     );
-                    runChild("direct-file",f.accounts.toString());
+                    try{
+                        runChild("direct-file",f.accounts.toString());
+                    }catch(Exception childFailure){
+                        throw new IOException(
+                            "R75 test-only external writer failed",
+                            childFailure
+                        );
+                    }
                     byte[] after=Files.readAllBytes(
                         f.accounts.resolve("opensrc.properties")
                     );
