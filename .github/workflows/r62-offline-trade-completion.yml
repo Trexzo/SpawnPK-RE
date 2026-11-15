@@ -1,0 +1,66 @@
+name: R62 Offline Trade Completion Certificate
+
+on:
+  push:
+    branches:
+      - playability/r62-offline-verified-pair-completion-certificate-20261115
+  pull_request:
+    paths:
+      - server/src/spk/local/R61TradePairReplay.java
+      - server/src/spk/local/R62TradePairCompletionCertificate.java
+      - server/src/spk/local/R62TradePairCompletionCertificateTest.java
+      - .github/workflows/r62-offline-trade-completion.yml
+
+jobs:
+  linux-offline-completion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and verify Java 11-compatible classfiles
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Verify hard-stop completion, index and inherited safety
+        working-directory: server
+        run: |
+          for test in spk.local.R62TradePairCompletionCertificateTest spk.local.R61TradePairReplayTest spk.local.R60TradePairCoordinatorTest spk.local.R59TradePairIntentIndexTest spk.local.R58TradePairLoginPreflightTest spk.local.R57TradePairJournalReviewTest spk.local.R56TradeSplitSaveRestartEvidenceTest spk.local.R55TradePublicationRollbackTest spk.local.AccountCrashLeaseRecoveryTest spk.local.EngineR4TradeFlowTest; do
+            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
+          done
+
+  windows-offline-completion:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and verify Java 11-compatible classfiles
+        working-directory: server
+        shell: pwsh
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify hard-stop completion, index and inherited safety
+        working-directory: server
+        shell: pwsh
+        run: |
+          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R62TradePairCompletionCertificateTest',
+            'spk.local.R61TradePairReplayTest',
+            'spk.local.R60TradePairCoordinatorTest',
+            'spk.local.R59TradePairIntentIndexTest',
+            'spk.local.R58TradePairLoginPreflightTest',
+            'spk.local.R57TradePairJournalReviewTest',
+            'spk.local.R56TradeSplitSaveRestartEvidenceTest',
+            'spk.local.R55TradePublicationRollbackTest',
+            'spk.local.AccountCrashLeaseRecoveryTest',
+            'spk.local.EngineR4TradeFlowTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
