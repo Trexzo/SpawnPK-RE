@@ -485,6 +485,16 @@ public final class LocalPendingRequestDispatcherTest {
                 return;
             }
 
+            // R75 isolated only: exercise this *same* fully constructed
+            // real typed-request dispatcher through a test-installed
+            // terminal quiescence gate. Production never selects r75.
+            if(args.length==1&&"r75".equals(args[0])){
+                R75OfflineDecodedPacketQuiescenceTest.runFixture(
+                    world,dispatcher,player,movement,bank,writer
+                );
+                return;
+            }
+
             int[] probeSeed={5,6,7,8};
             ByteArrayOutputStream typedWire=
                 new ByteArrayOutputStream();
