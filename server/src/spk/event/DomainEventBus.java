@@ -49,6 +49,24 @@ public final class DomainEventBus implements AutoCloseable {
         void onEvent(E event) throws Exception;
     }
 
+    /**
+     * R77 opt-in OFFLINE-ONLY publication callback. Does not add a
+     * transport/player dependency to the domain-event public API.
+     * Called immediately before each matching listener invocation.
+     * Production buses do not install it and keep the direct path.
+     */
+    @FunctionalInterface
+    public interface OfflinePublicationAdmission {
+        void withAdmission(
+            Event event,CheckedPublication callback
+        ) throws Exception;
+    }
+
+    @FunctionalInterface
+    public interface CheckedPublication {
+        void run() throws Exception;
+    }
+
     /** Explicit lifecycle handle; later plugin/module layers can own these handles. */
     public interface Subscription extends AutoCloseable {
         boolean active();
@@ -140,6 +158,22 @@ public final class DomainEventBus implements AutoCloseable {
     private final ArrayList<Binding<?>> bindings = new ArrayList<>();
     private long sequence;
     private boolean closed;
+    private volatile OfflinePublicationAdmission offlinePublicationAdmission;
+
+    /**
+     * R77 test-only injection: fail closed on repeat installation or
+     * closed bus. It never alters a bus that has not installed the hook.
+     */
+    public synchronized void installOfflinePublicationAdmissionForTest(
+        OfflinePublicationAdmission gate
+    ) {
+        requireOpen();
+        if (offlinePublicationAdmission != null)
+            throw new IllegalStateException(
+                "R77_DOMAIN_GATE_DENIED already installed"
+            );
+        offlinePublicationAdmission=Objects.requireNonNull(gate,"gate");
+    }
 
     public DomainEventBus(BooleanSupplier executionContext) {
         this.executionContext = Objects.requireNonNull(
@@ -213,7 +247,17 @@ public final class DomainEventBus implements AutoCloseable {
             ) {
                 continue;
             }
-            invoke(binding, event);
+            OfflinePublicationAdmission gate=offlinePublicationAdmission;
+            if (gate == null) {
+                // Preserve original direct listener dispatch for live World.
+                invoke(binding, event);
+            } else {
+                // Recheck for EACH callback; a higher priority listener
+                // can cause quiescence before the next listener runs.
+                gate.withAdmission(
+                    event,()->invoke(binding,event)
+                );
+            }
         }
     }
 
