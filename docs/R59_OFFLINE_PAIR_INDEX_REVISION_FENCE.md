@@ -8,26 +8,26 @@ R59 adds a **single versioned, atomically replaced account-to-transaction index*
 
 ## Implementation
 
-`R59TradePairIntentIndex` stores a strict-versioned `paired-intents.index.properties` record. Each entry holds a canonical transaction UUID and two validated account names, not inventory or snapshot data. The file includes a monotonically increasing revision and bounded record count (at most 256).
+`R59TradePairIntentIndex` stores a strict-versioned `paired-intents.index.properties` record. Each entry holds a canonical transaction UUID, two validated account names and a SHA-256 digest binding the exact immutable R57 manifest bytes; the index contains no inventory or snapshot data. The file includes a monotonically increasing revision and bounded record count (at most 256).
 
 `publishRevision(root, expectedRevision, transactionIds)`:
 
 - Reads the current index if present and rejects an unexpected revision. The revision guard is single-JVM synchronized only: **this is not cross-process atomic compare-and-swap**.
-- Requires every requested transaction to have a parseable R57 PREPARED journal whose transaction UUID matches its canonical filename.
+- Requires every requested transaction to have a parseable R57 PREPARED journal whose transaction UUID matches its canonical filename. An existing transaction cannot silently change participants or manifest bytes on a later revision.
 - Refuses duplicate IDs and removal of an indexed unresolved transaction. There is no recovery/commit protocol yet to safely retire an intent.
 - Before publication, audits the entire **explicitly supplied dedicated directory** and rejects unknown entries, orphan stages and missing or unindexed manifests. Writes via the existing R16 forced-stage and required atomic-rename publisher, then reports the incremented revision. There is no non-atomic move fallback.
 
 `inspect(root, account)`:
 
 - Requires a real bounded index file with a known schema, exact expected keys, valid canonical UUIDs, ordered account names and sane entry count. Missing or malformed index is **global fail-closed**, even when the directory is empty.
-- Checks each indexed manifest against the same directory and validates the manifest's declared UUID and both participant names. Unindexed, missing, staged, corrupt, unexpected or mismatched entries fail closed for **all** accounts, including unrelated users.
+- Checks each indexed manifest against the same directory and validates its declared UUID, both participant names and stored SHA-256 of the exact manifest bytes. Unindexed, missing, staged, corrupt, unexpected or mismatched entries fail closed for **all** accounts, including unrelated users.
 - Returns `BLOCK_INDEXED_PAIR` with matching UUIDs for either participant, `BLOCK_INDETERMINATE_INDEX` for ambiguity, or `NO_INDEXED_PENDING_PAIR` for an unrelated account only after a complete validated scan. The clear result is **not authorization to log in**.
 - Does not open, rewrite or delete any canonical account snapshot. Does not heal, promote or delete any journal/ambiguous staging file.
 
 ## Windows acceptance — November 15, 2026
 
 - `jar testClasses verifyJava11Bytecode --offline --no-daemon`: **BUILD SUCCESSFUL**, 2,197 Java11 bytecode-major 55 classfiles.
-- `R59_OFFLINE_PAIR_INDEX_REVISION_FENCE_PASS`: both participants in multiple pairs blocked; absent index fail-closed; incomplete index publication refused; stale revision refused; removal of pending ID denied; new unindexed journal blocks *all* inspection; addition registered at revision 3; journal/index stages preserved; foreign files, malformed index, tampered or missing manifest fail closed; original test-owned canonical profiles and journal bytes unchanged.
+- `R59_OFFLINE_PAIR_INDEX_REVISION_FENCE_PASS`: both participants in multiple pairs blocked; absent index fail-closed; incomplete index publication refused; stale revision refused; removal of pending ID denied; new unindexed journal blocks *all* inspection; participant identity drift and valid-looking same-name manifest hash drift refused; addition registered at revision 3; journal/index stages preserved; foreign files, malformed index, tampered or missing manifest fail closed; original test-owned canonical profiles and journal bytes unchanged.
 - Inherited R58 preflight, R57 journal review, R56 split-save restart reproduction and R55 in-memory rollback: all **PASS**.
 - The fixture uses its own disposable directories. No live accounts, original GUI, network game sessions, host optional features, firewall or unrelated Java processes are altered.
 
