@@ -1,0 +1,81 @@
+name: R73 Offline Unresolved Write Takeover Admission Fence
+
+on:
+  push:
+    branches:
+      - playability/r73-offline-unresolved-write-takeover-fence-20261115
+  pull_request:
+    paths:
+      - server/src/spk/local/R64OfflineSessionOwnership.java
+      - server/src/spk/local/R73OfflinePendingWriteAdmission.java
+      - server/src/spk/local/R73OfflinePendingWriteAdmissionTest.java
+      - .github/workflows/r73-write-intent-takeover-fence.yml
+
+jobs:
+  linux-write-intent-takeover-fence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and enforce Java11 bytecode
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Verify intent-takeover race and inherited persistence tests
+        working-directory: server
+        run: |
+          for test in spk.local.R73OfflinePendingWriteAdmissionTest spk.local.R72OfflineInFlightCommitEvidenceTest spk.local.R71OfflineFinalSaveCheckpointFenceTest spk.local.R70OfflineCheckpointAuthorityTest spk.local.R69OfflineIoCommitGateTest spk.local.WorldPlayerPersistenceShutdownTest spk.local.WorldPlayerPersistenceCheckpointShutdownTest spk.local.WorldPlayerPersistenceUninterruptibleShutdownTest spk.local.R68RealDispatcherAdmissionTest spk.local.LocalPendingRequestDispatcherTest spk.local.R67OfflineDecodedPacketDispatchTest spk.local.R66OfflineGameEventDispatchTest spk.local.R65DeferredSessionSaveDispatchTest spk.local.R64OfflineSessionOwnershipTest spk.local.R63AccountSaveAdmissionTest spk.local.R62TradePairCompletionCertificateTest spk.local.R61TradePairReplayTest spk.local.R60TradePairCoordinatorTest spk.local.R59TradePairIntentIndexTest spk.local.R58TradePairLoginPreflightTest spk.local.R57TradePairJournalReviewTest spk.local.R56TradeSplitSaveRestartEvidenceTest spk.local.R55TradePublicationRollbackTest spk.local.AccountCrashLeaseRecoveryTest spk.local.EngineR4TradeFlowTest; do
+            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
+          done
+
+  windows-write-intent-takeover-fence:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and enforce Java11 bytecode
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify intent-takeover race and inherited persistence tests
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R73OfflinePendingWriteAdmissionTest',
+            'spk.local.R72OfflineInFlightCommitEvidenceTest',
+            'spk.local.R71OfflineFinalSaveCheckpointFenceTest',
+            'spk.local.R70OfflineCheckpointAuthorityTest',
+            'spk.local.R69OfflineIoCommitGateTest',
+            'spk.local.WorldPlayerPersistenceShutdownTest',
+            'spk.local.WorldPlayerPersistenceCheckpointShutdownTest',
+            'spk.local.WorldPlayerPersistenceUninterruptibleShutdownTest',
+            'spk.local.R68RealDispatcherAdmissionTest',
+            'spk.local.LocalPendingRequestDispatcherTest',
+            'spk.local.R67OfflineDecodedPacketDispatchTest',
+            'spk.local.R66OfflineGameEventDispatchTest',
+            'spk.local.R65DeferredSessionSaveDispatchTest',
+            'spk.local.R64OfflineSessionOwnershipTest',
+            'spk.local.R63AccountSaveAdmissionTest',
+            'spk.local.R62TradePairCompletionCertificateTest',
+            'spk.local.R61TradePairReplayTest',
+            'spk.local.R60TradePairCoordinatorTest',
+            'spk.local.R59TradePairIntentIndexTest',
+            'spk.local.R58TradePairLoginPreflightTest',
+            'spk.local.R57TradePairJournalReviewTest',
+            'spk.local.R56TradeSplitSaveRestartEvidenceTest',
+            'spk.local.R55TradePublicationRollbackTest',
+            'spk.local.AccountCrashLeaseRecoveryTest',
+            'spk.local.EngineR4TradeFlowTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
