@@ -23,7 +23,7 @@ Only the R64 test-owned functions consume these records:
 - `releaseOwner` is a locked, token-exact logout fence. It changes the record to RELEASED, preserving the generation and owner epoch so any delayed save/logout from the prior ACTIVE token is refused. It does **not** assume all unrelated asynchronous callbacks have stopped in the real server.
 - `inspect` obtains R60 lock, verifies R63's ledger and journal and compares the owner record with the account. Results `READY_FOR_OTHER_OFFLINE_CHECKS`, `BLOCK_RELEASED`, `BLOCK_PENDING_PAIR`, `BLOCK_INDETERMINATE`. **All return `loginAuthorized()==false`**; an offline READY result is not a real session admission credential.
 
-R63's existing public offline entrypoints retain their behavior; R64 adds package-private R63 `inspectUnderLock` and `saveIfCurrentUnderLock` seams for composition with R60 held by the outer owner protocol. The original R63 independent tests must remain green.
+R63's existing public offline entrypoints retain their behavior; R64 adds package-private R63 `inspectUnderLock` and `saveIfCurrentUnderLock` seams for composition with R60 held by the outer owner protocol. **R60 now also tracks the current thread's acquired journal-root lock context; both R63 under-lock seams actively reject calls made without that same-thread authority.** An independent negative test invokes those seams without a lock and from a different thread while another thread holds the OS lock; all calls refuse without modifying canonical bytes. The original R63 independent tests must remain green.
 
 ## Fail-closed interrupted publication
 
