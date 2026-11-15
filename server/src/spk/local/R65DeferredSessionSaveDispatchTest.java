@@ -64,11 +64,12 @@ public final class R65DeferredSessionSaveDispatchTest {
             // enters. Latches make order deterministic, not a timer guess.
             ExecutorService executor=Executors.newFixedThreadPool(2);
             CountDownLatch callbacksCaptured=new CountDownLatch(2);
-            CountDownLatch releaseCallbacks=new CountDownLatch(1);
+            CountDownLatch releaseAutosave=new CountDownLatch(1);
+            CountDownLatch releaseLogout=new CountDownLatch(1);
             try{
                 Future<String> pendingSave=executor.submit(()->{
                     callbacksCaptured.countDown();
-                    if(!releaseCallbacks.await(15,TimeUnit.SECONDS))
+                    if(!releaseAutosave.await(15,TimeUnit.SECONDS))
                         throw new AssertionError(
                             "old autosave callback never released"
                         );
@@ -79,7 +80,7 @@ public final class R65DeferredSessionSaveDispatchTest {
                 });
                 Future<String> pendingLogout=executor.submit(()->{
                     callbacksCaptured.countDown();
-                    if(!releaseCallbacks.await(15,TimeUnit.SECONDS))
+                    if(!releaseLogout.await(15,TimeUnit.SECONDS))
                         throw new AssertionError(
                             "old logout callback never released"
                         );
@@ -117,12 +118,18 @@ public final class R65DeferredSessionSaveDispatchTest {
                     )
                 );
 
-                releaseCallbacks.countDown();
+                // Both callbacks were queued before the new owner.
+                // Release one at a time so each actually reaches the
+                // stale-owner fence, rather than racing for the OS lock
+                // and merely returning an earlier LOCK_BUSY refusal.
+                releaseAutosave.countDown();
                 require("REJECTED_STALE_OWNER".equals(
-                        pendingSave.get(15,TimeUnit.SECONDS)) &&
-                    "REJECTED_STALE_OWNER".equals(
+                        pendingSave.get(15,TimeUnit.SECONDS)),
+                    "late autosave did not fail stale ownership");
+                releaseLogout.countDown();
+                require("REJECTED_STALE_OWNER".equals(
                         pendingLogout.get(15,TimeUnit.SECONDS)),
-                    "late autosave or logout did not refuse stale session");
+                    "late logout did not fail stale ownership");
 
                 require(Arrays.equals(accountAtTakeover,
                         Files.readAllBytes(accounts.resolve(
@@ -297,7 +304,8 @@ public final class R65DeferredSessionSaveDispatchTest {
                     "hardwarePowerLossDurabilityNotProven=true"
                 );
             }finally{
-                releaseCallbacks.countDown();
+                releaseAutosave.countDown();
+                releaseLogout.countDown();
                 executor.shutdownNow();
                 require(executor.awaitTermination(10,TimeUnit.SECONDS),
                     "test-only queued callback threads did not terminate");
