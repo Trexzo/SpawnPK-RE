@@ -30,6 +30,23 @@ import java.util.UUID;
 final class R60TradePairCoordinator {
     static final String LOCK_SUFFIX=".r60-pair-coordinator.lock";
 
+    // The OS FileLock remains the authority. This narrow thread-local
+    // additionally prevents R63's exposed "under lock" composition seams
+    // from being accidentally called without the R60 critical section.
+    private static final ThreadLocal<Path> CURRENT_HELD_ROOT=
+        new ThreadLocal<>();
+
+    static void requireHeldOnCurrentThread(Path journalRoot)
+            throws IOException{
+        if(journalRoot==null||
+           !journalRoot.toAbsolutePath().normalize().equals(
+               CURRENT_HELD_ROOT.get()
+           ))
+            throw new IOException(
+                "R60_LOCK_CONTEXT_DENIED OS lock not held by current thread"
+            );
+    }
+
     @FunctionalInterface
     interface CriticalAction<T> {
         T run() throws IOException;
@@ -186,7 +203,16 @@ final class R60TradePairCoordinator {
                     throw new IOException(
                         "R60_LOCK_DENIED replaced sentinel"
                     );
-                return action.run();
+                if(CURRENT_HELD_ROOT.get()!=null)
+                    throw new IOException(
+                        "R60_LOCK_CONTEXT_DENIED unexpected nested authority"
+                    );
+                CURRENT_HELD_ROOT.set(root);
+                try{
+                    return action.run();
+                }finally{
+                    CURRENT_HELD_ROOT.remove();
+                }
             }
         }
     }
