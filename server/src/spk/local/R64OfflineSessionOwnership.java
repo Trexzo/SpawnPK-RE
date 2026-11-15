@@ -109,29 +109,45 @@ final class R64OfflineSessionOwnership {
     )throws IOException{
         Objects.requireNonNull(expectedPrior,"expected prior owner");
         return R60TradePairCoordinator.withExclusive(
-            journalRoot,false,()->{
-                validateRoots(journalRoot,accountRoot,
-                    generationRoot,sessionRoot);
-                Token stored=readOwner(
-                    recordPath(sessionRoot,expectedPrior.username)
-                );
-                requireMatches(stored,expectedPrior);
-                R63AccountSaveAdmission.Token current=
-                    requireAccountReady(journalRoot,accountRoot,
-                        generationRoot,stored.username);
-                requireAccountMatches(stored.account,current);
-                if(stored.epoch==Long.MAX_VALUE)
-                    throw new IOException(
-                        "R64_SESSION_DENIED ownership epoch overflow"
-                    );
-                Token successor=new Token(
-                    stored.username,UUID.randomUUID(),
-                    stored.epoch+1L,Phase.ACTIVE,current
-                );
-                writeOwner(recordPath(sessionRoot,stored.username),successor);
-                return successor;
-            }
+            journalRoot,false,()->replaceOwnerUnderLock(
+                journalRoot,accountRoot,generationRoot,
+                sessionRoot,expectedPrior
+            )
         );
+    }
+
+    /**
+     * R73 compositional seam: the caller MUST already hold the same R60
+     * file lock. No evidence gate is installed on the existing public
+     * offline method; R73's opt-in entrypoint checks durable write
+     * intents before calling this exact state transition under one lock.
+     */
+    static Token replaceOwnerUnderLock(
+        Path journalRoot,Path accountRoot,Path generationRoot,
+        Path sessionRoot,Token expectedPrior
+    )throws IOException{
+        Objects.requireNonNull(expectedPrior,"expected prior owner");
+        R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
+        validateRoots(journalRoot,accountRoot,
+            generationRoot,sessionRoot);
+        Token stored=readOwner(
+            recordPath(sessionRoot,expectedPrior.username)
+        );
+        requireMatches(stored,expectedPrior);
+        R63AccountSaveAdmission.Token current=
+            requireAccountReady(journalRoot,accountRoot,
+                generationRoot,stored.username);
+        requireAccountMatches(stored.account,current);
+        if(stored.epoch==Long.MAX_VALUE)
+            throw new IOException(
+                "R64_SESSION_DENIED ownership epoch overflow"
+            );
+        Token successor=new Token(
+            stored.username,UUID.randomUUID(),
+            stored.epoch+1L,Phase.ACTIVE,current
+        );
+        writeOwner(recordPath(sessionRoot,stored.username),successor);
+        return successor;
     }
 
     /** Save, ledger update and owner-token advancement share ONE R60 lock. */
