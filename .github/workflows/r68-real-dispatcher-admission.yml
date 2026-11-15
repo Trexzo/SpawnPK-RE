@@ -1,0 +1,76 @@
+name: R68 Offline Real Dispatcher Admission Audit
+
+on:
+  push:
+    branches:
+      - playability/r68-offline-real-dispatch-admission-audit-20261115
+  pull_request:
+    paths:
+      - server/src/spk/local/LocalPendingRequestDispatcher.java
+      - server/src/spk/local/LocalPendingRequestDispatcherTest.java
+      - server/src/spk/local/R68OfflineRequestAdmission.java
+      - server/src/spk/local/R68RealDispatcherAdmissionTest.java
+      - .github/workflows/r68-real-dispatcher-admission.yml
+
+jobs:
+  linux-real-dispatcher-admission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile server and verify Java 11 classfiles
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: Actual request dispatcher hook, default behavior and inherited tests
+        working-directory: server
+        run: |
+          for test in spk.local.R68RealDispatcherAdmissionTest spk.local.LocalPendingRequestDispatcherTest spk.local.R67OfflineDecodedPacketDispatchTest spk.local.R66OfflineGameEventDispatchTest spk.local.R65DeferredSessionSaveDispatchTest spk.local.R64OfflineSessionOwnershipTest spk.local.R63AccountSaveAdmissionTest spk.local.R62TradePairCompletionCertificateTest spk.local.R61TradePairReplayTest spk.local.R60TradePairCoordinatorTest spk.local.R59TradePairIntentIndexTest spk.local.R58TradePairLoginPreflightTest spk.local.R57TradePairJournalReviewTest spk.local.R56TradeSplitSaveRestartEvidenceTest spk.local.R55TradePublicationRollbackTest spk.local.AccountCrashLeaseRecoveryTest spk.local.ClientMovementRequestQueueTest spk.local.CombatNpcAttackOpcode72Test spk.local.ClientItemContainerRequestQueueTest; do
+            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
+          done
+
+  windows-real-dispatcher-admission:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile server and verify Java 11 classfiles
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Actual request dispatcher hook, default behavior and inherited tests
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R68RealDispatcherAdmissionTest',
+            'spk.local.LocalPendingRequestDispatcherTest',
+            'spk.local.R67OfflineDecodedPacketDispatchTest',
+            'spk.local.R66OfflineGameEventDispatchTest',
+            'spk.local.R65DeferredSessionSaveDispatchTest',
+            'spk.local.R64OfflineSessionOwnershipTest',
+            'spk.local.R63AccountSaveAdmissionTest',
+            'spk.local.R62TradePairCompletionCertificateTest',
+            'spk.local.R61TradePairReplayTest',
+            'spk.local.R60TradePairCoordinatorTest',
+            'spk.local.R59TradePairIntentIndexTest',
+            'spk.local.R58TradePairLoginPreflightTest',
+            'spk.local.R57TradePairJournalReviewTest',
+            'spk.local.R56TradeSplitSaveRestartEvidenceTest',
+            'spk.local.R55TradePublicationRollbackTest',
+            'spk.local.AccountCrashLeaseRecoveryTest',
+            'spk.local.ClientMovementRequestQueueTest',
+            'spk.local.CombatNpcAttackOpcode72Test',
+            'spk.local.ClientItemContainerRequestQueueTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
