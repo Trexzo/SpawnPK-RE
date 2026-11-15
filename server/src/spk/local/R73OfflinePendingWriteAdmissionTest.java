@@ -188,7 +188,7 @@ public final class R73OfflinePendingWriteAdmissionTest {
     }
 
     public static void main(String[] args)throws Exception{
-        if(args.length==12&&"attempt".equals(args[0])){
+        if(args.length==14&&"attempt".equals(args[0])){
             takeoverWorker(args);
             return;
         }
@@ -328,6 +328,9 @@ public final class R73OfflinePendingWriteAdmissionTest {
                 "R51_AMBIGUOUS_ACCOUNT_STAGING_DENIED");
             require(Files.exists(ambiguous),
                 "R73 unexpectedly deleted ambiguous stage");
+            // Explicit cleanup of THIS TEST's synthetic negative
+            // control only; the production gate never cleans stages.
+            Files.delete(ambiguous);
             // A malformed R72-shaped entry with no reliable account
             // cannot be assigned to a user; block transfer globally.
             Path malformed=f.evidence.resolve(
