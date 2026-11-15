@@ -77,7 +77,8 @@ final class R76OfflineWriterIngressInventory {
             "R70OfflineCheckpointAuthority.java",
             "R71OfflineFinalSaveCheckpointFence.java",
             "R72OfflineInFlightCommitEvidence.java",
-            "R73OfflinePendingWriteAdmission.java"
+            "R73OfflinePendingWriteAdmission.java",
+            "R51InterruptedAccountPublisherChild.java"
         )));
     private static final Set<String> OTHER_REVIEWED_FILES=
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
@@ -92,8 +93,7 @@ final class R76OfflineWriterIngressInventory {
             "LocalDialogNumberKeyState.java",
             "MarketplaceService.java","PetDefinitionRepository.java",
             "VoidglassR2ConfigPatchTool.java",
-            "LocalPetInventoryDialogHandler.java",
-            "R51InterruptedAccountPublisherChild.java"
+            "LocalPetInventoryDialogHandler.java"
         )));
 
     enum Status {
