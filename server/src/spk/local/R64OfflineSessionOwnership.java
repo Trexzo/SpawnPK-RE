@@ -143,38 +143,51 @@ final class R64OfflineSessionOwnership {
         Objects.requireNonNull(expected,"expected owner");
         Objects.requireNonNull(next,"next snapshot");
         return R60TradePairCoordinator.withExclusive(
-            journalRoot,false,()->{
-                validateRoots(journalRoot,accountRoot,
-                    generationRoot,sessionRoot);
-                Token stored=readOwner(
-                    recordPath(sessionRoot,expected.username)
-                );
-                requireMatches(stored,expected);
-                if(stored.phase!=Phase.ACTIVE)
-                    throw new IOException(
-                        "R64_SESSION_DENIED released owner cannot save"
-                    );
-                R63AccountSaveAdmission.Token current=
-                    requireAccountReady(journalRoot,accountRoot,
-                        generationRoot,stored.username);
-                requireAccountMatches(stored.account,current);
-                R63AccountSaveAdmission.Token after=
-                    R63AccountSaveAdmission.saveIfCurrentUnderLock(
-                        journalRoot,accountRoot,generationRoot,
-                        stored.account,next,false
-                    );
-                if(injectAfterLedgerBeforeOwner)
-                    throw new IOException(
-                        "R64_INJECTED_AFTER_LEDGER_BEFORE_OWNER_RECORD"
-                    );
-                Token advanced=new Token(
-                    stored.username,stored.owner,stored.epoch,
-                    Phase.ACTIVE,after
-                );
-                writeOwner(recordPath(sessionRoot,stored.username),advanced);
-                return advanced;
-            }
+            journalRoot,false,()->saveOwnedUnderLock(
+                journalRoot,accountRoot,generationRoot,sessionRoot,
+                expected,next,injectAfterLedgerBeforeOwner
+            )
         );
+    }
+
+    /**
+     * R65 composition: MUST be invoked from the thread currently holding
+     * R60's real OS lock, so a deferred callback can make owner check,
+     * account/ledger publication and optional logout one critical section.
+     */
+    static Token saveOwnedUnderLock(
+        Path journalRoot,Path accountRoot,Path generationRoot,
+        Path sessionRoot,Token expected,PlayerSnapshot next,
+        boolean injectAfterLedgerBeforeOwner
+    )throws IOException{
+        Objects.requireNonNull(expected,"expected owner");
+        Objects.requireNonNull(next,"next snapshot");
+        R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
+        validateRoots(journalRoot,accountRoot,generationRoot,sessionRoot);
+        Token stored=readOwner(recordPath(sessionRoot,expected.username));
+        requireMatches(stored,expected);
+        if(stored.phase!=Phase.ACTIVE)
+            throw new IOException(
+                "R64_SESSION_DENIED released owner cannot save"
+            );
+        R63AccountSaveAdmission.Token current=requireAccountReady(
+            journalRoot,accountRoot,generationRoot,stored.username
+        );
+        requireAccountMatches(stored.account,current);
+        R63AccountSaveAdmission.Token after=
+            R63AccountSaveAdmission.saveIfCurrentUnderLock(
+                journalRoot,accountRoot,generationRoot,
+                stored.account,next,false
+            );
+        if(injectAfterLedgerBeforeOwner)
+            throw new IOException(
+                "R64_INJECTED_AFTER_LEDGER_BEFORE_OWNER_RECORD"
+            );
+        Token advanced=new Token(
+            stored.username,stored.owner,stored.epoch,Phase.ACTIVE,after
+        );
+        writeOwner(recordPath(sessionRoot,stored.username),advanced);
+        return advanced;
     }
 
     /** Logout fence: old token is unusable for another save after release. */
@@ -184,29 +197,35 @@ final class R64OfflineSessionOwnership {
     )throws IOException{
         Objects.requireNonNull(expected,"expected owner");
         return R60TradePairCoordinator.withExclusive(
-            journalRoot,false,()->{
-                validateRoots(journalRoot,accountRoot,
-                    generationRoot,sessionRoot);
-                Token stored=readOwner(
-                    recordPath(sessionRoot,expected.username)
-                );
-                requireMatches(stored,expected);
-                if(stored.phase!=Phase.ACTIVE)
-                    throw new IOException(
-                        "R64_SESSION_DENIED already released"
-                    );
-                R63AccountSaveAdmission.Token current=
-                    requireAccountReady(journalRoot,accountRoot,
-                        generationRoot,stored.username);
-                requireAccountMatches(stored.account,current);
-                Token released=new Token(
-                    stored.username,stored.owner,stored.epoch,
-                    Phase.RELEASED,current
-                );
-                writeOwner(recordPath(sessionRoot,stored.username),released);
-                return released;
-            }
+            journalRoot,false,()->releaseOwnerUnderLock(
+                journalRoot,accountRoot,generationRoot,sessionRoot,expected
+            )
         );
+    }
+
+    /** R65: validate ownership and persist RELEASED under an already held
+     *  R60 OS lock; the prior ACTIVE token becomes unusable afterward. */
+    static Token releaseOwnerUnderLock(
+        Path journalRoot,Path accountRoot,Path generationRoot,
+        Path sessionRoot,Token expected
+    )throws IOException{
+        Objects.requireNonNull(expected,"expected owner");
+        R60TradePairCoordinator.requireHeldOnCurrentThread(journalRoot);
+        validateRoots(journalRoot,accountRoot,generationRoot,sessionRoot);
+        Token stored=readOwner(recordPath(sessionRoot,expected.username));
+        requireMatches(stored,expected);
+        if(stored.phase!=Phase.ACTIVE)
+            throw new IOException("R64_SESSION_DENIED already released");
+        R63AccountSaveAdmission.Token current=requireAccountReady(
+            journalRoot,accountRoot,generationRoot,stored.username
+        );
+        requireAccountMatches(stored.account,current);
+        Token released=new Token(
+            stored.username,stored.owner,stored.epoch,
+            Phase.RELEASED,current
+        );
+        writeOwner(recordPath(sessionRoot,stored.username),released);
+        return released;
     }
 
     /** Passive inspection never authorizes actual player login. */
