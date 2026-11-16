@@ -40,6 +40,32 @@ final class CombatOutcomeObserverGroup
 
     private volatile OfflineProjectionAdmission offlineProjectionAdmission;
 
+    /**
+     * R81 OFFLINE ONLY. A verified source's exact immutable combat-fact
+     * instance may begin this observer fanout only once. The caller-owned
+     * receipt ledger claims BEFORE the first side effect, without retry,
+     * replay, or rollback after a partial callback sequence.
+     */
+    @FunctionalInterface
+    interface OfflineFirstDeliveryAdmission {
+        boolean tryBegin(CombatOutcome fact);
+    }
+
+    private volatile OfflineFirstDeliveryAdmission offlineFirstDeliveryAdmission;
+
+    void installOfflineFirstDeliveryAdmissionForTest(
+        OfflineFirstDeliveryAdmission admission
+    ){
+        Objects.requireNonNull(admission,"admission");
+        synchronized(this){
+            if(offlineFirstDeliveryAdmission!=null)
+                throw new IllegalStateException(
+                    "R81_RECEIPT_GATE_DENIED already installed"
+                );
+            offlineFirstDeliveryAdmission=admission;
+        }
+    }
+
     void installOfflineProjectionAdmissionForTest(
         OfflineProjectionAdmission gate
     ){
@@ -104,6 +130,16 @@ final class CombatOutcomeObserverGroup
             OfflineProjectionAdmission gate=offlineProjectionAdmission;
             if(gate!=null&&!gate.permits(fact,i))
                 return; // terminal/expired generation is not an observer failure
+
+            if(i==0){
+                OfflineFirstDeliveryAdmission receipt=
+                    offlineFirstDeliveryAdmission;
+                // The owner-generation check above MUST precede the
+                // first consumption claim. Failed admission must not
+                // burn an unprocessed event's receipt.
+                if(receipt!=null&&!receipt.tryBegin(fact))
+                    return;
+            }
 
             CombatOutcomeObserver observer=
                 observers.get(i);
