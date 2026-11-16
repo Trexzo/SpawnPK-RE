@@ -100,6 +100,27 @@ final class CombatOutcomeMatchObserver
     private final String subjectRef;
     private final List<Binding> bindings;
 
+    /** R80 offline fixture only; checked before each participant/team write. */
+    @FunctionalInterface
+    interface OfflineMutationAdmission {
+        void requireAdmitted(CombatOutcome fact);
+    }
+
+    private volatile OfflineMutationAdmission offlineMutationAdmission;
+
+    void installOfflineMutationAdmissionForTest(
+        OfflineMutationAdmission gate
+    ){
+        Objects.requireNonNull(gate,"gate");
+        synchronized(this){
+            if(offlineMutationAdmission!=null)
+                throw new IllegalStateException(
+                    "R80_MATCH_GATE_DENIED already installed"
+                );
+            offlineMutationAdmission=gate;
+        }
+    }
+
     CombatOutcomeMatchObserver(
         MatchSessionService matches,
         String subjectRef,
@@ -191,6 +212,9 @@ final class CombatOutcomeMatchObserver
                     binding.subjectRole,
                     outcome))
                 continue;
+
+            OfflineMutationAdmission gate=offlineMutationAdmission;
+            if(gate!=null)gate.requireAdmitted(outcome);
 
             if(binding.scoreScope==
                     ScoreScope.PARTICIPANT){
