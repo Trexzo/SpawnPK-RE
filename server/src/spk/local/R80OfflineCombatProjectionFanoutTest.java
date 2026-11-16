@@ -344,6 +344,7 @@ public final class R80OfflineCombatProjectionFanoutTest {
         stoppedWithinMatchBindings();
         collectionResolverCannotCommitAfterQuiescence();
         directStaleFanoutCannotMutate();
+        duplicateOfflinePolicyReplacementDenied();
         System.out.println(
             "R80_OFFLINE_COMBAT_PROJECTION_FANOUT_PASS "+
             "realPvpProducerDomainFanout=true "+
@@ -356,6 +357,7 @@ public final class R80OfflineCombatProjectionFanoutTest {
             "priorCommittedProjectionNotRolledBack=true "+
             "observerFailureIsolationStillWorks=true "+
             "staleDirectFanoutDenied=true "+
+            "duplicateOfflinePolicyReplacementDenied=true "+
             "globalEventStillDelivered=true "+
             "noRewardsClaimsOrLiveRuntimeChanges=true"
         );
@@ -456,6 +458,44 @@ public final class R80OfflineCombatProjectionFanoutTest {
             f.assertState(1L,1L,2L,3L,Long.valueOf(7L),1,0);
             require(f.fence.deniedFanoutCountForTest()>=2,
                 "R80 stale direct listener gate did not refuse");
+        }
+    }
+
+    private static void duplicateOfflinePolicyReplacementDenied()
+            throws Exception{
+        try(Fixture f=new Fixture(Mode.NORMAL)){
+            // No second party may silently replace an installed
+            // test-only World owner policy after it was bound.
+            rejectRepeat(()->f.group
+                .installOfflineProjectionAdmissionForTest(
+                    (fact,index)->true
+                ),"R80_FANOUT_GATE_DENIED");
+            rejectRepeat(()->f.objectiveObserver
+                .installOfflineMutationAdmissionForTest(
+                    fact->{}
+                ),"R80_OBJECTIVE_GATE_DENIED");
+            rejectRepeat(()->f.matchObserver
+                .installOfflineMutationAdmissionForTest(
+                    fact->{}
+                ),"R80_MATCH_GATE_DENIED");
+            rejectRepeat(()->f.collectionObserver
+                .installOfflineMutationAdmissionForTest(
+                    fact->{}
+                ),"R80_COLLECTION_GATE_DENIED");
+        }
+    }
+
+    private static void rejectRepeat(
+        Runnable install,String message
+    ){
+        try{
+            install.run();
+            throw new AssertionError(
+                "R80 repeated policy installation succeeded "+message
+            );
+        }catch(IllegalStateException denied){
+            require(denied.getMessage().contains(message),
+                "R80 repeated policy rejection mismatch "+denied);
         }
     }
 
