@@ -151,6 +151,19 @@ final class R79OfflinePairedPvpOwnershipGate {
         return rejectedListeners.get();
     }
 
+    /**
+     * R81 OFFLINE ONLY: exact fact object can start a projection receipt
+     * only while the real R79 DomainEventBus callback is currently
+     * executing with its producer proof. Strings cannot forge this.
+     * Does not create a reusable token or authorize a later replay.
+     */
+    boolean isVerifiedFactInCurrentListenerForTest(CombatOutcome fact){
+        return fact!=null&&
+            producerProof.get()==fact&&
+            Boolean.TRUE.equals(inListener.get())&&
+            world.pulse().inExecutionContext();
+    }
+
     private void publishFromRealResolver(CombatOutcome fact){
         // Only real resolver-originated NPC-unrelated PvP facts are
         // allowed. Attacker and victim *strings* alone are never
