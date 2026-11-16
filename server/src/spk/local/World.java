@@ -227,6 +227,43 @@ final class World implements AutoCloseable {
         }
     }
 
+    /**
+     * R79 OFFLINE TEST ONLY. A single World lifecycle critical section and
+     * deterministic EntityId lock order protect both PvP actors while a
+     * synchronous test combat resolution and its outcome fanout complete.
+     * No production session, login or packet path calls this helper.
+     */
+    boolean withOfflineDualPlayerMutationOwnershipForTest(
+        WorldPlayer attacker,long attackerGeneration,
+        WorldPlayer target,long targetGeneration,
+        OwnedPlayerAction action
+    )throws Exception{
+        if(attacker==null||target==null||action==null)
+            throw new NullPointerException("R79 PvP owner/action");
+        if(attacker==target||attacker.id().equals(target.id()))
+            throw new IllegalArgumentException(
+                "R79_PVP_DENIED same attacker and target"
+            );
+        if(closed.get())return false;
+
+        synchronized(lifecycleLock){
+            if(closed.get())return false;
+
+            WorldPlayer first=attacker.id().value<target.id().value
+                ?attacker:target;
+            WorldPlayer second=first==attacker?target:attacker;
+            synchronized(first.mutationLock()){
+                synchronized(second.mutationLock()){
+                    if(!players.owns(attacker,attackerGeneration)||
+                       !players.owns(target,targetGeneration))
+                        return false;
+                    action.run();
+                    return true;
+                }
+            }
+        }
+    }
+
     boolean runIfOpen(Runnable action){
         if(action==null)
             throw new NullPointerException(
