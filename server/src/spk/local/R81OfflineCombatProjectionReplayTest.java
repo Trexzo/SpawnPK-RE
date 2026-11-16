@@ -82,7 +82,7 @@ public final class R81OfflineCombatProjectionReplayTest {
                 victim,victimGeneration,terminal
             );
             receipts=new R81OfflineCombatProjectionReceiptLedger(
-                capacity
+                capacity,combat::isVerifiedFactInCurrentListenerForTest
             );
 
             objectives.define(new ObjectiveDefinition(
@@ -316,10 +316,16 @@ public final class R81OfflineCombatProjectionReplayTest {
                 }catch(Exception failure){
                     throw new IllegalStateException(failure);
                 }
+
+                // Even a module that bypasses the DomainEventBus
+                // and invokes the *group directly* cannot claim a
+                // new same-looking fact without CURRENT R79 proof.
+                group.onCombatOutcome(copy);
             });
             require(world.observePulse(System.currentTimeMillis())==3L&&
-                    denied.get()==1,
-                "R81 immutable clone source bypass was not refused");
+                    denied.get()==1&&
+                    receipts.unverifiedRefusalCount()==1L,
+                "R81 direct synthetic combat fact bypassed source proof");
         }
 
         void assertProjections(
@@ -374,6 +380,7 @@ public final class R81OfflineCombatProjectionReplayTest {
             "failedCollectionResolverNotReplayed=true "+
             "priorCommittedWritesNotRolledBack=true "+
             "forgedSameFieldsRejectedByR79=true "+
+            "newDirectGroupFactWithoutSourceProofDenied=true "+
             "capacityExhaustionFailsClosedWithoutEviction=true "+
             "concurrentFirstDeliveryAtomic=true "+
             "globalDomainNoticeUnaffected=true "+
@@ -472,7 +479,9 @@ public final class R81OfflineCombatProjectionReplayTest {
     private static void synchronizedConcurrentClaimWinsOnce()
             throws Exception{
         R81OfflineCombatProjectionReceiptLedger ledger=
-            new R81OfflineCombatProjectionReceiptLedger(2);
+            new R81OfflineCombatProjectionReceiptLedger(
+                2,fact->true
+            ); // isolated receipt atomicity test, not gameplay proof
         CombatOutcome one=new CombatOutcome(
             "player:a","player:b",CombatOutcomeType.PLAYER_KILL,
             CombatOutcomeContext.PLAYER_PVP,1L,"CUSTOM_LOCALLAB"
