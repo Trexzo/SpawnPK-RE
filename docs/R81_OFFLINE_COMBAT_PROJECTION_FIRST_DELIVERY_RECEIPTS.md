@@ -47,14 +47,19 @@ happens before any objective/match/Collection Log consumer:
 2. Identical Java fact object submitted again (second domain
    subscriber, direct duplicate or reentrant entry): reject before
    any projection side effect.
-3. Earlier observer threw after mutating state, R80 denied a later
+3. Every NEW receipt also requires the current R79 real producer's
+   **exact immutable fact identity proof inside its active domain
+   listener**. A newly forged same-field object passed straight to
+   CombatOutcomeObserverGroup does not have that proof and cannot
+   claim a receipt; it does not reach any projection write.
+4. Earlier observer threw after mutating state, R80 denied a later
    observer, or the Collection Log resolver failed: receipt remains
    **consumed** and any replay is rejected. There is **no retry,
    compensation or claimed rollback**.
-4. Full receipt capacity: **reject new facts**, never evict an old
+5. Full receipt capacity: **reject new facts**, never evict an old
    receipt and accidentally reopen its replay. This is intentionally
    fail closed and may drop an otherwise valid new event.
-5. Concurrent attempts to claim the same object are serialized:
+6. Concurrent attempts to claim the same object are serialized:
    precisely one wins. Data structures retain a bounded number of
    strong object references for the lifetime of that fixture.
 
@@ -96,7 +101,12 @@ Independent scenarios:
   resolver-call counts remain unchanged.
 - A NEW immutable fact with identical attacker, victim, tick,
   context and authority is directly published to the real World
-  domain bus; R79's producer proof rejects it.
+  domain bus; R79's producer proof rejects it. The fixture then
+  invokes CombatOutcomeObserverGroup **directly** with that forged
+  new object, bypassing the bus entirely. R81's receipt ledger
+  refuses the new object because there is no active R79 proof.
+  Previously seen object instances are still refused as duplicates
+  without needing a renewed source proof.
 - A controlled interruption after objective projection, before match
   scoring: second domain delivery cannot replay the already committed
   objective or silently complete the previously skipped match/collection
