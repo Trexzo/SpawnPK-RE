@@ -27,6 +27,32 @@ final class CombatOutcomeObserverGroup
     private final List<CombatOutcomeObserver> observers;
     private final FailureHandler failureHandler;
 
+    /**
+     * R80 OFFLINE ONLY. Revalidate a verified World actor before EACH
+     * observer, including after a previous observer returns or fails.
+     * A terminal denial STOPS the fanout, not a retry/replay and not
+     * an exception isolated into the old failure-handler loop.
+     */
+    @FunctionalInterface
+    interface OfflineProjectionAdmission {
+        boolean permits(CombatOutcome fact,int observerIndex);
+    }
+
+    private volatile OfflineProjectionAdmission offlineProjectionAdmission;
+
+    void installOfflineProjectionAdmissionForTest(
+        OfflineProjectionAdmission gate
+    ){
+        Objects.requireNonNull(gate,"gate");
+        synchronized(this){
+            if(offlineProjectionAdmission!=null)
+                throw new IllegalStateException(
+                    "R80_FANOUT_GATE_DENIED already installed"
+                );
+            offlineProjectionAdmission=gate;
+        }
+    }
+
     CombatOutcomeObserverGroup(
         List<? extends CombatOutcomeObserver> observers,
         FailureHandler failureHandler
@@ -75,6 +101,10 @@ final class CombatOutcomeObserverGroup
             );
 
         for(int i=0;i<observers.size();i++){
+            OfflineProjectionAdmission gate=offlineProjectionAdmission;
+            if(gate!=null&&!gate.permits(fact,i))
+                return; // terminal/expired generation is not an observer failure
+
             CombatOutcomeObserver observer=
                 observers.get(i);
 

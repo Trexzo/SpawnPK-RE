@@ -88,6 +88,27 @@ final class CombatOutcomeObjectiveObserver
     private final String subjectRef;
     private final List<Binding> bindings;
 
+    /** R80 offline fixture only; checked immediately before EACH progress write. */
+    @FunctionalInterface
+    interface OfflineMutationAdmission {
+        void requireAdmitted(CombatOutcome fact);
+    }
+
+    private volatile OfflineMutationAdmission offlineMutationAdmission;
+
+    void installOfflineMutationAdmissionForTest(
+        OfflineMutationAdmission gate
+    ){
+        Objects.requireNonNull(gate,"gate");
+        synchronized(this){
+            if(offlineMutationAdmission!=null)
+                throw new IllegalStateException(
+                    "R80_OBJECTIVE_GATE_DENIED already installed"
+                );
+            offlineMutationAdmission=gate;
+        }
+    }
+
     CombatOutcomeObjectiveObserver(
         ObjectiveProgressService objectives,
         String subjectRef,
@@ -172,6 +193,9 @@ final class CombatOutcomeObjectiveObserver
                     outcome)) {
                 continue;
             }
+
+            OfflineMutationAdmission gate=offlineMutationAdmission;
+            if(gate!=null)gate.requireAdmitted(outcome);
 
             objectives.advance(
                 binding.objectiveKey,
