@@ -111,6 +111,27 @@ final class CombatOutcomeCollectionLogObserver
         resolver;
     private final List<Binding> bindings;
 
+    /** R80 offline fixture only; rechecked after external resolver work. */
+    @FunctionalInterface
+    interface OfflineMutationAdmission {
+        void requireAdmitted(CombatOutcome fact);
+    }
+
+    private volatile OfflineMutationAdmission offlineMutationAdmission;
+
+    void installOfflineMutationAdmissionForTest(
+        OfflineMutationAdmission gate
+    ){
+        Objects.requireNonNull(gate,"gate");
+        synchronized(this){
+            if(offlineMutationAdmission!=null)
+                throw new IllegalStateException(
+                    "R80_COLLECTION_GATE_DENIED already installed"
+                );
+            offlineMutationAdmission=gate;
+        }
+    }
+
     CombatOutcomeCollectionLogObserver(
         CollectionLogService log,
         String subjectRef,
@@ -215,6 +236,9 @@ final class CombatOutcomeCollectionLogObserver
                     outcome))
                 continue;
 
+            OfflineMutationAdmission gate=offlineMutationAdmission;
+            if(gate!=null)gate.requireAdmitted(outcome);
+
             CollectionLogService.ProgressSnapshot
                 current=
                     log.snapshot(
@@ -272,6 +296,13 @@ final class CombatOutcomeCollectionLogObserver
                             .authoritativeCount
                     )
             );
+
+        // Resolver code runs outside the Collection Log lock. It may
+        // have triggered logout or actor teardown while calculating an
+        // authoritative absolute count. Reject the *whole batch* before
+        // CAS publication if the offline World actor is now invalid.
+        OfflineMutationAdmission gate=offlineMutationAdmission;
+        if(gate!=null)gate.requireAdmitted(outcome);
 
         log.observeKillCountsAtomically(
             updates
