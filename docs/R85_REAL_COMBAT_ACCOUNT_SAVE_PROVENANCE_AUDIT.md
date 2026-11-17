@@ -12,13 +12,21 @@ publishers:
    `world.domainEvents().publish(outcome)` observer.
    Only an already-confirmed **removed NPC death** can create its
    opt-in `NPC_KILL` fact in this route.
-2. `PlayerCombatResolutionService.finish` creates a separate
-   `PLAYER_KILL` and `PLAYER_DEATH` fact after lethal PvP damage.
-   The direct resolver calls the supplied `CombatOutcomeObserver`;
-   R79/R82 tests use a real resolver with explicitly installed
-   isolated World ownership and source-proof adapters. **This does
-   not establish that LocalSession wires the same PvP observer
-   into live network gameplay.**
+2. `LocalSession` constructs the active
+   `LocalPlayerInteractionHandler`, which calls
+   `pvpCombat.resolveImmediateOwned` during a resolved player attack.
+   The handler constructs `PlayerCombatResolutionService` with
+   its **four-argument constructor**; source review confirms this
+   constructor selects `NO_OUTCOME_OBSERVER = outcome -> {}`.
+   Hence this actual active PvP attack path applies damage and emits
+   presentation updates, but **does NOT publish the resulting
+   `PLAYER_KILL` or `PLAYER_DEATH` facts to DomainEventBus**.
+   The `PlayerCombatResolutionService.finish` method does allocate
+   both semantic facts for a lethal hit, but its configured callback
+   discards them. By contrast, R79/R82 fixtures explicitly provide
+   an additional observer, and only that isolated path proves the
+   domain/projection fanout. This is a concrete default wiring gap,
+   NOT a claim that the PvP resolver itself is unused.
 
 A separate **actual account persistence path** exists:
 
@@ -61,6 +69,17 @@ construction).
 The R85 fixture uses a temporary
 `FilePlayerRepository` with a **test-controlled isolated directory**,
 never a LocalAccountProfiles production account path.
+
+A second regression,
+`R85OfflineActivePvpOutcomeWiringGapTest`, exercises the active
+`LocalSession`-shaped `LocalPlayerInteractionHandler` in an isolated
+World with actual Player81WorldSync contexts, an accepted attack,
+canonical lethal PvP damage and HP packet 134. A real
+`DomainEventBus` subscriber and bound objective observer see
+**zero combat outcomes** for that attack because the handler's
+default resolver has the explicit no-op callback. This proves that
+the live-shaped PvP damage path and the R79 isolated semantic
+outcome path must not be confused.
 
 1. Complete lethal PvP results in actual objective +1,
    participant +2, team +3, synthetic Collection Log absolute 7.
@@ -143,9 +162,10 @@ publisher still does not prove parent-directory fsync, hardware
 power-loss durability or cross-service all-or-nothing commit.
 No CPU/FPS/network-latency performance claim is made.
 
-The R85 workflow compiles the Java 11 server target and runs new
-tests plus inherited R63–R84 regressions on independent Linux and
-Windows jobs. A separate full server build and Windows
+The R85 workflow compiles the Java 11 server target and runs
+both real-source tests (active PvP without outcome publication and
+R79-authenticated PvP with a real World persistence save) plus
+inherited R63–R84 regressions on independent Linux and Windows jobs. A separate full server build and Windows
 atomic-persistence workflow must also pass on the **exact** PR head.
 
 **R85 OFFLINE ONLY / DRAFT / UNMERGED / NO LIVE ACTIVATION.**
