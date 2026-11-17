@@ -29,6 +29,20 @@ final class R79OfflinePairedPvpOwnershipGate {
     private final AtomicInteger rejectedListeners=new AtomicInteger();
     private final PlayerCombatResolutionService resolver;
 
+    // R82 OFFLINE-ONLY optional provenance. Absent by default and
+    // never installed in LocalSession or production PvP.
+    private R82OfflineCombatOccurrenceKeys offlineOccurrenceKeys;
+
+    synchronized void installOfflineR82OccurrenceKeysForTest(
+        R82OfflineCombatOccurrenceKeys keys
+    ){
+        if(offlineOccurrenceKeys!=null)
+            throw new IllegalStateException(
+                "R82_SOURCE_DENIED duplicate provenance installation"
+            );
+        offlineOccurrenceKeys=Objects.requireNonNull(keys,"keys");
+    }
+
     R79OfflinePairedPvpOwnershipGate(
         World world,WorldPlayer attacker,long attackerGeneration,
         WorldPlayer target,long targetGeneration,
@@ -132,10 +146,17 @@ final class R79OfflinePairedPvpOwnershipGate {
                 attacker,attackerGeneration,target,targetGeneration,
                 ()->{
                     requireCurrent("inside paired actor lock");
-                    result[0]=resolver.resolveImmediateOwned(
-                        world,attackerGeneration,target,
-                        targetGeneration,weaponId,style,tick
-                    );
+                    R82OfflineCombatOccurrenceKeys keys=
+                        offlineOccurrenceKeys;
+                    if(keys!=null)keys.beginRealResolution();
+                    try{
+                        result[0]=resolver.resolveImmediateOwned(
+                            world,attackerGeneration,target,
+                            targetGeneration,weaponId,style,tick
+                        );
+                    }finally{
+                        if(keys!=null)keys.endRealResolution();
+                    }
                 }
             );
         if(!invoked)
@@ -164,6 +185,45 @@ final class R79OfflinePairedPvpOwnershipGate {
             world.pulse().inExecutionContext();
     }
 
+    /**
+     * R82 OFFLINE-ONLY. Source key is accessible only while this
+     * R79 source's exact immutable fact proof is held by a real
+     * DomainEventBus listener on the World actor.
+     */
+    R82OfflineCombatOccurrenceKeys.Key
+        currentR82SourceKeyForTest(CombatOutcome fact){
+        R82OfflineCombatOccurrenceKeys keys=offlineOccurrenceKeys;
+        return keys!=null &&
+            isVerifiedFactInCurrentListenerForTest(fact)
+            ?keys.recordedKey(fact):null;
+    }
+
+    /**
+     * R82 OFFLINE-ONLY synthetic transport reissue of a PREVIOUSLY
+     * proven fact. Does not resolve PvP or apply HP a second time.
+     * A new object receives the same source key only if its exact
+     * source original was registered by the real PvP producer.
+     */
+    CombatOutcome reissueRecordedFactForTest(
+        CombatOutcome original
+    ){
+        R82OfflineCombatOccurrenceKeys keys=offlineOccurrenceKeys;
+        if(keys==null)
+            throw new IllegalStateException(
+                "R82_SOURCE_DENIED provenance not installed"
+            );
+        requireCurrent("before trusted test reissue");
+        if(producerProof.get()!=null)
+            throw new IllegalStateException(
+                "R82_SOURCE_DENIED nested trusted reissue"
+            );
+        CombatOutcome clone=keys.prepareRecordedReissueForTest(
+            Objects.requireNonNull(original,"original")
+        );
+        publishFromRealResolver(clone);
+        return clone;
+    }
+
     private void publishFromRealResolver(CombatOutcome fact){
         // Only real resolver-originated NPC-unrelated PvP facts are
         // allowed. Attacker and victim *strings* alone are never
@@ -186,6 +246,8 @@ final class R79OfflinePairedPvpOwnershipGate {
             throw new IllegalStateException(
                 "R79_PVP_DENIED recursively attested outcome"
             );
+        R82OfflineCombatOccurrenceKeys keys=offlineOccurrenceKeys;
+        if(keys!=null)keys.recordProducerFact(fact);
         producerProof.set(fact);
         try{
             world.domainEvents().publish(fact);
