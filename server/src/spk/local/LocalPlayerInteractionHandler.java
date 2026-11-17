@@ -644,16 +644,14 @@ final class LocalPlayerInteractionHandler {
             boolean admitted=
                 world.withOfflineDualPlayerMutationOwnershipForTest(
                     owner,attackerGeneration,target,targetGeneration,
-                    ()->{
-                        offlineOutcomeBridge.requireBoundForTest(
-                            target,targetGeneration
-                        );
-                        result[0]=pvpCombat.resolveImmediateOwned(
+                    ()->offlineOutcomeBridge.withBoundResolverForTest(
+                        target,targetGeneration,
+                        ()->result[0]=pvpCombat.resolveImmediateOwned(
                             world,attackerGeneration,target,
                             targetGeneration,equipment.weapon(),
                             style,worldTick
-                        );
-                    }
+                        )
+                    )
                 );
             if(!admitted)
                 throw new PlayerCombatResolutionService
