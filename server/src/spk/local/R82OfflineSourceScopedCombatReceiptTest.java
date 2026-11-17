@@ -27,7 +27,7 @@ public final class R82OfflineSourceScopedCombatReceiptTest {
         implements DomainEventBus.Event {}
 
     static final class Fixture implements AutoCloseable {
-        final World world=World.isolatedForTest(60_000L);
+        final World world;
         final WorldPlayer attacker=new WorldPlayer();
         final WorldPlayer victim=new WorldPlayer();
         final long attackerGeneration;
@@ -62,6 +62,20 @@ public final class R82OfflineSourceScopedCombatReceiptTest {
         final Mode mode;
 
         Fixture(Mode mode,int capacity)throws Exception{
+            this(mode,capacity,null);
+        }
+
+        /**
+         * R85 OFFLINE ONLY: allow an isolated fixture to use a test-owned
+         * file repository through the *real WorldPlayerPersistence* worker.
+         * Existing R82-R84 fixtures still use their original isolated
+         * World constructor and retain all prior behavior.
+         */
+        Fixture(Mode mode,int capacity,PlayerRepository repository)
+                throws Exception{
+            world=repository==null
+                ?World.isolatedForTest(60_000L)
+                :World.isolatedForTest(60_000L,repository);
             this.mode=mode;
             attackerGeneration=world.registerPlayer(attacker,"attacker");
             victimGeneration=world.registerPlayer(victim,"victim");
