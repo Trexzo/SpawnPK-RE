@@ -29,6 +29,34 @@ final class R79OfflinePairedPvpOwnershipGate {
     private final AtomicInteger rejectedListeners=new AtomicInteger();
     private final PlayerCombatResolutionService resolver;
 
+    /**
+     * R82 OFFLINE ONLY: an ordinal is issued at this exact real
+     * PlayerCombatResolutionService outcome callback, not fabricated
+     * from attacker/victim strings or the World tick.
+     * It is scoped only to this ONE R79 test producer, not durable.
+     */
+    @FunctionalInterface
+    interface OfflineSourceEmissionIssuer {
+        void onSourceEmission(CombatOutcome fact,long sourceOrdinal);
+        default void afterSourceEmission(CombatOutcome fact){}
+    }
+
+    private OfflineSourceEmissionIssuer offlineSourceEmissionIssuer;
+    private long sourceEmissionOrdinal;
+    private boolean sourceEmissionStarted;
+
+    synchronized void installOfflineSourceEmissionIssuerForTest(
+        OfflineSourceEmissionIssuer issuer
+    ){
+        if(offlineSourceEmissionIssuer!=null||sourceEmissionStarted)
+            throw new IllegalStateException(
+                "R82_SOURCE_ISSUER_DENIED already installed or emitted"
+            );
+        offlineSourceEmissionIssuer=Objects.requireNonNull(
+            issuer,"issuer"
+        );
+    }
+
     R79OfflinePairedPvpOwnershipGate(
         World world,WorldPlayer attacker,long attackerGeneration,
         WorldPlayer target,long targetGeneration,
@@ -186,6 +214,24 @@ final class R79OfflinePairedPvpOwnershipGate {
             throw new IllegalStateException(
                 "R79_PVP_DENIED recursively attested outcome"
             );
+
+        // R82 proof issuance happens only after R79's exact source
+        // verification. A default fixture with no R82 installation
+        // retains the same original publication behavior.
+        OfflineSourceEmissionIssuer issuer;
+        long ordinal=0L;
+        synchronized(this){
+            sourceEmissionStarted=true;
+            issuer=offlineSourceEmissionIssuer;
+            if(issuer!=null){
+                sourceEmissionOrdinal=Math.addExact(
+                    sourceEmissionOrdinal,1L
+                );
+                ordinal=sourceEmissionOrdinal;
+            }
+        }
+        if(issuer!=null)issuer.onSourceEmission(fact,ordinal);
+
         producerProof.set(fact);
         try{
             world.domainEvents().publish(fact);
@@ -195,6 +241,7 @@ final class R79OfflinePairedPvpOwnershipGate {
             );
         }finally{
             producerProof.remove();
+            if(issuer!=null)issuer.afterSourceEmission(fact);
         }
     }
 
