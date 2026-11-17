@@ -53,14 +53,43 @@ final class CombatOutcomeObserverGroup
 
     private volatile OfflineFirstDeliveryAdmission offlineFirstDeliveryAdmission;
 
+    /**
+     * R82 OFFLINE ONLY. One independently recorded receipt per
+     * sub-observer and verified source occurrence ID. A claimed
+     * observer is skipped on a trusted reissue; unclaimed later
+     * observers may continue. Claim happens BEFORE the callback.
+     * A failing/partially-mutating observer is not retried.
+     */
+    @FunctionalInterface
+    interface OfflinePerObserverReceiptAdmission {
+        boolean tryBegin(CombatOutcome fact,int observerIndex);
+    }
+
+    private volatile OfflinePerObserverReceiptAdmission offlinePerObserverReceipt;
+
+    void installOfflinePerObserverReceiptForTest(
+        OfflinePerObserverReceiptAdmission admission
+    ){
+        Objects.requireNonNull(admission,"admission");
+        synchronized(this){
+            if(offlinePerObserverReceipt!=null||
+               offlineFirstDeliveryAdmission!=null)
+                throw new IllegalStateException(
+                    "R82_RECEIPT_GATE_DENIED conflicting or duplicate receipt"
+                );
+            offlinePerObserverReceipt=admission;
+        }
+    }
+
     void installOfflineFirstDeliveryAdmissionForTest(
         OfflineFirstDeliveryAdmission admission
     ){
         Objects.requireNonNull(admission,"admission");
         synchronized(this){
-            if(offlineFirstDeliveryAdmission!=null)
+            if(offlineFirstDeliveryAdmission!=null||
+               offlinePerObserverReceipt!=null)
                 throw new IllegalStateException(
-                    "R81_RECEIPT_GATE_DENIED already installed"
+                    "R81_RECEIPT_GATE_DENIED conflicting or duplicate receipt"
                 );
             offlineFirstDeliveryAdmission=admission;
         }
@@ -140,6 +169,11 @@ final class CombatOutcomeObserverGroup
                 if(receipt!=null&&!receipt.tryBegin(fact))
                     return;
             }
+
+            OfflinePerObserverReceiptAdmission perObserver=
+                offlinePerObserverReceipt;
+            if(perObserver!=null&&!perObserver.tryBegin(fact,i))
+                continue; // earlier attempt already consumed this projection
 
             CombatOutcomeObserver observer=
                 observers.get(i);
