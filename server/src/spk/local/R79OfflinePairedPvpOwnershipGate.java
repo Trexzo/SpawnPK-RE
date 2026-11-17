@@ -38,6 +38,7 @@ final class R79OfflinePairedPvpOwnershipGate {
     @FunctionalInterface
     interface OfflineSourceEmissionIssuer {
         void onSourceEmission(CombatOutcome fact,long sourceOrdinal);
+        default void afterSourceEmission(CombatOutcome fact){}
     }
 
     private OfflineSourceEmissionIssuer offlineSourceEmissionIssuer;
@@ -240,6 +241,7 @@ final class R79OfflinePairedPvpOwnershipGate {
             );
         }finally{
             producerProof.remove();
+            if(issuer!=null)issuer.afterSourceEmission(fact);
         }
     }
 
