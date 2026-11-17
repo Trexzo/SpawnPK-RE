@@ -17,7 +17,7 @@ import spk.event.DomainEventBus;
  * production CombatOutcome.
  */
 public final class R82OfflineSourceScopedCombatReceiptTest {
-    private enum Mode {
+    enum Mode {
         COMPLETE,
         PARTIAL_AFTER_OBJECTIVE,
         FAILED_COLLECTION_RESOLVER
@@ -26,7 +26,7 @@ public final class R82OfflineSourceScopedCombatReceiptTest {
     private static final class GlobalNotice
         implements DomainEventBus.Event {}
 
-    private static final class Fixture implements AutoCloseable {
+    static final class Fixture implements AutoCloseable {
         final World world=World.isolatedForTest(60_000L);
         final WorldPlayer attacker=new WorldPlayer();
         final WorldPlayer victim=new WorldPlayer();
