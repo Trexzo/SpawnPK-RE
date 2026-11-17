@@ -25,6 +25,7 @@ on:
       - server/src/spk/local/R84OfflineProjectionObservationRecoveryTest.java
       - server/src/spk/local/R82OfflineSourceScopedCombatReceiptTest.java
       - server/src/spk/local/R85OfflineCombatAccountPersistenceBoundaryTest.java
+      - server/src/spk/local/R85OfflineActivePvpOutcomeWiringGapTest.java
       - server/src/spk/local/R85OfflineCombatPersistenceRouteInventoryTest.java
       - .github/workflows/r85-offline-real-combat-account-save-boundary.yml
 
@@ -43,7 +44,7 @@ jobs:
       - name: R85 actual World-owned account save/reload and R63-R84 regressions
         working-directory: server
         run: |
-          for test in spk.local.R85OfflineCombatAccountPersistenceBoundaryTest spk.local.R85OfflineCombatPersistenceRouteInventoryTest spk.local.R84OfflineProjectionObservationRecoveryTest spk.local.R83OfflinePreparedCombatReceiptRecoveryTest spk.local.R82OfflineSourceScopedCombatReceiptTest spk.local.R81OfflineCombatProjectionReplayTest spk.local.R80OfflineCombatProjectionFanoutTest spk.local.CombatOutcomeObserverGroupTest spk.local.CombatOutcomeObjectiveIntegrationTest spk.local.CombatOutcomeMatchObserverTest spk.local.CombatOutcomeCollectionLogObserverTest spk.local.R79OfflinePairedPvpOwnershipTest spk.local.PlayerPvpAttackerWorldOwnershipFenceTest spk.local.PlayerPvpTargetWorldOwnershipFenceTest spk.local.PlayerCombatOutcomeProducerTest spk.local.R78OfflineVerifiedCombatOutcomeTest spk.local.R77OfflineDomainPublicationQuiescenceTest spk.local.R77OfflineEventProducerSourceAuditTest spk.event.DomainEventBusTest spk.event.DomainEventPublicApiBoundaryTest spk.local.R76OfflineWorldTickOwnedEventTest spk.local.R75OfflineRealtimePetIngressTest spk.local.R75OfflineDecodedPacketQuiescenceTest spk.local.R74OfflineIngressAndShutdownTest spk.local.R73OfflineFinalLogoutDrainTest spk.local.R72OfflineTerminalAndDurableOrderTest spk.local.R71OfflineSnapshotCaptureOrderTest spk.local.R70OfflineCoordinatedIoCommitTest spk.local.R69OfflinePersistenceWriteFenceTest spk.local.R68RealDispatcherAdmissionTest spk.local.R67OfflineDecodedPacketDispatchTest spk.local.R66OfflineGameEventDispatchTest spk.local.R65DeferredSessionSaveDispatchTest spk.local.R64OfflineSessionOwnershipTest spk.local.R63AccountSaveAdmissionTest spk.local.SharedWorldOwnershipTest; do
+          for test in spk.local.R85OfflineActivePvpOutcomeWiringGapTest spk.local.PlayerPvpLifecycleIntegrationTest spk.local.R85OfflineCombatAccountPersistenceBoundaryTest spk.local.R85OfflineCombatPersistenceRouteInventoryTest spk.local.R84OfflineProjectionObservationRecoveryTest spk.local.R83OfflinePreparedCombatReceiptRecoveryTest spk.local.R82OfflineSourceScopedCombatReceiptTest spk.local.R81OfflineCombatProjectionReplayTest spk.local.R80OfflineCombatProjectionFanoutTest spk.local.CombatOutcomeObserverGroupTest spk.local.CombatOutcomeObjectiveIntegrationTest spk.local.CombatOutcomeMatchObserverTest spk.local.CombatOutcomeCollectionLogObserverTest spk.local.R79OfflinePairedPvpOwnershipTest spk.local.PlayerPvpAttackerWorldOwnershipFenceTest spk.local.PlayerPvpTargetWorldOwnershipFenceTest spk.local.PlayerCombatOutcomeProducerTest spk.local.R78OfflineVerifiedCombatOutcomeTest spk.local.R77OfflineDomainPublicationQuiescenceTest spk.local.R77OfflineEventProducerSourceAuditTest spk.event.DomainEventBusTest spk.event.DomainEventPublicApiBoundaryTest spk.local.R76OfflineWorldTickOwnedEventTest spk.local.R75OfflineRealtimePetIngressTest spk.local.R75OfflineDecodedPacketQuiescenceTest spk.local.R74OfflineIngressAndShutdownTest spk.local.R73OfflineFinalLogoutDrainTest spk.local.R72OfflineTerminalAndDurableOrderTest spk.local.R71OfflineSnapshotCaptureOrderTest spk.local.R70OfflineCoordinatedIoCommitTest spk.local.R69OfflinePersistenceWriteFenceTest spk.local.R68RealDispatcherAdmissionTest spk.local.R67OfflineDecodedPacketDispatchTest spk.local.R66OfflineGameEventDispatchTest spk.local.R65DeferredSessionSaveDispatchTest spk.local.R64OfflineSessionOwnershipTest spk.local.R63AccountSaveAdmissionTest spk.local.SharedWorldOwnershipTest; do
             java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
           done
 
@@ -67,6 +68,8 @@ jobs:
         run: |
           $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
           foreach ($test in @(
+            'spk.local.R85OfflineActivePvpOutcomeWiringGapTest',
+            'spk.local.PlayerPvpLifecycleIntegrationTest',
             'spk.local.R85OfflineCombatAccountPersistenceBoundaryTest',
             'spk.local.R85OfflineCombatPersistenceRouteInventoryTest',
             'spk.local.R84OfflineProjectionObservationRecoveryTest',
