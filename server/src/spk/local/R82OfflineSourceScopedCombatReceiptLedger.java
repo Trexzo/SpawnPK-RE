@@ -44,6 +44,33 @@ final class R82OfflineSourceScopedCombatReceiptLedger
     private long capacityDenied;
     private long accepted;
 
+    /**
+     * R83 OFFLINE ONLY. The receipt must be synchronously PREPARED
+     * by a caller-owned fixture journal BEFORE the first observer
+     * can mutate any projection. A denial consumes no in-memory
+     * receipt and never runs the observer; disk ambiguity is left
+     * quarantined rather than replayed.
+     */
+    @FunctionalInterface
+    interface OfflinePreparedAdmission {
+        boolean prepare(String sourceScope,long ordinal,CombatOutcome fact);
+    }
+
+    private OfflinePreparedAdmission offlinePreparedAdmission;
+    private long preparedDenied;
+
+    synchronized void installOfflinePreparedAdmissionForTest(
+        OfflinePreparedAdmission admission
+    ){
+        Objects.requireNonNull(admission,"admission");
+        if(offlinePreparedAdmission!=null||lastIssuedOrdinal!=0L||
+           !consumed.isEmpty())
+            throw new IllegalStateException(
+                "R83_PREPARE_GATE_DENIED already installed or used"
+            );
+        offlinePreparedAdmission=admission;
+    }
+
     R82OfflineSourceScopedCombatReceiptLedger(
         R79OfflinePairedPvpOwnershipGate source,int capacity
     ){
@@ -101,6 +128,15 @@ final class R82OfflineSourceScopedCombatReceiptLedger
             capacityDenied++;
             return false;
         }
+        // The producer proof and available receipt capacity are
+        // checked above. The R83 hook is *optional*, never live.
+        // It must persist its PREPARED marker before returning true.
+        OfflinePreparedAdmission gate=offlinePreparedAdmission;
+        if(gate!=null &&
+           !gate.prepare(scope.toString(),issued.ordinal,fact)){
+            preparedDenied++;
+            return false;
+        }
         consumed.add(issued.ordinal);
         accepted++;
         return true;
@@ -111,6 +147,7 @@ final class R82OfflineSourceScopedCombatReceiptLedger
     synchronized long duplicateCount(){return duplicateDenied;}
     synchronized long unprovenCount(){return unprovenDenied;}
     synchronized long capacityCount(){return capacityDenied;}
+    synchronized long preparedDenialCount(){return preparedDenied;}
     synchronized long issuedCount(){return lastIssuedOrdinal;}
     String scopeForAudit(){return scope.toString();}
 }
