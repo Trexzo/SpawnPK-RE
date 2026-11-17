@@ -190,5 +190,5 @@ final class R86OfflineActivePvpOutcomeBridge
 
     int issuedCountForTest(){return issued;}
     int admittedCountForTest(){return admitted;}
-    int refusedCountForTest(){return refused;}
+    int refusedCountForTest(){return refused.get();}
 }
