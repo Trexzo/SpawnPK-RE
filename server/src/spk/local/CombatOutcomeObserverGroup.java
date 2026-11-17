@@ -53,6 +53,33 @@ final class CombatOutcomeObserverGroup
 
     private volatile OfflineFirstDeliveryAdmission offlineFirstDeliveryAdmission;
 
+    /**
+     * R84 OFFLINE ONLY. A forensic observation is taken AFTER each actual
+     * observer returns or throws. It does not participate in the real
+     * observer's commit/ack, and failure to capture evidence cannot undo
+     * an observer's already completed side effects.
+     */
+    @FunctionalInterface
+    interface OfflinePostObserverObservation {
+        void observe(CombatOutcome fact,int observerIndex,
+                     boolean returnedNormally);
+    }
+
+    private volatile OfflinePostObserverObservation offlinePostObserverObservation;
+
+    void installOfflinePostObserverObservationForTest(
+        OfflinePostObserverObservation observation
+    ){
+        Objects.requireNonNull(observation,"observation");
+        synchronized(this){
+            if(offlinePostObserverObservation!=null)
+                throw new IllegalStateException(
+                    "R84_OBSERVATION_GATE_DENIED already installed"
+                );
+            offlinePostObserverObservation=observation;
+        }
+    }
+
     void installOfflineFirstDeliveryAdmissionForTest(
         OfflineFirstDeliveryAdmission admission
     ){
@@ -144,10 +171,12 @@ final class CombatOutcomeObserverGroup
             CombatOutcomeObserver observer=
                 observers.get(i);
 
+            boolean returnedNormally=false;
             try{
                 observer.onCombatOutcome(
                     fact
                 );
+                returnedNormally=true;
             }catch(RuntimeException failure){
                 try{
                     failureHandler.onFailure(
@@ -162,6 +191,17 @@ final class CombatOutcomeObserverGroup
                      * A broken failure reporter must not block later semantic
                      * consumers from receiving an already-produced fact.
                      */
+                }
+            }
+            OfflinePostObserverObservation observation=
+                offlinePostObserverObservation;
+            if(observation!=null){
+                try{
+                    observation.observe(fact,i,returnedNormally);
+                }catch(RuntimeException ignored){
+                    // The write happened BEFORE this observation. No
+                    // post-effect logging error can roll back or prove
+                    // that the underlying projection committed.
                 }
             }
         }
