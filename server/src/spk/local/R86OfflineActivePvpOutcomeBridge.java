@@ -25,6 +25,8 @@ final class R86OfflineActivePvpOutcomeBridge
     private final R74OfflineCommandIngressFence terminal;
     private final ThreadLocal<CombatOutcome> currentProof=new ThreadLocal<>();
     private final ThreadLocal<Boolean> inListener=new ThreadLocal<>();
+    private final ThreadLocal<Boolean> inVerifiedActiveResolve=
+        new ThreadLocal<>();
     private final AtomicInteger refused=new AtomicInteger();
     private int admitted;
     private int issued;
@@ -66,6 +68,28 @@ final class R86OfflineActivePvpOutcomeBridge
                 "R86_PVP_DENIED active interaction target not bound"
             );
         requireCurrent("at active PvP resolution");
+    }
+
+    /**
+     * Only the active handler's owner-pair critical section can open
+     * the real resolver callback scope. The direct CombatOutcomeObserver
+     * method refuses callers without this scope, even with copied fields.
+     */
+    void withBoundResolverForTest(
+        WorldPlayer next,long generation,World.OwnedPlayerAction action
+    )throws Exception{
+        Objects.requireNonNull(action,"action");
+        requireBoundForTest(next,generation);
+        if(Boolean.TRUE.equals(inVerifiedActiveResolve.get()))
+            throw new IllegalStateException(
+                "R86_PVP_DENIED nested active resolution"
+            );
+        inVerifiedActiveResolve.set(Boolean.TRUE);
+        try{
+            action.run();
+        }finally{
+            inVerifiedActiveResolve.remove();
+        }
     }
 
     synchronized void installForTest(){
@@ -117,6 +141,10 @@ final class R86OfflineActivePvpOutcomeBridge
         if(!installed)
             throw new IllegalStateException(
                 "R86_PVP_DENIED uninstalled test publisher"
+            );
+        if(!Boolean.TRUE.equals(inVerifiedActiveResolve.get()))
+            throw new IllegalStateException(
+                "R86_PVP_DENIED no active verified resolver"
             );
         if(target==null||
            fact.context()!=CombatOutcomeContext.PLAYER_PVP||
