@@ -149,5 +149,18 @@ final class R82OfflineSourceScopedCombatReceiptLedger
     synchronized long capacityCount(){return capacityDenied;}
     synchronized long preparedDenialCount(){return preparedDenied;}
     synchronized long issuedCount(){return lastIssuedOrdinal;}
+
+    /**
+     * R84 OFFLINE ONLY: observational metadata during the same genuine
+     * R79 listener as the original PREPARED receipt. Never returns an
+     * ordinal from attacker names, copied facts or a completed callback.
+     */
+    synchronized long activeVerifiedOrdinalForTest(CombatOutcome fact){
+        CurrentEmission emission=current.get();
+        return emission!=null&&emission.fact==fact&&
+            source.isVerifiedFactInCurrentListenerForTest(fact)
+                ?emission.ordinal:-1L;
+    }
+
     String scopeForAudit(){return scope.toString();}
 }
