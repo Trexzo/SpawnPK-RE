@@ -17,6 +17,8 @@ final class LocalPlayerInteractionHandler {
     private final CombatStyleState combatStyles;
     private final LongSupplier ownerGeneration;
     private final PlayerCombatResolutionService pvpCombat;
+    /** R86: NEVER supplied by LocalSession; explicit offline fixture only. */
+    private final R86OfflineActivePvpOutcomeBridge offlineOutcomeBridge;
 
     private EntityId activeFollow;
     private long activeFollowGeneration;
@@ -101,6 +103,40 @@ final class LocalPlayerInteractionHandler {
         CombatSystemHooks systemHooks,
         LongSupplier ownerGeneration
     ){
+        this(world,owner,movement,equipment,combatStyles,
+            damageRules,timingRules,systemHooks,ownerGeneration,null);
+    }
+
+    /**
+     * R86 OFFLINE ONLY: opt in to a source-proven World domain publisher
+     * on the REAL active player-interaction/PvP resolver route.
+     * The default LocalSession constructor above remains unchanged.
+     */
+    static LocalPlayerInteractionHandler forOfflineOutcomeTest(
+        World world,WorldPlayer owner,
+        MovementState movement,EquipmentState equipment,
+        LongSupplier ownerGeneration,
+        R86OfflineActivePvpOutcomeBridge bridge
+    ){
+        java.util.Objects.requireNonNull(bridge,"bridge");
+        return new LocalPlayerInteractionHandler(
+            world,owner,movement,equipment,
+            owner.combatStyles(),
+            CombatDamageRules.localLabFallback(),
+            CombatAttackTimingRules.recoveredCompatibility(),
+            CombatSystemHooks.forPlayer(owner),
+            ownerGeneration,bridge
+        );
+    }
+
+    private LocalPlayerInteractionHandler(
+        World world,WorldPlayer owner,
+        MovementState movement,EquipmentState equipment,
+        CombatStyleState combatStyles,CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,CombatSystemHooks systemHooks,
+        LongSupplier ownerGeneration,
+        R86OfflineActivePvpOutcomeBridge bridge
+    ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.owner=java.util.Objects.requireNonNull(owner,"owner");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
@@ -114,21 +150,23 @@ final class LocalPlayerInteractionHandler {
                 ownerGeneration,
                 "ownerGeneration"
             );
-        this.pvpCombat=
-            new PlayerCombatResolutionService(
-                owner,
-                java.util.Objects.requireNonNull(
-                    damageRules,
-                    "damageRules"
-                ),
-                java.util.Objects.requireNonNull(
-                    timingRules,
-                    "timingRules"
-                ),
-                java.util.Objects.requireNonNull(
-                    systemHooks,
-                    "systemHooks"
-                )
+        this.offlineOutcomeBridge=bridge;
+        CombatDamageRules checkedDamage=java.util.Objects.requireNonNull(
+            damageRules,"damageRules"
+        );
+        CombatAttackTimingRules checkedTiming=
+            java.util.Objects.requireNonNull(timingRules,"timingRules");
+        CombatSystemHooks checkedHooks=
+            java.util.Objects.requireNonNull(systemHooks,"systemHooks");
+        // This branch is never taken by LocalSession: its original
+        // constructor still supplies null, selecting the original
+        // four-argument no-op semantic observer.
+        this.pvpCombat=bridge==null
+            ?new PlayerCombatResolutionService(
+                owner,checkedDamage,checkedTiming,checkedHooks
+            )
+            :new PlayerCombatResolutionService(
+                owner,checkedDamage,checkedTiming,checkedHooks,bridge
             );
     }
 
@@ -511,15 +549,15 @@ final class LocalPlayerInteractionHandler {
         PlayerCombatResolutionService.Result resolution;
 
         try{
-            resolution=
-                pvpCombat.resolveImmediateOwned(
+            resolution=offlineOutcomeBridge==null
+                ?pvpCombat.resolveImmediateOwned(
                     world,
                     ownerGeneration.getAsLong(),
-                    target,
-                    targetGeneration,
-                    equipment.weapon(),
-                    style,
-                    worldTick
+                    target,targetGeneration,
+                    equipment.weapon(),style,worldTick
+                )
+                :resolveOfflineOwnedAndPublishForTest(
+                    target,targetGeneration,style,worldTick
                 );
         }catch(
             PlayerCombatResolutionService
@@ -586,6 +624,55 @@ final class LocalPlayerInteractionHandler {
             " systemHooks="+resolution.hooks+
             " remoteMaskRelay=true nextAttackTick="+
             (activeAttack==null?"CLEARED_ON_DEATH":Long.toString(nextAttackTick));
+    }
+
+    /**
+     * R86 OFFLINE ONLY. Retain the pair's World lifecycle and both
+     * player mutation locks through the ACTUAL damage and semantic
+     * publication callbacks. The production PvP call above remains
+     * exactly the original no-observer path.
+     */
+    private PlayerCombatResolutionService.Result
+        resolveOfflineOwnedAndPublishForTest(
+            WorldPlayer target,long targetGeneration,
+            CombatStyleRepository.Style style,long worldTick
+        )throws IOException{
+        long attackerGeneration=ownerGeneration.getAsLong();
+        final PlayerCombatResolutionService.Result[] result=
+            new PlayerCombatResolutionService.Result[1];
+        try{
+            boolean admitted=
+                world.withOfflineDualPlayerMutationOwnershipForTest(
+                    owner,attackerGeneration,target,targetGeneration,
+                    ()->{
+                        offlineOutcomeBridge.requireBoundForTest(
+                            target,targetGeneration
+                        );
+                        result[0]=pvpCombat.resolveImmediateOwned(
+                            world,attackerGeneration,target,
+                            targetGeneration,equipment.weapon(),
+                            style,worldTick
+                        );
+                    }
+                );
+            if(!admitted)
+                throw new PlayerCombatResolutionService
+                    .StaleTargetOwnershipException(
+                        target,targetGeneration,null
+                    );
+            return java.util.Objects.requireNonNull(
+                result[0],"R86 offline PvP result"
+            );
+        }catch(IOException error){
+            throw error;
+        }catch(RuntimeException error){
+            throw error;
+        }catch(Exception error){
+            throw new IOException(
+                "R86_OFFLINE_PVP_DENIED paired mutation failed",
+                error
+            );
+        }
     }
 
     Cancellation cancelActive(){
