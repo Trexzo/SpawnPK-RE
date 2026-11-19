@@ -115,7 +115,8 @@ final class R89OfflineAtomicConsumerReceiptStore {
     ){
         Objects.requireNonNull(fault,"fault");
         if(!issuer.isCurrent(fact,token)||
-           fact.type()!=CombatOutcomeType.PLAYER_KILL||
+           (fact.type()!=CombatOutcomeType.PLAYER_KILL&&
+            fact.type()!=CombatOutcomeType.PLAYER_DEATH)||
            fact.context()!=CombatOutcomeContext.PLAYER_PVP||
            amount<=0L)
             return Result.REFUSED_UNVERIFIED;
