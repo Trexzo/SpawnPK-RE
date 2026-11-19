@@ -52,7 +52,17 @@ if (-not (Test-Path -LiteralPath $gradleBat -PathType Leaf)) {
 
     $tmp = Join-Path $cacheRoot ("extract-" + [Guid]::NewGuid().ToString('N'))
     try {
-        Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
+        # Windows PowerShell 5.1 runners can expose an Expand-Archive
+        # implementation that calls a three-argument ExtractToDirectory
+        # overload unavailable in its loaded .NET Framework assembly.
+        # This two-argument ZipFile API exists in both Windows PowerShell
+        # 5.1 and newer .NET runtimes. $tmp is a fresh random path, so
+        # overwrite/Force semantics are neither needed nor desirable.
+        # The exact distribution SHA-256 was verified ABOVE this line.
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory(
+            [string]$zip, [string]$tmp
+        )
         $expanded = Join-Path $tmp "gradle-$version"
         if (-not (Test-Path -LiteralPath $expanded -PathType Container)) {
             throw "Gradle archive did not contain gradle-$version"
