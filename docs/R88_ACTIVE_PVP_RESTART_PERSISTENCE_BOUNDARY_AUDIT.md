@@ -131,4 +131,25 @@ inherited R63–R87 regression set under Linux/Windows Java 11
 bytecode. The full Gradle server build and Windows atomic-persistence
 job must separately pass on the **exact final PR head**.
 
+## Windows build-bootstrap reliability
+
+The first exact-head R88 Windows and full Windows atomic-persistence jobs
+failed **before Java compilation** when `server/gradle/bootstrap-gradle.ps1`
+invoked PowerShell 5.1 `Expand-Archive`. The runner's Expand-Archive
+implementation attempted a three-argument `ZipFile.ExtractToDirectory`
+overload unavailable in that loaded .NET Framework assembly. Both jobs
+reported `MethodCountCouldNotFindBest`, not a code or gameplay failure.
+
+R88 replaces only that extraction call with the two-argument
+`System.IO.Compression.ZipFile.ExtractToDirectory(zip, freshTempPath)`.
+This is supported in Windows PowerShell 5.1 and newer .NET runtimes.
+The pinned Gradle 8.10.2 URL and SHA-256 verification remain unchanged
+and occur **before** extracting. Extraction still targets a new GUID
+temporary directory; archive layout is validated and the expanded folder
+is moved to the original cache location. No bypass of an invalid
+hash, unsupported atomic publication or normal error handling is added.
+
+Only a passing exact-head Windows workflow establishes the repaired
+bootstrap was successful on the runner. All gameplay remains offline.
+
 **R88 OFFLINE ONLY / DRAFT / UNMERGED / NO LIVE ACTIVATION.**
