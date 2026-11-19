@@ -1,0 +1,125 @@
+name: R89 Offline Atomic Consumer Receipt Contract
+
+on:
+  push:
+    branches:
+      - playability/r89-offline-atomic-consumer-receipt-contract-20261119
+  pull_request:
+    paths:
+      - server/src/spk/local/CombatOutcomeObserverGroup.java
+      - server/src/spk/local/CombatOutcomeObjectiveObserver.java
+      - server/src/spk/local/CombatOutcomeMatchObserver.java
+      - server/src/spk/local/CombatOutcomeCollectionLogObserver.java
+      - server/src/spk/local/R80OfflineCombatProjectionOwnershipFence.java
+      - server/src/spk/local/R80OfflineCombatProjectionFanoutTest.java
+      - server/src/spk/local/R81OfflineCombatProjectionReceiptLedger.java
+      - server/src/spk/local/R81OfflineCombatProjectionReplayTest.java
+      - server/src/spk/local/R79OfflinePairedPvpOwnershipGate.java
+      - server/src/spk/local/R82OfflineSourceScopedCombatReceiptLedger.java
+      - server/src/spk/local/R82OfflineSourceScopedCombatReceiptTest.java
+      - server/src/spk/local/R83OfflinePreparedCombatReceiptJournal.java
+      - server/src/spk/local/R83OfflinePreparedCombatReceiptRecoveryTest.java
+      - server/src/spk/local/CombatOutcomeObserverGroup.java
+      - server/src/spk/local/R82OfflineSourceScopedCombatReceiptLedger.java
+      - server/src/spk/local/R84OfflineProjectionObservationJournal.java
+      - server/src/spk/local/R84OfflineProjectionObservationRecoveryTest.java
+      - server/src/spk/local/R82OfflineSourceScopedCombatReceiptTest.java
+      - server/src/spk/local/R85OfflineCombatAccountPersistenceBoundaryTest.java
+      - server/src/spk/local/R85OfflineActivePvpOutcomeWiringGapTest.java
+      - server/src/spk/local/LocalPlayerInteractionHandler.java
+      - server/src/spk/local/R86OfflineActivePvpOutcomeBridge.java
+      - server/src/spk/local/R86OfflineActivePvpDomainBridgeTest.java
+      - server/src/spk/local/R87OfflineActivePvpProjectionReceiptsTest.java
+      - server/src/spk/local/R88OfflineActivePvpRestartBoundaryTest.java
+      - server/src/spk/local/R89OfflineVerifiedEmissionTokenIssuer.java
+      - server/src/spk/local/R89OfflineAtomicConsumerReceiptStore.java
+      - server/src/spk/local/R89OfflineAtomicConsumerReceiptContractTest.java
+      - server/src/spk/local/R86OfflineActivePvpDomainBridgeTest.java
+      - server/src/spk/local/R85OfflineCombatPersistenceRouteInventoryTest.java
+      - .github/workflows/r89-offline-atomic-consumer-receipt-contract.yml
+
+jobs:
+  linux-projections:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and verify Java 11 bytecode
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: R89 verified-source atomic per-consumer receipt and inherited R63-R88 regressions
+        working-directory: server
+        run: |
+          for test in spk.local.R89OfflineAtomicConsumerReceiptContractTest spk.local.R88OfflineActivePvpRestartBoundaryTest spk.local.R87OfflineActivePvpProjectionReceiptsTest spk.local.R86OfflineActivePvpDomainBridgeTest spk.local.R85OfflineActivePvpOutcomeWiringGapTest spk.local.PlayerPvpLifecycleIntegrationTest spk.local.R85OfflineCombatAccountPersistenceBoundaryTest spk.local.R85OfflineCombatPersistenceRouteInventoryTest spk.local.R84OfflineProjectionObservationRecoveryTest spk.local.R83OfflinePreparedCombatReceiptRecoveryTest spk.local.R82OfflineSourceScopedCombatReceiptTest spk.local.R81OfflineCombatProjectionReplayTest spk.local.R80OfflineCombatProjectionFanoutTest spk.local.CombatOutcomeObserverGroupTest spk.local.CombatOutcomeObjectiveIntegrationTest spk.local.CombatOutcomeMatchObserverTest spk.local.CombatOutcomeCollectionLogObserverTest spk.local.R79OfflinePairedPvpOwnershipTest spk.local.PlayerPvpAttackerWorldOwnershipFenceTest spk.local.PlayerPvpTargetWorldOwnershipFenceTest spk.local.PlayerCombatOutcomeProducerTest spk.local.R78OfflineVerifiedCombatOutcomeTest spk.local.R77OfflineDomainPublicationQuiescenceTest spk.local.R77OfflineEventProducerSourceAuditTest spk.event.DomainEventBusTest spk.event.DomainEventPublicApiBoundaryTest spk.local.R76OfflineWorldTickOwnedEventTest spk.local.R75OfflineRealtimePetIngressTest spk.local.R75OfflineDecodedPacketQuiescenceTest spk.local.R74OfflineIngressAndShutdownTest spk.local.R73OfflineFinalLogoutDrainTest spk.local.R72OfflineTerminalAndDurableOrderTest spk.local.R71OfflineSnapshotCaptureOrderTest spk.local.R70OfflineCoordinatedIoCommitTest spk.local.R69OfflinePersistenceWriteFenceTest spk.local.R68RealDispatcherAdmissionTest spk.local.R67OfflineDecodedPacketDispatchTest spk.local.R66OfflineGameEventDispatchTest spk.local.R65DeferredSessionSaveDispatchTest spk.local.R64OfflineSessionOwnershipTest spk.local.R63AccountSaveAdmissionTest spk.local.SharedWorldOwnershipTest; do
+            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
+          done
+
+  windows-projections:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and verify Java 11 bytecode
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: R89 verified-source atomic per-consumer receipt and inherited R63-R88 regressions
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
+          foreach ($test in @(
+            'spk.local.R89OfflineAtomicConsumerReceiptContractTest',
+            'spk.local.R88OfflineActivePvpRestartBoundaryTest',
+            'spk.local.R87OfflineActivePvpProjectionReceiptsTest',
+            'spk.local.R86OfflineActivePvpDomainBridgeTest',
+            'spk.local.R85OfflineActivePvpOutcomeWiringGapTest',
+            'spk.local.PlayerPvpLifecycleIntegrationTest',
+            'spk.local.R85OfflineCombatAccountPersistenceBoundaryTest',
+            'spk.local.R85OfflineCombatPersistenceRouteInventoryTest',
+            'spk.local.R84OfflineProjectionObservationRecoveryTest',
+            'spk.local.R83OfflinePreparedCombatReceiptRecoveryTest',
+            'spk.local.R82OfflineSourceScopedCombatReceiptTest',
+            'spk.local.R81OfflineCombatProjectionReplayTest',
+            'spk.local.R80OfflineCombatProjectionFanoutTest',
+            'spk.local.CombatOutcomeObserverGroupTest',
+            'spk.local.CombatOutcomeObjectiveIntegrationTest',
+            'spk.local.CombatOutcomeMatchObserverTest',
+            'spk.local.CombatOutcomeCollectionLogObserverTest',
+            'spk.local.R79OfflinePairedPvpOwnershipTest',
+            'spk.local.PlayerPvpAttackerWorldOwnershipFenceTest',
+            'spk.local.PlayerPvpTargetWorldOwnershipFenceTest',
+            'spk.local.PlayerCombatOutcomeProducerTest',
+            'spk.local.R78OfflineVerifiedCombatOutcomeTest',
+            'spk.local.R77OfflineDomainPublicationQuiescenceTest',
+            'spk.local.R77OfflineEventProducerSourceAuditTest',
+            'spk.event.DomainEventBusTest',
+            'spk.event.DomainEventPublicApiBoundaryTest',
+            'spk.local.R76OfflineWorldTickOwnedEventTest',
+            'spk.local.R75OfflineRealtimePetIngressTest',
+            'spk.local.R75OfflineDecodedPacketQuiescenceTest',
+            'spk.local.R74OfflineIngressAndShutdownTest',
+            'spk.local.R73OfflineFinalLogoutDrainTest',
+            'spk.local.R72OfflineTerminalAndDurableOrderTest',
+            'spk.local.R71OfflineSnapshotCaptureOrderTest',
+            'spk.local.R70OfflineCoordinatedIoCommitTest',
+            'spk.local.R69OfflinePersistenceWriteFenceTest',
+            'spk.local.R68RealDispatcherAdmissionTest',
+            'spk.local.R67OfflineDecodedPacketDispatchTest',
+            'spk.local.R66OfflineGameEventDispatchTest',
+            'spk.local.R65DeferredSessionSaveDispatchTest',
+            'spk.local.R64OfflineSessionOwnershipTest',
+            'spk.local.R63AccountSaveAdmissionTest',
+            'spk.local.SharedWorldOwnershipTest'
+          )) {
+            & java -cp $cp $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
