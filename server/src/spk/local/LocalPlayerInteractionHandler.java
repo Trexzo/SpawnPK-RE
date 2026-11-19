@@ -645,7 +645,8 @@ final class LocalPlayerInteractionHandler {
                 world.withOfflineDualPlayerMutationOwnershipForTest(
                     owner,attackerGeneration,target,targetGeneration,
                     ()->offlineOutcomeBridge.withBoundResolverForTest(
-                        target,targetGeneration,
+                        target,targetGeneration,worldTick,
+                        equipment.weapon(),
                         ()->result[0]=pvpCombat.resolveImmediateOwned(
                             world,attackerGeneration,target,
                             targetGeneration,equipment.weapon(),
