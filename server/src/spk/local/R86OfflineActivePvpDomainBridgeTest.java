@@ -17,12 +17,12 @@ import spk.event.DomainEventBus;
  * NO_OUTCOME_OBSERVER behavior is asserted separately by R85.
  */
 public final class R86OfflineActivePvpDomainBridgeTest {
-    private enum Mode { NORMAL, QUIESCE_DURING_HIGH }
+    enum Mode { NORMAL, QUIESCE_DURING_HIGH }
 
     private static final class GlobalNotice
         implements DomainEventBus.Event {}
 
-    private static final class Fixture implements AutoCloseable {
+    static final class Fixture implements AutoCloseable {
         final World world=World.isolatedForTest(60_000L);
         final WorldPlayer attacker=new WorldPlayer();
         final WorldPlayer victim=new WorldPlayer();
