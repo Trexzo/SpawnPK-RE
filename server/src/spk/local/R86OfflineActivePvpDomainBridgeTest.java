@@ -23,7 +23,7 @@ public final class R86OfflineActivePvpDomainBridgeTest {
         implements DomainEventBus.Event {}
 
     static final class Fixture implements AutoCloseable {
-        final World world=World.isolatedForTest(60_000L);
+        final World world;
         final WorldPlayer attacker=new WorldPlayer();
         final WorldPlayer victim=new WorldPlayer();
         final long attackerGeneration;
@@ -59,6 +59,14 @@ public final class R86OfflineActivePvpDomainBridgeTest {
         final Mode mode;
 
         Fixture(Mode mode)throws Exception{
+            this(mode,null);
+        }
+
+        /** R88: exact original active PvP fixture with test-owned repository. */
+        Fixture(Mode mode,PlayerRepository repository)throws Exception{
+            world=repository==null
+                ?World.isolatedForTest(60_000L)
+                :World.isolatedForTest(60_000L,repository);
             this.mode=mode;
             attackerGeneration=
                 world.registerPlayer(attacker,"r86-source");
