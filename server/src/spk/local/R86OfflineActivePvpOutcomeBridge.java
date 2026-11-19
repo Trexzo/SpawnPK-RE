@@ -28,6 +28,11 @@ final class R86OfflineActivePvpOutcomeBridge
     private final ThreadLocal<Boolean> inVerifiedActiveResolve=
         new ThreadLocal<>();
     private final AtomicInteger refused=new AtomicInteger();
+
+    // R90 explicitly offline. No LocalSession installs this journal.
+    private R90OfflineAcceptedAttackJournal offlineAcceptedAttempt;
+    private final ThreadLocal<R90OfflineAcceptedAttackJournal.Reservation>
+        currentAttempt=new ThreadLocal<>();
     private int admitted;
     private int issued;
     private WorldPlayer target;
@@ -76,7 +81,8 @@ final class R86OfflineActivePvpOutcomeBridge
      * method refuses callers without this scope, even with copied fields.
      */
     void withBoundResolverForTest(
-        WorldPlayer next,long generation,World.OwnedPlayerAction action
+        WorldPlayer next,long generation,long worldTick,int weaponId,
+        World.OwnedPlayerAction action
     )throws Exception{
         Objects.requireNonNull(action,"action");
         requireBoundForTest(next,generation);
@@ -86,10 +92,41 @@ final class R86OfflineActivePvpOutcomeBridge
             );
         inVerifiedActiveResolve.set(Boolean.TRUE);
         try{
+            R90OfflineAcceptedAttackJournal journal=
+                offlineAcceptedAttempt;
+            if(journal!=null){
+                // Real active handler has passed the target validator,
+                // range/cadence gates and the exact two-player World
+                // owner lock. Reserve BEFORE canonical damage.
+                R90OfflineAcceptedAttackJournal.Reservation attempt=
+                    journal.reserve(world,attacker,attackerGeneration,
+                        next,generation,worldTick,weaponId);
+                currentAttempt.set(attempt);
+            }
             action.run();
         }finally{
+            currentAttempt.remove();
             inVerifiedActiveResolve.remove();
         }
+    }
+
+    /** R90: test-owned reservation; never installed in production. */
+    synchronized void installOfflineAcceptedAttemptForTest(
+        R90OfflineAcceptedAttackJournal journal
+    ){
+        Objects.requireNonNull(journal,"journal");
+        if(offlineAcceptedAttempt!=null||issued!=0||
+           admitted!=0||currentAttempt.get()!=null)
+            throw new IllegalStateException(
+                "R90_ATTEMPT_DENIED duplicate or late installation"
+            );
+        offlineAcceptedAttempt=journal;
+    }
+
+    R90OfflineAcceptedAttackJournal.Reservation
+        verifiedAttemptDuringOutcomeForTest(CombatOutcome fact){
+        return isVerifiedFactInCurrentListenerForTest(fact)
+            ?currentAttempt.get():null;
     }
 
     synchronized void installForTest(){
