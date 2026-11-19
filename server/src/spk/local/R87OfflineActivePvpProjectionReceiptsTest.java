@@ -15,7 +15,7 @@ import spk.event.DomainEventBus;
  * first-delivery receipt ledger. No live LocalSession changes.
  */
 public final class R87OfflineActivePvpProjectionReceiptsTest {
-    private enum Scenario {
+    enum Scenario {
         COMPLETE,
         AFTER_OBJECTIVE_TERMINAL,
         BEFORE_MATCH_TEAM_TERMINAL,
@@ -23,7 +23,7 @@ public final class R87OfflineActivePvpProjectionReceiptsTest {
         COLLECTION_RESOLVER_TERMINAL
     }
 
-    private static final class Case implements AutoCloseable {
+    static final class Case implements AutoCloseable {
         final R86OfflineActivePvpDomainBridgeTest.Fixture source;
         final R80OfflineCombatProjectionOwnershipFence ownerFence;
         final R81OfflineCombatProjectionReceiptLedger receipts;
@@ -51,11 +51,18 @@ public final class R87OfflineActivePvpProjectionReceiptsTest {
         final Scenario scenario;
 
         Case(Scenario scenario,int receiptCapacity)throws Exception{
+            this(scenario,receiptCapacity,null);
+        }
+
+        /** R88: preserve exact R87 active handler and add isolated disk IO. */
+        Case(Scenario scenario,int receiptCapacity,
+             PlayerRepository repository)throws Exception{
             this.scenario=scenario;
             // Reuse the actual R86 active handler and original packet
             // writers rather than a new hand-wired combat resolver.
             source=new R86OfflineActivePvpDomainBridgeTest.Fixture(
-                R86OfflineActivePvpDomainBridgeTest.Mode.NORMAL
+                R86OfflineActivePvpDomainBridgeTest.Mode.NORMAL,
+                repository
             );
             ownerFence=new R80OfflineCombatProjectionOwnershipFence(
                 source.world,
