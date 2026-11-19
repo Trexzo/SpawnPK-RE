@@ -302,6 +302,10 @@ public final class R90OfflineActivePvpPreDamageReservationTest {
                     "R90 wrong duplicate installation failure");
             }
 
+            // Establish normal source behavior BEFORE deliberately
+            // incrementing the refusal counter with an off-World
+            // misuse. Case.lethal's baseline assertion is strict.
+            c.lethal();
             try{
                 c.journal.reserve(c.f.world,c.f.attacker,
                     c.f.attackerGeneration,c.f.victim,
@@ -314,7 +318,6 @@ public final class R90OfflineActivePvpPreDamageReservationTest {
                     "not current owned World"),
                     "R90 wrong off-world source admission");
             }
-            c.lethal();
             require(c.journal.countForTest()==1&&
                     c.journal.refusedForTest()==1,
                 "R90 direct off-world request consumed a receipt");
