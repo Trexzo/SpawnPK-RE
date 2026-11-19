@@ -188,6 +188,19 @@ final class R86OfflineActivePvpOutcomeBridge
             );
     }
 
+    /**
+     * R87 OFFLINE ONLY: a projection receipt can be claimed only
+     * within a current, exact-fact R86 DomainEventBus listener.
+     * The return value is not reusable event identity.
+     */
+    boolean isVerifiedFactInCurrentListenerForTest(CombatOutcome fact){
+        return fact!=null&&
+            currentProof.get()==fact&&
+            Boolean.TRUE.equals(inListener.get())&&
+            Boolean.TRUE.equals(inVerifiedActiveResolve.get())&&
+            world.pulse().inExecutionContext();
+    }
+
     int issuedCountForTest(){return issued;}
     int admittedCountForTest(){return admitted;}
     int refusedCountForTest(){return refused.get();}
