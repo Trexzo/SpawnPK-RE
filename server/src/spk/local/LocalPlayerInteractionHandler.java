@@ -166,7 +166,8 @@ final class LocalPlayerInteractionHandler {
                 owner,checkedDamage,checkedTiming,checkedHooks
             )
             :new PlayerCombatResolutionService(
-                owner,checkedDamage,checkedTiming,checkedHooks,bridge
+                owner,checkedDamage,checkedTiming,checkedHooks,bridge,
+                bridge::afterCanonicalDamageBeforeOutcomesForTest
             );
     }
 
