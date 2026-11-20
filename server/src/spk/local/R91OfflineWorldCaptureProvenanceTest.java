@@ -3,9 +3,11 @@ package spk.local;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -31,9 +33,16 @@ public final class R91OfflineWorldCaptureProvenanceTest {
     }
 
     public static void main(String[] args)throws Exception{
-        if(args.length!=0)
-            throw new IllegalArgumentException(
-                "R91 must not launch a child JVM");
+        if(args.length!=0){
+            if(args.length!=3||!"r95-review".equals(args[0])||
+                    (!"PREPARED".equals(args[2])&&
+                     !"COMMITTED".equals(args[2])))
+                throw new IllegalArgumentException(
+                    "R95 unexpected fresh-JVM review invocation");
+            freshJvmR95Review(Paths.get(args[1]),
+                "PREPARED".equals(args[2]));
+            return;
+        }
         Path scratch=Files.createTempDirectory("spk-r91-world-stamp-");
         try{
             deferredCheckpointAndFinalFromRealWorld(
@@ -60,6 +69,14 @@ public final class R91OfflineWorldCaptureProvenanceTest {
                 scratch.resolve("before-prepared-failure"),false);
             failedLeaseQuarantinesRetirement(
                 scratch.resolve("after-prepared-failure"),true);
+            System.out.println(
+                "R95_OFFLINE_FRESH_JVM_IO_RESTART_REVIEW_PASS "+
+                "independentJvmReadOnlyPreflight=true "+
+                "preparedR89AndR90RejectReopen=true "+
+                "preparedR90RestartRejectedBeforeWrite=true "+
+                "committedEarlyFaultHasNoDurableLeaseProof=true "+
+                "noAutomaticLoginOrRecovery=true "+
+                "freshJvmsPreserveAllCanonicalBytes=true");
             System.out.println(
                 "R94_OFFLINE_FAILED_IO_RETIREMENT_QUARANTINE_PASS "+
                 "prePublicationFailureQuarantined=true "+
@@ -352,6 +369,98 @@ public final class R91OfflineWorldCaptureProvenanceTest {
                     gate.activeSavesForTest(player,generation)==0 &&
                     !world.unregisterPlayer(player,generation),
                 "R94 quarantine lost durable evidence or owner");
+        }
+        // The World and its lease map have now exited. Only R89/R90
+        // disk evidence is accessible to the independent child JVM.
+        verifyFreshJvmR95Review(root,afterPrepared);
+    }
+
+
+    /**
+     * R95: re-open a disposable R94 account in a genuinely new JVM with
+     * no access to the R93/R94 in-memory lease map. This is an inspection
+     * contract, not a successful login or a recovery mechanism.
+     */
+    private static void freshJvmR95Review(
+        Path root,boolean prepared)throws Exception{
+        Fixture f=new Fixture(root,false);
+        Bytes before=f.bytes();
+        R64OfflineSessionOwnership.Review review=
+            R64OfflineSessionOwnership.inspect(
+                f.journal,f.accounts,f.generations,f.sessions,USER);
+        require(review.status==
+                    R64OfflineSessionOwnership.Status
+                        .READY_FOR_OTHER_OFFLINE_CHECKS &&
+                review.token!=null &&
+                !review.loginAuthorized() &&
+                !review.automaticRecoveryAttempted() &&
+                !review.accountFilesModified(),
+            "R95 fresh JVM R64 inspection incorrectly authorized login");
+        R64OfflineSessionOwnership.Token owner=review.token;
+        if(prepared){
+            expectFailure(()->R89OfflineDurableCaptureAdmission.reopen(
+                f.journal,f.accounts,f.generations,f.sessions,owner),
+                "R89_PREPARED_QUARANTINED");
+            expectFailure(()->R90OfflineProducerContinuity
+                .inspectCommittedOrdinalForTest(
+                    f.journal,f.accounts,f.generations,f.sessions,owner),
+                "R89_PREPARED_QUARANTINED");
+            // This method would publish a new incarnation only if the
+            // cross-file records were committed. The PREPARED record
+            // blocks it BEFORE any file replacement or account mutation.
+            expectFailure(()->R90OfflineProducerContinuity.restart(
+                f.journal,f.accounts,f.generations,f.sessions,owner),
+                "R89_PREPARED_QUARANTINED");
+        }else{
+            require(R90OfflineProducerContinuity
+                    .inspectCommittedOrdinalForTest(
+                        f.journal,f.accounts,f.generations,f.sessions,
+                        owner)==0L,
+                "R95 clean on-disk producer ordinal was not zero");
+            require(R89OfflineDurableCaptureAdmission.reopen(
+                    f.journal,f.accounts,f.generations,f.sessions,
+                    owner).highestAcceptedOrdinal()==0L,
+                "R95 early fault should not invent a durable PREPARED");
+            // A clean disk state does NOT prove whether the old actor
+            // completed shutdown. There is no R95 login authorization.
+        }
+        require(before.same(f.bytes()),
+            "R95 fresh-JVM review modified canonical account files");
+        System.out.println(
+            "R95_FRESH_JVM_REVIEW_PASS phase="+
+            (prepared?"PREPARED":"COMMITTED")+
+            " canonicalBytesUnchanged=true"+
+            " noAutomaticLoginOrRecovery=true"+
+            " R89R90PreparedQuarantine="+prepared);
+    }
+
+    private static void verifyFreshJvmR95Review(
+        Path root,boolean prepared)throws Exception{
+        boolean windows=System.getProperty("os.name","")
+            .toLowerCase(Locale.ROOT).contains("win");
+        Path java=Paths.get(System.getProperty("java.home"),"bin",
+            windows?"java.exe":"java");
+        Path log=root.resolve("r95-fresh-jvm-review.log");
+        Process child=new ProcessBuilder(
+            java.toString(),"-cp",System.getProperty("java.class.path"),
+            R91OfflineWorldCaptureProvenanceTest.class.getName(),
+            "r95-review",root.toString(),
+            prepared?"PREPARED":"COMMITTED"
+        ).redirectErrorStream(true).redirectOutput(log.toFile()).start();
+        try{
+            require(child.waitFor(25L,TimeUnit.SECONDS),
+                "R95 fresh-JVM review timed out");
+            String report=Files.readString(log,StandardCharsets.UTF_8);
+            require(child.exitValue()==0 &&
+                    report.contains(
+                        "R95_FRESH_JVM_REVIEW_PASS phase="+
+                        (prepared?"PREPARED":"COMMITTED")),
+                "R95 fresh-JVM restart admission failed: "+report);
+        }finally{
+            if(child.isAlive()){
+                child.destroyForcibly();
+                child.waitFor(15L,TimeUnit.SECONDS);
+            }
         }
     }
 
