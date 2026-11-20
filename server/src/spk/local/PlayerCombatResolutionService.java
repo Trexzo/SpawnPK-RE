@@ -111,6 +111,16 @@ final class PlayerCombatResolutionService {
     private final CombatSystemHooks hooks;
     private final CombatOutcomeObserver outcomeObserver;
 
+    /** R91: optional isolated-test callback after canonical damage. */
+    @FunctionalInterface
+    interface OfflineAfterOwnedDamageForTest {
+        void afterDamage(WorldPlayer target,long worldTick,
+            PlayerLifecycleService.DamageResult actual)
+            throws java.io.IOException;
+    }
+
+    private final OfflineAfterOwnedDamageForTest offlineAfterDamage;
+
     PlayerCombatResolutionService(
         WorldPlayer owner,
         CombatDamageRules damageRules,
@@ -133,6 +143,18 @@ final class PlayerCombatResolutionService {
         CombatSystemHooks hooks,
         CombatOutcomeObserver outcomeObserver
     ){
+        this(owner,damageRules,timingRules,hooks,outcomeObserver,null);
+    }
+
+    /** Test-only sixth argument; both existing constructors are unchanged. */
+    PlayerCombatResolutionService(
+        WorldPlayer owner,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatSystemHooks hooks,
+        CombatOutcomeObserver outcomeObserver,
+        OfflineAfterOwnedDamageForTest offlineAfterDamage
+    ){
         this.owner=Objects.requireNonNull(owner,"owner");
         this.damageRules=Objects.requireNonNull(damageRules,"damageRules");
         this.timingRules=Objects.requireNonNull(timingRules,"timingRules");
@@ -142,6 +164,7 @@ final class PlayerCombatResolutionService {
                 outcomeObserver,
                 "outcomeObserver"
             );
+        this.offlineAfterDamage=offlineAfterDamage;
     }
 
     String damageAuthority(){
@@ -251,13 +274,21 @@ final class PlayerCombatResolutionService {
                 ()->world.withOpenPlayerOwnership(
                     target,
                     expectedTargetGeneration,
-                    ()->lifecycle[0]=
-                        applyDamage(
-                            target,
-                            weaponId,
-                            worldTick,
-                            prepared
-                        )
+                    ()->{
+                        lifecycle[0]=applyDamage(
+                            target,weaponId,worldTick,prepared
+                        );
+                        if(offlineAfterDamage!=null){
+                            // R91 OFFLINE ONLY: HP/lifecycle has
+                            // ALREADY mutated. A failure here leaves
+                            // no CombatOutcome and no packet-134
+                            // presentation from tickAttack. It is
+                            // NOT a rollback or transactional commit.
+                            offlineAfterDamage.afterDamage(
+                                target,worldTick,lifecycle[0]
+                            );
+                        }
+                    }
                 )
             );
         }catch(IllegalStateException error){
