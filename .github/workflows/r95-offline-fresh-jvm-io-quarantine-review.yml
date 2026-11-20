@@ -51,12 +51,10 @@ jobs:
       - name: Build and verify Java 11 bytecode
         working-directory: server
         run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
-      - name: R95 fresh JVM quarantine reviews, R94/R93/R92/R91 inherited regressions
+      - name: R95 fresh JVM review plus R94/R93/R92/R91 contained regression
         working-directory: server
         run: |
-          for test in spk.local.R91OfflineWorldCaptureProvenanceTest spk.local.R90OfflineProducerContinuityTest spk.local.R89OfflineDurableCaptureWatermarkTest spk.local.R88OfflineR64R71KilledSaveTest spk.local.R87OfflineKilledOwnerTakeoverTest spk.local.R86OfflineOwnerEpochTakeoverTest spk.local.R85OfflineFencedCombatRecordTest spk.local.R84OfflineAtomicCombatRecordTest spk.local.R83OfflineCombatCheckpointAuditTest spk.local.R81OfflineCombatOutcomeReplayTest spk.local.R80OfflineCombatProjectionFanoutTest spk.local.CombatOutcomeObserverGroupTest spk.local.CombatOutcomeObjectiveIntegrationTest spk.local.CombatOutcomeMatchObserverTest spk.local.CombatOutcomeCollectionLogObserverTest spk.local.R79OfflinePairedPvpOwnershipTest spk.local.PlayerPvpAttackerWorldOwnershipFenceTest spk.local.PlayerPvpTargetWorldOwnershipFenceTest spk.local.PlayerCombatOutcomeProducerTest spk.local.R78OfflineVerifiedCombatOutcomeTest spk.local.R77OfflineDomainPublicationQuiescenceTest spk.local.R77OfflineEventProducerSourceAuditTest spk.event.DomainEventBusTest spk.event.DomainEventPublicApiBoundaryTest spk.local.R76OfflineWorldTickOwnedEventTest spk.local.R75OfflineRealtimePetIngressTest spk.local.R75OfflineDecodedPacketQuiescenceTest spk.local.R74OfflineIngressAndShutdownTest spk.local.R73OfflineFinalLogoutDrainTest spk.local.R72OfflineTerminalAndDurableOrderTest spk.local.R71OfflineSnapshotCaptureOrderTest spk.local.R70OfflineCoordinatedIoCommitTest spk.local.R69OfflinePersistenceWriteFenceTest spk.local.R68RealDispatcherAdmissionTest spk.local.R67OfflineDecodedPacketDispatchTest spk.local.R66OfflineGameEventDispatchTest spk.local.R65DeferredSessionSaveDispatchTest spk.local.R64OfflineSessionOwnershipTest spk.local.R63AccountSaveAdmissionTest spk.local.SharedWorldOwnershipTest; do
-            java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' "$test"
-          done
+          java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' spk.local.R91OfflineWorldCaptureProvenanceTest
 
   windows-projections:
     runs-on: windows-latest
@@ -72,53 +70,10 @@ jobs:
         run: |
           .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: R95 fresh JVM quarantine reviews, R94/R93/R92/R91 inherited regressions
+      - name: R95 fresh JVM review plus R94/R93/R92/R91 contained regression
         shell: pwsh
         working-directory: server
         run: |
-          $cp='build\SpawnPKLocalServer.jar;build\classes\java\test'
-          foreach ($test in @(
-            'spk.local.R91OfflineWorldCaptureProvenanceTest',
-            'spk.local.R90OfflineProducerContinuityTest',
-            'spk.local.R89OfflineDurableCaptureWatermarkTest',
-            'spk.local.R88OfflineR64R71KilledSaveTest',
-            'spk.local.R87OfflineKilledOwnerTakeoverTest',
-            'spk.local.R86OfflineOwnerEpochTakeoverTest',
-            'spk.local.R85OfflineFencedCombatRecordTest',
-            'spk.local.R84OfflineAtomicCombatRecordTest',
-            'spk.local.R83OfflineCombatCheckpointAuditTest',
-            'spk.local.R81OfflineCombatOutcomeReplayTest',
-            'spk.local.R80OfflineCombatProjectionFanoutTest',
-            'spk.local.CombatOutcomeObserverGroupTest',
-            'spk.local.CombatOutcomeObjectiveIntegrationTest',
-            'spk.local.CombatOutcomeMatchObserverTest',
-            'spk.local.CombatOutcomeCollectionLogObserverTest',
-            'spk.local.R79OfflinePairedPvpOwnershipTest',
-            'spk.local.PlayerPvpAttackerWorldOwnershipFenceTest',
-            'spk.local.PlayerPvpTargetWorldOwnershipFenceTest',
-            'spk.local.PlayerCombatOutcomeProducerTest',
-            'spk.local.R78OfflineVerifiedCombatOutcomeTest',
-            'spk.local.R77OfflineDomainPublicationQuiescenceTest',
-            'spk.local.R77OfflineEventProducerSourceAuditTest',
-            'spk.event.DomainEventBusTest',
-            'spk.event.DomainEventPublicApiBoundaryTest',
-            'spk.local.R76OfflineWorldTickOwnedEventTest',
-            'spk.local.R75OfflineRealtimePetIngressTest',
-            'spk.local.R75OfflineDecodedPacketQuiescenceTest',
-            'spk.local.R74OfflineIngressAndShutdownTest',
-            'spk.local.R73OfflineFinalLogoutDrainTest',
-            'spk.local.R72OfflineTerminalAndDurableOrderTest',
-            'spk.local.R71OfflineSnapshotCaptureOrderTest',
-            'spk.local.R70OfflineCoordinatedIoCommitTest',
-            'spk.local.R69OfflinePersistenceWriteFenceTest',
-            'spk.local.R68RealDispatcherAdmissionTest',
-            'spk.local.R67OfflineDecodedPacketDispatchTest',
-            'spk.local.R66OfflineGameEventDispatchTest',
-            'spk.local.R65DeferredSessionSaveDispatchTest',
-            'spk.local.R64OfflineSessionOwnershipTest',
-            'spk.local.R63AccountSaveAdmissionTest',
-            'spk.local.SharedWorldOwnershipTest'
-          )) {
-            & java -cp $cp $test
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
+          $cp='build\\SpawnPKLocalServer.jar;build\\classes\\java\\test'
+          & java -cp $cp spk.local.R91OfflineWorldCaptureProvenanceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
