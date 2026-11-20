@@ -74,6 +74,6 @@ jobs:
         shell: pwsh
         working-directory: server
         run: |
-          $cp='build\\SpawnPKLocalServer.jar;build\\classes\\java\\test'
+          $cp='build/SpawnPKLocalServer.jar;build/classes/java/test'
           & java -cp $cp spk.local.R91OfflineWorldCaptureProvenanceTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
