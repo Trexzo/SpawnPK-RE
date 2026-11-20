@@ -105,8 +105,9 @@ final class R91OfflinePostDamageObservationJournal {
         Objects.requireNonNull(actual,"actual");
         if(attempt.worldTick!=worldTick||
            actual.worldTick!=worldTick||
-           !attempt.target.equals(attempt.target)||
-           observed!=0||attempt.syntheticAttemptId==null){
+           actual.hpBefore<0||actual.hpAfter<0||
+           actual.applied<0||observed!=0||
+           attempt.syntheticAttemptId==null){
             refused++;
             throw new IOException(
                 "R91_DAMAGE_DENIED invalid or duplicate source observation"
