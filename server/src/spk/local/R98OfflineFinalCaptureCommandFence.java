@@ -33,6 +33,10 @@ final class R98OfflineFinalCaptureCommandFence
     }
 
     void installForTest(){
+        // The existing R72 terminal-capture fence prevents later
+        // checkpoints from being submitted for the same generation.
+        // Both hooks are offline and must be installed before start.
+        world.persistence().installOfflineTerminalCaptureFenceForTest();
         // R74 allows exactly one offline command-admission policy per
         // isolated World, so this cannot silently replace another policy.
         world.commands().installOfflineCommandAdmissionForTest(this);
@@ -71,7 +75,7 @@ final class R98OfflineFinalCaptureCommandFence
      * executing this method, so no other inbox action can run between
      * the quiescence flip and the capture.
      */
-    WorldPlayerPersistence.SaveTicket
+    WorldPlayerPersistence.CapturedSave
             quiesceAndCaptureFinalInsideActorForTest(
         WorldPlayer actor,long generation,
         String username,int petAccessoryItem,String tag,String reason
@@ -94,10 +98,15 @@ final class R98OfflineFinalCaptureCommandFence
             current.quiesced=true;
         }
 
-        WorldPlayerPersistence.SaveTicket ticket=
-            world.persistence().captureAndSave(
+        // Capture only on the World actor. Enqueue with backpressure
+        // *after* this handler returns, outside the World execution thread.
+        WorldPlayerPersistence.CapturedSave captured=
+            world.persistence().captureDeferredFinalSave(
                 username,actor,generation,petAccessoryItem,tag,reason);
-        if(ticket==null||ticket.provenance==null||
+        WorldPlayerPersistence.SaveTicket ticket=captured.ticket;
+        if(!captured.finalSnapshot||captured.owner!=actor||
+                captured.expectedGeneration!=generation||
+                ticket.provenance==null||
                 ticket.provenance.capturedOwner!=actor||
                 ticket.provenance.worldPlayerGeneration!=generation||
                 ticket.provenance.captureOrdinal!=ticket.captureOrdinal)
@@ -106,7 +115,7 @@ final class R98OfflineFinalCaptureCommandFence
         synchronized(owners){
             state(actor,generation).finalTicket=ticket;
         }
-        return ticket;
+        return captured;
     }
 
     void requireCompletedFinalCaptureForTest(
