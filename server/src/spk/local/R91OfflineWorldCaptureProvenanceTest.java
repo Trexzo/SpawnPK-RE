@@ -56,6 +56,20 @@ public final class R91OfflineWorldCaptureProvenanceTest {
                 scratch.resolve("retired-generation"));
             nonblockingOwnerTurnoverDuringDurableIo(
                 scratch.resolve("nonblocking-turnover"));
+            failedLeaseQuarantinesRetirement(
+                scratch.resolve("before-prepared-failure"),false);
+            failedLeaseQuarantinesRetirement(
+                scratch.resolve("after-prepared-failure"),true);
+            System.out.println(
+                "R94_OFFLINE_FAILED_IO_RETIREMENT_QUARANTINE_PASS "+
+                "prePublicationFailureQuarantined=true "+
+                "realR89PreparedFailureQuarantined=true "+
+                "unregisterDeniedEvenAfterLeaseDrain=true "+
+                "lateWriterDeniedBeforeDisk=true "+
+                "prePublicationCanonicalBytesUnchanged=true "+
+                "preparedEvidencePreserved=true "+
+                "noAutomaticRetirementRecovery=true "+
+                "noLiveSessionOrAccountChanges=true");
             System.out.println(
                 "R93_OFFLINE_NONBLOCKING_WORLD_TURNOVER_PASS "+
                 "realWorldProgressDuringBlockedIo=true "+
@@ -249,6 +263,98 @@ public final class R91OfflineWorldCaptureProvenanceTest {
      * queued save is rejected once retirement is requested. Only after
      * that first durable write finishes can the old actor unregister.
      */
+
+    /**
+     * R94: R93's successful lease release was not enough to establish
+     * whether account IO completed. A failed IO write now leaves the
+     * source generation quarantined after the lease count reaches zero.
+     * Two independent fixtures prove both clean early-failure and an
+     * actual R89 PREPARED record written under R60 before the failure.
+     */
+    private static void failedLeaseQuarantinesRetirement(
+        Path root,boolean afterPrepared)throws Exception{
+        Fixture f=new Fixture(root,true);
+        R90OfflineProducerContinuity.Session session=f.initialize();
+        try(World world=World.isolatedForTest(
+                60_000L,rawWriterMustFail(f.files()))){
+            WorldPlayer player=f.player();
+            long generation=world.registerPlayer(player,USER);
+            R93OfflineNonblockingWorldTurnoverGate gate=
+                R93OfflineNonblockingWorldTurnoverGate
+                    .installFailureQuarantineForTest(world,session);
+            if(afterPrepared)
+                gate.failAfterR89PrepareForTest();
+            else gate.installBeforePublishHookForTest(()->{
+                throw new IOException(
+                    "R94_INJECTED_BEFORE_PREPARED");
+            });
+            world.start();
+            Bytes original=f.bytes();
+            AtomicReference<WorldPlayerPersistence.SaveTicket> first=
+                new AtomicReference<>();
+            world.submitAndWait(player,generation,()->{
+                spawn(player,560);
+                first.set(world.persistence().captureAndSave(
+                    USER,player,generation,0,"[r94] ",
+                    afterPrepared?"AFTER_R89_PREPARED":"EARLY_FAILURE"));
+            },10_000L);
+            require(first.get()!=null,
+                "R94 failed to submit genuine World snapshot");
+            expectTicketDenied(first.get(),
+                afterPrepared?"R94_INJECTED_R89_PREPARED_IO_FAILURE":
+                "R94_INJECTED_BEFORE_PREPARED");
+            require(gate.activeSavesForTest(player,generation)==0 &&
+                    gate.quarantinedForTest(player,generation),
+                "R94 failed leased IO did not enter quarantine");
+            Bytes failureBytes=f.bytes();
+            if(!afterPrepared){
+                require(original.same(failureBytes),
+                    "R94 pre-publication fault mutated canonical files");
+            }else{
+                require(Arrays.equals(
+                            original.account,failureBytes.account) &&
+                        Arrays.equals(
+                            original.ledger,failureBytes.ledger) &&
+                        Arrays.equals(
+                            original.owner,failureBytes.owner) &&
+                        !Arrays.equals(
+                            original.watermark,failureBytes.watermark) &&
+                        !Arrays.equals(
+                            original.producer,failureBytes.producer),
+                    "R94 actual PREPARED stage changed wrong records");
+                String watermark=Files.readString(
+                    f.sessions.resolve(
+                        USER+".r89-watermark.properties"));
+                String producer=Files.readString(
+                    f.sessions.resolve(
+                        USER+".r90-producer.properties"));
+                require(watermark.contains("phase=PREPARED") &&
+                        producer.contains("phase=PREPARED"),
+                    "R94 PREPARED witness missing after IO fault");
+            }
+            require(!world.unregisterPlayer(player,generation) &&
+                    world.players().owns(player,generation) &&
+                    gate.retiringForTest(player,generation),
+                "R94 ambiguous IO incorrectly allowed retirement");
+            AtomicReference<WorldPlayerPersistence.SaveTicket> late=
+                new AtomicReference<>();
+            world.submitAndWait(player,generation,()->{
+                spawn(player,565);
+                late.set(world.persistence().captureAndSave(
+                    USER,player,generation,0,"[r94] ",
+                    "LATE_AFTER_QUARANTINE"));
+            },10_000L);
+            require(late.get()!=null,
+                "R94 late capture did not reach refusal path");
+            expectTicketDenied(late.get(),
+                "R94_IO_UNCERTAIN_QUARANTINED");
+            require(failureBytes.same(f.bytes()) &&
+                    gate.activeSavesForTest(player,generation)==0 &&
+                    !world.unregisterPlayer(player,generation),
+                "R94 quarantine lost durable evidence or owner");
+        }
+    }
+
     private static void nonblockingOwnerTurnoverDuringDurableIo(
         Path root)throws Exception{
         Fixture f=new Fixture(root,true);
