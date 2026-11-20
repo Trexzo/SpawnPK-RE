@@ -219,6 +219,12 @@ final class R86OfflineOwnerEpochRecord {
         }
 
         State successor(){
+            // Only model handoff of an ALREADY committed combat event.
+            // Transfers before event creation need a different producer
+            // origin-epoch allocation rule and are not modeled in R86.
+            if(sequence!=1L)
+                throw new IllegalStateException(
+                    "R86_OWNER_DENIED source not committed");
             if(ownerEpoch==Long.MAX_VALUE||revision==Long.MAX_VALUE)
                 throw new IllegalStateException("R86_OWNER_DENIED overflow");
             return new State(stream,originEpoch,UUID.randomUUID(),
