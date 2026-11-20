@@ -56,7 +56,7 @@ The dedicated `R86OfflineOwnerEpochTakeoverTest` checks:
    explicitly presented successor token.
 4. **Two real contender JVMs** attempt takeover with the same
    predecessor token. The OS lock serializes them; exactly one
-   advances the epoch; the other fails its predecessor CAS.
+   advances the epoch; the other either fails the predecessor CAS\n   after the first takeover or is denied immediately by the OS lock\n   while the winner still holds it. Both are fail-closed.
 5. Injected failure **before atomic move** leaves the predecessor
    and all checkpoints unchanged. Failure **after move but
    before acknowledgment** may publish the successor. The
