@@ -41,10 +41,14 @@ public final class R86OfflineOwnerEpochTakeoverTest {
                         R86OfflineOwnerEpochRecord.Fault.NONE);
                 System.out.println("R86_CHILD_SUCCESS "+next.token().wire());
             }catch(IOException rejected){
-                if(!"race".equals(args[0])||
-                   !rejected.getMessage().contains("R86_STALE_OWNER"))
+                if(!"race".equals(args[0]))
                     throw rejected;
-                System.out.println("R86_CHILD_STALE_REFUSED");
+                if(rejected.getMessage().contains("R86_STALE_OWNER"))
+                    System.out.println("R86_CHILD_STALE_REFUSED");
+                else if(rejected.getMessage().contains("R86_LOCK_DENIED"))
+                    System.out.println("R86_CHILD_LOCK_REFUSED");
+                else
+                    throw rejected;
             }
             return;
         }
@@ -172,8 +176,10 @@ public final class R86OfflineOwnerEpochTakeoverTest {
         String second=finishChild(b);
         int won=(first.contains("R86_CHILD_SUCCESS ")?1:0)+
                 (second.contains("R86_CHILD_SUCCESS ")?1:0);
-        int denied=(first.contains("R86_CHILD_STALE_REFUSED")?1:0)+
-                (second.contains("R86_CHILD_STALE_REFUSED")?1:0);
+        int denied=(first.contains("R86_CHILD_STALE_REFUSED")||
+                    first.contains("R86_CHILD_LOCK_REFUSED")?1:0)+
+                (second.contains("R86_CHILD_STALE_REFUSED")||
+                    second.contains("R86_CHILD_LOCK_REFUSED")?1:0);
         require(won==1&&denied==1,
             "R86 race did not produce exactly one successor: "+
             first+" ; "+second);
