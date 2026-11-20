@@ -184,6 +184,8 @@ final class R96OfflineDurableRetirementWitness {
     private final Path journal,accounts,generations,sessions;
     private final Receipt expected;
     private boolean prepared,unregistered,completed;
+    /** R97 controlled failure after R16 has forced the staging bytes. */
+    private Phase failAtomicReplacementForTest;
 
     private R96OfflineDurableRetirementWitness(
         World world,WorldPlayer actor,long generation,long ordinal,
@@ -221,6 +223,40 @@ final class R96OfflineDurableRetirementWitness {
             ".r96-offline-retirement.properties").toAbsolutePath().normalize();
     }
 
+    /**
+     * R97 offline fault injection: refuse the actual R16 atomic replace
+     * after its staging file was written and forced. The R16 finally block
+     * must remove the stage and preserve the previous canonical receipt.
+     */
+    synchronized void failNextAtomicReplacementForTest(Phase phase){
+        if(failAtomicReplacementForTest!=null||completed||unregistered)
+            throw new IllegalStateException(
+                "R97_REPLACEMENT_HOOK_DENIED already installed or finished");
+        failAtomicReplacementForTest=Objects.requireNonNull(phase,"phase");
+    }
+
+    private void publishWithInjectedFaultForTest(Path target,Receipt receipt)
+        throws IOException{
+        if(failAtomicReplacementForTest==receipt.phase){
+            failAtomicReplacementForTest=null;
+            receipt.validate();
+            AtomicAccountPublisher.publish(
+                target,receipt.properties(),
+                "R97 OFFLINE injected retirement publication fault",
+                (staged,canonical)->{
+                    if(!Files.isRegularFile(
+                            staged,LinkOption.NOFOLLOW_LINKS))
+                        throw new IOException(
+                            "R97_STAGE_MISSING before replace");
+                    throw new IOException(
+                        "R97_INJECTED_ATOMIC_REPLACE_"+receipt.phase);
+                });
+            throw new AssertionError(
+                "R97 injected atomic replacement unexpectedly succeeded");
+        }
+        publish(target,receipt);
+    }
+
     synchronized void prepareForTest()throws IOException{
         if(prepared||unregistered||completed)
             throw new IOException("R96_RETIRE_DENIED duplicate prepare");
@@ -237,7 +273,7 @@ final class R96OfflineDurableRetirementWitness {
             if(Files.exists(target,LinkOption.NOFOLLOW_LINKS))
                 throw new IOException(
                     "R96_RETIRE_DENIED witness already exists");
-            publish(target,expected);
+            publishWithInjectedFaultForTest(target,expected);
             return null;
         });
         prepared=true;
@@ -273,7 +309,8 @@ final class R96OfflineDurableRetirementWitness {
                     !expected.sameSource(disk))
                 throw new IOException(
                     "R96_WITNESS_QUARANTINED expected PREPARED missing");
-            publish(target,expected.phase(Phase.COMMITTED));
+            publishWithInjectedFaultForTest(
+                target,expected.phase(Phase.COMMITTED));
             return null;
         });
         completed=true;
