@@ -53,7 +53,6 @@ public final class R83OfflineCombatCheckpointAuditTest {
         final AtomicInteger deliveredEvents=new AtomicInteger();
         final AtomicInteger globalEvents=new AtomicInteger();
         final AtomicReference<CombatOutcome> killFact=new AtomicReference<>();
-        final CombatOutcome delivery;
 
         Fixture(Mode mode)throws Exception {
             this.mode=mode;
@@ -237,8 +236,6 @@ public final class R83OfflineCombatCheckpointAuditTest {
                 GlobalNotice.class,DomainEventBus.Priority.NORMAL,
                 fact->globalEvents.incrementAndGet()
             );
-            // Keep a typed handle only for documentation/test diagnostics.
-            delivery=null;
         }
 
         void lethal()throws Exception {
