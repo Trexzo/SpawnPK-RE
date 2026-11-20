@@ -30,11 +30,14 @@ persistence assertion.
 - Move the verified ZIP processing to the small, reusable
   `server/gradle/verified-gradle-archive.ps1` function.
 - Verify the SHA-256 of each cached or newly downloaded ZIP **before
-  extraction**; remove the cached ZIP and stop on a mismatch.
-- Replace the problematic `Expand-Archive` invocation with
-  `[System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $stage)`,
-  using the two-argument API compatible with Windows PowerShell 5.1
-  and PowerShell 7.
+  extraction**, using the original .NET streaming SHA-256 algorithm;
+  remove the cached ZIP and stop on a mismatch.
+- Replace `Expand-Archive` and unavailable `System.IO.Compression.FileSystem`
+  assembly loading with Windows 10+'s native `System32\\tar.exe` ZIP reader.
+  List the entries first and reject absolute paths or `..` traversal,
+  then extract the SHA-verified archive into a temporary folder.
+  This avoids utility-cmdlet/ZIP-assembly availability issues in the
+  actual `gradlew.bat` PowerShell process.
 - Stage extraction in a randomly named temporary directory and
   require `gradle-8.10.2/bin/gradle.bat` before publication.
   Clean temporary extraction on success and failure. Refuse to
@@ -58,7 +61,8 @@ PowerShell 7, including:
    ZIP, and does not publish the destination.
 3. A malformed archive with a matching hash still cannot publish.
 4. A valid ZIP whose root is not `gradle-8.10.2` cannot publish.
-5. A ZIP entry escaping its extraction folder is rejected, leaving
+5. A ZIP entry escaping its extraction folder is rejected by the
+   explicit native-archive listing preflight, leaving
    no publication and no outside file.
 6. Temporary staging directories are cleaned.
 
