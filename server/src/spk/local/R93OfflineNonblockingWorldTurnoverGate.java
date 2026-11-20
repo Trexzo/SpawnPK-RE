@@ -29,6 +29,8 @@ final class R93OfflineNonblockingWorldTurnoverGate
         boolean retiring;
         /** R94: a failed leased writer must not authorize retirement. */
         boolean uncertain;
+        boolean durableWitnessRequired;
+        boolean durableUnregisterPermitted;
     }
 
     private final World world;
@@ -115,8 +117,56 @@ final class R93OfflineNonblockingWorldTurnoverGate
             // Once retirement is requested, later saves are inadmissible.
             lease.retiring=true;
             return lease.active==0 &&
-                !(quarantineFailedIo && lease.uncertain);
+                !(quarantineFailedIo && lease.uncertain) &&
+                (!lease.durableWitnessRequired ||
+                    lease.durableUnregisterPermitted);
         }
+    }
+
+    /**
+     * R96: freeze new saves while still holding the short World lifecycle
+     * lock. A failed/active lease is refused before touching R96 files.
+     */
+    void beginDurableRetirementForTest(
+        WorldPlayer actor,long generation)throws IOException{
+        boolean current=world.withOpenPlayerOwnershipIfCurrent(
+            actor,generation,()->{
+                synchronized(owners){
+                    Lease lease=state(actor,generation);
+                    if(lease.retiring || lease.active!=0 ||
+                            lease.uncertain ||
+                            lease.durableWitnessRequired)
+                        throw new IOException(
+                            "R96_RETIRE_DENIED in-flight/uncertain owner");
+                    lease.retiring=true;
+                    lease.durableWitnessRequired=true;
+                    lease.durableUnregisterPermitted=false;
+                }
+            });
+        if(!current)
+            throw new IOException(
+                "R96_RETIRE_DENIED actor not currently World-owned");
+    }
+
+    /** Only the cooperating R96 offline witness flow calls this after
+     * a durable PREPARED retirement marker has been published. */
+    void permitDurableUnregisterForTest(
+        WorldPlayer actor,long generation)throws IOException{
+        boolean current=world.withOpenPlayerOwnershipIfCurrent(
+            actor,generation,()->{
+                synchronized(owners){
+                    Lease lease=state(actor,generation);
+                    if(!lease.durableWitnessRequired || !lease.retiring ||
+                            lease.uncertain || lease.active!=0 ||
+                            lease.durableUnregisterPermitted)
+                        throw new IOException(
+                            "R96_RETIRE_DENIED absent prepared lease");
+                    lease.durableUnregisterPermitted=true;
+                }
+            });
+        if(!current)
+            throw new IOException(
+                "R96_RETIRE_DENIED actor not currently World-owned");
     }
 
     int activeSavesForTest(WorldPlayer actor,long generation){
