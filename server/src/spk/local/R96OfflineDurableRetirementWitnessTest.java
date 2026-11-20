@@ -26,12 +26,20 @@ public final class R96OfflineDurableRetirementWitnessTest {
 
     public static void main(String[] args)throws Exception{
         if(args.length!=0){
-            if(args.length!=3||!"child-review".equals(args[0]))
+            if(args.length!=3)
                 throw new IllegalArgumentException(
-                    "R96 unrecognized review child invocation");
-            freshJvmReadOnlyReview(Paths.get(args[1]),
-                Cut.valueOf(args[2]));
-            return;
+                    "R96/R97 invalid child review arguments");
+            if("child-review".equals(args[0])){
+                freshJvmReadOnlyReview(Paths.get(args[1]),
+                    Cut.valueOf(args[2]));
+                return;
+            }
+            if("r97-refusal".equals(args[0])){
+                freshJvmR97NegativeReview(Paths.get(args[1]),args[2]);
+                return;
+            }
+            throw new IllegalArgumentException(
+                "R96/R97 unrecognized child invocation");
         }
         Path scratch=Files.createTempDirectory("spk-r96-retirement-");
         try{
@@ -39,6 +47,23 @@ public final class R96OfflineDurableRetirementWitnessTest {
                 scratch.resolve("unsaved"));
             for(Cut cut:Cut.values())
                 runCrashWindow(scratch.resolve(cut.name()),cut);
+            runAtomicReplacementFault(
+                scratch.resolve("r97-failed-prepare"),false);
+            runAtomicReplacementFault(
+                scratch.resolve("r97-failed-commit"),true);
+            runReceiptIntegrityAndStaleSource(
+                scratch.resolve("r97-corruption"));
+            System.out.println(
+                "R97_OFFLINE_RETIREMENT_WITNESS_FAULT_MATRIX_PASS "+
+                "preparedAtomicReplaceFailureKeepsActorFrozen=true "+
+                "committedAtomicReplaceFailureKeepsPreparedWitness=true "+
+                "stagingFilesCleanedAfterReplaceFailure=true "+
+                "digestSchemaAndNonregularRecordsRefused=true "+
+                "adjacentR16StageRefusedWithoutCleanup=true "+
+                "staleR90IncarnationRefusesCommittedWitness=true "+
+                "freshJvmTamperAndStaleSourceRefused=true "+
+                "canonicalAccountBytesUnchangedOnDenial=true "+
+                "noAutomaticRecoveryOrLogin=true");
             System.out.println(
                 "R96_OFFLINE_DURABLE_RETIREMENT_WITNESS_PASS "+
                 "R60R89R90ProducerSourceBound=true "+
@@ -60,6 +85,241 @@ public final class R96OfflineDurableRetirementWitnessTest {
                     catch(IOException e){throw new IllegalStateException(
                         "R96 disposable fixture cleanup "+p,e);}
                 });
+            }
+        }
+    }
+
+
+    /** R97: controlled failure *after* R16 forced staging, immediately
+     * before PREPARED or COMMITTED atomic replacement. */
+    private static void runAtomicReplacementFault(
+        Path root,boolean afterUnregister)throws Exception{
+        Fixture f=new Fixture(root,true);
+        R90OfflineProducerContinuity.Session producer=f.initialize();
+        try(World world=World.isolatedForTest(
+                60_000L,rawWriterMustFail(f.files()))){
+            WorldPlayer player=f.player();
+            long generation=world.registerPlayer(player,USER);
+            R93OfflineNonblockingWorldTurnoverGate gate=
+                R93OfflineNonblockingWorldTurnoverGate
+                    .installFailureQuarantineForTest(world,producer);
+            world.start();
+            AtomicReference<WorldPlayerPersistence.SaveTicket> saved=
+                new AtomicReference<>();
+            world.submitAndWait(player,generation,()->{
+                spawn(player,560);
+                saved.set(world.persistence().captureAndSave(
+                    USER,player,generation,0,"[r97] ",
+                    "FINAL_BEFORE_INTERRUPTED_WITNESS"));
+            },10_000L);
+            require(saved.get()!=null &&
+                    saved.get().captureOrdinal==1L,
+                "R97 failed to capture real World save");
+            saved.get().completion.get(15L,TimeUnit.SECONDS);
+            require(f.producerHighwater()==1L,
+                "R97 source not committed before injected fault");
+            Bytes before=f.bytes();
+            R96OfflineDurableRetirementWitness witness=
+                f.witness(world,player,generation,1L,gate,producer);
+            if(!afterUnregister){
+                witness.failNextAtomicReplacementForTest(
+                    R96OfflineDurableRetirementWitness.Phase.PREPARED);
+                expectDenied(witness::prepareForTest,
+                    "R97_INJECTED_ATOMIC_REPLACE_PREPARED");
+                require(!Files.exists(f.witnessPath()) &&
+                        world.players().owns(player,generation) &&
+                        gate.retiringForTest(player,generation) &&
+                        !world.unregisterPlayer(player,generation),
+                    "R97 injected PREPARED fault allowed retirement");
+                R96OfflineDurableRetirementWitness.Review read=
+                    R96OfflineDurableRetirementWitness.inspectForTest(
+                        f.journal,f.accounts,f.generations,f.sessions,
+                        f.ready());
+                require(read.status==
+                            R96OfflineDurableRetirementWitness.Status
+                                .MISSING_UNPROVEN &&
+                        !read.loginAuthorized(),
+                    "R97 failed PREPARED publication fabricated evidence");
+            }else{
+                witness.prepareForTest();
+                byte[] prepared=Files.readAllBytes(f.witnessPath());
+                witness.failNextAtomicReplacementForTest(
+                    R96OfflineDurableRetirementWitness.Phase.COMMITTED);
+                expectDenied(
+                    ()->witness.unregisterAndCommitForTest(false),
+                    "R97_INJECTED_ATOMIC_REPLACE_COMMITTED");
+                require(!world.players().owns(player,generation) &&
+                        Arrays.equals(prepared,
+                            Files.readAllBytes(f.witnessPath())),
+                    "R97 failed COMMITTED replacement changed PREPARED");
+                R96OfflineDurableRetirementWitness.Review read=
+                    R96OfflineDurableRetirementWitness.inspectForTest(
+                        f.journal,f.accounts,f.generations,f.sessions,
+                        f.ready());
+                require(read.status==
+                            R96OfflineDurableRetirementWitness.Status
+                                .PREPARED_QUARANTINED &&
+                        !read.loginAuthorized(),
+                    "R97 post-unregister replacement fault lost quarantine");
+            }
+            requireNoR96Stage(f);
+            require(before.same(f.bytes()),
+                "R97 failed receipt publication changed canonical account");
+        }
+        if(afterUnregister)
+            verifyFreshJvmReview(root,Cut.AFTER_UNREGISTER);
+    }
+
+    private static void requireNoR96Stage(Fixture f)throws IOException{
+        String name=f.witnessPath().getFileName().toString();
+        try(Stream<Path> files=Files.list(f.sessions)){
+            require(!files.anyMatch(entry->{
+                String n=entry.getFileName().toString();
+                return n.startsWith("."+name+".r16-") &&
+                    n.endsWith(".stage");
+            }),"R97 unclean R16 staging after failed atomic publication");
+        }
+    }
+
+    private static void runReceiptIntegrityAndStaleSource(
+        Path root)throws Exception{
+        // Establish an authentic COMMITTED receipt with the *actual*
+        // World lifecycle and re-open it after World.close().
+        runCrashWindow(root,Cut.COMMITTED);
+        Fixture f=new Fixture(root,false);
+        Bytes baseline=f.bytes();
+        Path target=f.witnessPath();
+        byte[] receipt=Files.readAllBytes(target);
+        String stored=new String(receipt,StandardCharsets.UTF_8);
+        require(stored.contains("phase=COMMITTED") &&
+                stored.contains("owner.uuid="),
+            "R97 committed properties format unexpected");
+
+        // Tamper one field without updating the hash. The only permitted
+        // response is a read-only denial, never repair/promotion.
+        Files.writeString(target,stored.replace(
+            "phase=COMMITTED","phase=PREPARED"),
+            StandardCharsets.UTF_8);
+        expectReadOnlyRefusal(f,"R96_WITNESS_QUARANTINED");
+        verifyFreshJvmR97Refusal(root,"R96_WITNESS_QUARANTINED");
+
+        // Additional/missing property is a schema violation, independent
+        // of whether its replacement text is otherwise parsable.
+        Files.writeString(target,stored+"\nunknown.r97.field=1\n",
+            StandardCharsets.UTF_8);
+        expectReadOnlyRefusal(f,"R96_WITNESS_QUARANTINED");
+
+        // Invalid UUID and empty record both fail closed.
+        Files.writeString(target,stored.replace(
+            "owner.uuid=","owner.uuid=not-a-uuid-"),
+            StandardCharsets.UTF_8);
+        expectReadOnlyRefusal(f,"R96_WITNESS_QUARANTINED");
+        Files.writeString(target,"",StandardCharsets.UTF_8);
+        expectReadOnlyRefusal(f,"R96_WITNESS_QUARANTINED");
+
+        // A leftover adjacent R16 stage is not deleted or adopted by
+        // the reader. The canonical receipt remains exactly unchanged.
+        Files.write(target,receipt);
+        Path staged=f.sessions.resolve(
+            "."+target.getFileName().toString()+".r16-r97orphan.stage");
+        Files.writeString(staged,"R97 deliberately abandoned stage");
+        expectReadOnlyRefusal(f,"R51_AMBIGUOUS_ACCOUNT_STAGING_DENIED");
+        require(Files.isRegularFile(staged) &&
+                Arrays.equals(receipt,Files.readAllBytes(target)),
+            "R97 read path repaired ambiguous R16 stage");
+        Files.delete(staged);
+
+        // Nonregular receipt is refused rather than treated as missing.
+        Path saved=f.sessions.resolve("r97-witness-original.bytes");
+        Files.move(target,saved);
+        try{
+            Files.createDirectory(target);
+            expectReadOnlyRefusal(f,"R96_WITNESS_QUARANTINED");
+        }finally{
+            Files.deleteIfExists(target);
+            Files.move(saved,target);
+        }
+        require(Arrays.equals(receipt,Files.readAllBytes(target)) &&
+                baseline.same(f.bytes()),
+            "R97 corruption tests unexpectedly changed original evidence");
+
+        // Rotate only R90's source incarnation under the existing R60
+        // lock. The old COMMITTED witness must become unusable, even
+        // though the R89 highwater and R64 owner are unchanged.
+        R64OfflineSessionOwnership.Token owner=f.ready();
+        R90OfflineProducerContinuity.Session next=
+            R90OfflineProducerContinuity.restart(
+                f.journal,f.accounts,f.generations,f.sessions,owner);
+        require(next.ticket.committedOrdinal==1L &&
+                !next.ticket.incarnation.equals(
+                    R96OfflineDurableRetirementWitness.Receipt.parse(
+                        readReceiptProperties(target)).incarnation),
+            "R97 producer restart did not rotate incarnation");
+        expectReadOnlyRefusal(f,"R96_SOURCE_DENIED");
+        verifyFreshJvmR97Refusal(root,"R96_SOURCE_DENIED");
+    }
+
+    private static java.util.Properties readReceiptProperties(Path target)
+        throws IOException{
+        java.util.Properties p=new java.util.Properties();
+        try(java.io.InputStream input=Files.newInputStream(target)){
+            p.load(input);
+        }
+        return p;
+    }
+
+    private static void expectReadOnlyRefusal(
+        Fixture f,String expected)throws Exception{
+        Bytes before=f.bytes();
+        byte[] receipt=Files.readAllBytes(f.witnessPath());
+        try{
+            R96OfflineDurableRetirementWitness.inspectForTest(
+                f.journal,f.accounts,f.generations,f.sessions,f.ready());
+            throw new AssertionError(
+                "R97 malformed/stale witness incorrectly accepted");
+        }catch(IOException denied){
+            require(denied.getMessage().contains(expected),
+                "R97 unexpected refusal "+denied+" expected "+expected);
+        }
+        require(before.same(f.bytes()) &&
+                Arrays.equals(receipt,
+                    Files.readAllBytes(f.witnessPath())),
+            "R97 read-only refusal modified canonical evidence");
+    }
+
+    private static void freshJvmR97NegativeReview(
+        Path root,String expected)throws Exception{
+        Fixture f=new Fixture(root,false);
+        expectReadOnlyRefusal(f,expected);
+        System.out.println(
+            "R97_FRESH_JVM_REFUSAL_PASS reason="+expected+
+            " canonicalFilesUnchanged=true noLoginOrRecovery=true");
+    }
+
+    private static void verifyFreshJvmR97Refusal(
+        Path root,String expected)throws Exception{
+        boolean windows=System.getProperty("os.name","")
+            .toLowerCase(Locale.ROOT).contains("win");
+        Path java=Paths.get(System.getProperty("java.home"),"bin",
+            windows?"java.exe":"java");
+        Path log=root.resolve("r97-fresh-jvm-"+expected+".log");
+        Process child=new ProcessBuilder(
+            java.toString(),"-cp",System.getProperty("java.class.path"),
+            R96OfflineDurableRetirementWitnessTest.class.getName(),
+            "r97-refusal",root.toString(),expected
+        ).redirectErrorStream(true).redirectOutput(log.toFile()).start();
+        try{
+            require(child.waitFor(25L,TimeUnit.SECONDS),
+                "R97 fresh JVM read-only refusal timed out");
+            String output=Files.readString(log,StandardCharsets.UTF_8);
+            require(child.exitValue()==0 &&
+                    output.contains(
+                        "R97_FRESH_JVM_REFUSAL_PASS reason="+expected),
+                "R97 fresh JVM incorrectly admitted evidence: "+output);
+        }finally{
+            if(child.isAlive()){
+                child.destroyForcibly();
+                child.waitFor(15L,TimeUnit.SECONDS);
             }
         }
     }
