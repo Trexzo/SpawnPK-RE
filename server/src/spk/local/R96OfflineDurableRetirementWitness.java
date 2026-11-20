@@ -179,6 +179,8 @@ final class R96OfflineDurableRetirementWitness {
     private final WorldPlayer actor;
     private final long generation,ordinal;
     private final R93OfflineNonblockingWorldTurnoverGate gate;
+    /** R98 optional command-queue final-capture proof, never live. */
+    private final R98OfflineFinalCaptureCommandFence finalCaptureFence;
     private final R64OfflineSessionOwnership.Token owner;
     private final R90OfflineProducerContinuity.Ticket source;
     private final Path journal,accounts,generations,sessions;
@@ -190,6 +192,7 @@ final class R96OfflineDurableRetirementWitness {
     private R96OfflineDurableRetirementWitness(
         World world,WorldPlayer actor,long generation,long ordinal,
         R93OfflineNonblockingWorldTurnoverGate gate,
+        R98OfflineFinalCaptureCommandFence finalCaptureFence,
         R64OfflineSessionOwnership.Token owner,
         R90OfflineProducerContinuity.Ticket source,
         Path journal,Path accounts,Path generations,Path sessions){
@@ -197,6 +200,7 @@ final class R96OfflineDurableRetirementWitness {
         this.actor=Objects.requireNonNull(actor,"actor");
         this.generation=generation;this.ordinal=ordinal;
         this.gate=Objects.requireNonNull(gate,"gate");
+        this.finalCaptureFence=finalCaptureFence;
         this.owner=Objects.requireNonNull(owner,"owner");
         this.source=Objects.requireNonNull(source,"source");
         this.journal=Objects.requireNonNull(journal,"journal");
@@ -214,8 +218,23 @@ final class R96OfflineDurableRetirementWitness {
         R90OfflineProducerContinuity.Ticket source,
         Path journal,Path accounts,Path generations,Path sessions){
         return new R96OfflineDurableRetirementWitness(
-            world,actor,generation,ordinal,gate,owner,source,
+            world,actor,generation,ordinal,gate,null,owner,source,
             journal,accounts,generations,sessions);
+    }
+
+    /** R98 explicit, opt-in final-capture/command-quiescence requirement. */
+    static R96OfflineDurableRetirementWitness
+            createCommandFencedForTest(
+        World world,WorldPlayer actor,long generation,long ordinal,
+        R93OfflineNonblockingWorldTurnoverGate gate,
+        R98OfflineFinalCaptureCommandFence finalCaptureFence,
+        R64OfflineSessionOwnership.Token owner,
+        R90OfflineProducerContinuity.Ticket source,
+        Path journal,Path accounts,Path generations,Path sessions){
+        return new R96OfflineDurableRetirementWitness(
+            world,actor,generation,ordinal,gate,
+            Objects.requireNonNull(finalCaptureFence,"finalCaptureFence"),
+            owner,source,journal,accounts,generations,sessions);
     }
 
     static Path fileForTest(Path sessions,String username){
@@ -260,6 +279,12 @@ final class R96OfflineDurableRetirementWitness {
     synchronized void prepareForTest()throws IOException{
         if(prepared||unregistered||completed)
             throw new IOException("R96_RETIRE_DENIED duplicate prepare");
+        // R98 refuses to promote an arbitrary committed ordinal to
+        // retirement unless it was captured by the quiesced World actor
+        // and its real IO completion has succeeded.
+        if(finalCaptureFence!=null)
+            finalCaptureFence.requireCompletedFinalCaptureForTest(
+                actor,generation,ordinal);
         // Lock the World for in-memory mutation only. If the following
         // disk write fails, the source stays frozen: fail closed.
         gate.beginDurableRetirementForTest(actor,generation);
