@@ -207,9 +207,33 @@ public final class R87OfflineKilledOwnerTakeoverTest {
                 child.waitFor(15L,TimeUnit.SECONDS);
             }
         }
-        // Acquiring the fixture's lock in the assertions below proves
-        // the operating system released it after the JVM was killed.
-        // A pre-move orphan stage still blocks canonical access.
+        // On Windows, process exit acknowledgement may precede the OS
+        // exposing its released FileLock to another Java process.
+        // Retry ONLY read-only lock acquisition, never a takeover/write.
+        awaitReleasedLockForTest(root);
+    }
+
+    private static void awaitReleasedLockForTest(Path root)
+        throws Exception{
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(15L);
+        while(System.nanoTime()<deadline){
+            try{
+                // After a post-move kill, a successful inspection proves
+                // the process lock has been released. The result does
+                // NOT grant ownership, credentials or replay authority.
+                R86OfflineOwnerEpochRecord.inspectForTest(root);
+                return;
+            }catch(IOException status){
+                if(status.getMessage().contains(
+                        "R87_STAGE_QUARANTINED"))
+                    return; // Lock acquired; ambiguous stage blocks reads.
+                if(!status.getMessage().contains("R86_LOCK_DENIED"))
+                    throw status;
+            }
+            Thread.sleep(30L);
+        }
+        throw new AssertionError(
+            "R87_LOCK_RELEASE_TIMEOUT child exited but lock unavailable");
     }
 
     private static void enterChildKillpoint(
