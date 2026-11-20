@@ -164,12 +164,25 @@ final class WorldPlayerPersistence
         final UUID stream,incarnation;
         final long ownerEpoch,producerGeneration,captureOrdinal;
         final long worldPlayerGeneration;
+        /** R92: actual source actor, never serialized or trusted externally. */
+        final WorldPlayer capturedOwner;
 
         OfflineCaptureStamp(
             String username,UUID stream,UUID incarnation,
             long ownerEpoch,long producerGeneration,
             long captureOrdinal,String snapshotDigest,
             long worldPlayerGeneration
+        ){
+            this(username,stream,incarnation,ownerEpoch,
+                producerGeneration,captureOrdinal,snapshotDigest,
+                worldPlayerGeneration,null);
+        }
+
+        private OfflineCaptureStamp(
+            String username,UUID stream,UUID incarnation,
+            long ownerEpoch,long producerGeneration,
+            long captureOrdinal,String snapshotDigest,
+            long worldPlayerGeneration,WorldPlayer capturedOwner
         ){
             this.username=Objects.requireNonNull(username,"username");
             this.stream=Objects.requireNonNull(stream,"stream");
@@ -180,6 +193,17 @@ final class WorldPlayerPersistence
             this.snapshotDigest=Objects.requireNonNull(
                 snapshotDigest,"snapshotDigest");
             this.worldPlayerGeneration=worldPlayerGeneration;
+            this.capturedOwner=capturedOwner;
+        }
+
+        OfflineCaptureStamp withCapturedOwnerForTest(WorldPlayer owner){
+            if(capturedOwner!=null)
+                throw new IllegalStateException(
+                    "R92_CAPTURE_OWNER_DENIED already bound");
+            return new OfflineCaptureStamp(
+                username,stream,incarnation,ownerEpoch,
+                producerGeneration,captureOrdinal,snapshotDigest,
+                worldPlayerGeneration,Objects.requireNonNull(owner,"owner"));
         }
     }
 
@@ -236,7 +260,8 @@ final class WorldPlayerPersistence
     }
 
     private OfflineCaptureStamp stampAtCaptureForTest(
-        long ordinal,PlayerSnapshot snapshot,long worldGeneration
+        long ordinal,PlayerSnapshot snapshot,long worldGeneration,
+        WorldPlayer capturedOwner
     ){
         OfflineCaptureStampIssuer issuer=offlineCaptureIssuer;
         if(issuer==null)return null;
@@ -253,7 +278,10 @@ final class WorldPlayerPersistence
                stamp.snapshotDigest))
             throw new IllegalStateException(
                 "R91_CAPTURE_STAMP_DENIED source/ordinal/digest mismatch");
-        return stamp;
+        // Bind to the actual owner while still under its mutation lock.
+        // The R91 source fields remain unchanged; R92 opts into checking
+        // this non-serialized reference at final IO admission.
+        return stamp.withCapturedOwnerForTest(capturedOwner);
     }
 
     synchronized void installOfflineSaveAdmissionForTest(
@@ -607,7 +635,8 @@ final class WorldPlayerPersistence
                 );
             snapshotCaptureOrdinal=nextCaptureOrdinal();
             captureStamp=stampAtCaptureForTest(
-                snapshotCaptureOrdinal,snapshot,expectedGeneration);
+                snapshotCaptureOrdinal,snapshot,expectedGeneration,
+                player);
         }
 
         long saveSequence=
@@ -691,7 +720,8 @@ final class WorldPlayerPersistence
                     );
                 snapshotCaptureOrdinal=nextCaptureOrdinal();
                 captureStamp=stampAtCaptureForTest(
-                    snapshotCaptureOrdinal,snapshot,expectedGeneration);
+                    snapshotCaptureOrdinal,snapshot,expectedGeneration,
+                player);
                 if(offlineTerminalCaptureFence){
                     synchronized(checkpointLock){
                         offlineTerminalGenerations.put(
@@ -980,7 +1010,7 @@ final class WorldPlayerPersistence
                         snapshot,
                         accessoryItem,
                         stampAtCaptureForTest(
-                            captureOrder.get(),snapshot,generation)
+                            captureOrder.get(),snapshot,generation,player)
                     );
 
                 synchronized(checkpointLock){
