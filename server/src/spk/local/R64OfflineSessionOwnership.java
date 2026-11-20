@@ -31,6 +31,37 @@ import java.util.UUID;
 final class R64OfflineSessionOwnership {
     private static final String FORMAT="SpawnPK-R64-OfflineSessionOwner-v1";
     private static final int MAX_RECORD_BYTES=4096;
+
+    /**
+     * R88 OFFLINE TEST-ONLY forced-JVM-crash observability.
+     * A thread-local hook is installed exclusively by a disposable child
+     * Java process. Every cutpoint fires while the real R60 OS lock is
+     * held; no production session, packet or World installs this hook.
+     */
+    @FunctionalInterface interface OfflineSaveCrashCutpoint {
+        void reached(String phase)throws IOException;
+    }
+    private static final ThreadLocal<OfflineSaveCrashCutpoint>
+        TEST_SAVE_CRASH_CUTPOINT=new ThreadLocal<>();
+
+    static void installOfflineSaveCrashCutpointForTest(
+        OfflineSaveCrashCutpoint hook){
+        Objects.requireNonNull(hook,"hook");
+        if(TEST_SAVE_CRASH_CUTPOINT.get()!=null)
+            throw new IllegalStateException(
+                "R88_CRASH_HOOK_DENIED already installed");
+        TEST_SAVE_CRASH_CUTPOINT.set(hook);
+    }
+
+    static void clearOfflineSaveCrashCutpointForTest(){
+        TEST_SAVE_CRASH_CUTPOINT.remove();
+    }
+
+    private static void signalSaveCrashCutpoint(String point)
+        throws IOException{
+        OfflineSaveCrashCutpoint hook=TEST_SAVE_CRASH_CUTPOINT.get();
+        if(hook!=null)hook.reached(point);
+    }
     private static final Set<String> KEYS=new HashSet<>(Arrays.asList(
         "format","username","owner.id","owner.epoch","phase",
         "account.generation","journal.revision","snapshot.sha256"
@@ -174,11 +205,13 @@ final class R64OfflineSessionOwnership {
             journalRoot,accountRoot,generationRoot,stored.username
         );
         requireAccountMatches(stored.account,current);
+        signalSaveCrashCutpoint("BEFORE_R63_SAVE");
         R63AccountSaveAdmission.Token after=
             R63AccountSaveAdmission.saveIfCurrentUnderLock(
                 journalRoot,accountRoot,generationRoot,
                 stored.account,next,false
             );
+        signalSaveCrashCutpoint("AFTER_R63_BEFORE_OWNER");
         if(injectAfterLedgerBeforeOwner)
             throw new IOException(
                 "R64_INJECTED_AFTER_LEDGER_BEFORE_OWNER_RECORD"
@@ -187,6 +220,7 @@ final class R64OfflineSessionOwnership {
             stored.username,stored.owner,stored.epoch,Phase.ACTIVE,after
         );
         writeOwner(recordPath(sessionRoot,stored.username),advanced);
+        signalSaveCrashCutpoint("AFTER_OWNER_BEFORE_ACK");
         return advanced;
     }
 
