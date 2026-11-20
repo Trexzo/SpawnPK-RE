@@ -234,7 +234,7 @@ public final class R96OfflineDurableRetirementWitnessTest {
         Files.move(target,saved);
         try{
             Files.createDirectory(target);
-            expectReadOnlyRefusal(f,"R96_WITNESS_QUARANTINED");
+            expectNonregularRefusal(f);
         }finally{
             Files.deleteIfExists(target);
             Files.move(saved,target);
@@ -266,6 +266,26 @@ public final class R96OfflineDurableRetirementWitnessTest {
             p.load(input);
         }
         return p;
+    }
+
+    private static void expectNonregularRefusal(
+        Fixture f)throws Exception{
+        Bytes before=f.bytes();
+        Path target=f.witnessPath();
+        require(Files.isDirectory(target),
+            "R97 nonregular target was not a directory");
+        try{
+            R96OfflineDurableRetirementWitness.inspectForTest(
+                f.journal,f.accounts,f.generations,f.sessions,f.ready());
+            throw new AssertionError(
+                "R97 directory witness incorrectly accepted");
+        }catch(IOException denied){
+            require(denied.getMessage().contains(
+                    "R96_WITNESS_QUARANTINED"),
+                "R97 nonregular witness wrong denial "+denied);
+        }
+        require(before.same(f.bytes())&&Files.isDirectory(target),
+            "R97 rejected directory was replaced or account changed");
     }
 
     private static void expectReadOnlyRefusal(
