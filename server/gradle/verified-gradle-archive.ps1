@@ -49,7 +49,11 @@ function Install-VerifiedGradleArchive {
         # ExtractToDirectory(3 args) overload under Windows PowerShell 5.1.
         # .NET's two-argument overload works on both PS 5.1 and PS 7,
         # and rejects entries that escape the destination directory.
-        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+        # Avoid relying on cmdlet module discovery in the real batch
+        # launcher; load the framework assembly only when necessary.
+        if (-not ('System.IO.Compression.ZipFile' -as [type])) {
+            [void][System.Reflection.Assembly]::Load('System.IO.Compression.FileSystem')
+        }
         [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $stage)
 
         $expanded = Join-Path $stage $expectedDir
