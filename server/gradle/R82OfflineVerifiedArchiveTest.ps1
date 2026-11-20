@@ -94,7 +94,7 @@ try {
     } 'outside'
     Require (-not (Test-Path -LiteralPath $slipHome)) 'traversal published a target'
     Require (-not (Test-Path -LiteralPath (Join-Path $root 'escape.txt'))) 'traversal wrote outside staging'
-    Require ((Get-ChildItem -LiteralPath $root -Directory -Filter 'extract-*').Count -eq 0) 'archive extraction left staging behind'
+    Require (@(Get-ChildItem -LiteralPath $root -Directory -Filter 'extract-*').Count -eq 0) 'archive extraction left staging behind'
 
     Write-Output 'R82_OFFLINE_VERIFIED_GRADLE_ARCHIVE_PASS PS5_PS7_COMPAT=true SHA256_BEFORE_EXTRACT=true CACHED_ZIP_FAIL_CLOSED=true VALID_LAYOUT_REQUIRED=true UNREADABLE_FAIL_CLOSED=true ZIP_TRAVERSAL_DENIED=true TEMP_STAGE_CLEAN=true NO_NETWORK_OR_LIVE_RUNTIME=true'
 }
