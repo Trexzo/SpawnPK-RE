@@ -114,7 +114,10 @@ public final class R99OfflineCrossQueueRetirementFenceTest {
                     System.currentTimeMillis()+650L,
                     player,generation,()->{
                         realtimeMutation.incrementAndGet();
-                        spawn(player,385);
+                        try{spawn(player,385);}
+                        catch(IOException error){
+                            throw new IllegalStateException(error);
+                        }
                     });
                 world.events().scheduleOwnedForTest(
                     eventTick,player.id(),generation,()->{
