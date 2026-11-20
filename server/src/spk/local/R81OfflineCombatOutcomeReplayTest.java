@@ -38,6 +38,7 @@ public final class R81OfflineCombatOutcomeReplayTest {
             new CollectionLogDefinition.CollectionId("collection:r81-fixture");
         final CollectionLogService collections;
         final CombatOutcomeObserverGroup group;
+        final CombatOutcomeObserver delivery;
         final AtomicInteger objectiveAdmissions=new AtomicInteger();
         final AtomicInteger matchAdmissions=new AtomicInteger();
         final AtomicInteger resolverCalls=new AtomicInteger();
@@ -177,7 +178,7 @@ public final class R81OfflineCombatOutcomeReplayTest {
                 ownership::requireAdmitted
             );
 
-            AtomicReference<CombatOutcomeObserverGroup> groupRef=
+            AtomicReference<CombatOutcomeObserver> deliveryRef=
                 new AtomicReference<>();
             group=new CombatOutcomeObserverGroup(
                 Arrays.asList(
@@ -186,7 +187,7 @@ public final class R81OfflineCombatOutcomeReplayTest {
                         if(mode==Mode.REENTRANT &&
                            fact.type()==CombatOutcomeType.PLAYER_KILL){
                             recursiveCalls.incrementAndGet();
-                            groupRef.get().onCombatOutcome(fact);
+                            deliveryRef.get().onCombatOutcome(fact);
                         }
                         if(mode==Mode.QUIESCE_AFTER_OBJECTIVE &&
                            fact.type()==CombatOutcomeType.PLAYER_KILL)
@@ -198,23 +199,23 @@ public final class R81OfflineCombatOutcomeReplayTest {
                 ),
                 (index,observer,fact,error)->failures.incrementAndGet()
             );
-            groupRef.set(group);
             group.installOfflineProjectionAdmissionForTest(
                 ownership::permitsFanout
             );
-            if(installReplay){
-                group.installOfflineReplayAdmissionForTest(
-                    replay::beginFirstDelivery
-                );
-            }
+            delivery=installReplay
+                ?new R81OfflineCombatOutcomeDeliveryGuard(
+                    ownership,replay,group
+                )
+                :group;
+            deliveryRef.set(delivery);
             world.domainEvents().subscribe(
                 CombatOutcome.class,DomainEventBus.Priority.NORMAL,
                 fact->{
                     busDeliveries.incrementAndGet();
                     // A repeated callback with the SAME R79-proven object.
                     // Never bypass the producer's bus proof to fabricate it.
-                    group.onCombatOutcome(fact);
-                    group.onCombatOutcome(fact);
+                    delivery.onCombatOutcome(fact);
+                    delivery.onCombatOutcome(fact);
                 }
             );
             world.domainEvents().subscribe(
@@ -281,7 +282,7 @@ public final class R81OfflineCombatOutcomeReplayTest {
         recursiveReplayRefused();
         distinctFactsCannotShareKey();
         ownerDenialDoesNotConsumeReplay();
-        duplicateReplayInstallationDenied();
+        sourceProofRequiredForNewFact();
         unchangedWithoutReplayHook();
         System.out.println(
             "R81_OFFLINE_COMBAT_OUTCOME_REPLAY_PASS "+
@@ -293,7 +294,7 @@ public final class R81OfflineCombatOutcomeReplayTest {
             "nestedFanoutSameFactRefused=true "+
             "distinctSameFieldFactsNotCollapsed=true "+
             "ownerPreflightBeforeReplayConsumption=true "+
-            "duplicateHookInstallationDenied=true "+
+            "sourceProofRequiredForNewFact=true "+
             "uninstalledLegacyBehaviorUnchanged=true "+
             "offlineAtMostOnceNotDurableExactlyOnce=true"
         );
@@ -382,64 +383,56 @@ public final class R81OfflineCombatOutcomeReplayTest {
             "R81 falsely coalesced distinct equal-field outcomes");
     }
 
-    private static void ownerDenialDoesNotConsumeReplay(){
-        R81OfflineCombatOutcomeReplayFence ledger=
-            new R81OfflineCombatOutcomeReplayFence();
-        CombatOutcome fact=new CombatOutcome(
-            "a","v",CombatOutcomeType.PLAYER_KILL,
-            CombatOutcomeContext.PLAYER_PVP,1L,"TEST"
-        );
-        AtomicInteger permitted=new AtomicInteger();
-        AtomicInteger called=new AtomicInteger();
-        CombatOutcomeObserverGroup group=new CombatOutcomeObserverGroup(
-            Collections.singletonList(ignored->called.incrementAndGet()),
-            (index,observer,outcome,error)->{
-                throw new AssertionError("R81 unexpected local failure");
-            }
-        );
-        group.installOfflineProjectionAdmissionForTest(
-            (ignored,index)->permitted.get()==1
-        );
-        group.installOfflineReplayAdmissionForTest(
-            ledger::beginFirstDelivery
-        );
-        group.onCombatOutcome(fact);
-        require(ledger.acceptedForTest()==0&&called.get()==0,
-            "R81 consumed replay token before R80 owner preflight");
-        permitted.set(1);
-        group.onCombatOutcome(fact);
-        group.onCombatOutcome(fact);
-        require(ledger.acceptedForTest()==1&&ledger.deniedForTest()==1&&
-                called.get()==1,
-            "R81 incorrect owner preflight/first-delivery order");
+    private static void ownerDenialDoesNotConsumeReplay()throws Exception{
+        try(Fixture f=new Fixture(Mode.COMPLETE,true)){
+            // Owning two valid player references outside the WorldPulse
+            // cannot consume a replay token or mutate any service.
+            CombatOutcome spoof=new CombatOutcome(
+                f.attacker.id().toString(),f.target.id().toString(),
+                CombatOutcomeType.PLAYER_KILL,
+                CombatOutcomeContext.PLAYER_PVP,1L,
+                PlayerLifecycleService.AUTHORITY
+            );
+            f.delivery.onCombatOutcome(spoof);
+            require(f.replay.acceptedForTest()==0&&
+                    f.ownership.deniedFanoutCountForTest()>=1,
+                "R81 consumed a replay token off-world");
+            f.lethal();
+            f.state(1L,1L,2L,3L,Long.valueOf(7L),1,0);
+            require(f.replay.acceptedForTest()==2,
+                "R81 off-world denial consumed real producer's token");
+        }
     }
 
-    private static void duplicateReplayInstallationDenied()throws Exception{
+    private static void sourceProofRequiredForNewFact()throws Exception{
         try(Fixture f=new Fixture(Mode.COMPLETE,true)){
-            try{
-                f.group.installOfflineReplayAdmissionForTest(
-                    fact->true
+            AtomicInteger rejected=new AtomicInteger();
+            f.world.events().schedule(1L,()->{
+                CombatOutcome forged=new CombatOutcome(
+                    f.attacker.id().toString(),f.target.id().toString(),
+                    CombatOutcomeType.PLAYER_KILL,
+                    CombatOutcomeContext.PLAYER_PVP,1L,
+                    PlayerLifecycleService.AUTHORITY
                 );
-                throw new AssertionError(
-                    "R81 replay policy replacement was permitted"
-                );
-            }catch(IllegalStateException expected){
-                require(expected.getMessage().contains(
-                    "R81_REPLAY_GATE_DENIED already installed"
-                ),"R81 wrong policy replacement denial");
-            }
-        }
-        CombatOutcomeObserverGroup noOwner=new CombatOutcomeObserverGroup(
-            Collections.singletonList(fact->{}),
-            (index,observer,fact,error)->{}
-        );
-        try{
-            noOwner.installOfflineReplayAdmissionForTest(fact->true);
-            throw new AssertionError("R81 replay gate without R80 accepted");
-        }catch(IllegalStateException expected){
-            require(expected.getMessage().contains(
-                "R81_REPLAY_GATE_DENIED R80 owner gate required"
-            ),"R81 missing R80 gate not rejected");
+                try{
+                    f.world.domainEvents().publish(forged);
+                    throw new AssertionError(
+                        "R81 forged field-identical event published"
+                    );
+                }catch(java.io.IOException expected){
+                    require(expected.getMessage().contains(
+                        "R79_PVP_DENIED unverified combat fact"
+                    ),"R81 raw fact rejected for wrong reason");
+                    rejected.incrementAndGet();
+                }catch(Exception error){
+                    throw new IllegalStateException(error);
+                }
+            });
+            require(f.world.observePulse(System.currentTimeMillis())==1L&&
+                    rejected.get()==1&&
+                    f.replay.acceptedForTest()==0,
+                "R81 unverified raw source consumed a replay entry");
+            f.state(0L,0L,0L,0L,null,0,0);
         }
     }
 
