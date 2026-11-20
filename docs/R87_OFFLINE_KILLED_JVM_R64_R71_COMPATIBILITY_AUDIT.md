@@ -34,8 +34,11 @@ The JVM writes a cutpoint marker and remains **inside the real
 OS-locked takeover**. The parent confirms it cannot acquire the
 lock, forcibly terminates the child with `destroyForcibly()`,
 waits for process exit, and then checks the canonical bytes
-without a live child. These are real independent Java processes,
-rather than R86's exception-injection substitute.
+without a live child. A bounded, **read-only** lock-release observation
+allows Windows to finish releasing the exited JVM's OS lock; it does
+not retry a takeover, issue a token or perform a consumer write.
+These are real independent Java processes, rather than R86's
+exception-injection substitute.
 
 ### Expected results at each kill point
 
