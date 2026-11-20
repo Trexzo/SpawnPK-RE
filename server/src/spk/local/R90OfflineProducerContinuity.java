@@ -414,6 +414,48 @@ final class R90OfflineProducerContinuity {
         });
     }
 
+    /**
+     * R96 offline-only: one R60 critical section checks R64/R63, R89
+     * highwater, and R90 producer-incarnation identity before recording a
+     * separate retirement witness. No production authentication is claimed.
+     */
+    static void requireCommittedSourceUnderLockForTest(
+        Path j,Path a,Path g,Path s,
+        R64OfflineSessionOwnership.Token owner,Ticket ticket,
+        long expectedOrdinal)throws IOException{
+        Objects.requireNonNull(ticket,"ticket");
+        R60TradePairCoordinator.requireHeldOnCurrentThread(j);
+        long high=R89OfflineDurableCaptureAdmission
+            .committedOrdinalUnderLock(j,a,g,s,owner);
+        Record producer=read(path(s,owner.username));
+        requireCommitted(producer,owner,high);
+        if(!ticket.matches(producer)||
+                high!=expectedOrdinal||
+                expectedOrdinal<1L)
+            throw new IOException(
+                "R96_SOURCE_DENIED stale producer identity or ordinal");
+    }
+
+    /** R96 fresh-process review binding to the recorded producer identity. */
+    static void requireCommittedIdentityUnderLockForTest(
+        Path j,Path a,Path g,Path s,
+        R64OfflineSessionOwnership.Token owner,
+        UUID stream,UUID incarnation,long producerGeneration,
+        long expectedOrdinal)throws IOException{
+        R60TradePairCoordinator.requireHeldOnCurrentThread(j);
+        long high=R89OfflineDurableCaptureAdmission
+            .committedOrdinalUnderLock(j,a,g,s,owner);
+        Record producer=read(path(s,owner.username));
+        requireCommitted(producer,owner,high);
+        if(!producer.stream.equals(stream)||
+                !producer.incarnation.equals(incarnation)||
+                producer.producerGeneration!=producerGeneration||
+                high!=expectedOrdinal||
+                expectedOrdinal<1L)
+            throw new IOException(
+                "R96_SOURCE_DENIED stale restart identity or ordinal");
+    }
+
     private static void requireCommitted(
         Record record,R64OfflineSessionOwnership.Token owner,long high)
         throws IOException{
