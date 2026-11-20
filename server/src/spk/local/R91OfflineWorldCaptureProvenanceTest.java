@@ -375,7 +375,7 @@ public final class R91OfflineWorldCaptureProvenanceTest {
             }
         };
     }
-    private static void spawn(WorldPlayer player,int item){
+    private static void spawn(WorldPlayer player,int item)throws IOException{
         String result=player.bank().spawnItem(item,1,
             new ServerPacketWriter(new OutboundPacketQueue(),
                 new IsaacCipher(new int[]{1,2,3,4})));
