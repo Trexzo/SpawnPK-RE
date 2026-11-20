@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,6 +51,16 @@ public final class R91OfflineWorldCaptureProvenanceTest {
                 scratch.resolve("missing-stamp"));
             invalidStampIssuerRejectedAtWorldCapture(
                 scratch.resolve("bad-issuer"));
+            queuedOldGenerationDeniedAtIoCommit(
+                scratch.resolve("retired-generation"));
+            System.out.println(
+                "R92_OFFLINE_WORLD_OWNER_GENERATION_FENCE_PASS "+
+                "realDeferredIoQueueBarrier=true "+
+                "retiredWorldGenerationRejectedUnderLifecycleLease=true "+
+                "freshWorldGenerationCanSave=true "+
+                "canonicalFilesUnchangedOnDenial=true "+
+                "manualUnboundStampRefused=true "+
+                "optInOnlyNoLiveIoLock=true");
             System.out.println(
                 "R91_OFFLINE_WORLD_CAPTURE_PROVENANCE_PASS "+
                 "realWorldThreadDeferredAndFinalCapture=true "+
@@ -208,6 +219,119 @@ public final class R91OfflineWorldCaptureProvenanceTest {
             require(f.inspectProducer(f.ready())==1L,
                 "R91 new World failed to publish first incarnation capture");
         }
+    }
+
+
+    /**
+     * R92: a once-valid deferred World save enters the real persistence
+     * queue while a deliberately blocked repository LOAD occupies its sole
+     * IO worker. The actor is then unregistered and a new actor with the
+     * same account name becomes owner. The queued OLD actor must be denied
+     * before R90 PREPARED or any account/ledger/watermark mutation.
+     */
+    private static void queuedOldGenerationDeniedAtIoCommit(
+        Path root)throws Exception{
+        Fixture f=new Fixture(root,true);
+        R90OfflineProducerContinuity.Session session=f.initialize();
+        CountDownLatch loadEntered=new CountDownLatch(1);
+        CountDownLatch releaseLoad=new CountDownLatch(1);
+        PlayerRepository blockingReader=new PlayerRepository(){
+            @Override public Optional<PlayerSnapshot> load(
+                String username)throws IOException{
+                loadEntered.countDown();
+                try{
+                    if(!releaseLoad.await(15L,TimeUnit.SECONDS))
+                        throw new IOException("R92_LOAD_BARRIER_TIMEOUT");
+                }catch(InterruptedException interrupted){
+                    Thread.currentThread().interrupt();
+                    throw new IOException(
+                        "R92_LOAD_BARRIER_INTERRUPTED",interrupted);
+                }
+                return f.files().load(username);
+            }
+            @Override public void save(PlayerSnapshot snapshot)
+                    throws IOException{
+                throw new IOException("R92_RAW_REPOSITORY_BYPASS");
+            }
+        };
+        try(World world=World.isolatedForTest(60_000L,blockingReader)){
+            WorldPlayer old=f.player();
+            long oldGeneration=world.registerPlayer(old,USER);
+            R91OfflineWorldCaptureGate gate=
+                R91OfflineWorldCaptureGate.installGenerationFencedForTest(
+                    world,session);
+            world.start();
+            Bytes original=f.bytes();
+            PlayerSnapshot base=f.baseSnapshot();
+            // A package-local fabricated stamp lacks the actual actor
+            // identity bound under the World capture mutation lock.
+            expectFailure(()->gate.withStampedAdmission(
+                1L,base,stamp(session,1L,base,oldGeneration),
+                ()->{throw new IOException(
+                    "R92_RAW_REPOSITORY_BYPASS");}),
+                "R92_WORLD_OWNER_DENIED missing captured actor");
+            require(original.same(f.bytes()),
+                "R92 unbound actor stamp changed canonical bytes");
+
+            AtomicReference<WorldPlayerPersistence.CapturedSave> held=
+                new AtomicReference<>();
+            world.submitAndWait(old,oldGeneration,()->{
+                spawn(old,560);
+                held.set(world.persistence().captureDeferredSave(
+                    USER,old,oldGeneration,0,"[r92] ",
+                    "HELD_BEFORE_OWNER_REPLACEMENT"));
+            },10_000L);
+            require(held.get()!=null &&
+                    held.get().ticket.provenance!=null &&
+                    held.get().ticket.provenance.capturedOwner==old,
+                "R92 deferred capture not tied to original World actor");
+
+            AtomicReference<Throwable> loadFailure=new AtomicReference<>();
+            Thread reader=new Thread(()->{
+                try{world.persistence().load(USER);}
+                catch(Throwable failure){loadFailure.set(failure);}
+            },"r92-offline-io-load-barrier");
+            reader.start();
+            try{
+                require(loadEntered.await(10L,TimeUnit.SECONDS),
+                    "R92 did not occupy the real IO worker");
+                WorldPlayerPersistence.SaveTicket stale=
+                    world.persistence().submitCapturedWithBackpressure(
+                        held.get(),5_000L);
+                require(world.unregisterPlayer(old,oldGeneration),
+                    "R92 could not unregister old actor");
+                WorldPlayer fresh=f.player();
+                long freshGeneration=world.registerPlayer(fresh,USER);
+                Bytes beforeRelease=f.bytes();
+                releaseLoad.countDown();
+                reader.join(12_000L);
+                require(!reader.isAlive() && loadFailure.get()==null,
+                    "R92 worker load failed "+loadFailure.get());
+                expectTicketDenied(stale,"R92_WORLD_OWNER_DENIED");
+                require(beforeRelease.same(f.bytes()),
+                    "R92 stale queued save changed a canonical record");
+                AtomicReference<WorldPlayerPersistence.SaveTicket> next=
+                    new AtomicReference<>();
+                world.submitAndWait(fresh,freshGeneration,()->{
+                    spawn(fresh,565);
+                    next.set(world.persistence().captureAndSave(
+                        USER,fresh,freshGeneration,0,"[r92] ",
+                        "FRESH_WORLD_GENERATION"));
+                },10_000L);
+                require(next.get()!=null&&
+                        next.get().captureOrdinal==2L &&
+                        next.get().provenance.capturedOwner==fresh,
+                    "R92 did not source new actor capture ordinal2");
+                awaitSuccess(next.get());
+                require(session.gate.highestAcceptedOrdinal()==2L,
+                    "R92 successor generation could not commit");
+            }finally{
+                releaseLoad.countDown();
+                reader.join(12_000L);
+            }
+        }
+        require(f.inspectProducer(f.ready())==2L,
+            "R92 committed producer ordinal not durable");
     }
 
     private static void wrongStampRejectedBeforePublication(
