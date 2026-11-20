@@ -42,6 +42,37 @@ final class R86OfflineOwnerEpochRecord {
     private static final String LOCK="r86-offline-writer.lock";
     private static final int MAX_BYTES=4096;
 
+    /**
+     * R87 OFFLINE TEST-ONLY process-kill coordination. Hook is installed
+     * only in the isolated child JVM's invoking thread; never used by any
+     * World, LocalSession, account or real combat producer.
+     */
+    @FunctionalInterface interface OfflineTakeoverCrashCutpoint {
+        void reached(String cutpoint)throws IOException;
+    }
+
+    private static final ThreadLocal<OfflineTakeoverCrashCutpoint>
+        TEST_TAKEOVER_CUTPOINT=new ThreadLocal<>();
+
+    static void installOfflineTakeoverCutpointForTest(
+        OfflineTakeoverCrashCutpoint hook){
+        Objects.requireNonNull(hook,"hook");
+        if(TEST_TAKEOVER_CUTPOINT.get()!=null)
+            throw new IllegalStateException(
+                "R87_CRASH_PROBE_DENIED already installed");
+        TEST_TAKEOVER_CUTPOINT.set(hook);
+    }
+
+    static void clearOfflineTakeoverCutpointForTest(){
+        TEST_TAKEOVER_CUTPOINT.remove();
+    }
+
+    private static void signalTakeoverCutpoint(String stage)
+        throws IOException{
+        OfflineTakeoverCrashCutpoint hook=TEST_TAKEOVER_CUTPOINT.get();
+        if(hook!=null)hook.reached(stage);
+    }
+
     @FunctionalInterface private interface Checked<T> {
         T run()throws IOException;
     }
@@ -314,6 +345,7 @@ final class R86OfflineOwnerEpochRecord {
             Path canonical=root.resolve(RECORD);
             if(Files.exists(canonical,LinkOption.NOFOLLOW_LINKS))
                 throw new IOException("R86_OWNER_DENIED already initialized");
+            requireNoOrphanStage(root);
             State initial=new State(UUID.randomUUID(),initialEpoch,
                 UUID.randomUUID(),initialEpoch,0L,0L,10,"-","-",
                 0,0,0,false,false,false);
@@ -341,7 +373,7 @@ final class R86OfflineOwnerEpochRecord {
             if(!predecessor.matches(before))
                 throw new IOException("R86_STALE_OWNER predecessor rejected");
             State successor=before.successor();
-            atomicReplace(root,successor,fault);
+            atomicReplace(root,successor,fault,true);
             State verified=read(root);
             if(!verified.token().matches(successor))
                 throw new IOException(
@@ -356,6 +388,10 @@ final class R86OfflineOwnerEpochRecord {
     }
 
     private static State read(Path root)throws IOException{
+        // R87: after a real process kill, an incomplete staged record
+        // is evidence of ambiguous publication. Never delete it or permit
+        // silent automatic recovery, even if canonical bytes parse.
+        requireNoOrphanStage(root);
         Path canonical=root.resolve(RECORD);
         if(!Files.isRegularFile(canonical,LinkOption.NOFOLLOW_LINKS))
             throw new IOException("R86_RECORD_QUARANTINED missing record");
@@ -364,8 +400,24 @@ final class R86OfflineOwnerEpochRecord {
         return State.parse(Files.readString(canonical,StandardCharsets.UTF_8));
     }
 
+    private static void requireNoOrphanStage(Path root)
+        throws IOException{
+        try(java.nio.file.DirectoryStream<Path> stages=
+                Files.newDirectoryStream(root,"r86-stage-*.tmp")){
+            if(stages.iterator().hasNext())
+                throw new IOException(
+                    "R87_STAGE_QUARANTINED orphaned staged takeover record");
+        }
+    }
+
     private static void atomicReplace(
         Path root,State state,Fault fault)throws IOException{
+        atomicReplace(root,state,fault,false);
+    }
+
+    private static void atomicReplace(
+        Path root,State state,Fault fault,boolean takeover)
+        throws IOException{
         Path tmp=Files.createTempFile(root,"r86-stage-",".tmp");
         try{
             byte[] bytes=state.serialize().getBytes(StandardCharsets.UTF_8);
@@ -376,6 +428,8 @@ final class R86OfflineOwnerEpochRecord {
                 while(buffer.hasRemaining())file.write(buffer);
                 file.force(true);
             }
+            if(takeover)
+                signalTakeoverCutpoint("STAGED_BEFORE_MOVE");
             if(fault==Fault.BEFORE_MOVE)
                 throw new IOException("R86_INJECTED before atomic move");
             try{
@@ -386,6 +440,8 @@ final class R86OfflineOwnerEpochRecord {
                 throw new IOException(
                     "R86_OWNER_DENIED no atomic replacement support",error);
             }
+            if(takeover)
+                signalTakeoverCutpoint("REPLACED_BEFORE_ACK");
             if(fault==Fault.AFTER_MOVE_BEFORE_ACK)
                 throw new IOException(
                     "R86_INJECTED after atomic move before ack");
