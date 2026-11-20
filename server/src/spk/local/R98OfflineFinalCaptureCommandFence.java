@@ -79,6 +79,7 @@ final class R98OfflineFinalCaptureCommandFence
         Objects.requireNonNull(actor,"actor");
         Objects.requireNonNull(username,"username");
         if(!world.pulse().inExecutionContext()||
+                !Thread.holdsLock(actor.mutationLock())||
                 !world.players().owns(actor,generation)||
                 !username.equals(actor.username()))
             throw new IOException(
