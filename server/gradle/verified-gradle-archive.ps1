@@ -18,7 +18,20 @@ function Install-VerifiedGradleArchive {
     }
 
     # Verify both new downloads and cached ZIPs BEFORE any extraction.
-    $actual = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    # Use the original bootstrap's .NET stream hash rather than the
+    # Get-FileHash cmdlet: the real launcher may run without that
+    # cmdlet available after its JDK 21 environment selection.
+    $hasher = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($ZipPath)
+        try {
+            $actual = ([BitConverter]::ToString(
+                $hasher.ComputeHash($stream)
+            )).Replace('-', '').ToLowerInvariant()
+        }
+        finally { $stream.Dispose() }
+    }
+    finally { $hasher.Dispose() }
     $expected = $ExpectedSha256.ToLowerInvariant()
     if ($actual -ne $expected) {
         Remove-Item -LiteralPath $ZipPath -Force -ErrorAction SilentlyContinue
