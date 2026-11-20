@@ -14,14 +14,31 @@ import java.util.Objects;
 final class R91OfflineWorldCaptureGate
         implements WorldPlayerPersistence.OfflineStampedSaveAdmission {
     private final R89OfflineDurableCaptureAdmission admitted;
+    private final World captureWorld;
+    private final boolean requireCurrentWorldOwner;
 
     private R91OfflineWorldCaptureGate(
-        R89OfflineDurableCaptureAdmission admitted){
+        R89OfflineDurableCaptureAdmission admitted,
+        World captureWorld,boolean requireCurrentWorldOwner){
         this.admitted=Objects.requireNonNull(admitted,"admitted");
+        this.captureWorld=Objects.requireNonNull(captureWorld,"captureWorld");
+        this.requireCurrentWorldOwner=requireCurrentWorldOwner;
     }
 
     static R91OfflineWorldCaptureGate installForTest(
         World world,R90OfflineProducerContinuity.Session source){
+        return install(world,source,false);
+    }
+
+    /** R92: intentionally opt-in, offline-only strong World ownership lease. */
+    static R91OfflineWorldCaptureGate installGenerationFencedForTest(
+        World world,R90OfflineProducerContinuity.Session source){
+        return install(world,source,true);
+    }
+
+    private static R91OfflineWorldCaptureGate install(
+        World world,R90OfflineProducerContinuity.Session source,
+        boolean requireCurrentWorldOwner){
         Objects.requireNonNull(world,"world");
         Objects.requireNonNull(source,"source");
         // No game startup, file mutation or capture occurs here.
@@ -29,7 +46,8 @@ final class R91OfflineWorldCaptureGate
         source.seedWorldBeforeStartForTest(world);
         source.gate.requireWorldCaptureStampsForTest();
         R91OfflineWorldCaptureGate gate=
-            new R91OfflineWorldCaptureGate(source.gate);
+            new R91OfflineWorldCaptureGate(
+                source.gate,world,requireCurrentWorldOwner);
         world.persistence().installOfflineCaptureIssuerForTest(
             (ordinal,snapshot,playerGeneration)->
                 new WorldPlayerPersistence.OfflineCaptureStamp(
@@ -68,7 +86,29 @@ final class R91OfflineWorldCaptureGate
         WorldPlayerPersistence.OfflineCaptureStamp stamp,
         WorldPlayerPersistence.CheckedSaveWriter rawWriter
     )throws IOException{
-        admitted.withStampedWorldCaptureForTest(
-            ordinal,snapshot,stamp,rawWriter);
+        if(!requireCurrentWorldOwner){
+            admitted.withStampedWorldCaptureForTest(
+                ordinal,snapshot,stamp,rawWriter);
+            return;
+        }
+        if(stamp==null||stamp.capturedOwner==null)
+            throw new IOException(
+                "R92_WORLD_OWNER_DENIED missing captured actor");
+        // The real World lifecycle lock prevents unregister/re-register
+        // while the existing R60 + R89 + R90 commit is in progress.
+        // This intentionally blocks the offline World during disk IO and
+        // MUST NOT be enabled in the live low-latency persistence path.
+        boolean current=captureWorld.withOpenPlayerOwnershipIfCurrent(
+            stamp.capturedOwner,stamp.worldPlayerGeneration,()->{
+                if(!snapshot.username().equals(
+                        stamp.capturedOwner.username()))
+                    throw new IOException(
+                        "R92_WORLD_OWNER_DENIED username changed");
+                admitted.withStampedWorldCaptureForTest(
+                    ordinal,snapshot,stamp,rawWriter);
+            });
+        if(!current)
+            throw new IOException(
+                "R92_WORLD_OWNER_DENIED retired generation");
     }
 }
