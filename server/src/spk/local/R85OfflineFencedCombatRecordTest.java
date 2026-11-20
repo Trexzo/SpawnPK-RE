@@ -70,24 +70,24 @@ public final class R85OfflineFencedCombatRecordTest {
         Path root)throws Exception{
         R85OfflineFencedCombatRecord a=
             R85OfflineFencedCombatRecord.create(root,111L);
-        R85OfflineFencedCombatRecord b=
+        R85OfflineFencedCombatRecord b0=
             R85OfflineFencedCombatRecord.reopen(root,111L);
-        require(a.observedGeneration()==0L&&b.observedGeneration()==0L,
+        require(a.observedGeneration()==0L&&b0.observedGeneration()==0L,
             "R85 initial generation mismatch");
         a.commitLethal(R84OfflineAtomicCombatRecord.Fault.NONE);
         require(a.observedGeneration()==1L,
             "R85 producer generation not advanced");
         byte[] afterProducer=canonical(root);
-        expectFailure(()->b.commitLethal(
+        expectFailure(()->b0.commitLethal(
             R84OfflineAtomicCombatRecord.Fault.NONE),
             "R85_STALE_GENERATION");
-        expectFailure(()->b.observedState(),"R85_REOPEN_REQUIRED");
+        expectFailure(()->b0.observedState(),"R85_REOPEN_REQUIRED");
         require(Arrays.equals(afterProducer,canonical(root)),
             "R85 stale duplicate producer changed bytes");
 
-        b=R85OfflineFencedCombatRecord.reopen(root,111L);
         // Take both handles from the exact same committed generation.
-        R85OfflineFencedCombatRecord staleB=b;
+        R85OfflineFencedCombatRecord staleB=
+            R85OfflineFencedCombatRecord.reopen(root,111L);
         a.commitConsumer(R84OfflineAtomicCombatRecord.Consumer.OBJECTIVE,
             R84OfflineAtomicCombatRecord.Fault.NONE);
         require(a.observedGeneration()==2L,
