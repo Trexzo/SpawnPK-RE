@@ -39,15 +39,23 @@ final class R91OfflineWorldCaptureGate
     private static R91OfflineWorldCaptureGate install(
         World world,R90OfflineProducerContinuity.Session source,
         boolean requireCurrentWorldOwner){
+        installCaptureProvenanceForTest(world,source);
+        R91OfflineWorldCaptureGate gate=
+            new R91OfflineWorldCaptureGate(
+                source.gate,world,requireCurrentWorldOwner);
+        world.persistence().installOfflineSaveAdmissionForTest(gate);
+        return gate;
+    }
+
+    /** Shared R91 issuer setup, also used by R93's separate offline gate. */
+    static void installCaptureProvenanceForTest(
+        World world,R90OfflineProducerContinuity.Session source){
         Objects.requireNonNull(world,"world");
         Objects.requireNonNull(source,"source");
         // No game startup, file mutation or capture occurs here.
         // Existing R72 seeding fails if World has already started.
         source.seedWorldBeforeStartForTest(world);
         source.gate.requireWorldCaptureStampsForTest();
-        R91OfflineWorldCaptureGate gate=
-            new R91OfflineWorldCaptureGate(
-                source.gate,world,requireCurrentWorldOwner);
         world.persistence().installOfflineCaptureIssuerForTest(
             (ordinal,snapshot,playerGeneration)->
                 new WorldPlayerPersistence.OfflineCaptureStamp(
@@ -61,8 +69,6 @@ final class R91OfflineWorldCaptureGate
                     playerGeneration
                 )
         );
-        world.persistence().installOfflineSaveAdmissionForTest(gate);
-        return gate;
     }
 
     @Override public void withAdmission(
