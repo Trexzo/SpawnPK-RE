@@ -178,7 +178,7 @@ public final class R88OfflineR64R71KilledSaveTest {
 
                 expectDenied(()->R64OfflineSessionOwnership.saveOwned(
                     p.journal,p.accounts,p.generations,p.sessions,
-                    initial,newer.get().snapshot,false),
+                    initial,newer.get().ticket.snapshot,false),
                     "R64_SESSION_DENIED stale generation");
                 expectDenied(()->R64OfflineSessionOwnership.replaceOwner(
                     p.journal,p.accounts,p.generations,p.sessions,initial),
