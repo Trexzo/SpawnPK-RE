@@ -27,6 +27,8 @@ final class R93OfflineNonblockingWorldTurnoverGate
     private static final class Lease {
         int active;
         boolean retiring;
+        /** R94: a failed leased writer must not authorize retirement. */
+        boolean uncertain;
     }
 
     private final World world;
@@ -34,21 +36,39 @@ final class R93OfflineNonblockingWorldTurnoverGate
     private final IdentityHashMap<WorldPlayer,Map<Long,Lease>> owners=
         new IdentityHashMap<>();
     private volatile BeforePublishForTest beforePublishForTest;
+    private final boolean quarantineFailedIo;
+    private volatile boolean failAfterR89PrepareForTest;
 
     private R93OfflineNonblockingWorldTurnoverGate(
-        World world,R89OfflineDurableCaptureAdmission admitted){
+        World world,R89OfflineDurableCaptureAdmission admitted,
+        boolean quarantineFailedIo){
         this.world=Objects.requireNonNull(world,"world");
         this.admitted=Objects.requireNonNull(admitted,"admitted");
+        this.quarantineFailedIo=quarantineFailedIo;
     }
 
     static R93OfflineNonblockingWorldTurnoverGate installForTest(
         World world,R90OfflineProducerContinuity.Session producer){
+        return install(world,producer,false);
+    }
+
+    /** R94: explicit offline quarantine mode, still no live integration. */
+    static R93OfflineNonblockingWorldTurnoverGate
+            installFailureQuarantineForTest(
+        World world,R90OfflineProducerContinuity.Session producer){
+        return install(world,producer,true);
+    }
+
+    private static R93OfflineNonblockingWorldTurnoverGate install(
+        World world,R90OfflineProducerContinuity.Session producer,
+        boolean quarantineFailedIo){
         Objects.requireNonNull(world,"world");
         Objects.requireNonNull(producer,"producer");
         R91OfflineWorldCaptureGate.installCaptureProvenanceForTest(
             world,producer);
         R93OfflineNonblockingWorldTurnoverGate gate=
-            new R93OfflineNonblockingWorldTurnoverGate(world,producer.gate);
+            new R93OfflineNonblockingWorldTurnoverGate(
+                world,producer.gate,quarantineFailedIo);
         world.installOfflineUnregisterAdmissionForTest(gate);
         world.persistence().installOfflineSaveAdmissionForTest(gate);
         return gate;
@@ -59,6 +79,18 @@ final class R93OfflineNonblockingWorldTurnoverGate
             throw new IllegalStateException(
                 "R93_TEST_HOOK_DENIED already installed");
         beforePublishForTest=Objects.requireNonNull(hook,"hook");
+    }
+
+    /** R94 only: controlled failure *after* durable R89 PREPARED. */
+    void failAfterR89PrepareForTest(){
+        if(!quarantineFailedIo||failAfterR89PrepareForTest)
+            throw new IllegalStateException(
+                "R94_CUTPOINT_DENIED fixture not ready");
+        failAfterR89PrepareForTest=true;
+    }
+
+    boolean quarantinedForTest(WorldPlayer actor,long generation){
+        synchronized(owners){return state(actor,generation).uncertain;}
     }
 
     private Lease state(WorldPlayer actor,long generation){
@@ -82,7 +114,8 @@ final class R93OfflineNonblockingWorldTurnoverGate
             Lease lease=state(player,generation);
             // Once retirement is requested, later saves are inadmissible.
             lease.retiring=true;
-            return lease.active==0;
+            return lease.active==0 &&
+                !(quarantineFailedIo && lease.uncertain);
         }
     }
 
@@ -132,6 +165,9 @@ final class R93OfflineNonblockingWorldTurnoverGate
                         "R93_TURNOVER_DENIED wrong account for actor");
                 synchronized(owners){
                     Lease lease=state(actor,generation);
+                    if(quarantineFailedIo && lease.uncertain)
+                        throw new IOException(
+                            "R94_IO_UNCERTAIN_QUARANTINED prior writer failed");
                     if(lease.retiring)
                         throw new IOException(
                             "R93_TURNOVER_DENIED owner retiring");
@@ -145,19 +181,39 @@ final class R93OfflineNonblockingWorldTurnoverGate
             throw new IOException(
                 "R93_TURNOVER_DENIED actor no longer registered");
 
+        boolean completed=false;
+        boolean crashHookInstalled=false;
         try{
             // Here World is free to execute commands and ticks. A
             // concurrent unregister returns false, rather than waiting.
             BeforePublishForTest hook=beforePublishForTest;
             if(hook!=null)hook.run();
+            if(failAfterR89PrepareForTest){
+                R89OfflineDurableCaptureAdmission.installCrashHookForTest(
+                    stage->{
+                        if("AFTER_PREPARE_BEFORE_ACCOUNT".equals(stage))
+                            throw new IOException(
+                                "R94_INJECTED_R89_PREPARED_IO_FAILURE");
+                    });
+                crashHookInstalled=true;
+            }
             admitted.withStampedWorldCaptureForTest(
                 ordinal,snapshot,stamp,rawWriter);
+            completed=true;
         }finally{
+            if(crashHookInstalled)
+                R89OfflineDurableCaptureAdmission.clearCrashHookForTest();
             synchronized(owners){
                 Lease lease=state(actor,generation);
                 if(lease.active<1)
                     throw new IllegalStateException(
                         "R93_TURNOVER_LEASE_CORRUPT unexpected release");
+                // A failed write could have passed durable PREPARED or
+                // account publication before throwing. Even if the
+                // failure was earlier, this gate deliberately cannot
+                // prove no disk effect, and quarantines conservatively.
+                if(!completed && quarantineFailedIo)
+                    lease.uncertain=true;
                 lease.active--;
             }
         }
