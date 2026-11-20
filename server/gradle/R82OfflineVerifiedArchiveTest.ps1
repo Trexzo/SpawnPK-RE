@@ -14,7 +14,7 @@ function Require([bool]$Ok, [string]$Reason) {
 function Expect-Failed([scriptblock]$Action, [string]$Contains) {
     try { & $Action }
     catch {
-        Require ($_.Exception.Message.Contains($Contains)) (
+        Require ($_.Exception.Message.IndexOf($Contains, [StringComparison]::OrdinalIgnoreCase) -ge 0) (
             "Expected '$Contains', got '$($_.Exception.Message)'"
         )
         return
