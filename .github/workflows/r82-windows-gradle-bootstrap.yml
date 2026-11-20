@@ -1,0 +1,38 @@
+name: R82 Windows Verified Gradle Archive Bootstrap
+
+on:
+  push:
+    branches:
+      - playability/r82-windows-gradle-archive-bootstrap-20261120
+  pull_request:
+    paths:
+      - server/gradle/bootstrap-gradle.ps1
+      - server/gradle/verified-gradle-archive.ps1
+      - server/gradle/R82OfflineVerifiedArchiveTest.ps1
+      - .github/workflows/r82-windows-gradle-bootstrap.yml
+
+jobs:
+  windows-bootstrap:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Offline archive negative controls on Windows PowerShell 5.1
+        shell: pwsh
+        run: |
+          & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File .\server\gradle\R82OfflineVerifiedArchiveTest.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Offline archive negative controls on PowerShell 7
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File .\server\gradle\R82OfflineVerifiedArchiveTest.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Real shared gradlew.bat cold-distribution bootstrap smoke
+        shell: pwsh
+        working-directory: server
+        run: |
+          & .\gradlew.bat --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
