@@ -31,6 +31,7 @@ final class R86OfflineActivePvpOutcomeBridge
 
     // R90 explicitly offline. No LocalSession installs this journal.
     private R90OfflineAcceptedAttackJournal offlineAcceptedAttempt;
+    private R91OfflinePostDamageObservationJournal offlinePostDamage;
     private final ThreadLocal<R90OfflineAcceptedAttackJournal.Reservation>
         currentAttempt=new ThreadLocal<>();
     private int admitted;
@@ -121,6 +122,48 @@ final class R86OfflineActivePvpOutcomeBridge
                 "R90_ATTEMPT_DENIED duplicate or late installation"
             );
         offlineAcceptedAttempt=journal;
+    }
+
+    /** R91: install only before the first accepted isolated attack. */
+    synchronized void installOfflinePostDamageForTest(
+        R91OfflinePostDamageObservationJournal journal
+    ){
+        Objects.requireNonNull(journal,"journal");
+        if(offlinePostDamage!=null||offlineAcceptedAttempt==null||
+           issued!=0||admitted!=0||currentAttempt.get()!=null)
+            throw new IllegalStateException(
+                "R91_DAMAGE_DENIED duplicate/late or missing reservation"
+            );
+        offlinePostDamage=journal;
+    }
+
+    /**
+     * Called only by the six-argument, test-factory resolver after
+     * PlayerLifecycleService has already applied canonical HP damage.
+     * The real LocalSession four-argument resolver never calls it.
+     */
+    void afterCanonicalDamageBeforeOutcomesForTest(
+        WorldPlayer actualTarget,long tick,
+        PlayerLifecycleService.DamageResult actual
+    )throws IOException{
+        R91OfflinePostDamageObservationJournal journal=offlinePostDamage;
+        if(journal==null)return;
+        R90OfflineAcceptedAttackJournal.Reservation attempt=
+            currentAttempt.get();
+        if(!Boolean.TRUE.equals(inVerifiedActiveResolve.get())||
+           attempt==null||actualTarget!=target||
+           tick!=attempt.worldTick||currentProof.get()!=null)
+            throw new IOException(
+                "R91_DAMAGE_DENIED no active exact accepted source"
+            );
+        try{
+            requireCurrent("after actual HP mutation");
+        }catch(IllegalStateException denied){
+            throw new IOException(
+                "R91_DAMAGE_DENIED stale World owner after HP",denied
+            );
+        }
+        journal.observe(attempt,actual,tick);
     }
 
     R90OfflineAcceptedAttackJournal.Reservation
