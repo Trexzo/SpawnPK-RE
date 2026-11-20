@@ -49,6 +49,22 @@ final class R89OfflineDurableCaptureAdmission
     private static final ThreadLocal<OfflineCrashHook> TEST_CRASH_HOOK=
         new ThreadLocal<>();
 
+    /**
+     * R90 OFFLINE ONLY. The optional producer fence executes *inside* the
+     * existing R60 OS lock, never as a vulnerable check-then-write outside.
+     * A prepared producer record is intentionally left uncertain if a
+     * later R89/R64 publication or acknowledgement fails.
+     */
+    interface OfflineProducerFence {
+        void beforeCommit(R64OfflineSessionOwnership.Token current,
+                          long committedOrdinal,long nextOrdinal,
+                          String snapshotDigest)throws IOException;
+        void afterCommit(R64OfflineSessionOwnership.Token next,
+                         long committedOrdinal,
+                         String snapshotDigest)throws IOException;
+    }
+
+
     static void installCrashHookForTest(OfflineCrashHook hook){
         if(TEST_CRASH_HOOK.get()!=null)
             throw new IllegalStateException("R89_TEST_HOOK_DENIED active");
@@ -180,6 +196,26 @@ final class R89OfflineDurableCaptureAdmission
     private R64OfflineSessionOwnership.Token current;
     private long highest;
     private boolean poisoned;
+    private OfflineProducerFence offlineProducerFence;
+    synchronized void installOfflineProducerFenceForTest(
+        OfflineProducerFence fence){
+        if(offlineProducerFence!=null||poisoned)
+            throw new IllegalStateException(
+                "R90_PRODUCER_FENCE_DENIED already installed or poisoned");
+        offlineProducerFence=Objects.requireNonNull(fence,"fence");
+    }
+
+    static long committedOrdinalUnderLock(
+        Path journal,Path accounts,Path generations,Path sessions,
+        R64OfflineSessionOwnership.Token owner)throws IOException{
+        R60TradePairCoordinator.requireHeldOnCurrentThread(journal);
+        R64OfflineSessionOwnership.requireActiveOwnerUnderLock(
+            journal,accounts,generations,sessions,owner);
+        Watermark committed=read(file(sessions,owner.username));
+        requireCommitted(committed,owner);
+        return committed.highest;
+    }
+
     private final AtomicInteger written=new AtomicInteger();
     private final AtomicInteger identical=new AtomicInteger();
     private final AtomicInteger stale=new AtomicInteger();
@@ -295,6 +331,9 @@ final class R89OfflineDurableCaptureAdmission
             if(recorded.highest==Long.MAX_VALUE)
                 throw new IOException("R89_SAVE_DENIED ordinal overflow");
             try{
+                if(offlineProducerFence!=null)
+                    offlineProducerFence.beforeCommit(
+                        current,recorded.highest,ordinal,digest);
                 publish(file,new Watermark(
                     current,recorded.highest,Phase.PREPARED,
                     ordinal,digest));
@@ -311,6 +350,8 @@ final class R89OfflineDurableCaptureAdmission
                 publish(file,new Watermark(
                     next,ordinal,Phase.COMMITTED,0L,"-"));
                 cut("AFTER_WATERMARK_BEFORE_ACK");
+                if(offlineProducerFence!=null)
+                    offlineProducerFence.afterCommit(next,ordinal,digest);
                 current=next;
                 highest=ordinal;
                 if(changed)written.incrementAndGet();
