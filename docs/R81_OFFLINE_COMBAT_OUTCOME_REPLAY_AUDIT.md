@@ -1,93 +1,101 @@
-# R81 — offline at-most-once combat outcome projection fanout
+# R81 — offline at-most-once combat outcome projection delivery
 
 **DRAFT / STACKED ON R80 PR #3113 / OFF BY DEFAULT / UNMERGED**
 
 ## Source-confirmed replay problem
 
-R80 checks attacker/target World generations before each projection write,
-and safely rejects subsequent writes after owner quiescence. However the
-projection bridge's objective and match writes are **increments**, while
-Collection Log consumes a caller-owned absolute count. Re-delivery of the
-*same verified* `CombatOutcome` to an `CombatOutcomeObserverGroup` would
-repeat earlier committed objective and match updates. A partial first delivery
-can occur when a later binding or resolver throws (legacy group failure
-isolation) or an owner becomes terminal between projections.
+R80 checks attacker/target World generations before each projection write
+and rejects writes after quiescence. Objective and match projections are
+**increments**, but Collection Log uses a caller-supplied absolute count.
+Repeated **downstream delivery of the same verified fact object** could
+double-count earlier committed objectives and scores after partial or
+complete fanout.
 
-No durable event UUID, consumer checkpoint, multi-service commit journal or
-transaction coordinator exists at this recovered boundary. The tuple
-`(attacker, victim, type, worldTick)` is **not** a safe event ID: two
-independent legitimate facts might share those fields. R81 does not create,
-infer or persist a production event identity.
+There is no authenticated durable event UUID, per-consumer checkpoint,
+multi-service transaction journal or replay recovery policy at the
+recovered PvP bridge. The tuple `(attacker, victim, type, worldTick)`
+is **not** a safe deduplication identity: distinct legitimate facts may
+share all four fields.
+
+The original `CombatOutcomeObserverGroup` specifically rejects
+queue/retry/replay behavior as part of its isolated responsibility.
+R81 leaves the class byte-for-byte unchanged from R80 and places a
+separate opt-in **offline delivery wrapper** at the domain listener.
 
 ## Implementation
 
-- `CombatOutcomeObserverGroup` accepts a **separate offline-only** replay
-  admission installed via `installOfflineReplayAdmissionForTest`. Installation
-  requires R80's offline owner-admission hook already installed; duplicate
-  replacement is rejected. Uninstalled groups keep their previous behavior.
-- Immediately **after R80's owner preflight before observer zero** and before
-  the first projection write, the group calls the replay admission once per
-  incoming fact. If a previous delivery entered, it stops the entire fanout.
-- `R81OfflineCombatOutcomeReplayFence` uses Java reference identity, not
-  attacker/victim/source strings or field equality. A synchronized
-  `IdentityHashMap` admits the first instance once. Duplicate reference
-  delivery (including recursive group entry) is rejected before any write.
-- The first delivery is recorded **before** any observer executes. If
-  an observer later fails, a resolver throws, or the actor becomes terminal,
-  R81 **does not retry unfinished projections**, roll back earlier writes,
-  or convert an error into a fresh event. Existing R80 quiescence and R79
-  producer proof remain necessary.
-- R81's ledger holds strong object references and is intentionally scoped to
-  a short-lived, isolated test fixture. It is **not** a durable, bounded,
-  authenticated, distributed or deployable deduplication ledger.
+- `R81OfflineCombatOutcomeDeliveryGuard` wraps one already R80-gated
+  `CombatOutcomeObserverGroup`. It can be installed only by explicitly
+  wiring the wrapper in an offline listener. No LocalSession, network
+  or production code path creates this wrapper.
+- Before entering the group's first observer, the wrapper calls R80's
+  same-pair World generation/quiescence gate. An off-World, stale or
+  quiesced call is dropped without consuming an identity entry.
+  The original R80 group and per-binding checks remain active too.
+- `R81OfflineCombatOutcomeReplayFence` is a synchronized identity map
+  of exact `CombatOutcome` references, not a string/tuple/field
+  fingerprint. It records the first entry **before** calling the
+  group. Identical object re-delivery, including recursive wrapper
+  entry, is rejected before a second write.
+- The first delivery remains consumed even if an observer throws,
+  the owner quiesces, or an external absolute resolver fails.
+  **No rollback and no retry** of an incomplete fanout is attempted.
+  Earlier committed changes remain.
+- R79's actual real PvP producer-to-DomainEventBus identity proof is
+  required upstream. Neither R80's actor strings nor R81's ledger
+  provides proof by itself.
+
+The identity map retains strong object references for one short-lived
+isolated test fixture. It is not a bounded, durable, authenticated,
+distributed or deployable deduplication ledger.
 
 ## Verification scenarios
 
-`R81OfflineCombatOutcomeReplayTest` uses the **real R79-attested
-PlayerCombatResolutionService lethal PvP outcome**, real
-`DomainEventBus`, the R80 World owner gate, and real objective,
-participant/team score, and Collection Log services.
+`R81OfflineCombatOutcomeReplayTest` uses the genuine R79-attested
+`PlayerCombatResolutionService` lethal PvP facts, real
+`DomainEventBus`, R80 World checks and actual objective, match
+participant/team and Collection Log services. The listener calls the
+delivery wrapper **twice with the same fact reference while inside**
+the real R79-authenticated bus callback.
 
-The listener calls the group **twice with the same object reference while
-inside the real R79 source-attested callback**. This models duplicate
-downstream delivery without forging a new source fact.
+- Normal kill/death facts: two exact-instance duplicates refused.
+  Objectives progress once, participant +2 once, team +3 once,
+  Collection Log resolver once (synthetic fixture absolute count 7).
+- Second objective binding throws after first commit; group keeps
+  normal failure isolation. A duplicate cannot double-increment the
+  already committed first objective.
+- Second match binding throws after participant +2; team write is
+  not committed. Duplicate cannot apply participant score again.
+- Collection Log resolver throws after objectives/match commit.
+  Duplicate delivery does not retry the external resolver.
+- Attacker quiesces after objective. R80 stops further projections
+  and subsequent delivery. First committed objective persists.
+- Nested same-fact callback through the R81 wrapper is denied.
+- Distinct objects with the same attacker, victim, type, source and
+  tick are not falsely coalesced (identity-only unit check).
+- Off-world wrapper call is denied before consuming the ledger entry,
+  then a genuine R79 producer fact remains permitted.
+- A separately constructed fact published directly into the domain
+  bus is rejected by R79 source proof and consumes no R81 entry.
+- Without explicit R81 wrapper wiring, the original R80 group path
+  is unchanged and duplicating callback delivery behaves exactly
+  as before. Original `CombatOutcomeObserverGroupTest` explicitly
+  preserves its no-replay/async/transport contract.
 
-- Normal kill/death pair: two exact-instance duplicates rejected. Both
-  objectives advance once, participant score +2 once, team score +3 once,
-  Collection Log resolver once (synthetic absolute fixture count 7).
-- A second objective binding throws after the first has committed: later
-  match/Collection Log observers still run under existing failure isolation,
-  but repeated exact fact cannot double-count the first objective.
-- A second match binding throws after participant score commits: duplicate
-  cannot increase participant score again; first successful objective and
-  Collection Log updates remain committed.
-- Collection Log absolute resolver throws after objective and match
-  commits: repeated fact cannot retry external resolver or double-apply
-  increments.
-- Owner quiesces after objective: R80 stops later writes, including repeated
-  invocation; the first committed objective remains, no false rollback.
-- Recursive delivery into the group during its first observer is denied.
-- Two separate objects with exactly the same fields are not coalesced by
-  the identity ledger (unit-level identity check only, not raw publication).
-- A rejected R80 owner preflight does not burn the replay entry.
-- Replay hook replacement or installation without R80 hook is refused.
-- A group without R81 installed still follows the unchanged original
-  delivery path in a fully isolated fixture; no production behavior change.
+Linux/Windows R81 GitHub CI compiles Java11 bytecode and runs the
+R81 regression, R80 and inherited R63–R79 safety regressions and
+original observer tests. Separate full Gradle server and Windows
+atomic-persistence jobs must be inspected on the exact final head.
 
-Run both Linux and Windows R81 CI with Java11 bytecode verification, R80
-and inherited R63–R79 regressions, and all original observer tests. A
-separate full Gradle server build and Windows atomic-persistence run
-must be checked before claiming full cross-platform verification.
+## Unresolved durability and production questions
 
-## Boundaries and next steps
-
-At-most-once for **one in-memory instance, in one group, in one JVM**
-does not imply exactly-once across restarts, multiple consumer groups,
-or future independently reconstructed copies of an event. The test
-does not install protection into real LocalSession/PvP, real player
-rewards, profiles, network sockets or persistent data. Physical crash
-atomicity, durable replay and safe partial-operation recovery remain
-unresolved, and would require authenticated stable event IDs plus
-per-consumer transactional checkpoints (and a designed recovery policy).
+At-most-once for **one in-memory fact object in one offline delivery
+wrapper in one JVM** is not exactly-once across restarts, several
+consumers or reconstructed copies of an event. This test has no real
+persistent checkpoint, stable cross-process event ID, transaction
+recovery or safe retry. It does not install protection into actual
+PvP sessions, production score changes, rewards, persistent profiles,
+client assets, network traffic or account ownership. Physical crash
+atomicity and trustworthy partial-operation recovery remain open.
 
 **R81 OFFLINE ONLY / DRAFT / UNMERGED / NO LIVE ACTIVATION.**
