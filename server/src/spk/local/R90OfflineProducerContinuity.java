@@ -351,7 +351,9 @@ final class R90OfflineProducerContinuity {
 
         @Override public void beforeCommit(
             R64OfflineSessionOwnership.Token owner,long highest,
-            long nextOrdinal,String digest)throws IOException{
+            long nextOrdinal,String digest,
+            WorldPlayerPersistence.OfflineCaptureStamp stamp
+        )throws IOException{
             Record stored=read(path(sessions,owner.username));
             if(stored.phase!=Phase.COMMITTED||
                !ticket.matches(stored)||
@@ -360,6 +362,21 @@ final class R90OfflineProducerContinuity {
                nextOrdinal<=highest||!digestValid(digest))
                 throw new IOException(
                     "R90_STALE_PRODUCER prior incarnation or ordinal");
+            // R91's optional provenance check happens while R60 is
+            // held, BEFORE any PREPARED marker or canonical account write.
+            // An absent stamp is permitted only by legacy R90-only
+            // fixtures. An R91-enabled R89 gate checks absence itself.
+            if(stamp!=null &&
+               (!owner.username.equals(stamp.username) ||
+                !ticket.stream.equals(stamp.stream) ||
+                !ticket.incarnation.equals(stamp.incarnation) ||
+                ticket.ownerEpoch!=stamp.ownerEpoch ||
+                ticket.producerGeneration!=stamp.producerGeneration ||
+                stamp.captureOrdinal!=nextOrdinal ||
+                !digest.equals(stamp.snapshotDigest) ||
+                stamp.worldPlayerGeneration<1L))
+                throw new IOException(
+                    "R91_CAPTURE_DENIED wrong producer/ordinal/snapshot");
             publish(path(sessions,owner.username),
                 new Record(owner,stored.stream,stored.incarnation,
                     stored.producerGeneration,highest,

@@ -26,6 +26,8 @@ final class WorldPlayerPersistence
         final long captureOrdinal;
         final PlayerSnapshot snapshot;
         final CompletableFuture<Void> completion;
+        /** R91: immutable test-only World-thread capture provenance. */
+        final OfflineCaptureStamp provenance;
 
         SaveTicket(
             long sequence,
@@ -33,10 +35,19 @@ final class WorldPlayerPersistence
             PlayerSnapshot snapshot,
             CompletableFuture<Void> completion
         ){
+            this(sequence,captureOrdinal,snapshot,completion,null);
+        }
+
+        SaveTicket(
+            long sequence,long captureOrdinal,
+            PlayerSnapshot snapshot,CompletableFuture<Void> completion,
+            OfflineCaptureStamp provenance
+        ){
             this.sequence=sequence;
             this.captureOrdinal=captureOrdinal;
             this.snapshot=snapshot;
             this.completion=completion;
+            this.provenance=provenance;
         }
     }
 
@@ -84,17 +95,20 @@ final class WorldPlayerPersistence
         final long captureOrdinal;
         final PlayerSnapshot snapshot;
         final int petAccessoryItem;
+        final OfflineCaptureStamp provenance;
 
         PendingCheckpoint(
             long tick,
             long captureOrdinal,
             PlayerSnapshot snapshot,
-            int petAccessoryItem
+            int petAccessoryItem,
+            OfflineCaptureStamp provenance
         ){
             this.tick=tick;
             this.captureOrdinal=captureOrdinal;
             this.snapshot=snapshot;
             this.petAccessoryItem=petAccessoryItem;
+            this.provenance=provenance;
         }
     }
 
@@ -140,6 +154,52 @@ final class WorldPlayerPersistence
     }
 
     /**
+     * R91 OFFLINE ONLY. Stamp is formed on the actual World execution
+     * thread within the player mutation lock, alongside the exact immutable
+     * snapshot and capture ordinal. It is never a login credential or a
+     * cryptographic proof, and no live code installs an issuer.
+     */
+    static final class OfflineCaptureStamp {
+        final String username,snapshotDigest;
+        final UUID stream,incarnation;
+        final long ownerEpoch,producerGeneration,captureOrdinal;
+        final long worldPlayerGeneration;
+
+        OfflineCaptureStamp(
+            String username,UUID stream,UUID incarnation,
+            long ownerEpoch,long producerGeneration,
+            long captureOrdinal,String snapshotDigest,
+            long worldPlayerGeneration
+        ){
+            this.username=Objects.requireNonNull(username,"username");
+            this.stream=Objects.requireNonNull(stream,"stream");
+            this.incarnation=Objects.requireNonNull(incarnation,"incarnation");
+            this.ownerEpoch=ownerEpoch;
+            this.producerGeneration=producerGeneration;
+            this.captureOrdinal=captureOrdinal;
+            this.snapshotDigest=Objects.requireNonNull(
+                snapshotDigest,"snapshotDigest");
+            this.worldPlayerGeneration=worldPlayerGeneration;
+        }
+    }
+
+    @FunctionalInterface
+    interface OfflineCaptureStampIssuer {
+        OfflineCaptureStamp issue(
+            long ordinal,PlayerSnapshot snapshot,long worldGeneration
+        );
+    }
+
+    interface OfflineStampedSaveAdmission
+            extends OfflineOrderedSaveAdmission {
+        void withStampedAdmission(
+            long ordinal,PlayerSnapshot snapshot,
+            OfflineCaptureStamp stamp,
+            CheckedSaveWriter rawWriter
+        )throws IOException;
+    }
+
+    /**
      * R74 test-only cooperative shutdown witness. A test gate may refuse
      * an IO writer blocked before R60 admission even when that writer
      * deliberately ignores Java thread interruption.
@@ -164,6 +224,37 @@ final class WorldPlayerPersistence
     }
 
     private volatile OfflineSaveAdmission offlineSaveAdmission;
+    private volatile OfflineCaptureStampIssuer offlineCaptureIssuer;
+
+    synchronized void installOfflineCaptureIssuerForTest(
+        OfflineCaptureStampIssuer issuer
+    ){
+        if(offlineCaptureIssuer!=null||world.pulse().running())
+            throw new IllegalStateException(
+                "R91_CAPTURE_ISSUER_DENIED already installed or started");
+        offlineCaptureIssuer=Objects.requireNonNull(issuer,"issuer");
+    }
+
+    private OfflineCaptureStamp stampAtCaptureForTest(
+        long ordinal,PlayerSnapshot snapshot,long worldGeneration
+    ){
+        OfflineCaptureStampIssuer issuer=offlineCaptureIssuer;
+        if(issuer==null)return null;
+        // Called ONLY by World execution during snapshot capture;
+        // no issuer callback runs on the persistence I/O worker.
+        OfflineCaptureStamp stamp=Objects.requireNonNull(
+            issuer.issue(ordinal,snapshot,worldGeneration),
+            "R91_CAPTURE_STAMP_DENIED missing issuer result");
+        if(stamp.captureOrdinal!=ordinal||
+           !snapshot.username().equals(stamp.username)||
+           stamp.worldPlayerGeneration!=worldGeneration||
+           stamp.worldPlayerGeneration<1L||
+           !R57TradePairJournal.digest(snapshot).equals(
+               stamp.snapshotDigest))
+            throw new IllegalStateException(
+                "R91_CAPTURE_STAMP_DENIED source/ordinal/digest mismatch");
+        return stamp;
+    }
 
     synchronized void installOfflineSaveAdmissionForTest(
         OfflineSaveAdmission hook
@@ -484,6 +575,7 @@ final class WorldPlayerPersistence
 
         PlayerSnapshot snapshot;
         long snapshotCaptureOrdinal;
+        OfflineCaptureStamp captureStamp;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -514,6 +606,8 @@ final class WorldPlayerPersistence
                     petAccessoryItem
                 );
             snapshotCaptureOrdinal=nextCaptureOrdinal();
+            captureStamp=stampAtCaptureForTest(
+                snapshotCaptureOrdinal,snapshot,expectedGeneration);
         }
 
         long saveSequence=
@@ -527,7 +621,8 @@ final class WorldPlayerPersistence
                 saveSequence,
                 snapshotCaptureOrdinal,
                 snapshot,
-                future
+                future,
+                captureStamp
             ),
             player,
             expectedGeneration,
@@ -555,6 +650,7 @@ final class WorldPlayerPersistence
 
         PlayerSnapshot snapshot;
         long snapshotCaptureOrdinal;
+        OfflineCaptureStamp captureStamp;
 
         synchronized(player.mutationLock()){
             if(!world.players().owns(
@@ -594,6 +690,8 @@ final class WorldPlayerPersistence
                         petAccessoryItem
                     );
                 snapshotCaptureOrdinal=nextCaptureOrdinal();
+                captureStamp=stampAtCaptureForTest(
+                    snapshotCaptureOrdinal,snapshot,expectedGeneration);
                 if(offlineTerminalCaptureFence){
                     synchronized(checkpointLock){
                         offlineTerminalGenerations.put(
@@ -638,7 +736,8 @@ final class WorldPlayerPersistence
                 saveSequence,
                 snapshotCaptureOrdinal,
                 snapshot,
-                future
+                future,
+                captureStamp
             ),
             player,
             expectedGeneration,
@@ -718,6 +817,7 @@ final class WorldPlayerPersistence
             captured.ticket.sequence,
             captured.ticket.captureOrdinal,
             captured.ticket.snapshot,
+            captured.ticket.provenance,
             captured.petAccessoryItem,
             captured.tag,
             captured.reason,
@@ -878,7 +978,9 @@ final class WorldPlayerPersistence
                         tick,
                         nextCaptureOrdinal(),
                         snapshot,
-                        accessoryItem
+                        accessoryItem,
+                        stampAtCaptureForTest(
+                            captureOrder.get(),snapshot,generation)
                     );
 
                 synchronized(checkpointLock){
@@ -1197,6 +1299,7 @@ final class WorldPlayerPersistence
                 saveSequence,
                 pending.captureOrdinal,
                 pending.snapshot,
+                pending.provenance,
                 pending.petAccessoryItem,
                 "[world] ",
                 "AUTOSAVE_TICK_"+
@@ -1276,6 +1379,7 @@ final class WorldPlayerPersistence
         private final long saveSequence;
         private final long captureOrdinal;
         private final PlayerSnapshot snapshot;
+        private final OfflineCaptureStamp provenance;
         private final int petAccessoryItem;
         private final String tag;
         private final String reason;
@@ -1285,6 +1389,7 @@ final class WorldPlayerPersistence
             long saveSequence,
             long captureOrdinal,
             PlayerSnapshot snapshot,
+            OfflineCaptureStamp provenance,
             int petAccessoryItem,
             String tag,
             String reason,
@@ -1293,6 +1398,7 @@ final class WorldPlayerPersistence
             this.saveSequence=saveSequence;
             this.captureOrdinal=captureOrdinal;
             this.snapshot=snapshot;
+            this.provenance=provenance;
             this.petAccessoryItem=petAccessoryItem;
             this.tag=tag;
             this.reason=reason;
@@ -1306,6 +1412,7 @@ final class WorldPlayerPersistence
                     saveSequence,
                     captureOrdinal,
                     snapshot,
+                    provenance,
                     petAccessoryItem,
                     tag,
                     reason,
@@ -1403,6 +1510,7 @@ final class WorldPlayerPersistence
         long saveSequence,
         long captureOrdinal,
         PlayerSnapshot snapshot,
+        OfflineCaptureStamp provenance,
         int petAccessoryItem,
         String tag,
         String reason,
@@ -1413,6 +1521,11 @@ final class WorldPlayerPersistence
             OfflineSaveAdmission gate=offlineSaveAdmission;
             if(gate==null)
                 repository.save(snapshot);
+            else if(gate instanceof OfflineStampedSaveAdmission)
+                ((OfflineStampedSaveAdmission)gate).withStampedAdmission(
+                    captureOrdinal,snapshot,provenance,
+                    ()->repository.save(snapshot)
+                );
             else if(gate instanceof OfflineOrderedSaveAdmission)
                 ((OfflineOrderedSaveAdmission)gate).withOrderedAdmission(
                     captureOrdinal,snapshot,()->repository.save(snapshot)

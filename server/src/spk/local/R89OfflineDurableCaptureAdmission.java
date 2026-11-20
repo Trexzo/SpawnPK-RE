@@ -58,7 +58,9 @@ final class R89OfflineDurableCaptureAdmission
     interface OfflineProducerFence {
         void beforeCommit(R64OfflineSessionOwnership.Token current,
                           long committedOrdinal,long nextOrdinal,
-                          String snapshotDigest)throws IOException;
+                          String snapshotDigest,
+                          WorldPlayerPersistence.OfflineCaptureStamp stamp
+                          )throws IOException;
         void afterCommit(R64OfflineSessionOwnership.Token next,
                          long committedOrdinal,
                          String snapshotDigest)throws IOException;
@@ -197,6 +199,39 @@ final class R89OfflineDurableCaptureAdmission
     private long highest;
     private boolean poisoned;
     private OfflineProducerFence offlineProducerFence;
+    private boolean requireWorldCaptureStamp;
+    private final ThreadLocal<WorldPlayerPersistence.OfflineCaptureStamp>
+        worldCaptureContext=new ThreadLocal<>();
+
+    synchronized void requireWorldCaptureStampsForTest(){
+        if(requireWorldCaptureStamp||offlineProducerFence==null||poisoned)
+            throw new IllegalStateException(
+                "R91_STAMP_MODE_DENIED gate not ready");
+        requireWorldCaptureStamp=true;
+    }
+
+    void withStampedWorldCaptureForTest(
+        long ordinal,PlayerSnapshot snapshot,
+        WorldPlayerPersistence.OfflineCaptureStamp stamp,
+        WorldPlayerPersistence.CheckedSaveWriter rawWriter
+    )throws IOException{
+        if(!requireWorldCaptureStamp)
+            throw new IOException(
+                "R91_CAPTURE_DENIED provenance mode not installed");
+        if(stamp==null)
+            throw new IOException(
+                "R91_CAPTURE_DENIED missing capture stamp");
+        if(worldCaptureContext.get()!=null)
+            throw new IOException(
+                "R91_CAPTURE_DENIED nested capture");
+        worldCaptureContext.set(stamp);
+        try{
+            withOrderedAdmission(ordinal,snapshot,rawWriter);
+        }finally{
+            worldCaptureContext.remove();
+        }
+    }
+
     synchronized void installOfflineProducerFenceForTest(
         OfflineProducerFence fence){
         if(offlineProducerFence!=null||poisoned)
@@ -328,12 +363,16 @@ final class R89OfflineDurableCaptureAdmission
                 throw new IOException("R89_SAVE_DENIED stale capture ordinal");
             }
             String digest=R57TradePairJournal.digest(snapshot);
+            if(requireWorldCaptureStamp&&worldCaptureContext.get()==null)
+                throw new IOException(
+                    "R91_CAPTURE_DENIED unstamped direct admission");
             if(recorded.highest==Long.MAX_VALUE)
                 throw new IOException("R89_SAVE_DENIED ordinal overflow");
             try{
                 if(offlineProducerFence!=null)
                     offlineProducerFence.beforeCommit(
-                        current,recorded.highest,ordinal,digest);
+                        current,recorded.highest,ordinal,digest,
+                        worldCaptureContext.get());
                 publish(file,new Watermark(
                     current,recorded.highest,Phase.PREPARED,
                     ordinal,digest));
