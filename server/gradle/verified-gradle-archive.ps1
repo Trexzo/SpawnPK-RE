@@ -45,16 +45,35 @@ function Install-VerifiedGradleArchive {
 
     try {
         New-Item -ItemType Directory -Force -Path $stage | Out-Null
-        # Expand-Archive on Windows Server 2025 can call a missing
-        # ExtractToDirectory(3 args) overload under Windows PowerShell 5.1.
-        # .NET's two-argument overload works on both PS 5.1 and PS 7,
-        # and rejects entries that escape the destination directory.
-        # Avoid relying on cmdlet module discovery in the real batch
-        # launcher; load the framework assembly only when necessary.
-        if (-not ('System.IO.Compression.ZipFile' -as [type])) {
-            [void][System.Reflection.Assembly]::Load('System.IO.Compression.FileSystem')
+        # Windows Server 2025 bootstrap cannot rely on either
+        # Expand-Archive's three-argument overload or loading the
+        # System.IO.Compression.FileSystem assembly inside gradlew.bat.
+        # Windows 10+ ships BSD tar with ZIP support. Use the exact
+        # System32 binary (not a PATH-controlled executable).
+        $tarExe = Join-Path $env:WINDIR 'System32\tar.exe'
+        if (-not (Test-Path -LiteralPath $tarExe -PathType Leaf)) {
+            throw "Missing Windows built-in tar.exe: $tarExe"
         }
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $stage)
+
+        # Fail closed on unsafe archive paths before invoking the native
+        # extractor. ZIP contents are already SHA-pinned above.
+        $entries = & $tarExe -tf $ZipPath 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Gradle archive entry listing failed'
+        }
+        foreach ($entry in $entries) {
+            $name = ([string]$entry).Replace('\', '/')
+            if ([string]::IsNullOrWhiteSpace($name) -or
+                $name.StartsWith('/') -or
+                $name -match '^[A-Za-z]:' -or
+                $name -match '(^|/)\.\.(/|$)') {
+                throw "Gradle archive entry outside extraction directory: $name"
+            }
+        }
+        & $tarExe -xf $ZipPath -C $stage
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Gradle archive extraction failed'
+        }
 
         $expanded = Join-Path $stage $expectedDir
         $extractedExecutable = Join-Path $expanded 'bin\gradle.bat'
