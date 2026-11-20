@@ -12,6 +12,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /**
@@ -53,6 +54,17 @@ public final class R91OfflineWorldCaptureProvenanceTest {
                 scratch.resolve("bad-issuer"));
             queuedOldGenerationDeniedAtIoCommit(
                 scratch.resolve("retired-generation"));
+            nonblockingOwnerTurnoverDuringDurableIo(
+                scratch.resolve("nonblocking-turnover"));
+            System.out.println(
+                "R93_OFFLINE_NONBLOCKING_WORLD_TURNOVER_PASS "+
+                "realWorldProgressDuringBlockedIo=true "+
+                "unregisterReturnsPendingForActiveLease=true "+
+                "retirementRejectsLateQueuedSave=true "+
+                "firstOwnedWriteCommitsBeforeUnregister=true "+
+                "freshWorldActorCanCommit=true "+
+                "noDiskIoUnderWorldLifecycleLock=true "+
+                "offlineCooperationOnly=true");
             System.out.println(
                 "R92_OFFLINE_WORLD_OWNER_GENERATION_FENCE_PASS "+
                 "realDeferredIoQueueBarrier=true "+
@@ -229,6 +241,114 @@ public final class R91OfflineWorldCaptureProvenanceTest {
      * same account name becomes owner. The queued OLD actor must be denied
      * before R90 PREPARED or any account/ledger/watermark mutation.
      */
+
+    /**
+     * R93: a valid World-owned writer holds a short in-memory lease, then
+     * pauses before R60/R89 publication. World tick commands still run,
+     * unregister returns false without blocking, and any subsequently
+     * queued save is rejected once retirement is requested. Only after
+     * that first durable write finishes can the old actor unregister.
+     */
+    private static void nonblockingOwnerTurnoverDuringDurableIo(
+        Path root)throws Exception{
+        Fixture f=new Fixture(root,true);
+        R90OfflineProducerContinuity.Session session=f.initialize();
+        CountDownLatch leaseEntered=new CountDownLatch(1);
+        CountDownLatch continueWrite=new CountDownLatch(1);
+        try(World world=World.isolatedForTest(
+                60_000L,rawWriterMustFail(f.files()))){
+            WorldPlayer old=f.player();
+            long generation=world.registerPlayer(old,USER);
+            R93OfflineNonblockingWorldTurnoverGate gate=
+                R93OfflineNonblockingWorldTurnoverGate.installForTest(
+                    world,session);
+            gate.installBeforePublishHookForTest(()->{
+                leaseEntered.countDown();
+                try{
+                    if(!continueWrite.await(15L,TimeUnit.SECONDS))
+                        throw new IOException(
+                            "R93_TEST_BARRIER_TIMEOUT no release");
+                }catch(InterruptedException interrupted){
+                    Thread.currentThread().interrupt();
+                    throw new IOException(
+                        "R93_TEST_BARRIER_INTERRUPTED",interrupted);
+                }
+            });
+            world.start();
+            AtomicReference<WorldPlayerPersistence.SaveTicket> first=
+                new AtomicReference<>();
+            AtomicReference<WorldPlayerPersistence.SaveTicket> late=
+                new AtomicReference<>();
+            try{
+                world.submitAndWait(old,generation,()->{
+                    spawn(old,560);
+                    first.set(world.persistence().captureAndSave(
+                        USER,old,generation,0,"[r93] ",
+                        "IN_FLIGHT_WORLD_LEASE"));
+                },10_000L);
+                require(first.get()!=null &&
+                        first.get().captureOrdinal==1L &&
+                        leaseEntered.await(10L,TimeUnit.SECONDS),
+                    "R93 real durable IO did not reach leased barrier");
+                require(gate.activeSavesForTest(old,generation)==1,
+                    "R93 missing outstanding disk IO lease");
+                AtomicBoolean progressed=new AtomicBoolean();
+                world.submitAndWait(old,generation,
+                    ()->progressed.set(true),3_000L);
+                require(progressed.get(),
+                    "R93 World execution blocked by outstanding IO");
+                Bytes before=f.bytes();
+                require(!world.unregisterPlayer(old,generation) &&
+                        gate.retiringForTest(old,generation) &&
+                        gate.activeSavesForTest(old,generation)==1 &&
+                        world.players().owns(old,generation),
+                    "R93 attempted to unregister while leased IO active");
+                require(before.same(f.bytes()),
+                    "R93 retirement request mutated canonical records");
+                // The actor is still registered while its in-flight save
+                // drains, but its late snapshot can never be admitted.
+                world.submitAndWait(old,generation,()->{
+                    spawn(old,565);
+                    late.set(world.persistence().captureAndSave(
+                        USER,old,generation,0,"[r93] ",
+                        "LATE_AFTER_RETIREMENT_REQUEST"));
+                },10_000L);
+                require(late.get()!=null &&
+                        late.get().captureOrdinal==2L,
+                    "R93 failed to queue an explicitly stale late save");
+            }finally{
+                continueWrite.countDown();
+            }
+            awaitSuccess(first.get());
+            Bytes afterFirst=f.bytes();
+            expectTicketDenied(late.get(),
+                "R93_TURNOVER_DENIED owner retiring");
+            require(afterFirst.same(f.bytes()) &&
+                    session.gate.highestAcceptedOrdinal()==1L &&
+                    gate.activeSavesForTest(old,generation)==0,
+                "R93 denied late save changed durable records");
+            require(world.unregisterPlayer(old,generation) &&
+                    !world.players().owns(old,generation),
+                "R93 retry did not unregister after IO lease drained");
+            WorldPlayer next=f.player();
+            long nextGeneration=world.registerPlayer(next,USER);
+            AtomicReference<WorldPlayerPersistence.SaveTicket> resumed=
+                new AtomicReference<>();
+            world.submitAndWait(next,nextGeneration,()->{
+                spawn(next,385);
+                resumed.set(world.persistence().captureAndSave(
+                    USER,next,nextGeneration,0,"[r93] ",
+                    "REPLACEMENT_AFTER_IO_DRAIN"));
+            },10_000L);
+            require(resumed.get()!=null &&
+                    resumed.get().captureOrdinal==3L,
+                "R93 fresh player ordinal not continued");
+            awaitSuccess(resumed.get());
+        }
+        require(f.inspectProducer(f.ready())==3L,
+            "R93 successor did not durably advance producer highwater");
+    }
+
     private static void queuedOldGenerationDeniedAtIoCommit(
         Path root)throws Exception{
         Fixture f=new Fixture(root,true);
