@@ -44,11 +44,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      # Hosted Windows Server 2025 currently fails in the repository's
+      # PowerShell Expand-Archive Gradle bootstrap before compilation.
+      # Use a pinned CI distribution; do not alter the runtime bootstrap.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
       - name: Build and verify Java 11 bytecode
         shell: pwsh
         working-directory: server
         run: |
-          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          gradle --no-daemon jar testClasses verifyJava11Bytecode
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: R81 replay safety and inherited regressions
         shell: pwsh
