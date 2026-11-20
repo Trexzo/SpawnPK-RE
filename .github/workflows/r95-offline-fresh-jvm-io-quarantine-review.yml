@@ -1,0 +1,79 @@
+name: R95 Offline Fresh JVM Failed IO Restart Review
+
+on:
+  push:
+    branches:
+      - playability/r95-offline-fresh-jvm-io-quarantine-review-20261120
+  pull_request:
+    paths:
+      - server/src/spk/local/CombatOutcomeObserverGroup.java
+      - server/src/spk/local/R91OfflineWorldCaptureGate.java
+      - server/src/spk/local/R93OfflineNonblockingWorldTurnoverGate.java
+      - server/src/spk/local/World.java
+      - server/src/spk/local/R91OfflineWorldCaptureProvenanceTest.java
+      - server/src/spk/local/R90OfflineProducerContinuity.java
+      - server/src/spk/local/R90OfflineProducerContinuityTest.java
+      - server/src/spk/local/WorldPlayerPersistence.java
+      - server/src/spk/local/R89OfflineDurableCaptureAdmission.java
+      - server/src/spk/local/R89OfflineDurableCaptureWatermarkTest.java
+      - server/src/spk/local/R88OfflineR64R71KilledSaveTest.java
+      - server/src/spk/local/R64OfflineSessionOwnership.java
+      - server/src/spk/local/R71OfflineOrderedPersistenceAdmission.java
+      - server/src/spk/local/R87OfflineKilledOwnerTakeoverTest.java
+      - server/src/spk/local/R86OfflineOwnerEpochRecord.java
+      - server/src/spk/local/R86OfflineOwnerEpochTakeoverTest.java
+      - server/src/spk/local/R85OfflineFencedCombatRecord.java
+      - server/src/spk/local/R85OfflineFencedCombatRecordTest.java
+      - server/src/spk/local/R84OfflineAtomicCombatRecord.java
+      - server/src/spk/local/R84OfflineAtomicCombatRecordTest.java
+      - server/src/spk/local/R83OfflineCombatCheckpointAudit.java
+      - server/src/spk/local/R83OfflineCombatCheckpointObserver.java
+      - server/src/spk/local/R83OfflineCombatCheckpointAuditTest.java
+      - server/src/spk/local/R81OfflineCombatOutcomeDeliveryGuard.java
+      - server/src/spk/local/R81OfflineCombatOutcomeReplayFence.java
+      - server/src/spk/local/R81OfflineCombatOutcomeReplayTest.java
+      - server/src/spk/local/CombatOutcomeObjectiveObserver.java
+      - server/src/spk/local/CombatOutcomeMatchObserver.java
+      - server/src/spk/local/CombatOutcomeCollectionLogObserver.java
+      - server/src/spk/local/R80OfflineCombatProjectionOwnershipFence.java
+      - server/src/spk/local/R80OfflineCombatProjectionFanoutTest.java
+      - .github/workflows/r95-offline-fresh-jvm-io-quarantine-review.yml
+
+jobs:
+  linux-projections:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and verify Java 11 bytecode
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: R95 fresh JVM review plus R94/R93/R92/R91 contained regression
+        working-directory: server
+        run: |
+          java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' spk.local.R91OfflineWorldCaptureProvenanceTest
+
+  windows-projections:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and verify Java 11 bytecode
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: R95 fresh JVM review plus R94/R93/R92/R91 contained regression
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build/SpawnPKLocalServer.jar;build/classes/java/test'
+          & java -cp $cp spk.local.R91OfflineWorldCaptureProvenanceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
