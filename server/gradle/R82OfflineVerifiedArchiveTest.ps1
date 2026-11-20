@@ -53,6 +53,18 @@ try {
     Install-VerifiedGradleArchive -ZipPath $valid -GradleHome $validHome -Version '8.10.2' -ExpectedSha256 (Sha $valid)
     Require (Test-Path -LiteralPath (Join-Path $validHome 'bin\gradle.bat') -PathType Leaf) 'existing archive target deleted'
 
+    # The batch bootstrap may lack auto-loaded utility cmdlets after
+    # JDK selection. Make them deliberately unusable for this extraction.
+    $noCmdletZip = Test-Archive $root 'no-cmdlets' $true
+    $noCmdletHash = Sha $noCmdletZip
+    $noCmdletHome = Join-Path $root 'no-cmdlets-home'
+    & {
+        function Get-FileHash { throw 'R82 forbidden Get-FileHash reached' }
+        function Add-Type { throw 'R82 forbidden Add-Type reached' }
+        Install-VerifiedGradleArchive -ZipPath $noCmdletZip -GradleHome $noCmdletHome -Version '8.10.2' -ExpectedSha256 $noCmdletHash
+    }
+    Require (Test-Path -LiteralPath (Join-Path $noCmdletHome 'bin\gradle.bat') -PathType Leaf) 'bootstrap required unavailable utility cmdlets'
+
     $wrongSha = Test-Archive $root 'wrongsha' $true
     $badHome = Join-Path $root 'bad-hash-home'
     Expect-Failed {
@@ -96,7 +108,7 @@ try {
     Require (-not (Test-Path -LiteralPath (Join-Path $root 'escape.txt'))) 'traversal wrote outside staging'
     Require (@(Get-ChildItem -LiteralPath $root -Directory -Filter 'extract-*').Count -eq 0) 'archive extraction left staging behind'
 
-    Write-Output 'R82_OFFLINE_VERIFIED_GRADLE_ARCHIVE_PASS PS5_PS7_COMPAT=true SHA256_BEFORE_EXTRACT=true CACHED_ZIP_FAIL_CLOSED=true VALID_LAYOUT_REQUIRED=true UNREADABLE_FAIL_CLOSED=true ZIP_TRAVERSAL_DENIED=true TEMP_STAGE_CLEAN=true NO_NETWORK_OR_LIVE_RUNTIME=true'
+    Write-Output 'R82_OFFLINE_VERIFIED_GRADLE_ARCHIVE_PASS PS5_PS7_COMPAT=true SHA256_BEFORE_EXTRACT=true CACHED_ZIP_FAIL_CLOSED=true VALID_LAYOUT_REQUIRED=true UNREADABLE_FAIL_CLOSED=true ZIP_TRAVERSAL_DENIED=true TEMP_STAGE_CLEAN=true NO_UTILITY_CMDLET_DEPENDENCY=true NO_NETWORK_OR_LIVE_RUNTIME=true'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
