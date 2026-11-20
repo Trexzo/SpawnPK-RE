@@ -45,9 +45,13 @@ performs these checks:
   requires successful reviews of both fixtures and then reports
   `R95_OFFLINE_FRESH_JVM_IO_RESTART_REVIEW_PASS`.
 
-Linux/Windows CI compile Java 11 bytecode and run these reviews in
-addition to R94–R63 regressions. Independent server and atomic
-persistence workflows remain separate.
+Dedicated R95 Linux/Windows CI compiles Java 11 bytecode and runs
+the combined R95/R94/R93/R92/R91 World provenance regression entrypoint.
+The independently triggered inherited R94/R93/R92/R91 workflows continue
+to run the broader R63–R94 safety suites; the full server build and
+Windows atomic-persistence integration remain separate. Avoiding duplicate
+full-suite loops in R95 itself reduces child-JVM startup contention and
+the existing inherited crash-harness flake exposure.
 
 ## What R95 does not provide
 
