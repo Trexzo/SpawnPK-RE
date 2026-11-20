@@ -27,10 +27,15 @@ $gradleBat = Join-Path $gradleHome 'bin\gradle.bat'
 New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
 
 if (-not (Test-Path -LiteralPath $gradleBat -PathType Leaf)) {
-    if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) {
-        Write-Host "Downloading Gradle $version..." -ForegroundColor Cyan
-        Invoke-WebRequest -UseBasicParsing -Uri $distribution -OutFile $zip
+    # R100: bounded download retries protect transient Windows runner
+    # transport resets. Verify SHA-256 BEFORE promoting a temporary ZIP;
+    # the existing R82 archive installer validates the hash again.
+    $downloadHelper = Join-Path $PSScriptRoot 'pinned-gradle-download.ps1'
+    if (-not (Test-Path -LiteralPath $downloadHelper -PathType Leaf)) {
+        throw "Missing pinned Gradle download helper: $downloadHelper"
     }
+    . $downloadHelper
+    Save-PinnedGradleDistribution -Uri $distribution -ZipPath $zip -ExpectedSha256 $expectedSha256
 
     # Preserve the pinned SHA-256 check and the existing cache path.
     # R82 extracts through the same verified helper on PS 5.1 and PS 7,
