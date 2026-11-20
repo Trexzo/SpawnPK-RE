@@ -78,7 +78,7 @@ try {
     $invalidHome = Join-Path $root 'invalid-home'
     Expect-Failed {
         Install-VerifiedGradleArchive -ZipPath $invalidZip -GradleHome $invalidHome -Version '8.10.2' -ExpectedSha256 (Sha $invalidZip)
-    } 'central directory'
+    } '' # native tar error wording differs between supported Windows builds
     Require (-not (Test-Path -LiteralPath $invalidHome)) 'unreadable archive published target'
 
     $wrongRoot = Test-Archive $root 'wrongroot' $false
