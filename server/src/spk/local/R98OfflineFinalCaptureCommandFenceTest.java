@@ -31,6 +31,9 @@ public final class R98OfflineFinalCaptureCommandFenceTest {
                 scratch.resolve("unquiesced"));
             System.out.println(
                 "R98_OFFLINE_FINAL_CAPTURE_COMMAND_FENCE_PASS "+
+                "R72TerminalCapturePathAndFence=true "+
+                "offThreadBackpressureSubmission=true "+
+                "prematureRetirementBeforeIoCompletionDenied=true "+
                 "queuedBeforeFreezeDeniedAtDispatch=true "+
                 "submittedAfterFreezeDeniedAtEnqueue=true "+
                 "noPostSnapshotGameplayCommandMutatedPlayer=true "+
@@ -72,7 +75,7 @@ public final class R98OfflineFinalCaptureCommandFenceTest {
             AtomicInteger executedAfterFinal=new AtomicInteger();
             AtomicReference<CompletableFuture<Void>> queuedBefore=
                 new AtomicReference<>();
-            AtomicReference<WorldPlayerPersistence.SaveTicket> finalSave=
+            AtomicReference<WorldPlayerPersistence.CapturedSave> finalSave=
                 new AtomicReference<>();
             world.submitAndWait(player,generation,()->{
                 // This is enqueued while the current World handler is
@@ -101,12 +104,27 @@ public final class R98OfflineFinalCaptureCommandFenceTest {
                 "R74_COMMAND_QUIESCED before enqueue");
             require(executedAfterFinal.get()==0,
                 "R98 queued mutation executed after final snapshot");
-            WorldPlayerPersistence.SaveTicket ticket=finalSave.get();
-            require(ticket.captureOrdinal==1L &&
+            WorldPlayerPersistence.SaveTicket ticket=
+                finalSave.get().ticket;
+            require(finalSave.get().finalSnapshot &&
+                    ticket.captureOrdinal==1L &&
                     ticket.provenance!=null &&
                     ticket.provenance.capturedOwner==player &&
                     ticket.provenance.worldPlayerGeneration==generation,
                 "R98 final save missing real World capture provenance");
+            // Before off-thread submission/IO completion, retirement
+            // is forbidden even though command ingress is quiesced.
+            R96OfflineDurableRetirementWitness premature=f.witness(
+                world,player,generation,1L,ioGate,ingress,producer);
+            expectIoDenied(premature::prepareForTest,
+                "R98_RETIRE_DENIED");
+            require(!Files.exists(f.witnessPath()),
+                "R98 premature witness was published");
+            WorldPlayerPersistence.SaveTicket submitted=
+                world.persistence().submitCapturedWithBackpressure(
+                    finalSave.get(),5_000L);
+            require(submitted==ticket,
+                "R98 off-thread terminal submission changed source ticket");
             ticket.completion.get(15L,TimeUnit.SECONDS);
             require(f.producerHighwater()==1L,
                 "R98 final save not committed through R89/R90");
