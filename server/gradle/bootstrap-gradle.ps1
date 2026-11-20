@@ -32,37 +32,15 @@ if (-not (Test-Path -LiteralPath $gradleBat -PathType Leaf)) {
         Invoke-WebRequest -UseBasicParsing -Uri $distribution -OutFile $zip
     }
 
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        $stream = [System.IO.File]::OpenRead($zip)
-        try {
-            $actual = ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
-        }
-        finally {
-            $stream.Dispose()
-        }
+    # Preserve the pinned SHA-256 check and the existing cache path.
+    # R82 extracts through the same verified helper on PS 5.1 and PS 7,
+    # bypassing Windows runner's broken Expand-Archive 3-arg overload.
+    $archiveHelper = Join-Path $PSScriptRoot 'verified-gradle-archive.ps1'
+    if (-not (Test-Path -LiteralPath $archiveHelper -PathType Leaf)) {
+        throw "Missing verified Gradle archive helper: $archiveHelper"
     }
-    finally {
-        $sha256.Dispose()
-    }
-    if ($actual -ne $expectedSha256) {
-        Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
-        throw "Gradle distribution SHA-256 mismatch. expected=$expectedSha256 actual=$actual"
-    }
-
-    $tmp = Join-Path $cacheRoot ("extract-" + [Guid]::NewGuid().ToString('N'))
-    try {
-        Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
-        $expanded = Join-Path $tmp "gradle-$version"
-        if (-not (Test-Path -LiteralPath $expanded -PathType Container)) {
-            throw "Gradle archive did not contain gradle-$version"
-        }
-        Remove-Item -LiteralPath $gradleHome -Recurse -Force -ErrorAction SilentlyContinue
-        Move-Item -LiteralPath $expanded -Destination $gradleHome
-    }
-    finally {
-        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
-    }
+    . $archiveHelper
+    Install-VerifiedGradleArchive -ZipPath $zip -GradleHome $gradleHome -Version $version -ExpectedSha256 $expectedSha256
 }
 
 Push-Location $serverRoot
