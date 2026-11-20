@@ -32,9 +32,17 @@ its real `player.mutationLock()`, calls
    ownership, actor generation and account username.
 2. Sticky-marks that actor/generation quiesced **before** capturing the
    immutable snapshot. This stays set even if snapshot capture fails.
-3. Calls the actual `WorldPlayerPersistence.captureAndSave`, binding
-   the source World object and generation through R91/R92 provenance.
-4. Records the exact `SaveTicket`. Commands already queued before
+3. Calls the actual R72
+   `WorldPlayerPersistence.captureDeferredFinalSave`, binding the source
+   World object and generation through R91/R92 provenance. R98 installs
+   the existing R72 terminal-capture fence before World start, so
+   later ordinary captures/checkpoints of this generation cannot
+   bypass the terminal snapshot.
+4. Records the exact `SaveTicket`. Outside the World actor, the
+   caller submits the captured terminal save through the existing
+   backpressure-aware IO path; it NEVER waits for IO under World locks.
+   Retirement before this IO future completes is refused.
+   Commands already queued before
    this handler now fail when the inbox rechecks them at dispatch;
    commands submitted afterward fail during enqueue.
 
@@ -62,8 +70,10 @@ real R89/R90 persistence worker:
 - Another command submitted *after* capture is refused at enqueue.
   Neither increments its mutation counter nor reaches item spawn.
 - The actual World source/generation and ordinal 1 are bound to the
-  final ticket. Its real IO completion and R89/R90 durable producer
-  watermark must commit before any R96 PREPARED receipt.
+  R72 terminal-capture ticket. A deliberately premature R96 retirement
+  attempt, before the capture is submitted to the separate IO worker,
+  is refused. Its real off-thread IO completion and R89/R90 durable
+  producer watermark must commit before any R96 PREPARED receipt.
 - A constructed witness claiming ordinal 2 is denied before any
   retirement state/file change.
 - A valid R98-linked R96 witness goes PREPARED -> actual World
