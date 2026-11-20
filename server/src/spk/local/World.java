@@ -40,6 +40,22 @@ final class World implements AutoCloseable {
     private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
     private final Object lifecycleLock=new Object();
+    /** R93 offline fixture only; never installed by LocalSession or World.shared. */
+    @FunctionalInterface interface OfflineUnregisterAdmission {
+        boolean mayUnregister(WorldPlayer player,long generation);
+    }
+    private volatile OfflineUnregisterAdmission offlineUnregisterAdmission;
+
+    void installOfflineUnregisterAdmissionForTest(
+        OfflineUnregisterAdmission admission){
+        synchronized(lifecycleLock){
+            if(offlineUnregisterAdmission!=null||pulse.running())
+                throw new IllegalStateException(
+                    "R93_UNREGISTER_GATE_DENIED already installed or World started");
+            offlineUnregisterAdmission=Objects.requireNonNull(
+                admission,"admission");
+        }
+    }
     private final CountDownLatch closeCompleted=new CountDownLatch(1);
     private final AtomicBoolean closed=new AtomicBoolean();
     private volatile Throwable closeFailure;
@@ -418,6 +434,14 @@ final class World implements AutoCloseable {
                         player,
                         expectedGeneration
                     ))
+                    return false;
+
+                // R93 cooperative isolated-World fixture. The hook only
+                // consults in-memory lease state; it never waits for disk IO.
+                OfflineUnregisterAdmission offlineGate=
+                    offlineUnregisterAdmission;
+                if(offlineGate!=null &&
+                   !offlineGate.mayUnregister(player,expectedGeneration))
                     return false;
 
                 synchronized(tickTargets){
