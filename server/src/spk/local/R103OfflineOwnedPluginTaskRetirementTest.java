@@ -350,7 +350,10 @@ public final class R103OfflineOwnedPluginTaskRetirementTest {
                     pluginRuns.get()==1&&!owned.active()&&
                     plugin.size()==0&&
                     cross.deniedRealtimeForTest()==0 &&
-                    cross.deniedEventsForTest()==0 &&
+                    // The deliberately submitted wrong-generation task
+                    // must count as ONE denied event; valid callbacks
+                    // must not cause additional denials.
+                    cross.deniedEventsForTest()==1 &&
                     cross.deniedTicksForTest()==0 &&
                     !ingress.quiescedForTest(player,generation),
                 "R99 fence blocked valid pre-quiescence execution");
