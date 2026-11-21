@@ -1,0 +1,39 @@
+name: R102 Offline Event Queue Alias and Callback Audit
+
+on:
+  push:
+    branches:
+      - playability/r102-offline-alias-aware-event-callback-audit-20261121
+  pull_request:
+    paths:
+      - server/tools/audit_world_event_aliases.py
+      - server/tools/audit_world_event_provenance.py
+      - server/src/spk/local/World.java
+      - server/src/spk/local/WorldPluginManager.java
+      - server/src/spk/local/PluginTaskTracker.java
+      - server/src/spk/local/WorldEventQueue.java
+      - .github/workflows/r102-offline-event-queue-alias-audit.yml
+
+jobs:
+  source-inventory:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: R101 and R102 synthetic scanner self-tests
+        working-directory: server
+        shell: bash
+        run: |
+          python tools/audit_world_event_provenance.py --self-test
+          python tools/audit_world_event_aliases.py --self-test
+      - name: Source-wide queue alias and opaque callback inventory
+        working-directory: server
+        shell: bash
+        run: |
+          python tools/audit_world_event_aliases.py --require-production-plugin-sink --max-lines 400
