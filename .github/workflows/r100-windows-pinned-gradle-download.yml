@@ -1,0 +1,28 @@
+name: R100 Windows Verified Gradle Download Retry
+
+on:
+  push:
+    branches:
+      - build/r100-windows-verified-gradle-download-retry-20261120
+  pull_request:
+    paths:
+      - server/gradle/bootstrap-gradle.ps1
+      - server/gradle/pinned-gradle-download.ps1
+      - server/gradle/test-pinned-gradle-download.ps1
+      - .github/workflows/r100-windows-pinned-gradle-download.yml
+
+jobs:
+  powershell-verified-download:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell 5.1 bounded retry and checksum regression
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./server/gradle/test-pinned-gradle-download.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: PowerShell 7 bounded retry and checksum regression
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File ./server/gradle/test-pinned-gradle-download.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
