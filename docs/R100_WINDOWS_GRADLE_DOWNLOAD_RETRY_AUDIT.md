@@ -17,6 +17,23 @@ the deterministic cause: a single transient network reset should not
 automatically fail the build, and a partially written ZIP must never
 be mistaken for a valid cached distribution.
 
+## R100 original CI failure and correction
+
+The first R100 exact-head real Windows CI runs failed **after** an
+apparently successful network download because the JDK21-selecting
+PowerShell bootstrap does not provide `Get-FileHash` (the same constraint
+R82's independent archive verifier already documented). The helper
+mistakenly depended on this cmdlet and retried the whole download for
+a deterministic local command-availability failure. This is a genuine
+R100 integration defect, **not** another transport reset.
+
+The corrected code reuses the R82-compatible .NET
+`SHA256.ComputeHash(FileStream)` pattern with explicit stream/hasher
+disposal. R100's offline regression now deliberately installs a
+throwing `Get-FileHash` function, proving the downloader has no such
+dependency in either PS5.1 or PS7. The corrected commit must be
+validated by fresh exact-head CI before calling this resolved.
+
 ## Bounded and independently verified download
 
 The helper `server/gradle/pinned-gradle-download.ps1` exports
