@@ -112,6 +112,25 @@ final class PluginTaskTracker
         return create(delayTicks,0L,action,ownerId,generation);
     }
 
+    /**
+     * R104 OFFLINE TEST ONLY: repeat the R103 owner-generation check on
+     * every scheduled tick, not only the first scheduled callback.
+     * Public plugin scheduleRepeating remains entirely unchanged.
+     */
+    synchronized PluginTask scheduleOwnedRepeatingForTest(
+        long initialDelayTicks,long periodTicks,
+        EntityId ownerId,long generation,Runnable action
+    ){
+        if(periodTicks<=0L)
+            throw new IllegalArgumentException(
+                "R104_PLUGIN_TASK_DENIED invalid repeat period");
+        if(ownerId==null||generation<=0L)
+            throw new IllegalArgumentException(
+                "R104_PLUGIN_TASK_DENIED missing owner/generation");
+        return create(
+            initialDelayTicks,periodTicks,action,ownerId,generation);
+    }
+
     private Task create(
         long delayTicks,
         long periodTicks,
