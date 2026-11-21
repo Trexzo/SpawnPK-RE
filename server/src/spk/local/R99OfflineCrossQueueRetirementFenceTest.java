@@ -21,8 +21,10 @@ public final class R99OfflineCrossQueueRetirementFenceTest {
     private static final String USER="opensrc";
 
     public static void main(String[] args)throws Exception{
-        if(args.length!=0)
-            throw new IllegalArgumentException("R98 has no child actions");
+        boolean strictR101=args.length==1 &&
+            "r101-strict".equals(args[0]);
+        if(args.length!=0&&!strictR101)
+            throw new IllegalArgumentException("R99 unrecognized test mode");
         Path scratch=Files.createTempDirectory("spk-r98-final-capture-");
         try{
             finalCaptureAndDurableRetirement(
@@ -30,7 +32,18 @@ public final class R99OfflineCrossQueueRetirementFenceTest {
             unquiescedSaveDoesNotAuthorizeRetirement(
                 scratch.resolve("unquiesced"));
             crossQueueAfterFinalRetirement(
-                scratch.resolve("cross-queue-final"));
+                scratch.resolve("cross-queue-final"),false);
+            if(strictR101){
+                crossQueueAfterFinalRetirement(
+                    scratch.resolve("r101-strict-world"),true);
+                System.out.println(
+                    "R101_STRICT_PROVENANCE_WORLD_PASS "+
+                    "untaggedWorldEventSchedulingRejected=true "+
+                    "preCaptureOwnerTaggedEventFencedAtDispatch=true "+
+                    "explicitNonPlayerEventRunsAfterFinal=true "+
+                    "R72FinalAndR96RetirementStillCommitted=true "+
+                    "noProductionWorldWiring=true");
+            }
             crossQueueUnquiescedPositiveControl(
                 scratch.resolve("cross-queue-unquiesced"));
             System.out.println(
@@ -80,7 +93,7 @@ public final class R99OfflineCrossQueueRetirementFenceTest {
      * when the final World handler runs; neither may mutate afterward.
      */
     private static void crossQueueAfterFinalRetirement(
-        Path root)throws Exception{
+        Path root,boolean strictR101)throws Exception{
         Fixture f=new Fixture(root);
         R90OfflineProducerContinuity.Session producer=f.initialize();
         try(World world=World.isolatedForTest(
@@ -96,10 +109,19 @@ public final class R99OfflineCrossQueueRetirementFenceTest {
             R99OfflineCrossQueueRetirementFence cross=
                 new R99OfflineCrossQueueRetirementFence(world,ingress);
             cross.installForTest();
+            if(strictR101){
+                world.events().installOfflineExplicitEventProvenanceForTest();
+                expectScheduleDenied(
+                    ()->world.events().schedule(
+                        12L,()->{throw new AssertionError(
+                            "R101 untagged World event unexpectedly dispatched");}),
+                    "R101_UNTAGGED_EVENT_DENIED");
+            }
             world.start();
 
             AtomicInteger realtimeMutation=new AtomicInteger();
             AtomicInteger eventMutation=new AtomicInteger();
+            AtomicInteger explicitGlobal=new AtomicInteger();
             AtomicReference<WorldPlayerPersistence.CapturedSave> captured=
                 new AtomicReference<>();
             java.util.concurrent.atomic.AtomicLong dueTick=
@@ -154,6 +176,17 @@ public final class R99OfflineCrossQueueRetirementFenceTest {
                     dueTick.get()+2L,player.id(),generation,
                     ()->eventMutation.incrementAndGet()),
                 "R76_EVENT_QUIESCED before schedule");
+            if(strictR101){
+                // This explicit, audited non-player action does not touch
+                // the actor; it must remain schedulable after final capture.
+                world.events().scheduleExplicitNonPlayerForTest(
+                    dueTick.get(),"R101 fixture-owned global diagnostic",
+                    explicitGlobal::incrementAndGet);
+                expectScheduleDenied(
+                    ()->world.events().schedule(
+                        dueTick.get(),eventMutation::incrementAndGet),
+                    "R101_UNTAGGED_EVENT_DENIED");
+            }
 
             WorldPlayerPersistence.SaveTicket submitted=
                 world.persistence().submitCapturedWithBackpressure(
@@ -179,7 +212,8 @@ public final class R99OfflineCrossQueueRetirementFenceTest {
                     eventMutation.get()==0 &&
                     cross.deniedRealtimeForTest()>=2 &&
                     cross.deniedEventsForTest()>=2 &&
-                    cross.deniedTicksForTest()>=1,
+                    cross.deniedTicksForTest()>=1 &&
+                    (!strictR101||explicitGlobal.get()==1),
                 "R99 pre/post-final callbacks bypassed cross-queue gate");
             PlayerSnapshot persisted=f.files().load(USER).orElseThrow(
                 ()->new IOException("R99 committed account missing"));
