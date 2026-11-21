@@ -113,6 +113,23 @@ final class WorldEventQueue implements AutoCloseable {
 
     private volatile OfflineOwnedEventAdmission offlineOwnedEventAdmission;
 
+    /**
+     * R101 OFFLINE TEST ONLY: an isolated World may require every newly
+     * scheduled event to declare either its player owner/generation or
+     * an explicitly reviewed non-player purpose. Generic legacy
+     * Runnable closures have no discoverable owner and are refused.
+     */
+    private boolean offlineExplicitEventProvenanceForTest;
+
+    synchronized void installOfflineExplicitEventProvenanceForTest(){
+        if(offlineExplicitEventProvenanceForTest ||
+                offlineOwnedEventAdmission==null ||
+                closed || seq.get()!=0L)
+            throw new IllegalStateException(
+                "R101_EXPLICIT_EVENT_GATE_DENIED install before queue use");
+        offlineExplicitEventProvenanceForTest=true;
+    }
+
     synchronized void installOfflineOwnedEventAdmissionForTest(
         OfflineOwnedEventAdmission gate
     ){
@@ -141,7 +158,7 @@ final class WorldEventQueue implements AutoCloseable {
             throw new IllegalStateException(
                 "R76_EVENT_QUIESCED before schedule"
             );
-        return schedule(tick,()->{
+        return enqueue(tick,()->{
             // WorldEventQueue.runDue calls this from WorldPulse.
             // The policy revalidates the exact World generation
             // under that player's mutation lock before mutation.
@@ -149,10 +166,34 @@ final class WorldEventQueue implements AutoCloseable {
         });
     }
 
+    /**
+     * R101 explicit *non-player* event for offline fixture use only.
+     * Callers must review and name its purpose; the String is not
+     * authentication and does not make a player-mutating task safe.
+     */
+    synchronized Handle scheduleExplicitNonPlayerForTest(
+        long tick,String reviewedPurpose,Runnable task
+    ){
+        if(!offlineExplicitEventProvenanceForTest ||
+                reviewedPurpose==null ||
+                reviewedPurpose.trim().isEmpty())
+            throw new IllegalStateException(
+                "R101_EXPLICIT_NONPLAYER_DENIED review purpose missing");
+        return enqueue(tick,task);
+    }
+
     synchronized Handle schedule(
         long tick,
         Runnable task
     ){
+        if(offlineExplicitEventProvenanceForTest)
+            throw new IllegalStateException(
+                "R101_UNTAGGED_EVENT_DENIED explicit owner or nonplayer required");
+        return enqueue(tick,task);
+    }
+
+    /** Private common queue path; keeps live ordering/handles intact. */
+    private Handle enqueue(long tick,Runnable task){
         if(closed)
             throw new IllegalStateException(
                 "world event queue closed"
