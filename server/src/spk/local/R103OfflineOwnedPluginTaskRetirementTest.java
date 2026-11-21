@@ -332,10 +332,18 @@ public final class R103OfflineOwnedPluginTaskRetirementTest {
             world.events().scheduleOwnedForTest(
                 dueTick,player.id(),generation,ownedEvent::incrementAndGet);
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(10L);
+            // Observe both callback delivery AND the plugin tracker's
+            // complete one-shot retirement. The callback increments its
+            // counter before execute() finishes retiring the handle.
             while(realtime.get()==0||ownedEvent.get()==0||
-                    pluginRuns.get()==0){
+                    pluginRuns.get()==0||owned.active()||plugin.size()!=0){
                 require(System.nanoTime()<deadline,
-                    "R99 unquiesced positive-control callbacks did not run");
+                    "R103 unquiesced callbacks or task cleanup incomplete "+
+                    "realtime="+realtime.get()+
+                    " ownedEvent="+ownedEvent.get()+
+                    " pluginRuns="+pluginRuns.get()+
+                    " active="+owned.active()+
+                    " tasks="+plugin.size());
                 Thread.sleep(20L);
             }
             require(realtime.get()==1 && ownedEvent.get()==1 &&
