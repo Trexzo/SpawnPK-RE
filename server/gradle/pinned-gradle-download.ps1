@@ -2,6 +2,25 @@
 # Both PowerShell 5.1 and 7; caller keeps the existing verified extractor.
 # The test seam substitutes Download with a local scriptblock: no network
 # or writable production cache is used by the offline regression.
+# The real JDK21 launcher deliberately changes its PowerShell module environment.
+# Match R82's verified extractor: rely on the .NET stream API, not
+# Microsoft.PowerShell.Utility/Get-FileHash (not always available).
+function Get-R100StreamSha256 {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $hash = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($Path)
+        try {
+            return ([BitConverter]::ToString(
+                $hash.ComputeHash($stream)
+            )).Replace('-', '').ToLowerInvariant()
+        }
+        finally { $stream.Dispose() }
+    }
+    finally { $hash.Dispose() }
+}
+
 function Save-PinnedGradleDistribution {
     [CmdletBinding()]
     param(
@@ -33,7 +52,7 @@ function Save-PinnedGradleDistribution {
     # Do not silently reuse partial or corrupt previous-run ZIPs.
     # The existing R82 extractor independently checks this same hash.
     if (Test-Path -LiteralPath $ZipPath -PathType Leaf) {
-        $existingHash = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash
+        $existingHash = (Get-R100StreamSha256 -Path $ZipPath)
         if ($existingHash -ieq $ExpectedSha256) {
             return
         }
@@ -47,7 +66,7 @@ function Save-PinnedGradleDistribution {
             if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
                 throw 'R100_GRADLE_DOWNLOAD_DENIED no downloaded file'
             }
-            $downloadedHash = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash
+            $downloadedHash = (Get-R100StreamSha256 -Path $candidate)
             if ($downloadedHash -ine $ExpectedSha256) {
                 throw 'R100_GRADLE_DOWNLOAD_DENIED SHA256 mismatch'
             }
