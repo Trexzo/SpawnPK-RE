@@ -97,10 +97,33 @@ final class PluginTaskTracker
         );
     }
 
+    /**
+     * R103 OFFLINE TEST ONLY: explicit player ID + World generation.
+     * Not exposed through public PluginScheduler or enabled by
+     * WorldPluginManager/LocalSession; installed R76/R99 admission
+     * must approve both at enqueue and at actual callback dispatch.
+     */
+    synchronized PluginTask scheduleOwnedForTest(
+        long delayTicks,EntityId ownerId,long generation,Runnable action
+    ){
+        if(ownerId==null||generation<=0L)
+            throw new IllegalArgumentException(
+                "R103_PLUGIN_TASK_DENIED missing owner/generation");
+        return create(delayTicks,0L,action,ownerId,generation);
+    }
+
     private Task create(
         long delayTicks,
         long periodTicks,
         Runnable action
+    ){
+        return create(delayTicks,periodTicks,action,null,0L);
+    }
+
+    private Task create(
+        long delayTicks,
+        long periodTicks,
+        Runnable action,EntityId ownerId,long generation
     ){
         if(delayTicks<=0L)
             throw new IllegalArgumentException(
@@ -126,7 +149,7 @@ final class PluginTaskTracker
                 this,
                 delayTicks,
                 periodTicks,
-                action
+                action,ownerId,generation
             );
 
         tasks.add(task);
@@ -164,11 +187,21 @@ final class PluginTaskTracker
         Task task,
         long tick
     ){
-        task.queued=
-            queue.schedule(
-                tick,
-                task
-            );
+        if(task.actorOwnerId==null){
+            // Preserve the exact legacy/public plugin route.
+            task.queued=queue.schedule(tick,task);
+            return;
+        }
+        task.queued=queue.scheduleOwnedWithRejectionForTest(
+            tick,task.actorOwnerId,task.actorGeneration,task,()->{
+                // When R99 denies due dispatch, Task.run never enters
+                // PluginTaskTracker.execute, so actively retire its
+                // handle instead of leaving a phantom active plugin task.
+                synchronized(PluginTaskTracker.this){
+                    retire(task);
+                }
+            }
+        );
     }
 
     synchronized void validateActivation(){
@@ -505,6 +538,8 @@ final class PluginTaskTracker
         final long initialDelayTicks;
         final long periodTicks;
         volatile Runnable action;
+        final EntityId actorOwnerId;
+        final long actorGeneration;
 
         boolean active=true;
         WorldEventQueue.Handle queued;
@@ -513,13 +548,15 @@ final class PluginTaskTracker
             PluginTaskTracker owner,
             long initialDelayTicks,
             long periodTicks,
-            Runnable action
+            Runnable action,EntityId actorOwnerId,long actorGeneration
         ){
             this.owner=owner;
             this.initialDelayTicks=
                 initialDelayTicks;
             this.periodTicks=periodTicks;
             this.action=action;
+            this.actorOwnerId=actorOwnerId;
+            this.actorGeneration=actorGeneration;
         }
 
         @Override public boolean active(){

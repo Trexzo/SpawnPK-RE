@@ -1,0 +1,95 @@
+name: R103 Offline Owned Plugin Task Retirement
+
+on:
+  push:
+    branches:
+      - playability/r103-offline-owned-plugin-task-retirement-20261121
+  pull_request:
+    paths:
+      - server/src/spk/local/CombatOutcomeObserverGroup.java
+      - server/src/spk/local/R91OfflineWorldCaptureGate.java
+      - server/src/spk/local/R93OfflineNonblockingWorldTurnoverGate.java
+      - server/src/spk/local/R96OfflineDurableRetirementWitness.java
+      - server/src/spk/local/R96OfflineDurableRetirementWitnessTest.java
+      - server/src/spk/local/R98OfflineFinalCaptureCommandFence.java
+      - server/src/spk/local/R98OfflineFinalCaptureCommandFenceTest.java
+      - server/src/spk/local/R99OfflineCrossQueueRetirementFence.java
+      - server/src/spk/local/R99OfflineCrossQueueRetirementFenceTest.java
+      - server/src/spk/local/R101OfflineExplicitEventProvenanceTest.java
+      - server/src/spk/local/R103OfflineOwnedPluginTaskRetirementTest.java
+      - server/src/spk/local/PluginTaskTracker.java
+      - server/src/spk/local/WorldEventQueue.java
+      - server/src/spk/local/WorldEventQueue.java
+      - server/tools/audit_world_event_provenance.py
+      - server/src/spk/local/WorldRealtimeQueue.java
+      - server/src/spk/local/WorldEventQueue.java
+      - server/src/spk/local/WorldPulse.java
+      - server/src/spk/local/WorldCommandInbox.java
+      - server/src/spk/local/World.java
+      - server/src/spk/local/R91OfflineWorldCaptureProvenanceTest.java
+      - server/src/spk/local/R90OfflineProducerContinuity.java
+      - server/src/spk/local/R90OfflineProducerContinuityTest.java
+      - server/src/spk/local/WorldPlayerPersistence.java
+      - server/src/spk/local/R89OfflineDurableCaptureAdmission.java
+      - server/src/spk/local/R89OfflineDurableCaptureWatermarkTest.java
+      - server/src/spk/local/R88OfflineR64R71KilledSaveTest.java
+      - server/src/spk/local/R64OfflineSessionOwnership.java
+      - server/src/spk/local/R71OfflineOrderedPersistenceAdmission.java
+      - server/src/spk/local/R87OfflineKilledOwnerTakeoverTest.java
+      - server/src/spk/local/R86OfflineOwnerEpochRecord.java
+      - server/src/spk/local/R86OfflineOwnerEpochTakeoverTest.java
+      - server/src/spk/local/R85OfflineFencedCombatRecord.java
+      - server/src/spk/local/R85OfflineFencedCombatRecordTest.java
+      - server/src/spk/local/R84OfflineAtomicCombatRecord.java
+      - server/src/spk/local/R84OfflineAtomicCombatRecordTest.java
+      - server/src/spk/local/R83OfflineCombatCheckpointAudit.java
+      - server/src/spk/local/R83OfflineCombatCheckpointObserver.java
+      - server/src/spk/local/R83OfflineCombatCheckpointAuditTest.java
+      - server/src/spk/local/R81OfflineCombatOutcomeDeliveryGuard.java
+      - server/src/spk/local/R81OfflineCombatOutcomeReplayFence.java
+      - server/src/spk/local/R81OfflineCombatOutcomeReplayTest.java
+      - server/src/spk/local/CombatOutcomeObjectiveObserver.java
+      - server/src/spk/local/CombatOutcomeMatchObserver.java
+      - server/src/spk/local/CombatOutcomeCollectionLogObserver.java
+      - server/src/spk/local/R80OfflineCombatProjectionOwnershipFence.java
+      - server/src/spk/local/R80OfflineCombatProjectionFanoutTest.java
+      - .github/workflows/r103-offline-owned-plugin-task-retirement.yml
+
+jobs:
+  linux-projections:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and verify Java 11 bytecode
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: R103 owned plugin task admission and real World retirement
+        working-directory: server
+        run: |
+          java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' spk.local.R103OfflineOwnedPluginTaskRetirementTest
+
+  windows-projections:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and verify Java 11 bytecode
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: R103 owned plugin task admission and real World retirement
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build/SpawnPKLocalServer.jar;build/classes/java/test'
+          & java -cp $cp spk.local.R103OfflineOwnedPluginTaskRetirementTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

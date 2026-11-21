@@ -167,6 +167,39 @@ final class WorldEventQueue implements AutoCloseable {
     }
 
     /**
+     * R103 OFFLINE TEST ONLY. An R76-tagged plugin event can be denied
+     * at due dispatch even though admission succeeded earlier.
+     * Tell the plugin task tracker so it can retire its ownership handle.
+     * The supplied R76 policy must dispatch synchronously (as R99 does);
+     * no live PluginScheduler uses this seam.
+     */
+    synchronized Handle scheduleOwnedWithRejectionForTest(
+        long tick,EntityId ownerId,long generation,
+        Runnable task,Runnable rejected
+    ){
+        if(ownerId==null||task==null||rejected==null||
+                generation<=0L)
+            throw new IllegalArgumentException(
+                "R103_EVENT_DENIED missing owner/action/refusal callback");
+        OfflineOwnedEventAdmission gate=offlineOwnedEventAdmission;
+        if(gate==null||!gate.permits(ownerId,generation))
+            throw new IllegalStateException(
+                "R76_EVENT_QUIESCED before schedule");
+        return enqueue(tick,()->{
+            final boolean[] dispatched={false};
+            try{
+                gate.dispatch(ownerId,generation,()->{
+                    dispatched[0]=true;
+                    task.run();
+                });
+            }finally{
+                if(!dispatched[0])
+                    rejected.run();
+            }
+        });
+    }
+
+    /**
      * R101 explicit *non-player* event for offline fixture use only.
      * Callers must review and name its purpose; the String is not
      * authentication and does not make a player-mutating task safe.
