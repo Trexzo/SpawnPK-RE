@@ -175,7 +175,7 @@ def self_test() -> None:
     assert records[3]["operator"] == "::"
     assert transfers == [{
         "path": "Sample.java",
-        "line": 10,
+        "line": 11,
         "constructor": "PluginTaskTracker",
         "event_queue_receivers": ["queue"],
         "manual_callback_and_owner_review_required": True,
