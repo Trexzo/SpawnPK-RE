@@ -12,7 +12,12 @@ try {
     [System.IO.File]::WriteAllBytes(
         $source,[System.Text.Encoding]::UTF8.GetBytes('R100 local test data only')
     )
-    $sha = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+    $sha = (Get-R100StreamSha256 -Path $source)
+    # Simulate the actual JDK21 launcher case: utility cmdlet absent.
+    # R100 must work with its own .NET hashing even in this environment.
+    function Get-FileHash {
+        throw 'R100_TEST_FAILED unavailable Get-FileHash called'
+    }
     $zip = Join-Path $root 'gradle-test-bin.zip'
     $script:r100Source = $source
     $script:r100AttemptCount = 0
@@ -31,7 +36,7 @@ try {
 
     Save-PinnedGradleDistribution -Uri 'https://unused.invalid/gradle.zip' -ZipPath $zip -ExpectedSha256 $sha -MaxAttempts 3 -Download $transient
     if ($script:r100AttemptCount -ne 2 -or
-        (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine $sha) {
+        (Get-R100StreamSha256 -Path $zip) -ine $sha) {
         throw 'R100_TEST_FAILED retry did not produce verified canonical ZIP'
     }
 
@@ -52,7 +57,7 @@ try {
     }
     Save-PinnedGradleDistribution -Uri 'https://unused.invalid/gradle.zip' -ZipPath $zip -ExpectedSha256 $sha -MaxAttempts 3 -Download $refetch
     if ($script:r100RefetchCount -ne 1 -or
-        (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine $sha) {
+        (Get-R100StreamSha256 -Path $zip) -ine $sha) {
         throw 'R100_TEST_FAILED corrupted cache reused or not recovered'
     }
 
@@ -108,6 +113,7 @@ try {
         'corruptedCacheRefetched=true ' +
         'wrongShaNeverPromoted=true ' +
         'failedAttemptsRemovePartialFiles=true ' +
+        'withoutGetFileHashCmdlet=true ' +
         'noNetworkOrRealCacheUsed=true'
     )
 }
