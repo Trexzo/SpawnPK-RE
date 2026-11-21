@@ -85,6 +85,191 @@ public final class R103OfflineOwnedPluginTaskRetirementTest {
     }
 
 
+    /** R104: a real repeating plugin task must be fenced every tick. */
+    static void runR104RepeatingForTest()throws Exception{
+        Path scratch=Files.createTempDirectory("spk-r104-repeat-");
+        try{
+            Fixture f=new Fixture(scratch.resolve("repeat-final"));
+            R90OfflineProducerContinuity.Session producer=f.initialize();
+            try(World world=World.isolatedForTest(
+                    90L,forbidRawSave(f.files()))){
+                WorldPlayer player=f.player();
+                long generation=world.registerPlayer(player,USER);
+                R93OfflineNonblockingWorldTurnoverGate ioGate=
+                    R93OfflineNonblockingWorldTurnoverGate
+                        .installFailureQuarantineForTest(world,producer);
+                R98OfflineFinalCaptureCommandFence ingress=
+                    new R98OfflineFinalCaptureCommandFence(world);
+                ingress.installForTest();
+                R99OfflineCrossQueueRetirementFence cross=
+                    new R99OfflineCrossQueueRetirementFence(world,ingress);
+                cross.installForTest();
+                world.events().installOfflineExplicitEventProvenanceForTest();
+
+                PluginCallbackScope pluginScope=new PluginCallbackScope(
+                    ()->world.pulse().inExecutionContext(),
+                    ()->!world.closed());
+                PluginTaskTracker plugin=pluginTrackerForTest(
+                    world,pluginScope);
+                try{
+                    world.start();
+                    AtomicInteger repeatRuns=new AtomicInteger();
+                    AtomicInteger cancelRuns=new AtomicInteger();
+                    PluginTask repeating=plugin.scheduleOwnedRepeatingForTest(
+                        1L,1L,player.id(),generation,()->{
+                            require(world.pulse().inExecutionContext()&&
+                                    Thread.holdsLock(player.mutationLock()),
+                                "R104 repeating plugin bypassed World owner");
+                            repeatRuns.incrementAndGet();
+                            try{spawn(player,560);}
+                            catch(IOException error){
+                                throw new IllegalStateException(error);
+                            }
+                        });
+                    PluginTask cancelled=plugin.scheduleOwnedRepeatingForTest(
+                        1L,1L,player.id(),generation,
+                        cancelRuns::incrementAndGet);
+                    long deadline=System.nanoTime()+
+                        TimeUnit.SECONDS.toNanos(12L);
+                    while(repeatRuns.get()<3||cancelRuns.get()<1){
+                        require(System.nanoTime()<deadline,
+                            "R104 healthy repeating plugin did not run "+
+                            repeatRuns.get()+"/"+cancelRuns.get());
+                        Thread.sleep(15L);
+                    }
+                    require(cancelled.cancel()&&!cancelled.active(),
+                        "R104 cancelled task handle stayed live");
+                    int cancelledAt=cancelRuns.get();
+                    long cancelledTick=world.clock().tick();
+                    while(world.clock().tick()<cancelledTick+3L){
+                        require(System.nanoTime()<deadline,
+                            "R104 cancel follow-up tick timeout");
+                        Thread.sleep(12L);
+                    }
+                    require(cancelRuns.get()==cancelledAt&&repeating.active(),
+                        "R104 cancellation affected wrong repeating task");
+
+                    // The actor command, not this thread, performs the
+                    // sticky final-quiescence transition and R72 capture.
+                    AtomicReference<WorldPlayerPersistence.CapturedSave>
+                        captured=new AtomicReference<>();
+                    AtomicInteger atCapture=new AtomicInteger(-1);
+                    java.util.concurrent.atomic.AtomicLong atTick=
+                        new java.util.concurrent.atomic.AtomicLong();
+                    world.submitAndWait(player,generation,()->{
+                        atCapture.set(repeatRuns.get());
+                        atTick.set(world.clock().tick());
+                        captured.set(
+                            ingress.quiesceAndCaptureFinalInsideActorForTest(
+                                player,generation,USER,0,
+                                "[r104] ","REPEATING_PLUGIN_FINAL"));
+                    },10_000L);
+                    require(captured.get()!=null&&
+                            captured.get().finalSnapshot&&
+                            ingress.quiescedForTest(player,generation)&&
+                            atCapture.get()>=3,
+                        "R104 World actor did not finalize valid repetition");
+
+                    expectScheduleDenied(
+                        ()->plugin.scheduleOwnedRepeatingForTest(
+                            1L,1L,player.id(),generation,
+                            repeatRuns::incrementAndGet),
+                        "R76_EVENT_QUIESCED before schedule");
+                    expectScheduleDenied(
+                        ()->plugin.scheduleOwnedRepeatingForTest(
+                            1L,1L,player.id(),generation+1L,
+                            repeatRuns::incrementAndGet),
+                        "R76_EVENT_QUIESCED before schedule");
+                    expectScheduleDenied(
+                        ()->plugin.scheduleRepeating(
+                            1L,1L,repeatRuns::incrementAndGet),
+                        "R101_UNTAGGED_EVENT_DENIED");
+
+                    WorldPlayerPersistence.CapturedSave finalSave=
+                        captured.get();
+                    WorldPlayerPersistence.SaveTicket ticket=
+                        world.persistence().submitCapturedWithBackpressure(
+                            finalSave,5_000L);
+                    ticket.completion.get(15L,TimeUnit.SECONDS);
+                    require(ticket.captureOrdinal==1L &&
+                            ticket.provenance!=null &&
+                            ticket.provenance.capturedOwner==player &&
+                            ticket.provenance.worldPlayerGeneration==generation &&
+                            f.producerHighwater()==1L,
+                        "R104 R89/R90 final snapshot ordinal not committed");
+
+                    // No extra callback may execute or reschedule past
+                    // the captured tick, and the handle must retire.
+                    long postTick=atTick.get()+4L;
+                    long drainDeadline=System.nanoTime()+
+                        TimeUnit.SECONDS.toNanos(10L);
+                    while(world.clock().tick()<postTick||
+                            repeating.active()||plugin.size()!=0||
+                            world.events().size()!=0){
+                        require(System.nanoTime()<drainDeadline,
+                            "R104 rejected recurring handle did not retire "+
+                            "tick="+world.clock().tick()+
+                            " active="+repeating.active()+
+                            " handles="+plugin.size()+
+                            " queued="+world.events().size());
+                        Thread.sleep(15L);
+                    }
+                    require(repeatRuns.get()==atCapture.get()&&
+                            cancelRuns.get()==cancelledAt&&
+                            !repeating.active()&&!cancelled.active()&&
+                            cross.deniedEventsForTest()>=3,
+                        "R104 stale repeating plugin mutated after capture");
+                    PlayerSnapshot persisted=f.files().load(USER).orElseThrow(
+                        ()->new IOException("R104 final account missing"));
+                    require(R57TradePairJournal.digest(persisted).equals(
+                            R57TradePairJournal.digest(ticket.snapshot)),
+                        "R104 final account differs after repeating denial");
+
+                    R96OfflineDurableRetirementWitness witness=f.witness(
+                        world,player,generation,1L,ioGate,ingress,producer);
+                    witness.prepareForTest();
+                    require(!world.unregisterPlayer(player,generation),
+                        "R104 R96 PREPARED allowed early unregister");
+                    witness.unregisterAndCommitForTest(false);
+                    R96OfflineDurableRetirementWitness.Review review=
+                        R96OfflineDurableRetirementWitness.inspectForTest(
+                            f.journal,f.accounts,f.generations,f.sessions,
+                            f.ready());
+                    require(review.status==
+                            R96OfflineDurableRetirementWitness.Status
+                                .COMMITTED_WITNESS_ONLY &&
+                            !review.loginAuthorized()&&
+                            !world.players().owns(player,generation)&&
+                            repeatRuns.get()==atCapture.get(),
+                        "R104 R96 retirement or post-commit counter failed");
+                    System.out.println(
+                        "R104_REPEATING_PLUGIN_WORLD_PASS "+
+                        "validRepeatsBeforeCapture="+atCapture.get()+" "+
+                        "cancelledRepeatingTaskStayedCancelled=true "+
+                        "R72TerminalCaptureOnWorldThread=true "+
+                        "R99RecurringQueueDispatchDeniedAfterCapture=true "+
+                        "retiredTaskHandleAndNoPhantomRequeue=true "+
+                        "R89R90ImmutableFinalSnapshotCommitted=true "+
+                        "R96CommittedRetirementWitness=true "+
+                        "noProductionPluginOrWorldWiring=true");
+                }finally{
+                    plugin.close();
+                    pluginScope.close();
+                }
+            }
+        }finally{
+            try(Stream<Path> walk=Files.walk(scratch)){
+                walk.sorted(Comparator.reverseOrder()).forEach(p->{
+                    try{Files.deleteIfExists(p);}
+                    catch(IOException error){
+                        throw new IllegalStateException(
+                            "R104 scratch cleanup "+p,error);
+                    }
+                });
+            }
+        }
+    }
+
     private static PluginTaskTracker pluginTrackerForTest(World world,
         PluginCallbackScope scope){
         scope.activate();
