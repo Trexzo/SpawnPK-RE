@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import spk.plugin.api.PluginTask;
 import spk.content.api.ContentPlayer;
+import spk.content.api.ContentItemOnPlayerContext;
 
 /**
  * R109 OFFLINE ONLY: explicit, trusted-fixture item-on-player permit is
@@ -39,6 +40,8 @@ public final class R109OfflineItemOnPlayerPermitTest {
             "R107UnmediatedCapturedReferenceBypassStillPresent=true "+
             "WRITERLESS_CONTENT_TARGET_ENERGY_BYPASS_CONFIRMED=true "+
             "WriterlessTargetGrantItemRefused=true "+
+            "LeasedItemOnPlayerTargetStillLacksActorOwnership=true "+
+            "LeasedTargetDeniedAfterLeaseEnd=true "+
             "trustedSyntheticAuthorizationNotRealClientIntent=true "+
             "noPublicPluginOrContentApiOrProductionWorldChange=true");
     }
@@ -316,22 +319,54 @@ public final class R109OfflineItemOnPlayerPermitTest {
                             Thread.holdsLock(source.mutationLock())&&
                             !Thread.holdsLock(target.mutationLock()),
                             "R109 writerless facade test lacks A-only lock");
-                        // The target facade's writerless item grant does
-                        // fail closed, but other public mutators do not.
+                        // Exercise the exact PluginCallbackScope
+                        // item-on-player lease wrapper, not merely the
+                        // raw writerless facade. This is a synthetic
+                        // ContentItemOnPlayerContext, NOT a real packet.
+                        ContentItemOnPlayerContext intent=
+                            new ContentItemOnPlayerContext(){
+                                @Override public int itemId(){return 560;}
+                                @Override public ContentPlayer target(){
+                                    return targetFacade;
+                                }
+                            };
+                        final ContentPlayer[] escapedLeased={null};
+                        f.scope.callUnchecked(null,lease->{
+                            ContentItemOnPlayerContext checked=
+                                f.scope.itemOnPlayerContext(intent,lease);
+                            ContentPlayer leasedTarget=checked.target();
+                            escapedLeased[0]=leasedTarget;
+                            // Writerless grant correctly fails closed.
+                            try{
+                                leasedTarget.grantItem(560,1);
+                                throw new AssertionError(
+                                    "R109 writerless facade granted item");
+                            }catch(UnsupportedOperationException expected){
+                                require(expected.getMessage()!=null&&
+                                    expected.getMessage().contains(
+                                        "item grant unavailable"),
+                                    "R109 wrong writerless grant refusal");
+                            }
+                            // But this existing LeasedPlayer only checks
+                            // lease usability, not B's World actor lock.
+                            leasedTarget.setRunEnergy(after);
+                            require(leasedTarget.runEnergy()==after&&
+                                target.movement().runEnergy()==after,
+                                "R109 leased ContentPlayer mutation missing");
+                            return null;
+                        });
+                        require(escapedLeased[0]!=null,
+                            "R109 leased target missing");
                         try{
-                            targetFacade.grantItem(560,1);
+                            escapedLeased[0].setRunEnergy(before);
                             throw new AssertionError(
-                                "R109 writerless facade granted item");
-                        }catch(UnsupportedOperationException expected){
+                                "R109 closed lease still usable");
+                        }catch(IllegalStateException expected){
                             require(expected.getMessage()!=null&&
                                 expected.getMessage().contains(
-                                    "item grant unavailable"),
-                                "R109 wrong writerless grant refusal");
+                                    "plugin callback lease closed"),
+                                "R109 unexpected closed lease failure");
                         }
-                        targetFacade.setRunEnergy(after);
-                        require(targetFacade.runEnergy()==after&&
-                            target.movement().runEnergy()==after,
-                            "R109 writerless ContentPlayer energy not changed");
                         observed.incrementAndGet();
                     }catch(Throwable error){
                         failure.compareAndSet(null,error);
@@ -355,6 +390,8 @@ public final class R109OfflineItemOnPlayerPermitTest {
                 "R109_WRITERLESS_CONTENT_TARGET_BYPASS_CONFIRMED "+
                 "targetSetRunEnergyWithoutTargetLock=true "+
                 "writerlessGrantItemRefused=true "+
+                "LeasedTargetMutatorAllowedDuringLease=true "+
+                "LeasedTargetRejectedAfterLeaseClosure=true "+
                 "noRealContentIntentAuthorizationProven=true "+
                 "notAPluginSandbox=true");
         }
