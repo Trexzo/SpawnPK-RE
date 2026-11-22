@@ -63,6 +63,21 @@ final class R107OfflinePluginOwnerCall {
                 "R107_PLUGIN_CROSS_ACTOR_MUTATION_DENIED");
     }
 
+    /**
+     * R108 OFFLINE TEST ONLY. Unlike the R107 compatibility check,
+     * a capability must be invoked by an actively tagged callback
+     * with EXACT World queue, EntityId and registration generation.
+     * No tagged callback means denial, never implicit authorization.
+     */
+    static void requireTaggedExactForTest(
+            WorldEventQueue queue,EntityId id,long generation){
+        Owner owner=CURRENT.get();
+        if(owner==null||owner.queue!=queue||
+                !owner.id.equals(id)||owner.generation!=generation)
+            throw new IllegalStateException(
+                "R108_CAPABILITY_CONTEXT_DENIED");
+    }
+
     static boolean activeForTest(){return CURRENT.get()!=null;}
 
     private R107OfflinePluginOwnerCall(){}
