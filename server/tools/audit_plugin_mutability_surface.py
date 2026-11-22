@@ -44,7 +44,7 @@ def interface_methods(source):
     # A declaration starts with an optional default modifier, ONE return
     # type and the method name. Never treat "throw new X(...)" as a method.
     return sorted(set(re.findall(
-        r"(?m)^[ \\t]*(?:default[ \\t]+)?[A-Za-z_][\\w<>?,]*[ \\t]+(\\w+)[ \\t]*\\(",
+        r"(?m)^[ \t]*(?:default[ \t]+)?[A-Za-z_][\w<>?,]*[ \t]+(\w+)[ \t]*\(",
         clean)))
 
 def assert_sources():
@@ -127,8 +127,8 @@ def self_test():
     assert not re.search(r"\bWorldPlayer\b",
                          mask_noncode('/* WorldPlayer */ String x="WorldPlayer";'))
     assert "UnsupportedOperationException" not in interface_methods(
-        "public interface X {\\n default String grantItem(){\\n"
-        " throw new UnsupportedOperationException(\\\"unsupported\\\");\\n }\\n }")
+        "public interface X {\n default String grantItem(){\n"
+        " throw new UnsupportedOperationException(\"unsupported\");\n }\n }")
     print("R108_PLUGIN_SURFACE_SELFTEST_PASS "
           "commentsAndLiteralsMasked=true getterInventory=true "
           "semanticMethodInventory=true noASTOrSandboxClaim=true")
