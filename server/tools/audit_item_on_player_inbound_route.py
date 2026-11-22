@@ -16,7 +16,7 @@ def source(name):
 
 
 def method_body(text, name):
-    token = re.search(r"\b(?:void|String|ContentInteractionResult)\s+"
+    token = re.search(r"\b(?:void|String|ContentInteractionResult|GenericInteractionEvent)\s+"
                       + re.escape(name) + r"\s*\(", text)
     if token is None:
         raise AssertionError("R110 source method missing: " + name)
