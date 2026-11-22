@@ -88,15 +88,21 @@ a permit. Final bank inventories verify precisely two intended grants
 
 **Writerless semantic target negative control:**
 A third isolated World puts an A-tagged plugin callback on the real
-WorldPulse holding A's mutation lock but not B's. It accesses the
+WorldPulse holding A's mutation lock but not B's. It creates the
 writerless `ContentRuntimeAdapters.player(B)` facade—the factory
-used by `ContentRegistry.dispatchItemOnPlayer`—and verifies:
-`grantItem` correctly refuses the operation without a writer,
-while `setRunEnergy` **does mutate B's movement state without
-B's mutation lock**. A's own run energy remains unchanged.
-This test uses the same facade implementation but does not register
-or execute an authenticated content item-on-player handler.
-It is a deliberate counterexample, not authorization evidence.
+used by `ContentRegistry.dispatchItemOnPlayer`—and passes it through
+the **actual `PluginCallbackScope.itemOnPlayerContext` and
+`LeasedPlayer` wrappers** using a synthetic content context.
+During the valid callback lease, `grantItem` correctly refuses
+the operation without a packet writer, while `setRunEnergy`
+**does mutate B's movement state without B's mutation lock**.
+After the nested lease closes, the retained `ContentPlayer`
+correctly refuses further mutation; lease expiry works, but does not
+imply authorization to mutate the target while the lease is valid.
+A's own run energy remains unchanged. This is a deliberately
+constructed offline context, **not** an authenticated
+item-on-player request or actual content handler dispatch.
+It is a counterexample, not authorization evidence.
 
 **Target generation and object replacement:**
 A remains registered while target B first unregisters and re-registers
