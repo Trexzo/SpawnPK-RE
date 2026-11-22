@@ -41,9 +41,10 @@ def get_raw_getters(source):
 
 def interface_methods(source):
     clean = mask_noncode(source)
-    # One return value + name + call start, possibly across newlines.
+    # A declaration starts with an optional default modifier, ONE return
+    # type and the method name. Never treat "throw new X(...)" as a method.
     return sorted(set(re.findall(
-        r"(?m)^\s*(?:default\s+)?[\w<>?, ]+?\s+(\w+)\s*\(",
+        r"(?m)^[ \\t]*(?:default[ \\t]+)?[A-Za-z_][\\w<>?,]*[ \\t]+(\\w+)[ \\t]*\\(",
         clean)))
 
 def assert_sources():
@@ -73,6 +74,8 @@ def assert_sources():
     assert expected_context.issubset(context_methods), "PluginContext changed"
     player = (CONTENT / "ContentPlayer.java").read_text(encoding="utf-8")
     methods = set(interface_methods(player))
+    assert "UnsupportedOperationException" not in methods, (
+        "constructor call wrongly classified as interface method")
     assert KNOWN_CONTENT_MUTATORS.issubset(methods), (
         "missing known ContentPlayer mutator(s): "
         + repr(sorted(KNOWN_CONTENT_MUTATORS - methods)))
@@ -123,6 +126,9 @@ def self_test():
         " // boolean fake()\n }") == ["grantItem", "skillLevel"]
     assert not re.search(r"\bWorldPlayer\b",
                          mask_noncode('/* WorldPlayer */ String x="WorldPlayer";'))
+    assert "UnsupportedOperationException" not in interface_methods(
+        "public interface X {\\n default String grantItem(){\\n"
+        " throw new UnsupportedOperationException(\\\"unsupported\\\");\\n }\\n }")
     print("R108_PLUGIN_SURFACE_SELFTEST_PASS "
           "commentsAndLiteralsMasked=true getterInventory=true "
           "semanticMethodInventory=true noASTOrSandboxClaim=true")
