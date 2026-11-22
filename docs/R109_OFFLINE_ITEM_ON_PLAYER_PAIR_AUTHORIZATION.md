@@ -14,6 +14,18 @@ constructs that context. The context **does not carry the source's
 receipt**. Such authority must not be inferred solely from possession of a
 target facade.
 
+The actual runtime adapter is more nuanced than the interface alone:
+`ContentRegistry.dispatchItemOnPlayer` creates
+`ContentRuntimeAdapters.player(target)` **without a packet writer**.
+The writerless adapter's `grantItem` (and certain other
+packet-dependent operations) throws `UnsupportedOperationException`.
+However, `setRunEnergy` delegates directly to
+`target.movement().setRunEnergy`, and other semantic mutators do not
+all require a writer or independently acquire the target's mutation
+lock. The source/target authorization problem is therefore observable
+on the **actual semantic facade type**, even though the test-only
+pair permit uses a synthetic item grant.
+
 R107 also proved that a Java callback with captured internal
 `WorldPlayer`/bank state can bypass even an owner-bound World helper.
 R108's owner-only single-player capability does not authorize intended
@@ -74,6 +86,18 @@ use a valid unspent A -> C permit. Outside-World callers cannot use
 a permit. Final bank inventories verify precisely two intended grants
 (A receives 565, B receives 560) and zero grants to C.
 
+**Writerless semantic target negative control:**
+A third isolated World puts an A-tagged plugin callback on the real
+WorldPulse holding A's mutation lock but not B's. It accesses the
+writerless `ContentRuntimeAdapters.player(B)` facade—the factory
+used by `ContentRegistry.dispatchItemOnPlayer`—and verifies:
+`grantItem` correctly refuses the operation without a writer,
+while `setRunEnergy` **does mutate B's movement state without
+B's mutation lock**. A's own run energy remains unchanged.
+This test uses the same facade implementation but does not register
+or execute an authenticated content item-on-player handler.
+It is a deliberate counterexample, not authorization evidence.
+
 **Target generation and object replacement:**
 A remains registered while target B first unregisters and re-registers
 as the same object with a higher generation. A's callback rejects the
@@ -101,9 +125,13 @@ through reflection, classloading or internal hooks. No real incoming
 packet, inventory slot/selected item validation, interaction range,
 combat/consent semantics, or authenticated session is covered.
 
-The next step toward a production design is to examine the actual
-item-on-player packet dispatch and `ContentRuntimeAdapters.player`
-implementation, define source-target authority per content event,
+The next step toward a production design is to trace the real
+item-on-player packet dispatcher and `ContentRuntimeAdapters.player`
+callers and author a lease-bound, dual-actor-checked target
+mutation facade. Its authorization must be based on the actual
+source/target intent (and, for item actions, validated selection/
+inventory provenance), not merely on being handed a writerless
+`ContentPlayer` object. This requires
 provide lease-bound target methods and verify both ownership and
 item provenance under the same World mutation transaction. Do not
 silently add mandatory restrictions to existing public content callback
