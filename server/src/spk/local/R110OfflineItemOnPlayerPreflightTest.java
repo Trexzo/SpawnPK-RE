@@ -65,8 +65,9 @@ public final class R110OfflineItemOnPlayerPreflightTest {
             Player81WorldSync.Context viewer=
                 Player81WorldSync.register(
                     sourceWriter,world,source,new DevAuthorityWorkbench());
-            Player81WorldSync.register(
-                targetWriter,world,target,new DevAuthorityWorkbench());
+            Player81WorldSync.Context targetView=
+                Player81WorldSync.register(
+                    targetWriter,world,target,new DevAuthorityWorkbench());
             try{
                 String spawn=source.bank().spawnItem(
                     560,1,sourceWriter);
@@ -78,8 +79,7 @@ public final class R110OfflineItemOnPlayerPreflightTest {
                 int beforeTarget=target.bank().inventoryCount(560);
                 int targetEnergy=target.movement().runEnergy();
                 Player81WorldSync.transformForTest(
-                    targetContext(targetWriter,world,target),
-                    BootstrapPackets.player81Idle());
+                    targetView,BootstrapPackets.player81Idle());
                 Player81WorldSync.transformForTest(
                     viewer,BootstrapPackets.player81Idle());
                 int index=viewer.clientIndexFor(target);
@@ -231,15 +231,6 @@ public final class R110OfflineItemOnPlayerPreflightTest {
                 Player81WorldSync.unregister(targetWriter);
             }
         }
-    }
-
-    private static Player81WorldSync.Context targetContext(
-            ServerPacketWriter targetWriter,World world,
-            WorldPlayer target){
-        // Registering again is safe for this isolated pre-pulse fixture,
-        // and matches the actual Player81WorldSync per-writer map.
-        return Player81WorldSync.register(
-            targetWriter,world,target,new DevAuthorityWorkbench());
     }
 
     private static byte[] opcode14(
