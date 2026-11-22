@@ -118,8 +118,9 @@ def self_test():
         "}\n")
     assert get_raw_getters(sample) == {"bank": "BankState"}
     assert interface_methods(
-        "public interface X { int skillLevel(); default String grantItem(\n"
-        " int id); // boolean fake()\n }") == ["grantItem", "skillLevel"]
+        "public interface X {\n int skillLevel();\n"
+        " default String grantItem(\n int id);\n"
+        " // boolean fake()\n }") == ["grantItem", "skillLevel"]
     assert not re.search(r"\bWorldPlayer\b",
                          mask_noncode('/* WorldPlayer */ String x="WorldPlayer";'))
     print("R108_PLUGIN_SURFACE_SELFTEST_PASS "
