@@ -223,6 +223,15 @@ final class World implements AutoCloseable {
         if(player==null||action==null)
             throw new NullPointerException();
 
+        // R107 OFFLINE ONLY: the R103/R104 tagged plugin callback
+        // may not switch to a different actor through this checked
+        // mutation helper. Generic public plugin callbacks have no
+        // such ThreadLocal marker and retain their existing behavior.
+        // Direct player.bank()/other state references are NOT guarded
+        // here and require separate capability refactoring.
+        R107OfflinePluginOwnerCall.requireCompatibleIfTagged(
+            events,player.id(),expectedGeneration);
+
         if(closed.get())
             return false;
 

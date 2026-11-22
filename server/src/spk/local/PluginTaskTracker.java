@@ -359,7 +359,12 @@ final class PluginTaskTracker
             callbackScope.callUnchecked(
                 callbackLoader,
                 lease->{
-                    action.run();
+                    if(task.actorOwnerId==null)
+                        action.run();
+                    else
+                        R107OfflinePluginOwnerCall.runTaggedForTest(
+                            queue,task.actorOwnerId,
+                            task.actorGeneration,action);
                     return null;
                 }
             );
