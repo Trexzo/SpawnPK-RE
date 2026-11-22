@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import spk.plugin.api.PluginTask;
+import spk.content.api.ContentPlayer;
 
 /**
  * R109 OFFLINE ONLY: explicit, trusted-fixture item-on-player permit is
@@ -21,6 +22,7 @@ public final class R109OfflineItemOnPlayerPermitTest {
         R108OfflineOwnerBankCapabilityTest.main(new String[0]);
         twoCurrentActorsAndExplicitNonplayerControl();
         targetGenerationAndObjectReplacement();
+        writerlessContentTargetMutationNegativeControl();
         System.out.println(
             "R109_OFFLINE_ITEM_ON_PLAYER_PAIR_PERMIT_PASS "+
             "R103ThroughR108RegressionInherited=true "+
@@ -35,6 +37,8 @@ public final class R109OfflineItemOnPlayerPermitTest {
             "replacementTargetObjectDeniedForOldPermit=true "+
             "newPairPermitSucceedsAfterReplacement=true "+
             "R107UnmediatedCapturedReferenceBypassStillPresent=true "+
+            "WRITERLESS_CONTENT_TARGET_ENERGY_BYPASS_CONFIRMED=true "+
+            "WriterlessTargetGrantItemRefused=true "+
             "trustedSyntheticAuthorizationNotRealClientIntent=true "+
             "noPublicPluginOrContentApiOrProductionWorldChange=true");
     }
@@ -276,6 +280,83 @@ public final class R109OfflineItemOnPlayerPermitTest {
                 "replacementTargetAuthorizedExplicitly=true "+
                 "sameUsernameNewActorNumericGenerationReused=true "+
                 "noStaleTargetMutation=true");
+        }
+    }
+
+    /**
+     * R109 deliberate NEGATIVE CONTROL. This is the same writer-free
+     * ContentRuntimeAdapters.player(target) facade created by the real
+     * ContentRegistry.dispatchItemOnPlayer path, but this fixture does
+     * not execute an authenticated item-on-player request or content
+     * handler registration. It demonstrates that ContentPlayer itself
+     * does not enforce a target actor lock for mutators that do not need
+     * a packet writer, even when an A-tagged plugin task runs correctly.
+     */
+    private static void writerlessContentTargetMutationNegativeControl()
+            throws Exception{
+        try(Fixture f=new Fixture(75L)){
+            WorldPlayer source=new WorldPlayer();
+            WorldPlayer target=new WorldPlayer();
+            long ga=f.world.registerPlayer(source,"r109-facade-a");
+            long gb=f.world.registerPlayer(target,"r109-facade-b");
+            require(f.world.players().owns(source,ga)&&
+                f.world.players().owns(target,gb),
+                "R109 semantic fixture players not registered");
+            ContentPlayer targetFacade=
+                ContentRuntimeAdapters.player(target);
+            int before=target.movement().runEnergy();
+            int sourceBefore=source.movement().runEnergy();
+            int after=before==37?43:37;
+            AtomicInteger observed=new AtomicInteger();
+            AtomicReference<Throwable> failure=new AtomicReference<>();
+            PluginTask tagged=f.plugin.scheduleOwnedForTest(
+                1L,source.id(),ga,()->{
+                    try{
+                        require(f.world.pulse().inExecutionContext()&&
+                            Thread.holdsLock(source.mutationLock())&&
+                            !Thread.holdsLock(target.mutationLock()),
+                            "R109 writerless facade test lacks A-only lock");
+                        // The target facade's writerless item grant does
+                        // fail closed, but other public mutators do not.
+                        try{
+                            targetFacade.grantItem(560,1);
+                            throw new AssertionError(
+                                "R109 writerless facade granted item");
+                        }catch(UnsupportedOperationException expected){
+                            require(expected.getMessage()!=null&&
+                                expected.getMessage().contains(
+                                    "item grant unavailable"),
+                                "R109 wrong writerless grant refusal");
+                        }
+                        targetFacade.setRunEnergy(after);
+                        require(targetFacade.runEnergy()==after&&
+                            target.movement().runEnergy()==after,
+                            "R109 writerless ContentPlayer energy not changed");
+                        observed.incrementAndGet();
+                    }catch(Throwable error){
+                        failure.compareAndSet(null,error);
+                        throw new IllegalStateException(
+                            "R109 semantic target negative control failed",
+                            error);
+                    }
+                });
+            f.world.start();
+            await(()->!tagged.active()&&f.plugin.size()==0&&
+                f.world.events().size()==0,
+                "R109 semantic target callback did not retire");
+            if(failure.get()!=null)
+                throw new AssertionError(
+                    "R109 semantic target test failed",failure.get());
+            require(observed.get()==1&&
+                target.movement().runEnergy()==after&&
+                source.movement().runEnergy()==sourceBefore,
+                "R109 semantic facade bypass or source isolation missing");
+            System.out.println(
+                "R109_WRITERLESS_CONTENT_TARGET_BYPASS_CONFIRMED "+
+                "targetSetRunEnergyWithoutTargetLock=true "+
+                "writerlessGrantItemRefused=true "+
+                "noRealContentIntentAuthorizationProven=true "+
+                "notAPluginSandbox=true");
         }
     }
 
