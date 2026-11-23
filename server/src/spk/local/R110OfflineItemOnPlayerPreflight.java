@@ -21,17 +21,19 @@ final class R110OfflineItemOnPlayerPreflight {
         final EntityId targetId;
         final long targetGeneration;
         final int selectedItem;
+        final int selectedQuantity;
         final int selectedSlot;
         final int viewerIndex;
         final int widget;
 
         private Review(WorldPlayer source,long sg,WorldPlayer target,
-                long tg,GenericInteractionEvent event){
+                long tg,GenericInteractionEvent event,int quantity){
             sourceId=source.id();
             sourceGeneration=sg;
             targetId=target.id();
             targetGeneration=tg;
             selectedItem=event.selectedItemId;
+            selectedQuantity=quantity;
             selectedSlot=event.selectedSlot;
             viewerIndex=event.targetId;
             widget=event.selectedWidget;
@@ -86,7 +88,7 @@ final class R110OfflineItemOnPlayerPreflight {
                         snapshot.itemId!=event.selectedItemId)
                     throw refused("selected item/slot provenance mismatch");
                 record[0]=new Review(source,sourceGeneration,
-                    target,targetGeneration,event);
+                    target,targetGeneration,event,snapshot.quantity);
             });
         if(!pair||record[0]==null)
             throw refused("stale source or target ownership");
