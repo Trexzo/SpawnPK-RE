@@ -81,5 +81,4 @@ final class R111OfflinePinnedItemOnPlayerIntent {
             "R111_QUEUED_ITEM_INTENT_DENIED "+reason);
     }
 
-    private R111OfflinePinnedItemOnPlayerIntent(){}
 }
