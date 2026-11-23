@@ -149,9 +149,11 @@ public final class R111OfflineQueuedItemOnPlayerIntentTest {
                 // no mutation epoch is carried by BankState's slot
                 // snapshot. An identical newly inserted item can pass
                 // a second snapshot check even though it was replaced.
-                require(source.bank().spawnItem(560,1,sourceWriter)
-                        .startsWith("ITEM_SPAWN_OK"),
-                    "R111 ABA restock fixture failed");
+                world.submitAndWait(source,sourceGeneration,()->{
+                    require(source.bank().spawnItem(560,1,sourceWriter)
+                            .startsWith("ITEM_SPAWN_OK"),
+                        "R111 ABA restock fixture failed");
+                },10_000L);
                 AtomicReference<R111OfflinePinnedItemOnPlayerIntent>
                     abaPin=new AtomicReference<>();
                 world.submitAndWait(source,sourceGeneration,()->{
