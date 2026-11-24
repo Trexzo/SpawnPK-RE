@@ -106,7 +106,7 @@ def audit():
         "R112 raw mutable Stack getter changed: review required")
     assert "System.arraycopy(" in source and "nextInventory" in source, (
         "R112 persistence account restore changed: review required")
-    assert "Stack[] xs;" in source and re.search(r"\\bxs\\s*=\\s*inventory\\s*;", source), (
+    assert "Stack[] xs;" in source and re.search(r"\bxs\s*=\s*inventory\s*;", source), (
         "R112 drag inventory alias changed: review required")
     assert "insertMove(xs," in source and "swap(xs," in source, (
         "R112 drag inventory writes changed: review required")
