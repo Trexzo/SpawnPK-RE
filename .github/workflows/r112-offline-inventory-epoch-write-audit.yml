@@ -1,0 +1,160 @@
+name: R112 Offline Inventory Epoch Write Audit
+
+on:
+  push:
+    branches:
+      - playability/r112-offline-inventory-epoch-write-audit-20261124
+  pull_request:
+    paths:
+      - server/src/spk/local/CombatOutcomeObserverGroup.java
+      - server/src/spk/local/R91OfflineWorldCaptureGate.java
+      - server/src/spk/local/R93OfflineNonblockingWorldTurnoverGate.java
+      - server/src/spk/local/R96OfflineDurableRetirementWitness.java
+      - server/src/spk/local/R96OfflineDurableRetirementWitnessTest.java
+      - server/src/spk/local/R98OfflineFinalCaptureCommandFence.java
+      - server/src/spk/local/R98OfflineFinalCaptureCommandFenceTest.java
+      - server/src/spk/local/R99OfflineCrossQueueRetirementFence.java
+      - server/src/spk/local/R99OfflineCrossQueueRetirementFenceTest.java
+      - server/src/spk/local/R101OfflineExplicitEventProvenanceTest.java
+      - server/src/spk/local/R103OfflineOwnedPluginTaskRetirementTest.java
+      - server/src/spk/local/R104OfflineRepeatingPluginRetirementTest.java
+      - server/src/spk/local/R105OfflinePluginGenerationRolloverTest.java
+      - server/src/spk/local/R106OfflinePluginActorReplacementTest.java
+      - server/src/spk/local/R107OfflinePluginCrossActorMutationTest.java
+      - server/src/spk/local/R108OfflineOwnerBankCapabilityTest.java
+      - server/src/spk/local/R109OfflineItemOnPlayerPermitTest.java
+      - server/src/spk/local/R110OfflineItemOnPlayerPreflightTest.java
+      - server/src/spk/local/R111OfflineQueuedItemOnPlayerIntentTest.java
+      - server/src/spk/local/R112OfflineInventoryEpochAuditTest.java
+      - server/src/spk/local/R112OfflineEpochPinnedItemOnPlayerIntent.java
+      - server/src/spk/local/BankState.java
+      - server/tools/audit_r112_inventory_epoch_write_surface.py
+      - server/src/spk/local/R111OfflinePinnedItemOnPlayerIntent.java
+      - server/src/spk/local/R110OfflineItemOnPlayerPreflight.java
+      - server/src/spk/local/GenericInteractionPacketDecoder.java
+      - server/src/spk/local/GenericInteractionEvent.java
+      - server/src/spk/local/LocalGenericInteractionHandler.java
+      - server/src/spk/local/LocalPendingRequestDispatcher.java
+      - server/src/spk/local/Player81WorldSync.java
+      - server/src/spk/local/BankState.java
+      - server/tools/audit_item_on_player_inbound_route.py
+      - server/src/spk/local/R109OfflineItemOnPlayerPermit.java
+      - server/src/spk/content/api/ContentItemOnPlayerContext.java
+      - server/src/spk/local/ContentRegistry.java
+      - server/src/spk/local/R108OfflineOwnerBankCapability.java
+      - server/tools/audit_plugin_mutability_surface.py
+      - server/src/spk/content/api/ContentPlayer.java
+      - server/src/spk/content/api/ContentItemOnPlayerContext.java
+      - server/src/spk/plugin/api/PluginContext.java
+      - server/src/spk/local/R107OfflinePluginOwnerCall.java
+      - server/src/spk/local/PluginTaskTracker.java
+      - server/src/spk/local/PlayerRegistry.java
+      - server/src/spk/local/WorldPlayer.java
+      - server/src/spk/local/PluginTaskTracker.java
+      - server/src/spk/local/WorldEventQueue.java
+      - server/src/spk/local/WorldEventQueue.java
+      - server/tools/audit_world_event_provenance.py
+      - server/src/spk/local/WorldRealtimeQueue.java
+      - server/src/spk/local/WorldEventQueue.java
+      - server/src/spk/local/WorldPulse.java
+      - server/src/spk/local/WorldCommandInbox.java
+      - server/src/spk/local/World.java
+      - server/src/spk/local/R91OfflineWorldCaptureProvenanceTest.java
+      - server/src/spk/local/R90OfflineProducerContinuity.java
+      - server/src/spk/local/R90OfflineProducerContinuityTest.java
+      - server/src/spk/local/WorldPlayerPersistence.java
+      - server/src/spk/local/R89OfflineDurableCaptureAdmission.java
+      - server/src/spk/local/R89OfflineDurableCaptureWatermarkTest.java
+      - server/src/spk/local/R88OfflineR64R71KilledSaveTest.java
+      - server/src/spk/local/R64OfflineSessionOwnership.java
+      - server/src/spk/local/R71OfflineOrderedPersistenceAdmission.java
+      - server/src/spk/local/R87OfflineKilledOwnerTakeoverTest.java
+      - server/src/spk/local/R86OfflineOwnerEpochRecord.java
+      - server/src/spk/local/R86OfflineOwnerEpochTakeoverTest.java
+      - server/src/spk/local/R85OfflineFencedCombatRecord.java
+      - server/src/spk/local/R85OfflineFencedCombatRecordTest.java
+      - server/src/spk/local/R84OfflineAtomicCombatRecord.java
+      - server/src/spk/local/R84OfflineAtomicCombatRecordTest.java
+      - server/src/spk/local/R83OfflineCombatCheckpointAudit.java
+      - server/src/spk/local/R83OfflineCombatCheckpointObserver.java
+      - server/src/spk/local/R83OfflineCombatCheckpointAuditTest.java
+      - server/src/spk/local/R81OfflineCombatOutcomeDeliveryGuard.java
+      - server/src/spk/local/R81OfflineCombatOutcomeReplayFence.java
+      - server/src/spk/local/R81OfflineCombatOutcomeReplayTest.java
+      - server/src/spk/local/CombatOutcomeObjectiveObserver.java
+      - server/src/spk/local/CombatOutcomeMatchObserver.java
+      - server/src/spk/local/CombatOutcomeCollectionLogObserver.java
+      - server/src/spk/local/R80OfflineCombatProjectionOwnershipFence.java
+      - server/src/spk/local/R80OfflineCombatProjectionFanoutTest.java
+      - .github/workflows/r112-offline-inventory-epoch-write-audit.yml
+
+jobs:
+  linux-projections:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and verify Java 11 bytecode
+        working-directory: server
+        run: bash ./gradlew --no-daemon jar testClasses verifyJava11Bytecode
+      - name: R108 lexical plugin mutability source audit
+        working-directory: server
+        run: |
+          python3 ./tools/audit_plugin_mutability_surface.py --self-test
+
+      - name: R110 exact-current inbound route source fence
+        working-directory: server
+        run: |
+          python3 ./tools/audit_item_on_player_inbound_route.py
+
+      - name: R112 inventory mutation source coverage guard
+        working-directory: server
+        run: python3 ./tools/audit_r112_inventory_epoch_write_surface.py
+
+      - name: R112 queued inventory epoch ABA and write surface audit
+        working-directory: server
+        run: |
+          java -cp 'build/SpawnPKLocalServer.jar:build/classes/java/test' spk.local.R112OfflineInventoryEpochAuditTest
+
+  windows-projections:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and verify Java 11 bytecode
+        shell: pwsh
+        working-directory: server
+        run: |
+          .\gradlew.bat --no-daemon jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: R108 lexical plugin mutability source audit
+        shell: pwsh
+        working-directory: server
+        run: |
+          & python ./tools/audit_plugin_mutability_surface.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: R110 exact-current inbound route source fence
+        shell: pwsh
+        working-directory: server
+        run: |
+          & python ./tools/audit_item_on_player_inbound_route.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: R112 inventory mutation source coverage guard
+        shell: pwsh
+        working-directory: server
+        run: |
+          & python ./tools/audit_r112_inventory_epoch_write_surface.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: R112 queued inventory epoch ABA and write surface audit
+        shell: pwsh
+        working-directory: server
+        run: |
+          $cp='build/SpawnPKLocalServer.jar;build/classes/java/test'
+          & java -cp $cp spk.local.R112OfflineInventoryEpochAuditTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
