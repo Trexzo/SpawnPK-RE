@@ -39,11 +39,19 @@ final class BankState {
         final int itemId;
         final int quantity;
 
+        /** Zero means the offline audit is NOT enabled. */
+        final long offlineMutationEpoch;
+
         InventorySlotSnapshot(int slot,boolean occupied,int itemId,int quantity){
+            this(slot,occupied,itemId,quantity,0L);
+        }
+
+        InventorySlotSnapshot(int slot,boolean occupied,int itemId,int quantity,long epoch){
             this.slot=slot;
             this.occupied=occupied;
             this.itemId=itemId;
             this.quantity=quantity;
+            this.offlineMutationEpoch=epoch;
         }
     }
 
@@ -77,6 +85,31 @@ final class BankState {
     private boolean open;
     private boolean placeholdersEnabled;
     private ItemContainerAction pendingX;
+
+    // R112 OPT-IN OFFLINE ONLY: conservative whole-inventory invalidation.
+    // A single known inventory mutator may affect multiple slots, including
+    // opaque bank/drag/equipment/restore paths. Incrementing on attempted
+    // calls intentionally permits false positives but denies same-ID/qty
+    // ABA across two covered mutator calls. This is NOT a complete proof
+    // against direct raw Stack reference writes outside guarded methods.
+    private boolean offlineInventoryEpochEnabled;
+    private long offlineInventoryEpoch;
+
+    void enableOfflineInventoryEpochForTest(){
+        if(offlineInventoryEpochEnabled)
+            throw new IllegalStateException(
+                "R112_INVENTORY_EPOCH_DENIED already enabled");
+        offlineInventoryEpochEnabled=true;
+        offlineInventoryEpoch=1L;
+    }
+
+    private void invalidateOfflineInventoryEpochIfEnabled(){
+        if(!offlineInventoryEpochEnabled)return;
+        if(offlineInventoryEpoch==Long.MAX_VALUE)
+            throw new IllegalStateException(
+                "R112_INVENTORY_EPOCH_DENIED exhausted");
+        offlineInventoryEpoch++;
+    }
 
     BankState() {
         // Synthetic LOCAL bank state only. Inventory intentionally starts empty.
@@ -143,6 +176,8 @@ final class BankState {
     }
 
     String depositInventory(ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if (!open) return "IGNORED_BANK_CLOSED";
         int moved=0;
         for (int i=0;i<inventory.length;i++) {
@@ -245,9 +280,11 @@ final class BankState {
             throw new IllegalArgumentException("inventory slot 0..27");
 
         Stack st=inventory[slot];
+        long epoch=offlineInventoryEpochEnabled
+            ?offlineInventoryEpoch:0L;
         return st==null
-            ?new InventorySlotSnapshot(slot,false,-1,0)
-            :new InventorySlotSnapshot(slot,true,st.itemId,st.qty);
+            ?new InventorySlotSnapshot(slot,false,-1,0,epoch)
+            :new InventorySlotSnapshot(slot,true,st.itemId,st.qty,epoch);
     }
 
     /**
@@ -261,6 +298,8 @@ final class BankState {
         int expectedItemId,
         int amount
     ){
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(!validSlot(inventory,slot))
             throw new IllegalArgumentException("inventory slot 0..27");
         if(expectedItemId<0)
@@ -304,6 +343,8 @@ final class BankState {
 
     /** Remove exactly one item from a concrete inventory slot (pet Drop path). */
     String consumeInventoryOne(int slot, int itemId, ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if (!validSlot(inventory,slot) || inventory[slot]==null) return "REJECTED_INVENTORY_SLOT";
         Stack st=inventory[slot];
         if (st.itemId!=itemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
@@ -322,6 +363,8 @@ final class BankState {
 
     /** Restore exactly one item to inventory (pet Pick-up path). Returns destination slot. */
     int addInventoryOne(int itemId, ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         int dst = isStackable(itemId) ? findItem(inventory,itemId) : -1;
         if (dst<0) dst=firstEmpty(inventory);
         if (dst<0) return -1;
@@ -339,6 +382,8 @@ final class BankState {
      * swap-like inventory behavior instead of compacting to the first empty slot.
      */
     int addInventoryOnePreferred(int itemId,int preferredSlot,ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         int dst=-1;
         if(validSlot(inventory,preferredSlot)){
             Stack at=inventory[preferredSlot];
@@ -358,6 +403,8 @@ final class BankState {
 
     /** Consume the entire concrete inventory stack. Used by ordinary ground Drop. */
     int consumeInventoryAll(int slot,int itemId,ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(!validSlot(inventory,slot)||inventory[slot]==null)return -1;
         Stack st=inventory[slot]; if(st.itemId!=itemId||st.qty<=0)return -1;
         int qty=st.qty; inventory[slot]=null; sendNormalInventory(w); if(open)sendContainers(w); return qty;
@@ -376,6 +423,8 @@ final class BankState {
 
     /** Add a positive amount atomically after canAddInventoryAmount preflight. Returns first destination slot or -1. */
     int addInventoryAmount(int itemId,int amount,ServerPacketWriter w)throws IOException{
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(!canAddInventoryAmount(itemId,amount))return -1;
         int first=-1;
         if(isStackable(itemId)){
@@ -390,6 +439,8 @@ final class BankState {
 
     /** Equip a native icon into the dedicated COSMETIC channel, never AMMO. */
     String equipCosmeticFromInventory(int slot,int itemId,CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(cosmetic==null)return "REJECTED_NO_COSMETIC_STATE";
         if(!ItemCatalog.isNativePlayerIcon(itemId))return "REJECTED_NOT_NATIVE_COSMETIC item="+itemId;
         if(!validSlot(inventory,slot)||inventory[slot]==null||inventory[slot].itemId!=itemId||inventory[slot].qty<=0)return "REJECTED_INVENTORY_MISMATCH";
@@ -410,6 +461,8 @@ final class BankState {
     }
 
     String unequipCosmeticToInventory(CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(cosmetic==null||!cosmetic.active())return "COSMETIC_NONE_ACTIVE";
         int old=cosmetic.itemId(); if(!canAddInventoryOne(old))return "REJECTED_INVENTORY_FULL";
         int dst=addInventoryOne(old,w); if(dst<0)return "REJECTED_INVENTORY_FULL"; cosmetic.clear();
@@ -418,6 +471,8 @@ final class BankState {
 
     /** Exact in-slot non-stackable transform used by native Switch-colors actions. */
     String transformInventoryOne(int slot,int expectedItemId,int replacementItemId,ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(!validSlot(inventory,slot) || inventory[slot]==null) return "REJECTED_INVENTORY_SLOT";
         Stack st=inventory[slot];
         if(st.itemId!=expectedItemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
@@ -449,6 +504,8 @@ final class BankState {
 
     /** Restore only inventory; never replace unrelated bank/UI state. */
     void restoreTradeInventory(Stack[] saved){
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(saved==null||saved.length!=inventory.length)
             throw new IllegalArgumentException("trade inventory checkpoint");
         for(int slot=0;slot<inventory.length;slot++){
@@ -464,6 +521,8 @@ final class BankState {
         Stack[] nextInventory,
         boolean placeholders
     ){
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(nextBank==null||
            nextBank.length!=BANK_CAPACITY)
             throw new IllegalArgumentException(
@@ -506,6 +565,8 @@ final class BankState {
      * an invalid giant stack.
      */
     String spawnItem(int itemId, int requested, ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         ItemCatalog.Meta meta=ItemDefinitionRepository.get(itemId);
         if (meta==null) return "REJECTED_UNKNOWN_ITEM id="+itemId;
         int amount=Math.max(1,Math.min(requested,1_000_000_000));
@@ -541,6 +602,8 @@ final class BankState {
      * occurs. A Wield/Wear action by itself is deliberately insufficient.
      */
     String equipFromInventory(int slot, int itemId, EquipmentState equipment, ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if (!validSlot(inventory, slot) || inventory[slot] == null) return "REJECTED_INVENTORY_SLOT";
         Stack clicked = inventory[slot];
         if (clicked.itemId != itemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+clicked.itemId;
@@ -626,6 +689,8 @@ final class BankState {
     }
 
     String unequipToInventory(int equipmentIndex, int itemId, EquipmentState equipment, ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         EquipmentSlot slot = EquipmentSlot.fromEquipmentIndex(equipmentIndex);
         if (slot == null) return "REJECTED_EQUIPMENT_SLOT index="+equipmentIndex;
         int current = equipment.itemAt(slot);
@@ -648,6 +713,8 @@ final class BankState {
 
     /** Dyed Doppel -> regular Doppel in-place plus a returned dye in another slot. */
     String splitInventoryOne(int slot,int expectedItemId,int primaryReplacement,int extraItem,ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(!validSlot(inventory,slot)||inventory[slot]==null)return "REJECTED_INVENTORY_SLOT";
         Stack st=inventory[slot];
         if(st.itemId!=expectedItemId)return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
@@ -666,6 +733,8 @@ final class BankState {
 
     /** Consume one dye and one regular pet and place the dyed pet in the regular-pet slot. */
     String combineInventoryOne(int slotA,int itemA,int slotB,int itemB,int resultItem,ServerPacketWriter w)throws IOException{
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if(slotA==slotB)return "REJECTED_COMBINE_SAME_SLOT";
         if(!validSlot(inventory,slotA)||!validSlot(inventory,slotB)||inventory[slotA]==null||inventory[slotB]==null)return "REJECTED_INVENTORY_SLOT";
         if(inventory[slotA].itemId!=itemA||inventory[slotB].itemId!=itemB)return "REJECTED_COMBINE_ITEM_MISMATCH";
@@ -703,6 +772,8 @@ final class BankState {
     }
 
     String applyDrag(ContainerDrag d, ServerPacketWriter w) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         // Opcode 214 is shared by the ordinary inventory (3214) and bank containers.
         // The old handler incorrectly required the bank to be open before even looking
         // at the widget id. That made a normal inventory drag look correct client-side
@@ -821,6 +892,8 @@ final class BankState {
     }
 
     private String withdrawAmount(ItemContainerAction a,int requested,ServerPacketWriter w,String label) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if (!validSlot(bank,a.slot) || bank[a.slot]==null) return "REJECTED_BANK_SLOT";
         Stack s=bank[a.slot];
         if (s.itemId!=a.itemId) return "REJECTED_BANK_ITEM_MISMATCH expected="+s.itemId;
@@ -854,6 +927,8 @@ final class BankState {
     }
 
     private String depositAmount(ItemContainerAction a,int requested,ServerPacketWriter w,String label) throws IOException {
+        // R112 test-only conservative invalidation, before any attempt.
+        invalidateOfflineInventoryEpochIfEnabled();
         if (!validSlot(inventory,a.slot) || inventory[a.slot]==null) return "REJECTED_INVENTORY_SLOT";
         Stack s=inventory[a.slot];
         if(s.itemId!=a.itemId)return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+s.itemId;
