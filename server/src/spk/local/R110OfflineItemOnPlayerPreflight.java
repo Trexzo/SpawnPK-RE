@@ -22,18 +22,22 @@ final class R110OfflineItemOnPlayerPreflight {
         final long targetGeneration;
         final int selectedItem;
         final int selectedQuantity;
+        // R112: zero denotes audit disabled. Not a production permit.
+        final long selectedMutationEpoch;
         final int selectedSlot;
         final int viewerIndex;
         final int widget;
 
         private Review(WorldPlayer source,long sg,WorldPlayer target,
-                long tg,GenericInteractionEvent event,int quantity){
+                long tg,GenericInteractionEvent event,int quantity,
+                long mutationEpoch){
             sourceId=source.id();
             sourceGeneration=sg;
             targetId=target.id();
             targetGeneration=tg;
             selectedItem=event.selectedItemId;
             selectedQuantity=quantity;
+            selectedMutationEpoch=mutationEpoch;
             selectedSlot=event.selectedSlot;
             viewerIndex=event.targetId;
             widget=event.selectedWidget;
@@ -88,7 +92,8 @@ final class R110OfflineItemOnPlayerPreflight {
                         snapshot.itemId!=event.selectedItemId)
                     throw refused("selected item/slot provenance mismatch");
                 record[0]=new Review(source,sourceGeneration,
-                    target,targetGeneration,event,snapshot.quantity);
+                    target,targetGeneration,event,snapshot.quantity,
+                    snapshot.offlineMutationEpoch);
             });
         if(!pair||record[0]==null)
             throw refused("stale source or target ownership");
