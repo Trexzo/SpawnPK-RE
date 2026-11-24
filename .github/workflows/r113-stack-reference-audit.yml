@@ -1,0 +1,19 @@
+name: R113 Stack Reference Audit
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.github/workflows/r113-stack-reference-audit.yml'
+jobs:
+  census:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python server/tools/audit_r113_stack_references.py
+      - run: python server/tools/audit_r112_inventory_epoch_write_surface.py
